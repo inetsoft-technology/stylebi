@@ -20,10 +20,11 @@ package inetsoft.mv.mr;
 import inetsoft.mv.MVExecutionException;
 import inetsoft.mv.fs.*;
 import inetsoft.mv.mr.internal.XJobStatus;
-import inetsoft.sree.SreeEnv;
 import inetsoft.util.GroupedThread;
 import inetsoft.util.TimedQueue;
 import inetsoft.mv.MVJob;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -38,26 +39,33 @@ import java.util.concurrent.locks.*;
  */
 public final class XJobPool extends GroupedThread {
    /**
-    * Add one map result to the associated job.
+    * Add one map result to the associated job. The organization id is unused -- job ids are
+    * unique per JVM and the pool is process-wide (see getPool()) -- and is retained only to
+    * keep the signature stable for callers.
+    *
     * @return true if the task is fulfilled.
     */
    public static boolean addResult(XMapResult result, String orgID) throws Exception {
-      return getPool(orgID).addResult0(result);
+      return getPool().addResult0(result);
    }
 
    /**
-    * Add one map failure to the associated job.
+    * Add one map failure to the associated job. The organization id is unused -- job ids are
+    * unique per JVM and the pool is process-wide (see getPool()) -- and is retained only to
+    * keep the signature stable for callers.
     */
    public static void addFailure(XMapFailure failure, String orgID) {
-      getPool(orgID).addFailure0(failure);
+      getPool().addFailure0(failure);
    }
 
    /**
-    * Execute one XJob.
+    * Execute one XJob. The organization id is unused: execute0() resolves the job's file
+    * system from the org carried by the job itself, and the pool is process-wide (see
+    * getPool()). It is retained only to keep the signature stable for callers.
     */
    public static Object execute(XJob job, String orgID) throws Exception {
       try {
-         return getPool(orgID).execute0(job);
+         return getPool().execute0(job);
       }
       catch(Exception ex) {
          throw new MVExecutionException(ex);
@@ -80,10 +88,10 @@ public final class XJobPool extends GroupedThread {
    }
 
    /**
-    * Cancel the job.
+    * Cancel the job. The organization id is unused; job ids are unique per JVM.
     */
    public static void cancel(String id, String orgID) {
-      XJobStatus status = getPool(orgID).smap.get(id);
+      XJobStatus status = getPool().smap.get(id);
 
       if(status != null) {
          status.cancel();
@@ -91,16 +99,21 @@ public final class XJobPool extends GroupedThread {
    }
 
    /**
-    * Get the job pool.
+    * Get the job pool. There is one pool, and one sanity check thread, per JVM: the pool
+    * performs no organization-specific work of its own, and its per-organization state (the
+    * file systems in fsystemOrgMap) is keyed by organization inside the single instance.
     */
-   private static final XJobPool getPool(String orgID) {
+   private static final XJobPool getPool() {
       if(pool == null) {
          plock.lock();
 
          try {
             if(pool == null) {
-               pool = new XJobPool(orgID);
-               pool.start(); // start sanity check thread
+               XJobPool jobPool = new XJobPool();
+               jobPool.start(); // start sanity check thread
+               // publish only after start(), so a thread taking the unsynchronized fast path
+               // above cannot observe a partially constructed pool
+               pool = jobPool;
             }
          }
          finally {
@@ -114,15 +127,8 @@ public final class XJobPool extends GroupedThread {
    /**
     * Create an instance of XJobPool.
     */
-   private XJobPool(String curOrg) {
+   private XJobPool() {
       super();
-
-      if(FSService.getServer(curOrg) == null) {
-         throw new RuntimeException("This host is not server node!");
-      }
-
-      String periodValue = SreeEnv.getProperty("fs.job.check.period");
-      period = periodValue != null ? Integer.parseInt(periodValue) : 500;
    }
 
    /**
@@ -297,7 +303,7 @@ public final class XJobPool extends GroupedThread {
 
          // sleep a while not to occupy too much resource
          try {
-            Thread.sleep(period);
+            Thread.sleep(getCheckPeriod());
          }
          catch(InterruptedException ex) {
             // ignore it
@@ -305,22 +311,47 @@ public final class XJobPool extends GroupedThread {
       }
    }
 
+   /**
+    * Get the sanity check interval. Read on every iteration so that a change to
+    * fs.job.check.period takes effect without a restart. The value is process-wide: this thread
+    * services the jobs of every organization.
+    */
+   private static int getCheckPeriod() {
+      try {
+         int period = FSService.getConfig().getJobCheckPeriod();
+         return period > 0 ? period : DEFAULT_CHECK_PERIOD;
+      }
+      catch(NumberFormatException ex) {
+         LOG.debug("Invalid fs.job.check.period, using {}", DEFAULT_CHECK_PERIOD, ex);
+         return DEFAULT_CHECK_PERIOD;
+      }
+   }
+
    private XFileSystem getOrgFSystem(String org) {
       plock.lock();
 
       try {
-         return fsystemOrgMap.computeIfAbsent(org, k -> FSService.getServer(k).getFSystem());
+         return fsystemOrgMap.computeIfAbsent(org, k -> {
+            XServerNode server = FSService.getServer(k);
+
+            if(server == null) {
+               throw new RuntimeException("This host is not server node!");
+            }
+
+            return server.getFSystem();
+         });
       }
       finally {
          plock.unlock();
       }
    }
 
+   private static final int DEFAULT_CHECK_PERIOD = 500;
    private static final Lock plock = new ReentrantLock();
-   private static XJobPool pool;
-   private final int period;
+   private static volatile XJobPool pool;
    private final Map<String, XFileSystem> fsystemOrgMap = new HashMap<>();
    private final Map<String, XJobStatus> smap = new HashMap<>();
    private final Lock lock = new ReentrantLock();
    private final Condition lockcnd = lock.newCondition();
+   private static final Logger LOG = LoggerFactory.getLogger(XJobPool.class);
 }
