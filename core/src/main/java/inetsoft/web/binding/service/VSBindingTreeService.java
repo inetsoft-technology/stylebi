@@ -82,7 +82,7 @@ public class VSBindingTreeService {
                assetTreeModel = treeHandler.getChartTreeModel(
                   engine.getAssetRepository(), rvs, (ChartVSAssemblyInfo) info, false, principal);
 
-               if(appendComponentTree) {
+               if(assetTreeModel != null && appendComponentTree) {
                   treeHandler.appendVSAssemblyTree(rvs, assetTreeModel, principal, assembly);
                }
             }

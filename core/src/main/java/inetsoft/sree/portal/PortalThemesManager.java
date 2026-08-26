@@ -564,7 +564,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
     * Must only be called by save(), which acquires the lock first.
     */
    private void saveUnderLock() {
-      String name = SreeEnv.getPath("portal.themes.file", "portalthemes.xml");
+      String name = getThemesFile();
       DataSpace space = dataSpace;
 
       try {
@@ -943,12 +943,32 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    /**
+    * Get the data space file that holds the portal themes. The name is resolved from the
+    * portal.themes.file property on first use and pinned for the lifetime of this manager.
+    * The load path, the save path and the change listener registration must all name the
+    * same file; if the property were re-read on each save, changing it on a running server
+    * would leave the loaded configuration coming from the old file while every subsequent
+    * save went to the new one, and would strand the change listener on the old file. A
+    * change to the property therefore takes effect on the next restart.
+    */
+   private String getThemesFile() {
+      String name = themesFile;
+
+      if(name == null) {
+         // a race here is benign, getPath() is deterministic
+         name = themesFile = SreeEnv.getPath("portal.themes.file", "portalthemes.xml");
+      }
+
+      return name;
+   }
+
+   /**
     * Build up the portal manager by parse a .xml file.
     */
    @PostConstruct
    public void loadThemes() {
       DataSpace space = dataSpace;
-      String name = SreeEnv.getPath("portal.themes.file", "portalthemes.xml");
+      String name = getThemesFile();
       boolean saveFile = false;
 
       try {
@@ -1068,6 +1088,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    private PortalWelcomePage welcomePage;
    private List<PortalTab> portalTabs = new ArrayList<>();
    private String copyright;
+   private volatile String themesFile;
    private final DataChangeListenerManager dmgr = new DataChangeListenerManager();
 
    private static final Logger LOG = LoggerFactory.getLogger(PortalThemesManager.class);

@@ -54,6 +54,19 @@ body {
   color: var(--inet-em-light-primary-text);
 }
 
+// The active tab label and its underline otherwise take the primary palette
+// color, which is a dark gray that is illegible against the dark theme's
+// dark background
+.mat-mdc-tab-nav-bar,
+.mat-mdc-tab-group {
+  --mat-tab-active-label-text-color: var(--inet-em-light-primary-text);
+  --mat-tab-active-focus-label-text-color: var(--inet-em-light-primary-text);
+  --mat-tab-active-hover-label-text-color: var(--inet-em-light-primary-text);
+  --mat-tab-active-indicator-color: var(--inet-em-light-primary-text);
+  --mat-tab-active-focus-indicator-color: var(--inet-em-light-primary-text);
+  --mat-tab-active-hover-indicator-color: var(--inet-em-light-primary-text);
+}
+
 .mat-mdc-progress-bar .mdc-linear-progress__buffer-bar {
     background-color: dimgray;
 }

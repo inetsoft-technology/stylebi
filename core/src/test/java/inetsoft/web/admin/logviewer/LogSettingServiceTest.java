@@ -35,8 +35,15 @@ package inetsoft.web.admin.logviewer;
  * [G3] A shared key with no surrounding whitespace is stored unchanged, so the trim
  *      cannot damage a key that was already correct.
  * [G4] A blank shared key clears the property rather than storing an encrypted blank.
- * [G5] The shared key is the only Fluentd field that is encrypted; its neighbours are
- *      trimmed but stored as plain text.
+ * [G5] Both credentials are encrypted; the non-secret fields are trimmed but stored as
+ *      plain text. The password used to be stored in clear text even though the read
+ *      already ran it through decryptPassword, which left it readable on the enterprise
+ *      Settings > Properties page (PropertiesController only filters the log.fluentd.*
+ *      family on community builds).
+ * [G6] The read decrypts both credentials, so the write and the Logging page agree. The
+ *      runtime read in ForwardService.getClient has to decrypt the same way; it used to
+ *      call plain SreeEnv.getProperty and digest the ciphertext, which no Logging-page
+ *      input could make authenticate (see enterprise ForwardServiceTest).
  */
 
 import inetsoft.sree.SreeEnv;
@@ -53,12 +60,14 @@ import org.mockito.MockedStatic;
 
 import java.security.Principal;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @Tag("core")
 class LogSettingServiceTest {
    private static final String SHARED_KEY_PROPERTY = "log.fluentd.security.sharedKey";
+   private static final String PASSWORD_PROPERTY = "log.fluentd.security.password";
 
    private LogSettingService service;
    private Principal principal;
@@ -136,20 +145,52 @@ class LogSettingServiceTest {
       saveSharedKey("   ");
 
       sreeEnvStatic.verify(() -> SreeEnv.setProperty(SHARED_KEY_PROPERTY, null));
-      toolStatic.verify(() -> Tool.encryptPassword(anyString()), never());
+      // scoped to the blank value: the password on the same model is a non-blank
+      // credential and is legitimately encrypted
+      toolStatic.verify(
+         () -> Tool.encryptPassword(argThat(value -> value == null || value.isBlank())),
+         never());
    }
 
-   // [G5] the neighbouring fields are trimmed but not encrypted
+   // [G5] both credentials are encrypted; the non-secret fields are only trimmed
    @Test
-   void otherFluentdFieldsAreTrimmedAndNotEncrypted() {
+   void credentialsAreEncryptedAndOtherFieldsAreOnlyTrimmed() {
       service.setConfiguration(model(fluentdSettings("secret-key")), principal);
 
+      sreeEnvStatic.verify(
+         () -> SreeEnv.setProperty("log.fluentd.security.password", "ENC:logger-pw"));
       sreeEnvStatic.verify(() -> SreeEnv.setProperty("log.fluentd.host", "fluentd.example.com"));
       sreeEnvStatic.verify(() -> SreeEnv.setProperty("log.fluentd.security.username", "logger"));
-      sreeEnvStatic.verify(() -> SreeEnv.setProperty("log.fluentd.security.password", "logger-pw"));
       sreeEnvStatic.verify(
          () -> SreeEnv.setProperty("log.fluentd.tls.caCertificateFile", "/certs/ca.pem"));
-      toolStatic.verify(() -> Tool.encryptPassword(anyString()), times(1));
+      toolStatic.verify(() -> Tool.encryptPassword(anyString()), times(2));
+   }
+
+   // [G6] the Logging page shows the decrypted credentials, so the write and this read
+   // agree; ForwardService must decrypt the same way (see enterprise ForwardServiceTest)
+   @Test
+   void credentialsAreDecryptedWhenRead() {
+      toolStatic.when(() -> Tool.decryptPassword(anyString()))
+         .thenAnswer(invocation -> {
+            String stored = invocation.getArgument(0);
+            return stored.startsWith("ENC:") ? stored.substring(4) : stored;
+         });
+      sreeEnvStatic.when(() -> SreeEnv.getProperty(anyString(), anyString()))
+         .thenAnswer(invocation -> invocation.getArgument(1));
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("log.provider")).thenReturn("fluentd");
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("log.detail.level")).thenReturn("INFO");
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("report.log.max")).thenReturn("1000000");
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("report.log.count")).thenReturn("1");
+      sreeEnvStatic.when(() -> SreeEnv.getProperty(SHARED_KEY_PROPERTY))
+         .thenReturn("ENC:secret-key");
+      sreeEnvStatic.when(() -> SreeEnv.getProperty(PASSWORD_PROPERTY))
+         .thenReturn("ENC:logger-pw");
+
+      LogSettingsModel model = service.getConfiguration();
+
+      assertNotNull(model);
+      assertEquals("secret-key", model.fluentdSettings().sharedKey());
+      assertEquals("logger-pw", model.fluentdSettings().password());
    }
 
    private void saveSharedKey(String sharedKey) {

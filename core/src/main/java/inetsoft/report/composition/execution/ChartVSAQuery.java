@@ -71,7 +71,8 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
          return assembly;
       }
 
-      return assembly = (VSAssembly) super.getAssembly().clone();
+      VSAssembly base = super.getAssembly();
+      return assembly = base == null ? null : (VSAssembly) base.clone();
    }
 
    /**
