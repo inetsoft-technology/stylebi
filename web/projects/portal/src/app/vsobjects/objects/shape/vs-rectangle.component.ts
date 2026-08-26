@@ -19,6 +19,7 @@ import { Component, Input, NgZone, OnChanges, SimpleChanges } from "@angular/cor
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { ContextProvider } from "../../context-provider.service";
+import { ShapeShadowUtil } from "../../../common/util/shape-shadow-util";
 import { VSRectangleModel } from "../../model/vs-rectangle-model";
 import { VSShape } from "./vs-shape";
 import { DataTipService } from "../data-tip/data-tip.service";
@@ -42,6 +43,7 @@ import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
 export class VSRectangle extends VSShape<VSRectangleModel> implements OnChanges {
    @Input() selected: boolean = false;
    roundCornerValue: number;
+   shadowCss: string;
 
    constructor(protected viewsheetClientService: ViewsheetClientService,
                protected modalService: NgbModal,
@@ -57,6 +59,8 @@ export class VSRectangle extends VSShape<VSRectangleModel> implements OnChanges 
          this.updateLineStyle();
          this.roundCornerValue = Math.min(this.model.roundCornerValue,
             this.model.objectFormat.width, this.model.objectFormat.height);
+         this.shadowCss = this.model.shadow
+            ? ShapeShadowUtil.getBoxShadow(this.model.shadowInfo) : null;
       }
    }
 }

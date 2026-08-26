@@ -18,6 +18,7 @@
 package inetsoft.report.gui.viewsheet;
 
 import inetsoft.sree.portal.PortalThemesManager;
+import inetsoft.uql.viewsheet.ShapeShadow;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 
 import java.awt.*;
@@ -121,6 +122,76 @@ public class VSFaceUtil {
       g.drawImage(shadow, 0, 0, null);
       g.drawImage(img, 0, 0, null);
       g.dispose();
+
+      return out;
+   }
+
+   /**
+    * Add a configurable drop shadow to the image.
+    *
+    * Unlike {@link #addShadow(BufferedImage, int)}, which always casts a fixed
+    * gray shadow down and to the right, this honours the shape's configured
+    * color, opacity, direction, distance and blur. The offset and the blur are
+    * independent here.
+    *
+    * @param img the shape image, at its natural size.
+    * @param shadow the shadow settings.
+    * @param insets how far the shadow extends past each side of the shape, as
+    *               returned by ShapeShadowUtil.getShadowInsets. The shape is
+    *               drawn at (insets.left, insets.top) in the returned image.
+    * @return a new image large enough to hold both the shape and its shadow.
+    */
+   public static BufferedImage addShadow(BufferedImage img, ShapeShadow shadow,
+                                         Insets insets)
+   {
+      if(shadow == null || insets == null) {
+         return img;
+      }
+
+      int w = img.getWidth();
+      int h = img.getHeight();
+      int outW = w + insets.left + insets.right;
+      int outH = h + insets.top + insets.bottom;
+
+      if(outW <= 0 || outH <= 0) {
+         return img;
+      }
+
+      // tint the shape's alpha channel with the shadow color, positioned where
+      // the shadow falls, then blur that layer on its own so the blur can
+      // spread into the margins without softening the shape itself
+      BufferedImage layer = new BufferedImage(outW, outH, BufferedImage.TYPE_INT_ARGB);
+      Graphics2D g2 = layer.createGraphics();
+
+      try {
+         g2.drawImage(img, insets.left + shadow.getOffsetX(),
+                      insets.top + shadow.getOffsetY(), null);
+         g2.setComposite(AlphaComposite.SrcIn);
+         g2.setColor(shadow.getShadowColor());
+         g2.fillRect(0, 0, outW, outH);
+      }
+      finally {
+         g2.dispose();
+      }
+
+      int blur = shadow.getBlurRadius();
+
+      // getGaussianBlurFilter requires a radius of at least 1
+      if(blur >= 1) {
+         layer = getGaussianBlurFilter(blur, true).filter(layer, null);
+         layer = getGaussianBlurFilter(blur, false).filter(layer, null);
+      }
+
+      BufferedImage out = new BufferedImage(outW, outH, BufferedImage.TYPE_INT_ARGB);
+      Graphics2D g3 = out.createGraphics();
+
+      try {
+         g3.drawImage(layer, 0, 0, null);
+         g3.drawImage(img, insets.left, insets.top, null);
+      }
+      finally {
+         g3.dispose();
+      }
 
       return out;
    }

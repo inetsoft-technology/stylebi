@@ -516,6 +516,10 @@ public class SVGVSExporter extends AbstractVSExporter {
                bounds.getWidth() + 1, bounds.getHeight() + 1);
          }
 
+         // a shape's shadow can fall outside the assembly's own bounds; a
+         // no-op for everything else
+         bounds = ShapeShadowUtil.expandForShadow(bounds, info, helper.getScale());
+
          helper.drawImage(getImage(assembly), bounds);
       }
    }

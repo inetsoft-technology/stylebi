@@ -1109,7 +1109,8 @@ export namespace TestUtils {
          color: "#55555",
          lineStyle: StyleConstants.THIN_LINE,
          locked: false,
-         shadow: false
+         shadow: false,
+         shadowInfo: { color: "#000000", alpha: 30, direction: "SE", distance: 5, blur: 6 }
       }, createMockVSObjectModel("VSLine", name));
    }
 
@@ -1121,7 +1122,8 @@ export namespace TestUtils {
          roundCornerValue: 0,
          locked: false,
          lineStyle: StyleConstants.THIN_LINE,
-         shadow: false
+         shadow: false,
+         shadowInfo: { color: "#000000", alpha: 30, direction: "SE", distance: 5, blur: 6 }
       }, createMockVSObjectModel("VSRectangle", name));
    }
 
@@ -1132,7 +1134,8 @@ export namespace TestUtils {
       return Object.assign({
          locked: false,
          lineStyle: StyleConstants.THIN_LINE,
-         shadow: false
+         shadow: false,
+         shadowInfo: { color: "#000000", alpha: 30, direction: "SE", distance: 5, blur: 6 }
       }, createMockVSObjectModel("VSOval", name));
    }
 
