@@ -37,6 +37,7 @@ package inetsoft.web.portal.service;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.IdentityInfoRecord;
 import inetsoft.web.admin.security.AuthenticationProviderService;
@@ -53,6 +54,7 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.security.Principal;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -525,6 +527,59 @@ class UserSignupServiceTest {
             assertFalse(postedBeforeAdd.get(), "sendUserData ran before the user was persisted");
             assertNotSame(Thread.currentThread(), postThread.get(),
                           "sendUserData ran on the calling (request) thread");
+         }
+      }
+
+      @Test
+      void createUser_propagatesOrgContextToNotificationThread() throws Exception {
+         EditableAuthenticationProvider editProvider = mock(EditableAuthenticationProvider.class);
+         CountDownLatch posted = new CountDownLatch(1);
+         AtomicReference<String> postOrgId = new AtomicReference<>();
+         AtomicReference<Principal> postPrincipal = new AtomicReference<>();
+         Principal caller = mock(Principal.class);
+         when(caller.getName()).thenReturn(DEFAULT_ORG_USER.convertToKey());
+
+         when(authenticationProviderService.getAuthenticationChain())
+            .thenReturn(Optional.of(authenticationChain));
+         when(authenticationChain.getProviders()).thenReturn(List.of(editProvider));
+         when(editProvider.getRoles()).thenReturn(new IdentityID[0]);
+
+         try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+             MockedStatic<Audit> auditMock = Mockito.mockStatic(Audit.class);
+             MockedConstruction<SRPrincipal> ignored = Mockito.mockConstruction(SRPrincipal.class);
+             MockedConstruction<PostSignUpUserData> ignored2 = Mockito.mockConstruction(
+                PostSignUpUserData.class,
+                (postUserData, context) -> doAnswer(invocation -> {
+                   postOrgId.set(OrganizationContextHolder.getCurrentOrgId());
+                   postPrincipal.set(ThreadContext.getContextPrincipal());
+                   posted.countDown();
+                   return null;
+                }).when(postUserData).sendUserData()))
+         {
+            sutilMock.when(() -> SUtil.getIdentityInfoRecord(
+                  any(IdentityID.class), anyInt(), anyString(), any(), anyString()))
+               .thenReturn(mock(IdentityInfoRecord.class));
+            auditMock.when(Audit::getInstance).thenReturn(mock(Audit.class));
+
+            // the notification reads the org-scoped selfSignUpPost.* properties, so the worker
+            // thread must see the caller's principal and org id
+            OrganizationContextHolder.setCurrentOrgId(DEFAULT_ORG_USER.getOrgID());
+            ThreadContext.setContextPrincipal(caller);
+
+            try {
+               userSignupService.createUser(
+                  DEFAULT_ORG_USER, null, SIGNUP_EMAIL, true, GOOGLE_USER_ID, null);
+            }
+            finally {
+               ThreadContext.setContextPrincipal(null);
+               OrganizationContextHolder.clear();
+            }
+
+            assertTrue(posted.await(10, TimeUnit.SECONDS), "sendUserData was never dispatched");
+            assertEquals(DEFAULT_ORG_USER.getOrgID(), postOrgId.get(),
+                         "org id was not propagated to the notification thread");
+            assertSame(caller, postPrincipal.get(),
+                       "principal was not propagated to the notification thread");
          }
       }
 

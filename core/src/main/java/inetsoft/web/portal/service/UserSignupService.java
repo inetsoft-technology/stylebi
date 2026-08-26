@@ -269,8 +269,16 @@ public class UserSignupService {
       editProvider.addUser(identity);
 
       // notify the external system only after the account exists, and off the request thread
-      // so an unresponsive endpoint cannot delay or block sign-up
-      ThreadPool.addOnDemand(postUserData::sendUserData);
+      // so an unresponsive endpoint cannot delay or block sign-up. A ContextRunnable is used so
+      // that ThreadPool copies the calling thread's principal and org id onto the worker thread;
+      // sendUserData() reads the selfSignUpPost.* properties through the org-scoped
+      // SreeEnv.getProperty(name), which would otherwise miss any per-org override.
+      ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+         @Override
+         public void run() {
+            postUserData.sendUserData();
+         }
+      });
 
       IdentityInfoRecord identityInfoRecord = SUtil.getIdentityInfoRecord(identity.getIdentityID(),
          identity.getType(), IdentityInfoRecord.ACTION_TYPE_CREATE, null,
