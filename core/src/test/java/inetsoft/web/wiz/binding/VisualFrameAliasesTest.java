@@ -830,4 +830,28 @@ class VisualFrameAliasesTest {
 
       assertEquals(true, VisualFrameAliases.describe(frame).get("colorValueFrame"));
    }
+
+   /**
+    * The precondition is satisfied by switching the checkbox ON, because that is what replaces the
+    * thing a palette would otherwise have to supply. An explicit {@code false} says "read the
+    * palette", which leaves the frame with no palette to read — the same half-specified shape the
+    * check exists to refuse, arriving through a key that looks like it answers it.
+    */
+   @Test
+   void refusesAnExplicitlyFalseColorValueFrameStandingInForAPalette() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> VisualFrameAliases.create("color", spec("type", "categorical",
+                                                                 "colorValueFrame", false)));
+   }
+
+   @Test
+   void acceptsAnExplicitlyFalseColorValueFrameAlongsideAPalette() {
+      CategoricalColorModel frame = assertInstanceOf(
+         CategoricalColorModel.class,
+         VisualFrameAliases.create("color", spec("type", "categorical",
+                                                 "colors", java.util.List.of("#fff"),
+                                                 "colorValueFrame", false)));
+
+      assertFalse(frame.isColorValueFrame());
+   }
 }
