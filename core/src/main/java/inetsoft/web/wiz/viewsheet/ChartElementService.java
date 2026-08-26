@@ -273,17 +273,7 @@ public class ChartElementService {
             return result;
          }
 
-         VGraphPair pair;
-
-         box.lockRead();
-
-         try {
-            pair = box.getVGraphPair(chart.getAbsoluteName());
-         }
-         finally {
-            box.unlockRead();
-         }
-
+         VGraphPair pair = vgraphPair(box, chart);
          VGraph real = pair == null ? null : pair.getRealSizeVGraph();
 
          if(real == null) {
@@ -389,6 +379,15 @@ public class ChartElementService {
       sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          VSChartInfo info = chart.getVSChartInfo();
+
+         // No chart info means neither bound exists to check against - no baseline and no
+         // maximum - so the ratio falls through to the blunt 0 < ratio <= MAX_PLOT_RATIO guard
+         // rather than being refused for bounds that cannot be computed, the same stance this
+         // method takes for a chart with no laid-out graph.
+         if(info == null) {
+            return null;
+         }
+
          // VSChartPlotResizeService applies one ratio to BOTH directions for these, dividing it by
          // each direction's own initial ratio - so both bounds have to hold. Checking only the
          // direction the caller named would let half of such a write through inert.
@@ -433,17 +432,30 @@ public class ChartElementService {
          return null;
       }
 
-      VGraphPair pair;
+      VGraphPair pair = vgraphPair(box, chart);
+
+      return pair == null ? null : pair.getRealSizeVGraph();
+   }
+
+   /**
+    * The chart's graph pair, read under the sandbox's read lock.
+    *
+    * <p>One copy of the lock/unlock dance for the two callers that need it: {@link #readPlotSize},
+    * which turns each of the three ways this can come back empty into its own
+    * {@code geometryUnavailable} message, and {@link #laidOutGraph}, which only needs to know
+    * whether there is a graph to measure.
+    */
+   private static VGraphPair vgraphPair(ViewsheetSandbox box, ChartVSAssembly chart)
+      throws Exception
+   {
       box.lockRead();
 
       try {
-         pair = box.getVGraphPair(chart.getAbsoluteName());
+         return box.getVGraphPair(chart.getAbsoluteName());
       }
       finally {
          box.unlockRead();
       }
-
-      return pair == null ? null : pair.getRealSizeVGraph();
    }
 
    /** Below the baseline the write is accepted and inert, which is worse than a refusal. */

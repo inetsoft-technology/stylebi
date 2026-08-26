@@ -325,15 +325,15 @@ class ChartElementServiceTest {
 
    @Test
    void resizesThePlotVertically() throws Exception {
-      Harness h = harness(mock(ChartVSAssembly.class));
+      Harness h = harness(resizableChart(1, 1));
 
-      h.service.resizePlot("tok", principal(), "Chart1", 0.6, true, false, "");
+      h.service.resizePlot("tok", principal(), "Chart1", 2d, true, false, "");
 
       ArgumentCaptor<VSChartPlotResizeEvent> captor =
          ArgumentCaptor.forClass(VSChartPlotResizeEvent.class);
       verify(h.plot).eventHandler(eq("rt1"), captor.capture(), anyString(),
                                   any(Principal.class), any());
-      assertEquals(0.6, captor.getValue().getSizeRatio());
+      assertEquals(2d, captor.getValue().getSizeRatio());
       assertTrue(captor.getValue().isHeightResized());
       assertFalse(captor.getValue().isReset());
    }
@@ -364,7 +364,7 @@ class ChartElementServiceTest {
     */
    @Test
    void acceptsARatioAboveOneBecauseThatIsTheRangeThatDoesAnything() throws Exception {
-      Harness h = harness(mock(ChartVSAssembly.class));
+      Harness h = harness(resizableChart(1, 1));
 
       h.service.resizePlot("tok", principal(), "Chart1", 1.5, true, false, "");
 
@@ -373,6 +373,69 @@ class ChartElementServiceTest {
       verify(h.plot).eventHandler(eq("rt1"), captor.capture(), anyString(),
                                   any(Principal.class), any());
       assertEquals(1.5, captor.getValue().getSizeRatio());
+   }
+
+   /**
+    * The lower bound. Below the chart's own baseline the write is stored and inert -
+    * {@code VGraphPair} re-derives the ratio only while {@code ratio / initialRatio} is at least
+    * 1 - so it is refused rather than answered with a success that changes nothing.
+    */
+   @Test
+   void refusesARatioBelowTheChartsOwnBaseline() throws Exception {
+      Harness h = harness(resizableChart(2.75, 2.75));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.resizePlot("tok", principal(), "Chart1", 2d, true, false, ""));
+
+      assertTrue(thrown.getMessage().contains("2.75"), "the refusal has to name the bound");
+      assertTrue(thrown.getMessage().contains("reset"), "and the way to make the plot smaller");
+      verifyNoInteractions(h.plot);
+      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void acceptsARatioExactlyAtTheBaseline() throws Exception {
+      Harness h = harness(resizableChart(2.75, 2.75));
+
+      h.service.resizePlot("tok", principal(), "Chart1", 2.75, true, false, "");
+
+      verify(h.plot).eventHandler(eq("rt1"), any(VSChartPlotResizeEvent.class), anyString(),
+                                  any(Principal.class), any());
+   }
+
+   /**
+    * {@code VSChartPlotResizeService} applies one ratio to <em>both</em> directions on a circular
+    * chart, dividing it by each direction's own baseline, so both bounds have to hold. Checking
+    * only the direction the caller named would let half of such a write through inert.
+    */
+   @Test
+   void checksBothBaselinesOnAChartThatResizesSquare() {
+      ChartVSAssembly circular = resizableChart(3, 1);
+      when(circular.getVSChartInfo().getChartType()).thenReturn(GraphTypes.CHART_CIRCULAR);
+      Harness h = harness(circular);
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.resizePlot("tok", principal(), "Chart1", 2d, true, false, ""));
+
+      assertTrue(thrown.getMessage().contains("width"),
+                 "a vertical resize on a square chart is still bounded by the width baseline");
+   }
+
+   /**
+    * A chart with no info has neither baseline nor maximum to check against, so the range check
+    * has nothing to say and must stand aside rather than throw on the way to reading a bound that
+    * does not exist.
+    */
+   @Test
+   void aChartWithNoInfoIsLeftToTheBluntGuard() throws Exception {
+      Harness h = harness(mock(ChartVSAssembly.class));
+
+      h.service.resizePlot("tok", principal(), "Chart1", 2d, true, false, "");
+
+      verify(h.plot).eventHandler(eq("rt1"), any(VSChartPlotResizeEvent.class), anyString(),
+                                  any(Principal.class), any());
    }
 
    @Test
@@ -619,6 +682,17 @@ class ChartElementServiceTest {
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.getUnitHeightRatio()).thenReturn(heightRatio);
       when(info.isHeightResized()).thenReturn(heightResized);
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(info);
+      return assembly;
+   }
+
+   /** A chart whose plot-resize baselines are the minimums the Composer's slider is drawn with. */
+   private static ChartVSAssembly resizableChart(double initialWidth, double initialHeight) {
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getInitialWidthRatio()).thenReturn(initialWidth);
+      when(info.getInitialHeightRatio()).thenReturn(initialHeight);
+      when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
       ChartVSAssembly assembly = mock(ChartVSAssembly.class);
       when(assembly.getVSChartInfo()).thenReturn(info);
       return assembly;
