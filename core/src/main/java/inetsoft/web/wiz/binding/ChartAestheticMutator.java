@@ -732,33 +732,6 @@ public final class ChartAestheticMutator {
    }
 
    /**
-    * Refuses a non-static colour frame about to be broadcast to the measures — i.e. a colour frame
-    * on a channel with no field bound, on a chart that renders colour per measure.
-    *
-    * <p>In exactly that configuration {@code VSFrameVisitor.createFrame} takes its
-    * {@code supportsFieldFrame()} branch and calls {@code GraphUtil.fixDuplicateColor}, which casts
-    * every aggregate's colour frame wrapper straight to {@code StaticColorFrameWrapper} with no
-    * {@code instanceof} in front of it. Anything else there is a {@code ClassCastException} at
-    * paint time — not a wrong colour, the whole chart stops rendering, and it stays that way
-    * because the bad frame is now stored on the measures. {@code set_visual_frame} still answered
-    * ok, and so did the {@code clear_aesthetic_field} and {@code set_aesthetic_field} calls that
-    * came after it; only the image was gone.
-    *
-    * <p>The cast is safe for the Composer because the Composer cannot produce the state:
-    * {@code color-field-mc.getEditPaneId()} opens {@code CategoricalColor}/{@code LinearColor}
-    * only when a field is bound, and falls back to {@code CombinedColor}/{@code StaticColor} —
-    * both static — when one is not. This is that same rule, enforced on the path that could
-    * otherwise reach the cast.
-    *
-    * <p>Checked here, at the aggregate broadcast, rather than for every field-less colour frame,
-    * because this is the write whose result the cast reads. The other two destinations cannot
-    * reach it: a {@code MergedChartInfo} chart (candle, stock, radar, relation, map) answers false
-    * for colour, so {@code createFrame} reads {@code getGeneralFrame()} and never enters that
-    * branch — a chart-level gradient there is legitimate — and a chart with no measure renders no
-    * colour frame at all. Node channels never reach the broadcast either; relation node colour
-    * renders through {@code GraphGenerator}'s own node path.
-    */
-   /**
     * Refuses a frame whose kind the channel's bound field cannot drive.
     *
     * <p>{@code color-field-mc}/{@code shape-field-mc}{@code .getEditPaneId()} pick the editor from
@@ -885,6 +858,33 @@ public final class ChartAestheticMutator {
       return diverges ? byMeasure : null;
    }
 
+   /**
+    * Refuses a non-static colour frame about to be broadcast to the measures — i.e. a colour frame
+    * on a channel with no field bound, on a chart that renders colour per measure.
+    *
+    * <p>In exactly that configuration {@code VSFrameVisitor.createFrame} takes its
+    * {@code supportsFieldFrame()} branch and calls {@code GraphUtil.fixDuplicateColor}, which casts
+    * every aggregate's colour frame wrapper straight to {@code StaticColorFrameWrapper} with no
+    * {@code instanceof} in front of it. Anything else there is a {@code ClassCastException} at
+    * paint time — not a wrong colour, the whole chart stops rendering, and it stays that way
+    * because the bad frame is now stored on the measures. {@code set_visual_frame} still answered
+    * ok, and so did the {@code clear_aesthetic_field} and {@code set_aesthetic_field} calls that
+    * came after it; only the image was gone.
+    *
+    * <p>The cast is safe for the Composer because the Composer cannot produce the state:
+    * {@code color-field-mc.getEditPaneId()} opens {@code CategoricalColor}/{@code LinearColor}
+    * only when a field is bound, and falls back to {@code CombinedColor}/{@code StaticColor} —
+    * both static — when one is not. This is that same rule, enforced on the path that could
+    * otherwise reach the cast.
+    *
+    * <p>Checked here, at the aggregate broadcast, rather than for every field-less colour frame,
+    * because this is the write whose result the cast reads. The other two destinations cannot
+    * reach it: a {@code MergedChartInfo} chart (candle, stock, radar, relation, map) answers false
+    * for colour, so {@code createFrame} reads {@code getGeneralFrame()} and never enters that
+    * branch — a chart-level gradient there is legitimate — and a chart with no measure renders no
+    * colour frame at all. Node channels never reach the broadcast either; relation node colour
+    * renders through {@code GraphGenerator}'s own node path.
+    */
    private static void requireStaticColorOnMeasures(String channel, VisualFrameModel frame) {
       if(!"color".equals(channel) || frame instanceof StaticColorModel) {
          return;
