@@ -61,7 +61,7 @@ public class SheetPairingService {
     */
    private static final List<String> RECOGNIZED_KINDS = List.of(
       "viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick", "calcField",
-      "worksheetExpression", "worksheetCondition");
+      "worksheetExpression", "worksheetCondition", "worksheetConditionValue");
 
    /**
     * The two assembly-scoped script kinds (as opposed to viewsheetOnInit/viewsheetOnLoad, which
@@ -268,7 +268,7 @@ public class SheetPairingService {
     * and can be told; an agent hitting it later cannot get back to them.
     */
    private static final List<String> WORKSHEET_COLUMN_KINDS =
-      List.of("worksheetExpression", "worksheetCondition");
+      List.of("worksheetExpression", "worksheetCondition", "worksheetConditionValue");
 
    /**
     * Verifies a {@code worksheetExpression}/{@code worksheetCondition} context names a column

@@ -413,6 +413,60 @@ class SheetPairingServiceTest {
    }
 
    /**
+    * worksheetConditionValue -- the narrower "edit a single condition value, not the whole
+    * condition" kind -- must be recognized and validated exactly like worksheetCondition: any
+    * column, not expression columns only.
+    */
+   @Test
+   void mintsAWorksheetConditionValueContextWhoseColumnExists() throws PairingException {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      Worksheet ws = mock(Worksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(ws.getAssembly("Query1")).thenReturn(tableWithColumn("Amount"));
+      SheetPairingService svc = serviceWithWorksheetRuntime(rws);
+      EditorContext ctx = new EditorContext("worksheetConditionValue", "Query1", "Amount", null);
+
+      String code = svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx);
+
+      assertEquals(ctx, svc.peek(code).editorContext());
+   }
+
+   /** Same (table, field) rule as worksheetCondition/worksheetExpression. */
+   @Test
+   void refusesAWorksheetConditionValueContextThatCarriesNoName() {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      Worksheet ws = mock(Worksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(ws.getAssembly("Query1")).thenReturn(tableWithColumn("Amount"));
+      SheetPairingService svc = serviceWithWorksheetRuntime(rws);
+      EditorContext ctx = new EditorContext("worksheetConditionValue", "Query1", null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx));
+
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+      assertTrue(ex.getMessage().contains("'name'"), ex.getMessage());
+   }
+
+   /** The name must be VERIFIED, not merely present, same as worksheetCondition. */
+   @Test
+   void refusesAWorksheetConditionValueContextNamingAColumnTheTableDoesNotHave() {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      Worksheet ws = mock(Worksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(ws.getAssembly("Query1")).thenReturn(tableWithColumn("Amount"));
+      SheetPairingService svc = serviceWithWorksheetRuntime(rws);
+      EditorContext ctx = new EditorContext("worksheetConditionValue", "Query1", "NoSuchColumn", null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx));
+
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+      assertTrue(ex.getMessage().contains("NoSuchColumn"),
+                 "message must name what was asked for: " + ex.getMessage());
+   }
+
+   /**
     * A REAL {@link TableAssembly} holding exactly one EXPRESSION column named {@code name}.
     *
     * <p>Real domain objects, not mocks, for two reasons: {@code TableAssembly.getColumnSelection}
