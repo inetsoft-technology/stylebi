@@ -83,8 +83,7 @@ public class OvalPropertyDialogService {
       basicGeneralPaneModel.setName(ovalAssemblyInfo.getAbsoluteName());
       basicGeneralPaneModel.setVisible(ovalAssemblyInfo.getVisibleValue());
       basicGeneralPaneModel.setPrimary(ovalAssemblyInfo.isPrimary());
-      basicGeneralPaneModel.setShowShadowCheckbox(true);
-      basicGeneralPaneModel.setShadow(ovalAssemblyInfo.getShadowValue());
+      basicGeneralPaneModel.setShowShadowCheckbox(false);
       basicGeneralPaneModel.setObjectNames(this.vsObjectPropertyService.getObjectNames(
          vs, ovalAssemblyInfo.getAbsoluteName()));
 
@@ -131,6 +130,15 @@ public class OvalPropertyDialogService {
          fillPropPaneModel.setGradientColor(gradientColor);
       }
 
+      ShadowPropPaneModel shadowPropPaneModel = ovalPropertyPaneModel.getShadowPropPaneModel();
+      ShapeShadow shadow0 = ovalAssemblyInfo.getShadowInfo();
+      shadowPropPaneModel.setApply(ovalAssemblyInfo.getShadowValue());
+      shadowPropPaneModel.setColor(shadow0.getColor());
+      shadowPropPaneModel.setAlpha(shadow0.getAlpha());
+      shadowPropPaneModel.setDirection(shadow0.getDirection());
+      shadowPropPaneModel.setDistance(shadow0.getDistance());
+      shadowPropPaneModel.setBlur(shadow0.getBlur());
+
       vsAssemblyScriptPaneModel.scriptEnabled(ovalAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(ovalAssemblyInfo.getScript() == null ?
                                               "" : ovalAssemblyInfo.getScript());
@@ -171,7 +179,15 @@ public class OvalPropertyDialogService {
 
       ovalAssemblyInfo.setPrimary(basicGeneralPaneModel.isPrimary());
       ovalAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
-      ovalAssemblyInfo.setShadowValue(basicGeneralPaneModel.isShadow());
+      ShadowPropPaneModel shadowPropPaneModel = ovalPropertyPaneModel.getShadowPropPaneModel();
+      ovalAssemblyInfo.setShadowValue(shadowPropPaneModel.isApply());
+      ShapeShadow shadow0 = new ShapeShadow();
+      shadow0.setColor(shadowPropPaneModel.getColor());
+      shadow0.setAlpha(shadowPropPaneModel.getAlpha());
+      shadow0.setDirection(shadowPropPaneModel.getDirection());
+      shadow0.setDistance(shadowPropPaneModel.getDistance());
+      shadow0.setBlur(shadowPropPaneModel.getBlur());
+      ovalAssemblyInfo.setShadowInfo(shadow0);
 
       dialogService.setAssemblySize(ovalAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(ovalAssemblyInfo, sizePositionPaneModel);

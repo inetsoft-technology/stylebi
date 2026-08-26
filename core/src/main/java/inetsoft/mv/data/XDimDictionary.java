@@ -116,6 +116,21 @@ public class XDimDictionary extends XSwappable implements Cloneable {
    }
 
    /**
+    * Check if the dimension value overflows, forcing the delayed read first.
+    *
+    * <p>{@link #read} defers everything but size/hashCode/dataType, and the overflow flag is
+    * only assigned by {@code read0()}. {@link #isOverflow()} therefore reports a stale
+    * {@code false} for a dictionary that has been loaded from storage but not yet accessed.
+    * Callers that must get a truthful answer on a cold dictionary use this instead; it costs a
+    * full read of the dictionary, so it is not for hot paths. Dictionaries built in memory are
+    * already valid, making this a no-op for them.
+    */
+   public boolean checkOverflow() {
+      validate();
+      return overflow;
+   }
+
+   /**
     * Mark this dictionary as overflow.
     */
    public void setOverflow(boolean overflow) {
