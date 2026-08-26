@@ -333,7 +333,6 @@ final class ChartRegionResolver {
     * reports the field on the <b>shape</b> channel, while a line chart renders that legend as
     * <b>Line</b> — so a caller who read the aesthetics and said "shape" was naming this legend
     * correctly and being refused for it.
-    *
     */
    private static String channelFamily(String channel) {
       String name = channel == null ? "" : channel.trim().toLowerCase();
