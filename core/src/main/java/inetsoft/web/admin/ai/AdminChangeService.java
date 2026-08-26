@@ -28,6 +28,8 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class AdminChangeService {
@@ -41,8 +43,38 @@ public class AdminChangeService {
       requireNonBlank("property", req.getProperty());
       requireValidAction(req.getAction());
 
+      FaultInjectionProbe probe = FaultInjectionProbe.match(req);
+
+      // Placed BEFORE the try block below, deliberately: a throw here propagates all the way out
+      // of applyChange, the same as the (currently unreachable through any real call) unanticipated
+      // exception AdminChangesetApplyService.apply's own catch(Exception e) exists to handle. See
+      // docs/teams/2026-08-26-a1-fault-injection/01-design.md - this is a test-only hook, inert
+      // unless both FaultInjectionProbe gates hold, neither of which any real request can satisfy.
+      if(probe != null && probe.throwsFault()) {
+         throw new AdminChangeFaultInjectedException(req.getProperty(), req.getAction());
+      }
+
       AdminChangeResult result = new AdminChangeResult();
       result.setProperty(req.getProperty());
+
+      if(probe != null) {
+         // A "soft" fault: applyChange returns normally with status FAILED, exactly like a real
+         // failure that never touched SreeEnv would - never a thrown exception. Unlike the throw
+         // above, this never touches SreeEnv and is audited through the same writeAudit call the
+         // real failure path below uses, so it is provably inert against server state.
+         result.setStatus(AdminChangeRecord.STATUS_FAILED);
+         result.setError("fault injection: forced failure for " + req.getProperty());
+
+         try {
+            writeAudit(req, principal, null, null, result.getStatus(), result.getError());
+         }
+         catch(Exception auditFailure) {
+            LOG.error("Failed to write admin change audit record for transaction {}",
+                      req.getTransactionId(), auditFailure);
+         }
+
+         return result;
+      }
 
       // Unlike PropertiesController.editProperty (which treats a "" value as "keep the
       // current value"), admin-chat treats "" as an explicit set-to-empty; reset-to-default is
@@ -232,6 +264,86 @@ public class AdminChangeService {
       Audit.getInstance().auditAdminChange(record, principal);
    }
 
+   /**
+    * Test-only fault injection, matched against every {@code applyChange} call. Both gates below
+    * must hold, and neither is settable by any HTTP request, so this is inert in any real
+    * deployment:
+    *
+    * <ul>
+    *   <li>the JVM system property {@link #FAULT_INJECTION_ENABLED_PROPERTY}, read fresh on every
+    *       call and settable only by a {@code -D} flag at server start; and</li>
+    *   <li>a property name matching {@link #FAULT_INJECTION_PATTERN} -
+    *       {@code test.faultinjection.<apply|rollback>.<throw|fail>.<label>} - a namespace that
+    *       does not collide with any real StyleBI property.</li>
+    * </ul>
+    *
+    * <p>The pattern is matched against the property name AFTER {@link AdminPropertyName#parse}
+    * lowercases it (every real caller reaches this method with an already-resolved,
+    * already-lowercased {@code PlanChange.property()} - see {@code AdminPropertyCatalog.resolve}
+    * and {@code AdminChangePlanService.resolve}), so the reserved namespace is spelled all
+    * lower-case; {@link #FAULT_INJECTION_PATTERN} is compiled case-insensitively as well so a test
+    * calling {@link #applyChange} directly, before that normalization, still matches.</p>
+    *
+    * <p>Exists to exercise {@code AdminChangesetApplyService}'s compensating-transaction paths
+    * ({@code rolled-back}, {@code rollback-failed}) against this REAL class, not a mock - see
+    * {@code docs/teams/2026-08-26-a1-fault-injection/01-design.md} in the stylebi-wiz repo for the
+    * full design and the exact request sequences that exercise each outcome.
+    */
+   private static final class FaultInjectionProbe {
+      private FaultInjectionProbe(boolean throwsFault) {
+         this.throwsFault = throwsFault;
+      }
+
+      /** {@code true} for a {@code throw}-mode probe, {@code false} for a {@code fail}-mode one. */
+      boolean throwsFault() {
+         return throwsFault;
+      }
+
+      /** @return a matching probe for this request, or {@code null} if either gate does not hold. */
+      static FaultInjectionProbe match(AdminChangeRequest req) {
+         if(!Boolean.getBoolean(FAULT_INJECTION_ENABLED_PROPERTY)) {
+            return null;
+         }
+
+         String property = req.getProperty();
+         Matcher m = property == null ? null : FAULT_INJECTION_PATTERN.matcher(property);
+
+         if(m == null || !m.matches()) {
+            return null;
+         }
+
+         // Firing only on the matching action lets one probe apply completely normally and fail
+         // only on its rollback (or vice versa) - required to exercise a rollback-failed scenario
+         // where the item that fails to roll back is not the same item whose apply triggered the
+         // rollback in the first place. See 01-design.md §2.3, scenario 3.
+         String targetAction = "apply".equals(m.group(1))
+            ? AdminChangeRecord.ACTION_APPLY : AdminChangeRecord.ACTION_ROLLBACK;
+
+         if(!targetAction.equals(req.getAction())) {
+            return null;
+         }
+
+         return new FaultInjectionProbe("throw".equals(m.group(2)));
+      }
+
+      private final boolean throwsFault;
+   }
+
+   /**
+    * Thrown only by {@link FaultInjectionProbe} in {@code throw} mode. Never thrown in a real
+    * deployment - see that class's javadoc for the two gates that must both hold first.
+    */
+   public static final class AdminChangeFaultInjectedException extends RuntimeException {
+      public AdminChangeFaultInjectedException(String property, String action) {
+         super("fault injection: forced throw for " + property + " (" + action + ")");
+      }
+   }
+
+   private static final String FAULT_INJECTION_ENABLED_PROPERTY =
+      "inetsoft.admin.ai.faultInjection.enabled";
+   private static final Pattern FAULT_INJECTION_PATTERN = Pattern.compile(
+      "^test\\.faultinjection\\.(apply|rollback)\\.(throw|fail)\\.[a-zA-Z0-9-]+$",
+      Pattern.CASE_INSENSITIVE);
    private static final Logger LOG = LoggerFactory.getLogger(AdminChangeService.class);
    private final PropertyChangeSideEffects sideEffects;
 }
