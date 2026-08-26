@@ -22,6 +22,7 @@ import inetsoft.sree.internal.Mailer;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
+import inetsoft.util.ThreadPool;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.IdentityInfoRecord;
@@ -259,7 +260,6 @@ public class UserSignupService {
       String cookies = principal != null ? principal.getProperty("SignupCookies") : null;
 
       PostSignUpUserData postUserData = new PostSignUpUserData(email, names[0], names[1], cookies);
-      postUserData.sendUserData();
 
       if(!names[0].contains("@")) {
          //alias cannot be email because no special characters
@@ -267,6 +267,10 @@ public class UserSignupService {
       }
 
       editProvider.addUser(identity);
+
+      // notify the external system only after the account exists, and off the request thread
+      // so an unresponsive endpoint cannot delay or block sign-up
+      ThreadPool.addOnDemand(postUserData::sendUserData);
 
       IdentityInfoRecord identityInfoRecord = SUtil.getIdentityInfoRecord(identity.getIdentityID(),
          identity.getType(), IdentityInfoRecord.ACTION_TYPE_CREATE, null,

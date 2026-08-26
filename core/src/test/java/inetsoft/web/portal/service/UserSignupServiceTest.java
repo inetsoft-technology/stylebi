@@ -56,6 +56,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -456,7 +460,9 @@ class UserSignupServiceTest {
 
          try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
              MockedStatic<Audit> auditMock = Mockito.mockStatic(Audit.class);
-             MockedConstruction<SRPrincipal> ignored = Mockito.mockConstruction(SRPrincipal.class))
+             MockedConstruction<SRPrincipal> ignored = Mockito.mockConstruction(SRPrincipal.class);
+             MockedConstruction<PostSignUpUserData> postData =
+                Mockito.mockConstruction(PostSignUpUserData.class))
          {
             sutilMock.when(() -> SUtil.getIdentityInfoRecord(
                   any(IdentityID.class), anyInt(), anyString(), any(), anyString()))
@@ -473,6 +479,52 @@ class UserSignupServiceTest {
             assertEquals(GOOGLE_USER_ID, created.getGoogleSSOId());
             verify(editProvider).addUser(any(FSUser.class));
             verify(audit).auditIdentityInfo(any(), any());
+            // await the dispatched notification so no pool work escapes the mock scope
+            verify(postData.constructed().get(0), timeout(10000)).sendUserData();
+         }
+      }
+
+      @Test
+      void createUser_postsUserDataOffRequestThreadAfterPersist() throws Exception {
+         EditableAuthenticationProvider editProvider = mock(EditableAuthenticationProvider.class);
+         CountDownLatch posted = new CountDownLatch(1);
+         AtomicBoolean postedBeforeAdd = new AtomicBoolean(false);
+         AtomicReference<Thread> postThread = new AtomicReference<>();
+
+         when(authenticationProviderService.getAuthenticationChain())
+            .thenReturn(Optional.of(authenticationChain));
+         when(authenticationChain.getProviders()).thenReturn(List.of(editProvider));
+         when(editProvider.getRoles()).thenReturn(new IdentityID[0]);
+
+         try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+             MockedStatic<Audit> auditMock = Mockito.mockStatic(Audit.class);
+             MockedConstruction<SRPrincipal> ignored = Mockito.mockConstruction(SRPrincipal.class);
+             MockedConstruction<PostSignUpUserData> ignored2 = Mockito.mockConstruction(
+                PostSignUpUserData.class,
+                (postUserData, context) -> doAnswer(invocation -> {
+                   postThread.set(Thread.currentThread());
+                   posted.countDown();
+                   return null;
+                }).when(postUserData).sendUserData()))
+         {
+            sutilMock.when(() -> SUtil.getIdentityInfoRecord(
+                  any(IdentityID.class), anyInt(), anyString(), any(), anyString()))
+               .thenReturn(mock(IdentityInfoRecord.class));
+            auditMock.when(Audit::getInstance).thenReturn(mock(Audit.class));
+
+            // record whether the POST had already fired at the moment the user was persisted
+            doAnswer(invocation -> {
+               postedBeforeAdd.set(posted.getCount() == 0);
+               return null;
+            }).when(editProvider).addUser(any(FSUser.class));
+
+            userSignupService.createUser(
+               DEFAULT_ORG_USER, null, SIGNUP_EMAIL, true, GOOGLE_USER_ID, null);
+
+            assertTrue(posted.await(10, TimeUnit.SECONDS), "sendUserData was never dispatched");
+            assertFalse(postedBeforeAdd.get(), "sendUserData ran before the user was persisted");
+            assertNotSame(Thread.currentThread(), postThread.get(),
+                          "sendUserData ran on the calling (request) thread");
          }
       }
 
@@ -487,7 +539,9 @@ class UserSignupServiceTest {
 
          try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
              MockedStatic<Audit> auditMock = Mockito.mockStatic(Audit.class);
-             MockedConstruction<SRPrincipal> ignored = Mockito.mockConstruction(SRPrincipal.class))
+             MockedConstruction<SRPrincipal> ignored = Mockito.mockConstruction(SRPrincipal.class);
+             MockedConstruction<PostSignUpUserData> postData =
+                Mockito.mockConstruction(PostSignUpUserData.class))
          {
             sutilMock.when(() -> SUtil.getIdentityInfoRecord(
                   any(IdentityID.class), anyInt(), anyString(), any(), anyString()))
@@ -502,6 +556,8 @@ class UserSignupServiceTest {
             assertNotNull(created);
             verify(editProvider).addUser(any(FSUser.class));
             verify(audit).auditIdentityInfo(any(), any());
+            // await the dispatched notification so no pool work escapes the mock scope
+            verify(postData.constructed().get(0), timeout(10000)).sendUserData();
          }
       }
    }
