@@ -226,3 +226,9 @@ terraform.rc
 
 # Ignore local Claude Code settings
 .claude/settings.local.json
+
+# Generated admin-property-catalog.json promotion proposals (core/tools/admin-property-catalog/
+# promote_from_corpus.py) - regenerated from the corpus on demand, goes stale immediately, and
+# is a review artifact, never applied automatically. Same reasoning as docs/properties/properties.json
+# in the stylebi-enterprise superproject: untracked rather than committed-and-stale.
+core/tools/admin-property-catalog/catalog-promotion-proposals.json
