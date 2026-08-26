@@ -340,10 +340,14 @@
         }
       </div>
       @if (!hideMiniToolbar && isMiniToolbarVisible(vsObject) && vsObject.enabled) {
+        @let anchored = isToolbarAnchored(vsObject);
+        @let glyphTone = anchored ? getStripGlyphTone(vsObject) : null;
         <mini-toolbar
           VSDataTip [dataTipName]="vsObject.absoluteName" [miniToolbar]="true"
           [class.viz-modern]="vsObject.vizModern"
           [class.viz-dark]="vsObject.vizDark"
+          [attr.data-tone]="glyphTone?.tone"
+          [style.--viz-strip-glyph-a]="glyphTone?.alpha"
           VSPopComponent [popComponentName]="vsObject.absoluteName"
           [popContainerName]="vsObject.container"
           [containerBounds]="containerBounds"
@@ -353,9 +357,8 @@
           [actions]="vsObjectActions[i]"
           [top]="getToolbarTop(vsObject, i)"
           [left]="getToolbarLeft(vsObject, i)"
-          [width]="isToolbarAnchored(vsObject) ? getAnchoredToolbarWidth(vsObject) : getToolbarWidth(vsObject)"
-          [anchorInTitleLane]="isToolbarAnchored(vsObject)"
-          [residentKebab]="isKebabResident(vsObject)"
+          [width]="anchored ? getAnchoredToolbarWidth(vsObject) : getToolbarWidth(vsObject)"
+          [anchorInTitleLane]="anchored"
           [zIndex]="getMiniToolbarZIndex(vsObject)"
           [maxMode]="vsObject.maxMode"
           [style.display]="isAssemblyVisible(vsObject) ? 'block' : 'none'"

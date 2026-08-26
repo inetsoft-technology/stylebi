@@ -16,11 +16,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { Component } from "@angular/core";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AssemblyAction } from "../../../common/action/assembly-action";
 import { AssemblyActionGroup } from "../../../common/action/assembly-action-group";
+import { ContextProvider } from "../../context-provider.service";
+import { PopComponentService } from "../data-tip/pop-component.service";
 import { NavigationKeys } from "../navigation-keys";
 import { MiniToolbar } from "./mini-toolbar.component";
+import { MiniToolbarService } from "./mini-toolbar.service";
+import { StripGlyphTone } from "./strip-glyph-tone";
 
 // The topY math is pure and depends only on `top`, the context flags, and the pop-component check,
 // so we construct the component directly with light mocks rather than through TestBed.
@@ -316,13 +322,13 @@ describe("MiniToolbar.showToolbarContainer", () => {
       expect(comp.showToolbarContainer).toBe(true);
    });
 
-   it("shows the container when anchored and on mobile, as long as the kebab survives", () => {
+   it("hides the container on mobile even when anchored -- mobile has its own toolbar", () => {
       const comp = makeToolbar();
       comp.anchorInTitleLane = true;
       comp.mobileDevice = true;
       setShowingActions(comp, [new AssemblyActionGroup([makeAction("more actions")])]);
 
-      expect(comp.showToolbarContainer).toBe(true);
+      expect(comp.showToolbarContainer).toBe(false);
    });
 
    it("shows the container when anchored with action buttons present", () => {
@@ -336,49 +342,39 @@ describe("MiniToolbar.showToolbarContainer", () => {
    });
 });
 
-// Max mode (isToolbarAnchored() && !maxMode) turns anchorInTitleLane off, but touch has no hover
-// to reveal a non-resident strip — residentKebab is the host's signal that the type still carries
-// the kebab-only design regardless, so kebabResident (and everything gated on it) must stay true
-// on touch even though anchorInTitleLane alone would now say no.
-describe("MiniToolbar.kebabResident (touch without anchoring, e.g. max mode)", () => {
-   it("is false off the anchored path on desktop, matching the accepted hover-reveal trade-off", () => {
+// Mobile is excluded from residency entirely: it has its own page-level toolbar
+// (viewer-mobile-toolbar), so a resident kebab here would duplicate it.
+describe("MiniToolbar.kebabResident", () => {
+   it("is true when anchored on a device that can hover", () => {
+      const comp = makeToolbar();
+      comp.anchorInTitleLane = true;
+      comp.mobileDevice = false;
+
+      expect(comp.kebabResident).toBe(true);
+   });
+
+   it("is false when anchored on mobile", () => {
+      const comp = makeToolbar();
+      comp.anchorInTitleLane = true;
+      comp.mobileDevice = true;
+
+      expect(comp.kebabResident).toBe(false);
+   });
+
+   it("is false off the anchored path on desktop", () => {
       const comp = makeToolbar();
       comp.anchorInTitleLane = false;
-      comp.residentKebab = true;
       comp.mobileDevice = false;
 
       expect(comp.kebabResident).toBe(false);
    });
 
-   it("is true off the anchored path on touch, once residentKebab says the type carries the design", () => {
+   it("is false off the anchored path on mobile", () => {
       const comp = makeToolbar();
       comp.anchorInTitleLane = false;
-      comp.residentKebab = true;
-      comp.mobileDevice = true;
-
-      expect(comp.kebabResident).toBe(true);
-   });
-
-   it("is false on touch when the type never carried the resident design (residentKebab false)", () => {
-      const comp = makeToolbar();
-      comp.anchorInTitleLane = false;
-      comp.residentKebab = false;
       comp.mobileDevice = true;
 
       expect(comp.kebabResident).toBe(false);
-   });
-
-   it("splits out the kebab and keeps the container visible on touch, unanchored", () => {
-      const comp = makeToolbar();
-      comp.anchorInTitleLane = false;
-      comp.residentKebab = true;
-      comp.mobileDevice = true;
-      setShowingActions(comp, [
-         new AssemblyActionGroup([makeAction("selection-list show-data"), makeAction("more actions")])
-      ]);
-
-      expect(comp.kebabAction.id()).toBe("more actions");
-      expect(comp.showToolbarContainer).toBe(true);
    });
 });
 
@@ -485,21 +481,55 @@ describe("MiniToolbar.onKeyUp", () => {
       expect(() => comp.onKeyUp()).not.toThrow();
       expect(hideMiniToolbar).not.toHaveBeenCalled();
    });
+});
 
-   // Max mode turns anchorInTitleLane off (no title lane to anchor into), but a maximised selection
-   // on touch is still kebabResident (residentKebab && mobileDevice) and therefore visibility:
-   // visible at rest, per .mini-toolbar--anchored in mini-toolbar.component.scss. Keying the guard
-   // on anchorInTitleLane alone would miss this case: the host-hidden check never trips, the
-   // resident-only check never runs, and Esc would dismiss a strip with no hover to bring it back.
-   it("does not dismiss a maximised selection's resident strip on touch, even though anchorInTitleLane is false", () => {
-      const comp = makeToolbar();
-      comp.anchorInTitleLane = false;
-      comp.residentKebab = true;
-      comp.mobileDevice = true;
-      const hideMiniToolbar = wire(comp, makeElement("visible"));
+@Component({
+   standalone: true,
+   imports: [MiniToolbar],
+   template: `<mini-toolbar [assembly]="'Chart1'"
+      [attr.data-tone]="glyphTone?.tone"
+      [style.--viz-strip-glyph-a]="glyphTone?.alpha">
+   </mini-toolbar>`
+})
+class GlyphToneHostComponent {
+   glyphTone: StripGlyphTone = null;
+}
 
-      comp.onKeyUp();
+// The host binds data-tone/--viz-strip-glyph-a exactly as vs-object-container.component.html
+// does: both driven by one nullable StripGlyphTone, null whenever the strip is not geometrically
+// anchored. This exercises the real Angular attribute/style binding behaviour rather than
+// asserting it, which is what the floating-strip case below actually depends on.
+describe("MiniToolbar host tone bindings (resolver-to-CSS wiring)", () => {
+   function createFixture(): ComponentFixture<GlyphToneHostComponent> {
+      TestBed.configureTestingModule({
+         imports: [GlyphToneHostComponent],
+         providers: [
+            { provide: ContextProvider, useValue: { composer: false, vsWizard: false, binding: false } },
+            { provide: MiniToolbarService, useValue: {} },
+            { provide: PopComponentService, useValue: { isPopComponentShow: () => false } }
+         ]
+      });
 
-      expect(hideMiniToolbar).not.toHaveBeenCalled();
+      return TestBed.createComponent(GlyphToneHostComponent);
+   }
+
+   it("sets data-tone and --viz-strip-glyph-a on the host of an anchored strip", () => {
+      const fixture = createFixture();
+      fixture.componentInstance.glyphTone = { tone: "dark", alpha: 0.8 };
+      fixture.detectChanges();
+      const host: HTMLElement = fixture.nativeElement.querySelector("mini-toolbar");
+
+      expect(host.getAttribute("data-tone")).toBe("dark");
+      expect(host.style.getPropertyValue("--viz-strip-glyph-a")).toBe("0.8");
+   });
+
+   it("carries neither attribute on a non-anchored (floating) strip", () => {
+      const fixture = createFixture();
+      fixture.componentInstance.glyphTone = null;
+      fixture.detectChanges();
+      const host: HTMLElement = fixture.nativeElement.querySelector("mini-toolbar");
+
+      expect(host.hasAttribute("data-tone")).toBe(false);
+      expect(host.style.getPropertyValue("--viz-strip-glyph-a")).toBe("");
    });
 });
