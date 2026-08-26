@@ -246,8 +246,16 @@ public class BindingAgentController {
    /** @param table see {@link ShelfRequest#table()}. */
    public record AestheticFieldRequest(String assembly, String channel, FieldRef field,
                                        String table) {}
+   /**
+    * @param measure see
+    *        {@link ChartAestheticMutator#setFrame(inetsoft.web.binding.model.ChartBindingModel,
+    *        String, Map, boolean, java.util.Collection, String)}. Absent broadcasts the frame to
+    *        every measure, which is what a chart with one measure wants.
+    */
    public record AestheticFrameRequest(String assembly, String channel,
-                                       Map<String, Object> frame) {}
+                                       Map<String, Object> frame, String measure) {}
+   /** @param measure see {@link AestheticFrameRequest#measure()}. */
+   public record AestheticResetRequest(String assembly, String channel, String measure) {}
 
    @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/aesthetics")
    public Map<String, Object> chartAesthetics(@PathVariable String sessionToken,
@@ -307,7 +315,19 @@ public class BindingAgentController {
    {
       requireEnabled();
       aestheticService.setFrame(sessionToken, user, request.assembly(), request.channel(),
-                                request.frame(), linkUri);
+                                request.frame(), request.measure(), linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/frame/reset")
+   public void resetVisualFrame(@PathVariable String sessionToken,
+                                @RequestBody AestheticResetRequest request,
+                                @RequestParam(required = false, defaultValue = "") String linkUri,
+                                Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      aestheticService.resetFrame(sessionToken, user, request.assembly(), request.channel(),
+                                  request.measure(), linkUri);
    }
 
    public record TableShelfRequest(String assembly, String shelf, List<FieldRef> fields) {}

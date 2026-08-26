@@ -17,11 +17,13 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.web.binding.model.ColorMapModel;
 import inetsoft.web.binding.model.graph.aesthetic.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -349,9 +351,10 @@ class VisualFrameAliasesTest {
    // ── per-value colour mapping, and the useGlobal footgun (2c Phase 3) ──────
 
    /**
-    * The recorded defect: while {@code useGlobal} is set the automatic palette wins, so a mapped
-    * colour is stored and never rendered — the model round-trips perfectly and the chart shows
-    * something else. Supplying a mapping must clear the flag.
+    * The recorded defect: while {@code useGlobal} is set, the model-to-wrapper conversion reads
+    * {@code globalColorMaps} in place of {@code colorMaps}, so a mapped colour is stored and never
+    * rendered — the model round-trips perfectly and the chart shows something else. Supplying a
+    * mapping must clear the flag.
     */
    @Test
    void aColourMappingClearsUseGlobalSoItActuallyRenders() {
@@ -388,25 +391,92 @@ class VisualFrameAliasesTest {
                   "same column even when useGlobal is cleared");
    }
 
+   /**
+    * "Assign Fixed Mapping" with "Share Colors" checked is a supported and useful combination —
+    * pinning a value's colour across the whole viewsheet. The flag picks which array the pins go
+    * in, the way {@code openColorMappingDialog}'s callback does; it does not make them illegal.
+    */
    @Test
-   void refusesUseGlobalTogetherWithAMapping() {
-      Exception thrown = assertThrows(
-         IllegalArgumentException.class,
-         () -> VisualFrameAliases.create("color", spec("type", "categorical", "useGlobal", true,
-                                                       "mapping", Map.of("East", "#fff"))));
+   void sharedPinsGoInTheViewsheetLevelArray() {
+      CategoricalColorModel frame = assertInstanceOf(
+         CategoricalColorModel.class,
+         VisualFrameAliases.create("color", spec("type", "categorical", "shareColors", true,
+                                                 "mapping", Map.of("2022", "#000000"))));
 
-      assertTrue(thrown.getMessage().contains("never rendered"),
-                 "the refusal has to say what would have happened, or it reads as arbitrary");
+      assertEquals(1, frame.getGlobalColorMaps().length,
+                   "the factory reads globalColorMaps while sharing is on");
+      assertEquals("2022", frame.getGlobalColorMaps()[0].getOption());
+      assertEquals("#000000", frame.getGlobalColorMaps()[0].getColor());
+      assertEquals(0, frame.getColorMaps().length,
+                   "the array the factory is not reading must stay empty, not hold a stale copy");
    }
 
    @Test
-   void acceptsUseGlobalOnItsOwn() {
+   void unsharedPinsGoInTheFramesOwnArray() {
       CategoricalColorModel frame = assertInstanceOf(
          CategoricalColorModel.class,
-         VisualFrameAliases.create("color", spec("type", "categorical", "useGlobal", true,
+         VisualFrameAliases.create("color", spec("type", "categorical", "shareColors", false,
+                                                 "mapping", Map.of("2022", "#000000"))));
+
+      assertEquals(1, frame.getColorMaps().length);
+      assertEquals(0, frame.getGlobalColorMaps().length);
+   }
+
+   /**
+    * The frame carries {@code useGlobal} and {@code shareColors} separately for historical
+    * reasons, but the Composer has driven them from one checkbox ever since {@code shareColors}
+    * was added, and the dialog's own {@code toggleGlobal()} is wired to nothing. Offering the
+    * agent both names would advertise a distinction the product does not have, so the second one
+    * is refused by name — and the refusal names the one that works.
+    */
+   @Test
+   void refusesUseGlobalAndNamesShareColorsInstead() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> VisualFrameAliases.create("color", spec("type", "categorical", "useGlobal", true,
+                                                       "colors", java.util.List.of("#fff"))));
+
+      assertTrue(thrown.getMessage().contains("useGlobal"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("shareColors"),
+                 "a refusal that does not name the working key just stalls the caller");
+   }
+
+   /**
+    * One key drives both flags, the way the checkbox does. Either one left set alone renders
+    * differently from what was asked for.
+    */
+   @Test
+   void shareColorsDrivesBothOfTheFramesFlags() {
+      CategoricalColorModel frame = assertInstanceOf(
+         CategoricalColorModel.class,
+         VisualFrameAliases.create("color", spec("type", "categorical", "shareColors", true,
                                                  "colors", java.util.List.of("#fff"))));
 
-      assertTrue(frame.isUseGlobal());
+      assertTrue(frame.isShareColors());
+      assertTrue(frame.isUseGlobal(), "the checkbox drives both flags, so the alias must too");
+   }
+
+   @Test
+   void shareColorsFalseIsTheDefaultSoAnExplicitPaletteRendersAsGiven() {
+      CategoricalColorModel frame = assertInstanceOf(
+         CategoricalColorModel.class,
+         VisualFrameAliases.create("color", spec("type", "categorical", "shareColors", false,
+                                                 "colors", java.util.List.of("#fff"))));
+
+      assertFalse(frame.isShareColors());
+      assertFalse(frame.isUseGlobal());
+   }
+
+   /** Omitted means "leave the checkbox alone"; the resolution needs the frame, so it is not here. */
+   @Test
+   void anOmittedShareColorsIsReportedAsUnasked() {
+      assertNull(VisualFrameAliases.shareColors(spec("type", "categorical")));
+      assertEquals(Boolean.TRUE,
+                   VisualFrameAliases.shareColors(spec("type", "categorical",
+                                                       "shareColors", true)));
+      assertEquals(Boolean.FALSE,
+                   VisualFrameAliases.shareColors(spec("type", "categorical",
+                                                       "shareColors", false)));
    }
 
    @Test
@@ -435,16 +505,90 @@ class VisualFrameAliasesTest {
                    () -> VisualFrameAliases.create("color", spec("type", "categorical")));
    }
 
-   /** useGlobal is reported on read, because a true there means any mapping is inert. */
+   /** Share Colors is reported on read, because a true there changes what the chart draws. */
    @Test
-   void reportsUseGlobalAndTheMappingOnRead() {
+   void reportsShareColorsAndTheMappingOnRead() {
       VisualFrameModel frame = VisualFrameAliases.create(
          "color", spec("type", "categorical", "mapping", Map.of("East", "#4e79a7")));
 
       Map<String, Object> described = VisualFrameAliases.describe(frame);
 
-      assertEquals(false, described.get("useGlobal"));
+      assertEquals(false, described.get("shareColors"));
       assertEquals(Map.of("East", "#4E79A7"), described.get("mapping"));
+      assertFalse(described.containsKey("useGlobal"),
+                  "the two flags agree here, so one key reports both");
+   }
+
+   /**
+    * With sharing on the pins live in {@code globalColorMaps}. Reading {@code colorMaps} here
+    * would report {@code mapping: {}} for a chart that visibly has pinned colours — the same
+    * read-the-dead-slot failure the write side is careful to avoid.
+    */
+   @Test
+   void reportsSharedPinsFromTheArrayTheRendererActuallyReads() {
+      VisualFrameModel frame = VisualFrameAliases.create(
+         "color", spec("type", "categorical", "shareColors", true,
+                       "mapping", Map.of("2022", "#000000")));
+
+      Map<String, Object> described = VisualFrameAliases.describe(frame);
+
+      assertEquals(true, described.get("shareColors"));
+      assertEquals(Map.of("2022", "#000000"), described.get("mapping"));
+   }
+
+   /**
+    * Live repro: get_chart_aesthetics read a shared pin back as {@code "000000"} while the
+    * {@code colors} beside it were {@code "#000000"}, because
+    * {@code VSChartBindingFactory.applyColorsToFrame} refills globalColorMaps from the viewsheet
+    * with {@code Tool.colorToHTMLString} (six hex digits, no '#') while everything else uses
+    * {@code Tool.toString(Color)}. set_visual_frame refuses a bare six digits, so the read could
+    * not be fed back to the write.
+    */
+   @Test
+   void reportsAPinInTheSpellingTheWriteSideAccepts() {
+      CategoricalColorModel frame = new CategoricalColorModel();
+      frame.setColors(new String[]{ "#4E79A7" });
+      frame.setUseGlobal(true);
+      frame.setGlobalColorMaps(new ColorMapModel[]{ new ColorMapModel("2022", "000000") });
+
+      Map<String, Object> described = VisualFrameAliases.describe(frame);
+
+      assertEquals(Map.of("2022", "#000000"), described.get("mapping"));
+   }
+
+   /** A diagnostic must not become a second failure when something upstream stored junk. */
+   @Test
+   void reportsAnUnparseablePinVerbatimRatherThanThrowing() {
+      CategoricalColorModel frame = new CategoricalColorModel();
+      frame.setColors(new String[]{ "#4E79A7" });
+      frame.setUseGlobal(false);
+      frame.setColorMaps(new ColorMapModel[]{ new ColorMapModel("2022", "chartreuse") });
+
+      Map<String, Object> described = VisualFrameAliases.describe(frame);
+
+      assertEquals(Map.of("2022", "chartreuse"), described.get("mapping"));
+   }
+
+   /**
+    * A viewsheet saved before the Share Colors feature existed parses back with {@code useGlobal}
+    * true and {@code shareColors} false ({@code CategoricalColorFrameWrapper.parseContents}
+    * defaults the missing element to false while the field default is true). Reported through the
+    * flag the render path consults for the pins, since that is the one whose effect the caller can
+    * see on the chart. The pair is left untouched by writes rather than surfaced — the Composer
+    * can neither produce nor repair the divergence, so naming it would offer a distinction the
+    * agent has no way to act on.
+    */
+   @Test
+   void reportsTheRenderRelevantFlagForALegacyFrame() {
+      CategoricalColorModel frame = new CategoricalColorModel();
+      frame.setColors(new String[]{ "#4E79A7" });
+      frame.setUseGlobal(true);
+      frame.setShareColors(false);
+
+      Map<String, Object> described = VisualFrameAliases.describe(frame);
+
+      assertEquals(true, described.get("shareColors"));
+      assertFalse(described.containsKey("useGlobal"));
    }
 
    // ── node channels (spec 2c Phase 3) ───────────────────────────────────────
@@ -488,5 +632,226 @@ class VisualFrameAliasesTest {
          () -> VisualFrameAliases.create("node-size", spec("type", "static", "color", "#000"),
                                          true),
          "'color' is not a key node-size's static frame reads -- it reads 'size'");
+   }
+
+   // ── the graduated and per-category frames carry their configuration ───────
+   //
+   // create() used to build these with `new CategoricalLineModel()` and friends and nothing
+   // else, so the only reachable spec was the bare `{type: "categorical"}`. The per-category
+   // lists the Composer's own categorical pane edits -- lines, textures, shapes -- and the
+   // smallest/largest range its binding-size pane edits had no way in at all.
+
+   @Test
+   void buildsACategoricalLineFrameFromTheLineList() {
+      CategoricalLineModel frame = assertInstanceOf(
+         CategoricalLineModel.class,
+         VisualFrameAliases.create("line", spec("type", "categorical", "lines",
+                                                List.of(4097, 4113, 4145))));
+
+      assertArrayEquals(new int[]{ 4097, 4113, 4145 }, frame.getLines());
+      assertTrue(frame.isChanged(),
+                 "CategoricalLineFrameModelFactory ends with setChanged(model.isChanged()), so " +
+                 "a model left unchanged stores the lines and reports the frame as untouched");
+   }
+
+   @Test
+   void buildsACategoricalTextureFrameFromTheTextureList() {
+      CategoricalTextureModel frame = assertInstanceOf(
+         CategoricalTextureModel.class,
+         VisualFrameAliases.create("texture", spec("type", "categorical", "textures",
+                                                   List.of(-1, 3, 7))));
+
+      assertArrayEquals(new int[]{ -1, 3, 7 }, frame.getTextures());
+      assertTrue(frame.isChanged());
+   }
+
+   /**
+    * The bare form still means something -- "vary by category, using the defaults" -- and is
+    * what binding a field produces before anything is picked, so it must stay buildable.
+    */
+   @Test
+   void stillBuildsABareCategoricalLineOrTextureFrame() {
+      assertArrayEquals(new int[0], ((CategoricalLineModel) VisualFrameAliases.create(
+         "line", spec("type", "categorical"))).getLines());
+      assertArrayEquals(new int[0], ((CategoricalTextureModel) VisualFrameAliases.create(
+         "texture", spec("type", "categorical"))).getTextures());
+   }
+
+   @Test
+   void refusesASingleCodeWhereAListOfCodesIsRead() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> VisualFrameAliases.create("line", spec("type", "categorical", "lines", 4097)));
+
+      assertTrue(thrown.getMessage().contains("list"), thrown.getMessage());
+   }
+
+   @Test
+   void refusesANonNumericCodeInTheList() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> VisualFrameAliases.create("texture", spec("type", "categorical", "textures",
+                                                         List.of(1, "solid"))));
+
+      assertTrue(thrown.getMessage().contains("textures[1]"), thrown.getMessage());
+   }
+
+   @Test
+   void buildsAGraduatedSizeFrameFromSmallestAndLargest() {
+      LinearSizeModel linear = assertInstanceOf(
+         LinearSizeModel.class,
+         VisualFrameAliases.create("size", spec("type", "linear", "smallest", 4, "largest", 22)));
+
+      assertEquals(4d, linear.getSmallest());
+      assertEquals(22d, linear.getLargest());
+      assertTrue(linear.isChanged(),
+                 "SizeFrameModelFactory.updateVisualFrameWrapper0 returns null for an unchanged " +
+                 "model, discarding the whole wrapper before it reaches the chart");
+
+      CategoricalSizeModel categorical = assertInstanceOf(
+         CategoricalSizeModel.class,
+         VisualFrameAliases.create("size", spec("type", "categorical", "largest", 12)));
+
+      assertEquals(1d, categorical.getSmallest(), "SizeFrameModel's own default");
+      assertEquals(12d, categorical.getLargest());
+      assertTrue(categorical.isChanged());
+   }
+
+   @Test
+   void refusesASizeRangeThatIsInverted() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> VisualFrameAliases.create("size", spec("type", "linear",
+                                                      "smallest", 20, "largest", 5)));
+
+      assertTrue(thrown.getMessage().contains("largest"), thrown.getMessage());
+   }
+
+   @Test
+   void marksACategoricalShapeFrameAsChanged() {
+      CategoricalShapeModel frame = assertInstanceOf(
+         CategoricalShapeModel.class,
+         VisualFrameAliases.create("shape", spec("type", "categorical", "shapes",
+                                                 List.of("900", "901"))));
+
+      assertTrue(frame.isChanged());
+   }
+
+   @Test
+   void refusesTheNewKeysOnAChannelThatDoesNotReadThem() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> VisualFrameAliases.create("texture", spec("type", "categorical",
+                                                                   "lines", List.of(4097))));
+      assertThrows(IllegalArgumentException.class,
+                   () -> VisualFrameAliases.create("color", spec("type", "categorical",
+                                                                 "colors", List.of("#000"),
+                                                                 "largest", 12)));
+      assertThrows(IllegalArgumentException.class,
+                   () -> VisualFrameAliases.create("size", spec("type", "static", "size", 8,
+                                                                "largest", 12)));
+   }
+
+   // ── describe() reports what create() now stores ───────────────────────────
+   //
+   // These three fell through to the BEHAVIOURAL table, which knows only a type name. That was
+   // right while they were built empty; now it would report {type: "categorical"} whatever the
+   // frame holds, so a write could not be read back.
+
+   @Test
+   void describesTheValuesAPerCategoryFrameHolds() {
+      Map<String, Object> line = VisualFrameAliases.describe(
+         VisualFrameAliases.create("line", spec("type", "categorical", "lines",
+                                                List.of(4097, 4241))));
+
+      assertEquals("categorical", line.get("type"));
+      assertEquals(List.of(4097, 4241), line.get("lines"));
+
+      Map<String, Object> texture = VisualFrameAliases.describe(
+         VisualFrameAliases.create("texture", spec("type", "categorical", "textures",
+                                                   List.of(0, 5))));
+
+      assertEquals("categorical", texture.get("type"));
+      assertEquals(List.of(0, 5), texture.get("textures"));
+   }
+
+   @Test
+   void describesAGraduatedSizeFramesRange() {
+      Map<String, Object> linear = VisualFrameAliases.describe(
+         VisualFrameAliases.create("size", spec("type", "linear", "smallest", 2, "largest", 18)));
+
+      assertEquals("linear", linear.get("type"));
+      assertEquals(2d, linear.get("smallest"));
+      assertEquals(18d, linear.get("largest"));
+
+      assertEquals("categorical", VisualFrameAliases.describe(
+         VisualFrameAliases.create("size", spec("type", "categorical"))).get("type"));
+   }
+
+   @Test
+   void aStaticSizeFrameIsStillDescribedAsStatic() {
+      Map<String, Object> described = VisualFrameAliases.describe(
+         VisualFrameAliases.create("size", spec("type", "static", "size", 8)));
+
+      assertEquals("static", described.get("type"),
+                   "the new SizeFrameModel branch must not shadow the StaticSizeModel one");
+      assertEquals(8d, described.get("size"));
+   }
+
+   /**
+    * "Use Column Values as Colors" -- the categorical pane's other checkbox. The flag stands on
+    * its own: it replaces what drives the chart rather than adding to the palette, so it satisfies
+    * the "needs colours or a mapping" precondition by itself.
+    */
+   @Test
+   void carriesTheColorValueFrameFlag() {
+      CategoricalColorModel frame = assertInstanceOf(
+         CategoricalColorModel.class,
+         VisualFrameAliases.create("color", spec("type", "categorical",
+                                                 "colorValueFrame", true)));
+
+      assertTrue(frame.isColorValueFrame());
+   }
+
+   @Test
+   void carriesTheColorValueFrameFlagAlongsideAPalette() {
+      CategoricalColorModel frame = assertInstanceOf(
+         CategoricalColorModel.class,
+         VisualFrameAliases.create("color", spec("type", "categorical",
+                                                 "colors", java.util.List.of("#fff"),
+                                                 "colorValueFrame", true)));
+
+      assertTrue(frame.isColorValueFrame());
+   }
+
+   @Test
+   void reportsTheColorValueFrameFlagOnRead() {
+      VisualFrameModel frame = VisualFrameAliases.create(
+         "color", spec("type", "categorical", "colorValueFrame", true));
+
+      assertEquals(true, VisualFrameAliases.describe(frame).get("colorValueFrame"));
+   }
+
+   /**
+    * The precondition is satisfied by switching the checkbox ON, because that is what replaces the
+    * thing a palette would otherwise have to supply. An explicit {@code false} says "read the
+    * palette", which leaves the frame with no palette to read — the same half-specified shape the
+    * check exists to refuse, arriving through a key that looks like it answers it.
+    */
+   @Test
+   void refusesAnExplicitlyFalseColorValueFrameStandingInForAPalette() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> VisualFrameAliases.create("color", spec("type", "categorical",
+                                                                 "colorValueFrame", false)));
+   }
+
+   @Test
+   void acceptsAnExplicitlyFalseColorValueFrameAlongsideAPalette() {
+      CategoricalColorModel frame = assertInstanceOf(
+         CategoricalColorModel.class,
+         VisualFrameAliases.create("color", spec("type", "categorical",
+                                                 "colors", java.util.List.of("#fff"),
+                                                 "colorValueFrame", false)));
+
+      assertFalse(frame.isColorValueFrame());
    }
 }
