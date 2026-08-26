@@ -56,11 +56,13 @@ public final class XMapTaskPool {
          }
       }
 
-      pool.add0(task);
-
+      // register before submitting, otherwise a cancel() landing in between iterates a
+      // map that does not hold this task yet and it runs to completion
       synchronized(maptasks) {
          maptasks.put(task, "OK");
       }
+
+      pool.add0(task);
    }
 
    /**
@@ -140,6 +142,12 @@ public final class XMapTaskPool {
 
       @Override
       public void run() {
+         // cancelled while queued? the job it belongs to is already done, so its
+         // result would be discarded
+         if(task.isCancelled()) {
+            return;
+         }
+
          try {
             XMapResult result = task.run(sys);
             XJobPool.addResult(result, task.getOrgID());
@@ -181,6 +189,11 @@ public final class XMapTaskPool {
             while(!tasks.isEmpty()) {
                XMapTask task = tasks.remove();
                streamlock.unlock();
+
+               if(task.isCancelled()) {
+                  streamlock.lock();
+                  continue;
+               }
 
                try {
                   XMapResult result = task.run(sys);

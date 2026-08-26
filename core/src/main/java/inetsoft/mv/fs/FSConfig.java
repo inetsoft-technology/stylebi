@@ -42,7 +42,11 @@ public interface FSConfig {
    int getJobCheckPeriod();
 
    /**
-    * Get the expired period for a map task.
+    * Get the expired period for a map task. A map task that runs longer than this
+    * period fails the entire job; no retry is attempted and the block is not
+    * re-dispatched. At the default value this never fires, because getJobTimeout() is
+    * the same length and is checked first; lowering it below fs.job.period makes it the
+    * effective deadline and fails jobs sooner.
     */
    int getExpired();
 

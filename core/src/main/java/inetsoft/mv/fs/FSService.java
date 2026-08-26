@@ -273,6 +273,10 @@ public final class FSService {
          return val != null ? Integer.parseInt(val) : 500;
       }
 
+      // fs.map.expired is a hard deadline, not a stuck-task detector: exceeding it
+      // fails the whole MV job (see XJobStatus.update), so it should not be lowered
+      // to distinguish a stuck task from a slow one. Defaults to the same 10 hours
+      // as fs.job.period, which is checked first.
       @Override
       public int getExpired() {
          String val = SreeEnv.getProperty("fs.map.expired");

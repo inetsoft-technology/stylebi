@@ -101,7 +101,6 @@ public final class XJobStatus {
 
       bset = new HashSet<>();
       dset = new HashSet<>();
-      fmap = new HashMap<>();
       completed = false;
 
       for(SBlock block : blocks) {
@@ -114,6 +113,13 @@ public final class XJobStatus {
 
       // dispatch map tasks
       for(int i = 0; i < blocks.size(); i++) {
+         // a task dispatched earlier may already have failed the job; the cancel sweep
+         // in complete() has run by now, so anything dispatched after it would not be
+         // cancelled and would scan its block for a result that is discarded
+         if(isCompleted()) {
+            return;
+         }
+
          SBlock block = blocks.get(i);
          String bid = block.getID();
          // MV data grid is no longer used so it's always local mode (spark is used for
@@ -186,6 +192,8 @@ public final class XJobStatus {
     * @param all true if all blocks are added, false if still streaming.
     */
    private void complete(boolean success, boolean all, String reason) {
+      boolean cancelTasks = false;
+
       if(!success) {
          // avoid excessive logging as this may be called many times.
          if(!warned) {
@@ -236,7 +244,20 @@ public final class XJobStatus {
          }
 
          if(!success) {
+            cancelTasks = true;
             this.state = FAILED;
+
+            // a streaming consumer already holds the live table from an earlier
+            // complete(true, false, ...) and would block on it forever, as the failure
+            // path never completes the reducer. terminate it so it sees a definite end.
+            if(reducer != null) {
+               try {
+                  reducer.cancel();
+               }
+               catch(Throwable ex) {
+                  LOG.error("Failed to cancel reduce task", ex);
+               }
+            }
          }
          else if(all) {
             this.state = SUCCESSFUL;
@@ -252,6 +273,15 @@ public final class XJobStatus {
       }
       finally {
          waitlock.unlock();
+      }
+
+      // the results of the map tasks still running for this job will be discarded,
+      // so ask them to stop. this is cooperative and best effort: a task already
+      // scanning its block stops at the next row-loop check, but one still queued in
+      // the map task pool will run in full, so this is an optimization rather than a
+      // guarantee. done outside waitlock, as it takes the pool-wide task monitor.
+      if(cancelTasks) {
+         XMapTaskPool.cancel(job.getID());
       }
    }
 
@@ -391,6 +421,14 @@ public final class XJobStatus {
          return;
       }
 
+      // the job is already done (it failed on another block, and its map tasks were
+      // cancelled). a cancelled task returns the rows it had scanned so far as a
+      // block that looks complete, so merging it here would feed truncated data to
+      // the reducer. state is volatile, so this sees the completing thread's write.
+      if(isCompleted()) {
+         return;
+      }
+
       String id = result.getXBlock();
       waitlock.lock();
 
@@ -427,27 +465,6 @@ public final class XJobStatus {
    }
 
    /**
-    * Set the host to be failed for the given block.
-    */
-   private void setFailed(String bid, String host) {
-      flock.lock();
-
-      try {
-         Set<String> fset = fmap.get(bid);
-
-         if(fset == null) {
-            fset = new HashSet<>();
-            fmap.put(bid, fset);
-         }
-
-         fset.add(host);
-      }
-      finally {
-         flock.unlock();
-      }
-   }
-
-   /**
     * Add one map failure to this status.
     */
    public void addFailure(XMapFailure failure) {
@@ -461,11 +478,10 @@ public final class XJobStatus {
       status.complete(false, failure.getReason());
       XMapTask task = status.getTask();
       String bid = task.getXBlock();
-      setFailed(bid, host);
 
       complete(false, false,
-               "Failed to dispatch job, could not create replacement " +
-                  "task for failed task: " + job.getXFile() + " at block: " + bid);
+               "The map task failed: " + job.getXFile() + " at block: " + bid +
+                  (failure.getReason() == null ? "" : ", reason: " + failure.getReason()));
    }
 
    /**
@@ -495,39 +511,26 @@ public final class XJobStatus {
             continue;
          }
 
-         // expired status? try re-running task
+         // expired map task? it is still executing in the local map task pool and
+         // cannot be re-dispatched (single node), so fail the job
          if(status.isExpired()) {
             XMapTask task = status.getTask();
             status.complete(false, "The map task is expired: " + task);
-            setFailed(task.getXBlock(), task.getHost());
-            XMapTask ntask = createMapper(task);
-
-            if(ntask == null) {
-               ftask = task;
-               break;
-            }
-
-            XMapStatus nstatus = new XMapStatus(ntask);
-            startTask(nstatus);
+            ftask = task;
+            break;
          }
       }
 
-      // failed map task could not be re-dispatched? complete this job
+      // expired map task? complete this job, there is no retry
       if(ftask != null) {
          complete(false, false,
-                  "Failed to dispatch job, failed task could not be " +
-                  "re-dispatched: " + job.getXFile() + " at block: " + ftask.getXBlock());
+                  "A map task exceeded fs.map.expired (" +
+                  FSService.getConfig().getExpired() + "ms), no retry is attempted: " +
+                  job.getXFile() + " at block: " + ftask.getXBlock());
          return true;
       }
 
       return false;
-   }
-
-   /**
-    * Create a new map task as replacement for the failed task.
-    */
-   private XMapTask createMapper(XMapTask task) {
-         return null;
    }
 
    /**
@@ -548,8 +551,6 @@ public final class XJobStatus {
    private int wperiod; // max job period
    private long started; // started moment
    private Map<XMapStatus, XMapStatus> mmap; // map status map
-   private Map<String, Set<String>> fmap;
-   private Lock flock = new ReentrantLock(); // fmap lock
    private Lock mlock = new ReentrantLock(); // mmap lock
    private Set<String> bset; // block id set
    private Set<String> dset; // dispatched id set
