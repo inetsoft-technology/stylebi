@@ -237,6 +237,90 @@ deliberately, "so it reads as deliberately floating rather than as a strip ancho
 and a `--inet-radius-xl` radius — unconditionally, so the anchored in-lane strip draws the white bordered
 box as well as the overlaid one. Tracked on the roadmap's "Ready now" table.
 
+**Confirmed 2026-08-26, during implementation.** It is the icon font, not a background image. All eighteen
+glyphs the chart toolbar can draw were checked individually against `assets/ineticons/variables.scss` —
+including `brush-icon "\ea3b"`, `zoom-in-icon "\ec2a"`, `show-summary-icon "\ebea"` and `menu-vertical-icon
+"\eb2a"` — and none is missing from the font map and none resolves to a `background-image`. `color` tints
+all of them directly, so neither the inline-SVG conversion nor the `filter: invert()` pair §10.2 proposes
+was needed; the two tones are one CSS property. Three more of §10.2's claims failed the same contact with
+the code during this pass — see §1.6–§1.8.
+
+---
+
+### 1.6 The 0.45 threshold selects the lower-contrast ink between L 0.235 and 0.45
+
+**Added 2026-08-26, found while implementing §10.2.**
+
+**What the doc says.** §10.2: *"Standard WCAG relative luminance of the resolved background colour, against
+L > 0.45 → light tone, otherwise dark tone. Below the midpoint deliberately: mid-tone saturated colours read
+darker than their computed luminance suggests, and 0.5 puts several common brand teals and greens on the
+wrong side."*
+
+**What the measurement says.** Measured against WCAG 1.4.11's 3:1 floor for meaningful non-text glyphs,
+using §10.2's own two ink values — black at alpha .55, white at alpha .80 — the rule picks the
+*lower*-contrast ink across the band it was lowered to fix:
+
+| Background | L | Rule picks | Black @.55 | White @.80 | Verdict on the picked tone |
+|---|---|---|---|---|---|
+| `#E8563F` — §10.2 swatch | 0.242 | dark | 3.08 | 2.82 | **fails** (2.82) |
+| `#2FC4B2` — §10.2's flagged borderline | 0.433 | dark | 3.79 | 1.86 | **fails** (1.86) |
+| `#C8CCC9` — §10.2 swatch | 0.597 | light | 4.16 | 1.48 | passes (4.16) |
+| `#FFFFFF` — §10.2 swatch | 1.000 | light | 4.76 | 1.00 | passes (4.76) |
+
+`#2FC4B2` is the swatch §10.2 itself annotates *"the borderline case — check this one first if the threshold
+is questioned."* Checked: the rule's chosen ink measures 1.86:1; the ink it rejected measures 3.79:1. Two of
+the doc's four demonstration swatches fail the 3:1 floor with the tone its own rule selects. For these two
+ink values the tones actually cross over at **L ≈ 0.235**, not 0.45 — every author colour between the two,
+precisely the saturated teals and greens the threshold was lowered to catch, receives the worse ink.
+
+**Effect on the plan.** The shipped resolver carries no threshold constant at all. It composites both
+candidate inks over the resolved background at their base alphas, takes whichever reads the higher contrast,
+and raises only that ink's alpha — never the other's — until it clears 3:1. Full algorithm, and why the
+choice has to be made before the alpha climb rather than after, in
+[chart-card-seamless-strip-design.md](./chart-card-seamless-strip-design.md) §2.3.
+
+---
+
+### 1.7 The prescribed scrim reduces contrast, and the case it was written for is gone
+
+**Added 2026-08-26, found while implementing §10.2.**
+
+**What the doc says.** §10.2 prescribes, for a glyph overlaying the plot: *"a 28px rounded patch in the tone
+colour at ~8% alpha with backdrop-filter: blur(2px)."*
+
+**What the measurement says.** A scrim in the *tone* colour tints the background toward the ink, which is
+the wrong direction for separation. Measured over the sub-3:1 band, worst achieved contrast by scrim alpha:
+0.08 → 2.76, 0.20 → 2.43, 0.35 → 2.03, 0.50 → 1.66, 0.80 → 1.19, 1.00 → 1.00 — degrading monotonically as
+alpha rises. At the prescribed ~8% the scrim takes the worst case from 2.97:1 to 2.76:1: it makes the floor
+harder to clear, not easier.
+
+**Separately, the case no longer exists.** Since L″, the geometric-suppression change, a hidden title
+resolves to a zero-height lane and the strip is suppressed rather than overlaid
+(`mini-toolbar.service.ts:70-111`), so on the anchored path no glyph ever overlays a plot. The scrim would
+have no remaining consumer even if it worked.
+
+**Effect on the plan.** No scrim ships.
+[chart-card-seamless-strip-design.md](./chart-card-seamless-strip-design.md) §2.3 covers the sub-3:1 band
+with the alpha-lift rule from §1.6 instead, which needs no plate at all — a fixed neutral plate was measured
+too (0.35 alpha → worst 4.54:1) and rejected for reintroducing a surface, the one thing this design removes.
+
+---
+
+### 1.8 The hover background replaces nothing
+
+**Added 2026-08-26, found while implementing §10.2.**
+
+**What the doc says.** §10.2 presents its translucent hover tint as adapting where a fixed grey would not —
+the framing assumes a fixed grey is there today, to be replaced.
+
+**What the code says.** There is no grey to replace. `.icon-hover-bg` sets `--inet-ui-neutral-hover-bg-color`
+on hover (`_themeable.scss:880-886`), and the mini-toolbar's buttons carry that class — but
+`mini-toolbar.component.scss:40` sets `background-color: transparent !important` on every button in the
+container, which beats it. Mini-toolbar buttons have no hover fill today.
+
+**Effect on the plan.** The translucent tint is new behaviour, not a swap, and was reviewed as an addition
+rather than a fix.
+
 ---
 
 ## 2. Staleness

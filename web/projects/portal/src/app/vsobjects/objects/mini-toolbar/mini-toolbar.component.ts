@@ -69,11 +69,6 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    // Set by the host when the strip is positioned inside the assembly rather than floating above it.
    // The host has already resolved the anchored top/left, so this component must not adjust them.
    @Input() anchorInTitleLane: boolean = false;
-   // Set by the host for every assembly type in the resident/kebab-only design, independent of
-   // whether it is currently anchored — max mode has no lane to anchor into (see
-   // VSObjectContainerComponent.isToolbarAnchored) but still needs a route to the kebab on touch,
-   // which has no hover to reveal a non-resident strip. See kebabResident below.
-   @Input() residentKebab: boolean = false;
    @Input() visible: boolean = true;
    @Input() forceHide: boolean = false;
    @Input() set forceShow(value: boolean) {
@@ -198,15 +193,12 @@ export class MiniToolbar implements OnChanges, OnDestroy {
     * Whether the kebab should render split out and resident (visible without a hover), rather than
     * as an ordinary trailing action inside a hover-only strip.
     *
-    * True whenever geometrically anchored (anchorInTitleLane). Also true off that path, on touch
-    * only, for any assembly type in the resident/kebab-only design (residentKebab): touch has no
-    * hover, so a kebab that is only resident when anchored would be unreachable in max mode, where
-    * anchoring is off (no title lane to anchor into) but the type still carries the design.
-    * Desktop keeps the accepted max-mode trade-off — hover reveals the strip there — since this
-    * only forces residency for the touch case.
+    * Residency is the in-lane design on a device that can hover: geometrically anchored
+    * (anchorInTitleLane) and not mobile. Mobile is served by the page-level mobile toolbar
+    * (viewer-app's viewer-mobile-toolbar) instead, so it never gets a resident kebab here.
     */
    get kebabResident(): boolean {
-      return this.anchorInTitleLane || (this.residentKebab && this.mobileDevice);
+      return this.anchorInTitleLane && !this.mobileDevice;
    }
 
    private get kebabSplit(): { groups: AssemblyActionGroup[], kebab: AssemblyAction } {

@@ -439,7 +439,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(true);
-      expect(comp.getToolbarTop(obj, 0)).toBe(6);   // top 0 + paddingTop
+      expect(comp.getToolbarTop(obj, 0)).toBe(9);   // top 0 + paddingTop 6 + centring 3
       // Lane-relative, expressed in the assembly's own insets: left edge at the left inset, box
       // spanning inset to inset. Nothing here comes from a service mock's return value — the
       // earlier `1000 - 8 - 100` form spent a getToolbarWidth mock constant unrelated to the 1000px
@@ -497,7 +497,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       const obj = anchoredChart({ maxMode: false });
       comp.vsInfo = makeVsInfo([obj]);
 
-      expect(comp.getToolbarTop(obj, 0)).toBe(6);
+      expect(comp.getToolbarTop(obj, 0)).toBe(9);
       expect(comp.getToolbarLeft(obj, 0)).toBe(0 + 4);
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(1000 - 4 - 8);
    });
@@ -518,9 +518,10 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
    });
 
    // The table family declares no paddingTop/Left/Right — those fields are on vs-chart-model only —
-   // so the || 0 fallbacks resolve a table to a strip flush inside the content box, spanning the
-   // full width. That is the lane a table already has, which is what slice 1's rule asks for.
-   it("anchors a table flush and full width, since no table model carries paddings", () => {
+   // so the || 0 fallbacks resolve a table to a strip flush left inside the content box, spanning
+   // the full width. Top still gets the same centring term as every other anchored type, so it is
+   // not flush against the lane's own top.
+   it("anchors a table flush left and full width, since no table model carries paddings", () => {
       const { comp } = makeComponent({
          vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
       });
@@ -535,7 +536,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(true);
-      expect(comp.getToolbarTop(obj, 0)).toBe(40);
+      expect(comp.getToolbarTop(obj, 0)).toBe(43);
       expect(comp.getToolbarLeft(obj, 0)).toBe(250);
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
       expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600);
@@ -559,7 +560,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(true);
-      expect(comp.getToolbarTop(obj, 0)).toBe(40);
+      expect(comp.getToolbarTop(obj, 0)).toBe(43);
       expect(comp.getToolbarLeft(obj, 0)).toBe(250);
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
       expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600);
@@ -633,8 +634,9 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
    });
 
    // Selection carries no paddingTop/Left/Right either (those fields are on vs-chart-model only), so
-   // the same || 0 fallbacks that give a table a flush, full-width lane give a selection list one
-   // too: flush top/left, full width, right edge landing exactly on the assembly's own right edge.
+   // the same || 0 fallbacks that give a table a flush-left, full-width lane give a selection list
+   // one too: flush left, full width, right edge landing exactly on the assembly's own right edge.
+   // Top is centred in the lane like every other anchored type, not flush against it.
    it("anchors a non-max-mode selection list", () => {
       const { comp } = makeComponent({
          vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
@@ -650,7 +652,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(true);
-      expect(comp.getToolbarTop(obj, 0)).toBe(40);
+      expect(comp.getToolbarTop(obj, 0)).toBe(43);
       expect(comp.getToolbarLeft(obj, 0)).toBe(250);
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
       expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600);

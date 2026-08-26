@@ -55,6 +55,7 @@ import { DataTipService } from "./data-tip/data-tip.service";
 import { DateTipHelper } from "./data-tip/date-tip-helper";
 import { PopComponentService } from "./data-tip/pop-component.service";
 import { anchoredLaneHeight, isAnchoredResident, MiniToolbarService } from "./mini-toolbar/mini-toolbar.service";
+import { StripGlyphTone, stripGlyphTone } from "./mini-toolbar/strip-glyph-tone";
 import { NavigationKeys } from "./navigation-keys";
 import { SelectionBaseController } from "./selection/selection-base-controller";
 import { PlaceholderDragElement } from "../../widget/placeholder-drag-element/placeholder-drag-element.component";
@@ -487,6 +488,15 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    }
 
    /**
+    * The glyph treatment for this assembly's anchored strip: which of the two inks reads against
+    * the colour the strip sits on, and at what alpha. Memoized in the resolver, so calling this
+    * from the template costs a map lookup per pass.
+    */
+   public getStripGlyphTone(object: VSObjectModel): StripGlyphTone {
+      return stripGlyphTone(object);
+   }
+
+   /**
     * Selection list/tree in max mode: objectFormat.top/left hold VSSelectionBaseModel's
     * TOP_PADDING/LEFT_PADDING constants (30/20), not the assembly's true origin — the assembly's
     * own rendering ignores them too (see isToolbarAnchored above) and fills the container instead.
@@ -503,8 +513,11 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       if(this.isToolbarAnchored(object)) {
          // Inside the assembly, at the lane's top inset. The inset is the assembly's own paddingTop —
          // what vs-title already positions against — not the card spec's 12px, which belongs to the
-         // card-geometry work.
-         return object.objectFormat.top + ((<VSChartModel> object).paddingTop || 0);
+         // card-geometry work. Centre the fixed-height strip in whatever lane it has.
+         const slack = anchoredLaneHeight(object) - GuiTool.MINI_TOOLBAR_HEIGHT_MODERN;
+         const centring = Math.floor(Math.max(0, slack) / 2);
+
+         return object.objectFormat.top + ((<VSChartModel> object).paddingTop || 0) + centring;
       }
 
       let actionHeight = 28;
