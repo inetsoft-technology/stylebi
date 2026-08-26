@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Unit coverage for {@link TabularEndpointBindingSupport}, the reflection-based helper shared by
  * {@code WorksheetTableService.buildTabularTable} (wiz-services) and
  * {@code WorksheetAgentController.addTabularTable} (composer plugin). Exercised against
- * {@link FakeNamedConnectorQuery}/{@link FakeCustomRestQuery} -- real (non-mock) {@code TabularQuery}
+ * {@link FakeLegacyEndpointQuery}/{@link FakeCustomRestQuery} -- real (non-mock) {@code TabularQuery}
  * instances, since the class under test works entirely through {@code TabularUtil}'s bean-property
  * reflection, which a mock cannot stand in for.
  */
@@ -44,7 +44,7 @@ class TabularEndpointBindingSupportTest {
 
    @Test
    void applyEndpointContractSetsEndpointAndBuildsSuffix() throws Exception {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
 
       String suffix = TabularEndpointBindingSupport.applyEndpointContract(
@@ -56,7 +56,7 @@ class TabularEndpointBindingSupportTest {
 
    @Test
    void applyEndpointContractSubstitutesSuppliedParameterValues() throws Exception {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       RestParameter idParam = new RestParameter();
       idParam.setName("id");
       idParam.setRequired(true);
@@ -71,7 +71,7 @@ class TabularEndpointBindingSupportTest {
 
    @Test
    void applyEndpointContractRejectsMissingRequiredParameter() {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       RestParameter idParam = new RestParameter();
       idParam.setName("id");
       idParam.setRequired(true);
@@ -86,7 +86,7 @@ class TabularEndpointBindingSupportTest {
 
    @Test
    void applyEndpointContractRejectsUnknownParameterName() {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       RestParameter idParam = new RestParameter();
       idParam.setName("id");
       query.getParameters().getParameters().add(idParam);
@@ -100,7 +100,7 @@ class TabularEndpointBindingSupportTest {
 
    @Test
    void applyEndpointContractRejectsUnknownEndpointName() {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -111,7 +111,7 @@ class TabularEndpointBindingSupportTest {
 
    @Test
    void applyEndpointContractRejectsPostEndpoint() {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -122,7 +122,7 @@ class TabularEndpointBindingSupportTest {
 
    @Test
    void requireRowCapWhenPagedThrowsForAPagedEndpoint() throws Exception {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
       TabularEndpointBindingSupport.applyEndpointContract(
          query, pmap, "Paged", null, null, null, null, "myds");
@@ -133,7 +133,7 @@ class TabularEndpointBindingSupportTest {
 
    @Test
    void requireRowCapWhenPagedAllowsAnUnpagedEndpoint() throws Exception {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
       TabularEndpointBindingSupport.applyEndpointContract(
          query, pmap, "Repos", null, null, null, null, "myds");
@@ -146,7 +146,7 @@ class TabularEndpointBindingSupportTest {
 
    @Test
    void applyLookupChainSetsSingleLevel() throws Exception {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
       TabularEndpointBindingSupport.applyEndpointContract(
          query, pmap, "Repos", null, null, null, null, "myds");
@@ -159,7 +159,7 @@ class TabularEndpointBindingSupportTest {
 
    @Test
    void applyLookupChainSetsTwoLevelsInOrder() throws Exception {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
       TabularEndpointBindingSupport.applyEndpointContract(
          query, pmap, "Repos", null, null, null, null, "myds");
@@ -173,7 +173,7 @@ class TabularEndpointBindingSupportTest {
 
    @Test
    void applyLookupChainRejectsUnknownNameAtPositionZero() throws Exception {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
       TabularEndpointBindingSupport.applyEndpointContract(
          query, pmap, "Repos", null, null, null, null, "myds");
@@ -192,7 +192,7 @@ class TabularEndpointBindingSupportTest {
     */
    @Test
    void applyLookupChainRejectsUnknownNameAtPositionOneNamingPositionOnesChoices() throws Exception {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
       TabularEndpointBindingSupport.applyEndpointContract(
          query, pmap, "Repos", null, null, null, null, "myds");
@@ -206,7 +206,7 @@ class TabularEndpointBindingSupportTest {
 
    @Test
    void applyLookupChainRejectsChainLongerThanFive() {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
 
       assertThrows(IllegalArgumentException.class,
@@ -216,7 +216,7 @@ class TabularEndpointBindingSupportTest {
 
    @Test
    void applyLookupChainDefaultsLeaveConnectorDefaultsUntouched() throws Exception {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
       TabularEndpointBindingSupport.applyEndpointContract(
          query, pmap, "Repos", null, null, null, null, "myds");
@@ -230,7 +230,7 @@ class TabularEndpointBindingSupportTest {
 
    @Test
    void applyLookupChainSuppliedFalseIsReadBack() throws Exception {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
       TabularEndpointBindingSupport.applyEndpointContract(
          query, pmap, "Repos", null, null, null, null, "myds");
@@ -264,7 +264,7 @@ class TabularEndpointBindingSupportTest {
     */
    @Test
    void applyCustomSuffixRejectsSilentNoOpOnNamedConnectorQuery() {
-      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
 
       IllegalStateException ex = assertThrows(IllegalStateException.class,

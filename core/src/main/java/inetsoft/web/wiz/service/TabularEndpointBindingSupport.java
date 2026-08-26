@@ -47,9 +47,8 @@ import java.util.stream.Collectors;
  * lookup setters SILENTLY NO-OP on bad input (an unknown lookup name, or an index past the
  * 5-level cap) rather than throwing -- exactly the "tool accepted malformed input and produced a
  * plausible-but-wrong result" failure mode this codebase's plugin testing principle calls out.
- * Reading every write back, the same idiom {@link WorksheetTableService#applyEndpointContract}
- * already established for {@code endpoint} itself, is what turns that silent failure into a
- * loud one.</p>
+ * Reading every write back, the idiom {@link TabularQueryContractSupport#applyQueryContract}
+ * now applies to every property it sets, is what turns that silent failure into a loud one.</p>
  */
 public final class TabularEndpointBindingSupport {
 

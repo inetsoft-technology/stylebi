@@ -146,58 +146,39 @@ class WorksheetTableRequestTest {
    // ─── tabularSource: the generalized target ────────────────────────────────
 
    /**
-    * The field names are the contract with wiz-services, which builds this object. Bound here
-    * rather than left to the service tests because a rename that Jackson simply ignores produces a
-    * null target and an "is required" error, with nothing saying the caller spelled it differently.
+    * Binds the whole of what addresses a tabular target now. The two tests replaced here covered
+    * targetKind/target/params and the endpoint-as-target alias; none of those fields exist any
+    * more, so what they pinned cannot be expressed.
     */
    @Test
-   void tabularFileTargetBinds() throws Exception {
+   void tabularSourceBindsQueryParams() throws Exception {
       ObjectMapper mapper = new ObjectMapper();
 
       WorksheetTable t = mapper.readValue(
          """
          { "tableType": "tabular table",
            "tabularSource": {
-             "datasourcePath": "Files/Sales",
-             "targetKind": "file",
-             "target": "2024/sales.xlsx#Q1",
-             "params": { "firstRowHeader": "true", "delimiter": ";" },
+             "datasourcePath": "SaaS/Stripe",
+             "queryParams": { "endpoint": "Charges",
+                              "parameters": { "limit": "100" },
+                              "timeout": 45,
+                              "expanded": false },
+             "maxRows": 5000,
              "sampleRows": 5
            } }
          """,
          WorksheetTable.class);
 
       WorksheetTable.TabularSource src = t.getTabularSource();
-      assertEquals("file", src.getTargetKind());
-      assertEquals("2024/sales.xlsx#Q1", src.getTarget());
-      assertEquals("true", src.getParams().get("firstRowHeader"));
-      assertEquals(";", src.getParams().get("delimiter"));
+      assertEquals("SaaS/Stripe", src.getDatasourcePath());
+      assertEquals("Charges", src.getQueryParams().get("endpoint"));
+      assertEquals(5000, src.getMaxRows());
       assertEquals(5, src.getSampleRows());
-   }
 
-   /**
-    * {@code endpoint} was this field's name before a file could be named through it, and it named
-    * the same thing. Kept as an alias so a caller written against that shape still binds rather
-    * than failing with "target is required" over a value it did supply.
-    */
-   @Test
-   void tabularEndpointBindsAsTargetUnderItsOldName() throws Exception {
-      ObjectMapper mapper = new ObjectMapper();
-
-      WorksheetTable t = mapper.readValue(
-         """
-         { "tableType": "tabular table",
-           "tabularSource": { "datasourcePath": "SaaS/Stripe", "endpoint": "Charges",
-                              "parameters": { "limit": "100" } } }
-         """,
-         WorksheetTable.class);
-
-      WorksheetTable.TabularSource src = t.getTabularSource();
-      assertEquals("Charges", src.getTarget());
-      // Absent, not defaulted on the model: buildTabularTable reads an absent kind as "endpoint",
-      // which is where that rule belongs — the model only reports what arrived.
-      assertNull(src.getTargetKind());
-      assertEquals("100", src.getParameters().get("limit"));
-      assertNull(src.getParams());
+      // Types survive binding, which is the point of Map<String, Object> over Map<String, String>:
+      // PropertyMeta.setValue does no string-to-numeric conversion, so an int property handed "45"
+      // loses the write, leaves the connector default, and the query still reports success.
+      assertEquals(45, src.getQueryParams().get("timeout"));
+      assertEquals(false, src.getQueryParams().get("expanded"));
    }
 }

@@ -17,89 +17,31 @@
  */
 package inetsoft.web.wiz.service;
 
-import inetsoft.uql.VariableTable;
-import inetsoft.uql.XQuery;
-import inetsoft.uql.tabular.HttpParameter;
 import inetsoft.uql.tabular.Property;
-import inetsoft.uql.tabular.PropertyEditor;
 import inetsoft.uql.tabular.RestParameter;
 import inetsoft.uql.tabular.RestParameters;
 import inetsoft.uql.tabular.TabularQuery;
-import inetsoft.uql.tabular.View;
-import inetsoft.uql.tabular.View1;
 
 import java.util.*;
 
 /**
  * Minimal, REAL (non-mock) stand-in for a named-connector {@code TabularQuery} such as
- * {@code EndpointJsonQuery} -- reflects the exact {@code @Property}/{@code @PropertyEditor}/
- * {@code getEndpoints()}/{@code isPaged()} shape {@code TabularQueryContractSupport} reaches,
- * without depending on the {@code inetsoft-rest} connector module (core does not depend on it --
- * see {@code inetsoft.uql.rest.AbstractRestQuery}, the test-only stand-in for the same reason).
+ * {@code EndpointJsonQuery} -- reflects the exact {@code @Property}/{@code getEndpoints()}/
+ * {@code getLookupEndpoints(int)}/{@code isPaged()} shape
+ * {@link TabularEndpointBindingSupport} reaches by reflection, without depending on the
+ * {@code inetsoft-rest} connector module (core does not depend on it -- see
+ * {@code inetsoft.uql.rest.AbstractRestQuery}, the test-only stand-in for the same reason).
  *
  * <p>Endpoint graph, modeled on GitHub's real {@code endpoints.json} shape (one lookup per
- * endpoint, chained): {@code Repos -> Issues -> Comments}. {@code Repos} declares one REQUIRED
- * composite parameter, {@code id}, so {@code getParameters()} is a genuine Kind A skeleton --
- * fresh on every call, keyed off the currently-set {@code endpoint}, exactly like the real
- * {@code EndpointJsonQuery.getParameters()}. {@code Paged} and {@code PostEndpoint} exist only
- * to exercise {@code isPaged()}/the POST refusal.</p>
- *
- * <p>{@code @View} is REQUIRED here, not decorative: {@code LayoutCreator}'s no-{@code @View}
- * fallback path never attaches an editor to a COMPONENT-typed view built outside a real
- * {@code @View1}/{@code @View2} walk, so {@code TabularSchemaExtractor.extract} throws on a
- * class with no {@code @View} at all. Every shipped connector declares one; this fixture must
- * too to be extractable the same way.</p>
+ * endpoint, chained): {@code Repos -> Issues -> Comments}. {@code Paged} and {@code PostEndpoint}
+ * exist only to exercise {@code requireRowCapWhenPaged}/the POST refusal.</p>
  */
-@View(vertical = true, value = {
-   @View1("endpoint"),
-   @View1("parameters"),
-   @View1("requestType"),
-   @View1("suffix"),
-   @View1("jsonPath"),
-   @View1("expanded"),
-   @View1("expandedPath"),
-   @View1("lookupExpanded"),
-   @View1("lookupTopLevelOnly"),
-   @View1("lookupEndpoint0"),
-   @View1("lookupEndpoint1"),
-   @View1("additionalParameters"),
-})
-public class FakeNamedConnectorQuery extends TabularQuery {
-   public FakeNamedConnectorQuery() {
+public class FakeLegacyEndpointQuery extends TabularQuery {
+   public FakeLegacyEndpointQuery() {
       super("FakeNamedConnector");
    }
 
-   /**
-    * Overridden (rather than delegating to the real {@code TabularQuery.loadOutputColumns},
-    * which runs a live {@code TabularHandler} execution this fixture has no backing runner for)
-    * to capture the {@code XQuery.HINT_MAX_ROWS} value the caller put in {@code vtable} -- the
-    * one thing {@code WorksheetTableServiceProbeHintTest} needs to observe. No columns are
-    * produced, matching a connector this probe got nothing back from; the caller's own
-    * empty-column check is expected to fire afterward and is not this fixture's concern.
-    */
-   @Override
-   public void loadOutputColumns(VariableTable vtable) throws Exception {
-      capturedHintMaxRows = (String) vtable.get(XQuery.HINT_MAX_ROWS);
-   }
-
-   public String getCapturedHintMaxRows() {
-      return capturedHintMaxRows;
-   }
-
-   /**
-    * Overridden as a no-op: the real {@code XQuery.revalidate()} looks up
-    * {@code DataSourceRegistry.getRegistry()}, a Spring-bean-backed singleton this fixture's
-    * test context does not provide (and does not need to -- nothing under test here depends on
-    * data-source-registry revalidation).
-    */
-   @Override
-   public void revalidate() {
-   }
-
-   private String capturedHintMaxRows;
-
    @Property(label = "Endpoint", required = true)
-   @PropertyEditor(tagsMethod = "getEndpoints")
    public String getEndpoint() {
       return endpoint;
    }
@@ -109,52 +51,13 @@ public class FakeNamedConnectorQuery extends TabularQuery {
       lookupEndpoints.clear();
    }
 
-   /**
-    * A FRESH {@code RestParameters}, derived from the currently-set {@code endpoint}, on EVERY
-    * call -- the exact shape {@code EndpointJsonQuery.getParameters()} has (:157-161), which is
-    * why mutating the elements of one call's result does not persist without an explicit
-    * {@link #setParameters} afterward. Previously-set values are recovered via
-    * {@code getKnownParameterValue}, the same mechanism the real class uses.
-    */
    @Property(label = "Parameters", required = true)
-   @PropertyEditor(dependsOn = "endpoint")
    public RestParameters getParameters() {
-      RestParameters fresh = new RestParameters();
-      fresh.setEndpoint(endpoint);
-      List<RestParameter> list = new ArrayList<>();
-
-      for(String name : endpoint == null ? List.<String>of() : PARAM_MAP.getOrDefault(endpoint, List.of())) {
-         RestParameter rp = new RestParameter();
-         rp.setName(name);
-         rp.setRequired(REQUIRED_PARAM_NAMES.contains(name));
-         rp.setValue(parameters.getKnownParameterValue(name));
-         list.add(rp);
-      }
-
-      fresh.setParameters(list);
-      return fresh;
+      return parameters;
    }
 
    public void setParameters(RestParameters parameters) {
-      if(parameters != null && this.parameters != null) {
-         parameters.copyParameterValues(this.parameters);
-      }
-
       this.parameters = parameters;
-   }
-
-   /**
-    * Kind B, exactly like the real {@code EndpointJsonQuery.additionalParameters}: starts null,
-    * has NO {@code dependsOn}, and never resolves to a skeleton under any sequence of writes.
-    * Exists to exercise the Kind B refusal-by-name path without a live skeleton to fill.
-    */
-   @Property(label = "Additional Parameters")
-   public HttpParameter[] getAdditionalParameters() {
-      return additionalParameters;
-   }
-
-   public void setAdditionalParameters(HttpParameter[] additionalParameters) {
-      this.additionalParameters = additionalParameters;
    }
 
    @Property(label = "Request Type")
@@ -230,7 +133,6 @@ public class FakeNamedConnectorQuery extends TabularQuery {
    }
 
    @Property(label = "Lookup 0")
-   @PropertyEditor(dependsOn = "endpoint", tagsMethod = "getLookupEndpoints0")
    public String getLookupEndpoint0() {
       return lookupEndpoints.size() > 0 ? lookupEndpoints.get(0) : null;
    }
@@ -240,7 +142,6 @@ public class FakeNamedConnectorQuery extends TabularQuery {
    }
 
    @Property(label = "Lookup 1")
-   @PropertyEditor(dependsOn = "lookupEndpoint0", tagsMethod = "getLookupEndpoints1")
    public String getLookupEndpoint1() {
       return lookupEndpoints.size() > 1 ? lookupEndpoints.get(1) : null;
    }
@@ -261,20 +162,7 @@ public class FakeNamedConnectorQuery extends TabularQuery {
          .toArray(String[][]::new);
    }
 
-   /**
-    * Split into per-level, ZERO-ARG methods (rather than one {@code getLookupEndpoints(int)}) --
-    * a {@code tagsMethod} target must be reachable by {@code Class.getMethod(name)} with no
-    * parameters, exactly like {@code EndpointJsonQuery.getLookupEndpoints0()}/{@code ...1()}.
-    */
-   public String[][] getLookupEndpoints0() {
-      return lookupEndpointsAt(0);
-   }
-
-   public String[][] getLookupEndpoints1() {
-      return lookupEndpointsAt(1);
-   }
-
-   private String[][] lookupEndpointsAt(int index) {
+   public String[][] getLookupEndpoints(int index) {
       String parent = getParentEndpointOfLookupIndex(index);
       List<String> lookups = parent == null
          ? List.of() : ENDPOINT_MAP.getOrDefault(parent, List.of());
@@ -292,8 +180,8 @@ public class FakeNamedConnectorQuery extends TabularQuery {
 
    /**
     * SILENTLY NO-OPS on an unknown name -- exactly {@code EndpointJsonQuery.setLookupEndpoint}'s
-    * real, documented behavior that {@code TabularQueryContractSupport}'s general read-back
-    * check exists to catch.
+    * real, documented behavior that {@link TabularEndpointBindingSupport#applyLookupChain}'s
+    * read-back exists to catch.
     */
    private void setLookupEndpoint(String name, int index) {
       if(name == null) {
@@ -327,14 +215,9 @@ public class FakeNamedConnectorQuery extends TabularQuery {
       "Comments", List.of(),
       "Paged", List.of(),
       "PostEndpoint", List.of());
-   /** Which endpoint declares which composite parameter names. */
-   private static final Map<String, List<String>> PARAM_MAP = Map.of(
-      "Repos", List.of("id"));
-   private static final Set<String> REQUIRED_PARAM_NAMES = Set.of("id");
 
    private String endpoint;
    private RestParameters parameters = new RestParameters();
-   private HttpParameter[] additionalParameters;
    private String jsonPath;
    private Boolean expanded;
    private String expandedPath;

@@ -115,7 +115,7 @@ class WizTabularControllerSecurityTest {
    @Test
    void tabularQuerySchemaIsGatedOnReadWithAWiredPermissionPath() throws Exception {
       Method method = WizTabularController.class.getDeclaredMethod(
-         "getQuerySchema", String.class, Principal.class);
+         "getQuerySchema", String.class, boolean.class, Principal.class);
 
       assertGateOnPathParameter(method, ResourceAction.READ);
    }

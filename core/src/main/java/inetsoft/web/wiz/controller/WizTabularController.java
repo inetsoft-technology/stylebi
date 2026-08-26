@@ -28,6 +28,8 @@ import inetsoft.uql.tabular.LayoutCreator;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularEditor;
 import inetsoft.uql.tabular.TabularQuery;
+import inetsoft.uql.tabular.TabularQueryParamsSchemaBuilder;
+import inetsoft.uql.tabular.TabularQueryContract;
 import inetsoft.uql.tabular.TabularQuerySchema;
 import inetsoft.uql.tabular.TabularSchemaExtractor;
 import inetsoft.uql.tabular.TabularUtil;
@@ -252,8 +254,12 @@ public class WizTabularController {
     * credentials and so demands WRITE; this returns a description of the connector's shape and no
     * value the user configured.</p>
     *
-    * @param path      the data source's full repository path.
-    * @param principal the current user.
+    * @param path        the data source's full repository path.
+    * @param resolveTags whether to inline runtime candidate values into queryParamsSchema for
+    *                    tagsMethod-backed params with no dependsOn prerequisite -- bounded by a
+    *                    per-call timeout and candidate-count cap; see
+    *                    TabularQueryParamsSchemaBuilder.
+    * @param principal   the current user.
     *
     * @return the parameter contract for that data source's query.
     */
@@ -263,8 +269,11 @@ public class WizTabularController {
          resourceType = ResourceType.DATA_SOURCE, actions = ResourceAction.READ
       )
    })
-   public TabularQuerySchema getQuerySchema(
-      @PermissionPath @RequestParam("path") String path, Principal principal) throws Exception
+   public TabularQueryContract getQuerySchema(
+      @PermissionPath @RequestParam("path") String path,
+      @RequestParam(name = "resolveTags", required = false, defaultValue = "false")
+         boolean resolveTags,
+      Principal principal) throws Exception
    {
       requireTabularDataSource(path);
 
@@ -291,8 +300,19 @@ public class WizTabularController {
          // Not null-checked: this overload describes the instance it is handed and always answers.
          // Only the one that resolves the query class itself can fail to produce a query, and that
          // case is the guard above.
-         return new TabularSchemaExtractor()
+         TabularQuerySchema schema = new TabularSchemaExtractor()
             .extract(query, dataSource == null ? null : dataSource.getType());
+
+         // Same query instance extract() just finished with -- still in its post-createQuery(path),
+         // pre-any-@Property-write state (extract's own probing constructs its OWN fresh instances
+         // and never touches this one), which is why a dependsOn-gated composite's Kind A/B guess
+         // here can only be a guess, and why a resolveTags=true tagsMethod call for a no-dependsOn
+         // param sees the same account/session state a real fill would. Run inside the same
+         // try/finally connector-session block as extract() itself, so a resolveTags tagsMethod
+         // invocation is bound and accounted the same way every other connector-code call already is.
+         return new TabularQueryContract(
+            schema.getDataSourceType(),
+            TabularQueryParamsSchemaBuilder.build(query, schema, resolveTags));
       }
       finally {
          endConnectorSession();

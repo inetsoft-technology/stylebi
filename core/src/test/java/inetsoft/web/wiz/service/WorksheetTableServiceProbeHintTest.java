@@ -51,40 +51,26 @@ import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * Proves {@code WorksheetTableService.buildTabularTable} actually calls
- * {@code TabularQueryContractSupport.applyQueryContract} with {@code tabularSource.queryParams}
- * -- not just that the helper itself is correct in isolation (already covered by
- * {@link TabularQueryContractSupportTest}). A passing unit test that nothing production calls
- * is worse than no test (see {@code 2026-08-19-tabular-table-creation.md} §5.2).
- *
- * <p>{@link FakeNamedConnectorQuery} stands in for a real connector's query class --
- * {@code TabularUtil.createQuery} is mocked statically to return it (its normal path resolves a
- * REGISTERED connector's query via a global {@code Config}/{@code XRepository.getRepository()}
- * lookup, which no fake datasource can satisfy); every other static method on {@code TabularUtil}
- * (notably {@code getPropertyMap}, the actual reflection under test) calls through to the real
- * implementation.</p>
+ * The revised §4.1 row-cap rule: {@code maxRows} is OPTIONAL. Absent, the column-discovery probe
+ * runs under a small {@code HINT_MAX_ROWS} hint and NOTHING is persisted on the query; supplied,
+ * it is persisted exactly as before. The load-bearing assertion in every "absent" case here is
+ * that {@code query.getMaxRows()} stays at its default -- the only automated guard that a
+ * server-invented probe default never becomes a persisted truncation, which silently understates
+ * every aggregate in every chart bound to the table (worse than a metered API walked to
+ * exhaustion on a render, which is at least visible as cost).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(
-   classes = { BaseTestConfiguration.class, WorksheetTableServiceLookupWiringTest.TestConfig.class },
+   classes = { BaseTestConfiguration.class, WorksheetTableServiceProbeHintTest.TestConfig.class },
    initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
-class WorksheetTableServiceLookupWiringTest {
-   /**
-    * {@code TabularSchemaExtractor.extract} (now unconditional in {@code buildTabularTable} --
-    * its params list order is the topological sort's tie-break) builds a layout via
-    * {@code LayoutCreator}, which resolves labels through {@code Config.getConfig()}, a Spring
-    * bean {@code BaseTestConfiguration} does not provide. A stub answering no bundle is enough --
-    * same as {@code TabularSchemaExtractorTest}'s manual {@code ConfigurationContext} install,
-    * done here as a Spring bean instead since this test already runs under a real context.
-    */
+class WorksheetTableServiceProbeHintTest {
    @Configuration
    static class TestConfig {
       @Bean
@@ -117,8 +103,16 @@ class WorksheetTableServiceLookupWiringTest {
          securityEngine);
    }
 
-   @Test
-   void buildTabularTableRefusesAnUnknownLookupNameViaTheSharedHelper() throws Exception {
+   /**
+    * Build one tabular table from {@code tabularSourceJson} against a fresh
+    * {@link FakeNamedConnectorQuery}, and return that same instance for inspection.
+    *
+    * <p>The build always ends in failure here (the fixture's {@code loadOutputColumns}
+    * deliberately produces no columns, per its own doc) -- that failure is expected and
+    * ignored; what these tests inspect is the query's state AFTER the attempt, which is set
+    * before the empty-column check runs.
+    */
+   private FakeNamedConnectorQuery build(String tabularSourceJson) throws Exception {
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       DataSourceService dataSourceService = mock(DataSourceService.class);
       XRepository xrepository = mock(XRepository.class);
@@ -136,77 +130,76 @@ class WorksheetTableServiceLookupWiringTest {
          {
            "tableName": "t1",
            "tableType": "tabular table",
-           "tabularSource": {
-             "datasourcePath": "myds",
-             "queryParams": { "endpoint": "Repos", "lookupEndpoint0": "Bogus" },
-             "maxRows": 100
-           }
+           "tabularSource": %s
          }
-         """);
+         """.formatted(tabularSourceJson));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
 
       try(MockedStatic<TabularUtil> tabularUtil =
              mockStatic(TabularUtil.class, CALLS_REAL_METHODS))
       {
-         tabularUtil.when(() -> TabularUtil.createQuery(eq("myds")))
-            .thenReturn(new FakeNamedConnectorQuery());
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("myds"))).thenReturn(query);
 
          WorksheetTableResponse table =
             only(service(xrepository, dataSourceService, securityEngine).createTables(request, USER));
 
-         assertFalse(table.isSuccess());
-         // "Issues" is Repos' one real lookup choice -- proves the request actually reached
-         // TabularQueryContractSupport's tagsMethod validation for lookupEndpoint0 (only that
-         // code path can name it), not just some other, unrelated failure.
-         assertTrue(table.getErrorMessage().contains("Issues"),
-            "expected the lookup-chain rejection naming Repos' real choices, got: " +
-               table.getErrorMessage());
+         assertFalse(table.isSuccess(),
+            "the fixture produces no columns by design; a success here means this test's own " +
+               "setup is broken, not that the row-cap behavior passed");
       }
+
+      return query;
    }
 
    @Test
-   void buildTabularTableAcceptsAKnownLookupNameViaTheSharedHelper() throws Exception {
-      SecurityEngine securityEngine = mock(SecurityEngine.class);
-      DataSourceService dataSourceService = mock(DataSourceService.class);
-      XRepository xrepository = mock(XRepository.class);
-
-      when(securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
-                                          eq(ResourceAction.ACCESS)))
-         .thenReturn(true);
-      when(dataSourceService.checkPermission(eq("myds"), eq(ResourceAction.READ), eq(USER)))
-         .thenReturn(true);
-
-      TabularDataSource<?> ds = mock(TabularDataSource.class);
-      when(xrepository.getDataSource(eq("myds"))).thenReturn(ds);
-
-      WorksheetTableRequest request = batchOf("""
-         {
-           "tableName": "t1",
-           "tableType": "tabular table",
-           "tabularSource": {
-             "datasourcePath": "myds",
-             "queryParams": { "endpoint": "Repos", "lookupEndpoint0": "Issues" },
-             "maxRows": 100
-           }
-         }
+   void noMaxRowsHintsTwentyAndLeavesTheQueryUncapped() throws Exception {
+      FakeNamedConnectorQuery query = build("""
+         { "datasourcePath": "myds", "queryParams": { "endpoint": "Repos" } }
          """);
 
-      try(MockedStatic<TabularUtil> tabularUtil =
-             mockStatic(TabularUtil.class, CALLS_REAL_METHODS))
-      {
-         tabularUtil.when(() -> TabularUtil.createQuery(eq("myds")))
-            .thenReturn(new FakeNamedConnectorQuery());
+      assertEquals("20", query.getCapturedHintMaxRows());
+      assertEquals(0, query.getMaxRows(), "absence of maxRows must never become a persisted cap");
+   }
 
-         // A valid lookup name passes tagsMethod validation and reaches loadColumnSelection,
-         // which fails for the unrelated reason that FakeNamedConnectorQuery has no real
-         // HTTP/data execution behind it -- proof the lookup validation itself did NOT reject
-         // this request.
-         WorksheetTableResponse table =
-            only(service(xrepository, dataSourceService, securityEngine).createTables(request, USER));
+   @Test
+   void noMaxRowsWithSampleRowsHintsTheLargerOfTheTwo() throws Exception {
+      FakeNamedConnectorQuery query = build("""
+         { "datasourcePath": "myds", "queryParams": { "endpoint": "Repos" }, "sampleRows": 50 }
+         """);
 
-         assertFalse(table.isSuccess());
-         assertFalse(table.getErrorMessage().contains("has no value"),
-            "a known lookup name must not be rejected by tagsMethod validation, got: " +
-               table.getErrorMessage());
-      }
+      assertEquals("50", query.getCapturedHintMaxRows());
+      assertEquals(0, query.getMaxRows());
+   }
+
+   @Test
+   void suppliedMaxRowsIsPersistedAndTheProbeHintStaysSmall() throws Exception {
+      FakeNamedConnectorQuery query = build("""
+         { "datasourcePath": "myds", "queryParams": { "endpoint": "Repos" }, "maxRows": 5000 }
+         """);
+
+      assertEquals(5000, query.getMaxRows(), "a caller-supplied cap must be persisted");
+      assertEquals("20", query.getCapturedHintMaxRows(),
+         "the probe must not pull 5000 rows through a metered API just to resolve columns");
+   }
+
+   @Test
+   void requestWithoutMaxRowsIsAcceptedOnAnUnpaginatedEndpoint() throws Exception {
+      // "Repos" is not "Paged" -- FakeNamedConnectorQuery.isPaged() is false. build() itself
+      // already asserts the request reaches the empty-column failure (not an earlier,
+      // maxRows-related rejection); this test exists to say so explicitly, pinning the reversal
+      // that absence of a cap is legal now.
+      build("""
+         { "datasourcePath": "myds", "queryParams": { "endpoint": "Repos" } }
+         """);
+   }
+
+   @Test
+   void requestWithoutMaxRowsIsAcceptedOnAPaginatedEndpoint() throws Exception {
+      FakeNamedConnectorQuery query = build("""
+         { "datasourcePath": "myds", "queryParams": { "endpoint": "Paged" } }
+         """);
+
+      assertEquals(0, query.getMaxRows(), "a paginated endpoint with no cap is accepted, not rejected");
    }
 }

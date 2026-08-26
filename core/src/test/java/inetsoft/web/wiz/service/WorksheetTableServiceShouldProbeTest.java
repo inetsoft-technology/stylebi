@@ -114,7 +114,7 @@ class WorksheetTableServiceShouldProbeTest {
       WorksheetTable req = request("""
          {
            "tableName": "t", "tableType": "tabular table",
-           "tabularSource": { "datasourcePath": "myds", "endpoint": "Charges" }
+           "tabularSource": { "datasourcePath": "myds", "queryParams": { "endpoint": "Charges" } }
          }
          """);
 
