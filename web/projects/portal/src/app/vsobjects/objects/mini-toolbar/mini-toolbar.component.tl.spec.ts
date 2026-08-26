@@ -154,7 +154,9 @@ describe("MiniToolbar rendered - kebab placement and resting visibility", () => 
    // element and its whole subtree as one composited group — so those two declared values multiply
    // to 0 x 0.55 = 0 and the kebab rendered fully transparent. The assertions below are on the
    // rendered outcome instead: nothing between the kebab and the strip host may zero it out.
-   it("at rest: no ancestor of the kebab zeroes it out, and the kebab itself is dim but clickable", async () => {
+   // The resting dim itself no longer comes from opacity: it moved onto the glyph colour's alpha,
+   // so kebabStyle.opacity === "1" here is the expected state, not a regression.
+   it("at rest: no ancestor of the kebab zeroes it out, and the kebab itself is undimmed by opacity and clickable", async () => {
       const { fixture } = await renderToolbar([
          new AssemblyActionGroup([makeAction("chart show-data")]),
          new AssemblyActionGroup([makeAction("more actions")])
@@ -170,7 +172,9 @@ describe("MiniToolbar rendered - kebab placement and resting visibility", () => 
       // jsdom can answer them without any layout. Reported as a list so a regression names the
       // offending element rather than just failing a boolean.
       expect(zeroingAncestors(kebab, host)).toEqual([]);
-      expect(kebabStyle.opacity).toBe("0.55");
+      // The glyph colour's alpha (the resting dimmer now) is a var()-valued color property, which
+      // cssstyle leaves unexpanded, so it is not assertable here; the unit spec covers it instead.
+      expect(kebabStyle.opacity).toBe("1");
       expect(kebabStyle.visibility).toBe("visible");
       expect(kebabStyle.pointerEvents).toBe("auto");
       // The pill keeps its chrome at rest — that is what makes the lone kebab read as a button — so
@@ -451,12 +455,11 @@ describe("MiniToolbar rendered - three action buttons plus the kebab under the g
       expect(root.querySelectorAll(".mini-toolbar-kebab").length).toBe(1);
    });
 
-   // Touch defect: the kebab rendered but tapping it opened nothing. The template's
-   // @if (!mobileDevice) means no action button reaches the DOM, yet allowedActionsNum() still
-   // handed getMoreActions() a full budget, so it skipped the leading actions as "already on the
-   // strip" and returned an empty list. This pairs the rendered DOM with the list the kebab's
-   // click actually passes to VSUtil.showDropdownMenus() — asserting the numbers alone is what let
-   // the defect through.
+   // Touch defect (historical): the kebab used to render but tapping it opened nothing, because
+   // allowedActionsNum() handed getMoreActions() a full budget it then skipped the leading
+   // actions against. That split is gone now: on touch the mini-toolbar container does not render
+   // at all, so there is nothing left to mis-wire a tap to. Assert on rendered DOM here, not just
+   // an element count — that is what let the original defect through.
    describe("on touch", () => {
       let mobileSpy: any = null;
 
@@ -474,13 +477,21 @@ describe("MiniToolbar rendered - three action buttons plus the kebab under the g
          return renderChartStrip(width, height);
       }
 
-      it("renders the kebab and no action button, and the kebab's list is the actions that did not render", async () => {
+      it("renders no container, no kebab and no action buttons for an anchored strip", async () => {
          const { fixture } = await renderTouchChartStrip(2000, 400);
          const root: HTMLElement = fixture.nativeElement;
-         const actions = fixture.componentInstance.actions as ChartActions;
 
+         expect(root.querySelector(".mini-toolbar-container")).toBeNull();
+         expect(root.querySelector(".mini-toolbar-kebab")).toBeNull();
          expect(buttonTitles(root).length).toBe(0);
-         expect(root.querySelectorAll(".mini-toolbar-kebab").length).toBe(1);
+      });
+
+      // Not a rendering assertion: ChartActions still computes an overflow list on touch, it is
+      // just that mini-toolbar no longer draws it anywhere (mobile is served by the page-level
+      // viewer-mobile-toolbar instead, reading these same actions directly).
+      it("still has the actions object compute an overflow list, even though nothing draws it", async () => {
+         const { fixture } = await renderTouchChartStrip(2000, 400);
+         const actions = fixture.componentInstance.actions as ChartActions;
 
          const more = actions.getMoreActions()
             .reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);

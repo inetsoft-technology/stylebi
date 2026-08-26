@@ -484,14 +484,7 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
                   label: () => label ? label : "_#(js:More)",
                   icon: () => "menu-horizontal-icon",
                   enabled: () => true,
-                  // On touch the action-button groups are not rendered, so this wrapper is the only
-                  // thing that can carry menuActions into the resident kebab. TEMPORARY relaxation
-                  // of the pre-existing mobile exclusion, reusing the resident type test the cap
-                  // uses so it yields only for an anchored assembly under the gate; deleted with
-                  // the rest of the pilot's type tests during the eight-assembly rollout. It
-                  // restores the route only — menu entries carrying their own !mobileDevice stay
-                  // hidden.
-                  visible: () => !this.vsWizardPreview && (!this.mobileDevice || this.resident)
+                  visible: () => !this.vsWizardPreview && !this.mobileDevice
                      && this.isActionVisibleInViewer("Menu Actions")
                      && this.menuActions.some((g) => g.actions.some((action) => action.visible())),
                   childAction: () => this.menuActions

@@ -91,11 +91,9 @@
 }
 
 // The resident strip is visible at rest so its kebab can render, take focus and be tapped. The
-// class is set by kebabResident, whose anchorInTitleLane/residentKebab inputs are already gated
-// on the per-assembly vizModern read upstream (see VSObjectContainer.isKebabResident) && the
-// anchored set (either geometrically anchored, or — off that path, on touch only — carrying the
-// design without a lane to anchor into), so it carries the gate and the set condition on its own
-// — no separate .viz-modern scope needed here.
+// class is set by kebabResident, true only when anchored on a device that can hover -- mobile is
+// excluded entirely and gets the page-level mobile toolbar instead, so no separate .viz-modern
+// scope is needed here.
 .mini-toolbar.mini-toolbar--anchored {
   visibility: visible;
 }
@@ -153,21 +151,6 @@
   display: inline-flex;
 }
 
-// The `.mini-toolbar-button-group + .mini-toolbar-button-group` divider above matches on DOM
-// adjacency, which display: none does not break — at rest it would draw a stray 1px line down the
-// left edge of the pill that now wraps only the kebab. Suppressed at rest, restored on reveal, and
-// only where a group really does precede the kebab (on touch, and in the kebab-only height band,
-// none renders). Both rules carry one class more than the divider they override, so neither depends
-// on source order.
-.mini-toolbar--anchored .mini-toolbar-button-group.mini-toolbar-kebab-group {
-  border-left: none;
-}
-
-.mini-toolbar--anchored:hover .mini-toolbar-button-group + .mini-toolbar-button-group.mini-toolbar-kebab-group,
-.mini-toolbar--anchored:focus-within .mini-toolbar-button-group + .mini-toolbar-button-group.mini-toolbar-kebab-group {
-  border-left: 1px solid var(--inet-default-border-color);
-}
-
 // The resting kebab is a touch and keyboard affordance, not a mouse-discoverability fix: touch has
 // no hover to sweep, and a control that exists only on hover has no resting focus target. Dim at
 // rest, full on reveal. It declares no visibility of its own, on purpose: the container is no longer
@@ -177,36 +160,118 @@
 // the same element. :not(.hidden-mini-toolbar) is likewise load-bearing on pointer-events: without
 // it a dismissed strip's kebab would keep pointer-events: auto.
 .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-kebab {
-  opacity: 0.55;
   pointer-events: auto;
-  transition: opacity 120ms ease-in-out;
-}
-
-.mini-toolbar--anchored:not(.hidden-mini-toolbar):hover .mini-toolbar-kebab,
-.mini-toolbar--anchored:not(.hidden-mini-toolbar):focus-within .mini-toolbar-kebab {
-  opacity: 1;
 }
 
 // Touch: the action buttons never render (they sit inside @if (!mobileDevice)), so the kebab is the
 // whole strip and takes the hit-target floor rather than any height band.
 @media (pointer: coarse) {
-  // :host-context(.viz-modern) .mini-toolbar-container above pins height: 24px and clips overflow
-  // — written when the kebab lived outside the container, it now clips the 44px touch target
-  // below right back down to 24px. Height and overflow are overridden together, height only (no
-  // fixed value, just a floor), so the mouse-pointer 24px row — coupled to
-  // GuiTool.MINI_TOOLBAR_HEIGHT_MODERN, see gui-tool.ts — is untouched; this rule only ever
-  // matches under a coarse pointer, is more specific than the :host-context rule it must beat
-  // (0,4,0 vs 0,3,0, so it does not depend on source order either), and does not apply once the
-  // strip is dismissed.
+  // :host-context(.viz-modern) .mini-toolbar-container above pins height: 24px — written when the
+  // kebab lived outside the container, it now clips the 44px touch target below right back down
+  // to 24px. Height is overridden alone, with no fixed value, just a floor, so the mouse-pointer
+  // 24px row — coupled to GuiTool.MINI_TOOLBAR_HEIGHT_MODERN, see gui-tool.ts — is untouched; this
+  // rule only ever matches under a coarse pointer, is more specific than the :host-context rule it
+  // must beat (0,4,0 vs 0,3,0, so it does not depend on source order either), and does not apply
+  // once the strip is dismissed.
   :host-context(.viz-modern) .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-container {
     height: auto;
     min-height: var(--inet-control-height-touch);
-    overflow: visible;
   }
 
+  // The touch hit-target floor applies to the kebab whether or not it carries a tone (a floating
+  // strip on touch is still the resident-kebab design, just drawn on its own surface).
   .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-kebab {
     min-width: var(--inet-control-height-touch);
     min-height: var(--inet-control-height-touch);
-    opacity: 1;
   }
+
+  // Touch has no hover to sweep, and the kebab is the whole strip here, so it must draw at the
+  // revealed alpha rather than the resting one. Referencing the derived property rather than
+  // re-deriving it avoids restating the same self-reference this file already avoids further down.
+  // Gated on a tone being present: with none, --viz-strip-glyph-a-hover is undefined too, and this
+  // would set --viz-strip-glyph-a to nothing on a strip with no ink to begin with.
+  :host([data-tone]) .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-kebab {
+    --viz-strip-glyph-a: var(--viz-strip-glyph-a-hover);
+  }
+}
+
+// The card background is author-set, so the strip cannot carry a fixed treatment: no fill, no
+// border, no radius, and the glyph takes whichever of two inks reads against what it sits on.
+// Gated on a tone being present — a strip with no tone has no ink to read, and must keep the
+// surface it draws on its own ground with (see the floating strip, which is untoned on purpose).
+// The declarations overridden here are unconditional above, so this scope wins on specificity
+// (0,4,0 against 0,2,0) rather than on source order. Nothing to clip once the radius is gone.
+:host([data-tone]) .mini-toolbar.mini-toolbar--anchored .mini-toolbar-container {
+  background-color: transparent;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+}
+
+// The resting alpha arrives as --viz-strip-glyph-a, solved per background so the pair always clears
+// 3:1. The revealed alpha is derived from it under a second name: a custom property whose own value
+// references itself is a cycle and resolves to nothing, so the step cannot be written onto
+// --viz-strip-glyph-a directly. One TS-supplied value, the relationship stated here. Gated on a
+// tone being present, since there is no --viz-strip-glyph-a to derive from otherwise.
+:host([data-tone]) .mini-toolbar--anchored {
+  --viz-strip-glyph-a-hover: min(1, calc(var(--viz-strip-glyph-a, 0.55) + 0.3));
+}
+
+// The colour is set on the button as well as the glyph: .ineticons sets its own color on the <i>, so
+// the button alone would never reach it, and the focus ring below reads currentColor off the button.
+// auto-refresh-true/false carry a deliberate red/green state colour and are left alone.
+// data-tone and the inline alpha are set on the host element by the container, while
+// .mini-toolbar--anchored is the inner div, so the tone is matched with :host() and the alpha
+// inherits down. Both mirror the :host-context(.viz-modern) idiom already in this file.
+:host([data-tone="light"]) .mini-toolbar--anchored .mini-toolbar-container {
+  --viz-strip-ink: 0 0 0;
+  --viz-strip-hover-bg: rgba(0, 0, 0, 0.06);
+}
+
+:host([data-tone="dark"]) .mini-toolbar--anchored .mini-toolbar-container {
+  --viz-strip-ink: 255 255 255;
+  --viz-strip-hover-bg: rgba(255, 255, 255, 0.18);
+}
+
+// Gated on a tone being present: --viz-strip-ink and --viz-strip-glyph-a only exist once one of
+// the two rules above has matched, so this block has nothing to read without a tone.
+:host([data-tone]) .mini-toolbar.mini-toolbar--anchored .mini-toolbar-container {
+  button,
+  button i:not(.auto-refresh-true):not(.auto-refresh-false) {
+    color: rgb(var(--viz-strip-ink) / var(--viz-strip-glyph-a, 0.55));
+  }
+
+  // transition is not inherited, and the visible glyph's colour lives on the <i>, not the button,
+  // so a button-only transition eased nothing the eye could see.
+  button,
+  button i {
+    transition: color 120ms ease-in-out;
+  }
+
+  button {
+    &:not([disabled]):hover,
+    &:focus-visible {
+      background-color: var(--viz-strip-hover-bg) !important;
+    }
+
+    &:not([disabled]):hover,
+    &:not([disabled]):hover i:not(.auto-refresh-true):not(.auto-refresh-false),
+    &:focus-visible,
+    &:focus-visible i:not(.auto-refresh-true):not(.auto-refresh-false) {
+      color: rgb(var(--viz-strip-ink) / var(--viz-strip-glyph-a-hover));
+    }
+
+    // currentColor is the tone ink at the revealed alpha, so the inset arm follows the card with no
+    // extra plumbing. The outer ring is unchanged.
+    &:focus-visible {
+      box-shadow: inset 0 0 0 1px currentColor, var(--inet-focus-ring) !important;
+    }
+  }
+}
+
+// A 1px --inet-default-border-color divider dissolves on a light card and clashes on a saturated
+// one. Dropped rather than replaced; adjacent groups are separated only by button padding. Gated
+// on a tone being present: a floating strip keeps its own surface and the divider reads fine there.
+:host([data-tone]) .mini-toolbar--anchored .mini-toolbar-button-group + .mini-toolbar-button-group {
+  border-left: none;
 }
