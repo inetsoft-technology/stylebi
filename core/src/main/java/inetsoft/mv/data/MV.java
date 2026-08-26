@@ -38,6 +38,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Materialized view, it stores dimension dictionaries at server node. When
@@ -91,6 +92,7 @@ public final class MV implements Cloneable {
     * Create palette.
     */
    private void createPalette(int size) {
+      this.overflowed.clear();
       this.palette = new DictionaryPalette[size];
 
       for(int i = 0; i < size; i++) {
@@ -239,6 +241,7 @@ public final class MV implements Cloneable {
     */
    public XDimDictionaryIndex getDictionaryIndex(int column, XDimDictionary dict) {
       loadContent();
+      overflowed.clear();
       return palette[column].getDictionary(dict);
    }
 
@@ -255,6 +258,7 @@ public final class MV implements Cloneable {
     */
    public void setDictionary(int column, int index, XDimDictionary dict) {
       loadContent();
+      overflowed.clear();
       palette[column].setDictionary(index, dict);
    }
 
@@ -510,6 +514,7 @@ public final class MV implements Cloneable {
 
       //read block dictionarys.
       int ccnt = dcnt + mcnt;
+      overflowed.clear();
       palette = new DictionaryPalette[ccnt];
 
       for(int i = 0; i < ccnt; i++) {
@@ -815,31 +820,60 @@ public final class MV implements Cloneable {
    }
 
    /**
-    * Check if the columns are valid dimensions.
+    * Get the names of the group columns whose dimension dictionary overflowed
+    * mv.dim.max.size. Grouping on such a column produces incomplete results,
+    * since the dictionary no longer maps values to unique indexes (see
+    * XDimDictionary.indexOf, which returns the row position when overflown).
+    *
+    * @return the overflowed column names, empty if none.
     */
-   public void checkValidity(GroupRef[] groups) {
+   public List<String> getOverflowedGroups(GroupRef[] groups) {
       loadContent();
+      List<String> overflowed = new ArrayList<>();
 
-      // check whether one dimension is overflow
       for(GroupRef group : groups) {
          DataRef dref = group.getDataRef();
          String attrName = MVDef.getMVHeader(dref);
-         int idx = indexOfHeader(attrName, 0);
-         List<XDimDictionary> dicts = palette[idx].getDicts();
 
-         for(XDimDictionary dict : dicts) {
-            if(idx >= 0 && idx < palette.length &&
-               dict != null && dict.isOverflow())
-            {
-               String msg = "Dimension column \"" + attrName +
-                  "\" has too many distinct values. " +
-                  "It can't be used for grouping and filtering! " +
-                  "If grouping or filtering of \"" + attrName + "\" is " +
-                  "needed, increase the mv.dim.max.size parameter.";
-               throw new RuntimeException(msg);
+         if(attrName != null && isColumnOverflowed(attrName)) {
+            overflowed.add(attrName);
+         }
+      }
+
+      return overflowed;
+   }
+
+   /**
+    * Check whether any block's dictionary for the column overflowed.
+    *
+    * <p>Answering this reads each of the column's dictionaries off storage
+    * (XDimDictionary.read is a delayed read that leaves the flag unset), so the result is
+    * memoized -- otherwise every query grouping on the column would pay for it again, and the
+    * healthy case, where nothing overflowed, is the one that reads them all.
+    */
+   private boolean isColumnOverflowed(String header) {
+      Boolean cached = overflowed.get(header);
+
+      if(cached != null) {
+         return cached;
+      }
+
+      int idx = indexOfHeader(header, 0);
+      boolean over = false;
+
+      // not an mv dimension column, nothing to check
+      if(idx >= 0 && idx < palette.length) {
+         for(XDimDictionary dict : palette[idx].getDicts()) {
+            if(dict != null && dict.checkOverflow()) {
+               over = true;
+               // one report per column, not once per block
+               break;
             }
          }
       }
+
+      overflowed.put(header, over);
+      return over;
    }
 
    /**
@@ -1023,6 +1057,7 @@ public final class MV implements Cloneable {
 
       try {
          MV mv = (MV) super.clone();
+         mv.overflowed = new ConcurrentHashMap<>();
          mv.palette = new DictionaryPalette[palette.length];
          mv.blockInfos = new ArrayList<>();
 
@@ -1059,6 +1094,8 @@ public final class MV implements Cloneable {
    private List<MVBlockInfo> blockInfos = new ArrayList<>();
    private final List<Integer> blockBaseRows = new ArrayList<>();
    private DictionaryPalette[] palette;
+   // memoized per-column overflow, keyed by mv header; cleared when the palette changes
+   private Map<String, Boolean> overflowed = new ConcurrentHashMap<>();
    int dcnt;
    int mcnt;
    String[] headers;
