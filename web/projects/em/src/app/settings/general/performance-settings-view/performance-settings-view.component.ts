@@ -73,7 +73,7 @@ export class PerformanceSettingsViewComponent {
          maxQueryPreviewRowCount: [this.model.maxQueryPreviewRowCount, Validators.min(0)],
          maxTableRowCount: [this.model.maxTableRowCount, FormValidators.positiveIntegerInRange],
          dataSetCaching: [this.model.dataSetCaching, Validators.min(0)],
-         dataCacheSize: [this.model.dataCacheSize, Validators.min(0)],
+         dataCacheSize: [this.model.dataCacheSize, FormValidators.positiveIntegerInRange],
          dataCacheTimeout: [this.model.dataCacheTimeout, Validators.min(0)],
       });
 
