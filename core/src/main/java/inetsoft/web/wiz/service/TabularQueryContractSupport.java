@@ -686,7 +686,15 @@ public final class TabularQueryContractSupport {
             return Float.valueOf(value);
          }
          else if(type == char.class || type == Character.class) {
-            return value.isEmpty() ? ' ' : value.charAt(0);
+            // Refused rather than truncated, for the same reason "12x" is not read as 12: taking
+            // charAt(0) off a longer string writes something the caller did not ask for and
+            // reports success, which is the whole failure class this method exists to close.
+            if(value.length() != 1) {
+               throw new IllegalArgumentException(
+                  "Parameter '" + name + "' expects a single character, got \"" + value + "\".");
+            }
+
+            return value.charAt(0);
          }
          else if(type.isEnum()) {
             @SuppressWarnings({ "unchecked", "rawtypes" })

@@ -19,6 +19,8 @@ package inetsoft.uql.tabular;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.*;
@@ -570,12 +572,31 @@ public final class TabularQueryParamsSchemaBuilder {
     * {@code null} return, mapped by the caller to {@code x-valueSource: "unavailable"}.
     */
    static String[][] resolveWithBudget(TabularQuery query, String tagsMethod) {
-      Future<String[][]> f = EXECUTOR.submit(() -> TabularUtil.invokeTagsMethod(query, tagsMethod));
+      Future<String[][]> f;
+
+      try {
+         f = EXECUTOR.submit(() -> TabularUtil.invokeTagsMethod(query, tagsMethod));
+      }
+      catch(RejectedExecutionException ex) {
+         // Every worker is occupied, which on this pool means occupied by calls that outlived
+         // their own timeout (see EXECUTOR). Degrading here is the point of bounding it: the
+         // caller is told the values are unavailable, rather than the server growing a thread per
+         // request until it cannot make any.
+         LOG.debug("No capacity to resolve tags for {}; reporting unavailable", tagsMethod);
+         return null;
+      }
 
       try {
          return f.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
       }
-      catch(TimeoutException | ExecutionException | InterruptedException ex) {
+      catch(InterruptedException ex) {
+         // Restore what the catch consumed: this runs on the request thread, and a caller that
+         // interrupted it is entitled to see that its interrupt survived this call.
+         Thread.currentThread().interrupt();
+         f.cancel(true);
+         return null;
+      }
+      catch(TimeoutException | ExecutionException ex) {
          // Best-effort; a reflective call already in flight cannot be forcibly interrupted, the
          // same caveat GroupedThread's own async dialog path already lives with today.
          f.cancel(true);
@@ -613,9 +634,34 @@ public final class TabularQueryParamsSchemaBuilder {
 
    private static final JsonNodeFactory FACTORY = JsonNodeFactory.instance;
 
-   private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool(r -> {
-      Thread t = new Thread(r, "tabular-resolve-tags");
-      t.setDaemon(true);
-      return t;
-   });
+   private static final Logger LOG = LoggerFactory.getLogger(TabularQueryParamsSchemaBuilder.class);
+
+   /**
+    * Runs one {@code tagsMethod} call off the request thread so {@link #TIMEOUT_SECONDS} can be
+    * enforced. BOUNDED, and the bound is the load-bearing part.
+    *
+    * <p>{@code f.cancel(true)} after a timeout is best-effort: a reflective connector call blocked
+    * on non-interruptible I/O keeps its worker for as long as it likes. On an unbounded pool that
+    * makes this reachable-with-READ GET endpoint a thread-per-request leak against any data source
+    * whose {@code tagsMethod} hangs. Bounded, the same connector costs at most {@link #MAX_WORKERS}
+    * stuck threads, after which every further attempt is refused immediately and reported as
+    * {@code x-valueSource: "unavailable"} -- a visible, correct degradation instead of an
+    * accumulating one.</p>
+    *
+    * <p>A {@code SynchronousQueue} rather than a buffer, because queueing here would mean waiting
+    * for capacity while already holding a budget the caller expects to expire in
+    * {@link #TIMEOUT_SECONDS}. Zero core threads so an idle server keeps none. The concurrency
+    * this bound has to cover is simultaneous {@code resolveTags=true} REQUESTS, not parameters
+    * within one: a single request resolves its parameters one after another.</p>
+    */
+   private static final int MAX_WORKERS = 8;
+
+   private static final ExecutorService EXECUTOR = new ThreadPoolExecutor(
+      0, MAX_WORKERS, 60L, TimeUnit.SECONDS, new SynchronousQueue<>(),
+      r -> {
+         Thread t = new Thread(r, "tabular-resolve-tags");
+         t.setDaemon(true);
+         return t;
+      },
+      new ThreadPoolExecutor.AbortPolicy());
 }

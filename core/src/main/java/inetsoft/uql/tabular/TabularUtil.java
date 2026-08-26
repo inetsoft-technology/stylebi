@@ -471,10 +471,15 @@ public class TabularUtil {
          return v instanceof Boolean b ? b : null;
       }
       catch(NoSuchMethodException ex) {
+         // No such concept on this element type.
          return null;
       }
       catch(Exception ex) {
-         return Boolean.FALSE;
+         // Also unknown, NOT false. A reflective failure on an element that does declare
+         // isRequired() says nothing about the answer, and answering FALSE would let the write
+         // path skip a genuinely required element without complaining -- the one outcome this
+         // Boolean's nullability exists to keep distinguishable from "optional".
+         return null;
       }
    }
 
