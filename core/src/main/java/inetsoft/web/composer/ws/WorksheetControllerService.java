@@ -65,7 +65,7 @@ public class WorksheetControllerService {
    /**
     * Check if allows deletion.
     */
-   protected boolean allowsDeletion(Worksheet ws, TableAssembly assembly, ColumnRef ref) {
+   public static boolean allowsDeletion(Worksheet ws, TableAssembly assembly, ColumnRef ref) {
       AssemblyRef[] arr = ws.getDependings(assembly.getAssemblyEntry());
 
       for(AssemblyRef assemblyRef : arr) {
