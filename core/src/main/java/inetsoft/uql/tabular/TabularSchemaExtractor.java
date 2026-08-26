@@ -632,10 +632,20 @@ public class TabularSchemaExtractor {
       }
    }
 
-   private boolean isScalar(Class<?> cls) {
+   private static boolean isScalar(Class<?> cls) {
       return cls == null || cls.isPrimitive() || cls.isEnum() || cls == String.class ||
          Number.class.isAssignableFrom(cls) || cls == Boolean.class || cls == Character.class ||
          cls == File.class || Date.class.isAssignableFrom(cls) || cls.getName().startsWith("java.");
+   }
+
+   /**
+    * Whether a property type is a composite -- built from its own further settable fields --
+    * rather than a plain, directly-writable value. {@code java.io.File} is scalar under
+    * {@link #isScalar}, so it never answers {@code true} here; a file-typed property is handled
+    * as its own, separate case (a string path resolved against the connector's root folder).
+    */
+   public static boolean isCompositeType(Class<?> cls) {
+      return !isScalar(cls);
    }
 
    private String name(Enum<?> value) {

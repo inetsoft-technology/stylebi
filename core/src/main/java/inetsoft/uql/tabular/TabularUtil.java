@@ -362,6 +362,148 @@ public class TabularUtil {
    }
 
    /**
+    * Invokes a zero-arg {@code tagsMethod} by name and normalizes its result to
+    * {@code {label, value}} pairs.
+    *
+    * <p>{@code String[]} is treated as its own labels (each entry is both the label and the
+    * value); {@code String[][]} is returned as-is (each row already is {@code {label, value}}).
+    * Any other return shape, or a reflection failure of any kind, is not fatal here -- {@code
+    * null} is returned and the caller decides what that means.
+    */
+   public static String[][] invokeTagsMethod(Object bean, String methodName) {
+      try {
+         Method method = bean.getClass().getMethod(methodName);
+         Object value = method.invoke(bean);
+
+         if(value instanceof String[] tags) {
+            String[][] pairs = new String[tags.length][2];
+
+            for(int i = 0; i < tags.length; i++) {
+               pairs[i][0] = tags[i];
+               pairs[i][1] = tags[i];
+            }
+
+            return pairs;
+         }
+         else if(value instanceof String[][] pairs) {
+            return pairs;
+         }
+      }
+      catch(Exception ex) {
+         LOG.debug("Tags method failed: {}", methodName, ex);
+      }
+
+      return null;
+   }
+
+   /**
+    * The individual elements of a composite property's live value -- a {@link RestParameters}
+    * (via its own {@code getParameters()}), a plain array, or a {@link java.util.List} -- or
+    * {@code null} for anything else (including a null skeleton).
+    *
+    * <p>Shared by the query-write path ({@code TabularQueryContractSupport}, in
+    * {@code inetsoft.web.wiz.service}) and the schema-generation path
+    * ({@code TabularQueryParamsSchemaBuilder}, in this package) so "what counts as this
+    * composite's elements" has exactly one implementation, reached from both packages without
+    * either depending on the other.</p>
+    */
+   public static List<Object> compositeElementsOf(Object skeleton) {
+      if(skeleton instanceof RestParameters rp) {
+         return new ArrayList<>(rp.getParameters());
+      }
+
+      if(skeleton != null && skeleton.getClass().isArray()) {
+         int len = Array.getLength(skeleton);
+         List<Object> list = new ArrayList<>(len);
+
+         for(int i = 0; i < len; i++) {
+            list.add(Array.get(skeleton, i));
+         }
+
+         return list;
+      }
+
+      if(skeleton instanceof List<?> list) {
+         return new ArrayList<>(list);
+      }
+
+      return null;
+   }
+
+   /**
+    * A composite element's own name, via its zero-arg {@code getName()} -- reached by name
+    * because the element types (RestParameter, HttpParameter, ...) carry no {@code @Property}
+    * of their own. {@code null} on any reflection failure, never fatal here.
+    */
+   public static String compositeElementName(Object element) {
+      try {
+         Object v = element.getClass().getMethod("getName").invoke(element);
+         return v == null ? null : v.toString();
+      }
+      catch(Exception ex) {
+         return null;
+      }
+   }
+
+   /**
+    * A composite element's own value, via its zero-arg {@code getValue()}. {@code null} on any
+    * reflection failure, never fatal here.
+    */
+   public static String compositeElementValue(Object element) {
+      try {
+         Object v = element.getClass().getMethod("getValue").invoke(element);
+         return v == null ? null : v.toString();
+      }
+      catch(Exception ex) {
+         return null;
+      }
+   }
+
+   /**
+    * Whether a composite element declares itself required, via its zero-arg
+    * {@code isRequired()}. {@code null} when the element type has no such concept at all (no
+    * such method) -- distinct from an explicit {@code false}, since a caller may need to say
+    * "this element type cannot express required" rather than "this element is optional".
+    */
+   public static Boolean compositeElementRequired(Object element) {
+      try {
+         Object v = element.getClass().getMethod("isRequired").invoke(element);
+         return v instanceof Boolean b ? b : null;
+      }
+      catch(NoSuchMethodException ex) {
+         return null;
+      }
+      catch(Exception ex) {
+         return Boolean.FALSE;
+      }
+   }
+
+   /**
+    * Set a composite element's own value, via its {@code setValue(String)}. Unlike the other
+    * composite-element helpers above, a missing method here is NOT swallowed: by the time this
+    * is called the element has already been confirmed to carry {@code getName()} (Kind A, see
+    * the write path's own doc), so a missing {@code setValue(String)} means the connector's
+    * element type does not match the shape assumed for it -- a connector bug, not a validation
+    * failure the caller should recover from.
+    */
+   public static void compositeElementSetValue(Object element, String value) {
+      try {
+         element.getClass().getMethod("setValue", String.class).invoke(element, value);
+      }
+      catch(NoSuchMethodException ex) {
+         throw new IllegalStateException(
+            "'" + element.getClass().getName() + "' has a name but no setValue(String) -- the " +
+            "connector's own composite element type does not match the shape this contract " +
+            "assumed for it; this is a connector bug.", ex);
+      }
+      catch(Exception ex) {
+         throw new IllegalStateException(
+            "Failed to set a value on " + element.getClass().getName() + "; see the server log.",
+            ex);
+      }
+   }
+
+   /**
     * Gets a property map from the bean class
     */
    public static HashMap<String, PropertyMeta> getPropertyMap(Class cls) {
@@ -811,18 +953,11 @@ public class TabularUtil {
                            }
                         }
 
-                        Class<?> clazz = bean.getClass();
-                        Method method = clazz.getMethod(tagsMethod);
-                        Object value = method.invoke(bean);
+                        String[][] pairs = invokeTagsMethod(bean, tagsMethod);
                         String[] tags = null;
                         String[] labels = null;
 
-                        if(value instanceof String[]) {
-                           tags = labels = (String[]) value;
-                        }
-                        else if(value instanceof String[][]) {
-                           String[][] pairs = (String[][]) value;
-
+                        if(pairs != null) {
                            tags = new String[pairs.length];
                            labels = new String[pairs.length];
 
