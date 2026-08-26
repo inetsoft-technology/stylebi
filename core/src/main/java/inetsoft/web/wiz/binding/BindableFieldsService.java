@@ -69,10 +69,11 @@ public class BindableFieldsService {
       throws Exception
    {
       String source = null;
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
-      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      String model = null;
 
       if(assembly != null) {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+         Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
          VSAssembly target = vs == null ? null : vs.getAssembly(assembly);
 
          if(target == null) {
@@ -83,9 +84,11 @@ public class BindableFieldsService {
          }
 
          source = sourceNameOf(target);
+         // Only the scoped tree needs telling: it has no node for the model, so the name has to
+         // come from the sheet. The unscoped tree reaches the model node itself and names it.
+         model = logicalModelName(vs);
       }
 
-      String model = logicalModelName(vs);
       TreeNodeModel root = tree.getBinding(runtimeId, assembly, false, user);
       List<BindableTable> tables = new ArrayList<>();
 
@@ -93,7 +96,9 @@ public class BindableFieldsService {
          collect(root, tables, model);
       }
 
-      tables = merged(tables);
+      if(model != null) {
+         tables = merged(tables);
+      }
 
       return assembly == null ? tables : marked(tables, source);
    }
@@ -110,26 +115,21 @@ public class BindableFieldsService {
    }
 
    /**
-    * Flags the one live table, so the single-source rule can be followed from this call alone.
+    * The logical model the scoped tree's groups belong to, or null when the viewsheet is not
+    * built on one.
     *
-    * <p>Only for a scoped call: unscoped, {@code current} stays null, because there is no assembly
-    * to be current for and {@code false} everywhere would read as "none of these is live" — the
-    * opposite of the truth. An assembly with no source yet does get {@code false} everywhere, which
-    * is accurate: nothing is live, and that is exactly the state where a shelf write would be
-    * accepted and render nothing.
-    */
-   /**
-    * The logical model every group in the tree belongs to, or null when the viewsheet is not built
-    * on one.
+    * <p>A logical model has one source — its own name, which is what {@code SourceInfo.getSource}
+    * stores and the only value {@code set_chart_source} accepts — while its entities are groups
+    * inside it. The chart-scoped tree has no node for the model, so its entity groups used to be
+    * reported as separate source tables: names no {@code set_*_source} tool accepts, which a shelf
+    * write would nonetheless store as the assembly's source, leaving a chart whose source is not a
+    * source and which therefore never produced a graph. It also meant a correctly bound chart
+    * matched none of them and read back as having no source at all.
     *
-    * <p>This is what makes the two listings agree. A logical model has one source """ + D + """ its own name,
-    * which is what {@code SourceInfo.getSource} stores and the only value {@code set_chart_source}
-    * accepts """ + D + """ while its entities are groups inside it. The chart-scoped binding tree has no node
-    * for the model, so its entity folders used to be reported as separate source tables: names no
-    * {@code set_*_source} tool accepts, which a shelf write would nonetheless store as the
-    * assembly's source, leaving a chart whose source is not a source and which therefore never
-    * produced a graph. It also meant a correctly bound chart matched none of them and read back as
-    * having no source at all.
+    * <p>{@code getProperty("source")} is preferred over the entry's name because that is the pair
+    * {@code BaseTreeModelBuilder} reads off this same base entry to build a model
+    * {@code SourceInfo}, so it is the value the rest of the product treats as the model's source.
+    * The name is the fallback for a base entry carrying no such property.
     */
    private static String logicalModelName(Viewsheet vs) {
       AssetEntry base = vs == null ? null : vs.getBaseEntry();
@@ -178,6 +178,15 @@ public class BindableFieldsService {
       return new ArrayList<>(byName.values());
    }
 
+   /**
+    * Flags the one live table, so the single-source rule can be followed from this call alone.
+    *
+    * <p>Only for a scoped call: unscoped, {@code current} stays null, because there is no assembly
+    * to be current for and {@code false} everywhere would read as "none of these is live" — the
+    * opposite of the truth. An assembly with no source yet does get {@code false} everywhere, which
+    * is accurate: nothing is live, and that is exactly the state where a shelf write would be
+    * accepted and render nothing.
+    */
    private static List<BindableTable> marked(List<BindableTable> tables, String source) {
       List<BindableTable> out = new ArrayList<>(tables.size());
 
@@ -206,7 +215,7 @@ public class BindableFieldsService {
    private void collect(TreeNodeModel node, List<BindableTable> tables, String sourceName) {
       if(isTable(node)) {
          List<BindableField> fields = new ArrayList<>();
-         gather(node, fields, sourceName, null);
+         gather(node, fields, isLogicalModel(node), null);
 
          if(!fields.isEmpty()) {
             tables.add(new BindableTable(node.label(), null, fields));
@@ -241,20 +250,26 @@ public class BindableFieldsService {
     *               one. Only inside a model is a folder an entity whose label prefixes a column.
     * @param entity the entity folder currently being descended, or null at the top.
     */
-   private void gather(TreeNodeModel node, List<BindableField> out, String model, String entity) {
+   /**
+    * @param inModel true when {@code node} is a logical model, so the nodes between it and its
+    *                columns are its entities and their labels prefix a column name.
+    * @param entity  the entity currently being descended, or null at the top.
+    */
+   private void gather(TreeNodeModel node, List<BindableField> out, boolean inModel, String entity) {
       for(TreeNodeModel child : node.children()) {
          if(isColumn(child)) {
             out.add(fieldOf(child, entity));
          }
          else {
-            // Inside a logical model a folder is an entity, and its label is the prefix the
-            // binding tools require: they accept "Customer:Region" and refuse a bare "Region",
-            // which is what this listing handed back before — ambiguously, since Address, City,
-            // Company, Region, State and Zip each occur under more than one entity of the sample
-            // model. The chart-scoped tree already labels its columns with the prefix; only this
-            // one, which reaches the model node itself, does not. Left alone outside a model,
-            // where a folder is just a folder and prefixing would invent a name.
-            gather(child, out, model, model != null && isFolder(child) ? child.label() : entity);
+            // Any node between a logical model and a column is one of its entities, and its label
+            // is the prefix the binding tools require: they accept "Customer:Region" and refuse a
+            // bare "Region", which is what this listing handed back before — ambiguously, since
+            // Address, City, Company, Region, State and Zip each occur under more than one entity
+            // of the sample model. Not a folder test: VSEventUtil.appendChildNodes types every
+            // folder child of the base tree as TABLE, so isFolder never matches an entity there
+            // and a folder test made this a no-op. Outside a model no prefix is applied, where an
+            // intermediate node is just a node and prefixing would invent a name.
+            gather(child, out, inModel, inModel ? child.label() : entity);
          }
       }
    }
@@ -306,6 +321,11 @@ public class BindableFieldsService {
     * type is absent — {@link #roleOf} has a whole fallback path for them — so treating a missing
     * type as "not a column" would drop real columns to fix a fake one.
     */
+   private boolean isLogicalModel(TreeNodeModel node) {
+      return node.data() instanceof AssetEntry entry &&
+         entry.getType() == AssetEntry.Type.LOGIC_MODEL;
+   }
+
    private boolean isFolder(TreeNodeModel node) {
       return node.data() instanceof AssetEntry entry &&
          entry.getType() == AssetEntry.Type.FOLDER;
