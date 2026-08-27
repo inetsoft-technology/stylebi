@@ -19,6 +19,7 @@ package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Tool;
@@ -115,6 +116,38 @@ public class ScriptImageService {
 
       if(assembly == null) {
          throw new PairingException("No such assembly \"" + assemblyName + "\"");
+      }
+
+      // A chart with no source table has nothing bound to it at all - every field on a chart
+      // comes from one source, so no source means no shelf can hold anything - and so it never
+      // produces a graph. Without this, the loop below sleeps through all RENDER_MAX_ATTEMPTS
+      // attempts and then raises RenderNotReadyException, telling the caller to retry something
+      // that cannot become ready. Rendering right after each binding step is how a caller checks
+      // its work, so a freshly added chart is the state it meets most often.
+      //
+      // Scoped to charts because only a chart can produce the condition this guards: the
+      // retryAfter that drives the loop is set in exactly one place, inside
+      // AssemblyImageService.processGetAssemblyImage's `assembly instanceof ChartVSAssembly`
+      // branch (an incomplete VGraphPair). Every other DataVSAssembly - table, crosstab, calc
+      // table - comes back with retryAfter <= 0 on the first attempt and, when the lightweight
+      // path does not support it, falls back to the whole-viewsheet render below, which succeeds
+      // whether or not a source is bound. Refusing those would take away a working image without
+      // preventing any retry loop.
+      //
+      // The test is the bound source rather than the field lists on purpose: the shelves a chart
+      // reads depend on its type, and a relation chart's source/target or a candlestick's
+      // open/high/low/close are not reachable through getRTFields, so an empty field list is not
+      // evidence of an unbound chart while an absent source is.
+      if(assembly instanceof ChartVSAssembly chart) {
+         String source = chart.getTableName();
+
+         if(source == null || source.isBlank()) {
+            throw new PairingException(
+               "\"" + assemblyName + "\" has no source bound to it, so there is no graph to " +
+               "render and no wait will produce one. Point it at a table first — " +
+               "set_chart_source, or the 'table' argument of the shelf and aesthetic writes — " +
+               "and render it after that.");
+         }
       }
 
       int w = clamp(width != null && width > 0 ? width : DEFAULT_WIDTH);
