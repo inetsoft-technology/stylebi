@@ -20,6 +20,7 @@ package inetsoft.uql.tabular;
 import inetsoft.uql.util.Config;
 import inetsoft.util.ConfigurationContext;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.context.ApplicationContext;
 
 import java.util.*;
@@ -40,6 +41,12 @@ import static org.mockito.Mockito.when;
  * exhibits all three would not.</p>
  */
 @Tag("core")
+// Two pieces of process-wide state are written here: the ConfigurationContext the @BeforeAll
+// installs, and the probe deadline and poison record restoreProbeDefaults() hands back. Neither can
+// be made per-test -- the poison record is process-wide BY DESIGN, since what it bounds is threads
+// this process cannot reclaim -- so the class is serialized against anything else claiming them
+// instead.
+@ResourceLock("TabularSchemaExtractor-process-state")
 class TabularSchemaExtractorTest {
    /**
     * {@code LayoutCreator} resolves labels through the connector's resource bundle, which it reaches
@@ -257,6 +264,32 @@ class TabularSchemaExtractorTest {
 
       assertEquals(1, StuckFixtureQuery.entered.get(),
                    "a second extract must not enter it again");
+   }
+
+   /**
+    * The bound {@link TabularSchemaExtractor#poison} claims -- one stranded thread per broken setter
+    * for the life of the process -- has to hold WITHIN one extract as well as across calls.
+    *
+    * <p>The axis that hangs here is not reachable in the first pass at all: its panel is hidden until
+    * an outer value opens it, so the write is skipped and the setter is never entered. It is reached
+    * in the pair pass instead, as the inner half of a pair -- and it is reachable that way TWICE,
+    * once under each outer axis. Filtering the axis list on entry cannot help: the poison is recorded
+    * after that filter has already run.
+    */
+   @Test
+   void anAxisPoisonedInTheFirstPassIsNotProbedAgainAsAnInnerAxis() {
+      TabularSchemaExtractor.setProbeTimeout(150);
+      PairStuckFixtureQuery.entered.set(0);
+
+      TabularQuerySchema schema = new TabularSchemaExtractor()
+         .extract(new PairStuckFixtureQuery(), PairStuckFixtureQuery.TYPE);
+
+      assertEquals(1, PairStuckFixtureQuery.entered.get(),
+                   "the hanging setter is entered once across the whole extract, not once per " +
+                   "outer axis that reveals it");
+      assertNotNull(schema.getDependencyMatrix().get("outerA"),
+                    "the axes that do return are still described");
+      assertNotNull(schema.getDependencyMatrix().get("outerB"));
    }
 
    private TabularQuerySchema extract() {
@@ -578,5 +611,88 @@ class TabularSchemaExtractorTest {
       private Level mode = Level.NONE;
       private String detail;
       private boolean stuck;
+   }
+
+   /**
+    * A connector whose hanging setter is not reachable on a blank query: {@code stuck} sits in a
+    * panel that opens once EITHER outer axis is set, so the pair pass reaches it twice. {@code deep}
+    * is gated on two values at once and so is never reached in the first pass, which is what makes
+    * the pair pass run at all.
+    */
+   @View(vertical = true, value = {
+      @View1(value = "outerA"),
+      @View1(value = "outerB"),
+      @View1(vertical = true, type = ViewType.PANEL, visibleMethod = "isEitherOuter", elements = {
+         @View2("stuck"),
+      }),
+      @View1(value = "deep", visibleMethod = "isOuterAAndStuck"),
+   })
+   public static class PairStuckFixtureQuery extends TabularQuery {
+      public PairStuckFixtureQuery() {
+         super(TYPE);
+      }
+
+      @Property(label = "Outer A")
+      public boolean isOuterA() {
+         return outerA;
+      }
+
+      public void setOuterA(boolean outerA) {
+         this.outerA = outerA;
+      }
+
+      @Property(label = "Outer B")
+      public boolean isOuterB() {
+         return outerB;
+      }
+
+      public void setOuterB(boolean outerB) {
+         this.outerB = outerB;
+      }
+
+      @Property(label = "Stuck")
+      public boolean isStuck() {
+         return stuck;
+      }
+
+      public void setStuck(boolean stuck) {
+         if(stuck) {
+            entered.incrementAndGet();
+
+            try {
+               Thread.sleep(60000);
+            }
+            catch(InterruptedException ex) {
+               Thread.currentThread().interrupt();
+            }
+         }
+
+         this.stuck = stuck;
+      }
+
+      @Property(label = "Deep")
+      public String getDeep() {
+         return deep;
+      }
+
+      public void setDeep(String deep) {
+         this.deep = deep;
+      }
+
+      public boolean isEitherOuter() {
+         return outerA || outerB;
+      }
+
+      public boolean isOuterAAndStuck() {
+         return outerA && stuck;
+      }
+
+      static final String TYPE = "Test.PairStuck";
+      static final AtomicInteger entered = new AtomicInteger();
+
+      private boolean outerA;
+      private boolean outerB;
+      private boolean stuck;
+      private String deep;
    }
 }

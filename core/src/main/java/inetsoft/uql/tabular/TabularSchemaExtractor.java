@@ -199,6 +199,9 @@ public class TabularSchemaExtractor {
       // A property whose setter has already failed to return once is not offered to probe() again
       // -- see poison(). Removed from the list rather than skipped in the loop below, because the
       // second pass reads this same list to find its inner axes and must not reach it either.
+      //
+      // This covers what was poisoned BEFORE this call. An axis poisoned by the first pass below is
+      // still in the list, so the second pass checks again for itself.
       axes.removeIf(axis -> isPoisoned(pmap, axis.name));
 
       Probe baseline = probe(cls, dataSource, Collections.emptyMap());
@@ -231,7 +234,7 @@ public class TabularSchemaExtractor {
       }
 
       matrix.putAll(firstPass);
-      addCombinationGates(cls, dataSource, params, axes, firstPass, matrix);
+      addCombinationGates(cls, dataSource, params, axes, pmap, firstPass, matrix);
 
       return matrix;
    }
@@ -256,6 +259,7 @@ public class TabularSchemaExtractor {
     */
    private void addCombinationGates(Class<?> cls, XDataSource dataSource,
                                     List<TabularQuerySchema.Param> params, List<Axis> axes,
+                                    Map<String, PropertyMeta> pmap,
                                     Map<String, Map<String, List<String>>> firstPass,
                                     Map<String, Map<String, List<String>>> matrix)
    {
@@ -306,6 +310,18 @@ public class TabularSchemaExtractor {
                Map<String, List<String>> found = new LinkedHashMap<>();
 
                for(Object value : inner.values) {
+                  // Poison is checked HERE, per value, rather than being left to the list this
+                  // reads having been filtered. That filter ran before the first pass, and this is
+                  // where an axis hidden at baseline is first reached at all -- probe0 declines to
+                  // write it while its panel is shut, so the first pass never enters its setter and
+                  // never poisons it. What did not return is the PROPERTY, not one of its values,
+                  // so the remaining values are abandoned with it, and so is every later outer row
+                  // that reveals the same property. Without this, one broken setter strands a
+                  // thread per revealing axis instead of one for the life of the process.
+                  if(isPoisoned(pmap, inner.name)) {
+                     break;
+                  }
+
                   Map<String, Object> combo = new LinkedHashMap<>();
                   combo.put(outer.getKey(), outerValue);
                   combo.put(inner.name, value);
@@ -409,6 +425,12 @@ public class TabularSchemaExtractor {
          return null;
       }
       catch(InterruptedException ex) {
+         // Same signal as the timeout branch, for the same reason: if the setter really is stuck,
+         // the pooled thread is lost either way and an interrupt is the only thing left to offer a
+         // BLOCKING one. Not poisoned, though -- an interrupt says the waiter was told to stop, not
+         // that the setter would never have returned, and poisoning on that would drop an axis for
+         // the life of the process over a shutdown.
+         task.cancel(true);
          Thread.currentThread().interrupt();
          return null;
       }
@@ -422,10 +444,10 @@ public class TabularSchemaExtractor {
    /**
     * One probe, as it runs on the pool thread.
     *
-    * <p>Two rules govern the writes, and both are taken from the interactive path rather than
-    * invented here. A value is applied only where the layout does not place that parameter at all
-    * or currently shows it -- the rule {@link TabularUtil#setValuesToBean} follows when a dialog
-    * submits a form. And values are applied ONE AT A TIME with the conditions re-evaluated in
+    * <p>Two rules govern the writes, and both follow the interactive path's intent rather than
+    * being invented here. A value is applied only where the layout does not place that parameter at
+    * all or currently shows it -- the question {@link TabularUtil#setValuesToBean} asks when a
+    * dialog submits a form. And values are applied ONE AT A TIME with the conditions re-evaluated in
     * between -- what the dialog's refresh round trip does.
     *
     * <p>Both matter because a setter is not a pure function of its argument. {@link #isSelfGating}
@@ -438,9 +460,13 @@ public class TabularSchemaExtractor {
     * can work: its second parameter is by definition not shown until the first has been applied,
     * so a single combined write would silently drop it.
     *
-    * <p>The visibility consulted is the ancestor-aware one {@link #collectVisible} computes, not
-    * the per-node {@code TabularView#isVisible} flag. A field inside a hidden panel carries no
-    * flag of its own -- reading that flag alone would let exactly this case through.
+    * <p>The visibility question is answered STRICTLY here, and that is where this parts company
+    * with {@code setValuesToBean}: that method reads the per-node {@code TabularView#isVisible}
+    * flag, while this reads the ancestor-aware walk {@link #collectVisible} performs.
+    * {@code LayoutCreator} sets the flag true on every node it builds and {@code callVisibleMethod}
+    * does not propagate a false down, so a field inside a hidden panel reports itself visible --
+    * and the case that motivated this rule is exactly such a field. The per-node flag is the right
+    * question for a form the user was looking at; it is not enough for one nobody rendered.
     */
    private Probe probe0(Class<?> cls, XDataSource dataSource, Map<String, Object> values)
       throws Exception

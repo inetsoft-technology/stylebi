@@ -825,9 +825,22 @@ Property-finding heuristic, matched EXACTLY to the wiz-side design's findSheetPr
 (stylebi-wiz docs/superpowers/specs/2026-08-25-tabular-unified-query-contract-wiz-design.md
 section 4.3) so both sides agree on which property is "the sheet one": among
 schema.getParams(), the sheet property is any param whose javaType is java.lang.String, whose
-tagsMethod is non-empty, and whose dependsOn includes the file property's name. Confirmed
-against ServerFileQuery.java:120-123: excelSheet is the unique property matching all three
-(dependsOn = {"fileFolder"}, tagsMethod = "getExcelSheetNames").
+tagsMethod is non-empty, and whose dependsOn includes the file property's name.
+
+CORRECTION (2026-08-27). This section previously recorded excelSheet as the unique property
+matching all three on ServerFileQuery. It is not: encoding matches all three as well
+(ServerFileQuery.java:138-143 -- dependsOn = {"fileFolder"}, tagsMethod = "getEncodingTypes"),
+because the three conditions describe an editor that recomputes its choices when the file
+changes rather than anything about selecting a sheet, and dependsOn is an editor-redraw
+dependency rather than a semantic gate. OneDriveQuery matches nothing at all, since it names its
+file with a String rather than a java.io.File. findSheetParam (TabularQueryContractSupport)
+returns the FIRST match in schema.getParams() order, which is @View presentation order, and
+ServerFileQuery's @View lists excelSheet above encoding -- so capability 5b names the right
+property today by layout order, not by the heuristic being decisive. Reordering that @View would
+have it tell a caller to supply queryParams.encoding to pick a sheet. The OTHER consumer of the
+same heuristic, TabularQueryParamsSchemaBuilder's format: "file-path"/"file-sheet" role markers,
+was removed for this reason: a property is identified by its own name, its description (the
+connector's @Property label) and its pattern instead.
 
     -- runs in step 4b, immediately after a successful File-typed write:
     isExcel = callQueryMethod(query, "isExcel", dsName)         -- reflection, unchanged
