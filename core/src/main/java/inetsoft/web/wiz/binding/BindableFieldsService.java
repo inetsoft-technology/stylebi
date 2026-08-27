@@ -105,6 +105,59 @@ public class BindableFieldsService {
    }
 
    /**
+    * The logical model this table node belongs to, or null when it is a source in its own right.
+    *
+    * <p>A logical model has one source — its own name, which is what {@code SourceInfo.getSource}
+    * stores and the only value {@code set_chart_source} accepts — while its entities are groups
+    * inside it. The chart-scoped tree has no node for the model, so its entities were reported as
+    * separate source tables: names no {@code set_*_source} tool accepts, which a shelf write would
+    * nonetheless store as the assembly's source, leaving a chart whose source is not a source and
+    * which therefore never produced a graph. It also meant a correctly bound chart matched none of
+    * them and read back as having no source at all.
+    *
+    * <p>The answer is on the node: {@code BaseTreeModelBuilder.applyTableNodeProperties} stamps
+    * {@code sourceType=LOGIC_MODEL} and {@code table=<model>} onto every entity node it builds for
+    * a model-backed sheet. Read from there rather than from the viewsheet, so no assembly has to
+    * be resolved to answer an unscoped listing.
+    */
+   private static String modelOf(TreeNodeModel node) {
+      if(!(node.data() instanceof AssetEntry entry)) {
+         return null;
+      }
+
+      if(!String.valueOf(AssetEntry.Type.LOGIC_MODEL).equals(entry.getProperty("sourceType"))) {
+         return null;
+      }
+
+      String model = entry.getProperty("table");
+
+      return model != null && !model.isBlank() ? model : null;
+   }
+
+   /**
+    * Adds the fields to the model's table, creating it on the first entity that names it.
+    *
+    * <p>Folding here rather than merging afterwards keeps it to the one case that needs it: two
+    * groups that legitimately share a label — the {@code Dimensions}/{@code Measures} fallback
+    * naming below, say — stay separate, as they did before.
+    */
+   private static void fold(List<BindableTable> tables, String model, List<BindableField> fields) {
+      for(int i = 0; i < tables.size(); i++) {
+         BindableTable seen = tables.get(i);
+
+         if(model.equalsIgnoreCase(seen.name())) {
+            List<BindableField> all = new ArrayList<>(seen.fields());
+            all.addAll(fields);
+            tables.set(i, new BindableTable(seen.name(), seen.current(), all));
+            return;
+         }
+      }
+
+      tables.add(new BindableTable(model, null, fields));
+   }
+
+
+   /**
     * Flags the one live table, so the single-source rule can be followed from this call alone.
     *
     * <p>Only for a scoped call: unscoped, {@code current} stays null, because there is no assembly
@@ -141,10 +194,22 @@ public class BindableFieldsService {
    private void collect(TreeNodeModel node, List<BindableTable> tables, String sourceName) {
       if(isTable(node)) {
          List<BindableField> fields = new ArrayList<>();
-         gather(node, fields);
+         gather(node, fields, isLogicalModel(node), null);
 
          if(!fields.isEmpty()) {
-            tables.add(new BindableTable(node.label(), null, fields));
+            // An entity of a logical model is not a source: the model is, and its name is what
+            // SourceInfo stores and set_chart_source accepts. The chart-scoped tree has no node
+            // for the model, but BaseTreeModelBuilder.applyTableNodeProperties stamps the model's
+            // name onto every entity node it builds, so the node says which model it belongs to
+            // and the sheet does not have to be resolved to find out.
+            String model = modelOf(node);
+
+            if(model == null) {
+               tables.add(new BindableTable(node.label(), null, fields));
+            }
+            else {
+               fold(tables, model, fields);
+            }
          }
 
          return;
@@ -154,7 +219,7 @@ public class BindableFieldsService {
 
       for(TreeNodeModel child : node.children()) {
          if(isColumn(child)) {
-            direct.add(fieldOf(child));
+            direct.add(fieldOf(child, null));
          }
          else {
             collect(child, tables, sourceName);
@@ -170,14 +235,28 @@ public class BindableFieldsService {
       }
    }
 
-   /** Every column at or below this node, however deeply the Composer nests them. */
-   private void gather(TreeNodeModel node, List<BindableField> out) {
+   /**
+    * Every column at or below this node, however deeply the Composer nests them.
+    *
+    * @param inModel true when {@code node} is a logical model, so the nodes between it and its
+    *                columns are its entities and their labels prefix a column name.
+    * @param entity  the entity currently being descended, or null at the top.
+    */
+   private void gather(TreeNodeModel node, List<BindableField> out, boolean inModel, String entity) {
       for(TreeNodeModel child : node.children()) {
          if(isColumn(child)) {
-            out.add(fieldOf(child));
+            out.add(fieldOf(child, entity));
          }
          else {
-            gather(child, out);
+            // Any node between a logical model and a column is one of its entities, and its label
+            // is the prefix the binding tools require: they accept "Customer:Region" and refuse a
+            // bare "Region", which is what this listing handed back before — ambiguously, since
+            // Address, City, Company, Region, State and Zip each occur under more than one entity
+            // of the sample model. Not a folder test: VSEventUtil.appendChildNodes types every
+            // folder child of the base tree as TABLE, so isFolder never matches an entity there
+            // and a folder test made this a no-op. Outside a model no prefix is applied, where an
+            // intermediate node is just a node and prefixing would invent a name.
+            gather(child, out, inModel, inModel ? child.label() : entity);
          }
       }
    }
@@ -222,6 +301,18 @@ public class BindableFieldsService {
    }
 
    /**
+    * Whether this node is a logical model itself, so the nodes below it are its entities.
+    *
+    * <p>Only the unscoped tree carries such a node: {@code VSEventUtil.appendChildNodes} builds
+    * the base tree under a {@code LOGIC_MODEL} root, while the chart-scoped tree has no node for
+    * the model at all and names it through {@link #modelOf} instead.
+    */
+   private boolean isLogicalModel(TreeNodeModel node) {
+      return node.data() instanceof AssetEntry entry &&
+         entry.getType() == AssetEntry.Type.LOGIC_MODEL;
+   }
+
+   /**
     * Whether this node is a grouping folder rather than something bindable.
     *
     * <p>Keyed on the entry <em>type</em>, the way {@link #isTable} already decides, and not on
@@ -234,8 +325,15 @@ public class BindableFieldsService {
          entry.getType() == AssetEntry.Type.FOLDER;
    }
 
-   private BindableField fieldOf(TreeNodeModel node) {
-      return new BindableField(node.label(), dataTypeOf(node), roleOf(node));
+   private BindableField fieldOf(TreeNodeModel node, String entity) {
+      String column = node.label();
+
+      // Already prefixed on the chart-scoped tree, so this is not applied twice.
+      if(entity != null && column != null && !column.contains(":")) {
+         column = entity + ":" + column;
+      }
+
+      return new BindableField(column, dataTypeOf(node), roleOf(node));
    }
 
    /** Whether this node IS a source table, as opposed to a folder grouping one's columns. */
