@@ -938,8 +938,9 @@ public class WizAutoBindingService {
    /**
     * changeType()'s crosstab counterpart to {@link #applyFieldConfigs(VSChartInfo, Map)} — that one
     * only walks a {@link VSChartInfo}, so a crosstab recommendation's aggregate formulas were never
-    * overridden by the caller's resolved fieldConfigs. Only {@code aggregateFormula} applies here;
-    * a crosstab aggregate has no ranking/date-group/calculator of its own to carry over.
+    * overridden by the caller's resolved fieldConfigs. {@code aggregateFormula},
+    * {@code secondaryField}, and {@code nOrP} apply here; a crosstab aggregate has no
+    * ranking/date-group/calculator of its own to carry over.
     *
     * <p>Package-private and static so it can be unit-tested directly with mocked refs, mirroring
     * {@link #repartitionHeaders}.
@@ -962,7 +963,7 @@ public class WizAutoBindingService {
 
    /** Shared per-ref mutation for {@link #applyCrosstabAggregateFormulas} — applied to whichever
     *  {@code DataRef[]} (design or runtime) the caller passes in. */
-   private static void applyAggregateFormulasTo(DataRef[] aggregates, Map<String, SimpleFieldInfo> configMap) {
+   static void applyAggregateFormulasTo(DataRef[] aggregates, Map<String, SimpleFieldInfo> configMap) {
       if(aggregates == null) {
          return;
       }
@@ -974,8 +975,21 @@ public class WizAutoBindingService {
 
          SimpleFieldInfo fc = configMap.get(agg.getColumnValue());
 
-         if(fc instanceof MeasureFieldInfo meaFc && meaFc.getAggregateFormula() != null) {
-            agg.setFormulaValue(meaFc.getAggregateFormula());
+         if(fc instanceof MeasureFieldInfo meaFc) {
+            if(meaFc.getAggregateFormula() != null) {
+               agg.setFormulaValue(meaFc.getAggregateFormula());
+            }
+
+            // Same reasoning as the chart branch of applyFieldConfig: a two-column
+            // (WeightedAverage, ...) or N/P (PthPercentile, ...) formula needs its extra
+            // parameter carried over too, or it keeps the VSAggregateRef constructor default.
+            if(meaFc.getSecondaryField() != null) {
+               agg.setSecondaryColumnValue(meaFc.getSecondaryField());
+            }
+
+            if(meaFc.getNOrP() != null) {
+               agg.setN(meaFc.getNOrP());
+            }
          }
       }
    }
@@ -1247,7 +1261,7 @@ public class WizAutoBindingService {
       }
    }
 
-   private void applyFieldConfig(ChartRef ref, Map<String, SimpleFieldInfo> configMap,
+   static void applyFieldConfig(ChartRef ref, Map<String, SimpleFieldInfo> configMap,
                                   int chartType) {
       String fieldName = WizardRecommenderUtil.getChartRefFieldName(ref);
       SimpleFieldInfo fc = configMap.get(fieldName);
@@ -1312,6 +1326,18 @@ public class WizAutoBindingService {
                }
             }
 
+            // Two-column (WeightedAverage, Correlation, ...) and N/P (PthPercentile, NthLargest,
+            // ...) formulas need their extra parameter carried over too, or the ref keeps its
+            // VSAggregateRef constructor default (empty secondary column, N=1) no matter what the
+            // request sent.
+            if(meaFc.getSecondaryField() != null) {
+               agg.setSecondaryColumnValue(meaFc.getSecondaryField());
+            }
+
+            if(meaFc.getNOrP() != null) {
+               agg.setN(meaFc.getNOrP());
+            }
+
             // Apply discrete (plot un-aggregated) and secondaryY (secondary Y axis) INDEPENDENTLY,
             // matching the interactive editor (ChartAggregateInfoFactory.updateAggregateRef). The
             // invalid both-true combination is rejected upstream (fail-loud in the plugin's
@@ -1368,7 +1394,7 @@ public class WizAutoBindingService {
     * type: date types use a DateFormat pattern, numeric types a DecimalFormat pattern; other types
     * are left unformatted (a pattern there would be ambiguous).
     */
-   private void applyTitleAndFormat(ChartRef ref, SimpleFieldInfo fc) {
+   static void applyTitleAndFormat(ChartRef ref, SimpleFieldInfo fc) {
       String title = fc.getTitle();
 
       if(title != null && !title.isEmpty()) {

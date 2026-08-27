@@ -129,6 +129,8 @@ final class WizFieldInfoFactory {
       info.setAggregateFormula(agg.getFormula() != null ? agg.getFormula().getFormulaName() : null);
       info.setCalculateInfo(CalculateInfo.createCalcInfo(agg.getCalculator()));
       info.setPercentage(percentageName(agg.getPercentageOption()));
+      info.setSecondaryField(agg.getSecondaryColumnValue());
+      info.setNOrP(agg.getFormula() != null && agg.getFormula().hasN() ? agg.getN() : null);
       return info;
    }
 
@@ -147,6 +149,8 @@ final class WizFieldInfoFactory {
       info.setAggregateFormula(agg.getFormulaValue());
       info.setFullName(agg.getFullName());
       info.setCalculateInfo(CalculateInfo.createCalcInfo(agg.getCalculator()));
+      info.setSecondaryField(agg.getSecondaryColumnValue());
+      info.setNOrP(agg.getFormula() != null && agg.getFormula().hasN() ? agg.getN() : null);
 
       if(agg instanceof VSChartAggregateRef chartAgg) {
          info.setDiscrete(chartAgg.isDiscrete());
