@@ -34,8 +34,6 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.List;
 
 /**
@@ -69,7 +67,6 @@ public class BindableFieldsService {
       throws Exception
    {
       String source = null;
-      String model = null;
 
       if(assembly != null) {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
@@ -84,20 +81,13 @@ public class BindableFieldsService {
          }
 
          source = sourceNameOf(target);
-         // Only the scoped tree needs telling: it has no node for the model, so the name has to
-         // come from the sheet. The unscoped tree reaches the model node itself and names it.
-         model = logicalModelName(vs);
       }
 
       TreeNodeModel root = tree.getBinding(runtimeId, assembly, false, user);
       List<BindableTable> tables = new ArrayList<>();
 
       if(root != null) {
-         collect(root, tables, model);
-      }
-
-      if(model != null) {
-         tables = merged(tables);
+         collect(root, tables, null);
       }
 
       return assembly == null ? tables : marked(tables, source);
@@ -115,68 +105,57 @@ public class BindableFieldsService {
    }
 
    /**
-    * The logical model the scoped tree's groups belong to, or null when the viewsheet is not
-    * built on one.
+    * The logical model this table node belongs to, or null when it is a source in its own right.
     *
     * <p>A logical model has one source — its own name, which is what {@code SourceInfo.getSource}
     * stores and the only value {@code set_chart_source} accepts — while its entities are groups
-    * inside it. The chart-scoped tree has no node for the model, so its entity groups used to be
-    * reported as separate source tables: names no {@code set_*_source} tool accepts, which a shelf
-    * write would nonetheless store as the assembly's source, leaving a chart whose source is not a
-    * source and which therefore never produced a graph. It also meant a correctly bound chart
-    * matched none of them and read back as having no source at all.
+    * inside it. The chart-scoped tree has no node for the model, so its entities were reported as
+    * separate source tables: names no {@code set_*_source} tool accepts, which a shelf write would
+    * nonetheless store as the assembly's source, leaving a chart whose source is not a source and
+    * which therefore never produced a graph. It also meant a correctly bound chart matched none of
+    * them and read back as having no source at all.
     *
-    * <p>{@code getProperty("source")} is preferred over the entry's name because that is the pair
-    * {@code BaseTreeModelBuilder} reads off this same base entry to build a model
-    * {@code SourceInfo}, so it is the value the rest of the product treats as the model's source.
-    * The name is the fallback for a base entry carrying no such property.
+    * <p>The answer is on the node: {@code BaseTreeModelBuilder.applyTableNodeProperties} stamps
+    * {@code sourceType=LOGIC_MODEL} and {@code table=<model>} onto every entity node it builds for
+    * a model-backed sheet. Read from there rather than from the viewsheet, so no assembly has to
+    * be resolved to answer an unscoped listing.
     */
-   private static String logicalModelName(Viewsheet vs) {
-      AssetEntry base = vs == null ? null : vs.getBaseEntry();
-
-      if(base == null || !base.isLogicModel()) {
+   private static String modelOf(TreeNodeModel node) {
+      if(!(node.data() instanceof AssetEntry entry)) {
          return null;
       }
 
-      String named = base.getProperty("source");
+      if(!String.valueOf(AssetEntry.Type.LOGIC_MODEL).equals(entry.getProperty("sourceType"))) {
+         return null;
+      }
 
-      return named != null && !named.isBlank() ? named : base.getName();
+      String model = entry.getProperty("table");
+
+      return model != null && !model.isBlank() ? model : null;
    }
 
    /**
-    * Groups that resolved to the same source are one table, not one per tree node.
+    * Adds the fields to the model's table, creating it on the first entity that names it.
     *
-    * <p>{@link #collect} emits a table per group it finds, so a model whose entities all resolve to
-    * the model's name would otherwise come back as five tables of the same name.
+    * <p>Folding here rather than merging afterwards keeps it to the one case that needs it: two
+    * groups that legitimately share a label — the {@code Dimensions}/{@code Measures} fallback
+    * naming below, say — stay separate, as they did before.
     */
-   private static List<BindableTable> merged(List<BindableTable> tables) {
-      Map<String, BindableTable> byName = new LinkedHashMap<>();
+   private static void fold(List<BindableTable> tables, String model, List<BindableField> fields) {
+      for(int i = 0; i < tables.size(); i++) {
+         BindableTable seen = tables.get(i);
 
-      for(BindableTable table : tables) {
-         String key = table.name() == null ? "" : table.name().toLowerCase();
-         BindableTable seen = byName.get(key);
-
-         if(seen == null) {
-            byName.put(key, table);
-            continue;
+         if(model.equalsIgnoreCase(seen.name())) {
+            List<BindableField> all = new ArrayList<>(seen.fields());
+            all.addAll(fields);
+            tables.set(i, new BindableTable(seen.name(), seen.current(), all));
+            return;
          }
-
-         List<BindableField> fields = new ArrayList<>(seen.fields());
-
-         for(BindableField field : table.fields()) {
-            boolean known = fields.stream().anyMatch(
-               f -> f.column() != null && f.column().equalsIgnoreCase(field.column()));
-
-            if(!known) {
-               fields.add(field);
-            }
-         }
-
-         byName.put(key, new BindableTable(seen.name(), seen.current(), fields));
       }
 
-      return new ArrayList<>(byName.values());
+      tables.add(new BindableTable(model, null, fields));
    }
+
 
    /**
     * Flags the one live table, so the single-source rule can be followed from this call alone.
@@ -218,7 +197,19 @@ public class BindableFieldsService {
          gather(node, fields, isLogicalModel(node), null);
 
          if(!fields.isEmpty()) {
-            tables.add(new BindableTable(node.label(), null, fields));
+            // An entity of a logical model is not a source: the model is, and its name is what
+            // SourceInfo stores and set_chart_source accepts. The chart-scoped tree has no node
+            // for the model, but BaseTreeModelBuilder.applyTableNodeProperties stamps the model's
+            // name onto every entity node it builds, so the node says which model it belongs to
+            // and the sheet does not have to be resolved to find out.
+            String model = modelOf(node);
+
+            if(model == null) {
+               tables.add(new BindableTable(node.label(), null, fields));
+            }
+            else {
+               fold(tables, model, fields);
+            }
          }
 
          return;

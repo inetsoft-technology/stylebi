@@ -529,6 +529,134 @@ class BindableFieldsServiceTest {
       return new BindableFieldsService(tree, engine);
    }
 
+   // -- logical models: the entities are groups, the model is the source ------
+
+   /**
+    * A model-backed entry as {@code BaseTreeModelBuilder.applyTableNodeProperties} stamps it:
+    * {@code sourceType=LOGIC_MODEL} and {@code table=<model>} on every entity node it builds.
+    */
+   private static AssetEntry entityEntry(String model) {
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.getType()).thenReturn(AssetEntry.Type.TABLE);
+      when(entry.getProperty("sourceType"))
+         .thenReturn(String.valueOf(AssetEntry.Type.LOGIC_MODEL));
+      when(entry.getProperty("table")).thenReturn(model);
+      return entry;
+   }
+
+   private static TreeNodeModel columnNode(String label, String dtype) {
+      return TreeNodeModel.builder().label(label).leaf(true)
+         .data(entry(AssetEntry.Type.COLUMN, label, dtype)).build();
+   }
+
+   /**
+    * The chart-scoped shape: no node for the model, entities typed TABLE, columns already carrying
+    * the "Entity:Column" label.
+    */
+   private static TreeNodeModel scopedModelTree() {
+      TreeNodeModel customer = TreeNodeModel.builder().label("Customer").data(entityEntry("Order Model"))
+         .addChildren(columnNode("Customer:Region", "string"))
+         .addChildren(columnNode("Customer:Address", "string")).build();
+      TreeNodeModel order = TreeNodeModel.builder().label("Order").data(entityEntry("Order Model"))
+         .addChildren(columnNode("Order:Paid", "integer")).build();
+
+      return TreeNodeModel.builder().label("root")
+         .addChildren(customer).addChildren(order).build();
+   }
+
+   /**
+    * The unscoped shape: the model node itself, entities typed TABLE below it
+    * ({@code VSEventUtil.appendChildNodes} types every folder child TABLE, never FOLDER), and bare
+    * column labels.
+    */
+   private static TreeNodeModel unscopedModelTree() {
+      TreeNodeModel customer = TreeNodeModel.builder().label("Customer")
+         .data(entry(AssetEntry.Type.TABLE, "Customer", null))
+         .addChildren(columnNode("Address", "string")).build();
+      TreeNodeModel supplier = TreeNodeModel.builder().label("Supplier")
+         .data(entry(AssetEntry.Type.TABLE, "Supplier", null))
+         .addChildren(columnNode("Address", "string")).build();
+
+      return TreeNodeModel.builder().label("Order Model")
+         .data(entry(AssetEntry.Type.LOGIC_MODEL, "Order Model", null))
+         .addChildren(customer).addChildren(supplier).build();
+   }
+
+   /**
+    * The entities of a model are not sources. Reported as such, a shelf write stored one as an
+    * assembly's source, which is a source no {@code set_*_source} tool accepts and which never
+    * produces a graph.
+    */
+   @Test
+   void reportsAModelsEntitiesAsTheOneModelTheyBelongTo() throws Exception {
+      List<BindableTable> tables =
+         serviceReturning(scopedModelTree()).list("rt1", null, principal());
+
+      assertEquals(1, tables.size(), "a model is one source, not one per entity");
+      assertEquals("Order Model", tables.get(0).name());
+      assertEquals(List.of("Customer:Region", "Customer:Address", "Order:Paid"),
+                   tables.get(0).fields().stream().map(BindableField::column).toList(),
+                   "folding the entities together must not lose or reorder their columns");
+   }
+
+   /** A chart bound to the model matches it, where it used to match none of the entity names. */
+   @Test
+   void marksTheModelCurrentForAChartBoundToIt() throws Exception {
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getSourceInfo())
+         .thenReturn(new SourceInfo(SourceInfo.MODEL, "Examples/Orders", "Order Model"));
+
+      List<BindableTable> tables =
+         serviceFor(scopedModelTree(), "Chart1", chart).list("rt1", "Chart1", principal());
+
+      assertEquals(Boolean.TRUE, byName(tables, "Order Model").current(),
+                   "a bound chart read back as having no source at all");
+   }
+
+   /**
+    * The regression that a folder test missed: entities arrive typed TABLE, so gating the prefix on
+    * {@code isFolder} left the columns bare, and bare is ambiguous — Address, City, Company,
+    * Region, State and Zip each occur under more than one entity of the sample model.
+    */
+   @Test
+   void prefixesAModelsColumnsWithTheirEntity() throws Exception {
+      List<BindableTable> tables =
+         serviceReturning(unscopedModelTree()).list("rt1", null, principal());
+
+      assertEquals(1, tables.size());
+      assertEquals("Order Model", tables.get(0).name());
+      assertEquals(List.of("Customer:Address", "Supplier:Address"),
+                   tables.get(0).fields().stream().map(BindableField::column).toList(),
+                   "two entities each carry an Address, so a bare label names neither");
+   }
+
+   /** The prefix is the tree's own when it has one; applying a second would corrupt the name. */
+   @Test
+   void doesNotPrefixAColumnThatAlreadyCarriesItsEntity() throws Exception {
+      List<BindableTable> tables =
+         serviceReturning(scopedModelTree()).list("rt1", null, principal());
+
+      assertTrue(tables.get(0).fields().stream().map(BindableField::column)
+                    .noneMatch(c -> c.indexOf(':') != c.lastIndexOf(':')),
+                 "a column labelled Customer:Region must not become Customer:Customer:Region");
+   }
+
+   /** Only a model folds. Two ordinary tables that share a label stay separate, as before. */
+   @Test
+   void leavesTablesOutsideAModelUnfolded() throws Exception {
+      TreeNodeModel first = TreeNodeModel.builder().label("Dimensions")
+         .data(entry(AssetEntry.Type.TABLE, "Dimensions", null))
+         .addChildren(columnNode("A", "string")).build();
+      TreeNodeModel second = TreeNodeModel.builder().label("Dimensions")
+         .data(entry(AssetEntry.Type.TABLE, "Dimensions", null))
+         .addChildren(columnNode("B", "string")).build();
+      TreeNodeModel root = TreeNodeModel.builder().label("root")
+         .addChildren(first).addChildren(second).build();
+
+      assertEquals(2, serviceReturning(root).list("rt1", null, principal()).size(),
+                   "folding is for a model's entities, not for any two same-named groups");
+   }
+
    private static Principal principal() {
       return () -> "admin";
    }
