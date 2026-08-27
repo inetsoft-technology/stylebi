@@ -100,6 +100,24 @@ class XMapTaskPoolTest {
       }
    }
 
+   /**
+    * A task cancelled while still queued belongs to a job that is already cancelled or
+    * failed, so running it would scan a whole block for a result that is discarded.
+    */
+   @Test
+   void doesNotRunATaskThatWasCancelledWhileQueued() throws Exception {
+      XBlockSystem sys = mock(XBlockSystem.class);
+      XMapTask task = mock(XMapTask.class);
+      when(task.isCancelled()).thenReturn(true);
+
+      try(MockedStatic<XJobPool> jobPoolStatic = mockStatic(XJobPool.class)) {
+         newHandler(task, sys).run();
+
+         org.mockito.Mockito.verify(task, org.mockito.Mockito.never()).run(same(sys));
+         jobPoolStatic.verifyNoInteractions();
+      }
+   }
+
    private static Runnable newHandler(XMapTask task, XBlockSystem sys) throws Exception {
       Class<?> handlerClass = Class.forName(XMapTaskPool.class.getName() + "$Handler");
       Constructor<?> constructor =
