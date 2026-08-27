@@ -109,6 +109,9 @@ public class ExportControllerService {
 
       boolean embedded = "embed".equalsIgnoreCase(SreeEnv.getProperty("pdf.output.attachment"))
          && !matchesAssetIdFormat;
+      // shared with VSExportService so the two export paths cannot disagree
+      String disposition =
+         VSExportService.getContentDisposition(format, rvs.isPreview(), embedded, print);
 
       String key = "/" + ExportControllerService.class.getName() + "_" + runtimeId + "_" + format;
       BinaryTransfer data = binaryTransferService.createBinaryTransfer(key);
@@ -124,7 +127,7 @@ public class ExportControllerService {
       String mime = VSExportService.getMime(format);
 
       try {
-         return new ViewsheetExportResult(data, fileName, mime, suffix);
+         return new ViewsheetExportResult(data, fileName, mime, suffix, disposition);
       }
       catch(Exception ex) {
          LOG.warn("Unable to complete export for {}", runtimeId);
@@ -344,17 +347,26 @@ public class ExportControllerService {
       private final String fileName;
       private final String mime;
       private final String suffix;
+      private final String disposition;
 
       public ViewsheetExportResult(BinaryTransfer data, String fileName, String mime, String suffix) {
+         this(data, fileName, mime, suffix, "attachment");
+      }
+
+      public ViewsheetExportResult(BinaryTransfer data, String fileName, String mime, String suffix,
+                                   String disposition)
+      {
          this.data = data;
          this.fileName = fileName;
          this.mime = mime;
          this.suffix = suffix;
+         this.disposition = disposition;
       }
 
       public BinaryTransfer getData() { return data; }
       public String getFileName() { return fileName; }
       public String getMime() { return mime; }
       public String getSuffix() { return suffix; }
+      public String getDisposition() { return disposition; }
    }
 }

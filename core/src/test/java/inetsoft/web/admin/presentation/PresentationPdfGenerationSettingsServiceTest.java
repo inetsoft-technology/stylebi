@@ -36,6 +36,9 @@ package inetsoft.web.admin.presentation;
  * [G4] pdf.output.attachment resolves "embed" case-insensitively. It is not a boolean, but the
  *      card renders it as a checkbox and both enforcement sites (ExportControllerService and
  *      VSExportService) compare with equalsIgnoreCase, so the same split applied to it.
+ *      ExportControllerService previously computed the comparison and discarded it, leaving
+ *      the Composer export path always "attachment" while the viewer path honoured the
+ *      setting; it now carries the disposition out on ViewsheetExportResult.
  */
 
 import inetsoft.sree.SreeEnv;
