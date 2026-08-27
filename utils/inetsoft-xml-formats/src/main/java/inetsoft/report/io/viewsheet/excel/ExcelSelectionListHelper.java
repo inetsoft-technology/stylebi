@@ -253,7 +253,13 @@ public class ExcelSelectionListHelper extends ExporterHelper {
          VSCompositeFormat vsformat = value == null ? null : value.getFormat();
          VSCompositeFormat format = (vsformat == null) ? new VSCompositeFormat() : vsformat;
 
-         format = VSSelectionListHelper.getValueFormat(value, format, hasSelected);
+         // Excel deliberately keeps the legacy ink. A spreadsheet has no page to paint, and a
+         // selection list never seeds a dark card background the way a chart or table does, so the
+         // cells here are unfilled white -- the light neutral every other renderer uses would be
+         // invisible on them. PPT passes the assembly context instead, because it does paint the
+         // viewsheet background onto the slide.
+         format = VSSelectionListHelper.getValueFormat(value, format, hasSelected,
+                                                      VizContext.of((VizMark) null));
 
          int xinc = spancols[ci];
          short columnStart = (short) ci;

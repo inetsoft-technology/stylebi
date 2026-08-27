@@ -48,6 +48,13 @@ import {
 export class TooltipComponent {
    @Input() content: string | TemplateRef<any>;
    @Input() tooltipCSS: string | string[] | Set<string>;
+   /**
+    * Whether this tooltip belongs to a dark surface. Resolved by the directive from the hovered
+    * element's own assembly rather than from the shell, because the two disagree: an assembly's
+    * palette follows its mark while the body's dark class follows the org property, so keying the
+    * tooltip off the shell drew a light tooltip on a dark chart and a dark one on a light chart.
+    */
+   @Input() dark = false;
    @Input() tailSide: TailSide | null = null;
    @Input() tailOffset = 0;
    @Input() boxSize: { width: number, height: number } | null = null;

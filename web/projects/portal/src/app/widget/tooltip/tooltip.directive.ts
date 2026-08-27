@@ -194,8 +194,33 @@ export class TooltipDirective implements OnChanges, OnInit, OnDestroy {
       const tooltip = this.tooltipRef.instance;
       tooltip.content = tooltipStr;
       tooltip.tooltipCSS = this.tooltipCSS;
+      tooltip.dark = this.resolveDark();
       this.tooltipRef.instance.updateView();
       this.positionTooltipWithinViewport();
+   }
+
+   /**
+    * Whether the tooltip about to be shown belongs to a dark surface.
+    *
+    * Read from the hovered element upwards, not from the body: the tooltip is reparented to the
+    * document body, so it has no assembly ancestor of its own, and the body's dark class follows the
+    * org property while an assembly's palette follows its mark. Those two disagree in both
+    * directions -- a dark-marked chart in a light org, a light-marked one in a dark org -- and either
+    * mismatch is visible as a tooltip in the wrong palette on a mixed dashboard.
+    *
+    * The nearest wrapper decides, because viz-modern and viz-dark are bound together onto the same
+    * assembly element. No wrapper means light, and the body's dark class is deliberately NOT
+    * consulted as a fallback: viz-shell-dark redefines only the --inet-viz-* state tokens and paints
+    * no surface, so the shell's own surfaces -- the repository and asset trees, the query panes, the
+    * worksheet detail pane, combo-box lists -- stay light even in a dark org, and a dark tooltip over
+    * them would be the same mismatch in a different place. It also settles the unmarked case: a
+    * legacy assembly carries neither class and renders light, so its tooltip is light too.
+    */
+   private resolveDark(): boolean {
+      const host = this.hostRef?.nativeElement as HTMLElement;
+      const wrapper = host?.closest(".viz-modern, .viz-dark");
+
+      return !!wrapper && wrapper.classList.contains("viz-dark");
    }
 
    private positionTooltipWithinViewport() {

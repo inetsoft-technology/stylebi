@@ -2024,6 +2024,13 @@ public class VsToReportConverter {
          path.getType() != TableDataPath.OBJECT)
       {
          detailfmt = finfo.getFormat(path);
+
+         // No dark-foreground substitution here, unlike the browser model and the PDF/SVG/HTML/PPT
+         // renderers. Those all paint the dark viewsheet background behind the cell; a print layout
+         // does not. createReportSheet's caller only calls setUserBackground when the resolved
+         // background differs from the DEFAULT tier, and the dark page colour is written *on* that
+         // tier, so the report page stays white — and light ink on it would be less readable than
+         // the near-black default it replaced, not more.
       }
 
       boolean isTitle = path != null && path.getType() == TableDataPath.TITLE;

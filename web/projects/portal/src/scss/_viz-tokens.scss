@@ -62,6 +62,18 @@
   --inet-viz-selected-border-dark: #2DD4BF;
   --inet-viz-sorted-color-dark: #E0A458;
 
+  // Chart-card DOM surfaces. Values match the neutrals the server-side resolvers already use for
+  // dark, so a painted chart and the chrome around it agree rather than carrying two dark palettes.
+  // The caption step has no server counterpart: the painted chrome needs only two text tiers.
+  // Declared here rather than in the dark scope below, unlike the state colours above: a tooltip is
+  // reparented to the document body, so it sits outside every .viz-dark wrapper and could not
+  // resolve them there. Inert until a dark rule consumes one.
+  --inet-viz-surface-dark: #252428;
+  --inet-viz-text-emphasis-dark: #E6E0E9;
+  --inet-viz-text-dark: #CAC4D0;
+  --inet-viz-text-subtle-dark: #938F99;
+  --inet-viz-hairline-dark: #3A383D;
+
   // compatibility — CSS gate switches DOM only; server-rendered surfaces follow the server-side
   // per-org property.
   --inet-viz-mode: legacy;

@@ -47,3 +47,22 @@
 .tooltip-chrome__border {
   fill: none;
 }
+
+// Dark: the chrome is the tooltip's visible surface whenever a tail is present -- the bubble itself
+// goes transparent and these two paths draw the fill and the outline instead -- so a light chrome on
+// a dark bubble is the whole surface staying light. Same neutrals as the bubble.
+//
+// Scoped by the flag the directive resolves from the hovered assembly, not by a shell class: the
+// tooltip is reparented to the body, and the shell follows the org property while an assembly follows
+// its mark.
+.tooltip-chrome--dark {
+  .tooltip-chrome__bg,
+  .tooltip-chrome__tail {
+    fill: var(--inet-viz-surface-dark);
+  }
+
+  .tooltip-chrome__border,
+  .tooltip-chrome__tail {
+    stroke: var(--inet-viz-hairline-dark);
+  }
+}
