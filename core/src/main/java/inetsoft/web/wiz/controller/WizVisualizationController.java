@@ -23,11 +23,13 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.wiz.model.WizDashboardEvent;
 import inetsoft.web.wiz.model.WizDashboardResult;
 import inetsoft.web.wiz.model.WizFolderSaveResult;
+import inetsoft.web.wiz.model.WizVisualizationRenameResult;
 import inetsoft.web.wiz.model.WizVisualizationRenderEvent;
 import inetsoft.web.wiz.model.WizVisualizationRenderResult;
 import inetsoft.web.wiz.model.WizVisualizationSaveEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveResult;
 import inetsoft.web.wiz.request.WizFolderCreateRequest;
+import inetsoft.web.wiz.request.WizVisualizationRenameRequest;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.WizDashboardService;
 import inetsoft.web.wiz.service.WizVisualizationService;
@@ -106,6 +108,30 @@ public class WizVisualizationController {
       }
       catch(Exception e) {
          LOG.error("Failed to create visualization folder", e);
+         return ResponseEntity.internalServerError().body(Map.of("error", "An unexpected error occurred. Please try again."));
+      }
+   }
+
+   /**
+    * Renames a previously-saved wiz visualization in place — an alias-only update, so the
+    * visualization's identifier is unchanged.
+    */
+   @PostMapping(value = "/rename", produces = MediaType.APPLICATION_JSON_VALUE)
+   public ResponseEntity<?> renameVisualization(
+      @RequestBody WizVisualizationRenameRequest request, Principal principal)
+   {
+      try {
+         WizVisualizationRenameResult result = wizVisualizationService.renameVisualization(request, principal);
+         return ResponseEntity.ok(result);
+      }
+      catch(IllegalArgumentException e) {
+         return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+      }
+      catch(SecurityException e) {
+         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
+      }
+      catch(Exception e) {
+         LOG.error("Failed to rename visualization", e);
          return ResponseEntity.internalServerError().body(Map.of("error", "An unexpected error occurred. Please try again."));
       }
    }
