@@ -301,6 +301,18 @@ public class BindableFieldsService {
    }
 
    /**
+    * Whether this node is a logical model itself, so the nodes below it are its entities.
+    *
+    * <p>Only the unscoped tree carries such a node: {@code VSEventUtil.appendChildNodes} builds
+    * the base tree under a {@code LOGIC_MODEL} root, while the chart-scoped tree has no node for
+    * the model at all and names it through {@link #modelOf} instead.
+    */
+   private boolean isLogicalModel(TreeNodeModel node) {
+      return node.data() instanceof AssetEntry entry &&
+         entry.getType() == AssetEntry.Type.LOGIC_MODEL;
+   }
+
+   /**
     * Whether this node is a grouping folder rather than something bindable.
     *
     * <p>Keyed on the entry <em>type</em>, the way {@link #isTable} already decides, and not on
@@ -308,11 +320,6 @@ public class BindableFieldsService {
     * type is absent — {@link #roleOf} has a whole fallback path for them — so treating a missing
     * type as "not a column" would drop real columns to fix a fake one.
     */
-   private boolean isLogicalModel(TreeNodeModel node) {
-      return node.data() instanceof AssetEntry entry &&
-         entry.getType() == AssetEntry.Type.LOGIC_MODEL;
-   }
-
    private boolean isFolder(TreeNodeModel node) {
       return node.data() instanceof AssetEntry entry &&
          entry.getType() == AssetEntry.Type.FOLDER;
