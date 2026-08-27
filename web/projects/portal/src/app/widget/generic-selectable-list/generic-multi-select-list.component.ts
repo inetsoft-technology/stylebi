@@ -41,9 +41,11 @@ export class GenericMultiSelectList {
          return;
       }
 
+      // rebuild from `values` (not append-to-selected) so the emitted order always
+      // matches list order, the same as a native multi-select's value order
       const next = this.isSelected(value)
          ? (this.selected ?? []).filter(v => !Tool.isEquals(v, value))
-         : [...(this.selected ?? []), value];
+         : (this.values ?? []).filter(v => this.isSelected(v) || Tool.isEquals(v, value));
 
       this.selectedChange.emit(next);
    }

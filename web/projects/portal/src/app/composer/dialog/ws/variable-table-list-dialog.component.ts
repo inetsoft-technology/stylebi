@@ -82,6 +82,7 @@ export class VariableTableListDialog implements OnInit {
    }
 
    tableElementToString = (table: AbstractTableAssembly): string => table.name;
+   tableElementToTitle = (table: AbstractTableAssembly): string => table.description;
 
    public updateTableName(index: number) {
       this.currentTable = this.tables[index];

@@ -76,17 +76,22 @@ export class ChatService {
             queryParameters
          }, (error) => {
             if(error != null) {
-               navigator.clipboard?.writeText(queryParameters).catch(() => {});
-               observer.next({
-                  type: "warning",
-                  message: "_#(js:Could not open the session automatically. The session info has been copied to your clipboard — paste it to the chat agent.)"
-               });
+               const copied = navigator.clipboard?.writeText(queryParameters) ?? Promise.reject();
+               copied.then(
+                  () => observer.next({
+                     type: "warning",
+                     message: "_#(js:Could not open the session automatically. The session info has been copied to your clipboard — paste it to the chat agent.)"
+                  }),
+                  () => observer.next({
+                     type: "warning",
+                     message: "_#(js:Could not open the session automatically. Please copy this to the chat agent:) " + queryParameters
+                  })
+               ).finally(() => observer.complete());
             }
             else {
                observer.next({type: "success", message: "_#(js:Opened Session To Agent)"});
+               observer.complete();
             }
-
-            observer.complete();
          });
       });
    }
