@@ -35,6 +35,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.XRepository;
 import inetsoft.web.composer.ws.LayoutGraphService;
+import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
@@ -123,7 +124,7 @@ class WorksheetScriptControllerTest {
       SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
 
       WorksheetEditService editService =
-         new WorksheetEditService(sessionService, runtimeAccess, broadcast, securityEngine);
+         new WorksheetEditService(sessionService, runtimeAccess, broadcast, securityEngine, mock(InnerJoinService.class));
 
       WorksheetAgentController worksheetController = new WorksheetAgentController(
          featureOn(), mock(SheetJoinService.class), sessionService,
@@ -351,7 +352,7 @@ class WorksheetScriptControllerTest {
 
       WorksheetEditService editService = new WorksheetEditService(
          sessionService, mock(SheetRuntimeAccess.class),
-         mock(SheetAgentBroadcastService.class), securityEngine);
+         mock(SheetAgentBroadcastService.class), securityEngine, mock(InnerJoinService.class));
       WorksheetScriptService scriptService = new WorksheetScriptService(
          editService, mock(WorksheetAgentController.class));
       WorksheetScriptController controller =

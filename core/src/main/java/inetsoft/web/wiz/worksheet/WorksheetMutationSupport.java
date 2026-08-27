@@ -136,6 +136,31 @@ public final class WorksheetMutationSupport {
    }
 
    /**
+    * Describes one edge of an N-ary {@code add_join} (three or more tables joined into a single
+    * assembly in one call, as opposed to the pairwise {@code leftTable}/{@code rightTable} form).
+    *
+    * @param leftTable  a source table assembly name — either side of any edge may name a table
+    *                    introduced by another edge, so the edges need not form a single left-to-
+    *                    right chain (e.g. a hub table joined to two others)
+    * @param leftKey    the column name from {@code leftTable} to join on; ignored for
+    *                    {@code joinType == "CROSS"}
+    * @param rightTable the other source table assembly name
+    * @param rightKey   the column name from {@code rightTable} to join on; ignored for
+    *                    {@code joinType == "CROSS"}
+    * @param joinType   one of {@code "INNER"}, {@code "LEFT"}, {@code "RIGHT"}, {@code "FULL"},
+    *                   {@code "CROSS"} (case-insensitive; defaults to {@code "INNER"}).
+    *                   {@code "MERGE"} is not valid per-edge here — a merge join is a distinct
+    *                   assembly type ({@code MergeJoinTableAssembly}) that cannot be mixed into a
+    *                   multi-table {@code RelationalJoinTableAssembly}; use {@code add_merge_join}.
+    *                   {@code "CROSS"} is likewise an exclusive operation and may only appear
+    *                   when it is the SOLE edge in the call — combined with any other edge it is
+    *                   rejected, since {@link TableAssemblyOperator#checkValidity} refuses an
+    *                   exclusive operator once more than one edge is present.
+    */
+   public record JoinPathSpec(String leftTable, String leftKey, String rightTable, String rightKey,
+                              String joinType) {}
+
+   /**
     * Builds the {@link ConditionList} for one named-group mapping, honoring the mapping's
     * {@code operation} (any operator accepted by {@link #parseOperation}, defaulting to
     * {@code EQUAL_TO} when omitted, matching this method's historical behavior).

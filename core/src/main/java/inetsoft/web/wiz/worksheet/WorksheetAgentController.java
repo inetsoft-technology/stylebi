@@ -1729,10 +1729,16 @@ public class WorksheetAgentController {
          }
          case "set_sort" ->
             editor.setSort(req.table(), req.field(), req.direction());
-         case "add_join" ->
-            editor.addJoin(req.name(), req.leftTable(), req.leftKey(),
-                           req.rightTable(), req.rightKey(), req.joinType(),
-                           req.leftKeys(), req.rightKeys());
+         case "add_join" -> {
+            if(req.joinPaths() != null && !req.joinPaths().isEmpty()) {
+               editor.addJoin(req.name(), req.joinPaths());
+            }
+            else {
+               editor.addJoin(req.name(), req.leftTable(), req.leftKey(),
+                              req.rightTable(), req.rightKey(), req.joinType(),
+                              req.leftKeys(), req.rightKeys());
+            }
+         }
          case "remove_join" ->
             editor.removeJoin(req.name());
          case "add_table" ->

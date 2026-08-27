@@ -40,6 +40,7 @@ import java.awt.Point;
 import java.util.Enumeration;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
+import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.wiz.pairing.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +48,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Session-resolved edit service for worksheets.
@@ -63,12 +66,14 @@ public class WorksheetEditService {
    public WorksheetEditService(SheetSessionService sessions,
                                SheetRuntimeAccess runtimeAccess,
                                SheetAgentBroadcastService broadcast,
-                               SecurityEngine securityEngine)
+                               SecurityEngine securityEngine,
+                               InnerJoinService innerJoinService)
    {
       this.sessions = sessions;
       this.runtimeAccess = runtimeAccess;
       this.broadcast = broadcast;
       this.securityEngine = securityEngine;
+      this.innerJoinService = innerJoinService;
    }
 
    /**
@@ -94,7 +99,7 @@ public class WorksheetEditService {
          SheetType.WORKSHEET, session.runtimeId(), agent);
       applySocketSession(rws, session);
 
-      Editor editor = new Editor(rws.getWorksheet(), agent, securityEngine);
+      Editor editor = new Editor(rws.getWorksheet(), agent, securityEngine, innerJoinService);
 
       try {
          mutation.accept(editor);
@@ -275,6 +280,7 @@ public class WorksheetEditService {
    private final SheetRuntimeAccess runtimeAccess;
    private final SheetAgentBroadcastService broadcast;
    private final SecurityEngine securityEngine;
+   private final InnerJoinService innerJoinService;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetEditService.class);
 
    // =========================================================================
@@ -289,10 +295,12 @@ public class WorksheetEditService {
     */
    public static final class Editor {
 
-      Editor(Worksheet ws, Principal agent, SecurityEngine securityEngine) {
+      Editor(Worksheet ws, Principal agent, SecurityEngine securityEngine,
+             InnerJoinService innerJoinService) {
          this.ws = ws;
          this.agent = agent;
          this.securityEngine = securityEngine;
+         this.innerJoinService = innerJoinService;
       }
 
       /**
@@ -667,6 +675,110 @@ public class WorksheetEditService {
                                             new TableAssembly[]{ left, right },
                                             new TableAssemblyOperator[]{ top });
          placeAssembly(join);
+      }
+
+      /**
+       * Creates a new {@link RelationalJoinTableAssembly} spanning three or more tables in a
+       * single call, matching the Composer UI's multi-select-then-join capability (as opposed
+       * to {@link #addJoin(String, String, String, String, String, String, List, List)}, which
+       * joins exactly two).
+       *
+       * <p>The edges need not form a single left-to-right chain — either side of any edge may
+       * name a table introduced by another edge (e.g. a hub table joined to two others) — because
+       * this delegates to {@link InnerJoinService#editExistingJoinTable}, the same mechanism
+       * behind Composer's own N-ary join (normally reached only via a live STOMP session through
+       * {@code WSJoinTablesEvent}), which resolves edges by table name rather than by position.
+       * That method takes a plain {@link Worksheet} and no runtime/session context, so it is
+       * safe to call here — this mirrors {@code WorksheetTableService.buildJoinTable}, which
+       * already calls it the same way for the {@code add_table} "relational join table" type.
+       *
+       * @param name      the name for the new join assembly
+       * @param joinPaths the join edges (at least one); each names its own left/right table and
+       *                  key columns, so tables may be introduced across multiple edges
+       * @throws PairingException if {@code name}/{@code joinPaths} are empty, a referenced table
+       *                    is not found, an edge specifies {@code joinType == "MERGE"}, or a
+       *                    {@code "CROSS"} edge is combined with any other edge (a cross join is
+       *                    an exclusive operation — {@link TableAssemblyOperator#checkValidity}
+       *                    rejects it once the combined operator holds more than one edge — so
+       *                    a lone {@code joinPaths} entry may be {@code "CROSS"}, but a 2+-edge
+       *                    call may not mix one in)
+       */
+      public void addJoin(String name, List<WorksheetMutationSupport.JoinPathSpec> joinPaths)
+         throws PairingException, SecurityException
+      {
+         if(name == null || name.isBlank()) {
+            throw new PairingException("Join requires a name.");
+         }
+
+         if(joinPaths == null || joinPaths.isEmpty()) {
+            throw new PairingException("Multi-table join requires at least one join path.");
+         }
+
+         Set<TableAssembly> tableSet = new LinkedHashSet<>();
+         TableAssemblyOperator noperator = new TableAssemblyOperator();
+         boolean crossJoin = false;
+
+         for(WorksheetMutationSupport.JoinPathSpec path : joinPaths) {
+            if("MERGE".equalsIgnoreCase(path.joinType())) {
+               throw new PairingException(
+                  "Multi-table join does not support MERGE per edge (\"" + path.leftTable() +
+                  "\" / \"" + path.rightTable() + "\"); use add_merge_join instead.");
+            }
+
+            if("CROSS".equalsIgnoreCase(path.joinType()) && joinPaths.size() > 1) {
+               throw new PairingException(
+                  "Multi-table join does not support combining CROSS with other edges (\"" +
+                  path.leftTable() + "\" / \"" + path.rightTable() + "\" is CROSS, but " +
+                  joinPaths.size() + " edges were given); a cross join must be the only edge " +
+                  "in the call, or use add_cross_join for a standalone two-table cross join.");
+            }
+
+            TableAssembly left = requireTable(path.leftTable());
+            TableAssembly right = requireTable(path.rightTable());
+            tableSet.add(left);
+            tableSet.add(right);
+
+            int operation = parseJoinType(path.joinType());
+            crossJoin = crossJoin || operation == TableAssemblyOperator.CROSS_JOIN;
+
+            TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+            op.setLeftTable(path.leftTable());
+            op.setRightTable(path.rightTable());
+
+            if(operation != TableAssemblyOperator.CROSS_JOIN) {
+               op.setLeftAttribute(new AttributeRef(null, path.leftKey()));
+               op.setRightAttribute(new AttributeRef(null, path.rightKey()));
+            }
+
+            op.setOperation(operation);
+            noperator.addOperator(op);
+         }
+
+         if(crossJoin) {
+            requirePermission(ResourceType.CROSS_JOIN);
+         }
+
+         RelationalJoinTableAssembly join = new RelationalJoinTableAssembly(
+            ws, name, tableSet.toArray(new TableAssembly[0]), new TableAssemblyOperator[0]);
+
+         // Position + register before wiring the edges (matching placeAssembly's order for
+         // every other join creator here), since editExistingJoinTable needs the assembly
+         // already registered in ws to resolve table names against.
+         join.setPixelOffset(new Point(25, 25));
+         AssetEventUtil.adjustAssemblyPosition(join, ws);
+         ws.addAssembly(join);
+
+         try {
+            innerJoinService.editExistingJoinTable(ws, join, noperator, true);
+         }
+         catch(PairingException | SecurityException e) {
+            ws.removeAssembly(name);
+            throw e;
+         }
+         catch(Exception e) {
+            ws.removeAssembly(name);
+            throw new PairingException("Failed to build multi-table join: " + e.getMessage());
+         }
       }
 
       /**
@@ -2608,5 +2720,6 @@ public class WorksheetEditService {
       private final Worksheet ws;
       private final Principal agent;
       private final SecurityEngine securityEngine;
+      private final InnerJoinService innerJoinService;
    }
 }

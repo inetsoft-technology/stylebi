@@ -37,6 +37,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -91,7 +92,7 @@ class WorksheetEditServiceMutatorsTest {
       when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq(runtimeId), eq(agent)))
          .thenReturn(rws);
 
-      return new WorksheetEditService(sessions, runtimeAccess, broadcast, securityEngine);
+      return new WorksheetEditService(sessions, runtimeAccess, broadcast, securityEngine, mock(InnerJoinService.class));
    }
 
    private RuntimeWorksheet rws(Worksheet ws) {
