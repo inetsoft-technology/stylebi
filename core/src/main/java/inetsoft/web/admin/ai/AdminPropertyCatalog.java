@@ -208,10 +208,13 @@ public class AdminPropertyCatalog {
     * secret value read through this path leaves the host in a way the ordinary EM properties page
     * never does.
     *
-    * <p>Two independent tests, unioned, then a name-shape exception list subtracted. A name
+    * <p>Four independent tests, unioned, then a name-shape exception list subtracted. A name
     * matches case-insensitively when it contains {@code password}, {@code secret} or
-    * {@code credential}, ends with {@code .key}, or starts with {@code license.}; and
-    * {@link #isEncryptedCredential} matches the properties whose <b>writer</b> encrypts them.
+    * {@code credential}, ends with {@code .key}, or starts with {@code license.};
+    * {@link #isEncryptedCredential} matches the properties whose <b>writer</b> encrypts them;
+    * {@link #CONFIRMED_SECRET} names the credentials neither of those two reaches; and
+    * {@link #COMPOSITE_SECRET_PROPERTIES} names the properties that carry a credential inside a
+    * larger composite string.
     * {@link #CONFIRMED_NOT_SECRET} then removes the specific names the shape test catches for the
     * wrong reason - verified individually, the same way {@link #ENCRYPTED_CREDENTIALS} is, rather
     * than by loosening the shared pattern:
@@ -253,9 +256,13 @@ public class AdminPropertyCatalog {
     * it is a credential by the product's own action, and the next one added is masked on read
     * without a second edit.
     *
-    * <p>The name test stays. It covers fifteen properties nothing writes through an encrypting
+    * <p>The name test stays. It covers the properties nothing writes through an encrypting
     * accessor — {@code license.*}, {@code jwt.signing.key}, {@code password.encryption.key},
     * {@code sso.rsa.private.key} among them — which the writer test would silently unmask.
+    * Deliberately no count: the previous wording said "fifteen", derived from the sixteen names
+    * the pre-#76006 pattern withheld, and was left behind by both the three carve-outs below and
+    * the reclassification in Redmine #76170. A number maintained by hand beside three sets that
+    * each move independently is one more fact to go stale, and this method has enough of those.
     *
     * <p>Masking a credential here does <b>not</b> make it unwritable: {@code AdminChangePlanService}
     * refuses a change only when a name is secret AND not an encrypted credential, and the egress
@@ -272,7 +279,8 @@ public class AdminPropertyCatalog {
          return false;
       }
 
-      return isEncryptedCredential(lower) || COMPOSITE_SECRET_PROPERTIES.contains(lower) ||
+      return CONFIRMED_SECRET.contains(lower) || isEncryptedCredential(lower) ||
+         COMPOSITE_SECRET_PROPERTIES.contains(lower) ||
          lower.contains("password") || lower.contains("secret") ||
          lower.contains("credential") || lower.endsWith(".key") || lower.startsWith("license.");
    }
@@ -281,12 +289,20 @@ public class AdminPropertyCatalog {
     * True when {@code baseName} names an application credential whose accessors encrypt on write
     * and decrypt on read, so admin-chat can set it through {@code SreeEnv.setPassword}.
     *
-    * <p><b>Classify by the WRITER, never by the reader.</b> An earlier version of this javadoc
-    * excluded {@code log.fluentd.security.password} on the grounds that it is "read with a plain
-    * {@code SreeEnv.getProperty}". That reasoning was wrong, even though the exclusion happened to
-    * be right. {@code LogSettingService} reads it with {@code getProperty} and then calls
-    * {@code Tool.decryptPassword} on the result two lines later - so by the reader it looks
-    * encrypted. It is not: the save path writes it with a bare {@code SreeEnv.setProperty}.
+    * <p><b>Classify by the WRITER, never by the reader.</b> {@code mail.smtp.tokenuri} is read
+    * with {@code SreeEnv.getPassword} ({@code EmailSettingsService}), which decrypts - so by the
+    * reader it looks like a stored credential. It is not: the same save block writes it with a
+    * bare {@code SreeEnv.setProperty}, and it is correctly absent from the list below.
+    *
+    * <p>This paragraph used to make the same point with {@code log.fluentd.security.password}, and
+    * that example is worth recording because of how it expired. It was excluded here on the
+    * grounds that its writer stored plaintext, which was true when written and became false in
+    * Redmine #76051 ({@code dc8877f8a}), where {@code LogSettingService} started routing it
+    * through the same {@code toPassword} helper as its sibling shared key. The exclusion, and the
+    * javadoc arguing for it, outlived that change and were corrected in Redmine #76170; the
+    * property is now listed below. The rule held - only the worked example rotted - but a
+    * hand-verified allow-list is only as current as the last time someone re-read the writer, and
+    * nothing here fails when a writer changes underneath it.
     *
     * <p>The reader cannot settle this because {@code Tool.decryptPassword} passes an unrecognised
     * (i.e. plaintext) value straight through - see {@code LocalPasswordEncryption.decryptPassword},
@@ -298,11 +314,13 @@ public class AdminPropertyCatalog {
     * name and the name does not correlate with the storage form in either direction:
     *
     * <ul>
-    *   <li><b>Matched but plaintext</b> - {@code log.fluentd.security.password} (bare
-    *       {@code setProperty}), {@code google.maps.key}, {@code sso.rsa.public.key} (a PUBLIC
-    *       key), {@code auth0.client.secret} (read plain, then copied into
+    *   <li><b>Matched but plaintext</b> - {@code google.maps.key}, {@code sso.rsa.public.key} (a
+    *       PUBLIC key), {@code auth0.client.secret} (read plain, then copied into
     *       {@code openid.client.secret} by the legacy migration, which encrypts on the way).
     *       Encrypting any of these would store ciphertext where a literal is expected.</li>
+    *   <li><b>Neither matched nor encrypted, yet still a credential</b> - the two webhook URLs in
+    *       {@link #CONFIRMED_SECRET}. The name does not correlate with the storage form, and
+    *       neither correlates with whether possessing the value grants access.</li>
     *   <li><b>Matched but not a secret at all</b> - {@code enable.changepassword} holds a boolean
     *       and matches on the substring "password".</li>
     *   <li><b>Matched and must never be written</b> - {@code password.encryption.key},
@@ -334,10 +352,13 @@ public class AdminPropertyCatalog {
     *       {@code mail.smtp.refreshtoken} - {@code EmailSettingsService} writes all four with
     *       {@code SreeEnv.setPassword}. Note {@code mail.smtp.tokenuri} sits beside them in the
     *       same save block and is written with a plain {@code setProperty}, so it is NOT here.</li>
-    *   <li>{@code log.fluentd.security.sharedkey} - {@code LogSettingService} writes it through
-    *       its {@code toPassword} helper, which calls {@code Tool.encryptPassword}. Its sibling
-    *       {@code log.fluentd.security.password} does not, which is why one is listed and the
-    *       other is not despite the adjacent names.</li>
+    *   <li>{@code log.fluentd.security.sharedkey}, {@code log.fluentd.security.password} -
+    *       {@code LogSettingService} writes both through its {@code toPassword} helper, which
+    *       calls {@code Tool.encryptPassword}. The password joined the shared key in Redmine
+    *       #76051; before that it was written with {@code sanitizeProperty}, i.e. in the clear.
+    *       Note {@code LogSettingService} has no {@code Tool.isCloudSecrets} branch at all, so
+    *       {@code AdminChangePlanService} will refuse both under cloud secrets. That is
+    *       over-cautious rather than wrong, and was already true of the shared key alone.</li>
     * </ul>
     *
     * <p>Reading is governed by {@link #isSecret}, which unions this list into its name test — so
@@ -383,12 +404,75 @@ public class AdminPropertyCatalog {
    private static final Set<String> ENCRYPTED_CREDENTIALS = Set.of(
       "openid.client.secret", "stylebi.google.openid.client.secret",
       "mail.smtp.pass", "mail.smtp.clientsecret", "mail.smtp.accesstoken",
-      "mail.smtp.refreshtoken", "log.fluentd.security.sharedkey");
+      "mail.smtp.refreshtoken", "log.fluentd.security.sharedkey",
+      "log.fluentd.security.password");
+
+   /**
+    * Credentials that neither the name shape nor {@link #ENCRYPTED_CREDENTIALS} reaches, withheld
+    * on read anyway because possession of the value is sufficient to use it.
+    *
+    * <p>The third test exists because the other two ask about the value's <i>name</i> and its
+    * <i>storage form</i>, and a bearer token can be confidential while being unremarkable in both
+    * (Redmine #76170). These two are incoming-webhook URLs: the token is in the path, there is no
+    * second factor and no request signature, so anything holding the URL can post to that channel
+    * or room.
+    *
+    * <p>Both verified, the same way every other entry here is:
+    *
+    * <ul>
+    *   <li>{@code share.slack.url}, {@code share.googlechat.url} - {@code ShareSettingsService}
+    *       reads both with a plain {@code SreeEnv.getProperty} and writes both with a plain
+    *       {@code SreeEnv.setProperty}; {@code ShareController} consumes them plain when it posts;
+    *       {@code defaults.properties} declares both empty. Nothing encrypts either one.</li>
+    * </ul>
+    *
+    * <p><b>Why not {@link #ENCRYPTED_CREDENTIALS}.</b> That list drives {@code SreeEnv.setPassword}
+    * on write ({@code AdminChangeService}), which would store ciphertext under a property every
+    * reader above expects to hold a literal URL - the mirror of the plaintext downgrade the
+    * allow-list exists to prevent. That list means "the writer encrypts this", which is a claim
+    * about the product's own behaviour; this one means "this value grants access", which is a claim
+    * about the value. Keeping them separate is what lets each stay checkable.
+    *
+    * <p><b>The cost, accepted.</b> {@code AdminChangePlanService} refuses a change when a name is
+    * secret and NOT an encrypted credential, so listing these makes them unsettable through
+    * admin-chat: an operator can no longer configure Slack or Google Chat sharing by chat, and
+    * must use Enterprise Manager. That is the wrong side of the trade for convenience and the
+    * right one for egress - a webhook URL read through this path leaves the host to a model
+    * provider, and unlike a password field there is no ciphertext step to blunt it. Encrypting
+    * them at rest instead would let the write survive, at the price of changing a shipped feature
+    * and migrating values already stored in the clear; that is a separate change.
+    *
+    * <p>Not a prefix. {@code share.googlechat.enabled} and the rest of {@code share.*} stay
+    * readable - an operator needs to know whether sharing is on, and only the URL is the
+    * credential. {@code mapbox.token} was considered and left out: like {@code google.maps.key} in
+    * {@link #CONFIRMED_NOT_SECRET}, it is a client-side map token ordinarily restricted by HTTP
+    * referrer rather than treated as a bearer credential.
+    */
+   private static final Set<String> CONFIRMED_SECRET = Set.of(
+      "share.slack.url", "share.googlechat.url");
+
+   /**
+    * True when {@code baseName} is one of the hand-verified bearer credentials in
+    * {@link #CONFIRMED_SECRET}.
+    *
+    * <p>Exposed for the same reason {@link #isEncryptedCredential} is: {@link #isSecret} collapses
+    * three different grounds for withholding into one boolean, and a caller that has to explain
+    * itself needs to know which ground applied. {@code AdminPropertiesController} uses it twice -
+    * to keep {@code exists} confirmed for a name verified against its writer, and to give the
+    * right reason for the mask. A name matched by the shape test alone gets neither, because a
+    * string match is genuinely all that is known about it.
+    */
+   public static boolean isConfirmedSecret(String baseName) {
+      return baseName != null && CONFIRMED_SECRET.contains(baseName.toLowerCase());
+   }
 
    /**
     * Names the shape test in {@link #isSecret} catches for the wrong reason - each verified
     * against its writer, per the javadoc on {@link #isSecret}. Not a general escape hatch: adding
     * a name here means its plain-text writer was checked, not that the name merely "looks" safe.
+    *
+    * <p>Must stay disjoint from {@link #CONFIRMED_SECRET}: {@link #isSecret} checks this set first
+    * and returns early, so a name in both would be readable with no diagnostic. A test asserts it.
     */
    private static final Set<String> CONFIRMED_NOT_SECRET = Set.of(
       "enable.changepassword", "sso.rsa.public.key", "google.maps.key");

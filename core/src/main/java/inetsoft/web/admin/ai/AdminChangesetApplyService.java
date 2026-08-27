@@ -122,9 +122,30 @@ public class AdminChangesetApplyService {
                           change.proposedValue(), backupRef, req.getReviewOutcome()),
                   user);
 
-               results.add(new ApplyOutcome(change.property(), applied.getBeforeValue(),
-                                            applied.getAfterValue(), applied.getStatus(),
-                                            applied.getError()));
+               // before/after are the STORED form, and for a credential that is normally
+               // ciphertext - which AdminChangeService argues carries nothing sensitive. It is
+               // only normally: Tool.decryptPassword passes plaintext straight through, so a
+               // credential can sit in the store in the clear and still work. That is not
+               // hypothetical - log.fluentd.security.password was written in the clear by the
+               // product's own writer until Redmine #76051, and INETSOFTENV_* promotion
+               // (StorageInitializer) and the raw EM properties page both still bypass every
+               // encrypting writer. So on an upgraded server the first apply would echo the old
+               // plaintext credential into this response, which the caller relays to a model
+               // provider off-host - the same egress this component masks reads for.
+               //
+               // Masked HERE and not in AdminChangeResult, which is the seam that matters:
+               // rollback replays applied.getBeforeValue() into undoableBefore below, and the
+               // `moved` comparison needs the real values too. Both read the result directly, so
+               // neither is affected. Only this response DTO is.
+               boolean maskValues = AdminPropertyCatalog.isEncryptedCredential(
+                  AdminPropertyName.parse(change.property()).baseName());
+
+               results.add(new ApplyOutcome(change.property(),
+                                            maskValues ? setMarker(applied.getBeforeValue())
+                                               : applied.getBeforeValue(),
+                                            maskValues ? setMarker(applied.getAfterValue())
+                                               : applied.getAfterValue(),
+                                            applied.getStatus(), applied.getError()));
 
                boolean verified = AdminChangeRecord.STATUS_VERIFIED.equals(applied.getStatus());
                // Path A (AdminChangeService): SreeEnv.save() can succeed and then a side-effect hook
@@ -232,6 +253,15 @@ public class AdminChangesetApplyService {
       req.setBackupRef(backupRef);
       req.setReviewOutcome(reviewOutcome);
       return req;
+   }
+
+   /**
+    * The credential stand-in for {@link ApplyOutcome}: reports whether a value is present without
+    * reproducing it. Matches {@code AdminChangePlanService}'s wording for a masked currentValue, so
+    * a caller sees the same vocabulary at preview and at apply.
+    */
+   private static String setMarker(String value) {
+      return value == null ? null : "(set)";
    }
 
    private static String messageOf(Exception e) {
