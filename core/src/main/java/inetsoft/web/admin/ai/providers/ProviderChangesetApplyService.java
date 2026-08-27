@@ -592,6 +592,9 @@ public class ProviderChangesetApplyService {
          record.setSnapshotScope(AdminChangeRecord.SCOPE_STORAGE);
          record.setBackupRef(backupRef);
          record.setReviewOutcome(reviewOutcome);
+         // organizationId is deliberately left unset: provider configuration is deployment-wide,
+         // not org-scoped (01-spec.md section 1/5), so there is no organization to attribute this
+         // change to -- not an oversight, mirrors ProviderChangePlanService.NOT_ORG_SCOPED.
          record.setUserName(user == null ? null : user.getName());
          record.setActionTimestamp(new Timestamp(System.currentTimeMillis()));
          record.setServerHostName(Tool.getHost());

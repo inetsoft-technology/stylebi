@@ -142,7 +142,7 @@ public class ProviderChangePlanService {
          }
 
          String proposed = ProviderProjection.projectFileProvider(name);
-         return new PlanChange(key, null, null, proposed, AdminChangeRecord.RISK_HIGH,
+         return new PlanChange(key, NOT_ORG_SCOPED, null, proposed, AdminChangeRecord.RISK_HIGH,
                                AdminChangeRecord.SCOPE_STORAGE, true,
                                "create " + chain.label() + " provider " + name + " (FILE)");
       }
@@ -157,7 +157,7 @@ public class ProviderChangePlanService {
          requireLdapSpec(label, spec);
          requireLdapMultiTenantAllowed(label);
          String proposed = ProviderProjection.projectLdapSpec(name, spec);
-         return new PlanChange(key, null, null, proposed, AdminChangeRecord.RISK_HIGH,
+         return new PlanChange(key, NOT_ORG_SCOPED, null, proposed, AdminChangeRecord.RISK_HIGH,
                                AdminChangeRecord.SCOPE_STORAGE, true,
                                "create authentication provider " + name + " (LDAP)");
       }
@@ -250,7 +250,7 @@ public class ProviderChangePlanService {
          requireDeletableAuthenticationType(label, model.providerType());
          requireAuthenticationDeletePreflight(label, name, user);
          String before = ProviderProjection.projectAuthenticationProvider(model);
-         return new PlanChange(key, null, before, null, AdminChangeRecord.RISK_HIGH,
+         return new PlanChange(key, NOT_ORG_SCOPED, before, null, AdminChangeRecord.RISK_HIGH,
                                AdminChangeRecord.SCOPE_STORAGE, true,
                                "delete authentication provider " + name);
       }
@@ -259,7 +259,7 @@ public class ProviderChangePlanService {
       requireDeletableAuthorizationType(label, model.providerType());
       requireAuthorizationDeletePreflight(label, name);
       String before = ProviderProjection.projectAuthorizationProvider(model);
-      return new PlanChange(key, null, before, null, AdminChangeRecord.RISK_HIGH,
+      return new PlanChange(key, NOT_ORG_SCOPED, before, null, AdminChangeRecord.RISK_HIGH,
                             AdminChangeRecord.SCOPE_STORAGE, true,
                             "delete authorization provider " + name);
    }
@@ -546,6 +546,12 @@ public class ProviderChangePlanService {
 
    private static final char SEP = (char) 0x1f;
    private static final String NULL_MARKER = String.valueOf((char) 0x01);
+   /** Provider configuration is deployment-wide, not org-scoped (01-spec.md section 1/5) -- every
+    * {@link PlanChange} this service builds passes this in place of a bare {@code null} literal so
+    * the omission reads as deliberate, not an oversight. See 03-reconcile.md's {@code orgId}
+    * resolution for why a sentinel string was considered and rejected in favor of {@code null}
+    * (nothing downstream requires non-null, confirmed by 04-build-java.md). */
+   private static final String NOT_ORG_SCOPED = null;
    private final AuthenticationProviderService authenticationProviderService;
    private final AuthorizationProviderService authorizationProviderService;
    private final SecurityEngine securityEngine;
