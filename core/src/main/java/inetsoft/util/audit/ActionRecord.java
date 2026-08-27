@@ -201,6 +201,10 @@ public class ActionRecord implements AuditRecord {
     */
    public static final String OBJECT_TYPE_VIRTUAL_PRIVATE_MODEL = "vpm";
    /**
+    * Object type cluster (a cluster server node, admin-chat pause/resume).
+    */
+   public static final String OBJECT_TYPE_CLUSTER = "cluster";
+   /**
     * Action status success.
     */
    public static final String ACTION_STATUS_SUCCESS = "success";
