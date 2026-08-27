@@ -39,11 +39,13 @@ import inetsoft.web.viewsheet.controller.AssemblyImageService;
 import inetsoft.web.viewsheet.service.ExportResponse;
 import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.model.WizFolderSaveResult;
+import inetsoft.web.wiz.model.WizVisualizationRenameResult;
 import inetsoft.web.wiz.model.WizVisualizationRenderEvent;
 import inetsoft.web.wiz.model.WizVisualizationRenderResult;
 import inetsoft.web.wiz.model.WizVisualizationSaveEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveResult;
 import inetsoft.web.wiz.request.WizFolderCreateRequest;
+import inetsoft.web.wiz.request.WizVisualizationRenameRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -498,6 +500,63 @@ public class WizVisualizationService {
 
       assetRepository.addFolder(newEntry, principal);
       return WizFolderSaveResult.ok(path);
+   }
+
+   /**
+    * Renames a previously-saved wiz visualization in place (POST
+    * /api/wiz/visualization/rename) — an alias-only update. {@link AssetEntry#equals} ignores
+    * alias, so the old/new entries handed to {@code changeSheet} below compare equal regardless
+    * of whether they are the same object or a copy: no content clone, no new identifier, and (per
+    * {@code AbstractAssetEngine#changeSheet0}'s {@code Tool.equals(oentry, nentry)} guards around
+    * {@code dependencyHandler.renameDependencies}/{@code changeSheetDependents}) no
+    * dependency-rename cascade fires. Reuses the exact primitive
+    * {@link inetsoft.web.composer.RenameAssetController}'s alias-only branch already does.
+    */
+   public WizVisualizationRenameResult renameVisualization(WizVisualizationRenameRequest request,
+                                                             Principal principal)
+      throws Exception
+   {
+      if(request == null || Tool.isEmptyString(request.identifier())) {
+         throw new IllegalArgumentException("identifier is required");
+      }
+
+      String displayName = Tool.isEmptyString(request.displayName())
+         ? null : request.displayName().trim();
+
+      if(Tool.isEmptyString(displayName)) {
+         throw new IllegalArgumentException("displayName is required");
+      }
+
+      AssetEntry entry = AssetEntry.createAssetEntry(request.identifier());
+
+      if(entry == null || !entry.isViewsheet()) {
+         throw new IllegalArgumentException("Invalid viewsheet identifier: " + request.identifier());
+      }
+
+      String path = entry.getPath();
+
+      if(path == null || !path.startsWith(VISUALIZATION_COMPONENTS_FOLDER_PATH + "/")) {
+         throw new IllegalArgumentException(
+            "Visualization is not in the managed visualizations folder: " + path);
+      }
+
+      // checkAssetPermission signals a WRITE denial via MessageException (see
+      // AbstractAssetEngine#checkAssetPermission0), not SecurityException — convert it so this
+      // reaches the controller's catch(SecurityException) branch instead of falling into
+      // catch(Exception) as a misleading "unexpected error" 500. Same conversion
+      // createVisualizationFolder already does above.
+      try {
+         assetRepository.checkAssetPermission(principal, entry, ResourceAction.WRITE);
+      }
+      catch(MessageException e) {
+         throw new SecurityException(e.getMessage());
+      }
+
+      entry.setAlias(displayName);
+      entry.setProperty("displayName", displayName);
+      assetRepository.changeSheet(entry, entry, principal, true);
+
+      return new WizVisualizationRenameResult(request.identifier(), displayName);
    }
 
    /**
