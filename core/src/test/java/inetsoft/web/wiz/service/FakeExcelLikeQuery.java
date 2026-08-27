@@ -30,12 +30,14 @@ import java.io.File;
  * {@code ServerFileQuery} -- a {@code java.io.File} property ({@code fileFolder}) resolved
  * against {@code getRootFolder()} (reached by name, not {@code @Property}, exactly like the real
  * class), plus {@code isExcel()}/{@code getExcelSheetNames()} (also reached by name) and an
- * {@code excelSheet} String property whose {@code @PropertyEditor(dependsOn = {"fileFolder"},
- * tagsMethod = "getExcelSheetNames")} matches the capability 5b sheet-property heuristic exactly.
+ * {@code excelSheet} String property carrying the same
+ * {@code @PropertyEditor(dependsOn = {"fileFolder"}, tagsMethod = "getExcelSheetNames")} the real
+ * class declares.
  *
  * <p>{@code isExcel()}/the sheet list are test-controlled directly (not derived from real file
  * content) via {@link #setExcelForTest}/{@link #setSheetNamesForTest} -- this fixture exists to
- * test the AMBIGUITY REFUSAL logic, not a real spreadsheet parser.</p>
+ * test what the published schema says about a file-addressed query, not a real spreadsheet
+ * parser.</p>
  *
  * <p>{@code @View} is REQUIRED -- see {@link FakeNamedConnectorQuery}'s own doc for why.</p>
  */
@@ -45,7 +47,7 @@ public class FakeExcelLikeQuery extends TabularQuery {
       super("FakeExcelLike");
    }
 
-   @Property(label = "File Folder", required = true)
+   @Property(label = "File Folder", pattern = {"^.*\\.(txt|csv|xls|xlsx)$"}, required = true)
    public File getFileFolder() {
       return fileFolder;
    }
