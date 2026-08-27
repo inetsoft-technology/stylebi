@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.net.*;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.*;
 
 public class PostSignUpUserData {
@@ -46,13 +47,17 @@ public class PostSignUpUserData {
       String postHeader = SreeEnv.getProperty("selfSignUpPost.header");
       String postSecret = SreeEnv.getProperty("selfSignUpPost.secretKey");
 
-      HttpClient client = HttpClient.newHttpClient();
-
       if(postURL != null) {
-         try {
+         try(HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(CONNECT_TIMEOUT)
+                .build())
+         {
+            String userData = parseUserData();
+
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                .uri(URI.create(postURL))
-               .method("POST", HttpRequest.BodyPublishers.ofString(parseUserData(), StandardCharsets.UTF_8))
+               .timeout(RESPONSE_TIMEOUT)
+               .method("POST", HttpRequest.BodyPublishers.ofString(userData, StandardCharsets.UTF_8))
                .header("Content-Type", "application/json; charset=UTF-8");
 
             if(postUsername != null && postPassword != null) {
@@ -70,7 +75,7 @@ public class PostSignUpUserData {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             int statusCode = response.statusCode();
 
-            LOG.debug("Writing PostSignUp User: (" + parseUserData() + ") to <" + postURL + "> returned code: " + statusCode);
+            LOG.debug("Writing PostSignUp User: (" + userData + ") to <" + postURL + "> returned code: " + statusCode);
 
             if(statusCode < 200 || statusCode >= 300) {
                if(statusCode >= 500) {
@@ -155,6 +160,9 @@ public class PostSignUpUserData {
    private String firstName = "";
    private String lastName = "";
    private String cookies = null;
+
+   private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+   private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(20);
 
    private static final Logger LOG =
       LoggerFactory.getLogger(PostSignUpUserData.class);
