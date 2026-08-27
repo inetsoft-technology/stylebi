@@ -1847,7 +1847,8 @@ public class WorksheetAgentController {
          case "set_primary_assembly" ->
             editor.setPrimaryAssembly(req.table());
          case "edit_variable" ->
-            editor.editVariable(req.name(), req.type(), req.label(), req.defaultValue());
+            editor.editVariable(req.name(), req.type(), req.label(), req.defaultValue(),
+                                req.choices());
          case "rename_variable" ->
             editor.renameVariable(req.name(), req.newName());
          case "delete_variable" ->
@@ -2473,17 +2474,21 @@ public class WorksheetAgentController {
 
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
-         createVariable(ws, varName, req.type(), req.label(), req.defaultValue());
+         createVariable(ws, varName, req.type(), req.label(), req.defaultValue(), req.choices());
          return null;
       });
    }
 
    /**
     * Shared helper that creates a {@link DefaultVariableAssembly} with the given
-    * name, type, label, and default value.
+    * name, type, label, default value, and (optional) enumerated value picker.
+    *
+    * @param choices the variable's enumerated "Values" picker (embedded list or query
+    *               source), or {@code null} to leave the variable free-form
     */
-   private void createVariable(Worksheet ws, String name, String type,
-                               String label, String defaultValue)
+   private void createVariable(Worksheet ws, String name, String type, String label,
+                               String defaultValue,
+                               WorksheetMutationSupport.VariableChoicesSpec choices)
       throws PairingException
    {
       if(ws.getAssembly(name) != null) {
@@ -2532,6 +2537,8 @@ public class WorksheetAgentController {
             var.setValueNode(valueNode);
          }
       }
+
+      WorksheetMutationSupport.applyVariableChoices(ws, var, choices);
 
       DefaultVariableAssembly assembly = new DefaultVariableAssembly(ws, name);
       assembly.setVariable(var);
@@ -2637,8 +2644,12 @@ public class WorksheetAgentController {
    // Variables endpoint
    // ---------------------------------------------------------------------------
 
-   public record VariableRequest(String name, String type, String label,
-                                 String defaultValue) {}
+   /**
+    * @param choices the variable's enumerated "Values" picker (embedded list or query
+    *               source), or {@code null} for a free-form value
+    */
+   public record VariableRequest(String name, String type, String label, String defaultValue,
+                                 WorksheetMutationSupport.VariableChoicesSpec choices) {}
 
    /**
     * Add a user variable to the worksheet.
@@ -2657,7 +2668,8 @@ public class WorksheetAgentController {
 
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
-         createVariable(ws, body.name(), body.type(), body.label(), body.defaultValue());
+         createVariable(ws, body.name(), body.type(), body.label(), body.defaultValue(),
+                        body.choices());
          return null;
       });
    }

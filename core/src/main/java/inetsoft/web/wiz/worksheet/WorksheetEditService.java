@@ -2282,9 +2282,12 @@ public class WorksheetEditService {
        * @param type         new data type, or {@code null} to leave unchanged
        * @param label        new display label, or {@code null} to leave unchanged
        * @param defaultValue new default value, or {@code null} to leave unchanged
+       * @param choices      the variable's enumerated "Values" picker (embedded list or query
+       *                     source), or {@code null} to leave it unchanged
        * @throws PairingException if the assembly is not found or not a variable
        */
-      public void editVariable(String name, String type, String label, String defaultValue)
+      public void editVariable(String name, String type, String label, String defaultValue,
+                               WorksheetMutationSupport.VariableChoicesSpec choices)
          throws PairingException
       {
          Assembly a = ws.getAssembly(name);
@@ -2293,11 +2296,19 @@ public class WorksheetEditService {
             throw new PairingException("Variable assembly not found: " + name);
          }
 
-         AssetVariable var = va.getVariable();
+         AssetVariable existing = va.getVariable();
 
-         if(var == null) {
+         if(existing == null) {
             throw new PairingException("Variable has no definition: " + name);
          }
+
+         // Every edit below is applied to a scratch copy, published only at the very end.
+         // applyOnRuntime mutates the live worksheet with no rollback on a thrown exception, so
+         // editing 'existing' in place would let an invalid 'choices' (mismatched labels/values,
+         // an unknown displayStyle, a circular query source, ...) discovered partway through
+         // leave the already-applied label/type/defaultValue changes committed even though the
+         // whole call is reported as a failure.
+         AssetVariable var = (AssetVariable) existing.clone();
 
          if(label != null) {
             var.setAlias(label);
@@ -2327,6 +2338,10 @@ public class WorksheetEditService {
                var.setValueNode(valueNode);
             }
          }
+
+         WorksheetMutationSupport.applyVariableChoices(ws, var, choices);
+
+         va.setVariable(var);
       }
 
       /**

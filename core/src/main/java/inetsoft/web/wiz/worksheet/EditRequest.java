@@ -101,7 +101,10 @@ import java.util.Map;
  *   <li>{@code set_assembly_position} — {@code table}, {@code x}, {@code y}</li>
  *   <li>{@code duplicate_assembly} — {@code table} (source), {@code name} (new name)</li>
  *   <li>{@code set_primary_assembly} — {@code table}</li>
- *   <li>{@code edit_variable} — {@code name}, {@code type}, {@code label}, {@code defaultValue}</li>
+ *   <li>{@code edit_variable} — {@code name}, {@code type}, {@code label}, {@code defaultValue};
+ *       optional {@code choices} (the enumerated "Values" picker — embedded list or query
+ *       source, plus display style — matching the Composer's own Variable dialog; {@code null}
+ *       leaves it unchanged, see {@link WorksheetMutationSupport.VariableChoicesSpec})</li>
  *   <li>{@code rename_variable} — {@code name}, {@code newName}</li>
  *   <li>{@code delete_variable} — {@code name}</li>
  *   <li>{@code edit_named_group} — {@code name}, {@code groupMappings} (see {@code add_named_group}
@@ -142,7 +145,7 @@ public record EditRequest(
    String field,
    /** Comparison operator for add_filter, e.g. {@code "="}, {@code "!="}. */
    String operation,
-   /** Literal values for add_filter. */
+   /** Literal values for add_filter / edit_condition. */
    List<String> values,
    /** Sort direction — {@code "ASC"} or {@code "DESC"} — for set_sort. */
    String direction,
@@ -325,7 +328,13 @@ public record EditRequest(
     * one more entry than {@code boundaries} (below the first, one between each pair, above the
     * last). Omitted or empty keeps the engine's default auto-generated range text.
     */
-   List<String> labels
+   List<String> labels,
+   /**
+    * The variable's enumerated "Values" picker for edit_variable — either an embedded list or
+    * a query against an existing worksheet table's columns. {@code null} leaves it unchanged.
+    * See {@link WorksheetMutationSupport.VariableChoicesSpec}.
+    */
+   WorksheetMutationSupport.VariableChoicesSpec choices
 ) {
    /**
     * Compatibility constructor for callers built before {@code crosstab} was added —
@@ -358,5 +367,39 @@ public record EditRequest(
            groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
            sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
            lookupTopLevelOnly, suffix, customLookups, null, null);
+   }
+
+   /**
+    * Compatibility constructor for callers built before {@code choices} was added —
+    * defaults it to {@code null}.
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, String> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables,
+      String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
+      List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups, Boolean crosstab,
+      List<String> labels)
+   {
+      this(op, table, column, name, type, newName, field, operation, values, direction, groups,
+           aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType,
+           visible, tables, source, concatType, conditions, ranking, headerColumns, dateOption,
+           boundaries, datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row, col,
+           value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
+           groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
+           sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
+           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, null);
    }
 }

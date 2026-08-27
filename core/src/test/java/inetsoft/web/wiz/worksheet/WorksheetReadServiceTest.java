@@ -118,6 +118,35 @@ class WorksheetReadServiceTest {
       assertEquals("EMBEDDED", m.tables().get(0).type());
    }
 
+   @Test
+   void rankingConditionSurfacesVariableReferenceInValues() {
+      // Regression: extractValues() previously returned an empty list for ANY
+      // RankingCondition, so a Top-N count bound to $(topN) (Bug #75950) was invisible to
+      // findVariableReferences (stylebi-wiz's worksheetTools.ts), which scans
+      // rankingConditions[].values for "$(name)" tokens to warn rename_variable/delete_variable
+      // about dangling references -- a ranking-only reference would silently report as none.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total");
+      ws.addAssembly(t);
+      WorksheetMutationSupport.setRanking(t,
+         new WorksheetMutationSupport.RankingSpec("total", "$(topN)", "TOP_N", false));
+
+      WorksheetModel.FilterModel ranking = tableNamed(read(ws), "T").rankingConditions().get(0);
+      assertEquals(List.of("$(topN)"), ranking.values());
+   }
+
+   @Test
+   void rankingConditionSurfacesNumericNInValues() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total");
+      ws.addAssembly(t);
+      WorksheetMutationSupport.setRanking(t,
+         new WorksheetMutationSupport.RankingSpec("total", 5, "TOP_N", false));
+
+      WorksheetModel.FilterModel ranking = tableNamed(read(ws), "T").rankingConditions().get(0);
+      assertEquals(List.of("5"), ranking.values());
+   }
+
    private static WorksheetModel.TableModel tableNamed(WorksheetModel m, String name) {
       return m.tables().stream().filter(t -> name.equals(t.name())).findFirst().orElseThrow();
    }

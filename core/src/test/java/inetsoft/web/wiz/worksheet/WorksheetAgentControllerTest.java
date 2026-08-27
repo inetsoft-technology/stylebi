@@ -37,6 +37,7 @@ import inetsoft.uql.erm.XEntity;
 import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.JDBCQuery;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.tabular.RestParameter;
 import inetsoft.uql.tabular.TabularDataSource;
@@ -837,6 +838,80 @@ class WorksheetAgentControllerTest {
       assertSame(existing, a, "the original variable assembly must not be replaced");
       assertEquals(XSchema.DOUBLE, ((VariableAssembly) a).getVariable().getTypeNode().getType(),
                    "the original variable's type must be unchanged");
+   }
+
+   @Test
+   void editAddVariableWiresChoicesThrough() throws Exception {
+      // Regression for Bug #76328: add_variable/edit_variable had no way to populate
+      // UserVariable.setValues()/setChoices()/setDisplayStyle() (the Composer's own Variable
+      // dialog "Values" picker). Verifies the edit-dispatch add_variable path wires 'choices'
+      // all the way through to the created variable.
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-AVC"), any())).thenReturn(session("TOK-AVC"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      WorksheetMutationSupport.VariableChoicesSpec choices =
+         new WorksheetMutationSupport.VariableChoicesSpec(
+            List.of("1", "5", "10"), List.of("One", "Five", "Ten"), null, null, null, "list");
+
+      EditRequest req = new EditRequest(
+         "add_variable",              // op
+         null,                        // table
+         null,                        // column
+         "topN",                      // name
+         "integer",                   // type
+         null,                        // newName
+         null,                        // field
+         null,                        // operation
+         null,                        // values
+         null,                        // direction
+         null,                        // groups
+         null,                        // aggregates
+         null,                        // expression
+         false,                       // sql
+         null, null, null, null, null,  // leftTable, leftKey, rightTable, rightKey, joinType
+         null, null, null, null,         // visible, tables, source, concatType
+         null, null, null, null, null,   // conditions, ranking, headerColumns, dateOption, boundaries
+         null, null, null, null,         // datasource, schema, catalog, logicalModel
+         null, null,                     // leftKeys, rightKeys
+         null, null, null, null,         // row, col, value, index
+         null, null, null, null,         // alias, description, maxRows, distinct
+         null, null, null, null,         // columnOrder, groupMappings, groupOthers, variableValues
+         null, null, null, null,         // x, y, label, defaultValue
+         null, null, null,               // mode, insert, subtables
+         null, null,                     // sourceTable, attribute
+         null, null, null, null, null, null, null,  // endpoint, parameters, lookup,
+                                                      // lookupExpandArrays, lookupTopLevelOnly,
+                                                      // suffix, customLookups
+         null,                        // crosstab
+         null,                        // labels
+         choices                      // choices
+      );
+
+      ctrl.edit("TOK-AVC", req, agent);
+
+      Assembly a = ws.getAssembly("topN");
+      assertTrue(a instanceof VariableAssembly);
+      AssetVariable var = ((VariableAssembly) a).getVariable();
+      assertArrayEquals(new Object[] {"One", "Five", "Ten"}, var.getChoices());
+      assertArrayEquals(new Object[] {1, 5, 10}, var.getValues(),
+         "values must be typed to the variable's data type (Integer), not raw strings");
+      assertTrue(var.isMultipleSelection());
+      assertEquals(UserVariable.LIST, var.getDisplayStyle());
    }
 
    // ---------------------------------------------------------------------------
