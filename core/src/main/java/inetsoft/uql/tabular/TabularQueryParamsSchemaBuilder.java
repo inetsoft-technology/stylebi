@@ -83,7 +83,7 @@ public final class TabularQueryParamsSchemaBuilder {
             continue;
          }
 
-         JsonNode fragment = buildParamFragment(query, prop, param, resolveTags, schema);
+         JsonNode fragment = buildParamFragment(query, prop, param, resolveTags);
 
          if(fragment != null) {
             fragments.put(param.getName(), fragment);
@@ -275,8 +275,7 @@ public final class TabularQueryParamsSchemaBuilder {
    }
 
    private static JsonNode buildParamFragment(TabularQuery query, PropertyMeta prop,
-                                              TabularQuerySchema.Param param, boolean resolveTags,
-                                              TabularQuerySchema schema)
+                                              TabularQuerySchema.Param param, boolean resolveTags)
    {
       Class<?> type = prop.getDescriptor().getPropertyType();
       boolean composite = TabularSchemaExtractor.isCompositeType(type) && type != File.class;
@@ -285,76 +284,7 @@ public final class TabularQueryParamsSchemaBuilder {
          return buildCompositeFragment(query, prop, param);
       }
 
-      JsonNode node = buildScalarFragment(query, param, resolveTags);
-
-      if(node instanceof ObjectNode obj) {
-         applyRoleFormat(obj, param, schema);
-      }
-
-      return node;
-   }
-
-   /**
-    * Stamps {@code format} on the two properties a caller has to identify by ROLE rather than by
-    * name, and which nothing else in the schema distinguishes.
-    *
-    * <p>A file path is a {@code java.io.File} property, and {@code jsonType} flattens it to
-    * {@code "string"} like every other non-numeric -- so without this, "which property names the
-    * file" is unanswerable from the schema. The sheet selector is worse: its signature is
-    * "a String with a tagsMethod that dependsOn the file property", three facts that only exist
-    * in the extractor's own {@code Param} view.</p>
-    *
-    * <p>DECIDED HERE, not by the caller, because this is where the evidence is. A consumer reading
-    * the published schema sees a projection: the File type is gone, the tagsMethod name is
-    * deliberately not published, and dependsOn survives only as {@code if}/{@code then} structure.
-    * Re-deriving the role from that is guesswork over a lossy view, while this side still holds the
-    * raw values.</p>
-    *
-    * <p>Ambiguity REFUSES rather than picking one. A wrong sheet property builds a table over the
-    * wrong sheet and reports success -- there is no error anywhere for anyone to notice. Today no
-    * shipped connector reaches that branch (ServerFileQuery declares exactly one candidate), so
-    * the strict choice costs nothing now and only ever fires on a connector nobody has looked at.</p>
-    */
-   private static void applyRoleFormat(ObjectNode node, TabularQuerySchema.Param param,
-                                       TabularQuerySchema schema)
-   {
-      if(File.class.getName().equals(param.getJavaType())) {
-         node.put("format", "file-path");
-         return;
-      }
-
-      if(!"java.lang.String".equals(param.getJavaType())
-         || param.getTagsMethod() == null || param.getTagsMethod().isEmpty()
-         || param.getDependsOn() == null || param.getDependsOn().isEmpty())
-      {
-         return;
-      }
-
-      List<String> filePaths = schema.getParams().stream()
-         .filter(p -> File.class.getName().equals(p.getJavaType()))
-         .map(TabularQuerySchema.Param::getName)
-         .toList();
-
-      if(filePaths.stream().noneMatch(f -> param.getDependsOn().contains(f))) {
-         return;
-      }
-
-      List<String> siblings = schema.getParams().stream()
-         .filter(p -> "java.lang.String".equals(p.getJavaType()))
-         .filter(p -> p.getTagsMethod() != null && !p.getTagsMethod().isEmpty())
-         .filter(p -> p.getDependsOn() != null
-                       && p.getDependsOn().stream().anyMatch(filePaths::contains))
-         .map(TabularQuerySchema.Param::getName)
-         .toList();
-
-      if(siblings.size() > 1) {
-         throw new IllegalStateException(
-            "Data source type '" + schema.getDataSourceType() + "' declares " + siblings.size() +
-            " candidate sheet-selector properties (" + String.join(", ", siblings) +
-            ") -- ambiguous, refusing rather than guessing which one selects the sheet.");
-      }
-
-      node.put("format", "file-sheet");
+      return buildScalarFragment(query, param, resolveTags);
    }
 
    /**

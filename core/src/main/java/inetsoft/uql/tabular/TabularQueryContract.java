@@ -28,9 +28,10 @@ import com.fasterxml.jackson.databind.JsonNode;
  * the unreferenced-property list. All of that is INPUT to
  * {@link TabularQueryParamsSchemaBuilder}, and none of it is something a caller can act on that
  * {@code queryParamsSchema} does not already say: the conditional structure is expressed as
- * {@code allOf}/{@code if}/{@code then}, the notes are folded into the root description, and the
- * facts that survive nowhere else — which property names a file, which selects a sheet — are
- * stamped as {@code format}.</p>
+ * {@code allOf}/{@code if}/{@code then} and the notes are folded into the root description. A
+ * property is identified by its own name, its {@code description} (the connector's
+ * {@code @Property} label) and its {@code pattern} — the same way every parse option already
+ * is.</p>
  *
  * <p>Two types rather than one type with five {@code @JsonIgnore} getters, because the two are
  * different things and only one of them is a promise to a caller. With the annotation approach the

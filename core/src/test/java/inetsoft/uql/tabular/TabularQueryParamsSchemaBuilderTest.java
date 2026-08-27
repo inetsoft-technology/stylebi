@@ -239,25 +239,44 @@ class TabularQueryParamsSchemaBuilderTest {
 
    // --- role formats, and the wire a consumer actually receives ----------
 
+   /**
+    * A file property and a sheet selector are matched by NAME, the same way every parse option
+    * already is, so no property carries a role marker.
+    *
+    * <p>The marker this replaces was inferred rather than declared: "String with a tagsMethod that
+    * dependsOn the file property" is a description of an editor that recomputes its choices when the
+    * file changes, which is equally true of a charset picker. Both file connectors shipped declare
+    * two such properties (excelSheet and encoding), and one of them names its file with a String
+    * rather than a java.io.File, so neither half of the inference held on either connector.</p>
+    */
    @Test
-   void fileAndSheetPropertiesAreIdentifiableByRoleNotByName() {
-      // jsonType flattens java.io.File to "string" like every other non-numeric, and the sheet
-      // selector's signature (String + tagsMethod + dependsOn the file property) lives only in the
-      // extractor's Param view -- so without these two formats neither role is answerable from the
-      // published schema at all, which is what kept a second flat view of the contract alive.
-      JsonNode props = excelSchema().get("properties");
+   void noPropertyCarriesARoleFormat() {
+      JsonNode fileProps = excelSchema().get("properties");
 
-      assertEquals("string", props.get("fileFolder").get("type").asText());
-      assertEquals("file-path", props.get("fileFolder").get("format").asText());
-      assertEquals("file-sheet", props.get("excelSheet").get("format").asText());
-   }
+      assertEquals("string", fileProps.get("fileFolder").get("type").asText());
+      assertFalse(fileProps.get("fileFolder").has("format"),
+                  "the file property is matched by name, not by a role marker");
+      assertFalse(fileProps.get("excelSheet").has("format"),
+                  "and so is the sheet selector");
 
-   @Test
-   void aRoleFormatIsNeverStampedOnAnOrdinaryProperty() {
       JsonNode props = properties();
 
       assertFalse(props.get("pageSize").has("format"));
       assertFalse(props.get("namePattern").has("format"));
+   }
+
+   /**
+    * What a caller matches on instead: the property's own name, the label the connector gave it, and
+    * the pattern it declares. Publishing these is what lets `binding.path` and `binding.sheet` be
+    * placed without a marker.
+    */
+   @Test
+   void aFilePropertyStaysIdentifiableByItsLabelAndPattern() {
+      JsonNode props = excelSchema().get("properties");
+
+      assertTrue(props.get("fileFolder").get("description").asText().contains("File Folder"));
+      assertEquals("^.*\\.(txt|csv|xls|xlsx)$", props.get("fileFolder").get("pattern").asText());
+      assertTrue(props.get("excelSheet").get("description").asText().contains("Sheet"));
    }
 
    @Test

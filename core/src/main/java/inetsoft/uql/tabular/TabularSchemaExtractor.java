@@ -19,11 +19,15 @@ package inetsoft.uql.tabular;
 
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.util.Config;
+import inetsoft.util.ThreadContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.lang.reflect.Method;
+import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.*;
 
 /**
  * Derives a {@link TabularQuerySchema} — the parameters needed to build a query,
@@ -143,10 +147,7 @@ public class TabularSchemaExtractor {
 
       try {
          TabularView root = new LayoutCreator().createLayout(query);
-         TabularUtil.callViewMethods(root.getViews(), query);
-
-         Probe visible = new Probe();
-         collectVisible(root.getViews(), true, false, visible);
+         Probe visible = evaluate(root, query);
 
          for(String name : names) {
             // Only parameters the layout actually places can be judged. One the @View annotation
@@ -192,7 +193,17 @@ public class TabularSchemaExtractor {
       Class<?> cls, XDataSource dataSource, List<TabularQuerySchema.Param> params)
    {
       Map<String, Map<String, List<String>>> matrix = new LinkedHashMap<>();
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(cls);
       List<Axis> axes = findAxes(params);
+
+      // A property whose setter has already failed to return once is not offered to probe() again
+      // -- see poison(). Removed from the list rather than skipped in the loop below, because the
+      // second pass reads this same list to find its inner axes and must not reach it either.
+      //
+      // This covers what was poisoned BEFORE this call. An axis poisoned by the first pass below is
+      // still in the list, so the second pass checks again for itself.
+      axes.removeIf(axis -> isPoisoned(pmap, axis.name));
+
       Probe baseline = probe(cls, dataSource, Collections.emptyMap());
 
       if(axes.isEmpty() || baseline == null) {
@@ -223,7 +234,7 @@ public class TabularSchemaExtractor {
       }
 
       matrix.putAll(firstPass);
-      addCombinationGates(cls, dataSource, params, axes, firstPass, matrix);
+      addCombinationGates(cls, dataSource, params, axes, pmap, firstPass, matrix);
 
       return matrix;
    }
@@ -248,6 +259,7 @@ public class TabularSchemaExtractor {
     */
    private void addCombinationGates(Class<?> cls, XDataSource dataSource,
                                     List<TabularQuerySchema.Param> params, List<Axis> axes,
+                                    Map<String, PropertyMeta> pmap,
                                     Map<String, Map<String, List<String>>> firstPass,
                                     Map<String, Map<String, List<String>>> matrix)
    {
@@ -298,6 +310,18 @@ public class TabularSchemaExtractor {
                Map<String, List<String>> found = new LinkedHashMap<>();
 
                for(Object value : inner.values) {
+                  // Poison is checked HERE, per value, rather than being left to the list this
+                  // reads having been filtered. That filter ran before the first pass, and this is
+                  // where an axis hidden at baseline is first reached at all -- probe0 declines to
+                  // write it while its panel is shut, so the first pass never enters its setter and
+                  // never poisons it. What did not return is the PROPERTY, not one of its values,
+                  // so the remaining values are abandoned with it, and so is every later outer row
+                  // that reveals the same property. Without this, one broken setter strands a
+                  // thread per revealing axis instead of one for the life of the process.
+                  if(isPoisoned(pmap, inner.name)) {
+                     break;
+                  }
+
                   Map<String, Object> combo = new LinkedHashMap<>();
                   combo.put(outer.getKey(), outerValue);
                   combo.put(inner.name, value);
@@ -362,45 +386,199 @@ public class TabularSchemaExtractor {
    /**
     * Sets the given values on a fresh query and evaluates the visibility conditions.
     *
+    * <p>Run on a pooled thread under a deadline. Every value a probe writes reaches a connector's
+    * own setter, and a setter is ordinary code in a plugin jar this class cannot audit -- there are
+    * eighty-nine of them -- so the call is a trust boundary rather than a local method call.
+    * Without a deadline, a setter that does not return takes the request thread with it, and on a
+    * path whose caller retries, one such setter costs a thread per attempt.
+    *
     * @return what is visible under those values, or {@code null} if the probe could
     *         not be run
     */
    private Probe probe(Class<?> cls, XDataSource dataSource, Map<String, Object> values) {
+      // Connector code runs on the pool thread, so the caller's context has to travel with it --
+      // the same reason callEditorMethods hands its principal to the threads it starts. The
+      // principal is all that travels: the one reader of TabularUtil's session id is
+      // callButtonMethods, and a probe never calls it.
+      Principal principal = ThreadContext.getContextPrincipal();
+      Future<Probe> task = PROBES.submit(() -> {
+         ThreadContext.setContextPrincipal(principal);
+
+         try {
+            return probe0(cls, dataSource, values);
+         }
+         finally {
+            // A pooled thread outlives the probe, and a principal left on it would answer for
+            // whoever borrows it next.
+            ThreadContext.setContextPrincipal(null);
+         }
+      });
+
       try {
-         Object probe = cls.getDeclaredConstructor().newInstance();
-
-         // The probe has to stand where the real query stands. A visibility condition may read the
-         // data source -- a connector varies what it offers by which account it is pointed at --
-         // and a probe built without one would answer for a query nobody is going to run.
-         if(dataSource != null && probe instanceof TabularQuery) {
-            ((TabularQuery) probe).setDataSource(dataSource);
-         }
-
-         Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(cls);
-
-         for(Map.Entry<String, Object> e : values.entrySet()) {
-            PropertyMeta prop = pmap.get(e.getKey());
-
-            if(prop == null) {
-               return null;
-            }
-
-            prop.setValue(probe, e.getValue());
-         }
-
-         TabularView root = new LayoutCreator().createLayout(probe);
-         TabularUtil.callViewMethods(root.getViews(), probe);
-
-         Probe result = new Probe();
-         collectVisible(root.getViews(), true, false, result);
-         values.keySet().forEach(result.conditionalVisible::remove);
-
-         return result;
+         return task.get(probeTimeoutMs, TimeUnit.MILLISECONDS);
       }
-      catch(Exception ex) {
-         LOG.debug("Failed to probe visibility for {} with {}", cls.getName(), values, ex);
+      catch(TimeoutException ex) {
+         // Best-effort: a setter looping with no blocking call in it offers the interrupt nowhere
+         // to land, and Thread.stop is gone. What bounds the damage is poison(), not this.
+         task.cancel(true);
+         poison(cls, values);
          return null;
       }
+      catch(InterruptedException ex) {
+         // Same signal as the timeout branch, for the same reason: if the setter really is stuck,
+         // the pooled thread is lost either way and an interrupt is the only thing left to offer a
+         // BLOCKING one. Not poisoned, though -- an interrupt says the waiter was told to stop, not
+         // that the setter would never have returned, and poisoning on that would drop an axis for
+         // the life of the process over a shutdown.
+         task.cancel(true);
+         Thread.currentThread().interrupt();
+         return null;
+      }
+      catch(ExecutionException ex) {
+         LOG.debug("Failed to probe visibility for {} with {}", cls.getName(), values,
+                   ex.getCause());
+         return null;
+      }
+   }
+
+   /**
+    * One probe, as it runs on the pool thread.
+    *
+    * <p>Two rules govern the writes, and both follow the interactive path's intent rather than
+    * being invented here. A value is applied only where the layout does not place that parameter at
+    * all or currently shows it -- the question {@link TabularUtil#setValuesToBean} asks when a
+    * dialog submits a form. And values are applied ONE AT A TIME with the conditions re-evaluated in
+    * between -- what the dialog's refresh round trip does.
+    *
+    * <p>Both matter because a setter is not a pure function of its argument. {@link #isSelfGating}
+    * already records the family: setters that grow the list a panel's visibility is computed from.
+    * Reached in a state no dialog can produce -- a value written into a field that is not on
+    * screen, on an instance where nothing else has been set -- such a setter can do considerably
+    * worse than mislead, up to not returning at all.
+    *
+    * <p>Applying one value at a time is also the only order in which {@link #addCombinationGates}
+    * can work: its second parameter is by definition not shown until the first has been applied,
+    * so a single combined write would silently drop it.
+    *
+    * <p>The visibility question is answered STRICTLY here, and that is where this parts company
+    * with {@code setValuesToBean}: that method reads the per-node {@code TabularView#isVisible}
+    * flag, while this reads the ancestor-aware walk {@link #collectVisible} performs.
+    * {@code LayoutCreator} sets the flag true on every node it builds and {@code callVisibleMethod}
+    * does not propagate a false down, so a field inside a hidden panel reports itself visible --
+    * and the case that motivated this rule is exactly such a field. The per-node flag is the right
+    * question for a form the user was looking at; it is not enough for one nobody rendered.
+    */
+   private Probe probe0(Class<?> cls, XDataSource dataSource, Map<String, Object> values)
+      throws Exception
+   {
+      Object probe = cls.getDeclaredConstructor().newInstance();
+
+      // The probe has to stand where the real query stands. A visibility condition may read the
+      // data source -- a connector varies what it offers by which account it is pointed at --
+      // and a probe built without one would answer for a query nobody is going to run.
+      if(dataSource != null && probe instanceof TabularQuery) {
+         ((TabularQuery) probe).setDataSource(dataSource);
+      }
+
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(cls);
+      TabularView root = new LayoutCreator().createLayout(probe);
+      Probe state = evaluate(root, probe);
+
+      for(Map.Entry<String, Object> e : values.entrySet()) {
+         PropertyMeta prop = pmap.get(e.getKey());
+
+         if(prop == null) {
+            return null;
+         }
+
+         // Placed by the layout but not currently shown: this value cannot be applied, so there is
+         // no state to report. Answering null is right rather than merely safe -- reporting the
+         // baseline instead would describe an axis that was never varied as one that gates nothing.
+         if(state.known.contains(e.getKey()) && !state.allVisible.contains(e.getKey())) {
+            return null;
+         }
+
+         prop.setValue(probe, e.getValue());
+         state = evaluate(root, probe);
+      }
+
+      values.keySet().forEach(state.conditionalVisible::remove);
+
+      return state;
+   }
+
+   /**
+    * Evaluates the connector's visibility conditions against the bean as it stands, and reports
+    * what they show.
+    *
+    * <p>Only {@code visibleMethod} and {@code enabledMethod} are invoked, which is what keeps this
+    * local: it does not resolve dropdown contents and does not reach the network.
+    */
+   private Probe evaluate(TabularView root, Object bean) {
+      TabularUtil.callViewMethods(root.getViews(), bean);
+
+      Probe out = new Probe();
+      collectVisible(root.getViews(), true, false, out);
+
+      return out;
+   }
+
+   /**
+    * Records that a setter did not return, so the property it belongs to is never probed again.
+    *
+    * <p>Keyed on the class that DECLARES the setter rather than on the query class being probed. A
+    * setter inherited by every REST connector is then one entry instead of one per connector, so
+    * the threads such a setter strands are bounded by how many broken setters exist rather than by
+    * how many data sources anyone happens to ask about.
+    *
+    * <p>Only the value applied LAST is blamed. {@link #addCombinationGates} applies its outer value
+    * first, and an outer axis has already completed a probe of its own in the first pass -- an axis
+    * whose setter hangs is poisoned and dropped before the pair pass can reach it. So when a
+    * two-value probe times out, what hung is the value applied second.
+    */
+   private void poison(Class<?> cls, Map<String, Object> values) {
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(cls);
+      String name = null;
+
+      for(String candidate : values.keySet()) {
+         name = candidate;
+      }
+
+      PropertyMeta prop = name == null ? null : pmap.get(name);
+      String key = prop == null ? null : poisonKey(prop, name);
+
+      if(key != null) {
+         POISONED.add(key);
+      }
+
+      LOG.warn("A tabular query setter did not return within {}ms while probing {} with {}. Its " +
+               "thread cannot be reclaimed, so {} is not probed again in this process; whatever " +
+               "it gates is left undescribed rather than guessed.",
+               probeTimeoutMs, cls.getName(), values, key != null ? key : name);
+   }
+
+   private static boolean isPoisoned(Map<String, PropertyMeta> pmap, String name) {
+      PropertyMeta prop = pmap.get(name);
+      return prop != null && POISONED.contains(poisonKey(prop, name));
+   }
+
+   private static String poisonKey(PropertyMeta prop, String name) {
+      Method setter = prop.getDescriptor().getWriteMethod();
+
+      return (setter == null ? "?" : setter.getDeclaringClass().getName()) + "#" + name;
+   }
+
+   /**
+    * FOR TESTS: shortens the deadline, so a case about a setter that does not return costs
+    * milliseconds instead of seconds.
+    */
+   static void setProbeTimeout(long ms) {
+      probeTimeoutMs = ms;
+   }
+
+   /** FOR TESTS: forgets which setters have hung, so one case cannot decide the next one. */
+   static void clearPoisoned() {
+      POISONED.clear();
    }
 
    /**
@@ -680,6 +858,38 @@ public class TabularSchemaExtractor {
    }
 
    private static final int MAX_NESTING = 2;
+
+   /**
+    * How long one probe may run before the axis it was probing is abandoned.
+    *
+    * <p>A probe is reflection over an in-memory bean, so a connector that behaves finishes in
+    * microseconds. The bound is this loose because the only thing it has to separate is "slow"
+    * from "never returns": a setter that genuinely took a second would still be a defect worth
+    * surfacing rather than a case worth accommodating.
+    */
+   private static final long DEFAULT_PROBE_TIMEOUT_MS = 2000;
+
+   private static volatile long probeTimeoutMs = DEFAULT_PROBE_TIMEOUT_MS;
+
+   /**
+    * Probes run here rather than on the caller's thread, so one that does not return can be
+    * abandoned.
+    *
+    * <p>Cached rather than fixed. An abandoned probe keeps its thread for the life of the process
+    * -- a tight loop in a setter offers the interrupt nowhere to land, and Thread.stop was removed
+    * in JDK 20 -- so a fixed pool would be consumed by exactly the failures this exists to
+    * survive. The leak is bounded by {@link #POISONED} instead: a property is probed at most once
+    * after it hangs.
+    */
+   private static final ExecutorService PROBES = Executors.newCachedThreadPool(runnable -> {
+      Thread thread = new Thread(runnable, "TabularSchemaProbe");
+      thread.setDaemon(true);
+
+      return thread;
+   });
+
+   /** Setters that did not return, keyed by declaring class -- see {@link #poison}. */
+   private static final Set<String> POISONED = ConcurrentHashMap.newKeySet();
 
    private static final Logger LOG = LoggerFactory.getLogger(TabularSchemaExtractor.class);
 }
