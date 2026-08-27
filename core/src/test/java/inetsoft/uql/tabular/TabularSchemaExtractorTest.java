@@ -23,6 +23,7 @@ import org.junit.jupiter.api.*;
 import org.springframework.context.ApplicationContext;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -62,6 +63,16 @@ class TabularSchemaExtractorTest {
       if(previous != null) {
          previous.setApplicationContext(null);
       }
+   }
+
+   /**
+    * Both the deadline and the record of which setters have hung are per-process, so a case that
+    * changes either has to hand them back -- otherwise it decides the next one.
+    */
+   @AfterEach
+   void restoreProbeDefaults() {
+      TabularSchemaExtractor.setProbeTimeout(2000);
+      TabularSchemaExtractor.clearPoisoned();
    }
 
    @Test
@@ -200,6 +211,54 @@ class TabularSchemaExtractorTest {
          new FixtureQuery(), List.of("hidden")).isEmpty());
    }
 
+   /**
+    * The case that motivates writing only what is on screen: a boolean whose editor sits in a panel
+    * nothing has turned on yet. Its setter is never entered, because a value written there puts the
+    * bean in a state no dialog can produce -- and on a real REST connector, the state one such
+    * setter loops in forever.
+    */
+   @Test
+   void aValueTheLayoutDoesNotShowIsNeverWritten() {
+      OffScreenFixtureQuery.writes.set(0);
+
+      TabularQuerySchema schema = new TabularSchemaExtractor()
+         .extract(new OffScreenFixtureQuery(), OffScreenFixtureQuery.TYPE);
+
+      assertEquals(0, OffScreenFixtureQuery.writes.get(),
+                   "a parameter the layout does not show should not be written by a probe");
+      assertNotNull(schema.getParam("offScreen"), "it is still reported as a parameter");
+      assertNull(schema.getDependencyMatrix().get("offScreen"),
+                 "and it gates nothing, having never been varied");
+      assertNotNull(schema.getDependencyMatrix().get("mode"),
+                    "the axes that CAN be set are still probed");
+   }
+
+   /**
+    * A setter that does not return costs the axis it was probing and nothing else. The rest of the
+    * matrix is still built, and the property is not handed to a probe a second time -- the thread
+    * an abandoned probe strands cannot be reclaimed, so a caller that retries must not be able to
+    * strand another.
+    */
+   @Test
+   void aSetterThatDoesNotReturnIsAbandonedAndNotProbedAgain() {
+      TabularSchemaExtractor.setProbeTimeout(150);
+      StuckFixtureQuery.entered.set(0);
+
+      TabularQuerySchema schema = new TabularSchemaExtractor()
+         .extract(new StuckFixtureQuery(), StuckFixtureQuery.TYPE);
+
+      assertEquals(1, StuckFixtureQuery.entered.get(), "the hanging setter is entered once");
+      assertNull(schema.getDependencyMatrix().get("stuck"),
+                 "an axis whose setter did not return is dropped rather than described");
+      assertNotNull(schema.getDependencyMatrix().get("mode"),
+                    "and the axes that do return are still probed");
+
+      new TabularSchemaExtractor().extract(new StuckFixtureQuery(), StuckFixtureQuery.TYPE);
+
+      assertEquals(1, StuckFixtureQuery.entered.get(),
+                   "a second extract must not enter it again");
+   }
+
    private TabularQuerySchema extract() {
       return new TabularSchemaExtractor().extract(new FixtureQuery(), FixtureQuery.TYPE);
    }
@@ -211,6 +270,8 @@ class TabularSchemaExtractorTest {
    public enum LinkStyle { BODY, HEADER }
 
    public enum Scope { ALL, NAMED }
+
+   public enum Level { NONE, DETAIL }
 
    /**
     * A connector reduced to the structures under test.
@@ -387,5 +448,135 @@ class TabularSchemaExtractorTest {
       private String note;
       private String hidden;
       private final List<String> notes = new ArrayList<>();
+   }
+
+   /**
+    * One axis that can be set and one that cannot: {@code offScreen} sits in a panel whose
+    * visibility is computed from a list only a button grows, which is the shape a REST connector's
+    * lookup fields have.
+    */
+   @View(vertical = true, value = {
+      @View1(value = "mode"),
+      @View1(value = "detail", visibleMethod = "isDetailMode"),
+      @View1(vertical = true, type = ViewType.PANEL, visibleMethod = "isRowsAdded", elements = {
+         @View2("offScreen"),
+      }),
+   })
+   public static class OffScreenFixtureQuery extends TabularQuery {
+      public OffScreenFixtureQuery() {
+         super(TYPE);
+      }
+
+      @Property(label = "Mode")
+      @PropertyEditor(tags = { "NONE", "DETAIL" })
+      public Level getMode() {
+         return mode;
+      }
+
+      public void setMode(Level mode) {
+         this.mode = mode;
+      }
+
+      @Property(label = "Detail")
+      public String getDetail() {
+         return detail;
+      }
+
+      public void setDetail(String detail) {
+         this.detail = detail;
+      }
+
+      @Property(label = "Off Screen")
+      public boolean isOffScreen() {
+         return offScreen;
+      }
+
+      public void setOffScreen(boolean offScreen) {
+         writes.incrementAndGet();
+         this.offScreen = offScreen;
+      }
+
+      public boolean isDetailMode() {
+         return mode == Level.DETAIL;
+      }
+
+      /** Nothing a probe can set turns this on -- only the button that grows the list. */
+      public boolean isRowsAdded() {
+         return !rows.isEmpty();
+      }
+
+      static final String TYPE = "Test.OffScreen";
+      static final AtomicInteger writes = new AtomicInteger();
+
+      private Level mode = Level.NONE;
+      private String detail;
+      private boolean offScreen;
+      private final List<String> rows = new ArrayList<>();
+   }
+
+   /**
+    * A connector whose setter does not return. It sleeps rather than spins so the abandoned probe
+    * releases its thread when cancelled -- a real one has no such courtesy, which is the whole
+    * reason the deadline is paired with a record of what has already hung.
+    */
+   @View(vertical = true, value = {
+      @View1(value = "mode"),
+      @View1(value = "detail", visibleMethod = "isDetailMode"),
+      @View1(value = "stuck"),
+   })
+   public static class StuckFixtureQuery extends TabularQuery {
+      public StuckFixtureQuery() {
+         super(TYPE);
+      }
+
+      @Property(label = "Mode")
+      @PropertyEditor(tags = { "NONE", "DETAIL" })
+      public Level getMode() {
+         return mode;
+      }
+
+      public void setMode(Level mode) {
+         this.mode = mode;
+      }
+
+      @Property(label = "Detail")
+      public String getDetail() {
+         return detail;
+      }
+
+      public void setDetail(String detail) {
+         this.detail = detail;
+      }
+
+      @Property(label = "Stuck")
+      public boolean isStuck() {
+         return stuck;
+      }
+
+      public void setStuck(boolean stuck) {
+         if(stuck) {
+            entered.incrementAndGet();
+
+            try {
+               Thread.sleep(60000);
+            }
+            catch(InterruptedException ex) {
+               Thread.currentThread().interrupt();
+            }
+         }
+
+         this.stuck = stuck;
+      }
+
+      public boolean isDetailMode() {
+         return mode == Level.DETAIL;
+      }
+
+      static final String TYPE = "Test.Stuck";
+      static final AtomicInteger entered = new AtomicInteger();
+
+      private Level mode = Level.NONE;
+      private String detail;
+      private boolean stuck;
    }
 }
