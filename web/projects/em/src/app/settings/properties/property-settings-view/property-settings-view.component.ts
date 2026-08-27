@@ -24,6 +24,7 @@ import { MatSort, MatSortHeader } from "@angular/material/sort";
 import { merge as mergeObservables, Observable } from "rxjs";
 import { delay, map, tap } from "rxjs/operators";
 import { ContextHelp } from "../../../context-help";
+import { ErrorHandlerService } from "../../../common/util/error/error-handler.service";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Searchable } from "../../../searchable";
 import { Secured } from "../../../secured";
@@ -91,7 +92,8 @@ export class PropertySettingsViewComponent implements OnInit, AfterViewInit {
 
    constructor(private pageTitle: PageHeaderService,
                private dataService: PropertySettingsDatasourceService,
-               private http: HttpClient)
+               private http: HttpClient,
+               private errorService: ErrorHandlerService)
    {
    }
 
@@ -206,7 +208,13 @@ export class PropertySettingsViewComponent implements OnInit, AfterViewInit {
       const name = this.editingRow.propertyName;
       const value = this.editingRow.propertyValue;
       this.dataService.changeRow(this.editingRow)
-         .subscribe(() => this.insertOrReplace(name, value));
+         .subscribe({
+            next: () => this.insertOrReplace(name, value),
+            // the server rejects some values outright -- log.provider=fluentd on a build that
+            // cannot forward, for one (see PropertiesController.editProperty). Without this the
+            // rejection is swallowed, the row silently reverts, and the edit looks like a no-op
+            error: (error) => this.errorService.showDialog(error)
+         });
       this.nameInputControl.setValue("");
       this.editingRow = Object.assign({}, DEFAULT_PROPERTY);
       this.dataService.cancelRow();

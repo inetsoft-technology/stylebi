@@ -37,12 +37,23 @@ package inetsoft.web.admin.properties;
  *     [empty value]                 reads existing value from SreeEnv; stores it back
  *                                   (keeps current value rather than overwriting with empty string)
  *     [security.exposedefaultorgtoall] additionally fires assetRepository event
+ *     [log.provider=fluentd, non-enterprise] refused with a MessageException; nothing stored.
+ *                      log.provider is deliberately not hidden by removeUnuseProperties -- "file"
+ *                      is a valid community value -- so this page was the remaining route by which
+ *                      a community build could be pointed at the enterprise-only forwarder, after
+ *                      which logging silently continued to the file (Redmine #76045).
+ *     [log.provider=fluentd, enterprise]     stored as normal.
+ *     [log.provider=file, non-enterprise]    stored as normal; only the fluentd value is refused.
+ *     [log.provider blank, non-enterprise]   the guard is checked against the submitted value,
+ *                      before the blank-value branch substitutes the stored one, so a build
+ *                      already carrying log.provider=fluentd can still submit that field.
  */
 
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.util.MessageException;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.admin.security.PropertyModel;
 import org.junit.jupiter.api.*;
@@ -326,6 +337,71 @@ class PropertiesControllerTest {
       controller.editProperty(principal, property);
 
       sreeEnvStatic.verify(() -> SreeEnv.setProperty("new.setting", ""));
+   }
+
+   // [log.provider=fluentd, non-enterprise] refused, and nothing is written
+   @Test
+   void editProperty_fluentdProvider_nonEnterprise_isRefused() {
+      licenseManagerStatic.when(LicenseManager::isEnterprise).thenReturn(false);
+
+      PropertyModel property = PropertyModel.builder()
+         .name("log.provider")
+         .value("fluentd")
+         .build();
+
+      MessageException thrown =
+         assertThrows(MessageException.class, () -> controller.editProperty(principal, property));
+
+      assertNotNull(thrown.getMessage());
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty(anyString(), anyString()), never());
+      sreeEnvStatic.verify(SreeEnv::save, never());
+   }
+
+   // [log.provider=fluentd, enterprise] the guard must not touch the licensed case
+   @Test
+   void editProperty_fluentdProvider_enterprise_isStored() throws Exception {
+      licenseManagerStatic.when(LicenseManager::isEnterprise).thenReturn(true);
+
+      PropertyModel property = PropertyModel.builder()
+         .name("log.provider")
+         .value("fluentd")
+         .build();
+
+      controller.editProperty(principal, property);
+
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("log.provider", "fluentd"));
+   }
+
+   // [log.provider=file, non-enterprise] only the fluentd value is refused
+   @Test
+   void editProperty_fileProvider_nonEnterprise_isStored() throws Exception {
+      licenseManagerStatic.when(LicenseManager::isEnterprise).thenReturn(false);
+
+      PropertyModel property = PropertyModel.builder()
+         .name("log.provider")
+         .value("file")
+         .build();
+
+      controller.editProperty(principal, property);
+
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("log.provider", "file"));
+   }
+
+   // [log.provider blank, non-enterprise] a blank submission means "keep what is there", so it
+   // must not be refused just because the stored value happens to be fluentd
+   @Test
+   void editProperty_blankProvider_nonEnterprise_isNotRefused() throws Exception {
+      licenseManagerStatic.when(LicenseManager::isEnterprise).thenReturn(false);
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("log.provider")).thenReturn("fluentd");
+
+      PropertyModel property = PropertyModel.builder()
+         .name("log.provider")
+         .value("")
+         .build();
+
+      assertDoesNotThrow(() -> controller.editProperty(principal, property));
+
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("log.provider", "fluentd"));
    }
 
    // [security.exposedefaultorgtoall] fires repository event after set
