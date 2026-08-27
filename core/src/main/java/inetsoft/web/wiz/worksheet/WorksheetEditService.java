@@ -1847,6 +1847,8 @@ public class WorksheetEditService {
        * @param description table description, or {@code null} to leave unchanged
        * @param maxRows     max rows limit, or {@code null} to leave unchanged
        * @param distinct    distinct flag, or {@code null} to leave unchanged
+       * @param mergeable   SQL-mergeable flag, or {@code null} to leave unchanged
+       * @param visibleInViewsheet visible-in-viewsheet flag, or {@code null} to leave unchanged
        * @throws PairingException if the table is not found
        */
       /**
@@ -1866,7 +1868,8 @@ public class WorksheetEditService {
        * setters cannot fail, so ordering it this way makes the whole call all-or-nothing.
        */
       public void setTableProperties(String table, String newName, String description,
-                                      Integer maxRows, Boolean distinct)
+                                      Integer maxRows, Boolean distinct, Boolean mergeable,
+                                      Boolean visibleInViewsheet)
          throws PairingException
       {
          // Resolved before the rename so an unknown table is reported against the name the caller
@@ -1901,6 +1904,14 @@ public class WorksheetEditService {
 
          if(distinct != null) {
             t.setDistinct(distinct);
+         }
+
+         if(mergeable != null) {
+            t.setSQLMergeable(mergeable);
+         }
+
+         if(visibleInViewsheet != null) {
+            t.setVisibleTable(visibleInViewsheet);
          }
       }
 

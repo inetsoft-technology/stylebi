@@ -590,6 +590,7 @@ class WorksheetReadServiceTest {
       t.setDescription("what this table is for");
       t.setMaxRows(25);
       t.setDistinct(true);
+      t.setSQLMergeable(false);
       ws.addAssembly(t);
 
       WorksheetModel.TableModel m = tableNamed(read(ws), "T");
@@ -597,6 +598,7 @@ class WorksheetReadServiceTest {
       assertEquals("what this table is for", m.description());
       assertEquals(Integer.valueOf(25), m.maxRows());
       assertTrue(m.distinct());
+      assertFalse(m.mergeable());
    }
 
    /**

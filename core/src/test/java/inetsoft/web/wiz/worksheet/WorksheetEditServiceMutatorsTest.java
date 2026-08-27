@@ -3507,7 +3507,8 @@ class WorksheetEditServiceMutatorsTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
-      svc.apply("TOK", agent, ed -> ed.setTableProperties("T", "Scores", null, null, null));
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", "Scores", null, null, null, null, null));
 
       assertNotNull(ws.getAssembly("Scores"));
       assertNull(ws.getAssembly("T"));
@@ -3522,12 +3523,77 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       svc.apply("TOK", agent,
-                ed -> ed.setTableProperties("T", "Scores", "the description", 25, true));
+                ed -> ed.setTableProperties(
+                   "T", "Scores", "the description", 25, true, false, false));
 
       TableAssembly renamed = (TableAssembly) ws.getAssembly("Scores");
       assertEquals("the description", renamed.getDescription());
       assertEquals(25, renamed.getMaxRows());
       assertTrue(renamed.isDistinct());
+      assertFalse(renamed.isSQLMergeable());
+      assertFalse(renamed.isVisibleTable());
+   }
+
+   @Test
+   void setTablePropertiesSetsTheMergeableFlag() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      t.setSQLMergeable(true);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", null, null, null, null, false, null));
+
+      assertFalse(((TableAssembly) ws.getAssembly("T")).isSQLMergeable());
+   }
+
+   @Test
+   void omittingMergeableLeavesTheExistingFlagAlone() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      t.setSQLMergeable(false);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", null, "note", null, null, null, null));
+
+      assertFalse(((TableAssembly) ws.getAssembly("T")).isSQLMergeable(),
+                  "mergeable was omitted, so the existing flag must be untouched");
+   }
+
+   @Test
+   void setTablePropertiesSetsTheVisibleInViewsheetFlag() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      t.setVisibleTable(true);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", null, null, null, null, null, false));
+
+      assertFalse(((TableAssembly) ws.getAssembly("T")).isVisibleTable());
+   }
+
+   @Test
+   void omittingVisibleInViewsheetLeavesTheExistingFlagAlone() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      t.setVisibleTable(false);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", null, "note", null, null, null, null));
+
+      assertFalse(((TableAssembly) ws.getAssembly("T")).isVisibleTable(),
+                  "visibleInViewsheet was omitted, so the existing flag must be untouched");
    }
 
    /**
@@ -3545,7 +3611,8 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       assertThrows(Exception.class, () -> svc.apply(
-         "TOK", agent, ed -> ed.setTableProperties("T", "Taken", "should not land", 9, true)));
+         "TOK", agent,
+         ed -> ed.setTableProperties("T", "Taken", "should not land", 9, true, null, null)));
 
       TableAssembly untouched = (TableAssembly) ws.getAssembly("T");
       assertNotNull(untouched, "the table must keep its original name");
@@ -3560,7 +3627,8 @@ class WorksheetEditServiceMutatorsTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
-      svc.apply("TOK", agent, ed -> ed.setTableProperties("T", null, "just a note", null, null));
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", null, "just a note", null, null, null, null));
 
       assertNotNull(ws.getAssembly("T"));
       assertEquals("just a note", ((TableAssembly) ws.getAssembly("T")).getDescription());
@@ -3579,7 +3647,8 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       assertThrows(Exception.class, () -> svc.apply(
-         "TOK", agent, ed -> ed.setTableProperties("T", "   ", "should not land", null, null)));
+         "TOK", agent,
+         ed -> ed.setTableProperties("T", "   ", "should not land", null, null, null, null)));
 
       assertNotNull(ws.getAssembly("T"), "the table keeps its name");
       assertNull(((TableAssembly) ws.getAssembly("T")).getDescription(),
@@ -3595,7 +3664,8 @@ class WorksheetEditServiceMutatorsTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
-      svc.apply("TOK", agent, ed -> ed.setTableProperties("T", "T", "kept", null, null));
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", "T", "kept", null, null, null, null));
 
       assertEquals("kept", ((TableAssembly) ws.getAssembly("T")).getDescription());
    }

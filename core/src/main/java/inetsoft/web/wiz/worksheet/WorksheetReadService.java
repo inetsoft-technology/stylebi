@@ -132,7 +132,7 @@ public class WorksheetReadService {
          // -1 and 0 both report null rather than reading back as a limit of -1 or of zero rows.
          // Note this is the effective limit, capped by query.runtime.maxrow; see TableModel.
          maxRows <= 0 ? null : maxRows,
-         t.isDistinct(), t.isVisibleTable(), tableMode(t),
+         t.isDistinct(), t.isSQLMergeable(), t.isVisibleTable(), tableMode(t),
          offset == null ? null : offset.x, offset == null ? null : offset.y);
    }
 

@@ -1823,7 +1823,8 @@ public class WorksheetAgentController {
             // which is the whole defect this op was fixed for.
             editor.setTableProperties(
                req.table(), req.newName() != null ? req.newName() : req.alias(),
-               req.description(), req.maxRows(), req.distinct());
+               req.description(), req.maxRows(), req.distinct(), req.mergeable(),
+               req.visibleInViewsheet());
          case "add_cross_join" ->
             editor.addCrossJoin(req.name(), req.leftTable(), req.rightTable());
          case "add_merge_join" ->

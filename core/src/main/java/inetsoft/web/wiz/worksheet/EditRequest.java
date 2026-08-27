@@ -78,7 +78,8 @@ import java.util.Map;
  *   <li>{@code insert_row} — {@code table}, {@code index}</li>
  *   <li>{@code delete_row} — {@code table}, {@code index}</li>
  *   <li>{@code set_table_properties} — {@code table}; any of {@code newName} (or {@code alias},
- *       its accepted spelling), {@code description}, {@code maxRows}, {@code distinct}</li>
+ *       its accepted spelling), {@code description}, {@code maxRows}, {@code distinct},
+ *       {@code mergeable}, {@code visibleInViewsheet}</li>
  *   <li>{@code add_cross_join} — {@code name}, {@code leftTable}, {@code rightTable}</li>
  *   <li>{@code add_merge_join} — {@code name}, {@code tables}</li>
  *   <li>{@code reorder_columns} — {@code table}, {@code columnOrder}</li>
@@ -340,8 +341,128 @@ public record EditRequest(
     * single call). When present, this supersedes {@code leftTable}/{@code leftKey}/
     * {@code rightTable}/{@code rightKey}/{@code joinType}/{@code leftKeys}/{@code rightKeys}.
     */
-   List<WorksheetMutationSupport.JoinPathSpec> joinPaths
+   List<WorksheetMutationSupport.JoinPathSpec> joinPaths,
+   /**
+    * Whether the table's query is merged into a single SQL statement for set_table_properties —
+    * the Composer's own table-properties dialog "Mergeable" checkbox
+    * ({@link inetsoft.uql.asset.TableAssembly#setSQLMergeable}). {@code null} leaves it
+    * unchanged, matching {@code distinct}.
+    */
+   Boolean mergeable,
+   /**
+    * Whether the table is exposed to viewsheets bound to this worksheet, for
+    * set_table_properties — the Composer's own table-properties dialog "Visible in Viewsheet"
+    * checkbox ({@link inetsoft.uql.asset.TableAssembly#setVisibleTable}). {@code null} leaves it
+    * unchanged, matching {@code distinct}/{@code mergeable}. Distinct from {@code visible}, which
+    * is a per-column flag for set_column_visibility.
+    */
+   Boolean visibleInViewsheet
 ) {
+   /**
+    * Compatibility constructor for callers built before {@code visibleInViewsheet} was added —
+    * defaults it to {@code null}.
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, String> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables,
+      String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
+      List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups, Boolean crosstab,
+      List<String> labels, WorksheetMutationSupport.VariableChoicesSpec choices,
+      List<WorksheetMutationSupport.JoinPathSpec> joinPaths, Boolean mergeable)
+   {
+      this(op, table, column, name, type, newName, field, operation, values, direction, groups,
+           aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType,
+           visible, tables, source, concatType, conditions, ranking, headerColumns, dateOption,
+           boundaries, datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row, col,
+           value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
+           groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
+           sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
+           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, joinPaths,
+           mergeable, null);
+   }
+
+   /**
+    * Compatibility constructor for callers built before {@code mergeable} was added —
+    * defaults it to {@code null}.
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, String> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables,
+      String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
+      List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups, Boolean crosstab,
+      List<String> labels, WorksheetMutationSupport.VariableChoicesSpec choices,
+      List<WorksheetMutationSupport.JoinPathSpec> joinPaths)
+   {
+      this(op, table, column, name, type, newName, field, operation, values, direction, groups,
+           aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType,
+           visible, tables, source, concatType, conditions, ranking, headerColumns, dateOption,
+           boundaries, datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row, col,
+           value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
+           groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
+           sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
+           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, joinPaths, null);
+   }
+
+   /**
+    * Compatibility constructor for callers built before {@code joinPaths} was added —
+    * defaults it to {@code null}.
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, String> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables,
+      String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
+      List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups, Boolean crosstab,
+      List<String> labels, WorksheetMutationSupport.VariableChoicesSpec choices)
+   {
+      this(op, table, column, name, type, newName, field, operation, values, direction, groups,
+           aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType,
+           visible, tables, source, concatType, conditions, ranking, headerColumns, dateOption,
+           boundaries, datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row, col,
+           value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
+           groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
+           sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
+           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, null);
+   }
+
    /**
     * Compatibility constructor for callers built before {@code crosstab} was added —
     * defaults {@code crosstab} and {@code labels} (added later, same reason) to {@code null}.
@@ -372,7 +493,7 @@ public record EditRequest(
            value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
            groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
            sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
-           lookupTopLevelOnly, suffix, customLookups, null, null, null, null);
+           lookupTopLevelOnly, suffix, customLookups, null, null);
    }
 
    /**
@@ -406,6 +527,6 @@ public record EditRequest(
            value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
            groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
            sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
-           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, null, null);
+           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, null);
    }
 }
