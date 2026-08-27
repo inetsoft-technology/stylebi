@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin.ai.providers;
 
+import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
@@ -26,6 +28,7 @@ import inetsoft.web.admin.security.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -203,6 +206,57 @@ class ProviderChangePlanServiceTest {
       stubEmptyAuthenticationChain(List.of());
       assertThrows(IllegalArgumentException.class,
          () -> service.resolve(request("task", List.of(change)), user));
+   }
+
+   // -------------------------------------------------------------------------
+   // 03-reconcile.md Addition 2 -- multi-tenant LDAP gating this area self-imposes, confirmed by
+   // this review (07-review-r1.md) to have had zero test coverage despite requireLdapMultiTenant
+   // Allowed existing in production code: LicenseManager.isEnterprise()/SUtil.isMultiTenant() are
+   // both static, so a mocked test run never previously touched this refusal branch (both statics
+   // resolve to their real, effectively-false values in a bare unit-test JVM by default -- every
+   // pre-existing successful LDAP-create test above was passing this gate incidentally, not because
+   // it was verified).
+   // -------------------------------------------------------------------------
+
+   @Test void resolveThrowsOnLdapCreateInMultiTenantEnterpriseDeployment() {
+      ProviderChangeRequest change = new ProviderChangeRequest();
+      change.setVerb("create");
+      change.setChain("authentication");
+      change.setName("p1");
+      change.setProviderType("LDAP");
+      change.setSpec(ldapSpec());
+      stubEmptyAuthenticationChain(List.of());
+
+      try(MockedStatic<LicenseManager> license = mockStatic(LicenseManager.class);
+          MockedStatic<SUtil> sUtil = mockStatic(SUtil.class))
+      {
+         license.when(LicenseManager::isEnterprise).thenReturn(true);
+         sUtil.when(SUtil::isMultiTenant).thenReturn(true);
+
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("task", List.of(change)), user));
+         assertTrue(ex.getMessage().contains("multi-tenant"));
+      }
+   }
+
+   @Test void resolveAllowsLdapCreateWhenEnterpriseButNotMultiTenant() throws Exception {
+      ProviderChangeRequest change = new ProviderChangeRequest();
+      change.setVerb("create");
+      change.setChain("authentication");
+      change.setName("p1");
+      change.setProviderType("LDAP");
+      change.setSpec(ldapSpec());
+      stubEmptyAuthenticationChain(List.of());
+
+      try(MockedStatic<LicenseManager> license = mockStatic(LicenseManager.class);
+          MockedStatic<SUtil> sUtil = mockStatic(SUtil.class))
+      {
+         license.when(LicenseManager::isEnterprise).thenReturn(true);
+         sUtil.when(SUtil::isMultiTenant).thenReturn(false);
+
+         ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
+         assertEquals(1, plan.changes().size());
+      }
    }
 
    // -------------------------------------------------------------------------
