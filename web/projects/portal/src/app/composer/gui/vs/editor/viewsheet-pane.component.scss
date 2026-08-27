@@ -62,6 +62,7 @@ div.vs-pane.with-mobile-toolbar {
   float: right;
   margin: 7px;
   flex-wrap: nowrap;
+  align-items: center;
 
   label {
     margin-bottom: 0;
@@ -70,6 +71,11 @@ div.vs-pane.with-mobile-toolbar {
   .layout-dropdown {
     padding-right: 1.5em;
     min-width: 60px;
+    background-color: transparent;
+  }
+
+  .layout-dropdown ::ng-deep .custom-select-trigger {
+    background-color: transparent;
   }
 }
 
@@ -145,8 +151,10 @@ div.vs-pane .bl-selected {
 }
 
 .console-count-badge {
-  color: var(--inet-button-light-text-color);
-  background-color: var(--inet-button-light-bg-color);
+  color: var(--inet-text-muted-color);
+  background-color: var(--inet-shell-surface-hover);
+  vertical-align: middle;
+  top: 0;
 }
 
 .viewsheet-target-layout {
