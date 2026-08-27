@@ -75,6 +75,25 @@ class WizAutoBindingServiceMeasureParamsTest {
       verify(agg).setSecondaryColumnValue("QUANTITY");
    }
 
+   /**
+    * Coverage proof that the fix is formula-agnostic, not incidentally correct for
+    * {@code WeightedAverage} alone: {@code AggregateFormula.isTwoColumns()} has 7 overrides
+    * ({@code Correlation}, {@code Covariance}, {@code WeightedAvg}, {@code SumWT}, {@code Sum2},
+    * {@code First}, {@code Last} — 6 of them user-facing, {@code Sum2} internal-only), and the
+    * write site never branches on which one is in play.
+    */
+   @Test
+   void secondaryFieldIsAppliedForAnyTwoColumnFormula() {
+      VSChartAggregateRef agg = mock(VSChartAggregateRef.class);
+      when(agg.getColumnValue()).thenReturn("PAID");
+      Map<String, SimpleFieldInfo> configMap =
+         Map.of("PAID", measureFc("SumWT", "QUANTITY", null));
+
+      WizAutoBindingService.applyFieldConfig(agg, configMap, 0);
+
+      verify(agg).setSecondaryColumnValue("QUANTITY");
+   }
+
    @Test
    void nOrPIsAppliedToChartAggregateRef() {
       VSChartAggregateRef agg = mock(VSChartAggregateRef.class);
