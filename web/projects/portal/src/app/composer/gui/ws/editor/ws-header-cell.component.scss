@@ -41,7 +41,7 @@
   right: 0;
   z-index: 1;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: flex-end;
   overflow: hidden;
 }
@@ -51,7 +51,9 @@
 }
 
 .mini-menu {
+  display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 .column-button.force {
@@ -59,9 +61,17 @@
 }
 
 .ws-header {
-  display: block;
+  display: flex;
+  align-items: center;
   position: relative;
   width: 100%;
+  // Previously this cell's block-level height was implicitly driven by the
+  // (now-fixed) inflated display-container child reaching close to the
+  // parent row's height. Without that crutch this must explicitly fill the
+  // parent row (sized by an inline style on an ancestor) or the absolutely
+  // positioned .column-buttons icon row - still fixed at 28px tall - would
+  // overflow this cell's shrunk-to-content height and get clipped.
+  height: 100%;
   overflow: hidden;
   white-space: nowrap;
   font-size: 13px;
@@ -102,6 +112,11 @@
 
 .ws-header-column__display-container {
   font-size: 0px;
+  // .ws-header's line-height: 24px inherits here and, since this span is
+  // blockified as a flex item of .ws-header, it establishes its own line box
+  // at that height regardless of its actual (much shorter) text content -
+  // which left nothing for .ws-header's align-items: center to center against.
+  line-height: normal;
 }
 
 .ws-header-column__display-name {
