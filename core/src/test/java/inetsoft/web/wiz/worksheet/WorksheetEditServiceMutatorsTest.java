@@ -233,6 +233,74 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals(1, ai.getAggregateCount());
    }
 
+   // Bug #75954: NthLargest/NthSmallest/etc. silently dropped their N operand and the
+   // aggregate quietly computed as N=1 (Max/Min) instead — no error anywhere.
+   @Test
+   void setGroupAggregateAppliesNForParametrizedFormula() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            groups("cat"),
+            List.of(new WorksheetMutationSupport.AggregateSpec(
+               "val", "NthLargest", "fifth_largest", 5)))
+      );
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertEquals(1, ai.getAggregateCount());
+      assertEquals(5, ai.getAggregate(0).getN());
+   }
+
+   // N must be ignored (not throw, not corrupt the ref) for a formula that doesn't use it.
+   @Test
+   void setGroupAggregateIgnoresNForNonParametrizedFormula() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            groups("cat"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("val", "SUM", null, 5)))
+      );
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertEquals(1, ai.getAggregateCount());
+      assertEquals(0, ai.getAggregate(0).getN());
+   }
+
+   // Bug #75954 follow-up: a second (or later) aggregate on the same column goes through
+   // the secondary-aggregate -> new-expression-column -> new-primary-aggregate conversion
+   // (see the "Convert secondary aggregates" block below) rather than the plain path
+   // covered by setGroupAggregateAppliesNForParametrizedFormula above — N must survive
+   // that conversion too.
+   @Test
+   void setGroupAggregateAppliesNThroughSecondaryConversion() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "price");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            groups("cat"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("price", "SUM", "total_price"),
+                    new WorksheetMutationSupport.AggregateSpec(
+                       "price", "NthLargest", "third_largest_price", 3))));
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertEquals(2, ai.getAggregateCount());
+      assertEquals(0, ai.getAggregate(0).getN());
+      assertEquals(3, ai.getAggregate(1).getN());
+   }
+
    @Test
    void sameColumnAggregatesKeepDistinctAliases() throws Exception {
       Worksheet ws = new Worksheet();

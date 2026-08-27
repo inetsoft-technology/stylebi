@@ -737,7 +737,9 @@ public class WorksheetReadService {
          alias = cr.getAlias();
       }
 
-      return new WorksheetModel.AggregateModel.AggregateRefModel(column, formulaName, alias);
+      Integer n = formula != null && formula.hasN() ? ar.getN() : null;
+
+      return new WorksheetModel.AggregateModel.AggregateRefModel(column, formulaName, alias, n);
    }
 
    // -------------------------------------------------------------------------

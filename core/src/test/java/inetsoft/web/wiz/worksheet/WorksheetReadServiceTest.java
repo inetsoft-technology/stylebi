@@ -94,6 +94,51 @@ class WorksheetReadServiceTest {
       assertEquals("QUARTER", group.dateLevel());
    }
 
+   // Bug #75954: even after set_group_aggregate correctly applied N, read_worksheet_model
+   // reported the formula as bare "NthLargest" with N gone — this is the read-back half
+   // of that bug.
+   @Test
+   void readsNForParametrizedFormula() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("cat", null)),
+         List.of(new WorksheetMutationSupport.AggregateSpec("val", "NthLargest", null, 5)));
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetModel m = new WorksheetReadService().read(rws);
+      WorksheetModel.AggregateModel.AggregateRefModel agg =
+         m.tables().get(0).aggregates().aggregates().get(0);
+      assertEquals("NthLargest", agg.formula());
+      assertEquals(5, agg.n());
+   }
+
+   // N must not be surfaced for a formula that doesn't use it, even if the underlying
+   // AggregateRef.num happens to be nonzero from a prior formula switch.
+   @Test
+   void omitsNForNonParametrizedFormula() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("cat", null)),
+         List.of(new WorksheetMutationSupport.AggregateSpec("val", "SUM", null)));
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetModel m = new WorksheetReadService().read(rws);
+      WorksheetModel.AggregateModel.AggregateRefModel agg =
+         m.tables().get(0).aggregates().aggregates().get(0);
+      assertEquals("SUM", agg.formula());
+      assertNull(agg.n());
+   }
+
    @Test
    void nullOrEmptyAggregateInfoReturnsNullAggregates() {
       Worksheet ws = new Worksheet();
