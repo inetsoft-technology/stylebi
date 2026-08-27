@@ -46,6 +46,12 @@
     span {
       flex-grow: 1;
     }
+
+    &.is-open {
+      border-color: var(--inet-primary-color);
+      box-shadow: var(--inet-focus-ring);
+      outline: var(--inet-focus-ring-outline);
+    }
   }
 }
 

@@ -18,7 +18,8 @@
 :host {
   display: inline-flex;
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  row-gap: 0.25rem;
   min-width: 0;
 }
 
