@@ -46,10 +46,12 @@ import java.util.concurrent.locks.ReentrantLock;
  * each server's pause/resume is independent and self-inverse: if pausing server C fails after A and B
  * succeeded, there is nothing to fix by force-resuming A and B, only two other admins' successful,
  * intended pauses to needlessly undo. Every entry is attempted regardless of any other entry's
- * outcome, and a per-server status report -- read back fresh, immediately after the call, the direct
- * fix for {@code stylebi#76343} -- is the correct outcome. "Rollback", to the extent this area has
- * one, is exposing the paired verb: {@code apply_cluster_changes} with {@code {verb: "resume", server:
- * X}} is the live undo of a prior {@code {verb: "pause", server: X}}, and vice versa.
+ * outcome, and a per-server status report -- read back, with a short bounded retry/poll past
+ * {@code ServerClusterClient}'s own ~50ms debounced status-map write (see
+ * {@link #readBackWithRetry}), the direct fix for {@code stylebi#76343} -- is the correct outcome.
+ * "Rollback", to the extent this area has one, is exposing the paired verb:
+ * {@code apply_cluster_changes} with {@code {verb: "resume", server: X}} is the live undo of a prior
+ * {@code {verb: "pause", server: X}}, and vice versa.
  *
  * <p><b>Required disclosure, repeated here at the same prominence as {@link ClusterChangePlanService}
  * (03-reconcile.md, not optional): a "verified" pause outcome is a point-in-time confirmation, not a
@@ -157,19 +159,65 @@ public class ClusterChangesetApplyService {
          clusterService.resumeServers(new String[] { server });
       }
 
-      // Read back fresh, immediately after the call -- the direct fix for stylebi#76343, since
+      // Read back, with a short bounded retry/poll -- the direct fix for stylebi#76343, since
       // pauseServers/resumeServers themselves are void and discard the per-server signal entirely.
-      ServerClusterStatus after = client.getStatus(server);
+      // A SINGLE immediate read is not safe here (07-review-r1.md section 3): the target node sends
+      // its completion reply, which is what pauseServers/resumeServers' own message round-trip
+      // blocks on, BEFORE its own status-map write lands -- ServerClusterClient.setClusterNodeStatus
+      // schedules that write on a ~50ms-debounced TimedQueue.TimedRunnable, not synchronously. An
+      // immediate read-back can therefore see the pre-pause/pre-resume status and report a false
+      // STATUS_FAILED for an operation that in fact succeeded. readBackWithRetry polls past that
+      // window before concluding failure.
+      ServerClusterStatus after = readBackWithRetry(server, change.proposedValue());
       String afterLabel = ClusterStatusLabel.displayStatus(after);
       boolean verified = afterLabel.equals(change.proposedValue());
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : STATUS_FAILED;
       String error = verified ? null :
          "read-back status \"" + afterLabel + "\" does not match the proposed state \"" +
-         change.proposedValue() + "\" -- the server may be unreachable, or the pause/resume message " +
-         "did not complete (stylebi#76343: the raw endpoint discards this signal, this area's own " +
-         "read-back is the fix)";
+         change.proposedValue() + "\" after retrying past the status-map write debounce window -- " +
+         "the server may be unreachable, or the pause/resume message did not complete " +
+         "(stylebi#76343: the raw endpoint discards this signal, this area's own read-back is the " +
+         "fix)";
       results.add(new ClusterApplyOutcome(server, before, afterLabel, status, error));
       writeAudit(txId, task, server, before, afterLabel, status, reviewOutcome, user);
+   }
+
+   /**
+    * Reads back {@code server}'s status, retrying past {@code ServerClusterClient}'s own ~50ms
+    * debounced status-map write (07-review-r1.md section 3) before giving up. The target's
+    * completion reply -- what {@code pauseServers}/{@code resumeServers}' own message round-trip
+    * blocks on -- is sent BEFORE that debounced write lands, so a single immediate read is not a
+    * reliable signal: on a fast/local network the first read is quite likely to see the pre-pause/
+    * pre-resume status. Polls up to {@link #READBACK_MAX_ATTEMPTS} times, {@link
+    * #READBACK_POLL_INTERVAL_MS} apart (worst case
+    * {@code (READBACK_MAX_ATTEMPTS - 1) * READBACK_POLL_INTERVAL_MS} ~= 180ms, comfortably past the
+    * 50ms window with margin), stopping as soon as the read-back label matches {@code proposedLabel}.
+    * If it never matches, returns the LAST read (a real, if stale-relative-to-this-window, status) so
+    * the caller's own "does read-back match proposed" comparison still drives the final
+    * verified/failed determination -- this method itself never decides pass/fail, only how long to
+    * keep looking before settling.
+    */
+   private ServerClusterStatus readBackWithRetry(String server, String proposedLabel) {
+      ServerClusterStatus status = client.getStatus(server);
+
+      for(int attempt = 1;
+          attempt < READBACK_MAX_ATTEMPTS && !ClusterStatusLabel.displayStatus(status).equals(proposedLabel);
+          attempt++)
+      {
+         sleepPastDebounceWindow();
+         status = client.getStatus(server);
+      }
+
+      return status;
+   }
+
+   private void sleepPastDebounceWindow() {
+      try {
+         Thread.sleep(READBACK_POLL_INTERVAL_MS);
+      }
+      catch(InterruptedException e) {
+         Thread.currentThread().interrupt();
+      }
    }
 
    private static String overallStatus(List<ClusterApplyOutcome> results) {
@@ -238,6 +286,11 @@ public class ClusterChangesetApplyService {
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(ClusterChangesetApplyService.class);
+   /** {@link #readBackWithRetry}'s bounded poll: up to 4 reads, 60ms apart -- worst case ~180ms,
+    * comfortably past {@code ServerClusterClient}'s own ~50ms status-map write debounce
+    * (07-review-r1.md section 3). */
+   private static final int READBACK_MAX_ATTEMPTS = 4;
+   private static final long READBACK_POLL_INTERVAL_MS = 60;
    private static final SecureRandom RANDOM = new SecureRandom();
    /** Serializes the entire body of {@link #apply} -- same rationale and same JVM-local-only
     * limitation as every prior area's own lock. */

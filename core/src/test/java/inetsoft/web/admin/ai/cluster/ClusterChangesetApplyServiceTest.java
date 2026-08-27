@@ -119,6 +119,63 @@ class ClusterChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // 07-review-r1.md section 3: the read-back races ServerClusterClient's own ~50ms-debounced
+   // status-map write -- the target's completion reply (what pauseServers/resumeServers' own message
+   // round trip blocks on) is sent BEFORE that write lands. These tests model that with a REAL
+   // stale-then-fresh sequence across successive getStatus() calls (Mockito's consecutive-stubbing,
+   // not a single doAnswer that mutates synchronously the way the old, race-blind test above does) --
+   // the old immediate-single-read code would have failed the first of these two.
+   // -------------------------------------------------------------------------
+
+   @Test void readBackRetriesPastTheDebounceWindowBeforeReportingVerified() {
+      ServerClusterStatus stale = statusOf(ServerClusterStatus.Status.OK, false); // pre-pause
+      ServerClusterStatus fresh = statusOf(ServerClusterStatus.Status.OK, true);  // post-pause, once
+                                                                                   // the debounced
+                                                                                   // write has landed
+      // First read (immediately after the call) and one retry still see the pre-pause status --
+      // exactly the race 07-review-r1.md traced -- before the write lands on the third read.
+      when(client.getStatus("s1")).thenReturn(stale).thenReturn(stale).thenReturn(fresh);
+      String hash = planService.resolve(request("task", List.of(pause("s1")))).planHash();
+      // Re-stub after resolve() (which itself calls getStatus once to build the plan) so the
+      // apply-time sequence starts fresh at "stale, stale, fresh" for applyOne's own read-back.
+      when(client.getStatus("s1")).thenReturn(stale).thenReturn(stale).thenReturn(fresh);
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         var result = service.apply(applyRequest("task", hash, "looks good", pause("s1")), user);
+
+         ClusterApplyOutcome outcome = result.results().get(0);
+         assertEquals(AdminChangeRecord.STATUS_VERIFIED, outcome.status());
+         assertEquals("Paused", outcome.after());
+         assertEquals(ClusterChangesetApplyService.STATUS_APPLIED, result.status());
+         // At least 3 calls: the plan's own fresh re-resolve (1) plus the read-back's own two stale
+         // reads and one fresh read (3) -- proves the retry loop actually polled rather than trusting
+         // a single immediate read.
+         verify(client, atLeast(4)).getStatus("s1");
+      }
+   }
+
+   @Test void readBackReportsFailedOnlyAfterExhaustingRetriesNotOnTheFirstStaleRead() {
+      ServerClusterStatus stale = statusOf(ServerClusterStatus.Status.OK, false);
+      // Never becomes paused -- a genuine failure (e.g. the message truly never completed), not a
+      // debounce-window race. Every getStatus() call for the life of this test returns the same
+      // stale status.
+      when(client.getStatus("s1")).thenReturn(stale);
+      String hash = planService.resolve(request("task", List.of(pause("s1")))).planHash();
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         var result = service.apply(applyRequest("task", hash, "looks good", pause("s1")), user);
+
+         ClusterApplyOutcome outcome = result.results().get(0);
+         assertEquals(AdminChangeRecord.STATUS_FAILED, outcome.status());
+         assertTrue(outcome.error().contains("debounce"));
+         assertEquals(ClusterChangesetApplyService.STATUS_FAILED, result.status());
+         // The retry loop must still have polled multiple times before giving up, not failed fast on
+         // the very first read.
+         verify(client, atLeast(4)).getStatus("s1");
+      }
+   }
+
+   // -------------------------------------------------------------------------
    // failure does not stop subsequent entries -- item 4's structural divergence
    // -------------------------------------------------------------------------
 
@@ -255,10 +312,14 @@ class ClusterChangesetApplyServiceTest {
    }
 
    private void stubStatus(String server, ServerClusterStatus.Status status, boolean paused) {
+      lenient().when(client.getStatus(server)).thenReturn(statusOf(status, paused));
+   }
+
+   private static ServerClusterStatus statusOf(ServerClusterStatus.Status status, boolean paused) {
       ServerClusterStatus s = new ServerClusterStatus();
       s.setStatus(status);
       s.setPaused(paused);
-      lenient().when(client.getStatus(server)).thenReturn(s);
+      return s;
    }
 
    private static ClusterChangeRequest pause(String server) {
