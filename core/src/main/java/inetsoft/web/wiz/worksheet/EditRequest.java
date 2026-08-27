@@ -48,7 +48,7 @@ import java.util.Map;
  *       error from this call.</li>
  *   <li>{@code add_expression_column} — {@code table}, {@code name}, {@code expression}, {@code type}, {@code sql}</li>
  *   <li>{@code set_sort} — {@code table}, {@code field}, {@code direction} ("ASC" | "DESC")</li>
- *   <li>{@code add_join} — {@code name}, {@code leftTable}, {@code leftKey}, {@code rightTable}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys} instead of single key fields</li>
+ *   <li>{@code add_join} — {@code name}, {@code leftTable}, {@code leftKey}, {@code rightTable}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys} instead of single key fields. For three or more tables joined in a single call, supply {@code joinPaths} instead (each a {leftTable, leftKey, rightTable, rightKey, joinType} edge) — {@code leftTable}/{@code leftKey}/{@code rightTable}/{@code rightKey}/{@code joinType}/{@code leftKeys}/{@code rightKeys} are ignored when {@code joinPaths} is present</li>
  *   <li>{@code remove_join} — {@code name}</li>
  *   <li>{@code add_table} — {@code table}, optional {@code datasource} (when provided, creates a bound table from the named datasource); optional {@code logicalModel} (when provided alongside datasource, {@code table} is an entity name within that logical model); optional {@code endpoint} (+ optional {@code parameters}/{@code lookup}/{@code lookupExpandArrays}/{@code lookupTopLevelOnly}) to bind a named REST/JSON connector's pre-built endpoint (and, optionally, one of its pre-built "Join With" lookup chains) instead of a physical table or logical model entity — {@code table} then names the NEW worksheet table rather than a physical path; optional {@code suffix} (+ optional {@code customLookups}) to bind a GENERIC/CUSTOM REST-JSON datasource's hand-authored URL suffix (and, optionally, up to 5 hand-authored custom lookup levels) instead — mutually exclusive with {@code endpoint}/{@code parameters}/{@code lookup}</li>
  *   <li>{@code edit_condition} — {@code table}, {@code field}, {@code operation}, {@code values}</li>
@@ -334,7 +334,13 @@ public record EditRequest(
     * a query against an existing worksheet table's columns. {@code null} leaves it unchanged.
     * See {@link WorksheetMutationSupport.VariableChoicesSpec}.
     */
-   WorksheetMutationSupport.VariableChoicesSpec choices
+   WorksheetMutationSupport.VariableChoicesSpec choices,
+   /**
+    * Join edges for an N-ary add_join (three or more tables joined into one assembly in a
+    * single call). When present, this supersedes {@code leftTable}/{@code leftKey}/
+    * {@code rightTable}/{@code rightKey}/{@code joinType}/{@code leftKeys}/{@code rightKeys}.
+    */
+   List<WorksheetMutationSupport.JoinPathSpec> joinPaths
 ) {
    /**
     * Compatibility constructor for callers built before {@code crosstab} was added —
@@ -366,7 +372,7 @@ public record EditRequest(
            value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
            groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
            sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
-           lookupTopLevelOnly, suffix, customLookups, null, null);
+           lookupTopLevelOnly, suffix, customLookups, null, null, null, null);
    }
 
    /**
@@ -400,6 +406,6 @@ public record EditRequest(
            value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
            groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
            sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
-           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, null);
+           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, null, null);
    }
 }

@@ -43,6 +43,7 @@ import inetsoft.uql.tabular.RestParameter;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.web.composer.ws.LayoutGraphService;
+import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
@@ -395,7 +396,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       EditRequest req = new EditRequest("remove_column", "T", "x",
          null, null, null, null, null, null, null, null, null, null, false,
@@ -445,7 +446,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       List<WorksheetMutationSupport.GroupSpec> groups = List.of(
          new WorksheetMutationSupport.GroupSpec("cust", null),
@@ -517,7 +518,9 @@ class WorksheetAgentControllerTest {
          null,                  // suffix
          null,                  // customLookups
          true,                  // crosstab
-         null                   // labels
+         null,                  // labels
+         null,                  // choices
+         null                   // joinPaths
       );
 
       WorksheetAgentController ctrl = controller(featureOn(),
@@ -556,7 +559,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -591,7 +594,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       // "add_column" with no 'name' on an EMBEDDED table must auto-generate the
       // next available "col" + N, matching the Composer UI's own insert-column
@@ -637,7 +640,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       editSvc.apply("TOK-ACM", agent, editor -> editor.addMirror("M", "T"));
 
@@ -684,7 +687,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       // Regression for the "alias" vs "name" mixup: calling add_expression_column
       // without 'name' used to silently succeed and create an unreferenceable
@@ -732,7 +735,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       EditRequest req = new EditRequest("edit_expression", "T", null,
          null, null, null, null, null, null, null, null, null, null, false,
@@ -786,7 +789,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -823,7 +826,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -858,7 +861,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -899,7 +902,8 @@ class WorksheetAgentControllerTest {
                                                       // suffix, customLookups
          null,                        // crosstab
          null,                        // labels
-         choices                      // choices
+         choices,                     // choices
+         null                         // joinPaths
       );
 
       ctrl.edit("TOK-AVC", req, agent);
@@ -968,7 +972,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -996,7 +1000,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -1023,7 +1027,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -1051,7 +1055,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -1076,7 +1080,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       return controller(featureOn(), mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
@@ -2288,7 +2292,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
 
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       // Free-Form SQL right is granted, so we get past the action gate and into the lambda.
