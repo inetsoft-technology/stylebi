@@ -405,6 +405,58 @@ table.scrollable-table {
   }
 }
 
+// Dark tooltips. Keyed off a class the tooltip element carries itself, resolved per tooltip by
+// TooltipDirective from the assembly the hovered element sits in -- NOT off the shell. A tooltip is
+// reparented to the body, so it has no assembly ancestor to inherit from, and the body class follows
+// the org property while an assembly follows its mark; keying these off .viz-shell-dark drew a light
+// tooltip on a dark chart whenever the org was light, and a dark one on a light chart whenever it was
+// dark. The values are the neutrals the server-side resolvers use, so a tooltip agrees with the chart
+// it describes rather than carrying a second dark palette.
+.widget__tooltip--dark {
+  &.widget__default-tooltip,
+  &.hidden__annotation-tooltip,
+  &.widget__card-tooltip {
+    color: var(--inet-viz-text-dark);
+    background-color: var(--inet-viz-surface-dark);
+    border-color: var(--inet-viz-hairline-dark);
+  }
+
+  // The card ramp's three roles, in the same order as the light block: value, label, caption. All
+  // three need a dark counterpart — the shell text neutrals they bind do not flip, so without this
+  // the ramp collapses to one tone.
+  &.widget__card-tooltip {
+    .tt-tier-1,
+    .tt-stack-total {
+      color: var(--inet-viz-text-emphasis-dark);
+    }
+
+    .tt-tier-2 {
+      color: var(--inet-viz-text-dark);
+    }
+
+    .tt-tier-3,
+    .tt-subtitle,
+    .tt-tier-1.tt-subtitle,
+    .tt-tier-2.tt-subtitle {
+      color: var(--inet-viz-text-subtle-dark);
+    }
+
+    // The total's hairline rule is its whole emphasis, so it follows the border neutral rather than
+    // staying the light one and reading as the brightest line in the tooltip.
+    .tt-stack-total {
+      border-top-color: var(--inet-viz-hairline-dark);
+    }
+  }
+
+  // The tailed card's SVG chrome draws the outline, so it must stay flat — the fill above would
+  // otherwise put a box behind the tail.
+  &.widget__card-tooltip--tailed {
+    background-color: transparent;
+    border-color: transparent;
+    box-shadow: none;
+  }
+}
+
 //Add delay to ngbTooltip; only used in scrollbars
 .tooltip > div {
   animation-name: delayedFadeIn;

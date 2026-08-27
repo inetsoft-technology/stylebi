@@ -44,3 +44,41 @@
     }
   }
 }
+
+// 5px is off the radius scale (2/3/4/6/pill). Corrected under the modern gate rather than in place:
+// unconditionally it would move gate-off output too. 6px is the top of the scale and what the
+// floating strip -- the surface this control is a sibling of -- already uses.
+:host-context(.viz-modern) .chart-nav-bar {
+  border-radius: var(--inet-radius-xl);
+
+  button {
+    border-radius: var(--inet-radius-xl);
+  }
+}
+
+// Dark: the bar floats over a plot the server has already darkened, so a light toolbar surface reads
+// as the brightest object on the chart.
+//
+// The ink is set on the <i> and not left to inherit: these glyphs extend .ineticons, which declares
+// color: var(--inet-icon-color) on the element itself, so nothing set on the bar or the button ever
+// reaches them. Left inheriting, the icon token's #6A685F measures 2.76:1 on the dark bar and 2.07:1
+// on the pressed fill, both under WCAG 1.4.11's 3:1 floor for a meaningful control; the body ink
+// reads 9.05 and 6.79.
+:host-context(.viz-dark) .chart-nav-bar {
+  background-color: var(--inet-viz-surface-dark);
+  border-color: var(--inet-viz-hairline-dark);
+
+  button i {
+    color: var(--inet-viz-text-dark);
+  }
+
+  // The pan toggle's fill is a light shell neutral, which on a dark bar is brighter than the glyphs
+  // it sits behind. Replaced with a neutral raise rather than the modern selection fill: light reads
+  // this state as a 1.12 step off its own surface, a barely-perceptible lift and not a change of
+  // colour family, and a toggle being on is a pressed state rather than a selection. The hairline
+  // neutral is the nearest declared step, at 1.33 -- firmer than light's, which is the right
+  // direction on a dark ground. The glyph keeps the body ink and reads 6.8:1 on it.
+  button.bg-selected {
+    background-color: var(--inet-viz-hairline-dark);
+  }
+}
