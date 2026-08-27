@@ -94,6 +94,36 @@ class ScriptImageServiceTest {
          rvs, "NoSuchAssembly", null, null, TestPrincipals.user("alice", "host-org")));
    }
 
+   /**
+    * The refusal has to happen <em>before</em> the render loop, not after it. A chart with no
+    * source never produces a graph, so every attempt comes back not-ready and the loop ends in a
+    * RenderNotReadyException advising a retry that cannot succeed — the defect this PR exists to
+    * remove. {@code verifyNoInteractions} is the assertion that matters: it is what distinguishes
+    * "refused up front" from "refused after burning through four attempts and 2s of sleep".
+    *
+    * <p>Note the chart is built inline rather than through {@code viewsheetWithChart}, which binds
+    * a source precisely so the render-path tests do not land here.
+    */
+   @Test
+   void refusesAnUnboundChartWithoutAttemptingARender() {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new ChartVSAssembly(vs, "Chart1"));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      AssemblyImageService imageService = mock(AssemblyImageService.class);
+      ScriptImageService svc = new ScriptImageService(
+         imageService, mock(BinaryTransferService.class), mock(VSExportService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.getAssemblyImage(
+         rvs, "Chart1", null, null, TestPrincipals.user("alice", "host-org")));
+
+      assertTrue(ex.getMessage().contains("set_chart_source"),
+                 "the refusal must name how to bind a source, got: [" + ex.getMessage() + "]");
+      verifyNoInteractions(imageService);
+   }
+
    @Test
    void returnsThePngOnASuccessfulRender() throws Exception {
       RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
