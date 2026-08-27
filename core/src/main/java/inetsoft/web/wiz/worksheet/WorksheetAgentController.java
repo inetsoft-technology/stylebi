@@ -1716,7 +1716,7 @@ public class WorksheetAgentController {
                                      req.aggregates() != null
                                         ? req.aggregates().stream()
                                             .map(a -> new WorksheetMutationSupport.AggregateSpec(
-                                                a.field(), a.formula(), a.alias()))
+                                                a.field(), a.formula(), a.alias(), a.n()))
                                             .toList()
                                         : List.of(),
                                      Boolean.TRUE.equals(req.crosstab()));

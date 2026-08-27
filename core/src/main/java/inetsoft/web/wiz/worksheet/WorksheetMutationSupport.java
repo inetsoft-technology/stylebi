@@ -72,8 +72,16 @@ public final class WorksheetMutationSupport {
     * @param formula a formula name recognised by {@link AggregateFormula#getFormula}
     *                (e.g. {@code "SUM"}, {@code "COUNT"}, {@code "AVG"})
     * @param alias   optional output alias; may be {@code null}
+    * @param n       the N/P operand for a parametrized formula (e.g. {@code "NthLargest"},
+    *                {@code "NthSmallest"}, {@code "NthMostFrequent"}, {@code "PthPercentile"});
+    *                {@code null} (or a formula that doesn't take one, per
+    *                {@link AggregateFormula#hasN}) is ignored
     */
-   public record AggregateSpec(String field, String formula, String alias) {}
+   public record AggregateSpec(String field, String formula, String alias, Integer n) {
+      public AggregateSpec(String field, String formula, String alias) {
+         this(field, formula, alias, null);
+      }
+   }
 
    /**
     * Describes a single group-by column for
@@ -648,6 +656,10 @@ public final class WorksheetMutationSupport {
 
          AggregateRef ar = new AggregateRef(colRef, formula);
 
+         if(spec.n() != null && formula.hasN()) {
+            ar.setN(spec.n());
+         }
+
          if(ainfo.containsAggregate(ar)) {
             // Second aggregate on the same column: clone the ref before aliasing.
             // The shared ref was (correctly) mutated by the first spec — that is how
@@ -662,7 +674,13 @@ public final class WorksheetMutationSupport {
                appliedAliases.add(spec.alias());
             }
 
-            ainfo.addSecondaryAggregate(new AggregateRef(cloned, formula));
+            AggregateRef secondary = new AggregateRef(cloned, formula);
+
+            if(spec.n() != null && formula.hasN()) {
+               secondary.setN(spec.n());
+            }
+
+            ainfo.addSecondaryAggregate(secondary);
          }
          else {
             // First aggregate on this column: set the alias on the shared ref from the
@@ -719,6 +737,11 @@ public final class WorksheetMutationSupport {
 
             // Create a new primary aggregate on the expression column.
             AggregateRef newAgg = new AggregateRef(exprCol, sref.getFormula());
+
+            if(sref.getFormula() != null && sref.getFormula().hasN()) {
+               newAgg.setN(sref.getN());
+            }
+
             ainfo.addAggregate(newAgg, false);
          }
 

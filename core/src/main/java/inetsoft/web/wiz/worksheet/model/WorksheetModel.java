@@ -233,9 +233,11 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
        * @param column  source column name
        * @param formula formula name (e.g. {@code "Sum"}, {@code "Count"})
        * @param alias   output alias; may be {@code null}
+       * @param n       the N/P operand for a parametrized formula (e.g. {@code "NthLargest"},
+       *                {@code "PthPercentile"}); {@code null} when the formula doesn't take one
        */
       @JsonInclude(JsonInclude.Include.NON_NULL)
-      public record AggregateRefModel(String column, String formula, String alias) {}
+      public record AggregateRefModel(String column, String formula, String alias, Integer n) {}
    }
 
    /**
