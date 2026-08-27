@@ -235,13 +235,9 @@ public class BindableFieldsService {
       }
    }
 
-   /** Every column at or below this node, however deeply the Composer nests them. */
    /**
-    * @param model  the logical model this subtree belongs to, or null when it does not belong to
-    *               one. Only inside a model is a folder an entity whose label prefixes a column.
-    * @param entity the entity folder currently being descended, or null at the top.
-    */
-   /**
+    * Every column at or below this node, however deeply the Composer nests them.
+    *
     * @param inModel true when {@code node} is a logical model, so the nodes between it and its
     *                columns are its entities and their labels prefix a column name.
     * @param entity  the entity currently being descended, or null at the top.
