@@ -126,3 +126,99 @@ describe("TooltipDirective tail placement", () => {
       expect(tip.querySelector(".tooltip-chrome")).toBeNull();
    });
 });
+
+/**
+ * A tooltip's palette follows the assembly it describes, not the shell.
+ *
+ * The two disagree by design: an assembly's dark state comes from its seed mark, while the body's
+ * viz-shell-dark comes from the live org property. Keying the tooltip off the body drew a light
+ * tooltip on a dark chart whenever the org was light, and a dark tooltip on a light chart whenever
+ * the org was dark -- both reported from a real dashboard. The tooltip is reparented to the body, so
+ * it has no assembly ancestor to inherit from and the directive has to resolve this at show time.
+ */
+@Component({
+   standalone: true,
+   imports: [TooltipDirective],
+   template: `<div class="wrapper" [class.viz-modern]="modern" [class.viz-dark]="dark">
+                <div class="inner" [wTooltip]="'hover text'" [followCursor]="true" [waitTime]="0"></div>
+              </div>`
+})
+class ScopedHostComponent {
+   modern = true;
+   dark = false;
+}
+
+describe("TooltipDirective dark resolution", () => {
+   let fixture: ComponentFixture<ScopedHostComponent>;
+
+   beforeEach(async() => {
+      await TestBed.configureTestingModule({ imports: [ScopedHostComponent] }).compileComponents();
+      fixture = TestBed.createComponent(ScopedHostComponent);
+      fixture.detectChanges();
+   });
+
+   afterEach(() => {
+      document.querySelectorAll("w-tooltip").forEach(e => e.remove());
+      document.body.classList.remove("viz-shell-dark");
+   });
+
+   function hover(): HTMLElement {
+      const inner: HTMLElement = fixture.nativeElement.querySelector(".inner");
+      inner.dispatchEvent(new MouseEvent("mouseenter"));
+      inner.dispatchEvent(new MouseEvent("mousemove", { clientX: 10, clientY: 10 }));
+      return document.querySelector("w-tooltip");
+   }
+
+   function isDark(tip: HTMLElement): boolean {
+      return !!tip.querySelector(".widget__tooltip--dark");
+    }
+
+   it("is dark inside a dark-marked assembly", () => {
+      fixture.componentInstance.dark = true;
+      fixture.detectChanges();
+      expect(isDark(hover())).toBe(true);
+   });
+
+   it("is light inside a light-marked assembly, even with a dark shell", () => {
+      document.body.classList.add("viz-shell-dark");
+      fixture.componentInstance.dark = false;
+      fixture.detectChanges();
+      // the reported second defect: the org was dark, the chart was light, the tooltip went dark
+      expect(isDark(hover())).toBe(false);
+   });
+
+   it("is dark inside a dark-marked assembly even with no dark shell", () => {
+      fixture.componentInstance.dark = true;
+      fixture.detectChanges();
+      // the reported first defect: the org was light, the chart was dark, the tooltip stayed light
+      expect(document.body.classList.contains("viz-shell-dark")).toBe(false);
+      expect(isDark(hover())).toBe(true);
+   });
+
+   // Deliberately NOT a shell fallback. viz-shell-dark redefines only the --inet-viz-* state tokens
+   // and paints no surface, so the shell's own surfaces -- repository and asset trees, query panes,
+   // the worksheet detail pane, combo-box lists -- stay light in a dark org. A tooltip over one of
+   // them must stay light too, or the mismatch just moves somewhere else.
+   it("stays light outside any assembly, even when the shell is dark", () => {
+      document.body.classList.add("viz-shell-dark");
+      fixture.componentInstance.modern = false;
+      fixture.componentInstance.dark = false;
+      fixture.detectChanges();
+      expect(isDark(hover())).toBe(false);
+   });
+
+   // An unmarked (legacy) assembly carries neither class and renders light, so its tooltip is light
+   // even in a dark org. This is the direction a shell fallback used to get wrong.
+   it("stays light on an unmarked assembly in a dark org", () => {
+      document.body.classList.add("viz-shell-dark");
+      fixture.componentInstance.modern = false;
+      fixture.detectChanges();
+      expect(isDark(hover())).toBe(false);
+   });
+
+   it("is light when neither the assembly nor the shell is dark", () => {
+      fixture.componentInstance.modern = false;
+      fixture.detectChanges();
+      expect(isDark(hover())).toBe(false);
+   });
+});

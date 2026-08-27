@@ -275,3 +275,35 @@
 :host([data-tone]) .mini-toolbar--anchored .mini-toolbar-button-group + .mini-toolbar-button-group {
   border-left: none;
 }
+
+// Dark: the floating strip keeps a surface of its own, so it needs a dark one. It overlays the
+// assembly instead of sitting in an author-coloured lane, which is why the tone treatment above
+// deliberately passes it by -- there is no card behind it to read an ink from. Reached by the three
+// types that get a strip but are not anchored: the calendar, the selection container, and the range
+// slider as an adhoc filter.
+//
+// The anchored path is excluded by name rather than left to specificity: it draws no fill, border or
+// radius at all, and a colour reaching it would put the pill back over a card the author owns.
+// :not(.mini-toolbar--anchored) is the same population as :host(:not([data-tone])) inverted, since a
+// tone is set exactly when the strip anchors.
+// The ink is set on the <i> as well as the button, for the reason the anchored rules above give: the
+// glyph is an icon-font element that declares its own colour, so the button alone never reaches it.
+// Left inheriting, the icon token's #6A685F measures 2.76:1 on this surface, under WCAG 1.4.11's 3:1
+// floor; the body ink reads 9.05. auto-refresh-true/false carry a deliberate red/green state colour
+// and are left alone, the same exclusion the anchored path makes.
+:host-context(.viz-dark) .mini-toolbar:not(.mini-toolbar--anchored) .mini-toolbar-container {
+  background-color: var(--inet-viz-surface-dark);
+  border-color: var(--inet-viz-hairline-dark);
+
+  button,
+  button i:not(.auto-refresh-true):not(.auto-refresh-false) {
+    color: var(--inet-viz-text-dark);
+  }
+}
+
+// The group divider is a light hairline on what is now a dark pill, so it reads as the brightest
+// thing on the strip. Taken down to the same neutral as the painted gridlines.
+:host-context(.viz-dark) .mini-toolbar:not(.mini-toolbar--anchored)
+  .mini-toolbar-button-group + .mini-toolbar-button-group {
+  border-left-color: var(--inet-viz-hairline-dark);
+}

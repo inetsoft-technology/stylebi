@@ -22,6 +22,7 @@ import inetsoft.report.TableDataPath;
 import inetsoft.report.io.viewsheet.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 
 import java.awt.*;
@@ -160,7 +161,8 @@ public class PDFSelectionListHelper extends VSSelectionListHelper {
          VSCompositeFormat format = (vsformat == null) ?
             new VSCompositeFormat() : (VSCompositeFormat) vsformat.clone();
 
-         format = VSSelectionListHelper.getValueFormat(value, format, hasSelected);
+         format = VSSelectionListHelper.getValueFormat(value, format, hasSelected,
+                                                     VizContext.of(info));
 
          if(i >= boundsList.size() - 2 && i < values.size() - 1) {
             // last cell but still got more elements

@@ -587,3 +587,54 @@ describe("MiniToolbar rendered - anchored strip spans the lane and the pill marg
       expect(window.getComputedStyle(pill).marginLeft).not.toBe("auto");
    });
 });
+
+// Dark, the floating strip. Every declaration is var()-valued and cssstyle leaves var() unexpanded,
+// so no getComputedStyle read can observe these colours -- the same limitation the resting-kebab and
+// coarse-pointer suites above document. What IS checkable, and is the half that carries the risk, is
+// the scoping: the seamless treatment took the anchored strip's fill, border and radius away so an
+// author-set card colour shows through, and a dark fill that reached the anchored path would put the
+// pill straight back. So this asserts the exclusion travels with the rule rather than asserting a
+// colour.
+describe("MiniToolbar rendered - dark floating strip (compiled CSS only)", () => {
+   // The rule is emitted whether or not this render is dark: it is a stylesheet assertion, not a
+   // rendered-state one. Anchored is used so the tone rules are present in the same sheet and a
+   // mis-ordered override would be visible in the failure output.
+   async function compiledStyles(): Promise<string> {
+      await renderToolbar([
+         new AssemblyActionGroup([makeAction("chart show-data")]),
+         new AssemblyActionGroup([makeAction("more actions")])
+      ], true);
+
+      return Array.from(document.querySelectorAll("style"))
+         .map(s => s.textContent)
+         .join("\n");
+   }
+
+   it("scopes the dark surface to the floating strip, excluding the anchored path by name", async () => {
+      const styleText = await compiledStyles();
+      const fillIndex = styleText.indexOf("--inet-viz-surface-dark");
+
+      expect(fillIndex).toBeGreaterThan(-1);
+
+      // The selector precedes the declaration. Angular's emulated encapsulation rewrites it with
+      // _ngcontent-*/_nghost-* qualifiers, so this reads back from the declaration to the opening
+      // brace rather than matching the authored selector text.
+      const selector = styleText.slice(0, fillIndex).slice(
+         styleText.slice(0, fillIndex).lastIndexOf("}") + 1);
+
+      expect(selector).toContain(".viz-dark");
+      expect(selector).toContain(":not(.mini-toolbar--anchored)");
+   });
+
+   it("excludes the anchored path from the dark group divider too", async () => {
+      const styleText = await compiledStyles();
+      const dividerIndex = styleText.indexOf("border-left-color: var(--inet-viz-hairline-dark)");
+
+      expect(dividerIndex).toBeGreaterThan(-1);
+
+      const selector = styleText.slice(0, dividerIndex).slice(
+         styleText.slice(0, dividerIndex).lastIndexOf("}") + 1);
+
+      expect(selector).toContain(":not(.mini-toolbar--anchored)");
+   });
+});

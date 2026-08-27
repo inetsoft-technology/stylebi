@@ -123,7 +123,11 @@ public class HTMLSelectionTreeHelper extends VSSelectionTreeHelper{
    private void writeSelectionValue(SelectionTreeVSAssemblyInfo info, StringBuffer slist,
       SelectionValue svalue)
    {
-      VSCompositeFormat format = svalue.getFormat();
+      // the cell foreground default is a fixed near-black, so a dark-marked list would emit dark
+      // text on its dark surface here too. Same substitution the browser model and the PDF/SVG
+      // helpers make, so all three renderers agree.
+      VSCompositeFormat format = VSObjectChromeDefaults.applyDarkForeground(
+         svalue.getFormat(), VizContext.of(info));
       int padding = svalue.getLevel() * 10;
       boolean showBar = info.isShowBar();
       boolean showText = info.isShowText();

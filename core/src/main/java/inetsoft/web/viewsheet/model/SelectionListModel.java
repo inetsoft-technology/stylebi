@@ -22,6 +22,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionBaseVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSObjectChromeDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 
 import java.awt.*;
@@ -69,9 +71,17 @@ public class SelectionListModel {
    // Get the format index to format model map
    public Map<Integer, VSFormatModel> getFormats() {
       Map<Integer, VSFormatModel> map = new HashMap<>();
+      // the detail-cell default foreground is a fixed 0x2b2b2b, set in setDefaultFormat as an
+      // unconditional creation default, so seedChromeDefaults never sees it and a dark-marked
+      // assembly draws near-black cell text on its dark surface. Substituted on a clone here, so
+      // nothing is persisted and a user or format.css colour still wins. Covers the tree as well:
+      // CompositeSelectionValueModel builds a nested SelectionListModel per level, and both
+      // controllers resolve a cell through this map.
+      VizContext ctx = VizContext.of(assemblyInfo);
 
       for(Map.Entry<VSCompositeFormat, Integer> entry : formats.entrySet()) {
-         VSFormatModel formatModel = new VSFormatModel(entry.getKey(), assemblyInfo);
+         VSFormatModel formatModel = new VSFormatModel(
+            VSObjectChromeDefaults.applyDarkForeground(entry.getKey(), ctx), assemblyInfo);
 
          if(assemblyInfo instanceof SelectionBaseVSAssemblyInfo) {
             formatModel.setPadding(((SelectionBaseVSAssemblyInfo) assemblyInfo).getCellPadding());

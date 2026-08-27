@@ -86,9 +86,33 @@ public final class VSObjectChromeDefaults {
       }
 
       VSCompositeFormat clone = fmt.clone();
-      clone.getDefaultFormat().setForegroundValue(
-         String.format("0x%06x", TEXT_FG_DARK.getRGB() & 0xFFFFFF));
+      clone.getDefaultFormat().setForegroundValue(darkForegroundValue());
       return clone;
+   }
+
+   /**
+    * The same substitution as applyDarkForeground, applied directly rather than to a clone. For a
+    * caller that already holds a copy nothing else can see — the composer's format picker, which
+    * clones before it hands the format to the panel — where returning a second object would leave
+    * the caller holding the wrong one. Never call this with a format reached from an assembly's
+    * FormatInfo: that one is the stored format, and mutating it would persist the substitution.
+    */
+   public static void applyDarkForegroundInPlace(VSCompositeFormat fmt, VizContext ctx) {
+      if(!ctx.dark || fmt == null) {
+         return;
+      }
+
+      if(fmt.getUserDefinedFormat().isForegroundValueDefined() ||
+         fmt.getCSSFormat().isForegroundValueDefined())
+      {
+         return;
+      }
+
+      fmt.getDefaultFormat().setForegroundValue(darkForegroundValue());
+   }
+
+   private static String darkForegroundValue() {
+      return String.format("0x%06x", TEXT_FG_DARK.getRGB() & 0xFFFFFF);
    }
 
    // modern warm-neutral object chrome (light mode)
