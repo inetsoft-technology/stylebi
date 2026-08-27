@@ -30,9 +30,7 @@ import inetsoft.web.wiz.script.model.ScriptContext;
 import inetsoft.web.wiz.script.model.ScriptExecResult;
 import inetsoft.web.wiz.script.model.ScriptInfo;
 import inetsoft.web.wiz.script.model.ScriptTargetsResponse;
-import inetsoft.web.wiz.service.RenderNotReadyException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -489,17 +487,6 @@ public class ViewsheetAgentController {
       body.put("error", e.getMessage());
       body.put("errorCode", e.getKind().name());
       return ResponseEntity.status(status).body(body);
-   }
-
-   /** The chart's graph hasn't finished computing yet — ask the caller to retry shortly. */
-   @ExceptionHandler(RenderNotReadyException.class)
-   public ResponseEntity<Map<String, String>> handleRenderNotReady(RenderNotReadyException e) {
-      Map<String, String> body = new LinkedHashMap<>();
-      body.put("error", e.getMessage());
-      body.put("errorCode", "RENDER_NOT_READY");
-      return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-         .header(HttpHeaders.RETRY_AFTER, String.valueOf(Math.max(1, e.getRetryAfter())))
-         .body(body);
    }
 
    // ---------------------------------------------------------------------------

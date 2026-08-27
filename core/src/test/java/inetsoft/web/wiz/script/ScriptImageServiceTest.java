@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.cachefs.BinaryTransfer;
@@ -52,9 +53,17 @@ class ScriptImageServiceTest {
       return out.toByteArray();
    }
 
+   /**
+    * The chart is given a source because {@code getAssemblyImage} refuses an unbound one up front,
+    * before any render is attempted — see the pre-check there. A bare {@code new ChartVSAssembly}
+    * has no {@code SourceInfo}, so leaving it unbound would make every test below assert against
+    * that refusal rather than the render path it means to cover.
+    */
    private RuntimeViewsheet viewsheetWithChart(String chartName) {
       Viewsheet vs = new Viewsheet();
-      vs.addAssembly(new ChartVSAssembly(vs, chartName));
+      ChartVSAssembly chart = new ChartVSAssembly(vs, chartName);
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Table1"));
+      vs.addAssembly(chart);
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);

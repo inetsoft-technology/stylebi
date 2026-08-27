@@ -112,7 +112,15 @@ public class WizControllerErrorHandler {
     * said <b>retry after 1s</b>. The advice was the exact inverse of the condition.
     *
     * <p>{@code Retry-After} carries the number as a header as well as in the message, since that is
-    * what the status code means and a client that honours it needs no message parsing.
+    * what the status code means and a client that honours it needs no message parsing. It is
+    * floored at 1: a 0 or negative header is not a shorter wait, it is a value the spec gives no
+    * meaning to, and a client that honours it would retry with no delay at all.
+    *
+    * <p>This is the only handler for the exception. {@code ViewsheetAgentController} carried a
+    * local one of its own, which — a local {@code @ExceptionHandler} always winning over a
+    * {@code @ControllerAdvice} — meant the two controllers that render answered the same condition
+    * with two different bodies. It was removed in favour of this one; {@code errorCode} is kept
+    * from it so nothing that read the local shape loses it.
     */
    @ExceptionHandler(RenderNotReadyException.class)
    public ResponseEntity<Map<String, String>> handleRenderNotReady(RenderNotReadyException e) {
@@ -123,8 +131,9 @@ public class WizControllerErrorHandler {
          "failure, and the same call should succeed once it is done. A chart with nothing bound " +
          "to it never becomes ready and is refused up front instead, so a wait here is a real " +
          "wait rather than a loop.");
+      payload.put("errorCode", "RENDER_NOT_READY");
       HttpHeaders headers = new HttpHeaders();
-      headers.set(HttpHeaders.RETRY_AFTER, String.valueOf(e.getRetryAfter()));
+      headers.set(HttpHeaders.RETRY_AFTER, String.valueOf(Math.max(1, e.getRetryAfter())));
       return new ResponseEntity<>(payload, headers, HttpStatus.SERVICE_UNAVAILABLE);
    }
 

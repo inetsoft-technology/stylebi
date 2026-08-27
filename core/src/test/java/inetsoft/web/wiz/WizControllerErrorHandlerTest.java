@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz;
 
+import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -27,9 +28,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
 
@@ -176,6 +179,29 @@ class WizControllerErrorHandlerTest {
    }
 
    /**
+    * A render that has not finished yet is not a failure — {@code ScriptImageService} raises
+    * {@code RenderNotReadyException} deliberately, after its own retries, and carries the seconds
+    * to wait. Unmapped it fell to the catch-all below and came back as the generic server-bug
+    * message, which tells the caller <em>retrying will fail the same way</em> — the exact inverse
+    * of what the exception says. 503 with {@code Retry-After} is the honest answer.
+    */
+   @Test
+   void renderNotReadyMapsToServiceUnavailableWithARetryAfterHeader() throws Exception {
+      String content = mvc.perform(get("/wiz-test/throw").param("type", "notready"))
+         .andExpect(status().isServiceUnavailable())
+         .andExpect(header().string("Retry-After", "2"))
+         .andReturn().getResponse().getContentAsString();
+
+      assertTrue(content.contains("retry after 2s"),
+                 "the exception's own wait must reach the caller, got: [" + content + "]");
+      assertTrue(content.contains("RENDER_NOT_READY"),
+                 "the errorCode kept from the removed local handler must survive, got: [" +
+                 content + "]");
+      assertFalse(content.contains("retrying will fail"),
+                  "and it must not carry the catch-all's do-not-retry advice, got: [" + content + "]");
+   }
+
+   /**
     * Any exception none of the handlers above recognize — an NPE deep in a binding/viewsheet
     * service, for example — must still come back as JSON 500, not fall through to Tomcat's own
     * default HTML error page (which ignores the client's {@code Accept: application/json} header
@@ -230,6 +256,10 @@ class WizControllerErrorHandlerTest {
             throw new inetsoft.util.InvalidUserException(
                "Invalid user found: Principal[Client[admin@172.18.0.1@a2f160d8]] instead of " +
                "Principal[Client[admin@172.18.0.1@ab0096b3]]", () -> "admin");
+         }
+
+         if("notready".equals(type)) {
+            throw new RenderNotReadyException(2);
          }
 
          if("unexpected".equals(type)) {
