@@ -185,7 +185,7 @@ class ViewsheetAgentControllerTest {
    private static void assertRefusesCalcFieldReason(Executable action) {
       PairingException ex = assertThrows(PairingException.class, action);
       assertTrue(ex.getMessage().contains("open its formula editor"), ex.getMessage());
-      assertFalse(ex.getMessage().contains("require-script-pane"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("require.script.pane"), ex.getMessage());
    }
 
    @Test

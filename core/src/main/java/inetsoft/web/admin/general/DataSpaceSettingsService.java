@@ -214,21 +214,14 @@ public class DataSpaceSettingsService extends BackupSupport {
     * out of scope for this change - see the final-review deferred-findings note. This method
     * keeps exactly the configured count.
     *
-    * <p>Retention is controlled by {@code ai.snapshot.count}, defaulting to 10 when absent or
-    * unparsable; a value below 1 disables pruning entirely, matching {@code
-    * deleteRedundantBackupFiles}'s convention for {@code asset.backup.count}.
+    * <p>Retention is controlled by {@code ai.snapshot.count}, defaulting to
+    * {@link #DEFAULT_AI_SNAPSHOT_COUNT} when absent or unparsable; a value below 1 disables
+    * pruning entirely, matching {@code deleteRedundantBackupFiles}'s convention for {@code
+    * asset.backup.count}. An unparsable value is logged, because the effect -- how many
+    * snapshots survive cleanup -- is not something an operator would otherwise notice.
     */
    private void deleteRedundantAiSnapshotFiles() {
-      String countProp = SreeEnv.getProperty("ai.snapshot.count");
-      int count = 10;
-
-      if(countProp != null) {
-         try {
-            count = Integer.parseInt(countProp.trim());
-         }
-         catch(Exception ignore) {
-         }
-      }
+      int count = getAiSnapshotCount();
 
       if(count < 1) {
          return;
@@ -262,6 +255,36 @@ public class DataSpaceSettingsService extends BackupSupport {
          catch(IOException e) {
             LOG.error("Failed to delete AI snapshot file {}", zips.get(i), e);
          }
+      }
+   }
+
+   /**
+    * Gets the configured {@code ai.snapshot.count}. A non-numeric value logs a warning naming
+    * the property and the offending value, then falls back to {@link #DEFAULT_AI_SNAPSHOT_COUNT}
+    * -- the same shape as {@code ScheduleTask.getTaskTimeout}.
+    *
+    * <p>An absent property is the normal unconfigured case and stays silent; only a value that
+    * was set and cannot be read warns. Blank counts as absent: clearing the field in EM rather
+    * than deleting the row stores {@code ""} -- {@code PropertiesEngine.setProperty} removes a
+    * property only when the value is null -- and warning once per backup about a field the
+    * operator emptied on purpose is the recurring noise this warning exists to avoid.
+    *
+    * @return the configured count, or the default if unset, blank, or unparsable.
+    */
+   private static int getAiSnapshotCount() {
+      String countProp = SreeEnv.getProperty("ai.snapshot.count");
+
+      if(countProp == null || countProp.isBlank()) {
+         return DEFAULT_AI_SNAPSHOT_COUNT;
+      }
+
+      try {
+         return Integer.parseInt(countProp.trim());
+      }
+      catch(NumberFormatException e) {
+         LOG.warn("Invalid ai.snapshot.count value \"{}\", using the default of {}",
+                  countProp, DEFAULT_AI_SNAPSHOT_COUNT);
+         return DEFAULT_AI_SNAPSHOT_COUNT;
       }
    }
 
@@ -324,9 +347,16 @@ public class DataSpaceSettingsService extends BackupSupport {
     * which lists only {@link #BACKUP_FOLDER}, cannot delete a snapshot an audit record still
     * references - that method cannot reach this folder at all, which is the reason this sibling
     * folder exists rather than reusing {@link #BACKUP_FOLDER}. This folder is instead pruned by
-    * {@link #deleteRedundantAiSnapshotFiles}, to {@code ai.snapshot.count} (default 10).
+    * {@link #deleteRedundantAiSnapshotFiles}, to {@code ai.snapshot.count} (default
+    * {@link #DEFAULT_AI_SNAPSHOT_COUNT}).
     */
    private static final String AI_SNAPSHOT_FOLDER = "ai-snapshots";
+
+   /**
+    * Snapshots kept by {@link #deleteRedundantAiSnapshotFiles} when {@code ai.snapshot.count} is
+    * unset or unparsable. Named so this value and the javadoc quoting it cannot drift apart.
+    */
+   private static final int DEFAULT_AI_SNAPSHOT_COUNT = 10;
 
    private static final String BACKUP_PATH_SPLIT = "-";
 

@@ -107,7 +107,7 @@ class PaneScopeServiceTest {
          () -> service.check(wholeSheetSession, calcFieldTarget));
 
       assertTrue(ex.getMessage().contains("open its formula editor"), ex.getMessage());
-      assertFalse(ex.getMessage().contains("require-script-pane"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("require.script.pane"), ex.getMessage());
    }
 
    @Test
