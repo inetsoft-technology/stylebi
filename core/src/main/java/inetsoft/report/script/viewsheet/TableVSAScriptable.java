@@ -18,11 +18,11 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.internal.FormUtil;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.util.script.graal.ScriptFunction;
 import org.slf4j.Logger;
@@ -86,7 +86,7 @@ public class TableVSAScriptable extends TableDataVSAScriptable {
 
          super.addFunctions();
 
-         if(LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM)) {
+         if(FormUtil.isFormEnabled()) {
             addFunctionProperty(getClass(), "setObject", int.class, int.class, Object.class);
             addFunctionProperty(getClass(), "getFormRow", int.class);
             addFunctionProperty(getClass(), "getFormRows", Object.class);

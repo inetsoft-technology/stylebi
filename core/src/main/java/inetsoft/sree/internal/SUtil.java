@@ -36,6 +36,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Identity;
+import inetsoft.uql.viewsheet.internal.FormUtil;
 import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
 import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
 import inetsoft.util.*;
@@ -394,7 +395,7 @@ public class SUtil {
          ToolBarElementDef def = ToolBarElement.VSTOOLBAR_ELEMENTS.get(i);
          String name = def.property();
 
-         if("vs.import.button".equals(name) && !LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM)) {
+         if("vs.import.button".equals(name) && !FormUtil.isFormEnabled()) {
             continue;
          }
 

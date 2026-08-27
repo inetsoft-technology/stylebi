@@ -22,7 +22,6 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.script.viewsheet.VSPropertyDescriptor;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.uql.asset.*;
@@ -344,7 +343,7 @@ public class OnClickService {
    }
 
    private boolean hasFormScript(String script, String name) {
-      if(!LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM)) {
+      if(!FormUtil.isFormEnabled()) {
          return false;
       }
 

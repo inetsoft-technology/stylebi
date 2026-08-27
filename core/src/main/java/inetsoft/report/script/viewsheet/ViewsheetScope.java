@@ -22,7 +22,6 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.VSDataSet;
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.script.formula.CubeTableAssemblyScriptable;
 import inetsoft.report.script.formula.FormulaFunctions;
 import inetsoft.uql.VariableTable;
@@ -32,6 +31,7 @@ import inetsoft.uql.script.VariableScriptable;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.FormUtil;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
@@ -284,7 +284,7 @@ public class ViewsheetScope implements Cloneable, DynamicScope {
     * @param passwd password to be logined.
     */
    public Object createConnection(String source, String user, String passwd) throws Exception {
-      if(!LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM)) {
+      if(!FormUtil.isFormEnabled()) {
          String msg = Catalog.getCatalog().getString("viewer.viewsheet.needFormLicense");
          JavaScriptEngine.alert(msg, MessageCommand.Type.INFO);
          throw new Exception();

@@ -223,7 +223,8 @@ public class ExportController {
          bookmarks, onlyDataComponents, exportAllTabbedTables, csvConfig, principal);
 
       VSExportService.setResponseHeader(
-         new ExportResponse(response), result.getSuffix(), "attachment", result.getFileName(), result.getMime());
+         new ExportResponse(response), result.getSuffix(), result.getDisposition(),
+         result.getFileName(), result.getMime());
 
       BinaryTransfer data = result.getData();
       binaryTransferService.writeData(data, response.getOutputStream());

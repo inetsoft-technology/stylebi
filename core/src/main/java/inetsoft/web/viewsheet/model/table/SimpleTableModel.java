@@ -18,13 +18,13 @@
 package inetsoft.web.viewsheet.model.table;
 
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.EmbeddedTableVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.FormUtil;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 
 import java.util.*;
@@ -83,7 +83,7 @@ public abstract class SimpleTableModel<T extends TableVSAssembly> extends BaseTa
          form = false;
       }
 
-      formVisible = LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM);
+      formVisible = FormUtil.isFormEnabled();
    }
 
    public List<String> getColNames() {
