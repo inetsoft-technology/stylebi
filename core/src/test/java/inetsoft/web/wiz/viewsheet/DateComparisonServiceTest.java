@@ -57,8 +57,7 @@ class DateComparisonServiceTest {
    }
 
    private static DateComparisonService.Comparison comparison(String endDate, boolean endToday) {
-      return new DateComparisonService.Comparison(4, "year", endDate, endToday, null, null, null,
-                                                  null);
+      return new DateComparisonService.Comparison(4, "year", endDate, endToday, null, null, null);
    }
 
    /**
@@ -96,7 +95,7 @@ class DateComparisonServiceTest {
    }
 
    private static DateComparisonService.Comparison facetOnly() {
-      return new DateComparisonService.Comparison(null, null, null, false, null, true, null, null);
+      return new DateComparisonService.Comparison(null, null, null, false, null, true, null);
    }
 
    // ── the recorded defect ───────────────────────────────────────────────────
@@ -164,7 +163,7 @@ class DateComparisonServiceTest {
       assertThrows(IllegalArgumentException.class,
                    () -> DateComparisonService.requireEndAnchor(
                       new DateComparisonService.Comparison(0, "year", null, true, null, null,
-                                                           null, null)));
+                                                           null)));
    }
 
    @Test
@@ -255,6 +254,22 @@ class DateComparisonServiceTest {
                   "a cell format must not be echoed — that is the 67KB timezone-table regression");
       assertTrue(read.toString().length() < 2000,
                  "the normalized response should be small; got " + read.toString().length());
+   }
+
+   /**
+    * The date-comparison palette is disabled product-wide behind {@code @dcColorRemove} — the
+    * dialog row, ChartDcProcessor's three apply blocks, and the crosstab-to-chart handoff are all
+    * commented out. The pane model still round-trips a frame, so reporting one would describe a
+    * setting that colours nothing, and a caller reading it back would take that as confirmation
+    * the colour took effect.
+    */
+   @Test
+   void doesNotReportAFrameThatColoursNothing() throws Exception {
+      Map<String, Object> read = harness(model()).service.read("tok", principal(), "Chart1");
+
+      assertFalse(read.containsKey("frame"),
+                  "the DC palette is disabled behind @dcColorRemove; reporting it reads as a " +
+                  "colour that took effect");
    }
 
    @Test
