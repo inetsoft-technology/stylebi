@@ -19,6 +19,8 @@ package inetsoft.util.script.graal;
 
 import org.graalvm.polyglot.*;
 import org.junit.jupiter.api.*;
+
+import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("core")
@@ -27,6 +29,18 @@ class ScriptHostAccessTest {
       return Context.newBuilder("js")
          .allowHostAccess(ScriptHostAccess.hostAccess())
          .allowHostClassLookup(ScriptHostAccess.classFilter())
+         .build();
+   }
+
+   /**
+    * Builds a context as if script.java.allowed.classes named the given FQCNs,
+    * without needing a SreeEnv context. The remaining arguments mirror the
+    * production defaults (no javascript.java.packages, com_org on).
+    */
+   private Context newContext(Set<String> extra) {
+      return Context.newBuilder("js")
+         .allowHostAccess(ScriptHostAccess.hostAccess())
+         .allowHostClassLookup(ScriptHostAccess.classFilter(extra, new String[0], true))
          .build();
    }
 
@@ -136,6 +150,50 @@ class ScriptHostAccessTest {
             () -> ctx.eval("js", "Java.type('java.lang.Thread')"));
          assertThrows(PolyglotException.class,
             () -> ctx.eval("js", "Java.type('java.util.concurrent.ConcurrentHashMap')"));
+      }
+   }
+
+   /**
+    * script.java.allowed.classes is additive only: naming a BLOCKED_CLASSES entry
+    * must not re-enable it. Java.type resolution is the boundary being asserted
+    * here -- java.lang.Runtime is separately denied at the member level by
+    * hostAccess(), but java.io.File is not, so the class filter is what stops it.
+    */
+   @Test void extrasCannotUnblockBlockedClass() {
+      try(Context ctx = newContext(Set.of("java.lang.Runtime", "java.io.File"))) {
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js", "Java.type('java.lang.Runtime')"));
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js", "Java.type('java.io.File')"));
+      }
+   }
+
+   /** Same for a class reached through a BLOCKED_PACKAGES prefix. */
+   @Test void extrasCannotUnblockBlockedPackage() {
+      try(Context ctx = newContext(Set.of("java.lang.reflect.Method",
+                                          "inetsoft.report.internal.license.LicenseManager")))
+      {
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js", "Java.type('java.lang.reflect.Method')"));
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js",
+               "Java.type('inetsoft.report.internal.license.LicenseManager')"));
+      }
+   }
+
+   /**
+    * The property still does what it is for: a class on neither deny list, and on
+    * no default allow path, becomes visible when named. java.time is outside every
+    * allowed prefix/package, so it is denied until the property names it.
+    */
+   @Test void extrasStillAddNonBlockedClass() {
+      try(Context ctx = newContext()) {
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js", "Java.type('java.time.LocalDate')"));
+      }
+
+      try(Context ctx = newContext(Set.of("java.time.LocalDate"))) {
+         assertDoesNotThrow(() -> ctx.eval("js", "Java.type('java.time.LocalDate')"));
       }
    }
 
