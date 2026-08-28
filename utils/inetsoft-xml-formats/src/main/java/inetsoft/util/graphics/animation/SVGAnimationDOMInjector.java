@@ -65,7 +65,7 @@ public class SVGAnimationDOMInjector {
 
       String base = animHint.split(":")[0];
 
-      appendHoverCSS(svgRoot, doc, animHint);
+      appendHoverCSS(svgRoot, doc);
 
       // Hover-only mode (design-time surfaces): the hover-dim CSS injected above is enough for
       // highlighting to work, but the entrance animation must be suppressed. Return before
@@ -3573,7 +3573,7 @@ public class SVGAnimationDOMInjector {
     * <p>The {@code :has()} selector requires Chrome 105+, Firefox 121+, Safari 15.4+.
     * On older browsers the dim rules are silently ignored.
     */
-   private static void appendHoverCSS(Element svgRoot, Document doc, String animHint) {
+   private static void appendHoverCSS(Element svgRoot, Document doc) {
       String dim = String.format(java.util.Locale.US, "%.2f", AnimationConstants.HOVER_DIM_OPACITY);
       String tr  = AnimationConstants.HOVER_TRANSITION;
       appendStyle(svgRoot, doc,
@@ -3670,11 +3670,11 @@ public class SVGAnimationDOMInjector {
          // area series a smooth fade-in/fade-out on hover, exactly as for pure line series.
          ".inetsoft-line{pointer-events:all;transition:" + tr + "}");
 
-      appendMultiStyleHoverCSS(svgRoot, doc, animHint, dim);
+      appendMultiStyleHoverCSS(svgRoot, doc, dim);
    }
 
    /**
-    * Inject the cross-chart-type hover dim rules for a multi-style chart.
+    * Inject the cross-chart-type hover dim rules for a chart that draws both bars and points.
     *
     * <p>Every rule emitted by {@link #appendHoverCSS} has the same annotation class in its
     * {@code :has()} trigger as in its target, so an active bar can only ever dim other bars and an
@@ -3683,14 +3683,13 @@ public class SVGAnimationDOMInjector {
     * {@code inetsoft-point} groups, and hovering either left the other fully lit.  These rules dim
     * across the two types so the hovered VO is the only bright thing in the plot.
     *
-    * <p>Emitted only when the SVG really is a bar+point multi-style chart, because two
-    * <em>single</em>-style charts also draw both annotations and must keep their current behavior:
-    * <ul>
-    *   <li>Gantt — interval bars plus a {@code PointElement} milestone per bar.  A milestone marks
-    *       the end of its own bar, so a bar hover must not fade it.  Excluded by the gantt flag.</li>
-    *   <li>Box plot — boxes plus outlier points.  Excluded implicitly: {@code BoxVO} emits
-    *       {@code inetsoft-box}, so no {@code inetsoft-bar} group is present.</li>
-    * </ul>
+    * <p>Emitted whenever both annotations are present, which also covers gantt charts (interval
+    * bars plus milestone points).  A gantt milestone is not part of its row's bar: the milestone
+    * is an independent aggregate ({@code GanttChartInfo.getMilestoneField()}, forced to
+    * {@code CHART_POINT}) that only shares the category axis, so it dims like any other
+    * non-hovered measure — see bug #75879.  A box plot reaches these rules only through its
+    * outliers' own {@code inetsoft-point} groups paired with a real bar measure; boxes themselves
+    * emit {@code inetsoft-box} and are covered by their own cross rules.
     *
     * <p>Both directions are gated on {@code svg.ready} like every other point rule: point markers
     * animate their own opacity (A1), so dimming them before the entrance animation completes would
@@ -3698,14 +3697,8 @@ public class SVGAnimationDOMInjector {
     * carry no {@code inetsoft-active} class at all and are dimmed by the Angular directive's
     * inline-opacity mechanism instead.
     */
-   private static void appendMultiStyleHoverCSS(Element svgRoot, Document doc, String animHint,
-                                                String dim)
-   {
-      // The base hint is the first token and ":" is the separator, so a ":gantt" substring match is
-      // unambiguous (no base hint or other flag contains "gantt").
-      boolean gantt = animHint.contains(":" + SVGSupport.ANIMATION_FLAG_GANTT);
-
-      if(gantt || collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_BAR).isEmpty() ||
+   private static void appendMultiStyleHoverCSS(Element svgRoot, Document doc, String dim) {
+      if(collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_BAR).isEmpty() ||
          collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_POINT).isEmpty())
       {
          return;

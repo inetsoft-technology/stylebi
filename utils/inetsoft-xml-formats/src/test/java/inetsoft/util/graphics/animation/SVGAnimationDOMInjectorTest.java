@@ -332,12 +332,13 @@ class SVGAnimationDOMInjectorTest {
    }
 
    /**
-    * Gantt charts draw interval bars plus one {@code PointElement} milestone per bar.  A milestone
-    * marks the end of its own bar, so hovering the bar must not fade it — the cross-type rules are
-    * suppressed for the gantt hint even though both annotation classes are present.
+    * Gantt charts draw interval bars plus milestone points.  A milestone is an independent
+    * aggregate that only shares the category axis with the bars — not part of any bar's mark — so
+    * the cross-type rules apply to gantt exactly as they do to a bar+point multi-style chart
+    * (bug #75879).
     */
    @Test
-   void hoverCssMultiStyleCrossTypeDimSkippedForGantt() throws Exception {
+   void hoverCssMultiStyleCrossTypeDimAppliesToGantt() throws Exception {
       Document doc = newDocument();
       addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR, Map.of("row", "0", "col", "0"),
                     10, 10, 60, 20);
@@ -348,10 +349,14 @@ class SVGAnimationDOMInjectorTest {
          SVGSupport.ANIMATION_GROW + ":" + SVGSupport.ANIMATION_FLAG_GANTT);
       String css = allStyleContent(doc.getDocumentElement());
 
-      assertFalse(css.contains("svg.ready:has(.inetsoft-bar.inetsoft-active) .inetsoft-point"),
-                  "a gantt bar hover must not fade its own milestone");
-      assertFalse(css.contains("svg.ready:has(.inetsoft-point.inetsoft-active) .inetsoft-bar"),
-                  "a gantt milestone hover must not fade the bars");
+      assertTrue(
+         css.contains("svg.ready:has(.inetsoft-point.inetsoft-active) " +
+                      ".inetsoft-bar:not(.inetsoft-active)"),
+         "a gantt milestone hover must fade the bars");
+      assertTrue(
+         css.contains("svg.ready:has(.inetsoft-bar.inetsoft-active) " +
+                      ".inetsoft-point:not(.inetsoft-active)"),
+         "a gantt bar hover must fade the milestones");
    }
 
    @Test
@@ -1807,12 +1812,13 @@ class SVGAnimationDOMInjectorTest {
       assertEquals(milestoneDelay, parseDelay(labelStyle), 0.01,
                    "milestone label must fade in sync with the milestone marker");
 
-      // Bar hover must NOT dim milestone labels; point hover MUST dim other milestone labels.
-      // These rules are emitted globally by appendHoverCSS (not gated on the gantt flag); the
-      // assertions guard that the point-label class is wired into the correct hover rule.
+      // A milestone label dims with its marker: point hover dims the other milestones' labels
+      // (appendHoverCSS) and bar hover dims every milestone label (appendMultiStyleHoverCSS, which
+      // covers gantt since #75879).  The assertions guard that the point-label class is wired into
+      // both hover rules.
       String css = allStyleContent(doc.getDocumentElement());
-      assertFalse(css.contains(".inetsoft-bar.inetsoft-active) .inetsoft-point-label"),
-                  "bar hover must not dim milestone labels");
+      assertTrue(css.contains(".inetsoft-bar.inetsoft-active) .inetsoft-point-label:not(.inetsoft-active)"),
+                 "bar hover must dim milestone labels");
       assertTrue(css.contains(".inetsoft-point.inetsoft-active) .inetsoft-point-label:not(.inetsoft-active)"),
                  "point hover must dim other milestone labels");
    }
