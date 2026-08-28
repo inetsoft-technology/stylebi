@@ -52,9 +52,30 @@ import java.util.List;
       button = @Button(type = ButtonType.METHOD, method = "loadColumns")),
    @View1(type = ViewType.EDITOR, value = "columns", row = 9, col = 1, colspan = 3)
 })
-public class OneDriveQuery extends SelectableTabularQuery  {
+public class OneDriveQuery extends SelectableTabularQuery implements BrowsableQuery {
    public OneDriveQuery() {
       super(OneDriveDataSource.TYPE);
+   }
+
+   private static final List<String> ACCEPTED_EXTENSIONS =
+      List.of(".txt", ".csv", ".xls", ".xlsx");
+
+   @Override
+   public String getBrowsablePropertyName() {
+      return "path";
+   }
+
+   @Override
+   public List<String> getAcceptedExtensions() {
+      return ACCEPTED_EXTENSIONS;
+   }
+
+   @Override
+   public BrowsableQuery.BrowseListing browseChildren(String path, boolean recursive,
+                                                       List<String> acceptTypes, int maxEntries)
+      throws Exception
+   {
+      return OneDriveRuntime.listChildren(this, path, recursive, acceptTypes, maxEntries);
    }
 
    @Property(

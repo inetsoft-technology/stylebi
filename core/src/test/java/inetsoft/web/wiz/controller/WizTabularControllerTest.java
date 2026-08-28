@@ -25,23 +25,34 @@ import inetsoft.uql.DataSourceListingService;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.jdbc.JDBCDataSource;
-import inetsoft.uql.tabular.TabularDataSource;
+import inetsoft.uql.tabular.*;
+import inetsoft.uql.util.Config;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.MessageException;
 import inetsoft.web.portal.data.DataSourceDefinition;
 import inetsoft.web.portal.data.DatasourcesService;
+import inetsoft.web.wiz.model.WizTabularBrowseResult;
 import inetsoft.web.wiz.model.WizTabularListing;
 import inetsoft.web.wiz.model.WizTabularListings;
 import inetsoft.web.wiz.model.WizTabularSaveResult;
+import inetsoft.web.wiz.request.WizTabularBrowseRequest;
 import inetsoft.web.wiz.request.WizTabularCreateRequest;
+import inetsoft.web.wiz.service.FakeBrowsableQuery;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import inetsoft.web.wiz.service.WorksheetTableService;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedStatic;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.File;
+import java.nio.file.Path;
 import java.security.Principal;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -56,6 +67,33 @@ import static org.mockito.Mockito.*;
  */
 @Tag("core")
 class WizTabularControllerTest {
+   /**
+    * LayoutCreator resolves a view's display label through the connector's resource bundle via
+    * {@code Config.getConfig()} -- a Spring bean. There is no context in a plain unit test, so a
+    * stub answering no bundle is installed for the browse tests below, which are the first in
+    * this file to reach {@code browse()} and therefore the first to reach LayoutCreator at all.
+    * Mirrors TabularQueryContractSupportTest's identical setup.
+    */
+   @BeforeAll
+   static void installConfigContext() {
+      previousContext = ConfigurationContext.getContext();
+      Config config = mock(Config.class);
+      when(config.getResourceBundle(any())).thenReturn(null);
+
+      ApplicationContext springContext = mock(ApplicationContext.class);
+      when(springContext.getBean(Config.class)).thenReturn(config);
+      ConfigurationContext.getContext().setApplicationContext(springContext);
+   }
+
+   @AfterAll
+   static void clearConfigContext() {
+      if(previousContext != null) {
+         previousContext.setApplicationContext(null);
+      }
+   }
+
+   private static ConfigurationContext previousContext;
+
    private DatasourcesService datasourcesService;
    private SecurityEngine securityEngine;
    private XRepository xrepository;
@@ -455,5 +493,122 @@ class WizTabularControllerTest {
          assertEquals(HttpStatus.NOT_FOUND, e.getStatusCode());
          verify(datasourcesService, never()).getDataSourceFromListing(anyString());
       }
+   }
+
+   // ─── browseTabularFiles: BrowsableQuery connectors (e.g. OneDrive) ────────
+
+   private WizTabularBrowseResult browseWith(FakeBrowsableQuery query, WizTabularBrowseRequest request)
+      throws Exception
+   {
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(request.datasource())).thenReturn(query);
+
+         return controller.browseTabularFiles(request, principal);
+      }
+   }
+
+   @Test
+   void browsableQueryConnectorIsNoLongerRefused() throws Exception {
+      FakeBrowsableQuery query = new FakeBrowsableQuery();
+      query.setCanned(new BrowsableQuery.BrowseListing(
+         List.of(new BrowsableQuery.BrowseEntry("Test", "Test", true)), false));
+
+      WizTabularBrowseResult result = browseWith(query,
+         new WizTabularBrowseRequest("onedrive", "", null, false, false));
+
+      assertEquals(1, result.entries().size());
+      assertEquals("Test", result.entries().get(0).name());
+   }
+
+   @Test
+   void browsableQueryEntriesAndTruncatedComeFromTheCannedListingUnchanged() throws Exception {
+      FakeBrowsableQuery query = new FakeBrowsableQuery();
+      query.setCanned(new BrowsableQuery.BrowseListing(
+         List.of(new BrowsableQuery.BrowseEntry("Test/a.csv", "a.csv", false),
+                 new BrowsableQuery.BrowseEntry("Test/sub", "sub", true)),
+         true));
+
+      WizTabularBrowseResult result = browseWith(query,
+         new WizTabularBrowseRequest("onedrive", "Test", null, false, false));
+
+      assertEquals("onedrive", result.datasource());
+      assertEquals("Test", result.path());
+      assertTrue(result.truncated());
+      // Re-sorted folders-first (same stable order the local-file path uses), not an unsorted
+      // echo of the canned listing.
+      assertEquals(
+         List.of("Test/sub", "Test/a.csv"),
+         result.entries().stream().map(WizTabularBrowseResult.WizTabularBrowseEntry::path).toList());
+   }
+
+   @Test
+   void browsableQueryAllTruePassesAnEmptyAcceptTypesList() throws Exception {
+      FakeBrowsableQuery query = new FakeBrowsableQuery();
+      query.setAcceptedExtensions(List.of(".csv"));
+
+      browseWith(query, new WizTabularBrowseRequest("onedrive", "", null, true, false));
+
+      assertEquals(List.of(), query.getLastAcceptTypes());
+   }
+
+   @Test
+   void browsableQueryAllFalseUsesTheConnectorsOwnAcceptedExtensions() throws Exception {
+      FakeBrowsableQuery query = new FakeBrowsableQuery();
+      query.setAcceptedExtensions(List.of(".csv", ".txt"));
+
+      browseWith(query, new WizTabularBrowseRequest("onedrive", "", null, false, false));
+
+      assertEquals(List.of(".csv", ".txt"), query.getLastAcceptTypes());
+   }
+
+   @Test
+   void browsableQueryRejectsAPropertyNameOtherThanItsOwn() throws Exception {
+      FakeBrowsableQuery query = new FakeBrowsableQuery();
+
+      ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> browseWith(
+         query, new WizTabularBrowseRequest("onedrive", "", "bogusProperty", false, false)));
+
+      assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, e.getStatusCode());
+   }
+
+   @Test
+   void browsableQueryPropagatesAThrownFailureRatherThanReturningAnEmptyListing() throws Exception {
+      FakeBrowsableQuery query = new FakeBrowsableQuery();
+      query.setFailure(new IllegalStateException("token expired"));
+
+      assertThrows(IllegalStateException.class, () -> browseWith(
+         query, new WizTabularBrowseRequest("onedrive", "", null, false, false)));
+   }
+
+   /*
+    * The pre-existing local-file (ServerFile-shaped) path had zero test coverage before this run
+    * (confirmed independently by both the architect and the verifier during P1 -- see
+    * docs/teams/2026-08-28-onedrive-tabular-target/04-build.md). Backfilled here, alongside the
+    * new BrowsableQuery branch it now sits next to, rather than left as a separate follow-up: the
+    * fixture this needs (a File-typed browsable property) is cheap once FakeBrowsableQuery's own
+    * ConfigurationContext/MockedStatic scaffolding already exists in this file.
+    */
+   @Test
+   void localFileConnectorIsUnaffectedByTheNewBrowsableQueryBranch(@TempDir Path tempDir)
+      throws Exception
+   {
+      java.nio.file.Files.createDirectories(tempDir.resolve("sub"));
+      java.nio.file.Files.writeString(tempDir.resolve("sub/a.csv"), "a,b\n1,2\n");
+
+      FakeLocalFileQuery query = new FakeLocalFileQuery();
+      query.setRootFolder(tempDir.toString());
+
+      WizTabularBrowseResult result;
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery("serverfile")).thenReturn(query);
+
+         result = controller.browseTabularFiles(
+            new WizTabularBrowseRequest("serverfile", "", null, false, false), principal);
+      }
+
+      assertEquals(1, result.entries().size());
+      assertEquals("sub", result.entries().get(0).name());
+      assertTrue(result.entries().get(0).folder());
    }
 }
