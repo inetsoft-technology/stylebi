@@ -104,27 +104,17 @@ public class PrintDeviceLayoutPropertyService {
          VSPrintLayoutDialogModel printLayout = screensPane.getPrintLayout();
 
          if(printLayout == null) {
-            // No print layout configured on this viewsheet yet: seed the fields whose unset
-            // values are not merely wrong but fatal, BEFORE applying the patch.
-            //
-            // scaleFont: an omitted "scaleFont" key must land on 1.0f rather than the bare-field
-            // 0.0f a freshly-constructed model would otherwise carry through to the write
-            // untouched (the Hazard-3 regression this class exists to close).
-            //
-            // units: an omitted "units" key leaves the field null, and that null reaches
-            // ViewsheetPropertyDialogService's printInfo.setUnit(...) and then
-            // VSLayoutService.getPLayoutSize's switch(unit) -- which accepts only "inches" and
-            // "mm" -- where it throws NPE. The throw lands AFTER the patch has already mutated
-            // the live model, so the failed call persists a half-written layout, and every later
-            // write on this viewsheet then fails while re-reading it (taking manage_device_layout
-            // down with it, since both share setViewsheetInfo). "inches" matches what
-            // WizPrintLayoutBuilder already hardcodes for the same purpose.
+            // No print layout configured on this viewsheet yet: seed scaleFont at the safe
+            // default BEFORE applying the patch, so an omitted "scaleFont" key lands on 1.0f
+            // rather than the bare-field 0.0f a freshly-constructed model would otherwise carry
+            // through to the write untouched (the Hazard-3 regression this class exists to
+            // close).
             printLayout = new VSPrintLayoutDialogModel();
             printLayout.setScaleFont(1.0f);
-            printLayout.setUnits("inches");
          }
 
          applyPrintLayoutPatch(printLayout, resolvedPatch);
+         requireUnits(printLayout);
          screensPane.setPrintLayout(printLayout);
          dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);
       });
@@ -316,6 +306,36 @@ public class PrintDeviceLayoutPropertyService {
                throw new IllegalArgumentException(
                   "set_print_layout: unknown print-layout property \"" + entry.getKey() + "\".");
          }
+      }
+   }
+
+   /**
+    * Guarantees the print layout carries a usable {@code units}, after the patch has been applied
+    * and before anything writes it.
+    *
+    * <p>A null here is fatal rather than merely wrong: it reaches
+    * {@code ViewsheetPropertyDialogService}'s {@code printInfo.setUnit(...)} and then
+    * {@code VSLayoutService.getPLayoutSize}'s {@code switch(unit)} -- which recognises only
+    * {@code "inches"} and {@code "mm"} -- where it throws NPE. That throw lands <b>after</b> the
+    * patch has already mutated the live model, so the failed call persists a half-written layout,
+    * and every later write on the viewsheet then fails while re-reading it, taking
+    * {@code manage_device_layout} down with it since both share {@code setViewsheetInfo}.
+    *
+    * <p>This runs on every path rather than only when seeding a brand-new layout, because there
+    * are two other ways to arrive here with a null: a caller passing {@code "units": null}
+    * explicitly (which {@code applyPrintLayoutPatch} would otherwise write straight over the
+    * seeded value), and a pre-existing layout persisted before this guard existed.
+    *
+    * <p>{@code "inches"} matches what {@code WizPrintLayoutBuilder} already hardcodes for the
+    * same purpose. An unrecognised non-null value is left alone: {@code getPLayoutSize} falls
+    * through its {@code default} for those, which is a wrong scale but not a crash, and silently
+    * rewriting a caller's explicit value would be its own surprise.
+    */
+   private static void requireUnits(VSPrintLayoutDialogModel printLayout) {
+      String units = printLayout.getUnits();
+
+      if(units == null || units.isBlank()) {
+         printLayout.setUnits("inches");
       }
    }
 
