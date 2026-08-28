@@ -1,5 +1,12 @@
 # Chart Card — Roadmap
 
+**Amended 2026-08-28 (not a revision — the seventeenth still stands below).** Two additions, both in "What
+to pick up next" and both mirrored in the dependency picture: **decision 10 / bookmarks is IN FLIGHT in a
+parallel session**, so check for its branch before starting it; and **a new item enters at #2 — defaulting
+`viewsheet.modernVisualization` to true**, which must follow bookmarks because the gate being off is what
+currently confines decision 10's defect to opted-in dashboards. The seventeenth revision's note follows.
+
+
 **Date:** 2026-08-27 (seventeenth revision — **S / §04, the card's sizing and spacing, has SHIPPED, and this file costed it XL when it was not.** `2afb06bc1` carries the 12px card inset and the 4 / 8 / 14(+2) interior gap scale, `2b86a9fa3` two follow-ups. The estimate was wrong for a reason that generalises to every remaining item taken from the external set: it assumed binding §04's gaps meant introducing a spacing scale into a subsystem CSS cannot reach, and three of the four gaps turned out to be **tiered `CompositeValue`s that `GraphGenerator` already threaded, in a class that already held a `VizContext`**. The work was seeding DEFAULT tiers on values that existed. **Check for an existing tier before costing anything else from that set.** **FOUR of §04's own numbers are disproved in code** and each is recorded with its evidence in the new [chart-card-geometry-decisions.md](./chart-card-geometry-decisions.md): `padding` already IS the card inset with the title lane inside it; there is no graph outer margin to zero, confirmed at render, because the band §04 measured was that same padding seen from inside an exported SVG; the legend panel's border and fill return ~2px, not 8–10px; and the gaps needed no new scale. **§05's legend is CLOSED BY DECISION rather than deferred** — every mechanical and palette item was already in, and what the drawing still asks for is declined or moot, reasoning in the dependency picture. **The one thing nobody has answered: the plot lost ~28px of width and ~14px of height, where §2.1 predicted ~19px**, because the difference was §04-b's legend return and that return does not exist. **What is left of §04 is one item, `--inet-chart-line-height` at 1.2.** Bookmarks is still first and still the only thing between this branch and a release. The sixteenth revision's note follows — **L″, the geometric suppression, has shipped, and the anchored strip is no longer gated on density anywhere.** The predicate now measures the assembly's own lane: `lane >= 24` draws the strip, below it draws no chrome at all, and a hidden title yields lane 0 so one rule covers both populations. **The threshold shipped at 26 and was corrected to 24 the same day** — 26 bought 1px of clearance whose only stated purpose was keeping the pill's border off the lane edge, §10.2 deletes that border, and lanes of 24 and 25 were losing their toolbar while the strip physically fitted. `GuiTool.isVizDensityAtLeastCompact`, `rightEdgeReserve` and `SORT_CONTROL_RESERVE` are all deleted, so title-hidden tables get 22px of plot back. **One design premise in L″'s own spec was false and is corrected there rather than quietly dropped:** it claimed touch loses its action route when a lane suppresses, but mobile never used this mechanism — `mini-toolbar.component.html:35` hides the buttons on mobile and `viewer-app.component.html:304` renders a page-level `viewer-mobile-toolbar` fed the selected assembly's actions. The fifteenth revision's note follows: **L′, the title lane height row, has shipped, and with it the last of the six items the seed mark existed to free.** The mark has now paid for all six. Nine included assembly types take the 20/26/30 lane at their org's density, the three excluded types are confirmed unmoved, and title and selection cell height each gained a follow-the-default-density checkbox that replaces the value comparison the dialogs used to infer authorship from. It is off the ranking, in the Done table, and it makes L″ startable for the first time — under decision 3's one-directional rule, which is the thing not to get wrong next. The fourteenth revision's note follows: **§04, the card's sizing and spacing model, is now tracked
 here.** It is the largest body of design in the external set with no roadmap entry, no plan and no audit,
 and it is a server-side geometry change rather than a token sweep — see "The next long pole" below.
@@ -184,6 +191,20 @@ rather than repairing it — the whole of its content is one reading of the two 
      spent five rounds closing everywhere else. The card radius rides in the same
      VSCompositeFormat. Re-derive the property list from the code, not from decision 10's table.
 
+  GATE DEFAULT. viewsheet.modernVisualization ships true            NEW 2026-08-28 · FOLLOWS BOOKMARKS
+     The property is unset today, so every read resolves false and modern is opt-in per org. Shipping
+     it true is what turns the whole initiative on by default. Four reads resolve it —
+     `VSDensityDefaults.isModern` (`:42`), `LookAndFeelService` (`:59`), `PortalController` (`:115`)
+     and `CoreLifecycleService` (`:305`) — plus the EM checkbox's own unset state.
+     It is a CREATION-TIME switch (VizContext.of(VizMark)'s contract), so flipping it does not
+     re-render one existing dashboard: it decides what a NEW assembly is stamped with, and it
+     re-opens the composer's Modernize offer everywhere.
+     WHY IT FOLLOWS BOOKMARKS: while the gate is off, decision 10's bookmark defect reaches only
+     dashboards an author opted in. Default-true makes every newly created dashboard marked, so the
+     defect becomes the common path rather than the opt-in one. Do not flip this ahead of it.
+     Also re-reads the srinter tooltip at `srinter.properties:4508`, which is written for an
+     opt-in switch.
+
      P4 unblocked the first of the six — L' — directly, ahead of P5. P5 gated four of the other five. P1 and
      P2 unblocked none of the six, by design; P3 unblocked P4's testability rather than any of the six; P4
      was the first phase whose landing moved one.
@@ -297,12 +318,27 @@ since the last one, and the fourth is the reason the table below has a new first
   said "release needs P6 + bookmarks" since 2026-08-19 and P6 has absorbed all the attention since. It is
   first now by elimination as much as by weight: nothing else is between this branch and a release.
 
+**Amended 2026-08-28, not re-derived — two facts, neither of which changes the ranking's reasoning.**
+The file's instruction is to re-derive rather than repair, and this is deliberately not that: nothing in
+the picture above moved, so the ranking below still reads correctly and only gains an entry and a status.
+
+- **#1 is IN FLIGHT.** A parallel session is implementing decision 10's bookmark handling — the restore-side
+  resolution for Revert and Modernize. Do not start it a second time; check for its branch before picking
+  anything off this table. Everything the three notes below say about its surface still stands and is what
+  that session is working against.
+- **A new item enters at #2: default `viewsheet.modernVisualization` to true.** It is the switch that turns
+  the initiative on for everyone rather than per opted-in org, and it is the first item since P6 that changes
+  what an untouched customer sees. It sits behind bookmarks for the reason in the dependency picture: the
+  gate being off is what currently keeps decision 10's defect to opted-in dashboards, and default-true makes
+  every newly created dashboard marked. §04's last item and the dark palette each move down one.
+
 | # | Item | Impact | Effort | Unblocks | Risk |
 |---|---|---|---|---|---|
 | 1 | **Decision 10 — resolve chrome on bookmark restore** | the last release-gate item, and a correctness defect rather than a polish one: a bookmark taken before a Revert silently un-reverts the assembly | **M** — four restore points across three classes, not the two this row used to claim: `ChartVSAssembly` writes `state_info` (`:470`), `state_descriptor` (`:479`) and `state_format` (`:488`), `TableVSAssembly` writes `state_tableformat` (`:161`) and `CrosstabVSAssembly` writes `state_crosstabformat` (`:362`). `CalcTableVSAssembly` writes only `state_calctable` (`:503`) and carries no format, so it is out of scope | the release | see the three notes below; the surface is wider than decision 10 was written against |
-| 2 | **§04's last item — `--inet-chart-line-height` at 1.2** | closes §04 completely; the rest of it shipped in `2afb06bc1` + `2b86a9fa3` | **M** — server-painted text, so Java font metrics, no CSS half despite the token-shaped name | closing §04 | low-med. Touches every chart text run, so budget the export pass |
-| 3 | **Chart interior dark palette** | the last visible hole in a dark mode that is otherwise complete | **M-L**, design first — `GDefaults` has no dark branch to reconcile against | nothing | med |
-| 4 | The ungated cheap items | low each, additive | **S** each | nothing | none |
+| 2 | **Default `viewsheet.modernVisualization` to true** | the switch that makes the whole initiative the product's look rather than an opt-in; first item since P6 that changes what an untouched customer sees | **S** in code — four gate reads (`VSDensityDefaults:42`, `LookAndFeelService:59`, `PortalController:115`, `CoreLifecycleService:305`) plus the EM checkbox's unset state and the `srinter.properties:4508` tooltip, which is worded for an opt-in switch. The cost is the decision and the sign-off, not the diff | the rollout as a default | **the highest-risk item on this table, and the risk is not in the code.** Creation-time only, so no existing dashboard re-renders — but every new one is stamped, which promotes decision 10's bookmark defect from an opt-in path to the common one. Must follow #1 |
+| 3 | **§04's last item — `--inet-chart-line-height` at 1.2** | closes §04 completely; the rest of it shipped in `2afb06bc1` + `2b86a9fa3` | **M** — server-painted text, so Java font metrics, no CSS half despite the token-shaped name | closing §04 | low-med. Touches every chart text run, so budget the export pass |
+| 4 | **Chart interior dark palette** | the last visible hole in a dark mode that is otherwise complete | **M-L**, design first — `GDefaults` has no dark branch to reconcile against | nothing | med |
+| 5 | The ungated cheap items | low each, additive | **S** each | nothing | none |
 
 **Re-derived a third time on 2026-08-25, after L′ shipped in this commit.** L′ comes off the table because it is built, reviewed and seen in a browser — nine included assembly types checked at three densities, the three excluded types confirmed unmoved, export agreement across PDF, PNG and Excel, and the composer round-trip for the new checkbox. It is the last of the six items the seed mark existed to free, so **the mark has now paid for all six**. §04 and the cheap items each move up one; nothing else changed, and bookmarks stays first because it is still the only thing between this branch and a release.
 
@@ -1300,9 +1336,20 @@ darken slightly, over near-black it lightens a long way. So `.chart-object-canva
 `.viz-modern` rule (`_themeable.scss:1442-1445`), the fill stays the brand accent it is meant to be in both
 modes, and no dark alpha, token or rule was added. Do not reopen this as an unexamined item.
 
-**The title band becomes unfilled** — [decisions](./chart-card-open-item-decisions.md) §1. No dependency on
-the seed mark. Server-rendered and therefore export-affecting, so budget the manual pass, and show it to the
-sibling project first: it breaks the title-bar/table-header equality their §05 endorses.
+**The title band becomes unfilled — DESIGNED 2026-08-28, and the design moved three of §1's premises.**
+The mechanism, the scope and the call-site split are in
+[2026-08-28-title-lane-unfilled-design.md](./2026-08-28-title-lane-unfilled-design.md); read it before
+costing this from §1's text. What §1 did not have: **the rule does not exist yet** — `titleBorderColor()`
+has no production caller and a modern chart's title format carries no borders value, so this introduces
+the hairline rather than swapping the fill for it; **the treatment is scoped to the chart and the three
+table types**, with the selection and input family deferred in code rather than in prose; and **clearing
+the fill is not the mirror of setting one**, because `VSFormat.getBackground():276` falls back to the `bg`
+field, so a half-clear leaves a runtime background alive. Read-time substitution, deliberately — a
+creation-time seed would land in `state_format` / `state_tableformat`, the surface the bookmark work is
+being built against right now. Both export paths already thread the border except one block in
+`AbstractVSExporter`; print layout needs no change at all. Still no dependency on the seed mark, still
+export-affecting, and it still breaks the title-bar/table-header equality the sibling project's §05
+endorses — show it to them before it merges.
 
 **The card radius dropped 12px to 6px — SHIPPED 2026-08-25, so this entry is closed.**
 `CARD_CORNER_RADIUS` is now 6 (`VSObjectChromeDefaults.java:107`), matching `--inet-radius-xl`
@@ -1393,6 +1440,15 @@ hashes once they exist, the same way the M-phases were, rather than leaving the 
 
 ## Still undecided
 
+- **Whether `viewsheet.modernVisualization` ships true, and on which release.** Raised 2026-08-28. The
+  mechanism is settled and small — the property is simply unset today — so what is open is the product
+  call, not the code. Three things the decision needs an answer on: whether default-true waits for
+  decision 10 to land (the dependency picture says it must, because the gate is what currently confines
+  that defect to opted-in dashboards); whether an upgrading customer who has never seen the EM checkbox
+  should find their *next* new dashboard modern with no action taken; and whether the two surfaces that
+  still follow the gate rather than the mark — `AbstractChartInfo.getTooltipStyle` and
+  `VSChartInteractionDefaults.isInlineSvg` — become the default everywhere the moment it flips, which
+  turns two accepted costs into two shipped behaviours.
 - ~~**The four sub-gates.**~~ **Answered 2026-08-14 and shipped in P2: all four are deleted**, and
   `VizContext` keeps its three fields. They were rollout scaffolding — undocumented, absent from EM,
   referenced nowhere outside the six classes that read them, default-on, and one with no test. Deleting them
@@ -1462,6 +1518,12 @@ needed, or simply removed if the parenthetical has lost its explanatory value by
   the next sync**
 - [chart-card-open-item-decisions.md](./chart-card-open-item-decisions.md) — the title band, dark scope and
   range slider decisions, with the consequences each triggers
+- [2026-08-28-title-lane-unfilled-design.md](./2026-08-28-title-lane-unfilled-design.md) — **how the
+  unfilled title lane is built**: the read-time mechanism scoped by assembly type, the 18 call sites split
+  9 convert / 9 stay, where the border reaches on each of the five render paths and the one place it does
+  not, and the `getBackground()` clear trap. Supersedes
+  [chart-card-open-item-decisions.md](./chart-card-open-item-decisions.md) §1 on mechanism and scope; §1
+  remains the authority on *why* the band is unfilled
 - [chart-card-anchored-strip-lane-decisions.md](./chart-card-anchored-strip-lane-decisions.md) — which v3
   document governs the title lane, the strip's size and containment, and what suppresses it. **Overrides
   `Chart Card Spec v3.dc.html` §04's lane model and §03's title-hidden overlay**
