@@ -120,6 +120,29 @@ public final class VizModernizeUtil {
       return targets.size();
    }
 
+   /**
+    * Re-resolve an assembly's seeded chrome after its state has been parsed. Restore replaces stored
+    * formats and descriptors without consulting the mark, so the chrome that arrives can disagree
+    * with the assembly it lands on: a bookmark taken before a Revert would otherwise un-revert it,
+    * and one taken before Modernize would leave legacy chrome on a marked assembly.
+    *
+    * Safe on the mark: most types never write it into state, and the few that serialize their
+    * whole info have the mark restored by their caller before this runs, so `info` always carries
+    * the live assembly's own mark by the time it gets here regardless of what the blob said.
+    * seedChromeDefaults writes DEFAULT tiers and the palette only, so a user format the restored
+    * state legitimately carried survives untouched.
+    *
+    * Per-assembly only. The sheet's shared colour frames are cleared once at the end of
+    * Viewsheet.parseState, because a render prefers them over an assembly's own.
+    *
+    * Null-tolerant: a partially constructed assembly can have no info yet.
+    */
+   public static void reseedAfterRestore(VSAssemblyInfo info) {
+      if(info != null) {
+         info.seedChromeDefaults(VizContext.of(info));
+      }
+   }
+
    /** The unmarked half of the sheet's own content. Modernize's targets. */
    private static List<VSAssemblyInfo> unmarked(Viewsheet vs) {
       return collect(vs, info -> info.getVizMark() == null);

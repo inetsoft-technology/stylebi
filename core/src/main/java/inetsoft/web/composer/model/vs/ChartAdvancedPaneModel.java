@@ -158,7 +158,21 @@ public class ChartAdvancedPaneModel implements Serializable {
          return;
       }
 
+      // captured before the pane overwrites them, so a real edit can be told apart from an Apply
+      // that never touched the plot tab - stamping on every Apply would pin values nobody set,
+      // exactly what the padding pane's own history warned against
+      boolean smoothLinesBefore = plotDesc.isSmoothLines();
+      double barCornerRadiusBefore = plotDesc.getBarCornerRadius();
+
       chartPlotOptionsPaneModel.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      if(plotDesc.isSmoothLines() != smoothLinesBefore) {
+         chartAssemblyInfo.setUserSmoothLines(true);
+      }
+
+      if(plotDesc.getBarCornerRadius() != barCornerRadiusBefore) {
+         chartAssemblyInfo.setUserBarCornerRadius(true);
+      }
 
       // updateChartPlotOptionsPaneModel uses design-time checkType which doesn't see DC's
       // runtime bar conversion, so it incorrectly resets barRoundAllCorners=false.

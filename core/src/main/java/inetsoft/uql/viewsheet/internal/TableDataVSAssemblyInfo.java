@@ -1586,8 +1586,17 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    @Override
    protected void seedChromeDefaults(VizContext ctx) {
       super.seedChromeDefaults(ctx);
-      getFormat().getDefaultFormat().setBackgroundValue(
-         VSObjectChromeDefaults.cardBackgroundCss(ctx));
+
+      // unlike the chart's unconditional write: tables and crosstabs are created with fill=false
+      // precisely so they have no DEFAULT background (see initDefaultFormat's comment above), so
+      // the legacy branch clears it back to that same absence instead of leaving a stale modern
+      // value in place - Revert must match a table that was never modernized, not almost match it
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         objFormat.getDefaultFormat().setBackgroundValue(
+            ctx.modern ? VSObjectChromeDefaults.cardBackgroundCss(ctx) : null);
+      }
    }
 
    /**
