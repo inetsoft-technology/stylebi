@@ -101,21 +101,38 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    @Override
    protected void seedChromeDefaults(VizContext ctx) {
       super.seedChromeDefaults(ctx);
-      getFormat().getDefaultFormat().setBackgroundValue(
-         VSObjectChromeDefaults.cardBackgroundCss(ctx));
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         objFormat.getDefaultFormat().setBackgroundValue(
+            VSObjectChromeDefaults.cardBackgroundCss(ctx));
+      }
+
       PlotDescriptor plotDesc = getChartDescriptor().getPlotDescriptor();
 
       if(ctx.modern) {
-         plotDesc.setBarCornerRadius(0.3);
-         plotDesc.setSmoothLines(true);
+         // an author-set value has no tier to protect it, so the flag stands in: skip the write
+         // on both branches or Revert would destroy the author's value instead of restore doing it
+         if(!isUserBarCornerRadius()) {
+            plotDesc.setBarCornerRadius(0.3);
+         }
+
+         if(!isUserSmoothLines()) {
+            plotDesc.setSmoothLines(true);
+         }
       }
       else {
          // Revert calls this with an unmarked context and needs the legacy values written, not
          // left alone. Value-identical at gate-off creation, where both fields already hold these.
-         plotDesc.setBarCornerRadius(0);
+         if(!isUserBarCornerRadius()) {
+            plotDesc.setBarCornerRadius(0);
+         }
+
          // smoothLines also has a chart-type default, so the legacy value is type-dependent: a
          // constant false would straight-line an Area chart no legacy Area chart ever was.
-         plotDesc.setSmoothLines(legacySmoothLines());
+         if(!isUserSmoothLines()) {
+            plotDesc.setSmoothLines(legacySmoothLines());
+         }
       }
 
       // seedPalette is total across the mark, so no ctx.modern check is needed here
@@ -1378,6 +1395,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       writer.print(" summarySortCol=\"" + getSummarySortCol() + "\"");
       writer.print(" summarySortVal=\"" + getSummarySortValValue() + "\"");
       writer.print(" userPadding=\"" + isUserPadding() + "\"");
+      writer.print(" userBarCornerRadius=\"" + isUserBarCornerRadius() + "\"");
+      writer.print(" userSmoothLines=\"" + isUserSmoothLines() + "\"");
 
       if(cubeType != null) {
          writer.print(" cubeType=\"" + cubeType + "\"");
@@ -1415,6 +1434,14 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // resolver's comparison against the creation default decides
       String userPaddingProp = Tool.getAttribute(element, "userPadding");
       setUserPadding("true".equalsIgnoreCase(userPaddingProp));
+
+      // same shape as userPadding, but with no resolver fallback behind the flag: a missing
+      // attribute means no opinion and seedChromeDefaults writes the mark-appropriate value
+      String userBarCornerRadiusProp = Tool.getAttribute(element, "userBarCornerRadius");
+      setUserBarCornerRadius("true".equalsIgnoreCase(userBarCornerRadiusProp));
+
+      String userSmoothLinesProp = Tool.getAttribute(element, "userSmoothLines");
+      setUserSmoothLines("true".equalsIgnoreCase(userSmoothLinesProp));
 
       cubeType = Tool.getAttribute(element, "cubeType");
 
@@ -1814,6 +1841,16 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       if(userPadding != ninfo.userPadding) {
          userPadding = ninfo.userPadding;
+         result = true;
+      }
+
+      if(userBarCornerRadius != ninfo.userBarCornerRadius) {
+         userBarCornerRadius = ninfo.userBarCornerRadius;
+         result = true;
+      }
+
+      if(userSmoothLines != ninfo.userSmoothLines) {
+         userSmoothLines = ninfo.userSmoothLines;
          result = true;
       }
 
@@ -2779,6 +2816,36 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
+    * Whether the author set the plot's bar corner radius. Distinguishes a deliberate value from
+    * the mark-dependent seed, so seedChromeDefaults substitutes for the latter only.
+    */
+   public boolean isUserBarCornerRadius() {
+      return userBarCornerRadius;
+   }
+
+   /**
+    * Set whether the bar corner radius was set by the author.
+    */
+   public void setUserBarCornerRadius(boolean userBarCornerRadius) {
+      this.userBarCornerRadius = userBarCornerRadius;
+   }
+
+   /**
+    * Whether the author set the plot's smooth-lines option. Distinguishes a deliberate value from
+    * the mark-dependent seed, so seedChromeDefaults substitutes for the latter only.
+    */
+   public boolean isUserSmoothLines() {
+      return userSmoothLines;
+   }
+
+   /**
+    * Set whether the smooth-lines option was set by the author.
+    */
+   public void setUserSmoothLines(boolean userSmoothLines) {
+      this.userSmoothLines = userSmoothLines;
+   }
+
+   /**
     * The card inset, resolved against the assembly's mark. Overridden rather than resolved at each
     * read site so the exporters, the report converter, the annotation placement and the browser
     * model all follow untouched. Persistence is unaffected: VSAssemblyInfo's writeAttributes,
@@ -3023,6 +3090,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    private DynamicValue2 summarySortCol;
    private DynamicValue2 summarySortVal;
    private boolean userPadding = false;
+   private boolean userBarCornerRadius = false;
+   private boolean userSmoothLines = false;
 
    private static final Logger LOG = LoggerFactory.getLogger(ChartVSAssemblyInfo.class);
 }

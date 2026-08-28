@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Tool;
 import org.w3c.dom.Element;
@@ -237,8 +238,12 @@ public class ViewsheetVSAssemblyInfo extends VSAssemblyInfo {
    @Override
    protected void seedChromeDefaults(VizContext ctx) {
       super.seedChromeDefaults(ctx);
-      getFormat().getDefaultFormat().setBackgroundValue(
-         ctx.modern ? VSObjectChromeDefaults.pageBackgroundCss(ctx) : "#f5f5f5");
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         objFormat.getDefaultFormat().setBackgroundValue(
+            ctx.modern ? VSObjectChromeDefaults.pageBackgroundCss(ctx) : "#f5f5f5");
+      }
    }
 
    private int primaryCount = 0;

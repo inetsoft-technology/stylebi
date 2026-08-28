@@ -248,6 +248,23 @@ class SeedChromeDefaultsTest {
                    objectDefault(new Viewsheet().getVSAssemblyInfo()).getBackgroundValue());
    }
 
+   @Test
+   void anUnmarkedTableGetsNoDefaultBackgroundFromTheHook() {
+      // tables and crosstabs are created with fill=false precisely so they have no DEFAULT
+      // background (see the "do not set default background" comment in initDefaultFormat), and
+      // an unconditional write here would put one onto every pre-branch, unmarked table the
+      // first time its chrome is re-seeded
+      gateOff();
+      TableVSAssemblyInfo info = newTable();
+      assertNull(objectDefault(info).getBackgroundValue(),
+                 "precondition: a fresh legacy table has no DEFAULT background");
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertNull(objectDefault(info).getBackgroundValue(),
+                 "an unmarked table must not gain a DEFAULT background from the hook");
+   }
+
    // ---- the chart's plot seeds -----------------------------------------------------------------
 
    @Test
@@ -564,6 +581,38 @@ class SeedChromeDefaultsTest {
       assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, fmt.getBorderColorsValue().topColor,
                    "so it seeds the legacy border, matching what it will read");
       assertEquals(0, fmt.getRoundCornerValue(), "and no card radius");
+   }
+
+   // ---- malformed restore data: the hook must not NPE on a missing OBJECTPATH format ---------
+
+   @Test
+   void theChartHookToleratesAMissingObjectFormat() {
+      // the hook used to run only on freshly constructed objects, which always have an
+      // OBJECTPATH format; it now runs on data parsed from a blob, where one malformed assembly
+      // missing OBJECTPATH must not turn a restore into an NPE that aborts the whole sheet.
+      // setFormat(null) is how OBJECTPATH actually goes missing (FormatInfo.setFormat removes
+      // the map entry), standing in for a blob whose formatInfo node never carried one.
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setFormat(null);
+      assertNull(info.getFormat(), "precondition: no OBJECTPATH format installed");
+      assertDoesNotThrow(() -> info.seedChromeDefaults(VizContext.ofGate()));
+   }
+
+   @Test
+   void theTableDataHookToleratesAMissingObjectFormatUnderTheGate() {
+      gateOn();
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setFormat(null);
+      assertNull(info.getFormat(), "precondition: no OBJECTPATH format installed");
+      assertDoesNotThrow(() -> info.seedChromeDefaults(VizContext.ofGate()));
+   }
+
+   @Test
+   void theSheetHookToleratesAMissingObjectFormat() {
+      ViewsheetVSAssemblyInfo info = new ViewsheetVSAssemblyInfo();
+      info.setFormat(null);
+      assertNull(info.getFormat(), "precondition: no OBJECTPATH format installed");
+      assertDoesNotThrow(() -> info.seedChromeDefaults(VizContext.ofGate()));
    }
 
    @Test

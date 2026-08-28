@@ -2127,6 +2127,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       // annotation assemblies firstly for DataVSAssembly and OutputVSAssembly
       Map<String, Element> clist = new HashMap<>();
       List<Element> vsAnno = new ArrayList<>();
+      // the mark of each viewsheet-scoped annotation (and its rectangle) removed below, captured
+      // so the fresh assembly createVSAssembly builds from the state blob further down gets the
+      // live mark back instead of keeping whatever mark the blob carried
+      Map<String, VizMark> vsAnnoMarks = new HashMap<>();
       // @by skyf, remove all old annotations firstly.
       Viewsheet vs = VSUtil.getTopViewsheet(this);
 
@@ -2138,9 +2142,16 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                String rect = ainfo.getRectangle();
 
                if(rect != null) {
+                  VSAssembly rectAssembly = (VSAssembly) getAssembly(rect);
+
+                  if(rectAssembly != null) {
+                     vsAnnoMarks.put(rect, rectAssembly.getVSAssemblyInfo().getVizMark());
+                  }
+
                   removeAssembly(rect);
                }
 
+               vsAnnoMarks.put(ainfo.getAbsoluteName(), ainfo.getVizMark());
                removeAssembly(ainfo.getAbsoluteName());
             }
          }
@@ -2238,6 +2249,14 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          VSAssembly assembly = AbstractVSAssembly.createVSAssembly(vsAnnoElement, vs);
 
          if(assembly != null) {
+            VSAssemblyInfo assemblyInfo = assembly.getVSAssemblyInfo();
+            String assemblyName = assembly.getAbsoluteName();
+
+            if(assemblyInfo != null && vsAnnoMarks.containsKey(assemblyName)) {
+               assemblyInfo.setVizMark(vsAnnoMarks.get(assemblyName));
+            }
+
+            VizModernizeUtil.reseedAfterRestore(assemblyInfo);
             vs.addAssembly(assembly);
          }
       }
@@ -2311,6 +2330,16 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             }
          }
       }
+
+      // a render clones the sheet's shared frame in preference to an assembly's own, so the
+      // per-assembly reseed above is not enough on its own: the stale shared frame has to go or a
+      // restored palette keeps rendering. Unconditional because restore has no equivalent of
+      // revert's target list to test, and the cache rebuilds lazily on the next render.
+      //
+      // dimensionColors is not touched here: it is persisted asset content (a user's fixed
+      // cross-chart colour assignment), writeState never emits it, and nothing rebuilds it -
+      // clearing it here would just delete the user's data with no corresponding restore.
+      clearSharedFrames();
    }
 
    /**
