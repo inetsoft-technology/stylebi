@@ -24,6 +24,7 @@ import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.*;
+import inetsoft.uql.schema.XTypeNode;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.credential.*;
 import org.apache.commons.io.IOUtils;
@@ -38,10 +39,13 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -139,6 +143,63 @@ class ODataRuntimeTests {
       finally {
          table.dispose();
       }
+   }
+
+   @Test
+   void getOutputColumnsReturnsScalarPropertiesButNotNavigationProperties() throws Exception {
+      stubFor(get(urlPathEqualTo("/V4/OData/OData.svc/%24metadata"))
+                 .willReturn(okXml(readXml("getOutputColumns.metadata.xml"))));
+
+      ODataQuery query = new ODataQuery();
+      query.setDataSource(dataSource);
+      query.setName("OData Test Query");
+      query.setEntity("Products");
+
+      XTypeNode[] columns = query.getOutputColumns();
+
+      assertEquals(3, columns.length);
+      assertEquals("ID", columns[0].getName());
+      assertEquals("Name", columns[1].getName());
+      assertEquals("Price", columns[2].getName());
+      assertTrue(Arrays.stream(columns).noneMatch(c -> "Category".equals(c.getName())));
+
+      verify(exactly(1), getRequestedFor(urlPathEqualTo("/V4/OData/OData.svc/%24metadata")));
+   }
+
+   @Test
+   void getOutputColumnsDoesNotThrowWhenMetadataRequestFails() {
+      stubFor(get(urlPathEqualTo("/V4/OData/OData.svc/%24metadata"))
+                 .willReturn(aResponse().withStatus(500)));
+
+      ODataQuery query = new ODataQuery();
+      query.setDataSource(dataSource);
+      query.setName("OData Test Query");
+      query.setEntity("Products");
+
+      XTypeNode[] columns = query.getOutputColumns();
+
+      assertNotNull(columns);
+      assertEquals(0, columns.length);
+   }
+
+   @Test
+   void getOutputColumnsDoesNotThrowWhenMetadataIsMalformed() {
+      stubFor(get(urlPathEqualTo("/V4/OData/OData.svc/%24metadata"))
+                 .willReturn(okXml("this is not well-formed xml <edmx:Edmx>")));
+
+      ODataQuery query = new ODataQuery();
+      query.setDataSource(dataSource);
+      query.setName("OData Test Query");
+      query.setEntity("Products");
+
+      XTypeNode[] columns = query.getOutputColumns();
+
+      assertNotNull(columns);
+      assertEquals(0, columns.length);
+   }
+
+   private String readXml(String file) throws IOException {
+      return readJson(file);
    }
 
    private Object[][] readExpected(String file) throws IOException {
