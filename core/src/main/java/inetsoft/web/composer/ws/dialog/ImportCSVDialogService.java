@@ -1004,15 +1004,19 @@ public class ImportCSVDialogService {
          csvmax = SreeEnv.getProperty("csv.import.max");
       }
 
-      if(csvmax != null && file.length() > Long.parseLong(csvmax)) {
-         long sizeK = Long.parseLong(csvmax) / 1024;
+      Long maxBytes = parseImportMax(csvmax);
+
+      if(maxBytes != null && file.length() > maxBytes) {
+         long sizeK = maxBytes / 1024;
          long sizeM = sizeK / 1024;
          String sizeStr = sizeM > 0 ? sizeM + "M" : sizeK + "K";
          String msg = Catalog.getCatalog().getString("common.csvmax", sizeStr);
 
          // when using excel max for excel file, hint to the user to use CSV instead
-         if(!csv && csvImportMax != null && excelImportMax != null) {
-            long csvSizeM = Long.parseLong(csvImportMax) / 1024 / 1024;
+         Long csvImportMaxBytes = !csv ? parseImportMax(csvImportMax) : null;
+
+         if(csvImportMaxBytes != null && excelImportMax != null) {
+            long csvSizeM = csvImportMaxBytes / 1024 / 1024;
             msg = Catalog.getCatalog().getString("common.excelmax", sizeM, csvSizeM);
          }
 
@@ -1027,6 +1031,24 @@ public class ImportCSVDialogService {
       }
 
       return false;
+   }
+
+   /**
+    * Parses an excel.import.max/csv.import.max value, treating a malformed value as unbounded
+    * (logged, not thrown) so an admin typo cannot fail every import until fixed.
+    */
+   private static Long parseImportMax(String value) {
+      if(value == null) {
+         return null;
+      }
+
+      try {
+         return Long.parseLong(value);
+      }
+      catch(NumberFormatException e) {
+         LOG.warn("Ignoring non-numeric excel.import.max/csv.import.max value: {}", value);
+         return null;
+      }
    }
 
    private static void populateResultMap(HashMap<String, Object> resultMap,
