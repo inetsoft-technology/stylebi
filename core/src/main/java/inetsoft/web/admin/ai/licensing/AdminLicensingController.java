@@ -77,11 +77,19 @@ public class AdminLicensingController {
          .collect(Collectors.toList()));
    }
 
+   /**
+    * {@code key} is a query parameter, not a {@code {key}} path-variable segment -- 07-fix-r1-java.md:
+    * this repo's embedded Tomcat 10.1.x rejects a literal {@code %2F} in a request URI by default
+    * (`encodedSolidusHandling`), so a candidate key string containing a slash would 400 before ever
+    * reaching Spring MVC routing, not get this method's own clean {@code found: false} miss --
+    * the same defect class (and the same fix) Viewsheets' own {@code get_viewsheet_folder} found and
+    * applied first (`AdminViewsheetController#getFolder`).
+    */
    @Secured(@RequiredPermission(
       resourceType = ResourceType.EM_COMPONENT, resource = "settings/general",
       actions = ResourceAction.ACCESS))
-   @GetMapping("/api/wiz/v1/admin/licensing/keys/{key}")
-   public LicenseKeyLookupResult getLicenseKey(@PathVariable("key") String key, Principal user) {
+   @GetMapping("/api/wiz/v1/admin/licensing/key")
+   public LicenseKeyLookupResult getLicenseKey(@RequestParam("key") String key, Principal user) {
       requireSiteAdmin(user);
       requireEnterprise();
       Optional<License> found = licenseManager.getInstalledLicenses().stream()
