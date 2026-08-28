@@ -87,6 +87,29 @@ public class LicenseKeySettingsService {
       }
    }
 
+   /**
+    * Adds a single server license key, replicating {@link #setModel}'s own cluster-broadcast and
+    * auth-cache-reset side effects ({@code addLicense}/{@code removeLicense} do not perform either
+    * on their own) without going through {@link #setModel}/{@link #updateKeys}'s nondeterministic
+    * replace-plus-remove logic. {@code public}, unlike {@link #getSingleServerLicenseKey}, so the
+    * {@code inetsoft.web.admin.ai.licensing} controller/services (a different package) can call it.
+    */
+   public void addServerKey(String key) throws Exception {
+      licenseManager.addLicense(key);
+      cluster.sendMessage(new ResetLicenseKeyMessage());
+      authenticationService.reset();
+   }
+
+   /**
+    * Removes a single server license key -- see {@link #addServerKey} for why the two extra side
+    * effects are replicated here.
+    */
+   public void removeServerKey(String key) throws Exception {
+      licenseManager.removeLicense(key);
+      cluster.sendMessage(new ResetLicenseKeyMessage());
+      authenticationService.reset();
+   }
+
    private List<LicenseKeyModel> getServerLicenseData() {
       return licenseManager.getInstalledLicenses().stream()
          .map(this::createLicenseKeyModel)
