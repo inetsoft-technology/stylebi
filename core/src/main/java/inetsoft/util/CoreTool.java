@@ -557,6 +557,12 @@ public class CoreTool {
    }
 
    /**
+    * The kind of date/time value a keyword style (FULL/LONG/MEDIUM/SHORT) should be
+    * resolved to by createDateFormat.
+    */
+   public enum DateFormatKind { DATE, TIME, DATE_TIME }
+
+   /**
     * Create an Extended version of the SimpleDateFormatter.
     * @return an instance of the ExtendedDateFormat.
     */
@@ -593,33 +599,59 @@ public class CoreTool {
    public static SimpleDateFormat createDateFormat(String pattern,
                      Locale locale)
    {
-      if(locale == null) {
+      return createDateFormat(pattern, locale, DateFormatKind.DATE);
+   }
+
+   /**
+    * Create an Extended version of the SimpleDateFormatter.
+    * @return an instance of the ExtendedDateFormat.
+    */
+   public static SimpleDateFormat createDateFormat(String pattern, Locale locale,
+                     DateFormatKind kind)
+   {
+      if(locale == null && kind == DateFormatKind.DATE) {
          return createDateFormat(pattern);
       }
 
       DateFormat fmt = null;
 
       if(pattern.equalsIgnoreCase("FULL")) {
-         fmt = DateFormat.getDateInstance(DateFormat.FULL, locale);
+         fmt = getStyledInstance(DateFormat.FULL, locale, kind);
       }
       else if(pattern.equalsIgnoreCase("LONG")) {
-         fmt = DateFormat.getDateInstance(DateFormat.LONG, locale);
+         fmt = getStyledInstance(DateFormat.LONG, locale, kind);
       }
       else if(pattern.equalsIgnoreCase("MEDIUM")) {
-         fmt = DateFormat.getDateInstance(DateFormat.MEDIUM, locale);
+         fmt = getStyledInstance(DateFormat.MEDIUM, locale, kind);
       }
       else if(pattern.equalsIgnoreCase("SHORT")) {
-         fmt = DateFormat.getDateInstance(DateFormat.SHORT, locale);
+         fmt = getStyledInstance(DateFormat.SHORT, locale, kind);
       }
       else if(pattern.equalsIgnoreCase("yyyy")) {
-         fmt = new SimpleDateFormat("yyyy", locale);
+         fmt = locale == null ? new SimpleDateFormat("yyyy") : new SimpleDateFormat("yyyy", locale);
       }
 
       if(fmt instanceof SimpleDateFormat) {
          return (SimpleDateFormat) fmt;
       }
 
-      return new ExtendedDateFormat(pattern, locale);
+      return locale == null ? new ExtendedDateFormat(pattern) : new ExtendedDateFormat(pattern, locale);
+   }
+
+   private static DateFormat getStyledInstance(int style, Locale locale, DateFormatKind kind) {
+      if(locale == null) {
+         return switch(kind) {
+            case DATE -> DateFormat.getDateInstance(style);
+            case TIME -> DateFormat.getTimeInstance(style);
+            case DATE_TIME -> DateFormat.getDateTimeInstance(style, style);
+         };
+      }
+
+      return switch(kind) {
+         case DATE -> DateFormat.getDateInstance(style, locale);
+         case TIME -> DateFormat.getTimeInstance(style, locale);
+         case DATE_TIME -> DateFormat.getDateTimeInstance(style, style, locale);
+      };
    }
 
    /**
