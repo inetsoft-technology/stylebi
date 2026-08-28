@@ -24,6 +24,9 @@ import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.*;
+import inetsoft.uql.schema.DoubleType;
+import inetsoft.uql.schema.LongType;
+import inetsoft.uql.schema.StringType;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.credential.*;
@@ -44,6 +47,7 @@ import java.util.Arrays;
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -162,6 +166,11 @@ class ODataRuntimeTests {
       assertEquals("Name", columns[1].getName());
       assertEquals("Price", columns[2].getName());
       assertTrue(Arrays.stream(columns).noneMatch(c -> "Category".equals(c.getName())));
+
+      // Edm.Int32 -> LongType, Edm.String -> StringType (default), Edm.Double -> DoubleType
+      assertInstanceOf(LongType.class, columns[0]);
+      assertInstanceOf(StringType.class, columns[1]);
+      assertInstanceOf(DoubleType.class, columns[2]);
 
       verify(exactly(1), getRequestedFor(urlPathEqualTo("/V4/OData/OData.svc/%24metadata")));
    }
