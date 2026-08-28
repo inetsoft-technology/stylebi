@@ -1,0 +1,150 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.web.admin.ai.presentation;
+
+import inetsoft.util.audit.AdminChangeRecord;
+import inetsoft.web.admin.general.model.WebMapSettingsModel;
+import inetsoft.web.admin.presentation.model.*;
+
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * The closed, compile-time-known catalog of the 16 sub-models {@code PresentationSettingsController}
+ * actually wires (01-spec.md section 0/2) -- a hardcoded Java enum, not a JSON resource, matching
+ * {@code AdminProviderController}'s own sibling area's precedent for a small closed unit set
+ * (01-spec.md "Flagged decisions" item 1). Deliberately excludes the two dead
+ * {@code PresentationSettingsModel} fields ({@code reportToolbarOptionsModel},
+ * {@code reportViewerSettingsModel} -- declared on the model, never read/written by the real
+ * controller, 01-spec.md section 2).
+ *
+ * <p>An unrecognized name is a hard refusal everywhere this enum is resolved by key -- unlike
+ * properties' open-ended namespace, these 16 names ARE the entire namespace (01-spec.md section 2).
+ */
+public enum PresentationSubModel {
+   FORMATS("formats", PresentationFormatsSettingsModel.class,
+           AdminChangeRecord.SCOPE_VALUE, AdminChangeRecord.RISK_LOW, false),
+   DASHBOARD("dashboard", PresentationDashboardSettingsModel.class,
+             AdminChangeRecord.SCOPE_VALUE, AdminChangeRecord.RISK_LOW, false),
+   VIEWSHEET_TOOLBAR("viewsheetToolbar", PresentationViewsheetToolbarOptionsModel.class,
+                      AdminChangeRecord.SCOPE_VALUE, AdminChangeRecord.RISK_LOW, false),
+   LOOK_AND_FEEL("lookAndFeel", LookAndFeelSettingsModel.class,
+                 AdminChangeRecord.SCOPE_STORAGE, AdminChangeRecord.RISK_HIGH, false),
+   WELCOME_PAGE("welcomePage", WelcomePageSettingsModel.class,
+                AdminChangeRecord.SCOPE_STORAGE, AdminChangeRecord.RISK_HIGH, false),
+   LOGIN_BANNER("loginBanner", PresentationLoginBannerSettingsModel.class,
+                AdminChangeRecord.SCOPE_STORAGE, AdminChangeRecord.RISK_HIGH, false),
+   PORTAL_INTEGRATION("portalIntegration", PortalIntegrationSettingsModel.class,
+                       AdminChangeRecord.SCOPE_STORAGE, AdminChangeRecord.RISK_HIGH, false),
+   PDF_GENERATION("pdfGeneration", PresentationPdfGenerationSettingsModel.class,
+                  AdminChangeRecord.SCOPE_VALUE, AdminChangeRecord.RISK_LOW, false),
+   EXPORT_MENU("exportMenu", PresentationExportMenuSettingsModel.class,
+               AdminChangeRecord.SCOPE_VALUE, AdminChangeRecord.RISK_LOW, false),
+   FONT_MAPPING("fontMapping", PresentationFontMappingSettingsModel.class,
+                AdminChangeRecord.SCOPE_VALUE, AdminChangeRecord.RISK_LOW, true),
+   SHARE("share", PresentationShareSettingsModel.class,
+         AdminChangeRecord.SCOPE_VALUE, AdminChangeRecord.RISK_LOW, false),
+   COMPOSER_MESSAGE("composerMessage", PresentationComposerMessageSettingsModel.class,
+                     AdminChangeRecord.SCOPE_VALUE, AdminChangeRecord.RISK_LOW, false),
+   TIME("time", PresentationTimeSettingsModel.class,
+        AdminChangeRecord.SCOPE_VALUE, AdminChangeRecord.RISK_LOW, false),
+   DATA_SOURCE_VISIBILITY("dataSourceVisibility", PresentationDataSourceVisibilitySettingsModel.class,
+                           AdminChangeRecord.SCOPE_VALUE, AdminChangeRecord.RISK_LOW, false),
+   WEB_MAP("webMap", WebMapSettingsModel.class,
+           AdminChangeRecord.SCOPE_VALUE, AdminChangeRecord.RISK_LOW, false),
+   AI("ai", PresentationAISettingsModel.class,
+      AdminChangeRecord.SCOPE_VALUE, AdminChangeRecord.RISK_LOW, true);
+
+   PresentationSubModel(String key, Class<?> modelClass, String scope, String risk,
+                         boolean globalOnly)
+   {
+      this.key = key;
+      this.modelClass = modelClass;
+      this.scope = scope;
+      this.risk = risk;
+      this.globalOnly = globalOnly;
+      this.fieldNames = PresentationJson.fieldNames(modelClass);
+   }
+
+   public String key() {
+      return key;
+   }
+
+   public Class<?> modelClass() {
+      return modelClass;
+   }
+
+   /** {@link AdminChangeRecord#SCOPE_VALUE} for a thin {@code SreeEnv} wrapper, or
+    * {@link AdminChangeRecord#SCOPE_STORAGE} for one of the 4 {@code DataSpace}-backed sub-models
+    * (01-spec.md section 4). */
+   public String scope() {
+      return scope;
+   }
+
+   /** {@link AdminChangeRecord#RISK_HIGH} for the 4 storage-scope sub-models, {@link
+    * AdminChangeRecord#RISK_LOW} for the other 12 (01-spec.md section 4). */
+   public String risk() {
+      return risk;
+   }
+
+   public boolean isStorageScope() {
+      return AdminChangeRecord.SCOPE_STORAGE.equals(scope);
+   }
+
+   /** {@code fontMapping}/{@code ai} -- the underlying sub-service takes no org-scope parameter at
+    * all, so {@code scope: "organization"} is refused rather than silently applied to the global
+    * layer (01-spec.md section 11). */
+   public boolean globalOnly() {
+      return globalOnly;
+   }
+
+   /** The exact set of {@code spec} field names this sub-model accepts (01-spec.md section 5) --
+    * mechanically derived from {@link #modelClass()}, see {@link PresentationJson#fieldNames}. */
+   public Set<String> fieldNames() {
+      return fieldNames;
+   }
+
+   /** Exact, case-sensitive match against the 16 names (01-spec.md section 11) -- no fuzzy/prefix
+    * matching, since a wrong guess here would silently target the wrong sub-model.
+    *
+    * @throws IllegalArgumentException naming all 16 valid values when {@code key} does not match. */
+   public static PresentationSubModel require(String key) {
+      for(PresentationSubModel subModel : values()) {
+         if(subModel.key.equals(key)) {
+            return subModel;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "subModel: \"" + key + "\" is not one of the 16 recognized presentation sub-models (" +
+         allKeys() + ")");
+   }
+
+   public static String allKeys() {
+      return Arrays.stream(values()).map(PresentationSubModel::key)
+         .collect(Collectors.joining(", "));
+   }
+
+   private final String key;
+   private final Class<?> modelClass;
+   private final String scope;
+   private final String risk;
+   private final boolean globalOnly;
+   private final Set<String> fieldNames;
+}
