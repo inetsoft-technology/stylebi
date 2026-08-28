@@ -1680,6 +1680,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
                         "thread count property (scheduleTask.thread.count): " +
                         SreeEnv.getProperty("scheduleTask.thread.count") +
                         ", using default", ex);
+            hcount = scount * 2;
          }
 
          threadPool = Executors.newFixedThreadPool(hcount, new GroupedThreadFactory());
