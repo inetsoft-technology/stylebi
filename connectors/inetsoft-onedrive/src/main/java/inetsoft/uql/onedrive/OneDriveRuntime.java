@@ -18,6 +18,7 @@
 package inetsoft.uql.onedrive;
 
 import com.microsoft.graph.authentication.IAuthenticationProvider;
+import com.microsoft.graph.models.DriveItem;
 import com.microsoft.graph.requests.*;
 import inetsoft.uql.*;
 import inetsoft.uql.schema.*;
@@ -108,6 +109,115 @@ public class OneDriveRuntime extends TabularRuntime {
       GraphServiceClient client = getClient(ds);
       return client.me().drive().root().itemWithPath(path).content().buildRequest().getRequestUrl().toString();
    }
+
+   public static BrowsableQuery.BrowseListing listChildren(OneDriveQuery query, String path,
+                                                            boolean recursive,
+                                                            List<String> acceptTypes,
+                                                            int maxEntries) throws Exception
+   {
+      OneDriveDataSource ds = (OneDriveDataSource) query.getDataSource();
+      GraphServiceClient client = getClient(ds);
+      List<BrowsableQuery.BrowseEntry> entries = new ArrayList<>();
+      int[] graphRequests = { 0 }; // shared across the whole recursive walk, not reset per folder
+
+      boolean truncated = withClassLoader(() ->
+         collectChildren(client, normalize(path), recursive, acceptTypes, maxEntries, entries,
+                          graphRequests));
+
+      return new BrowsableQuery.BrowseListing(entries, truncated);
+   }
+
+   /**
+    * Returns true when maxEntries or MAX_GRAPH_REQUESTS stopped the walk short.
+    *
+    * <p>Package-private rather than private so {@code OneDriveRuntimeTests} can drive it directly
+    * with a mocked {@code GraphServiceClient} -- {@code listChildren}'s own {@code getClient(ds)}
+    * builds a real client from a real {@code OneDriveAuthenticator}, the same reason this file's
+    * existing {@code getFile}/{@code getFileURL} tests stub at the query-method layer rather than
+    * exercising {@code getClient} for real.</p>
+    */
+   static boolean collectChildren(GraphServiceClient client, String path,
+                                           boolean recursive, List<String> acceptTypes,
+                                           int maxEntries,
+                                           List<BrowsableQuery.BrowseEntry> entries,
+                                           int[] graphRequests)
+   {
+      DriveItemCollectionPage page = (path.isEmpty()
+         ? client.me().drive().root().children()
+         : client.me().drive().root().itemWithPath(path).children())
+         .buildRequest().get();
+      graphRequests[0]++;
+
+      List<String> subfolders = new ArrayList<>();
+
+      while(page != null) {
+         for(DriveItem item : page.getCurrentPage()) {
+            if(entries.size() >= maxEntries) {
+               return true;
+            }
+
+            String childPath = path.isEmpty() ? item.name : path + "/" + item.name;
+
+            if(item.folder != null) {
+               entries.add(new BrowsableQuery.BrowseEntry(childPath, item.name, true));
+
+               if(recursive) {
+                  subfolders.add(childPath);
+               }
+            }
+            else if(accepts(acceptTypes, item.name)) {
+               entries.add(new BrowsableQuery.BrowseEntry(childPath, item.name, false));
+            }
+         }
+
+         DriveItemCollectionRequestBuilder next = page.getNextPage();
+
+         if(next == null) {
+            break;
+         }
+
+         if(graphRequests[0] >= MAX_GRAPH_REQUESTS) {
+            return true;
+         }
+
+         page = next.buildRequest().get();
+         graphRequests[0]++;
+      }
+
+      for(String sub : subfolders) {
+         if(graphRequests[0] >= MAX_GRAPH_REQUESTS ||
+            collectChildren(client, sub, true, acceptTypes, maxEntries, entries, graphRequests))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean accepts(List<String> acceptTypes, String name) {
+      if(acceptTypes.isEmpty()) {
+         return true;
+      }
+
+      String lower = name.toLowerCase();
+      return acceptTypes.stream().map(String::toLowerCase).anyMatch(lower::endsWith);
+   }
+
+   private static String normalize(String path) {
+      return path == null ? "" : path;
+   }
+
+   /**
+    * Cap on live Graph HTTP calls (one per page fetched, root or nextLink continuation) within ONE
+    * browseChildren invocation -- independent of maxEntries. A folder tree with many small folders can
+    * exhaust this before ever collecting 2000 entries: each folder needs at least one network
+    * round-trip even if it turns out to hold only one item, unlike a local File.listFiles() call.
+    * 200 mirrors wiz's own MAX_BROWSE_REQUESTS naming/value (tabularFileProbe.ts) -- same order of
+    * magnitude judgment call (bound requests, not items, because Graph's own default page size,
+    * ~200/page, already bounds items-per-request).
+    */
+   static final int MAX_GRAPH_REQUESTS = 200;
 
    private static GraphServiceClient getClient(OneDriveDataSource dataSource) {
       return GraphServiceClient

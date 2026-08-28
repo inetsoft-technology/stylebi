@@ -24,6 +24,7 @@ import inetsoft.uql.DataSourceListing;
 import inetsoft.uql.DataSourceListingService;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.tabular.BrowsableQuery;
 import inetsoft.uql.tabular.LayoutCreator;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularEditor;
@@ -64,6 +65,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * The wiz API for creating and editing tabular (non-JDBC) data sources.
@@ -681,7 +683,7 @@ public class WizTabularController {
     * this honest when a connector adds a format.</p>
     */
    private WizTabularBrowseResult browse(String datasource, String path,
-                                         WizTabularBrowseRequest request)
+                                         WizTabularBrowseRequest request) throws Exception
    {
       TabularQuery query = TabularUtil.createQuery(datasource);
 
@@ -693,6 +695,10 @@ public class WizTabularController {
 
       TabularView view = new LayoutCreator().createLayout(query);
       TabularUtil.callEditorMethods(view.getViews(), query);
+
+      if(query instanceof BrowsableQuery browsable) {
+         return browseViaCapability(datasource, path, request, browsable);
+      }
 
       TabularView fileView = findFileView(view, request.property());
 
@@ -746,6 +752,42 @@ public class WizTabularController {
                         String.CASE_INSENSITIVE_ORDER));
 
       return new WizTabularBrowseResult(datasource, path, entries, truncated);
+   }
+
+   /**
+    * The browse itself, for a connector that answers browseChildren() through a remote API
+    * instead of a local java.io.File tree -- see BrowsableQuery's own doc for why the two paths
+    * cannot share collect().
+    */
+   private WizTabularBrowseResult browseViaCapability(String datasource, String path,
+                                                       WizTabularBrowseRequest request,
+                                                       BrowsableQuery browsable) throws Exception
+   {
+      String propertyName = browsable.getBrowsablePropertyName();
+
+      if(request.property() != null && !request.property().isEmpty() &&
+         !request.property().equals(propertyName))
+      {
+         throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Data source \"" +
+            datasource + "\" has no browsable file property named \"" + request.property() +
+            "\" -- its browsable property is \"" + propertyName + "\".");
+      }
+
+      List<String> acceptTypes = request.all() ? List.of() : browsable.getAcceptedExtensions();
+      BrowsableQuery.BrowseListing listing =
+         browsable.browseChildren(path, request.recursive(), acceptTypes, MAX_BROWSE_ENTRIES);
+
+      List<WizTabularBrowseResult.WizTabularBrowseEntry> entries = listing.entries().stream()
+         .map(e -> new WizTabularBrowseResult.WizTabularBrowseEntry(e.path(), e.name(), e.folder()))
+         .collect(Collectors.toCollection(ArrayList::new));
+
+      // Same stable order as the local-file path: folders first, then alphabetical.
+      entries.sort(Comparator.comparing(
+            WizTabularBrowseResult.WizTabularBrowseEntry::folder, Comparator.reverseOrder())
+         .thenComparing(WizTabularBrowseResult.WizTabularBrowseEntry::path,
+                        String.CASE_INSENSITIVE_ORDER));
+
+      return new WizTabularBrowseResult(datasource, path, entries, listing.truncated());
    }
 
    /**
