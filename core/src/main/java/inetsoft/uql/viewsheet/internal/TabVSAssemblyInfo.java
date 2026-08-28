@@ -423,8 +423,10 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
    /**
     * Scaled-space counterpart of {@link #repositionForBottomTabs}. Lets a
-    * runtime script toggle take effect immediately in layout previews. Tab
-    * moves; children stay. No-op in master view (no scaledPosition).
+    * runtime script toggle take effect immediately in layout previews. The
+    * tab bar re-anchors to the children's extent, and children are then
+    * re-flushed against the tab bar's new position -- mirroring the
+    * master-pixel-space loop below. No-op in master view (no scaledPosition).
     */
    public static void repositionForBottomTabsInScaledSpace(TabVSAssemblyInfo tabInfo,
                                                            Viewsheet vs,
@@ -469,6 +471,44 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
       if(newTabY != tabScaledPos.y) {
          tabInfo.setScaledPosition(new Point(tabScaledPos.x, newTabY));
+      }
+
+      // Re-flush each child against the (possibly just-moved) tab bar. With a single
+      // child this is a no-op (the tab was anchored to that same child's extent), but
+      // with multiple children of differing heights, a child that isn't the tallest/
+      // shortest (the one defining the extent) would otherwise keep the scaled Y a
+      // prior full applyScale() pass computed for the OLD bottomTabs value -- e.g. a
+      // short Text child stays pinned near the old top-tabs position instead of
+      // following the tab bar to the bottom, until the next full refresh recalculates
+      // it (Bug #76038).
+      for(String childName : children) {
+         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
+
+         if(child == null) {
+            continue;
+         }
+
+         VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
+         Point childScaledPos = childInfo.getLayoutPosition(true);
+         Dimension childScaledSize = childInfo.getLayoutSize(true);
+
+         if(childScaledPos == null || childScaledSize == null) {
+            continue;
+         }
+
+         int childHeight = getBottomTabChildHeight(childInfo, childScaledSize);
+
+         if(childHeight == 0) {
+            continue;
+         }
+
+         int newChildY = toBottomTabs
+            ? newTabY - childHeight   // bottom edge flush with tab bar top
+            : newTabY + tabHeight;    // top edge flush with tab bar bottom
+
+         if(newChildY != childScaledPos.y) {
+            childInfo.setScaledPosition(new Point(childScaledPos.x, newChildY));
+         }
       }
    }
 
