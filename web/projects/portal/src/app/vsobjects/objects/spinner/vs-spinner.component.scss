@@ -37,6 +37,13 @@ input::-webkit-inner-spin-button {
   min-height: 18px;
 }
 
+// .form-control sets a 30px min-height/height floor (--inet-control-height-md); without this,
+// enabling modern would grow every existing spinner ~50% past its author-set height.
+.vs-spinner input.form-control {
+  min-height: 0;
+  height: 100%;
+}
+
 .text-label {
   display: flex;
   box-sizing: border-box;

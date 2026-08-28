@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// ─── M3 Expressive Slider design tokens ───────────────────────────────────────
+// ─── Slider design tokens ──────────────────────────────────────────────────────
 // All --slider-* custom properties can be overridden on :root or any ancestor
 // element to adapt the slider to a custom M3 color scheme.
 //
@@ -67,13 +67,16 @@
 
 // Modern visualization neutrals — gate-scoped; legacy :host values above stay
 // unchanged so gate-off is byte-identical. Passive chrome, warm-neutral only
-// (no selection accent). Geometry, shadows, and state opacities are not repointed.
+// (no selection accent — active track and handle deliberately stay off
+// --inet-primary-color; a slider's filled track is positional feedback for a
+// continuous value, not a discrete selection state). Geometry, shadows, and
+// state opacities are not repointed.
 :host-context(.viz-modern) {
-  --slider-inactive-track-color: #E8E5DE;
+  --slider-inactive-track-color: var(--inet-default-border-color);
   --slider-active-track-color: #C8C2B7;
-  --slider-handle-color: #6A685F;
-  --slider-tick-color: #6A685F;
-  --slider-label-bg: #6A685F;
+  --slider-handle-color: var(--inet-text-muted-color);
+  --slider-tick-color: var(--inet-text-muted-color);
+  --slider-label-bg: var(--inet-text-muted-color);
 }
 
 // Dark visualization neutrals — must follow the .viz-modern block so its equal-specificity

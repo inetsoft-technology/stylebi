@@ -28,7 +28,11 @@
     padding: 0;
   }
 
-  .submit-button:focus {
-    box-shadow: none;
+  // :focus-visible skips the ring on mouse click, unlike the removed inline (focus)/(blur) ring
+  // (which fired at 1px with a component-computed color, bypassing the shell's 2px translucent
+  // --inet-focus-ring).
+  .submit-button:focus-visible {
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
   }
 }

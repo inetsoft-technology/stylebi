@@ -17,7 +17,6 @@
 -->
 @if (model) {
   <button #submitButton type="submit" (click)="onClick($event)"
-    (focus)="focus = true" (blur)="focus = false"
     [id]="model.absoluteName" class="submit-button" tooltipIf
     VSDataTip [dataTipName]="getAssemblyName()"
     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
@@ -28,6 +27,8 @@
     [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
     [class.cursor-pointer]="viewer && (hasHyperlinks || model.hasOnClick)"
     [class.bg-submit-default]="!model.objectFormat.background"
+    [class.btn]="model.vizModern"
+    [class.btn-default]="model.vizModern"
     [style.text-align]="model.objectFormat.hAlign"
     [safeFont]="model.objectFormat.font"
     [style.color]="model.objectFormat.foreground"
@@ -49,7 +50,6 @@
     [style.z-index]="viewer ? model.objectFormat.zIndex : null"
     [style.padding-top]="model.objectFormat.vAlign === 'bottom' ? vAlign : null"
     [style.padding-bottom]="model.objectFormat.vAlign === 'top' ? vAlign : null"
-    [ngStyle]="{'box-shadow': focus ? '0 0 0 1px ' + focusColor : null}"
     >
     {{model.label}}
   </button>

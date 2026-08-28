@@ -1306,6 +1306,20 @@ custom-select.date-value-editor__nav-select--year {
   }
 }
 
+// vs-combo-box trigger (<select> / virtual-scroll <div>). Same shape as .custom-select, but
+// viz tokens are the default here — matching the dropdown panel this trigger opens — with shell
+// tokens as fallback only where no viz token exists (no dedicated viz resting-border token yet).
+.vs-combo-box-trigger {
+  transition: none;
+  background-color: var(--inet-viz-inline-edit-bg);
+  border-color: var(--inet-input-border-color);
+
+  &:focus {
+    border-color: var(--inet-viz-active-border);
+    box-shadow: var(--inet-focus-ring);
+  }
+}
+
 .text-primary {
   color: var(--inet-primary-color) !important;
 }
