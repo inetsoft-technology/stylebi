@@ -44,12 +44,30 @@ package inetsoft.web.admin.logviewer;
  *      runtime read in ForwardService.getClient has to decrypt the same way; it used to
  *      call plain SreeEnv.getProperty and digest the ciphertext, which no Logging-page
  *      input could make authenticate (see enterprise ForwardServiceTest).
+ * [G7] Saving the fluentd provider on a community build is refused, and log.provider is
+ *      left alone. The forwarder is loaded reflectively from the enterprise module, so the
+ *      setting used to save, read back as fluentd, and log to file with the only report a
+ *      System.err print issued while logging was still being initialised (Redmine #76045).
+ * [G8] The same save on an enterprise build still writes log.provider, so the guard cannot
+ *      break the licensed case.
+ * [G9] The read reports the provider actually in use rather than the stored value: on a
+ *      community build the file appender is running, and reporting fluentd would show the
+ *      fluentd form on a page whose provider selector is hidden -- no way back to file.
+ * [G10] Because of [G9], a save on a build that cannot forward must not write the forwarding
+ *      configuration: the model arrives carrying provider=file and fluentdSettings=null even
+ *      when all twelve log.fluentd.* properties are populated, so writing it would clear the
+ *      host, port, shared key, username, password and CA path on the next unrelated save.
+ *
+ * The fluentd cases stub LicenseManager.isEnterprise() true because they exercise a
+ * licensed feature; [G7] and [G9] are the ones that stub it false.
  */
 
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -76,6 +94,7 @@ class LogSettingServiceTest {
    private MockedStatic<SUtil> sUtilStatic;
    private MockedStatic<Audit> auditStatic;
    private MockedStatic<LogbackUtil> logbackStatic;
+   private MockedStatic<LicenseManager> licenseManagerStatic;
 
    @BeforeEach
    void setUp() {
@@ -90,6 +109,12 @@ class LogSettingServiceTest {
       sUtilStatic = mockStatic(SUtil.class, withSettings().lenient());
       auditStatic = mockStatic(Audit.class, withSettings().lenient());
       logbackStatic = mockStatic(LogbackUtil.class, withSettings().lenient());
+      licenseManagerStatic = mockStatic(LicenseManager.class, withSettings().lenient());
+
+      // the shared-key and password cases all exercise log forwarding, which is licensed;
+      // the two cases that assert on the community behaviour override both of these
+      licenseManagerStatic.when(LicenseManager::isEnterprise).thenReturn(true);
+      logbackStatic.when(LogbackUtil::isFluentdEnabled).thenReturn(true);
 
       // stub the encryption so the assertions do not depend on a master key being
       // available; the marker lets the test see exactly what was handed to it
@@ -108,6 +133,7 @@ class LogSettingServiceTest {
 
    @AfterEach
    void tearDown() {
+      licenseManagerStatic.close();
       logbackStatic.close();
       auditStatic.close();
       sUtilStatic.close();
@@ -191,6 +217,87 @@ class LogSettingServiceTest {
       assertNotNull(model);
       assertEquals("secret-key", model.fluentdSettings().sharedKey());
       assertEquals("logger-pw", model.fluentdSettings().password());
+   }
+
+   // [G7] a community build must refuse the fluentd provider instead of accepting it and
+   // quietly logging to file
+   @Test
+   void fluentdProviderIsRefusedWithoutAnEnterpriseLicense() {
+      licenseManagerStatic.when(LicenseManager::isEnterprise).thenReturn(false);
+
+      MessageException thrown = assertThrows(
+         MessageException.class, () -> service.setConfiguration(model(fluentdSettings("k")),
+                                                                principal));
+
+      assertNotNull(thrown.getMessage());
+      // the stored value is left exactly as it was; nothing about the save is half-applied
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty(eq("log.provider"), anyString()), never());
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty(eq(SHARED_KEY_PROPERTY), anyString()),
+                           never());
+      sreeEnvStatic.verify(SreeEnv::save, never());
+   }
+
+   // [G8] the guard must not touch the licensed case
+   @Test
+   void fluentdProviderIsSavedWithAnEnterpriseLicense() {
+      service.setConfiguration(model(fluentdSettings("k")), principal);
+
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("log.provider", "fluentd"));
+   }
+
+   // [G10] a save on a community build must leave the stored forwarding configuration alone
+   @Test
+   void saveDoesNotClearStoredFluentdSettingsWithoutAnEnterpriseLicense() {
+      licenseManagerStatic.when(LicenseManager::isEnterprise).thenReturn(false);
+      logbackStatic.when(LogbackUtil::isFluentdEnabled).thenReturn(false);
+
+      // what getConfiguration() hands the page on a community build, submitted back unchanged
+      service.setConfiguration(LogSettingsModel.builder()
+                                  .provider("file")
+                                  .outputToStd(false)
+                                  .detailLevel("INFO")
+                                  .build(),
+                               principal);
+
+      // none of the twelve keys is touched, and the stored selection survives
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty(eq(SHARED_KEY_PROPERTY), any()), never());
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty(eq(PASSWORD_PROPERTY), any()), never());
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty(eq("log.fluentd.host"), any()), never());
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty(eq("log.provider"), any()), never());
+      // the rest of the page still saves
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("log.detail.level", "INFO"));
+   }
+
+   // [G10] an enterprise build still clears them when the page really means to
+   @Test
+   void saveClearsFluentdSettingsWithAnEnterpriseLicense() {
+      service.setConfiguration(LogSettingsModel.builder()
+                                  .provider("file")
+                                  .outputToStd(false)
+                                  .detailLevel("INFO")
+                                  .build(),
+                               principal);
+
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("log.provider", "file"));
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty(SHARED_KEY_PROPERTY, null));
+   }
+
+   // [G9] the page reports the provider in use, not the stored one, so an operator whose
+   // log.provider was set out of band is not shown an unusable fluentd form
+   @Test
+   void readReportsFileProviderWhenForwardingIsUnavailable() {
+      licenseManagerStatic.when(LicenseManager::isEnterprise).thenReturn(false);
+      logbackStatic.when(LogbackUtil::isFluentdEnabled).thenReturn(false);
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("log.provider")).thenReturn("fluentd");
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("log.detail.level")).thenReturn("INFO");
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("report.log.max")).thenReturn("1000000");
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("report.log.count")).thenReturn("1");
+
+      LogSettingsModel model = service.getConfiguration();
+
+      assertNotNull(model);
+      assertEquals("file", model.provider());
+      assertNull(model.fluentdSettings());
    }
 
    private void saveSharedKey(String sharedKey) {

@@ -21,6 +21,7 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
@@ -47,12 +48,14 @@ public class LogSettingService {
 
    public LogSettingsModel getConfiguration() {
       try {
-         String provider = SreeEnv.getProperty("log.provider");
-         boolean fluentd = "fluentd".equals(provider);
-
-         if(!fluentd) {
-            provider = "file";
-         }
+         // isFluentdEnabled(), not a bare comparison against the stored value: on a build that
+         // cannot forward, the file appender is the one in use, so that is what this page must
+         // report. Reporting the stored value instead would show the fluentd form while the
+         // provider selector is hidden, leaving no way back to the file provider. The stored
+         // property is not rewritten.
+         boolean fluentd = LogbackUtil.isFluentdEnabled();
+         String provider = fluentd ?
+            LogbackUtil.FLUENTD_PROVIDER : LogbackUtil.FILE_PROVIDER;
 
          boolean outputToStd = "true".equals(SreeEnv.getProperty("log.output.stderr"));
          String str = SreeEnv.getProperty("log.detail.level");
@@ -135,17 +138,40 @@ public class LogSettingService {
    }
 
    public void setConfiguration(LogSettingsModel model, Principal principal) {
+      // reject before the ActionRecord and the try below: the catch there rewraps everything as
+      // "Failed to save log configuration", which would hide the reason. The forwarder is loaded
+      // reflectively from the enterprise module (see LogbackUtil.isFluentdEnabled), so without it
+      // the setting would save, read back, and silently log to file -- the operator has to learn
+      // this at the point of the change.
+      if(LogbackUtil.FLUENTD_PROVIDER.equals(model.provider()) &&
+         !LicenseManager.isEnterprise())
+      {
+         throw new MessageException(
+            Catalog.getCatalog(principal).getString("em.common.log.fluentd.enterpriseOnly"),
+            LogLevel.INFO, false);
+      }
+
       ActionRecord actionRecord =
          SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_EDIT,
                                "Logging-Log Configuration", ActionRecord.OBJECT_TYPE_EMPROPERTY);
       SecurityProvider securityProvider = securityEngine.getSecurityProvider();
 
       try {
-         String provider = model.provider();
-         SreeEnv.setProperty("log.provider", provider);
+         // A build that cannot forward does not manage the forwarding configuration from this
+         // page, so it must not write any of it. getConfiguration() reports the file provider
+         // there whatever log.provider says, and the view hides the fluentd group when the
+         // provider is file, so model.fluentdSettings() arrives null even when all twelve
+         // log.fluentd.* properties are populated -- setFluentdSettings(null) would then clear
+         // the host, port, shared key, username, password and CA path on the next unrelated save
+         // (a detail-level change, say), with no way to get them back. Skipping the log.provider
+         // write for the same reason: the value reported to the page is the effective one, not
+         // the stored one, so writing it back would silently discard the stored selection.
+         if(LicenseManager.isEnterprise()) {
+            SreeEnv.setProperty("log.provider", model.provider());
+            setFluentdSettings(model.fluentdSettings());
+         }
 
          setFileSettings(model.fileSettings());
-         setFluentdSettings(model.fluentdSettings());
 
          String stderr = String.valueOf(model.outputToStd());
          SreeEnv.setProperty("log.output.stderr", stderr);
