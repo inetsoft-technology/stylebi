@@ -343,6 +343,28 @@ public class OneDriveRuntimeTests {
       assertEquals(3, entries.size());
    }
 
+   /**
+    * P5 review round 1 finding: accepts() lowercased only the filename side of the comparison,
+    * never acceptTypes -- so an uppercase extension in acceptTypes (a future BrowsableQuery
+    * implementor's constant, or an edit to this one) would silently drop every matching file
+    * from the listing, the same "quietly wrong" failure shape the charter's counter-assertions
+    * exist to rule out for the Graph-error case, just via filtering instead of error handling.
+    */
+   @Test
+   void acceptTypesMatchesRegardlessOfCaseOnEitherSide() {
+      GraphServiceClient client = mock(GraphServiceClient.class);
+      DriveItemRequestBuilder root = mockClient(client);
+      stubChildren(root, page(fileItem("Report.CSV"), fileItem("b.txt")));
+
+      List<BrowsableQuery.BrowseEntry> entries = new ArrayList<>();
+      OneDriveRuntime.collectChildren(
+         client, "", false, List.of(".CSV"), 2000, entries, new int[] { 0 });
+
+      assertEquals(
+         List.of("Report.CSV"),
+         entries.stream().map(BrowsableQuery.BrowseEntry::name).toList());
+   }
+
    private Object[][] readExpected(String file) throws IOException {
       try(InputStream input = getClass().getResourceAsStream(file)) {
          ObjectMapper mapper = new ObjectMapper();

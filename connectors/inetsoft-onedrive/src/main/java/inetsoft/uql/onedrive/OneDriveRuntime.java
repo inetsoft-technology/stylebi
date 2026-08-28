@@ -201,7 +201,7 @@ public class OneDriveRuntime extends TabularRuntime {
       }
 
       String lower = name.toLowerCase();
-      return acceptTypes.stream().anyMatch(lower::endsWith);
+      return acceptTypes.stream().map(String::toLowerCase).anyMatch(lower::endsWith);
    }
 
    private static String normalize(String path) {
