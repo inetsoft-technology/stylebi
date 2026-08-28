@@ -234,11 +234,27 @@ export class VSTab extends NavigationComponent<VSTabModel> implements OnChanges,
    }
 
    getFormat(tabID: number): VSFormatModel {
-      if(this.model.selected == this.model.childrenNames[tabID]) {
+      if(this.isTabSelected(tabID)) {
          return this.model.activeFormat;
       }
 
       return this.model.objectFormat;
+   }
+
+   isTabSelected(tabID: number): boolean {
+      return this.model.selected == this.model.childrenNames[tabID];
+   }
+
+   // an un-formatted tab strip has no background/border feedback of its own, since
+   // getFormat()/getBorder() come entirely from the (empty) format model with no fallback.
+   getBackground(tabID: number): string {
+      const background = this.getFormat(tabID).background;
+
+      if(background) {
+         return background;
+      }
+
+      return this.tabHovered.has(tabID) ? "var(--inet-ui-neutral-hover-bg-color)" : null;
    }
 
    getBorder(tabID: number): Border {
@@ -264,6 +280,21 @@ export class VSTab extends NavigationComponent<VSTabModel> implements OnChanges,
       }
 
       return border;
+   }
+
+   // layered on top of getBorder(tabID).bottom for the border-bottom style only — kept out of
+   // getBorder() itself so it doesn't feed getMargin()'s border-width math (which needs the
+   // real, un-indicated border) or the corner-workaround div's border-bottom check.
+   getTabIndicatorBorder(tabID: number): string {
+      const bottom = this.getBorder(tabID).bottom;
+
+      if(!this.tabHovered.has(tabID) && this.isTabSelected(tabID) &&
+         Tool.getBorderStyle(bottom) == "none")
+      {
+         return "2px solid var(--inet-nav-tabs-selected-border-color)";
+      }
+
+      return bottom;
    }
 
    /**

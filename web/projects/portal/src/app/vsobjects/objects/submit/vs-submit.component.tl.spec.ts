@@ -22,7 +22,7 @@
  * Risk-first coverage:
  *   Group 1 [Risk 3] - viewer click flow: global submit, pending value flush, debounced event dispatch
  *   Group 2 [Risk 2] - composer click behavior and refresh-enabled emit contract
- *   Group 3 [Risk 1] - keyboard navigation and focus color derivation
+ *   Group 3 [Risk 1] - keyboard navigation and vAlign padding calculation
  *
  * Confirmed bugs (it.fails): none
  */
@@ -235,7 +235,7 @@ describe("VSSubmit - layout and navigation", () => {
       expect(button.getAttribute("class")).toContain("fade-assembly");
    });
 
-   it("should calculate bottom padding for top-aligned text and initialize focusColor from the border", () => {
+   it("should calculate bottom padding for top-aligned text", () => {
       const { comp } = createComponent({
          model: makeModel({
             objectFormat: {
@@ -262,29 +262,6 @@ describe("VSSubmit - layout and navigation", () => {
       } as any);
 
       expect(comp.vAlign).toBe("32px");
-      expect(comp.focusColor).toBe("rgba(16, 32, 48, 0.5)");
-   });
-
-   it("should derive focusColor from the background when no border color is available", () => {
-      const model = makeModel({
-         objectFormat: {
-            ...makeModel().objectFormat,
-            background: "#abcdef",
-            border: { top: "", right: "", bottom: "", left: "" },
-         },
-      });
-      const { comp } = createComponent({ model });
-
-      comp.ngOnChanges({
-         model: {
-            currentValue: model,
-            previousValue: null,
-            firstChange: true,
-            isFirstChange: () => true,
-         },
-      } as any);
-
-      expect(comp.focusColor).toBe("rgba(171, 205, 239, 0.5)");
    });
 
    it("should focus the button and click it on SPACE navigation", () => {

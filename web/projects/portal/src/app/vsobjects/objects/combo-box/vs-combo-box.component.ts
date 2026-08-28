@@ -177,6 +177,18 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
    get selected(): boolean {
       return this._selected;
    }
+
+   // format wins, class is the default: keep the trigger's viz-token background inert unless
+   // the author left the format background unset. Gate-off keeps the pre-existing 'transparent'
+   // fallback so it stays pixel-identical.
+   getTriggerBackground(): string {
+      if(this._model.objectFormat.background) {
+         return this._model.objectFormat.background;
+      }
+
+      return this._model.vizModern ? null : "transparent";
+   }
+
    @Input() submitted: Observable<boolean>;
    @Output() comboBoxChanged = new EventEmitter();
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;

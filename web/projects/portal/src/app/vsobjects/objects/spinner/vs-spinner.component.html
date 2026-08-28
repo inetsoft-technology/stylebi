@@ -43,6 +43,7 @@
           type="number"
           [step]="model.increment"
           [(ngModel)]="model.value"
+          [class.form-control]="model.vizModern"
           [class.disable-actions-fade]="!model.enabled"
           [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
           [style.text-align]="model.objectFormat.hAlign"

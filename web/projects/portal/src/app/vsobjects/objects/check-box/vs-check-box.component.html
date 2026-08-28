@@ -105,6 +105,7 @@
             tooltipIf
             (mousedown)="selectCell($event, i)">
             <input type="checkbox" [checked]="isSelected(i)" [value]="i"
+              [class.form-check-input]="model.vizModern"
               (change)="onChange(i)">
           {{entry}}</label>
         </div>
