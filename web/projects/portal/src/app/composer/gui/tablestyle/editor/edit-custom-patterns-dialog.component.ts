@@ -22,6 +22,7 @@ import { TableStyleUtil } from "../../../../common/util/table-style-util";
 import { FormsModule } from "@angular/forms";
 import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
+import { CustomSelectComponent } from "../../../../widget/custom-select/custom-select.component";
 
 @Component({
     selector: "edit-custom-patterns-dialog",
@@ -34,7 +35,8 @@ import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-head
     NgbNavLinkBase,
     NgbNavContent,
     FormsModule,
-    NgbNavOutlet
+    NgbNavOutlet,
+    CustomSelectComponent
 ]
 })
 export class EditCustomPatternsDialog {

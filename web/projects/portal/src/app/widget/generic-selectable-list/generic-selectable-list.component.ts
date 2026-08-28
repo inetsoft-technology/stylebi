@@ -26,6 +26,7 @@ import { Component, Input, Output, EventEmitter } from "@angular/core";
 })
 export class GenericSelectableList {
    @Input() elementToString: (x: any) => string;
+   @Input() elementToTitle: (x: any) => string;
    @Input() itemList: any[];
    @Input() selectedIndex: number = -1;
    @Input() disabled: boolean = false;

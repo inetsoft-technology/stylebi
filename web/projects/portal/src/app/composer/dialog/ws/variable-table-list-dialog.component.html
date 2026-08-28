@@ -23,14 +23,10 @@
   <form [formGroup]="form">
     <div class="row">
       <div class="col-6">
-        <select class="form-control" size="7" [ngModel]="modelIndex"
-          (ngModelChange)="updateTableName($event)" [ngModelOptions]="{standalone: true}">
-          @for (_table of tables; track _table.name; let _i = $index) {
-            <option [value]="_i"
-              [attr.title]="_table.description">
-            {{_table.name}}</option>
-          }
-        </select>
+        <generic-selectable-list [itemList]="tables" [selectedIndex]="modelIndex"
+          [elementToString]="tableElementToString" [elementToTitle]="tableElementToTitle"
+          (selectedIndexChange)="updateTableName($event)">
+        </generic-selectable-list>
       </div>
       <div class="col-6">
         <div class="shell-form-row--field">

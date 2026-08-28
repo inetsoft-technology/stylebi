@@ -23,13 +23,15 @@ import { takeUntil } from "rxjs/operators";
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
+import { DateValueEditorComponent } from "../../widget/date-type-editor/date-value-editor.component";
+import { TimeInstantValueEditorComponent } from "../../widget/date-type-editor/time-instant-value-editor.component";
 @Component({
     selector: "range-slider-edit-dialog",
     templateUrl: "range-slider-edit-dialog.component.html",
     imports: [
     ModalHeaderComponent,
     FormsModule,
-    ReactiveFormsModule, NumberStepperComponent]
+    ReactiveFormsModule, NumberStepperComponent, DateValueEditorComponent, TimeInstantValueEditorComponent]
 })
 export class RangeSliderEditDialog implements OnDestroy {
    @Input() currentMin: number | Date;
@@ -44,6 +46,8 @@ export class RangeSliderEditDialog implements OnDestroy {
    rangeForm: UntypedFormGroup = new UntypedFormGroup({});
    isDateType: boolean;
    timeIncrement: string;
+   // matches the no-seconds string formatDate() produces for the time-increment case
+   readonly TIME_INSTANT_FORMAT: string = "YYYY-MM-DDTHH:mm";
    private destroy$ = new Subject<void>();
 
    ngOnDestroy() {

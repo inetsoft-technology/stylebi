@@ -21,6 +21,7 @@ import { ChatApi } from "./chat-api";
 import { NEVER, Observable } from "rxjs";
 import { shareReplay, tap } from "rxjs/operators";
 import { HttpParams } from "@angular/common/http";
+import { Notification } from "../data/notification";
 
 export const CHAT_API_KEY = new InjectionToken<string>("CHAT_API_KEY");
 
@@ -67,17 +68,31 @@ export class ChatService {
       return this.tawk$;
    }
 
-   public openSession(vsID: string, runtimeID: string): void {
+   public openSession(vsID: string, runtimeID: string): Observable<Notification> {
       const queryParameters = this.getQueryString(vsID, runtimeID);
-      this.chat.setAttributes({
-         queryParameters
-      }, (error) => {
-         if(error != null) {
-            window.prompt("Please copy and paste this to the chat agent", queryParameters);
-         }
-         else {
-            window.alert("Opened Session To Agent");
-         }
+
+      return new Observable<Notification>((observer) => {
+         this.chat.setAttributes({
+            queryParameters
+         }, (error) => {
+            if(error != null) {
+               const copied = navigator.clipboard?.writeText(queryParameters) ?? Promise.reject();
+               copied.then(
+                  () => observer.next({
+                     type: "warning",
+                     message: "_#(js:Could not open the session automatically. The session info has been copied to your clipboard — paste it to the chat agent.)"
+                  }),
+                  () => observer.next({
+                     type: "warning",
+                     message: "_#(js:Could not open the session automatically. Please copy this to the chat agent:) " + queryParameters
+                  })
+               ).finally(() => observer.complete());
+            }
+            else {
+               observer.next({type: "success", message: "_#(js:Opened Session To Agent)"});
+               observer.complete();
+            }
+         });
       });
    }
 

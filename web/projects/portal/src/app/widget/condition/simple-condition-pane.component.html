@@ -73,13 +73,8 @@
 
   <div class="simple-pane__builder-footer">
     @if (clauseRows.length > 0) {
-      <div class="simple-pane__select-wrap">
-        <select class="simple-pane__join-ctrl" [(ngModel)]="draftConj">
-          <option value="and">_#(And)</option>
-          <option value="or">_#(Or)</option>
-        </select>
-        <span class="simple-pane__caret">&#9660;</span>
-      </div>
+      <custom-select class="simple-pane__join-select" [options]="joinOptions" [(ngModel)]="draftConj">
+      </custom-select>
     }
     <button type="button" class="simple-pane__add-btn" (click)="addClause()">_#(Add)</button>
   </div>

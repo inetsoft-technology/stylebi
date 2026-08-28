@@ -32,12 +32,13 @@ import { DateTimeValueDialog } from "../date-time-value-dialog.component";
 import { FormsModule } from "@angular/forms";
 import { NgClass } from "@angular/common";
 import { CustomSelectOption, CustomSelectComponent } from "../../custom-select/custom-select.component";
+import { GenericMultiSelectList } from "../../generic-selectable-list/generic-multi-select-list.component";
 
 @Component({
     selector: "parameter-page",
     templateUrl: "parameter-page.component.html",
     styleUrls: ["./parameter-page.component.scss"],
-    imports: [NgClass, FormsModule, CustomSelectComponent]
+    imports: [NgClass, FormsModule, CustomSelectComponent, GenericMultiSelectList]
 })
 export class ParameterPage {
    @Input() isDialog = false;

@@ -19,12 +19,14 @@ import { HttpClient, HttpResponse } from "@angular/common/http";
 import {
    AfterViewChecked,
    Component,
+   ElementRef,
    EventEmitter,
    Input,
    ChangeDetectorRef,
    OnDestroy,
    OnInit,
-   Output
+   Output,
+   ViewChild
 } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbProgressbar } from "@ng-bootstrap/ng-bootstrap";
@@ -228,6 +230,13 @@ export class ImportCSVDialog implements OnInit, AfterViewChecked, OnDestroy {
 
    private setEnabled() {
       Tool.setFormControlDisabled(this.form.get("unpivotCB"), !this.unpivotEnabled);
+   }
+
+   @ViewChild("fileInput") fileInput: ElementRef;
+
+   openFileUpload(): void {
+      this.fileInput.nativeElement.value = "";
+      this.fileInput.nativeElement.click();
    }
 
    updateFile(event: any) {

@@ -15,13 +15,19 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<div class="selectable-list generic-selectable-list">
-  @for (_item of itemList; track $index; let _i = $index) {
-    <div class="unhighlightable generic-selectable-list__item"
-      (click)="!disabled && select(_i)" [class.selected]="!disabled && selectedIndex == _i"
-      [class.fade]="disabled"
-      [attr.title]="elementToTitle ? elementToTitle(_item) : null">
-      {{elementToString ? elementToString(_item) : _item}}
+<div class="selectable-list generic-multi-select-list">
+  @for (_label of labels; track $index; let _i = $index) {
+    <div class="unhighlightable generic-multi-select-list__item"
+      (click)="toggle(values[_i])" [class.selected]="isSelected(values[_i])"
+      [class.fade]="disabled">
+      <input type="checkbox" class="form-check-input generic-multi-select-list__checkbox"
+        tabindex="-1" [checked]="isSelected(values[_i])" [disabled]="disabled">
+      <span class="generic-multi-select-list__label">{{_label}}</span>
+    </div>
+  }
+  @if (dataTruncated) {
+    <div class="unhighlightable generic-multi-select-list__item generic-multi-select-list__item--disabled">
+      (_#(data.truncated))
     </div>
   }
 </div>

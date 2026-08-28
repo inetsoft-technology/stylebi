@@ -178,41 +178,10 @@
   border-top: 1px solid var(--inet-default-border-color);
 }
 
-.simple-pane__select-wrap {
-  position: relative;
+.simple-pane__join-select {
   flex: none;
-}
-
-.simple-pane__join-ctrl {
   width: 72px;
   height: var(--inet-control-height-md); /* 30px */
-  font-family: inherit;
-  font-size: var(--inet-font-size-base);
-  color: var(--inet-text-color);
-  background: var(--inet-shell-surface-default);
-  border: 1px solid var(--inet-default-border-color);
-  border-radius: var(--inet-radius-md);
-  padding: 0 24px 0 var(--inet-space-4);
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
-  outline: none;
-
-  &:focus {
-    border-color: var(--inet-primary-color);
-    box-shadow: var(--inet-focus-ring);
-  }
-}
-
-.simple-pane__caret {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
-  color: var(--inet-text-subtle-color);
-  font-size: 8px;
-  line-height: 1;
 }
 
 .simple-pane__add-btn {

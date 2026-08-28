@@ -28,7 +28,7 @@
               <style-dropdown [(style)]="descriptor.value" [isPresenter]="true"></style-dropdown>
             }
             @case ('AsCheckboxPropertyEditor') {
-              <input [disabled]="isImageOptionDisable(descriptor.name)" type="checkbox" [(ngModel)]="descriptor.value">
+              <input [disabled]="isImageOptionDisable(descriptor.name)" type="checkbox" class="form-check-input" [(ngModel)]="descriptor.value">
             }
             @case ('IntPropertyEditor') {
               <number-stepper [(ngModel)]="descriptor.value">

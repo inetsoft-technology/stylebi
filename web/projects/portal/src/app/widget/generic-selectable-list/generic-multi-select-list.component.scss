@@ -1,0 +1,76 @@
+/*!
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+:host {
+  --generic-multi-select-list-height: 6em;
+
+  > .selectable-list {
+    height: var(--generic-multi-select-list-height);
+    overflow-y: auto;
+    border: 1px solid var(--inet-list-border-color);
+    border-radius: var(--inet-radius-md);
+    background-color: var(--inet-list-bg-color);
+
+    > .generic-multi-select-list__item {
+      width: 100%;
+      min-height: calc(var(--inet-control-height-sm) + var(--inet-space-1));
+      display: flex;
+      align-items: center;
+      gap: var(--inet-space-2);
+      padding-inline: var(--inet-space-4);
+      color: var(--inet-text-color);
+      cursor: pointer;
+      background-color: var(--inet-list-bg-color);
+      border-radius: var(--inet-radius-sm);
+      transition: background-color 120ms ease, color 120ms ease;
+
+      + .generic-multi-select-list__item {
+        margin-top: 2px;
+      }
+
+      &:not(.fade):hover {
+        background-color: var(--inet-list-hover-bg-color);
+      }
+
+      &.selected {
+        background-color: var(--inet-list-selected-bg-color);
+      }
+
+      &.fade {
+        cursor: default;
+        opacity: 0.5;
+      }
+
+      &--disabled {
+        cursor: default;
+        color: var(--inet-text-muted-color);
+      }
+    }
+
+    .generic-multi-select-list__checkbox {
+      pointer-events: none;
+      flex: none;
+    }
+
+    .generic-multi-select-list__label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}
