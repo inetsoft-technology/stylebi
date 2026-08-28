@@ -735,7 +735,7 @@ public class AssemblyImageService {
                // web map limit exceeded, disable web map for 24 hours.
                catch(WebMapLimitException ex) {
                   long hours24 = System.currentTimeMillis() + 24 * 60 * 60000L;
-                  SreeEnv.setProperty("webmap.suspend.until", hours24 + "");
+                  SreeEnv.setProperty("webmap.suspend.until", hours24 + "", true);
 
                   box.get().clearGraph(name);
                   return processGetAssemblyImage1(rvs, aid, width, height, maxWidth, maxHeight, aname,
