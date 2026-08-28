@@ -28,6 +28,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -83,6 +84,96 @@ class PrintDeviceLayoutPropertyServiceTest {
       assertNotNull(written);
       assertEquals(1.0f, written.getScaleFont(), 0.0001f);
       assertEquals("Letter", written.getPaperSize());
+   }
+
+   @Test
+   void omittedUnitsOnANewPrintLayoutDefaultsToInchesNotNull() throws Exception {
+      // The sibling of the scaleFont case above, and fatal where that one is merely wrong. A null
+      // units reaches ViewsheetPropertyDialogService's printInfo.setUnit(...) and then
+      // VSLayoutService.getPLayoutSize's switch(unit) -- which recognises only "inches" and "mm" --
+      // where it throws NPE. That throw lands AFTER the patch has mutated the live model, so the
+      // failed call persists a half-written layout and every later write on the viewsheet fails
+      // while re-reading it, taking manage_device_layout down with it.
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+
+      h.service.setPrintLayout("tok", h.principal, Map.of("paperSize", "Letter"), "");
+
+      assertEquals("inches", writtenPrintLayout(h).getUnits());
+   }
+
+   @Test
+   void anExplicitNullUnitsCannotOverwriteTheDefault() throws Exception {
+      // applyPrintLayoutPatch's "units" case passes its value through verbatim, so a caller sending
+      // units: null would write straight over a seeded default. The guard runs after the patch for
+      // exactly this reason.
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+      Map<String, Object> patch = new HashMap<>();
+      patch.put("paperSize", "Letter");
+      patch.put("units", null);
+
+      h.service.setPrintLayout("tok", h.principal, patch, "");
+
+      assertEquals("inches", writtenPrintLayout(h).getUnits());
+   }
+
+   @Test
+   void anExistingPrintLayoutWithNoUnitsIsRepairedRatherThanSkipped() throws Exception {
+      // A layout persisted before the guard existed carries a null units and does NOT go through
+      // the new-layout branch, so seeding only there would leave it crashing forever with no way
+      // for a caller to repair it.
+      VSPrintLayoutDialogModel existing = new VSPrintLayoutDialogModel();
+      existing.setScaleFont(1.0f);
+      existing.setPaperSize("Letter");
+      ScreensPaneModel screensPane = screensPaneWithNoPrintLayout();
+      screensPane.setPrintLayout(existing);
+      Harness h = new Harness(screensPane);
+
+      h.service.setPrintLayout("tok", h.principal, Map.of("scaleFont", 0.9f), "");
+
+      assertEquals("inches", writtenPrintLayout(h).getUnits());
+   }
+
+   @Test
+   void anExplicitUnitsValueIsLeftAlone() throws Exception {
+      // Pins applyPrintLayoutPatch's passthrough, NOT the guard: this stays green with the guard
+      // disabled, and should, because what it asserts is that the guard never overrules a value
+      // the caller set. "mm" is the other value the renderer's switch recognises.
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+
+      h.service.setPrintLayout("tok", h.principal, Map.of("paperSize", "Letter", "units", "mm"), "");
+
+      assertEquals("mm", writtenPrintLayout(h).getUnits());
+   }
+
+   @Test
+   void manageDeviceLayoutRepairsAPersistedNullUnitsRatherThanCrashingOnIt() throws Exception {
+      // manage_device_layout never touches the print layout -- but setViewsheetInfo computes the
+      // page size from it unconditionally, so a viewsheet carrying a print layout persisted with a
+      // null units takes this method down too. Guarding only setPrintLayout leaves such a
+      // viewsheet permanently unusable, because no caller-side call can repair it.
+      VSPrintLayoutDialogModel persisted = new VSPrintLayoutDialogModel();
+      persisted.setScaleFont(1.0f);
+      persisted.setPaperSize("Letter");
+      ScreensPaneModel screensPane = screensPaneWithNoPrintLayout();
+      screensPane.setPrintLayout(persisted);
+      Harness h = new Harness(screensPane);
+      h.registerDevices("wiz-mobile");
+
+      h.service.manageDeviceLayout("tok", h.principal, "create",
+         Map.of("name", "Phone", "selectedDevices", List.of("wiz-mobile")), "");
+
+      assertEquals("inches", writtenPrintLayout(h).getUnits());
+   }
+
+   /** The print layout as it was handed to {@code setViewsheetInfo} -- the only thing that ships. */
+   private static VSPrintLayoutDialogModel writtenPrintLayout(Harness h) throws Exception {
+      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
+      verify(h.dialog).setViewsheetInfo(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                        anyString(), any());
+      VSPrintLayoutDialogModel written = captor.getValue().screensPane().getPrintLayout();
+      assertNotNull(written);
+      return written;
    }
 
    @Test
