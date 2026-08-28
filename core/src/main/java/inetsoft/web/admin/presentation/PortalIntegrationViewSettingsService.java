@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.portal.PortalTab;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.presentation.model.PortalIntegrationSettingsModel;
@@ -145,13 +146,26 @@ public class PortalIntegrationViewSettingsService {
       List<PortalTab> portalTabs = manager.getPortalTabs();
       List<PortalTabModel> tabModels = model.tabs();
       int insertIndex = 0;
+      Catalog catalog = Catalog.getCatalog(principal);
 
       for(int i = 0; i < tabModels.size(); i++) {
          PortalTabModel tabModel = tabModels.get(i);
          PortalTab tab;
 
          if(tabModel.originalIndex() != null) {
-            tab = portalTabs.get(tabModel.originalIndex());
+            int originalIndex = tabModel.originalIndex();
+
+            if(originalIndex < 0 || originalIndex >= portalTabs.size()) {
+               throw new MessageException(
+                  catalog.getString("em.presentation.portalIntegration.tabsChanged"));
+            }
+
+            tab = portalTabs.get(originalIndex);
+
+            if(!tab.isEditable() && !Objects.equals(tab.getName(), tabModel.name())) {
+               throw new MessageException(
+                  catalog.getString("em.presentation.portalIntegration.tabsChanged"));
+            }
 
             if(tab.isEditable()) {
                tab.setName(tabModel.name());
