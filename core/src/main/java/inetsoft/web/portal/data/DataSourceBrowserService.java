@@ -519,7 +519,14 @@ public class DataSourceBrowserService {
       }
       else {
          String locstr = SreeEnv.getProperty("em.locale");
-         locale = Catalog.parseLocale(locstr);
+
+         try {
+            locale = Catalog.parseLocale(locstr);
+         }
+         catch(Exception e) {
+            LOG.warn("Invalid em.locale property value: {}", locstr, e);
+            locale = null;
+         }
       }
 
       return locale == null ? Locale.getDefault() : locale;
