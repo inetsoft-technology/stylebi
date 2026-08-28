@@ -745,8 +745,13 @@ export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestro
       return map && super.isColumnSelected(map.get(row), column);
    }
 
-   public isHyperlink(cell: BaseTableCellModel): boolean {
-      return cell.hyperlinks != null && cell.hyperlinks.length > 0 && !this.model.form && cell.underline;
+   public hasRowHyperlink(row: number): boolean {
+      return row > -1 && !!this.rowHyperlinks && !!this.rowHyperlinks[row];
+   }
+
+   public isHyperlink(cell: BaseTableCellModel, row: number = -1): boolean {
+      return (cell.hyperlinks != null && cell.hyperlinks.length > 0 || this.hasRowHyperlink(row)) &&
+         !this.model.form && cell.underline;
    }
 
    public selectTitle(event: MouseEvent): void {

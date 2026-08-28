@@ -264,7 +264,7 @@
                       [wTooltip]="getTooltip(_cell, i)"
                       [cellAnnotations]="model.leftBottomAnnotations"
                       [class.selected-table-cell]="isSelected(_cell)"
-                      [class.hyperlink]="isHyperlink(_cell)"
+                      [class.hyperlink]="isHyperlink(_cell, i)"
                       [style.min-width.px]="tableCellDisplayWidth(j)"
                       [style.max-width.px]="tableCellDisplayWidth(j)"
                       [style.color]="_cell.vsFormatModel?.foreground"

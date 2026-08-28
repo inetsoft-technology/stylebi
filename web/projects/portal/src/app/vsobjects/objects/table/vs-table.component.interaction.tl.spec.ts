@@ -39,6 +39,7 @@
  *   Group 11 — isDraggable: header→true; non-header+viewer→false; resizeCol active→false
  *   Group 12 — clearFlyover: hasFlyover+force→sendFlyover+clears; no-op when condition fails
  *   Group 13 — onOpenHighlightDialog: 'table highlight' action emits model
+ *   Group 14 — isHyperlink/hasRowHyperlink: cell links, row links, form + indicator gates
  */
 
 import { Subject } from "rxjs";
@@ -600,6 +601,66 @@ describe("VSTable — Pass 1: Interaction", () => {
 
          expect(emitted).toHaveLength(1);
          expect(emitted[0]).toBe(comp.model);
+      });
+   });
+
+   // ── Group 14 — isHyperlink / hasRowHyperlink ─────────────────────────────
+   describe("Group 14 — isHyperlink / hasRowHyperlink", () => {
+      const ROW_LINK = { tooltip: "tip", label: "link", url: "www.baidu.com", linkType: 1 } as any;
+      const CELL_LINK = { tooltip: "cell", label: "c", url: "", linkType: 0 } as any;
+
+      it("should underline a cell that has its own hyperlinks", () => {
+         const { comp } = createTableComponent();
+
+         expect(comp.isHyperlink(makeTableCell({ hyperlinks: [CELL_LINK], underline: true }))).toBe(true);
+      });
+
+      it("should underline a detail cell whose row has a row hyperlink (Bug: row hyperlink not underlined)", () => {
+         const { comp } = createTableComponent();
+         comp.rowHyperlinks = [ROW_LINK];
+
+         expect(comp.isHyperlink(makeTableCell({ hyperlinks: [], underline: true }), 0)).toBe(true);
+      });
+
+      it("should not underline a row-hyperlink cell when no row index is supplied (header cells)", () => {
+         const { comp } = createTableComponent();
+         comp.rowHyperlinks = [ROW_LINK];
+
+         expect(comp.isHyperlink(makeTableCell({ hyperlinks: [], underline: true }))).toBe(false);
+      });
+
+      it("should not underline a row without an entry in rowHyperlinks", () => {
+         const { comp } = createTableComponent();
+         comp.rowHyperlinks = [ROW_LINK, null];
+
+         expect(comp.isHyperlink(makeTableCell({ hyperlinks: [], underline: true }), 1)).toBe(false);
+      });
+
+      it("should not underline when the hyperlink indicator is off (cell.underline false)", () => {
+         const { comp } = createTableComponent();
+         comp.rowHyperlinks = [ROW_LINK];
+
+         expect(comp.isHyperlink(makeTableCell({ hyperlinks: [], underline: false }), 0)).toBe(false);
+         expect(comp.isHyperlink(makeTableCell({ hyperlinks: [CELL_LINK], underline: false }), 0)).toBe(false);
+      });
+
+      it("should not underline on a form table", () => {
+         const { comp } = createTableComponent({ model: { form: true } });
+         comp.rowHyperlinks = [ROW_LINK];
+
+         expect(comp.isHyperlink(makeTableCell({ hyperlinks: [], underline: true }), 0)).toBe(false);
+      });
+
+      it("should report hasRowHyperlink only for rows with a link and a valid index", () => {
+         const { comp } = createTableComponent();
+
+         expect(comp.hasRowHyperlink(0)).toBe(false);
+
+         comp.rowHyperlinks = [ROW_LINK];
+
+         expect(comp.hasRowHyperlink(0)).toBe(true);
+         expect(comp.hasRowHyperlink(-1)).toBe(false);
+         expect(comp.hasRowHyperlink(5)).toBe(false);
       });
    });
 });
