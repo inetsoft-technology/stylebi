@@ -1134,7 +1134,7 @@ public class WorksheetAgentController {
       // The same guard the multipart route gets: a JSON body's csv string is no less capable of
       // driving an unbounded temp-file write and loader scan than an uploaded file is.
       byte[] bytes = body.csv().getBytes(StandardCharsets.UTF_8);
-      checkImportFileSize(bytes.length, "CSV");
+      checkImportFileSize(bytes.length, "CSV", true);
 
       return importCsvBytes(sessionToken, user, body.name(), body.replaceTable(), bytes, settings);
    }
@@ -1171,7 +1171,7 @@ public class WorksheetAgentController {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file is required");
       }
 
-      checkImportFileSize(file.getSize(), "CSV");
+      checkImportFileSize(file.getSize(), "CSV", true);
 
       CsvSettings settings = csvSettings(encoding, delimiter, delimiterTab, detectType,
                                          firstRowAsHeader, removeQuotes, unpivot, headerCols);
@@ -1337,7 +1337,7 @@ public class WorksheetAgentController {
                                            "fileType must be either \"XLS\" or \"XLSX\"");
       }
 
-      checkImportFileSize(file.getSize(), "Excel");
+      checkImportFileSize(file.getSize(), "Excel", false);
 
       byte[] bytes = file.getBytes();
 
@@ -1440,9 +1440,16 @@ public class WorksheetAgentController {
          : createEmbeddedTable(sessionToken, user, name, types, data, nrows, ncols);
    }
 
-   private void checkImportFileSize(long size, String what) {
+   private void checkImportFileSize(long size, String what, boolean csv) {
       String excelImportMax = SreeEnv.getProperty("excel.import.max");
-      String max = excelImportMax != null ? excelImportMax : SreeEnv.getProperty("csv.import.max");
+      String csvImportMax = SreeEnv.getProperty("csv.import.max");
+      String max = csv ? csvImportMax : excelImportMax;
+
+      // csv max applied to excel if excel max is not defined -- mirrors
+      // ImportCSVDialogService.isAboveMaxFileSize
+      if(max == null && !csv) {
+         max = csvImportMax;
+      }
 
       if(max == null) {
          return;

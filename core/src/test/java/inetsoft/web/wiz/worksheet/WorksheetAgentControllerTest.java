@@ -1536,6 +1536,72 @@ class WorksheetAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // Import file-size cap precedence (CSV must not honour excel.import.max)
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void importCsvIgnoresExcelImportMax() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
+
+      WorksheetAgentController ctrl = importController("TOK-CSV-NOEXCELMAX", rws);
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class, CALLS_REAL_METHODS)) {
+         // Tiny enough that honouring it (the pre-fix, excel-first-then-csv behavior) would
+         // reject this CSV. csv.import.max is left unset.
+         sreeEnv.when(() -> SreeEnv.getProperty("excel.import.max")).thenReturn("1");
+
+         WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv("TOK-CSV-NOEXCELMAX",
+            new WorksheetAgentController.ImportCsvRequest("Imported", "a,b\n1,x\n2,y"), agent);
+
+         assertEquals("Imported", resp.tableName());
+      }
+   }
+
+   @Test
+   void importCsvStillHonorsCsvImportMax() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
+
+      WorksheetAgentController ctrl = importController("TOK-CSV-CSVMAX", rws);
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class, CALLS_REAL_METHODS)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("csv.import.max")).thenReturn("1");
+
+         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+            () -> ctrl.importCsv("TOK-CSV-CSVMAX",
+               new WorksheetAgentController.ImportCsvRequest("Imported", "a,b\n1,x\n2,y"), agent));
+         assertEquals(400, ex.getStatusCode().value());
+      }
+   }
+
+   @Test
+   void importCsvTreatsMalformedCsvImportMaxAsUnbounded() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
+
+      WorksheetAgentController ctrl = importController("TOK-CSV-BADMAX", rws);
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class, CALLS_REAL_METHODS)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("csv.import.max")).thenReturn("not-a-number");
+
+         WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv("TOK-CSV-BADMAX",
+            new WorksheetAgentController.ImportCsvRequest("Imported", "a,b\n1,x\n2,y"), agent);
+
+         assertEquals("Imported", resp.tableName());
+      }
+   }
+
+   // ---------------------------------------------------------------------------
    // Exception handling
    // ---------------------------------------------------------------------------
 
