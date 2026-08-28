@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
 import inetsoft.web.wiz.binding.VisualFrameAliases;
@@ -63,7 +64,11 @@ public class DateComparisonService {
     */
    public record Comparison(Integer periods, String level, String endDate, boolean endToday,
                             String interval, Boolean useFacet, Boolean onlyShowMostRecentDate,
-                            Map<String, Object> frame) {}
+                            String comparisonOption, Map<String, Object> frame) {}
+
+   /** The agent vocabulary's comparisonOption tokens, mapped to {@link Calculator}'s constants. */
+   private static final Map<String, Integer> COMPARISON_OPTIONS = Map.of(
+      "value", Calculator.VALUE, "change", Calculator.CHANGE, "percentChange", Calculator.PERCENT);
 
    /** The current settings, normalized. Never echoes the raw cell format. */
    public Map<String, Object> read(String sessionToken, Principal user, String assemblyName)
@@ -88,7 +93,7 @@ public class DateComparisonService {
       }
 
       out.put("enabled", true);
-      out.put("comparisonOption", model.getComparisonOption());
+      out.put("comparisonOption", describeComparisonOption(model.getComparisonOption()));
       out.put("useFacet", model.isUseFacet());
       out.put("onlyShowMostRecentDate", model.isOnlyShowMostRecentDate());
       out.put("period", describePeriod(model.getPeriodPaneModel()));
@@ -200,6 +205,18 @@ public class DateComparisonService {
          model.setVisualFrameModel(VisualFrameAliases.create("color", comparison.frame()));
       }
 
+      if(comparison.comparisonOption() != null) {
+         Integer option = COMPARISON_OPTIONS.get(comparison.comparisonOption());
+
+         if(option == null) {
+            throw new IllegalArgumentException(
+               "comparisonOption must be one of: value, change, percentChange. Got " +
+               comparison.comparisonOption() + ".");
+         }
+
+         model.setComparisonOption(option);
+      }
+
       PeriodPaneModel periods = model.getPeriodPaneModel();
 
       if(periods == null) {
@@ -302,6 +319,16 @@ public class DateComparisonService {
 
    private static Object value(DynamicValueModel model) {
       return model == null ? null : model.getValue();
+   }
+
+   /** Never echoes the raw int; an option this vocabulary does not name is reported as null. */
+   private static String describeComparisonOption(int option) {
+      return switch(option) {
+         case Calculator.VALUE -> "value";
+         case Calculator.CHANGE -> "change";
+         case Calculator.PERCENT -> "percentChange";
+         default -> null;
+      };
    }
 
    private final ViewsheetSessionService sessions;
