@@ -276,6 +276,30 @@ class AdminPropertyCatalogTest {
       assertTrue(AdminPropertyCatalog.isSecret("log.fluentd.security.sharedKey"));
    }
 
+   @Test
+   void withholdsServerSaveLocationsEvenThoughNeitherTheNamePatternNorEncryptedCredentialCoversIt() {
+      // SchedulerConfigurationService.setServerLocations embeds a plaintext password as the
+      // fourth pipe-delimited field of a "path|label|username|password" segment when the operator
+      // types credentials directly, and writes the whole "server.save.locations" property with a
+      // plain SreeEnv.setProperty. The name matches none of the five isSecret substrings/suffixes
+      // and is not a single encrypted value, so it belongs in neither the name test nor
+      // ENCRYPTED_CREDENTIALS - only the dedicated COMPOSITE_SECRET_PROPERTIES withhold list.
+      assertFalse(matchesTheNamePattern("server.save.locations"),
+                  "the point of this test is that the NAME does not match - if it now does, the "
+                  + "union below is no longer what covers it");
+      assertFalse(AdminPropertyCatalog.isEncryptedCredential("server.save.locations"),
+                  "server.save.locations is a multi-location composite value, not a single "
+                  + "credential admin-chat can round-trip through SreeEnv.setPassword");
+      assertTrue(AdminPropertyCatalog.isSecret("server.save.locations"),
+                 "server.save.locations can embed a plaintext password and must not be read back "
+                 + "through admin-chat");
+   }
+
+   @Test
+   void withholdsServerSaveLocationsWhateverCasingTheCallerUses() {
+      assertTrue(AdminPropertyCatalog.isSecret("Server.Save.Locations"));
+   }
+
    /**
     * The pre-#76006 predicate, kept here so a test can assert that a name is covered by the
     * writer half of the union rather than by the name half. Deliberately a copy: if

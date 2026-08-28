@@ -272,7 +272,7 @@ public class AdminPropertyCatalog {
          return false;
       }
 
-      return isEncryptedCredential(lower) ||
+      return isEncryptedCredential(lower) || COMPOSITE_SECRET_PROPERTIES.contains(lower) ||
          lower.contains("password") || lower.contains("secret") ||
          lower.contains("credential") || lower.endsWith(".key") || lower.startsWith("license.");
    }
@@ -392,6 +392,28 @@ public class AdminPropertyCatalog {
     */
    private static final Set<String> CONFIRMED_NOT_SECRET = Set.of(
       "enable.changepassword", "sso.rsa.public.key", "google.maps.key");
+
+   /**
+    * Properties whose stored value is a composite of several fields - some secret, some not -
+    * joined into a single string, so the binary {@link #isSecret}/read gate is the only sound
+    * granularity: there is no per-field redactor in this generic, name/value-string catalog (one
+    * exists for {@code server.save.locations} specifically, in {@code ServerPathInfoModel.Builder},
+    * but it is wired to the structured Enterprise Manager schedule-configuration screen, not this
+    * generic admin-chat property path).
+    *
+    * <p>Deliberately NOT in {@link #ENCRYPTED_CREDENTIALS}: that set's contract is a single value
+    * written whole with {@code SreeEnv.setPassword}, so admin-chat can safely round-trip it through
+    * {@code setPassword}. {@code server.save.locations} is written with a plain
+    * {@code SreeEnv.setProperty} by {@code SchedulerConfigurationService.setServerLocations} as
+    * {@code path|label|username|password} segments joined by {@code ;} - one property, several
+    * server-save locations, each with its own credential. Routing it through
+    * {@code ENCRYPTED_CREDENTIALS} would make admin-chat's write path call
+    * {@code SreeEnv.setPassword("server.save.locations", <arbitrary caller string>)}, replacing
+    * every configured location with a single encrypted opaque value instead of encrypting one
+    * field of one location.
+    */
+   private static final Set<String> COMPOSITE_SECRET_PROPERTIES = Set.of(
+      "server.save.locations");
 
    private static final String RESOURCE = "admin-property-catalog.json";
    private final List<CatalogEntry> entries;
