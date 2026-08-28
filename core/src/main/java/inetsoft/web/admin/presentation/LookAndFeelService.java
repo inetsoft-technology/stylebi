@@ -489,6 +489,20 @@ public class LookAndFeelService {
       }
    }
 
+   /**
+    * Rejects a caller-supplied file name that contains a path separator, a ".." traversal
+    * segment, or a NUL byte, since none of these are valid in a CSS/logo/favicon file name.
+    */
+   private static String requireSafeFileName(String name) {
+      if(name == null || name.isEmpty() || name.contains("/") || name.contains("\\") ||
+         name.contains("..") || name.contains("\0"))
+      {
+         throw new IllegalArgumentException("Invalid file name: " + name);
+      }
+
+      return name;
+   }
+
    private void setLogo(FileData logo, DataSpace space, String directory, Principal principal, boolean globalSettings) throws Exception {
       final PortalThemesManager manager = portalThemesManager;
       final String orgID = OrganizationManager.getInstance().getCurrentOrgID();
@@ -510,7 +524,7 @@ public class LookAndFeelService {
       }
       else {
          byte[] logoData = Base64.getDecoder().decode(logo.content());
-         int dotIndex = logo.name().lastIndexOf(".");
+         int dotIndex = requireSafeFileName(logo.name()).lastIndexOf(".");
          String logoName = "logo" + (dotIndex >= 0 ? logo.name().substring(dotIndex) : ".gif");
          InputStream in = new ByteArrayInputStream(logoData);
 
@@ -547,7 +561,7 @@ public class LookAndFeelService {
 
       if(favi != null) {
          byte[] faviData = Base64.getDecoder().decode(favi.content());
-         int dotIndex = favi.name().lastIndexOf(".");
+         int dotIndex = requireSafeFileName(favi.name()).lastIndexOf(".");
          String faviconName = "favicon" + (dotIndex >= 0 ? favi.name().substring(dotIndex) : ".gif");
          InputStream in = new ByteArrayInputStream(faviData);
 
@@ -613,7 +627,7 @@ public class LookAndFeelService {
          final String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
          if(vs != null) {
-            cssName = vs.name();
+            cssName = requireSafeFileName(vs.name());
             directory += "/" + orgID;
             writeStyleFile(cssData, space, directory, cssName, principal);
             CSSDictionary.parseCSSFile(cssName, cssData);
