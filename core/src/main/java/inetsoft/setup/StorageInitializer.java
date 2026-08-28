@@ -176,9 +176,11 @@ public class StorageInitializer implements Callable<Integer> {
                }
             }
 
-            service.put("schedule.auto.start", "false");
-            service.put("schedule.auto.stop", "false");
-            service.put("font.truetype.path", "/usr/share/fonts/truetype/;$(sree.home)/fonts");
+            // Container defaults, applied only when the operator has not supplied the property
+            // via an INETSOFTENV_* variable above -- the live environment always wins.
+            service.putIfAbsent("schedule.auto.start", "false");
+            service.putIfAbsent("schedule.auto.stop", "false");
+            service.putIfAbsent("font.truetype.path", "/usr/share/fonts/truetype/;$(sree.home)/fonts");
          }
       }
 
