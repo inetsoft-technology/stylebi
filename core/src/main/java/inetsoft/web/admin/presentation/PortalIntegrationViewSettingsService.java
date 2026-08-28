@@ -146,6 +146,7 @@ public class PortalIntegrationViewSettingsService {
       List<PortalTab> portalTabs = manager.getPortalTabs();
       List<PortalTabModel> tabModels = model.tabs();
       int insertIndex = 0;
+      Catalog catalog = Catalog.getCatalog(principal);
 
       for(int i = 0; i < tabModels.size(); i++) {
          PortalTabModel tabModel = tabModels.get(i);
@@ -156,16 +157,14 @@ public class PortalIntegrationViewSettingsService {
 
             if(originalIndex < 0 || originalIndex >= portalTabs.size()) {
                throw new MessageException(
-                  "Tab list has changed since it was loaded; please reload Presentation " +
-                  "settings and try again.");
+                  catalog.getString("em.presentation.portalIntegration.tabsChanged"));
             }
 
             tab = portalTabs.get(originalIndex);
 
             if(!tab.isEditable() && !Objects.equals(tab.getName(), tabModel.name())) {
                throw new MessageException(
-                  "Tab list has changed since it was loaded; please reload Presentation " +
-                  "settings and try again.");
+                  catalog.getString("em.presentation.portalIntegration.tabsChanged"));
             }
 
             if(tab.isEditable()) {
