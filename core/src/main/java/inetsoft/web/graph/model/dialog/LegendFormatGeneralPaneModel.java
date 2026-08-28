@@ -94,6 +94,27 @@ public class LegendFormatGeneralPaneModel implements Serializable {
       this.symbolSize = symbolSize;
    }
 
+   /** The gap between the legend column and the plot, in pixels. */
+   public int getGap() {
+      return gap;
+   }
+
+   public void setGap(int gap) {
+      this.gap = gap;
+   }
+
+   /**
+    * Whether the gap follows the modern card default. Null on an unmarked chart, where there is no
+    * default to follow and the checkbox is not shown.
+    */
+   public Boolean getGapFollowsDefault() {
+      return gapFollowsDefault;
+   }
+
+   public void setGapFollowsDefault(Boolean gapFollowsDefault) {
+      this.gapFollowsDefault = gapFollowsDefault;
+   }
+
    public boolean isRoundCorners() {
       return roundCorners;
    }
@@ -129,6 +150,8 @@ public class LegendFormatGeneralPaneModel implements Serializable {
    private boolean notShowNull;
    private boolean notShowNullVisible;
    private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;
+   private int gap;
+   private Boolean gapFollowsDefault;
    private boolean roundCorners;
    private boolean symbolRoundCorners;
    private boolean symbolRoundCornersVisible;

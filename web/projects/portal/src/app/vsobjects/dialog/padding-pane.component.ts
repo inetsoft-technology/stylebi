@@ -32,6 +32,7 @@ import { NumberStepperComponent } from "../../widget/number-stepper/number-stepp
 export class PaddingPane implements OnInit {
    @Input() model: PaddingPaneModel;
    @Input() form: UntypedFormGroup = new UntypedFormGroup({});
+   showFollowDefault: boolean;
 
    initForm(): void {
       this.form.addControl("top", new UntypedFormControl(this.model.top,
@@ -59,6 +60,23 @@ export class PaddingPane implements OnInit {
    ngOnInit(): void {
       if(this.model) {
          this.initForm();
+         this.showFollowDefault = this.model.followsDefault != null;
+         this.setEnabled(this.model.followsDefault === true);
+      }
+   }
+
+   followDefaultChanged(follows: boolean): void {
+      this.model.followsDefault = follows;
+      this.setEnabled(follows);
+   }
+
+   private setEnabled(follows: boolean): void {
+      for(const name of ["top", "left", "bottom", "right"]) {
+         const control = this.form.controls[name];
+
+         if(control) {
+            follows ? control.disable() : control.enable();
+         }
       }
    }
 }

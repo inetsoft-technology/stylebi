@@ -20,4 +20,5 @@ export interface PaddingPaneModel {
    left: number;
    bottom: number;
    right: number;
+   followsDefault?: boolean;
 }

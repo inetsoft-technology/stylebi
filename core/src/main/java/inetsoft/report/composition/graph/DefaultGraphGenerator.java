@@ -553,19 +553,6 @@ public class DefaultGraphGenerator extends GraphGenerator {
    }
 
    /**
-    * Get the axis descriptor of a chart info.
-    */
-   protected AxisDescriptor getAxisDescriptor2() {
-      AxisDescriptor rdesc = null;
-
-      if(info instanceof VSChartInfo) {
-         rdesc = ((VSChartInfo) info).getRTAxisDescriptor2();
-      }
-
-      return rdesc == null ? info.getAxisDescriptor2() : rdesc;
-   }
-
-   /**
     * Find element by var name.
     */
    private GraphElement getElement(String var) {

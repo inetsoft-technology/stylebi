@@ -1377,6 +1377,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       writer.print(" tipClickValue=\"" + getTipOnClickValue() + "\"");
       writer.print(" summarySortCol=\"" + getSummarySortCol() + "\"");
       writer.print(" summarySortVal=\"" + getSummarySortValValue() + "\"");
+      writer.print(" userPadding=\"" + isUserPadding() + "\"");
 
       if(cubeType != null) {
          writer.print(" cubeType=\"" + cubeType + "\"");
@@ -1409,6 +1410,11 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       prop = getAttributeStr(element, "summarySortVal", "0");
       setSummarySortValValue(Integer.parseInt(prop));
+
+      // absent in files saved before the flag existed; a missing flag means no opinion, and the
+      // resolver's comparison against the creation default decides
+      String userPaddingProp = Tool.getAttribute(element, "userPadding");
+      setUserPadding("true".equalsIgnoreCase(userPaddingProp));
 
       cubeType = Tool.getAttribute(element, "cubeType");
 
@@ -1803,6 +1809,11 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       if(!Tool.equals(titleInfo, ninfo.titleInfo)) {
          titleInfo = ninfo.titleInfo;
+         result = true;
+      }
+
+      if(userPadding != ninfo.userPadding) {
+         userPadding = ninfo.userPadding;
          result = true;
       }
 
@@ -2751,6 +2762,33 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       titleInfo.setUserTitleHeight(user);
    }
 
+   /**
+    * Whether the author set the chart's padding. Distinguishes a deliberate inset from the creation
+    * default, so the card-inset resolver can substitute for the latter only. Surfaced in the
+    * property dialog as the padding pane's follow-the-default checkbox.
+    */
+   public boolean isUserPadding() {
+      return userPadding;
+   }
+
+   /**
+    * Set whether the padding was set by the author.
+    */
+   public void setUserPadding(boolean userPadding) {
+      this.userPadding = userPadding;
+   }
+
+   /**
+    * The card inset, resolved against the assembly's mark. Overridden rather than resolved at each
+    * read site so the exporters, the report converter, the annotation placement and the browser
+    * model all follow untouched. Persistence is unaffected: VSAssemblyInfo's writeAttributes,
+    * parseAttributes, clone and copyViewInfo all use the field, not this getter.
+    */
+   @Override
+   public Insets getPadding() {
+      return VSObjectChromeDefaults.chartPadding(this, super.getPadding());
+   }
+
    @Override
    public Insets getTitlePadding() {
       return titleInfo.getPadding();
@@ -2984,6 +3022,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    private boolean noData = false;
    private DynamicValue2 summarySortCol;
    private DynamicValue2 summarySortVal;
+   private boolean userPadding = false;
 
    private static final Logger LOG = LoggerFactory.getLogger(ChartVSAssemblyInfo.class);
 }

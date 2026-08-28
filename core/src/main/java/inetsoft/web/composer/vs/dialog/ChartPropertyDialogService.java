@@ -144,10 +144,13 @@ public class ChartPropertyDialogService {
       basicGeneralPaneModel.setObjectNames(this.vsObjectPropertyService.getObjectNames(
          vs, chartAssemblyInfo.getAbsoluteName()));
 
-      paddingPaneModel.setTop(chartAssemblyInfo.getPadding().top);
-      paddingPaneModel.setLeft(chartAssemblyInfo.getPadding().left);
-      paddingPaneModel.setBottom(chartAssemblyInfo.getPadding().bottom);
-      paddingPaneModel.setRight(chartAssemblyInfo.getPadding().right);
+      Insets chartPadding = chartAssemblyInfo.getPadding();
+      paddingPaneModel.setTop(chartPadding.top);
+      paddingPaneModel.setLeft(chartPadding.left);
+      paddingPaneModel.setBottom(chartPadding.bottom);
+      paddingPaneModel.setRight(chartPadding.right);
+      paddingPaneModel.setFollowsDefault(
+         chartAssemblyInfo.getVizMark() == null ? null : !chartAssemblyInfo.isUserPadding());
 
       titlePropPaneModel.setVisible(chartAssemblyInfo.getTitleVisibleValue());
       titlePropPaneModel.setTitle(chartAssemblyInfo.getTitleValue());
@@ -387,10 +390,26 @@ public class ChartPropertyDialogService {
 
       assemblyInfo.setTitleVisibleValue(titlePropPaneModel.isVisible());
       assemblyInfo.setTitleValue(titlePropPaneModel.getTitle());
-      assemblyInfo.setPadding(new Insets(paddingPaneModel.getTop(),
-                                         paddingPaneModel.getLeft(),
-                                         paddingPaneModel.getBottom(),
-                                         paddingPaneModel.getRight()));
+      Insets editedPadding = new Insets(paddingPaneModel.getTop(), paddingPaneModel.getLeft(),
+                                        paddingPaneModel.getBottom(), paddingPaneModel.getRight());
+      Boolean paddingFollowsDefault = paddingPaneModel.getFollowsDefault();
+
+      if(paddingFollowsDefault == null) {
+         // no checkbox was shown, so this chart is not marked and the inset is not being resolved;
+         // store only a real edit, exactly as this pane behaved before the checkbox existed
+         if(!editedPadding.equals(assemblyInfo.getPadding())) {
+            assemblyInfo.setUserPadding(true);
+            assemblyInfo.setPadding(editedPadding);
+         }
+      }
+      else if(paddingFollowsDefault) {
+         assemblyInfo.setUserPadding(false);
+         assemblyInfo.setPadding(VSObjectChromeDefaults.legacyChartPadding());
+      }
+      else {
+         assemblyInfo.setUserPadding(true);
+         assemblyInfo.setPadding(editedPadding);
+      }
 
       if(tipPaneModel.isTipOption()) {
          assemblyInfo.setTipOptionValue(TipVSAssemblyInfo.VIEWTIP_OPTION);
