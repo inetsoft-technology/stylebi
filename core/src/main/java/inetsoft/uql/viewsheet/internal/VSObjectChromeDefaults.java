@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 
 import java.awt.Color;
+import java.awt.Insets;
 
 /**
  * Supplies the modern object-chrome default colors (object-frame border + viewsheet page background)
@@ -57,6 +58,38 @@ public final class VSObjectChromeDefaults {
    /** Object-card corner radius default, in pixels; the top step of the DOM radius scale. */
    public static int cardCornerRadius() {
       return CARD_CORNER_RADIUS;
+   }
+
+   /**
+    * The card inset for one chart: the modern 12px card inset when the assembly is marked, its
+    * author has not set a padding, and the stored padding is still the creation default; otherwise
+    * the stored padding unchanged. The stored value is a parameter so a composer dialog can pass its
+    * design-time value and still get the substitution.
+    *
+    * Read-time only. Nothing seeds this, so clearing the mark restores the legacy inset with no
+    * reverser and no migration, and the value stays out of the bookmark (it lives in
+    * writeAttributes, which writeState does not reach).
+    */
+   public static Insets chartPadding(ChartVSAssemblyInfo info, Insets stored) {
+      if(info == null || info.getVizMark() == null || info.isUserPadding() ||
+         !LEGACY_CHART_PADDING.equals(stored))
+      {
+         return stored;
+      }
+
+      // a fresh object every call: Insets is mutable and the stored one belongs to the assembly
+      return new Insets(MODERN_CARD_INSET, MODERN_CARD_INSET, MODERN_CARD_INSET,
+                        MODERN_CARD_INSET);
+   }
+
+   /**
+    * The chart's creation-default inset, which is what the card-inset resolver treats as "no
+    * opinion" and what a dialog stores when its author hands the padding back to the default. A
+    * fresh object every call: Insets is mutable and the constant must not escape by reference.
+    */
+   public static Insets legacyChartPadding() {
+      return new Insets(LEGACY_CHART_PADDING.top, LEGACY_CHART_PADDING.left,
+                        LEGACY_CHART_PADDING.bottom, LEGACY_CHART_PADDING.right);
    }
 
    /**
@@ -129,4 +162,11 @@ public final class VSObjectChromeDefaults {
 
    // modern object-card corner radius, px; = --inet-radius-xl, the DOM scale's top step
    private static final int CARD_CORNER_RADIUS = 6;
+
+   // the chart's creation-default padding (ChartVSAssemblyInfo.setDefaultFormat), which is what the
+   // card inset resolver treats as "no opinion"
+   private static final Insets LEGACY_CHART_PADDING = new Insets(10, 10, 10, 10);
+   // modern card inset, px; = --inet-space-5. One value governs all four edges: the title lane, the
+   // axis title and the legend column add no edge padding of their own.
+   private static final int MODERN_CARD_INSET = 12;
 }

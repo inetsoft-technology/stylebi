@@ -55,8 +55,21 @@ public class PaddingPaneModel implements Serializable {
       this.right = right;
    }
 
+   /**
+    * Whether the padding follows the modern card inset. Null on an unmarked assembly, where there is
+    * no default to follow and the checkbox is not shown.
+    */
+   public Boolean getFollowsDefault() {
+      return followsDefault;
+   }
+
+   public void setFollowsDefault(Boolean followsDefault) {
+      this.followsDefault = followsDefault;
+   }
+
    private int top;
    private int left;
    private int bottom;
    private int right;
+   private Boolean followsDefault;
 }

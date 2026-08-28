@@ -324,6 +324,31 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
    }
 
    /**
+    * Clear the gap between the legend and the axis/plot at one tier, so the value falls back to the
+    * tier below it. Clearing USER hands the gap back to a stylesheet's value, or to the default when
+    * there is none; writing a 0 there instead would shadow the stylesheet permanently.
+    * @param type the type of value to clear: CSS or USER
+    */
+   public void resetGap(CompositeValue.Type type) {
+      gap.resetValue(type);
+   }
+
+   /**
+    * Whether the legend gap carries an opinion: an author's value, a deliberate zero included, or a
+    * CSS one. Zero is the descriptor's unset marker, so a non-zero value implies an opinion even
+    * where its tier is not recorded; the user tier is checked first so a deliberate zero is not read
+    * as no opinion.
+    *
+    * One state this cannot see: a CSS-set zero reads as no opinion, because CompositeValue records
+    * cssDefined privately with no accessor. The value comparison is what covers the CSS tier at all,
+    * and it cannot distinguish a CSS zero from an untouched descriptor. Not a behaviour change - the
+    * resolver's own current == 0 test collapsed the same case before this method existed.
+    */
+   public boolean hasGapValue() {
+      return gap.hasUserValue() || getGap() != 0;
+   }
+
+   /**
     * Get the legend item/title padding
     */
    public Insets getPadding() {

@@ -96,6 +96,46 @@ public final class VSChartChromeDefaults {
          ? (ctx.dark ? GRIDLINE_DARK : GRIDLINE) : current;
    }
 
+   /**
+    * Resolve the gap between an axis's labels and the plot: the spec value when the context is
+    * modern and the descriptor still carries no opinion, otherwise unchanged. Zero is the
+    * descriptor's unset marker - DefaultAxis.getLabelGap renders it as 2 - so it doubles as the
+    * legacy-default comparison.
+    */
+   public static int resolveAxisLabelGap(int current, VizContext ctx) {
+      return ctx.modern && current == 0 ? AXIS_LABEL_GAP : current;
+   }
+
+   /**
+    * Resolve the gap between an axis title and what it abuts: the plot-adjacent gap when its own
+    * labels are not drawn, its own gap when they are. This is the card's "hidden means zero" rule -
+    * each gap belongs to the element on its inner side, so a hidden label band hands its gap to
+    * whatever now abuts the plot, and no band degrades to an empty stub.
+    *
+    * Whether the labels are drawn is a parameter rather than a lookup: the answer is mode-dependent
+    * (GraphGenerator reads isMaxModeLabelVisible in max mode) and only the caller knows the mode.
+    *
+    * Gated on the context as well as on the value: unmarked, a title gap of 0 against a rendered
+    * label gap of 2 would move a legacy chart's axis title by 2px whenever its labels are hidden.
+    */
+   public static int resolveAxisTitleGap(int current, boolean abuttingLabelsDrawn, VizContext ctx) {
+      if(!ctx.modern || current != 0) {
+         return current;
+      }
+
+      return abuttingLabelsDrawn ? AXIS_TITLE_GAP : AXIS_LABEL_GAP;
+   }
+
+   /**
+    * Resolve the gap between the legend column and the plot. The spec asks for 16px between them and
+    * VGraph adds a fixed 2px of its own between the legend area and the content, so the descriptor
+    * carries the remaining 14 - the two compose to the specified total. Do not "correct" this to 16
+    * without also removing VGraph's constant.
+    */
+   public static int resolveLegendGap(int current, boolean hasOpinion, VizContext ctx) {
+      return ctx.modern && !hasOpinion ? LEGEND_GAP : current;
+   }
+
    // modern warm-neutral chrome. Warmer/subtler than the legacy GDefaults #EEEEEE, and equal to
    // VSTableStructureDefaults.gridlineColor().
    private static final Color GRIDLINE = new Color(0xE8E5DE);
@@ -110,4 +150,10 @@ public final class VSChartChromeDefaults {
    private static final Color TITLE_DARK = new Color(0xE6E0E9);
    // dark legend panel = --dark-surface-default, so it reads as part of the dark chart card
    private static final Color LEGEND_BG_DARK = new Color(0x252428);
+
+   // modern interior gap scale, px. 4 = --inet-space-2, 8 = --inet-space-4, and the legend's 14 plus
+   // VGraph's fixed 2 makes the 16 of --inet-space-6.
+   private static final int AXIS_TITLE_GAP = 4;
+   private static final int AXIS_LABEL_GAP = 8;
+   private static final int LEGEND_GAP = 14;
 }

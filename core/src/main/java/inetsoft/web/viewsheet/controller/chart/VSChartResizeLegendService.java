@@ -26,6 +26,8 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.viewsheet.graph.LegendDescriptor;
 import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
+import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.web.viewsheet.event.chart.VSChartLegendResizeEvent;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.stereotype.Service;
@@ -70,12 +72,18 @@ public class VSChartResizeLegendService extends VSChartControllerService<VSChart
                double width = event.getLegendWidth() / maxWidth;
                double height = event.getLegendHeight() / maxHeight;
                int layout = legendsDes.getLayout();
+               // the gap the chart actually renders, not the stored one: on a marked chart the
+               // stored gap is the unset marker and the rendered one is the card default, and
+               // adding the marker back would land the legend short of where it was dragged
+               int gap = VSChartChromeDefaults.resolveLegendGap(
+                  legendsDes.getGap(), legendsDes.hasGapValue(),
+                  VizContext.of(chartState.getChartAssemblyInfo()));
 
                if(layout == GraphConstants.RIGHT || layout == GraphConstants.LEFT) {
-                  width += legendsDes.getGap();
+                  width += gap;
                }
                else if(layout == GraphConstants.BOTTOM || layout == GraphConstants.TOP) {
-                  height += legendsDes.getGap();
+                  height += gap;
                }
 
                DimensionD size = new DimensionD(width, height);

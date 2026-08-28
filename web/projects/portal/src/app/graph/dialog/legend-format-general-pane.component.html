@@ -69,6 +69,28 @@
         </div>
       </div>
     </div>
+    <div class="shell-form-row--field row">
+      <div class="col-6 form-floating">
+        <number-stepper [(ngModel)]="model.gap" [min]="0"
+                        [disabled]="model.gapFollowsDefault === true"
+                        [ngModelOptions]="{standalone: true}">
+        </number-stepper>
+        <label>_#(Legend Gap)</label>
+      </div>
+      @if (showGapFollowDefault) {
+        <div class="checkbox col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="legendGapFollowsDefault"
+              [ngModel]="model.gapFollowsDefault"
+              (ngModelChange)="gapFollowDefaultChanged($event)"
+              [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="legendGapFollowsDefault">
+              _#(composer.vs.followDefaultDensity)
+            </label>
+          </div>
+        </div>
+      }
+    </div>
   </fieldset>
   <fieldset>
     <legend>_#(Symbol)</legend>
