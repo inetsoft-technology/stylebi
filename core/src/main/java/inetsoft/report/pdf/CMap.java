@@ -114,9 +114,10 @@ public class CMap {
             }
 
             DataSpace space = DataSpace.getDataSpace();
+            StringTokenizer tok2 = new StringTokenizer(path, ";");
 
-            while(tok.hasMoreTokens()) {
-               String dir = tok.nextToken();
+            while(tok2.hasMoreTokens()) {
+               String dir = tok2.nextToken();
                InputStream in = space.getInputStream(dir + cmapdir, name);
 
                if(in != null) {
