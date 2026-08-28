@@ -81,7 +81,7 @@
         <div class="list-group">
           @for (driver of drivers; track trackByIdx(i, driver); let i = $index) {
             <div class="list-group-item">
-              <input type="checkbox" class="checkbox" [(ngModel)]="selectedDrivers[i]" (ngModelChange)="selectDriver(i)">
+              <input type="checkbox" class="form-check-input" [(ngModel)]="selectedDrivers[i]" (ngModelChange)="selectDriver(i)">
               <span>{{ driver }}</span>
             </div>
           }
