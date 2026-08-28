@@ -104,13 +104,24 @@ public class PrintDeviceLayoutPropertyService {
          VSPrintLayoutDialogModel printLayout = screensPane.getPrintLayout();
 
          if(printLayout == null) {
-            // No print layout configured on this viewsheet yet: seed scaleFont at the safe
-            // default BEFORE applying the patch, so an omitted "scaleFont" key lands on 1.0f
-            // rather than the bare-field 0.0f a freshly-constructed model would otherwise carry
-            // through to the write untouched (the Hazard-3 regression this class exists to
-            // close).
+            // No print layout configured on this viewsheet yet: seed the fields whose unset
+            // values are not merely wrong but fatal, BEFORE applying the patch.
+            //
+            // scaleFont: an omitted "scaleFont" key must land on 1.0f rather than the bare-field
+            // 0.0f a freshly-constructed model would otherwise carry through to the write
+            // untouched (the Hazard-3 regression this class exists to close).
+            //
+            // units: an omitted "units" key leaves the field null, and that null reaches
+            // ViewsheetPropertyDialogService's printInfo.setUnit(...) and then
+            // VSLayoutService.getPLayoutSize's switch(unit) -- which accepts only "inches" and
+            // "mm" -- where it throws NPE. The throw lands AFTER the patch has already mutated
+            // the live model, so the failed call persists a half-written layout, and every later
+            // write on this viewsheet then fails while re-reading it (taking manage_device_layout
+            // down with it, since both share setViewsheetInfo). "inches" matches what
+            // WizPrintLayoutBuilder already hardcodes for the same purpose.
             printLayout = new VSPrintLayoutDialogModel();
             printLayout.setScaleFont(1.0f);
+            printLayout.setUnits("inches");
          }
 
          applyPrintLayoutPatch(printLayout, resolvedPatch);
