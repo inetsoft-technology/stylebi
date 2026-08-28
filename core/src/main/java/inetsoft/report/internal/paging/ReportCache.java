@@ -138,8 +138,8 @@ public class ReportCache implements Serializable {
     * @return  maximum number of threads
     */
    public static int calculateMaxThreads() {
-      int hcount = 0;
       int scount = calculateMaxActiveThreads();
+      int hcount = scount * 2;
       String val = SreeEnv.getProperty("reportCache.thread.count",
                                        (scount * 2) + "");
       try {
