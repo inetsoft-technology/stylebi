@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai.providers;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
+import inetsoft.util.MessageException;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
@@ -223,6 +224,45 @@ class ProviderChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // bug #76358 -- getAuthenticationProvider(name) on an unknown name (delete-race: present at
+   // plan time, gone by apply time) surfaces as a clean, named STATUS_FAILED outcome, not an
+   // unhandled NullPointerException.
+   // -------------------------------------------------------------------------
+
+   @Test void deleteRaceUnknownNameAtApplyTimeSurfacesAsCleanFailedOutcomeNotNpe() throws Exception {
+      seedHealthyAuthentication("keep", "victim");
+      ProviderApplyRequest req = applyRequest("delete victim", deleteAuth("victim"));
+      AuthenticationProviderModel victimModel = authModels.get("victim");
+      // "victim" is present for resolveDelete's own already-guarded call to getAuthenticationProvider
+      // (invoked twice under this fake's apply() -- once building req's plan via applyRequest(),
+      // once more during apply()'s own internal re-resolve) -- both must keep succeeding. Only the
+      // unguarded call site inside applyDeleteAuthentication itself
+      // (ProviderChangesetApplyService.java:298) hits a provider that vanished from the live chain in
+      // the split second after apply()'s own preflight re-check already passed -- targeted directly
+      // by stack trace, since the exact number of resolveDelete-internal calls is an implementation
+      // detail this regression test should not be coupled to.
+      when(authenticationProviderService.getAuthenticationProvider("victim")).thenAnswer(inv -> {
+         boolean fromUnguardedCallSite = Arrays.stream(Thread.currentThread().getStackTrace())
+            .anyMatch(frame -> frame.getClassName().equals(ProviderChangesetApplyService.class.getName())
+                             && frame.getMethodName().equals("applyDeleteAuthentication"));
+
+         if(fromUnguardedCallSite) {
+            throw new MessageException("Authentication provider named \"victim\" does not exist");
+         }
+
+         return victimModel;
+      });
+
+      var result = service.apply(req, user);
+
+      var victimOutcome = result.results().stream()
+         .filter(o -> o.property().contains("victim")).findFirst().orElseThrow();
+      assertEquals(AdminChangeRecord.STATUS_FAILED, victimOutcome.status());
+      assertTrue(victimOutcome.error().contains("does not exist"));
+      assertFalse(victimOutcome.error().contains("NullPointerException"));
+   }
+
+   // -------------------------------------------------------------------------
    // index resolved fresh at apply time, never a preview-captured index (section 1/6)
    // -------------------------------------------------------------------------
 
@@ -293,7 +333,19 @@ class ProviderChangesetApplyServiceTest {
          return b.build();
       });
       lenient().when(authenticationProviderService.getAuthenticationProvider(anyString()))
-         .thenAnswer(inv -> authModels.get((String) inv.getArgument(0)));
+         .thenAnswer(inv -> {
+            String name = inv.getArgument(0);
+            AuthenticationProviderModel model = authModels.get(name);
+
+            if(model == null) {
+               // matches AuthenticationProviderService.getAuthenticationProvider's real,
+               // post-bug-76358-fix contract for an unknown name.
+               throw new MessageException(
+                  "Authentication provider named \"" + name + "\" does not exist");
+            }
+
+            return model;
+         });
       lenient().doAnswer(inv -> {
          AuthenticationProviderModel model = inv.getArgument(0);
          authChainNames.add(model.providerName());
