@@ -135,13 +135,34 @@ class PrintDeviceLayoutPropertyServiceTest {
 
    @Test
    void anExplicitUnitsValueIsLeftAlone() throws Exception {
-      // The guard fills a gap; it does not overrule the caller. "mm" is the other value the
-      // renderer's switch recognises.
+      // Pins applyPrintLayoutPatch's passthrough, NOT the guard: this stays green with the guard
+      // disabled, and should, because what it asserts is that the guard never overrules a value
+      // the caller set. "mm" is the other value the renderer's switch recognises.
       Harness h = new Harness(screensPaneWithNoPrintLayout());
 
       h.service.setPrintLayout("tok", h.principal, Map.of("paperSize", "Letter", "units", "mm"), "");
 
       assertEquals("mm", writtenPrintLayout(h).getUnits());
+   }
+
+   @Test
+   void manageDeviceLayoutRepairsAPersistedNullUnitsRatherThanCrashingOnIt() throws Exception {
+      // manage_device_layout never touches the print layout -- but setViewsheetInfo computes the
+      // page size from it unconditionally, so a viewsheet carrying a print layout persisted with a
+      // null units takes this method down too. Guarding only setPrintLayout leaves such a
+      // viewsheet permanently unusable, because no caller-side call can repair it.
+      VSPrintLayoutDialogModel persisted = new VSPrintLayoutDialogModel();
+      persisted.setScaleFont(1.0f);
+      persisted.setPaperSize("Letter");
+      ScreensPaneModel screensPane = screensPaneWithNoPrintLayout();
+      screensPane.setPrintLayout(persisted);
+      Harness h = new Harness(screensPane);
+      h.registerDevices("wiz-mobile");
+
+      h.service.manageDeviceLayout("tok", h.principal, "create",
+         Map.of("name", "Phone", "selectedDevices", List.of("wiz-mobile")), "");
+
+      assertEquals("inches", writtenPrintLayout(h).getUnits());
    }
 
    /** The print layout as it was handed to {@code setViewsheetInfo} -- the only thing that ships. */

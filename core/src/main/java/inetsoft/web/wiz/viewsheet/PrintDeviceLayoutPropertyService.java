@@ -114,8 +114,8 @@ public class PrintDeviceLayoutPropertyService {
          }
 
          applyPrintLayoutPatch(printLayout, resolvedPatch);
-         requireUnits(printLayout);
          screensPane.setPrintLayout(printLayout);
+         requireUsableUnits(screensPane);
          dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);
       });
    }
@@ -251,6 +251,11 @@ public class PrintDeviceLayoutPropertyService {
          }
 
          screensPane.setDeviceLayouts(layouts);
+         // Not incidental: this method never touches the print layout, but setViewsheetInfo
+         // computes the page size from it unconditionally, so a viewsheet carrying a persisted
+         // null unit takes manage_device_layout down with it. Guarding only setPrintLayout above
+         // would leave that viewsheet permanently unusable with no caller-side repair.
+         requireUsableUnits(screensPane);
          dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);
       });
    }
@@ -321,17 +326,29 @@ public class PrintDeviceLayoutPropertyService {
     * and every later write on the viewsheet then fails while re-reading it, taking
     * {@code manage_device_layout} down with it since both share {@code setViewsheetInfo}.
     *
-    * <p>This runs on every path rather than only when seeding a brand-new layout, because there
-    * are two other ways to arrive here with a null: a caller passing {@code "units": null}
-    * explicitly (which {@code applyPrintLayoutPatch} would otherwise write straight over the
-    * seeded value), and a pre-existing layout persisted before this guard existed.
+    * <p>Called on <b>every</b> write path in this class -- {@code setPrintLayout} and
+    * {@code manageDeviceLayout} both -- rather than only where a brand-new layout is built,
+    * because there are three ways to reach the write with a null and only one of them involves
+    * creating a layout: an omitted {@code "units"} key on a new layout; a caller passing
+    * {@code "units": null} explicitly, which {@code applyPrintLayoutPatch} would otherwise write
+    * straight over any default; and a layout persisted before this guard existed, which
+    * {@code manageDeviceLayout} would otherwise carry into the write untouched while never
+    * looking at the print layout at all.
     *
     * <p>{@code "inches"} matches what {@code WizPrintLayoutBuilder} already hardcodes for the
     * same purpose. An unrecognised non-null value is left alone: {@code getPLayoutSize} falls
     * through its {@code default} for those, which is a wrong scale but not a crash, and silently
     * rewriting a caller's explicit value would be its own surprise.
     */
-   private static void requireUnits(VSPrintLayoutDialogModel printLayout) {
+   private static void requireUsableUnits(ScreensPaneModel screensPane) {
+      VSPrintLayoutDialogModel printLayout = screensPane.getPrintLayout();
+
+      if(printLayout == null) {
+         // No print layout at all is the safe state, not a broken one: getPrintPageSize has
+         // nothing to compute from and never reaches the switch.
+         return;
+      }
+
       String units = printLayout.getUnits();
 
       if(units == null || units.isBlank()) {
