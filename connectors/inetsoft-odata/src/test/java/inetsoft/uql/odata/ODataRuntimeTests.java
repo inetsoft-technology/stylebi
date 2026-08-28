@@ -207,6 +207,23 @@ class ODataRuntimeTests {
       assertEquals(0, columns.length);
    }
 
+   @Test
+   void getFunctionsDoesNotThrowWhenMetadataRequestFails() {
+      stubFor(get(urlPathEqualTo("/V4/OData/OData.svc/%24metadata"))
+                 .willReturn(aResponse().withStatus(500)));
+
+      ODataQuery query = new ODataQuery();
+      query.setDataSource(dataSource);
+      query.setName("OData Test Query");
+      query.setEntity("Products");
+
+      String[][] functionLabels = query.getFunctions();
+
+      assertNotNull(functionLabels);
+      assertEquals(1, functionLabels.length);
+      assertArrayEquals(new String[]{ " ", "" }, functionLabels[0]);
+   }
+
    private String readXml(String file) throws IOException {
       return readJson(file);
    }

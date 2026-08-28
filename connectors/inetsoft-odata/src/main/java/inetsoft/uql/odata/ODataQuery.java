@@ -392,6 +392,13 @@ public class ODataQuery extends TabularQuery {
 
    private void loadSchema() {
       Node schema = ODataRuntime.getSchemaNode((ODataDataSource) getDataSource());
+
+      if(schema == null) {
+         nameSpace = null;
+         functions = new ArrayList<>();
+         return;
+      }
+
       nameSpace = Tool.getAttribute((Element) schema, "Namespace");
       String entityType = ODataRuntime.getEntityType(schema, entity);
       entityType = entityType == null ? "" : entityType;
