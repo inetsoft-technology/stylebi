@@ -1080,6 +1080,13 @@ public class DeployManagerService {
 
                IdentityID userID = IdentityID.getIdentityIDFromKey(userName);
                userID.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
+
+               // Bookmarks for an owner that does not exist in this organization are skipped
+               // by ViewsheetAsset.parseContent0(), so never prompt to resolve them.
+               if(!ViewsheetAsset.bookmarkOwnerExists(userID)) {
+                  continue;
+               }
+
                VSBookmark existing = engine.getVSBookmark(entry, new XPrincipal(userID));
 
                if(existing == null) {
