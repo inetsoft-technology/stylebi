@@ -2860,7 +2860,7 @@ public final class Tool extends CoreTool {
          }
 
          try {
-            dateFmt = Tool.createDateFormat(prop, locale);
+            dateFmt = Tool.createDateFormat(prop, locale, DateFormatKind.DATE);
             dateFmt.format(new Date());
          }
          catch(Exception ex) {
@@ -2945,7 +2945,7 @@ public final class Tool extends CoreTool {
          }
 
          try {
-            timeFmt = Tool.createDateFormat(prop, locale);
+            timeFmt = Tool.createDateFormat(prop, locale, DateFormatKind.TIME);
             timeFmt.format(new Date());
          }
          catch(Exception ex) {
@@ -2997,7 +2997,7 @@ public final class Tool extends CoreTool {
          }
 
          try {
-            datetimeFmt = Tool.createDateFormat(prop, locale);
+            datetimeFmt = Tool.createDateFormat(prop, locale, DateFormatKind.DATE_TIME);
             datetimeFmt.format(new Date());
          }
          catch(Exception ex) {
