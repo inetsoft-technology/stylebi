@@ -34,6 +34,18 @@ package inetsoft.web.admin.cluster;
  *      when cluster.pause.enabled is "false" (the default).
  * [G4] resumeServers proceeds and still calls ServerClusterClient.resumeServer when
  *      cluster.pause.enabled is "true" (no regression to the enabled path).
+ *
+ * Bug #76343: pauseServers/resumeServers were void, discarding each server's per-call
+ * success/failure, so a caller could never tell whether a pause/resume actually took effect.
+ *
+ * [G5] pauseServers returns a map with false for a server whose pauseServer(...) call fails
+ *      and true for one that succeeds.
+ * [G6] pauseServers reports true (not omitted) for a server already paused, without calling
+ *      pauseServer for it.
+ * [G7] resumeServers returns a map with false for a server whose resumeServer(...) call fails
+ *      and true for one that succeeds.
+ * [G8] resumeServers reports true (not omitted) for a server already resumed, without calling
+ *      resumeServer for it.
  */
 
 import inetsoft.sree.SreeEnv;
@@ -43,6 +55,8 @@ import inetsoft.web.cluster.ServerClusterStatus;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
+
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -142,6 +156,88 @@ class ClusterServiceTest {
          service.resumeServers(new String[]{ "node1" });
 
          verify(construction.constructed().get(0)).resumeServer("node1");
+      }
+   }
+
+   // [G5] pauseServers reports false for a server the client fails to pause, true for one it pauses
+   @Test
+   void pauseServers_returnsFalseForFailedServerAndTrueForSucceeded() throws SecurityException {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("cluster.pause.enabled", "false"))
+         .thenReturn("true");
+
+      try(MockedConstruction<ServerClusterClient> construction =
+             mockConstruction(ServerClusterClient.class, (mockClient, context) -> {
+                ServerClusterStatus status = mock(ServerClusterStatus.class);
+                when(status.isPaused()).thenReturn(false);
+                when(mockClient.getStatus(anyString())).thenReturn(status);
+                when(mockClient.pauseServer("node1")).thenReturn(true);
+                when(mockClient.pauseServer("node2")).thenReturn(false);
+             }))
+      {
+         Map<String, Boolean> result = service.pauseServers(new String[]{ "node1", "node2" });
+
+         assertEquals(Map.of("node1", true, "node2", false), result);
+      }
+   }
+
+   // [G6] pauseServers reports true (not omitted) for an already-paused server, without calling pauseServer
+   @Test
+   void pauseServers_reportsTrueForAlreadyPausedServerWithoutCallingClient() throws SecurityException {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("cluster.pause.enabled", "false"))
+         .thenReturn("true");
+
+      try(MockedConstruction<ServerClusterClient> construction =
+             mockConstruction(ServerClusterClient.class, (mockClient, context) -> {
+                ServerClusterStatus status = mock(ServerClusterStatus.class);
+                when(status.isPaused()).thenReturn(true);
+                when(mockClient.getStatus(anyString())).thenReturn(status);
+             }))
+      {
+         Map<String, Boolean> result = service.pauseServers(new String[]{ "node1" });
+
+         assertEquals(Map.of("node1", true), result);
+         verify(construction.constructed().get(0), never()).pauseServer(anyString());
+      }
+   }
+
+   // [G7] resumeServers reports false for a server the client fails to resume, true for one it resumes
+   @Test
+   void resumeServers_returnsFalseForFailedServerAndTrueForSucceeded() throws SecurityException {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("cluster.pause.enabled", "false"))
+         .thenReturn("true");
+
+      try(MockedConstruction<ServerClusterClient> construction =
+             mockConstruction(ServerClusterClient.class, (mockClient, context) -> {
+                ServerClusterStatus status = mock(ServerClusterStatus.class);
+                when(status.isPaused()).thenReturn(true);
+                when(mockClient.getStatus(anyString())).thenReturn(status);
+                when(mockClient.resumeServer("node1")).thenReturn(true);
+                when(mockClient.resumeServer("node2")).thenReturn(false);
+             }))
+      {
+         Map<String, Boolean> result = service.resumeServers(new String[]{ "node1", "node2" });
+
+         assertEquals(Map.of("node1", true, "node2", false), result);
+      }
+   }
+
+   // [G8] resumeServers reports true (not omitted) for an already-resumed server, without calling resumeServer
+   @Test
+   void resumeServers_reportsTrueForAlreadyResumedServerWithoutCallingClient() throws SecurityException {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("cluster.pause.enabled", "false"))
+         .thenReturn("true");
+
+      try(MockedConstruction<ServerClusterClient> construction =
+             mockConstruction(ServerClusterClient.class, (mockClient, context) -> {
+                ServerClusterStatus status = mock(ServerClusterStatus.class);
+                when(status.isPaused()).thenReturn(false);
+                when(mockClient.getStatus(anyString())).thenReturn(status);
+             }))
+      {
+         Map<String, Boolean> result = service.resumeServers(new String[]{ "node1" });
+
+         assertEquals(Map.of("node1", true), result);
+         verify(construction.constructed().get(0), never()).resumeServer(anyString());
       }
    }
 }

@@ -98,44 +98,54 @@ public class ClusterService extends MonitorLevelService implements StatusUpdater
          .build();
    }
 
-   public void pauseServers(String[] servers) throws SecurityException {
+   public Map<String, Boolean> pauseServers(String[] servers) throws SecurityException {
       if(!isPauseEnabled()) {
          throw new SecurityException("Cluster pause is not enabled");
       }
 
       ServerClusterClient client = new ServerClusterClient();
+      Map<String, Boolean> results = new LinkedHashMap<>();
 
       for(String server : servers) {
          if(client.getStatus(server).isPaused()) {
+            results.put(server, true);
             continue;
          }
 
          boolean success = client.pauseServer(server);
+         results.put(server, success);
 
          if(!success) {
-            LOG.warn("Failed to pause server");
+            LOG.warn("Failed to pause server {}", server);
          }
       }
+
+      return results;
    }
 
-   public void resumeServers(String[] servers) throws SecurityException {
+   public Map<String, Boolean> resumeServers(String[] servers) throws SecurityException {
       if(!isPauseEnabled()) {
          throw new SecurityException("Cluster pause is not enabled");
       }
 
       ServerClusterClient client = new ServerClusterClient();
+      Map<String, Boolean> results = new LinkedHashMap<>();
 
       for(String server : servers) {
          if(!client.getStatus(server).isPaused()) {
+            results.put(server, true);
             continue;
          }
 
          boolean success = client.resumeServer(server);
+         results.put(server, success);
 
          if(!success) {
-            LOG.warn("Failed to resume server");
+            LOG.warn("Failed to resume server {}", server);
          }
       }
+
+      return results;
    }
 
    private boolean isPauseEnabled() {
