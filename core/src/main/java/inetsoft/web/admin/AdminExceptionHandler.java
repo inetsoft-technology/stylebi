@@ -151,6 +151,22 @@ public class AdminExceptionHandler {
    }
 
    /**
+    * Error handler for access denied when a controller throws the checked
+    * {@link SecurityException} directly (not via {@link inetsoft.web.security.SecuredAspect},
+    * which is handled above through {@link #handleUndeclaredThrowable}).
+    */
+   @ExceptionHandler(SecurityException.class)
+   @ResponseBody
+   @ApiResponses({
+      @ApiResponse(
+         responseCode = "403",
+         description = "Access was denied because the requested action is not enabled or permitted.")
+   })
+   public ResponseEntity<GenericError> handleAccessDenied(SecurityException e) {
+      return accessDenied(e);
+   }
+
+   /**
     * Builds a sanitized 403 response for an authorization denial. The exception is logged at
     * debug level and the client receives a generic, localized message so that no principal,
     * role, group, or organization details are exposed.

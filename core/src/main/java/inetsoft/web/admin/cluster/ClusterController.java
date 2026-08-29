@@ -121,7 +121,7 @@ public class ClusterController {
       )
    )
    @PostMapping("/api/em/monitoring/cluster/pause-server")
-   public void pauseServer(@RequestBody String[] servers) {
+   public void pauseServer(@RequestBody String[] servers) throws SecurityException {
       clusterService.pauseServers(servers);
    }
 
@@ -133,7 +133,7 @@ public class ClusterController {
       )
    )
    @PostMapping("/api/em/monitoring/cluster/resume-server")
-   public void resumeServer(@RequestBody String[] servers) {
+   public void resumeServer(@RequestBody String[] servers) throws SecurityException {
       clusterService.resumeServers(servers);
    }
 

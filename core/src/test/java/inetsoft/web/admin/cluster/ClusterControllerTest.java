@@ -119,7 +119,7 @@ class ClusterControllerTest {
 
    // [G4] pauseServer delegates server array to clusterService.pauseServers
    @Test
-   void pauseServer_delegatesToService() {
+   void pauseServer_delegatesToService() throws SecurityException {
       String[] servers = { "node1", "node2" };
 
       controller.pauseServer(servers);
@@ -129,7 +129,7 @@ class ClusterControllerTest {
 
    // [G5] resumeServer delegates server array to clusterService.resumeServers
    @Test
-   void resumeServer_delegatesToService() {
+   void resumeServer_delegatesToService() throws SecurityException {
       String[] servers = { "node1" };
 
       controller.resumeServer(servers);
