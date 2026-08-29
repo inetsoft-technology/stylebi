@@ -90,7 +90,7 @@ class ClusterChangesetApplyServiceTest {
    // success -- read-back drives "verified", uses a FRESH getStatus call, not the pre-apply snapshot
    // -------------------------------------------------------------------------
 
-   @Test void appliesAPauseAndReportsVerifiedFromFreshReadBack() {
+   @Test void appliesAPauseAndReportsVerifiedFromFreshReadBack() throws Exception {
       stubStatus("s1", ServerClusterStatus.Status.OK, false);
       String hash = planService.resolve(request("task", List.of(pause("s1")))).planHash();
 
@@ -179,7 +179,7 @@ class ClusterChangesetApplyServiceTest {
    // failure does not stop subsequent entries -- item 4's structural divergence
    // -------------------------------------------------------------------------
 
-   @Test void aSingleEntryFailureDoesNotStopProcessingOfSubsequentEntries() {
+   @Test void aSingleEntryFailureDoesNotStopProcessingOfSubsequentEntries() throws Exception {
       stubStatus("s1", ServerClusterStatus.Status.DOWN, false);
       stubStatus("s2", ServerClusterStatus.Status.OK, false);
       String hash = planService.resolve(
@@ -221,7 +221,7 @@ class ClusterChangesetApplyServiceTest {
       }
    }
 
-   @Test void overallStatusIsAppliedWhenEveryEntrySucceeds() {
+   @Test void overallStatusIsAppliedWhenEveryEntrySucceeds() throws Exception {
       stubStatus("s1", ServerClusterStatus.Status.OK, false);
       stubStatus("s2", ServerClusterStatus.Status.OK, false);
       String hash = planService.resolve(
@@ -243,7 +243,7 @@ class ClusterChangesetApplyServiceTest {
    // a throw mid-apply is recorded as failed, never stops remaining entries, never rolled back
    // -------------------------------------------------------------------------
 
-   @Test void aThrowDuringApplyIsRecordedAsFailedAndDoesNotAbortRemainingEntries() {
+   @Test void aThrowDuringApplyIsRecordedAsFailedAndDoesNotAbortRemainingEntries() throws Exception {
       stubStatus("s1", ServerClusterStatus.Status.OK, false);
       stubStatus("s2", ServerClusterStatus.Status.OK, false);
       String hash = planService.resolve(

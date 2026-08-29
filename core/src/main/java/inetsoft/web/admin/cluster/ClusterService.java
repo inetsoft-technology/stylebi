@@ -19,6 +19,7 @@ package inetsoft.web.admin.cluster;
 
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.*;
 import inetsoft.web.cluster.ServerClusterClient;
 import inetsoft.web.cluster.ServerClusterStatus;
@@ -93,11 +94,15 @@ public class ClusterService extends MonitorLevelService implements StatusUpdater
    public ClusterEnabledModel getClusterEnabled() {
       return ClusterEnabledModel.builder()
          .enabled(LicenseManager.isEnterprise())
-         .pauseEnabled("true".equals(SreeEnv.getProperty("cluster.pause.enabled", "false")))
+         .pauseEnabled(isPauseEnabled())
          .build();
    }
 
-   public void pauseServers(String[] servers) {
+   public void pauseServers(String[] servers) throws SecurityException {
+      if(!isPauseEnabled()) {
+         throw new SecurityException("Cluster pause is not enabled");
+      }
+
       ServerClusterClient client = new ServerClusterClient();
 
       for(String server : servers) {
@@ -113,7 +118,11 @@ public class ClusterService extends MonitorLevelService implements StatusUpdater
       }
    }
 
-   public void resumeServers(String[] servers) {
+   public void resumeServers(String[] servers) throws SecurityException {
+      if(!isPauseEnabled()) {
+         throw new SecurityException("Cluster pause is not enabled");
+      }
+
       ServerClusterClient client = new ServerClusterClient();
 
       for(String server : servers) {
@@ -127,6 +136,10 @@ public class ClusterService extends MonitorLevelService implements StatusUpdater
             LOG.warn("Failed to resume server");
          }
       }
+   }
+
+   private boolean isPauseEnabled() {
+      return "true".equals(SreeEnv.getProperty("cluster.pause.enabled", "false"));
    }
 
    private final ServerClusterClient client;
