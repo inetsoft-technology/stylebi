@@ -21,9 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.binding.AssetNamedGroupInfo;
 import inetsoft.report.internal.binding.SummaryAttr;
 import inetsoft.uql.XConstants;
-import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetRepository;
-import inetsoft.uql.asset.AttachedAssembly;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.Worksheet;
@@ -43,7 +41,6 @@ import inetsoft.web.composer.model.condition.ConditionExpression;
 import inetsoft.web.composer.model.condition.ConditionUtil;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /** Converts between StyleBI's ref models and the agent-facing {@link FieldRef}. */
@@ -182,35 +179,10 @@ public final class FieldRefFactory {
    private static List<DefaultNamedGroupAssembly> worksheetNamedGroups(
       RuntimeViewsheet rvs, SourceInfo source, String column)
    {
-      List<DefaultNamedGroupAssembly> matches = new ArrayList<>();
       Worksheet ws = rvs == null || rvs.getViewsheet() == null
          ? null : rvs.getViewsheet().getBaseWorksheet();
 
-      if(source == null || source.getSource() == null || ws == null) {
-         return matches;
-      }
-
-      for(Assembly wsAssembly : ws.getAssemblies()) {
-         if(!(wsAssembly instanceof DefaultNamedGroupAssembly ngAssembly) ||
-            ngAssembly.getAttachedType() != AttachedAssembly.COLUMN_ATTACHED)
-         {
-            continue;
-         }
-
-         SourceInfo attachedSource = ngAssembly.getAttachedSource();
-         DataRef attr = ngAssembly.getAttachedAttribute();
-
-         if(attachedSource == null || attr == null ||
-            !source.getSource().equals(attachedSource.getSource()) ||
-            !column.equals(attr.getAttribute()))
-         {
-            continue;
-         }
-
-         matches.add(ngAssembly);
-      }
-
-      return matches;
+      return WorksheetNamedGroupMatcher.worksheetNamedGroups(ws, source, column);
    }
 
    public static FieldRef from(DataRefModel ref) {

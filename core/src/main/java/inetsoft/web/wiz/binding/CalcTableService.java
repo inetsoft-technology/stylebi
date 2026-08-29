@@ -22,12 +22,9 @@ import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.XConstants;
-import inetsoft.uql.asset.Assembly;
-import inetsoft.uql.asset.AttachedAssembly;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.Worksheet;
-import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.DataVSAssembly;
@@ -330,35 +327,10 @@ public class CalcTableService {
                                                                 DataVSAssembly assembly,
                                                                 String column)
    {
-      List<DefaultNamedGroupAssembly> matches = new ArrayList<>();
       SourceInfo sinfo = assembly.getSourceInfo();
       Worksheet ws = rvs.getViewsheet() == null ? null : rvs.getViewsheet().getBaseWorksheet();
 
-      if(sinfo == null || sinfo.getSource() == null || ws == null) {
-         return matches;
-      }
-
-      for(Assembly wsAssembly : ws.getAssemblies()) {
-         if(!(wsAssembly instanceof DefaultNamedGroupAssembly ngAssembly) ||
-            ngAssembly.getAttachedType() != AttachedAssembly.COLUMN_ATTACHED)
-         {
-            continue;
-         }
-
-         SourceInfo attachedSource = ngAssembly.getAttachedSource();
-         DataRef attr = ngAssembly.getAttachedAttribute();
-
-         if(attachedSource == null || attr == null ||
-            !sinfo.getSource().equals(attachedSource.getSource()) ||
-            !column.equals(attr.getAttribute()))
-         {
-            continue;
-         }
-
-         matches.add(ngAssembly);
-      }
-
-      return matches;
+      return WorksheetNamedGroupMatcher.worksheetNamedGroups(ws, sinfo, column);
    }
 
    /**

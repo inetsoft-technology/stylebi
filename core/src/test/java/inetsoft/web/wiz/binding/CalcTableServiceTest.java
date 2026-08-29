@@ -38,6 +38,7 @@ import inetsoft.uql.asset.AttachedAssembly;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
 import inetsoft.uql.asset.NamedGroupInfo;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.AbstractTableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.util.XNamedGroupInfo;
@@ -538,6 +539,45 @@ class CalcTableServiceTest {
       @SuppressWarnings("unchecked")
       List<String> groups = (List<String>) read.get("namedGroups");
       assertTrue(groups.contains("Regions"), "expected worksheet-local group in: " + groups);
+   }
+
+   /**
+    * Bug 76311 / stylebi#4731 (reopened): a group created via {@code add_named_group}'s
+    * datasource-scoped mode (datasource+logicalModel+sourceTable+attribute) attaches
+    * {@code SourceInfo.MODEL}, source = the logical model name (e.g. "Order Model") -- never
+    * equal to the crosstab's own bound {@code SourceInfo} (always {@code SourceInfo.ASSET},
+    * source = the worksheet table's own assembly name). The match must fall back to resolving
+    * the worksheet table assembly's own underlying {@code SourceInfo} and comparing against
+    * that.
+    */
+   @Test
+   void includesWorksheetLocalNamedGroupsForALogicalModelBoundDimension() throws Exception {
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getSourceInfo()).thenReturn(new SourceInfo(SourceInfo.ASSET, null, "Customer1"));
+      Harness h = harnessFor(assembly, 0, 0);
+
+      SourceInfo modelSource = new SourceInfo(SourceInfo.MODEL, "ds", "Order Model");
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn("WestStates");
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource()).thenReturn(modelSource);
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "State"));
+
+      AbstractTableAssembly boundTable = mock(AbstractTableAssembly.class);
+      when(boundTable.getSourceInfo()).thenReturn(modelSource);
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new Assembly[]{ ngAssembly });
+      when(ws.getAssembly("Customer1")).thenReturn(boundTable);
+      when(h.viewsheet().getBaseWorksheet()).thenReturn(ws);
+
+      Map<String, Object> read =
+         h.service.namedGroups("tok", principal(), "Crosstab1", "State");
+
+      @SuppressWarnings("unchecked")
+      List<String> groups = (List<String>) read.get("namedGroups");
+      assertTrue(groups.contains("WestStates"),
+                 "expected logical-model-bound group in: " + groups);
    }
 
    /**
