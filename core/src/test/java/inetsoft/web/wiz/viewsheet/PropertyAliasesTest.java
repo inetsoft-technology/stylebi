@@ -438,4 +438,77 @@ class PropertyAliasesTest {
                                                    "chartLinePaneModel.gridLineVisible"),
                    "refused on 'chart', but nothing to refuse on a viewsheet");
    }
+
+   // ── data-binding vocabulary (bug 76322) ────────────────────────────────────
+   //
+   // Text, gauge, image, slider, spinner, checkbox, combobox and radiobutton each bind via a
+   // distinct nested path that was previously never aliased -- only reachable through
+   // get_assembly_properties(raw: true), buried in a nested dialog model. These assert the
+   // vocabulary is now discoverable via list_assembly_properties for every affected type.
+
+   @Test
+   void exposesDataOutputBindingForGaugeTextAndImage() {
+      for(String type : java.util.List.of("gauge", "text", "image")) {
+         for(String alias : java.util.List.of("table", "column", "aggregate")) {
+            assertTrue(PropertyAliases.forType(type).aliases().containsKey(alias),
+                       type + " should expose '" + alias + "'");
+         }
+
+         assertEquals("dataOutputPaneModel.table", PropertyAliases.resolve(type, "table"));
+         assertEquals("dataOutputPaneModel.column", PropertyAliases.resolve(type, "column"));
+         assertEquals("dataOutputPaneModel.aggregate", PropertyAliases.resolve(type, "aggregate"));
+      }
+   }
+
+   @Test
+   void exposesDataInputBindingForSliderSpinnerAndTextInput() {
+      for(String type : java.util.List.of("slider", "spinner", "textinput")) {
+         for(String alias : java.util.List.of("table", "columnValue", "rowValue")) {
+            assertTrue(PropertyAliases.forType(type).aliases().containsKey(alias),
+                       type + " should expose '" + alias + "'");
+         }
+
+         assertEquals("dataInputPaneModel.table", PropertyAliases.resolve(type, "table"));
+         assertEquals("dataInputPaneModel.columnValue", PropertyAliases.resolve(type, "columnValue"));
+         assertEquals("dataInputPaneModel.rowValue", PropertyAliases.resolve(type, "rowValue"));
+      }
+   }
+
+   @Test
+   void exposesListValuesBindingForCheckboxComboboxAndRadioButton() {
+      for(String type : java.util.List.of("checkbox", "combobox", "radiobutton")) {
+         assertTrue(PropertyAliases.forType(type).aliases().containsKey("table"),
+                    type + " should expose 'table'");
+         assertTrue(PropertyAliases.forType(type).aliases().containsKey("column"),
+                    type + " should expose 'column'");
+      }
+
+      assertEquals("checkboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+                   "selectionListDialogModel.selectionListEditorModel.table",
+                   PropertyAliases.resolve("checkbox", "table"));
+      assertEquals("comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+                   "selectionListDialogModel.selectionListEditorModel.column",
+                   PropertyAliases.resolve("combobox", "column"));
+      assertEquals("radioButtonGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+                   "selectionListDialogModel.selectionListEditorModel.table",
+                   PropertyAliases.resolve("radiobutton", "table"));
+   }
+
+   /**
+    * Combobox alone has two distinct fields literally named {@code table}:
+    * {@code selectionListEditorModel.table} (the dropdown's own choices query -- what "table"
+    * means for every other list-input type too) and a completely separate top-level
+    * {@code dataInputPaneModel.table} (the row/column write-back target). The "table" alias must
+    * resolve to the former; aliasing the latter under the same name would silently rebind the
+    * wrong StyleBI concept.
+    */
+   @Test
+   void comboboxTableAliasIsTheListValuesQueryNotTheWriteBackTarget() {
+      String resolved = PropertyAliases.resolve("combobox", "table");
+
+      assertTrue(resolved.contains("selectionListEditorModel.table"),
+                 "combobox's 'table' alias should point at the list-values query");
+      assertFalse(resolved.equals("dataInputPaneModel.table"),
+                  "combobox's 'table' alias must not point at the row/column write-back target");
+   }
 }
