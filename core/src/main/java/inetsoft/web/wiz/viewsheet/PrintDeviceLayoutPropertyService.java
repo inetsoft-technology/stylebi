@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.internal.PaperSize;
 import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
 import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
 import inetsoft.web.composer.model.vs.*;
@@ -269,7 +270,7 @@ public class PrintDeviceLayoutPropertyService {
 
          switch(entry.getKey()) {
             case "paperSize":
-               printLayout.setPaperSize(asString(value));
+               printLayout.setPaperSize(PaperSize.canonicalize(asString(value)));
                break;
             case "marginTop":
                printLayout.setMarginTop(toDouble(value));

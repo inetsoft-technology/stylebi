@@ -83,7 +83,52 @@ class PrintDeviceLayoutPropertyServiceTest {
       VSPrintLayoutDialogModel written = captor.getValue().screensPane().getPrintLayout();
       assertNotNull(written);
       assertEquals(1.0f, written.getScaleFont(), 0.0001f);
-      assertEquals("Letter", written.getPaperSize());
+      assertEquals("Letter [8.5x11 in]", written.getPaperSize());
+   }
+
+   @Test
+   void paperSizeBareShortNamesCanonicalizeCaseInsensitively() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+
+      h.service.setPrintLayout("tok", h.principal, Map.of("paperSize", "a4"), "");
+
+      assertEquals("A4 [210x297 mm]", writtenPrintLayout(h).getPaperSize());
+   }
+
+   @Test
+   void paperSizeAlreadyCanonicalPassesThroughUnchanged() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+
+      h.service.setPrintLayout("tok", h.principal, Map.of("paperSize", "A4 [210x297 mm]"), "");
+
+      assertEquals("A4 [210x297 mm]", writtenPrintLayout(h).getPaperSize());
+   }
+
+   @Test
+   void paperSizeCustomSizeSentinelPassesThroughUnchanged() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+
+      h.service.setPrintLayout("tok", h.principal, Map.of("paperSize", "(Custom Size)"), "");
+
+      assertEquals("(Custom Size)", writtenPrintLayout(h).getPaperSize());
+   }
+
+   @Test
+   void paperSizeUnrecognizedValueThrowsNamingTheFieldAndValueBeforeWritingAnything()
+      throws Exception
+   {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> h.service.setPrintLayout("tok", h.principal, Map.of("paperSize", "Leter"), ""));
+
+      assertTrue(thrown.getMessage().contains("paperSize"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Leter"), thrown.getMessage());
+      // canonicalize() throws while applyPrintLayoutPatch is still building the in-memory
+      // printLayout, before screensPane.setPrintLayout/dialogService.setViewsheetInfo -- the
+      // failed call never persists anything.
+      verify(h.dialog, never())
+         .setViewsheetInfo(anyString(), any(), any(), any(), anyString(), any());
    }
 
    @Test
