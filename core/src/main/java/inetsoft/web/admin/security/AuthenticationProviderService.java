@@ -108,6 +108,11 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
    public AuthenticationProviderModel getAuthenticationProvider(String name) {
       boolean enterprise = LicenseManager.isEnterprise();
       AuthenticationProvider selectedProvider = getProviderByName(name);
+
+      if(selectedProvider == null) {
+         throw new MessageException(Catalog.getCatalog().getString("em.security.providerNotFound"));
+      }
+
       AuthenticationProviderModel.Builder builder = AuthenticationProviderModel.builder()
          .providerName(name)
          .oldName(name)
