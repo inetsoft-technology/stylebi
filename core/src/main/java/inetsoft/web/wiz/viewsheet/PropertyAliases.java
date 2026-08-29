@@ -407,6 +407,36 @@ public final class PropertyAliases {
       aliases.put("locked", size + ".locked");
    }
 
+   /**
+    * Gauge, text and image all hold a top-level {@code dataOutputPaneModel} — the query/column
+    * this output assembly's value binds to. {@code aggregate} is genuinely consumed for all
+    * three (not gauge-only — {@code TextPropertyDialogService} and {@code
+    * ImagePropertyDialogService} set it from and read it into {@code AggregateFormula} the same
+    * way {@code GaugePropertyDialogService} does), so it is safe to alias for all three rather
+    * than risking the shadow/projectForwardEnabled "exposes but does nothing" trap.
+    */
+   private static void dataOutput(Map<String, String> aliases) {
+      aliases.put("table", "dataOutputPaneModel.table");
+      aliases.put("column", "dataOutputPaneModel.column");
+      aliases.put("aggregate", "dataOutputPaneModel.aggregate");
+   }
+
+   /**
+    * Slider, spinner and text input all hold a top-level {@code dataInputPaneModel} — the
+    * row/column cell this input assembly's value writes back to. Combobox ALSO has this exact
+    * field, but is deliberately NOT routed through this helper: combobox's dropdown-population
+    * binding lives at {@code comboboxGeneralPaneModel.listValuesPaneModel...
+    * selectionListEditorModel.table}/{@code .column} (see {@link #listInput}), a completely
+    * different StyleBI concept that happens to share the field name {@code table} with
+    * {@code dataInputPaneModel.table}. Aliasing combobox's {@code dataInputPaneModel} under
+    * "table" here would silently collide with that alias and rebind the wrong setting.
+    */
+   private static void dataInput(Map<String, String> aliases) {
+      aliases.put("table", "dataInputPaneModel.table");
+      aliases.put("columnValue", "dataInputPaneModel.columnValue");
+      aliases.put("rowValue", "dataInputPaneModel.rowValue");
+   }
+
    private static Map<String, String> gauge() {
       Map<String, String> aliases = new LinkedHashMap<>();
       outputGeneral(aliases, "gaugeGeneralPaneModel");
@@ -416,6 +446,7 @@ public final class PropertyAliases {
       aliases.put("majorIncrement", "gaugeGeneralPaneModel.numberRangePaneModel.majorIncrement");
       aliases.put("minorIncrement", "gaugeGeneralPaneModel.numberRangePaneModel.minorIncrement");
       aliases.put("showValue", "gaugeAdvancedPaneModel.showValue");
+      dataOutput(aliases);
       return aliases;
    }
 
@@ -425,6 +456,7 @@ public final class PropertyAliases {
       sizePosition(aliases, "textGeneralPaneModel");
       aliases.put("alpha", "textGeneralPaneModel.alpha");
       aliases.put("popComponent", "textGeneralPaneModel.popComponent");
+      dataOutput(aliases);
       return aliases;
    }
 
@@ -437,6 +469,7 @@ public final class PropertyAliases {
       Map<String, String> aliases = new LinkedHashMap<>();
       outputGeneral(aliases, "imageGeneralPaneModel");
       sizePosition(aliases, "imageGeneralPaneModel");
+      dataOutput(aliases);
       return aliases;
    }
 
@@ -535,7 +568,13 @@ public final class PropertyAliases {
 
    // ── Phase 3 batch a ───────────────────────────────────────────────────────
 
-   /** Check box, combo box and radio button share a list-values general pane. */
+   /**
+    * Check box, combo box and radio button share a list-values general pane. This is the
+    * dropdown/list's own choices query — {@code selectionListEditorModel.table}/{@code .column}
+    * — distinct from combobox's separate top-level {@code dataInputPaneModel} (row/column
+    * write-back target), which is deliberately not aliased here or via {@link #dataInput}; see
+    * that method's doc for why the two must not collide under the same alias name.
+    */
    private static Map<String, String> listInput(String prefix, boolean hasTitle) {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, prefix);
@@ -544,6 +583,11 @@ public final class PropertyAliases {
       if(hasTitle) {
          title(aliases, prefix);
       }
+
+      String editor = prefix + ".listValuesPaneModel.comboBoxEditorModel." +
+         "selectionListDialogModel.selectionListEditorModel";
+      aliases.put("table", editor + ".table");
+      aliases.put("column", editor + ".column");
 
       return aliases;
    }
@@ -554,6 +598,7 @@ public final class PropertyAliases {
       sizePosition(aliases, "sliderGeneralPaneModel");
       numericRange(aliases, "sliderGeneralPaneModel");
       aliases.put("snap", "sliderAdvancedPaneModel.snap");
+      dataInput(aliases);
       return aliases;
    }
 
@@ -562,6 +607,7 @@ public final class PropertyAliases {
       dataGeneral(aliases, "spinnerGeneralPaneModel");
       sizePosition(aliases, "spinnerGeneralPaneModel");
       numericRange(aliases, "spinnerGeneralPaneModel");
+      dataInput(aliases);
       return aliases;
    }
 
@@ -569,6 +615,7 @@ public final class PropertyAliases {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, "textInputGeneralPaneModel");
       sizePosition(aliases, "textInputGeneralPaneModel");
+      dataInput(aliases);
       return aliases;
    }
 
