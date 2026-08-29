@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.cluster;
 
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
@@ -142,6 +143,7 @@ public class ClusterChangesetApplyService {
 
    private void applyOne(String txId, String task, PlanChange change, ClusterChangeRequest original,
                          String reviewOutcome, Principal user, List<ClusterApplyOutcome> results)
+      throws SecurityException
    {
       String server = change.property();
       String verb = ClusterChangePlanService.requireVerb("apply", original.getVerb());

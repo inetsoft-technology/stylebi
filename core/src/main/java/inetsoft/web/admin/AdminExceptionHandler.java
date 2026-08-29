@@ -162,7 +162,7 @@ public class AdminExceptionHandler {
          responseCode = "403",
          description = "Access was denied because the requested action is not enabled or permitted.")
    })
-   public ResponseEntity<GenericError> handleAccessDenied(SecurityException e) {
+   public ResponseEntity<GenericError> handleCheckedAccessDenied(SecurityException e) {
       return accessDenied(e);
    }
 
