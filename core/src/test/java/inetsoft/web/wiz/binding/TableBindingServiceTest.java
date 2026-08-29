@@ -217,6 +217,57 @@ class TableBindingServiceTest {
 
       CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
       assertEquals("CUSTOMERS", posted.getSource().getSource());
+      assertTrue(posted.getRows().isEmpty(),
+                 "force:true must discard the old source's fields, not just skip the refusal");
+   }
+
+   /**
+    * The regression for the bug where {@code force:true} skipped the refusal but never actually
+    * discarded anything: setSource left every shelf's old-source field refs in place, and those
+    * stale refs were written straight back onto the live assembly by the factory that follows
+    * this mutation — read back later (e.g. via get_binding) as fields from a source the assembly
+    * no longer has.
+    */
+   @Test
+   void setSourceDiscardsEveryShelfWhenForced() throws Exception {
+      CrosstabBindingModel existing = withTables("CUSTOMERS", "ORDERS1");
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("STATE")));
+      TableBindingMutator.setShelf(existing, "cols", List.of(dim("RESELLER")));
+      TableBindingMutator.setShelf(existing, "aggregates",
+                                   List.of(new FieldRef("CUSTOMER_ID", "measure", "sum", null,
+                                                        null)));
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(mock(CrosstabVSAssembly.class), existing, bindings)
+         .setSource("tok", principal(), "Crosstab1", "ORDERS1", true);
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals("ORDERS1", posted.getSource().getSource());
+      assertTrue(posted.getRows().isEmpty(), "old source's rows field must not survive");
+      assertTrue(posted.getCols().isEmpty(), "old source's cols field must not survive");
+      assertTrue(posted.getAggregates().isEmpty(),
+                 "old source's aggregates field must not survive");
+   }
+
+   /**
+    * force:true against the source the assembly already has is a no-op repoint, not a real
+    * source change — nothing to discard, and doing so anyway would destroy a binding the caller
+    * never asked to touch.
+    */
+   @Test
+   void setSourceForcedButUnchangedKeepsFields() throws Exception {
+      CrosstabBindingModel existing = withTables("ORDERS", "CUSTOMERS");
+      existing.setSource(new inetsoft.web.binding.model.SourceInfo());
+      existing.getSource().setSource("ORDERS");
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("STATE")));
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(mock(CrosstabVSAssembly.class), existing, bindings)
+         .setSource("tok", principal(), "Crosstab1", "ORDERS", true);
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals(1, posted.getRows().size(),
+                    "the source didn't actually change, so nothing should be discarded");
    }
 
    /**
