@@ -129,6 +129,49 @@ public class PaperSize {
          StyleConstants.PORTRAIT;
    }
 
+   /**
+    * Composer's Page Layout dialog's own sentinel for "use customWidth/customHeight instead"
+    * (viewsheet-print-layout-dialog.component.ts). Not one of the 14 predefined sizes, so it must
+    * pass through {@link #canonicalize(String)} unchanged rather than fail the lookup below.
+    */
+   public static final String CUSTOM_SIZE = "(Custom Size)";
+
+   /**
+    * Resolves a paper size name to its canonical, predefined-list form, accepting the bare short
+    * name (e.g. "Letter") as a caller-friendly alias for the full canonical string (e.g.
+    * "Letter [8.5x11 in]") since the two are otherwise indistinguishable to a caller. An already-
+    * canonical string or {@link #CUSTOM_SIZE} is returned unchanged. Anything else is rejected
+    * rather than stored verbatim, since a non-canonical value stored via {@code setPaperSize}
+    * cannot round-trip through this class's own predefined-list lookups or Composer's Page Layout
+    * dialog, whose paper-size select is bound directly against this list.
+    *
+    * @throws IllegalArgumentException if {@code name} is null or matches neither a canonical name,
+    * a bare short name, nor {@link #CUSTOM_SIZE}.
+    */
+   public static String canonicalize(String name) {
+      if(name == null) {
+         throw new IllegalArgumentException("paperSize is required.");
+      }
+
+      if(map.containsKey(name) || CUSTOM_SIZE.equals(name)) {
+         return name;
+      }
+
+      for(Object[] entry : sizes) {
+         String canonical = (String) entry[0];
+         String shortName = canonical.substring(0, canonical.indexOf(" ["));
+
+         if(shortName.equalsIgnoreCase(name)) {
+            return canonical;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "paperSize: unrecognized value \"" + name + "\" -- expected one of " +
+         String.join(", ", sizestrs) + ", a bare short name (e.g. \"Letter\"), or \"" +
+         CUSTOM_SIZE + "\".");
+   }
+
    static final Object[][] sizes = {
       {"Letter [8.5x11 in]", new Size(8.5, 11)},
       {"Legal [8.5x14 in]", new Size(8.5, 14)},

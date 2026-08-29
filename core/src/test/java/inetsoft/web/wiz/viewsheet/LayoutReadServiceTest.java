@@ -235,7 +235,7 @@ class LayoutReadServiceTest {
 
       PrintLayoutSettingsModel printSettings = model.printSettings();
       assertNotNull(printSettings);
-      assertEquals("Letter", printSettings.paperSize());
+      assertEquals("Letter [8.5x11 in]", printSettings.paperSize());
       assertEquals(0.8f, printSettings.scaleFont(), 0.0001f);
    }
 
