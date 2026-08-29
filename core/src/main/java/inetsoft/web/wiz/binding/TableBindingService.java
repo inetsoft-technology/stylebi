@@ -111,6 +111,9 @@ public class TableBindingService {
          if(!force) {
             requireNoBoundFields(model, assemblyName, resolved);
          }
+         else {
+            discardBoundFields(model, resolved);
+         }
 
          // Only type, prefix and source survive the trip back: VSBindingService.updateSourceInfo
          // calls SourceInfo.toSourceAttr, which rebuilds the asset source from exactly those
@@ -184,6 +187,30 @@ public class TableBindingService {
             "). Changing its source would discard them, because those columns belong to the " +
             "old source. Clear the shelves first, or pass force:true to discard them " +
             "deliberately.");
+      }
+   }
+
+   /**
+    * The {@code force:true} counterpart to {@link #requireNoBoundFields}: actually does the
+    * discard that method only refuses to let happen silently. Without this, a repoint left the
+    * old source's field refs sitting on every shelf {@code force} didn't itself touch, and those
+    * stale refs were written straight back onto the live assembly's design headers by the
+    * factory that follows this mutation.
+    */
+   private static void discardBoundFields(BaseTableBindingModel model, String table) {
+      SourceInfo current = model.getSource();
+
+      if(current != null && table.equalsIgnoreCase(current.getSource())) {
+         return;
+      }
+
+      // A calc table has no shelves to discard — see requireNoBoundFields above.
+      if(model instanceof CalcTableBindingModel) {
+         return;
+      }
+
+      for(String shelf : TableBindingMutator.shelvesOf(model)) {
+         TableBindingMutator.setShelf(model, shelf, List.of());
       }
    }
 
