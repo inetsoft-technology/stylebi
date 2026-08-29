@@ -75,6 +75,13 @@ public class PropertiesEngine {
       addPropertyChangeListener(
          QueryCacheSettings.TIMEOUT_PROPERTY,
          evt -> QueryCacheSettings.applyTimeout((String) evt.getNewValue()));
+      // mysql.server.timezone/mysql.local.timezone are baked into SQLHelper's static dfuncs cache
+      // on first load. applySqlHelperProperty() (below) already resets that cache on the node
+      // that writes the property; this listener covers the cluster-sync path, where a peer node
+      // learns of the change via this KeyValueStorage listener instead of its own setProperty
+      // call and would otherwise never invalidate its own copy of the cache.
+      addPropertyChangeListener("mysql.server.timezone", evt -> SQLHelper.resetCache());
+      addPropertyChangeListener("mysql.local.timezone", evt -> SQLHelper.resetCache());
       kvStorage = keyValueStorageManager.getStorage("sreeProperties");
    }
 
