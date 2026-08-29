@@ -3033,6 +3033,31 @@ public class WizAutoBindingService {
                "This chart has no Y axis, so the axis scale settings were not applied."));
          }
 
+         // Axis color — the axis's OWN line and label color, distinct from the chart's DATA/series
+         // color (set_chart_colors). X and Y are independent binding lists, so each is resolved and
+         // reported separately, mirroring the Y-axis-scale block above.
+         if(request.getXAxisColor() != null) {
+            Color color = parseColor(request.getXAxisColor());
+            int appliedXAxes = vsChartInfo != null
+               ? applyAxisColor(vsChartInfo.getXFields(), color) : 0;
+
+            if(appliedXAxes == 0) {
+               warnings.add(new ApplyWarning("xAxisColor",
+                  "This chart has no X axis, so the axis color was not applied."));
+            }
+         }
+
+         if(request.getYAxisColor() != null) {
+            Color color = parseColor(request.getYAxisColor());
+            int appliedYAxes = vsChartInfo != null
+               ? applyAxisColor(vsChartInfo.getYFields(), color) : 0;
+
+            if(appliedYAxes == 0) {
+               warnings.add(new ApplyWarning("yAxisColor",
+                  "This chart has no Y axis, so the axis color was not applied."));
+            }
+         }
+
          // Legend placement
          if(request.getLegendPosition() != null && desc != null && desc.getLegendsDescriptor() != null) {
             int layout = legendLayout(request.getLegendPosition());
@@ -3920,6 +3945,32 @@ public class WizAutoBindingService {
          case "heat" -> new HeatColorFrame();
          default -> null;
       };
+   }
+
+   /**
+    * Sets {@code color} as both the line color and the label text color on every ref's
+    * {@link AxisDescriptor}, skipping a ref with none. Returns how many axes it actually touched, so
+    * the caller can warn when a chart has no axis on that side (mirrors the Y-axis-scale block's own
+    * appliedAxes counting, for the same reason: a chart with no matching axis still returns 200 and
+    * nothing else marks that as a no-op).
+    */
+   private static int applyAxisColor(ChartRef[] refs, Color color) {
+      int applied = 0;
+
+      if(refs != null) {
+         for(ChartRef ref : refs) {
+            if(ref == null || ref.getAxisDescriptor() == null) {
+               continue;
+            }
+
+            AxisDescriptor axis = ref.getAxisDescriptor();
+            axis.setLineColor(color);
+            axis.getAxisLabelTextFormat().setColor(color);
+            applied++;
+         }
+      }
+
+      return applied;
    }
 
    /** Parses a #RRGGBB hex string into a Color; throws on a malformed value. */
