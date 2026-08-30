@@ -725,9 +725,17 @@ public class BindingAgentController {
       try {
          List<BindableTable> tables =
             fieldsService.list(sessions.runtimeId(sessionToken, user), assembly, user);
+
+         // requireSource runs first: when it has something specific to say about the source
+         // itself -- a stated table the listing does not have, an ambiguous inference, or a
+         // conflicting repoint -- that is the more actionable diagnosis, and require()'s column
+         // check would otherwise win the race and report a bare "column not found" that drops
+         // the table name entirely. When requireSource does not throw (source already known, or
+         // resolved), require() still runs right after to do its own, narrower column check.
+         String source = BindableColumns.requireSource(tables, assembly, table, fields);
          BindableColumns.require(tables, assembly, fields);
 
-         return BindableColumns.requireSource(tables, assembly, table, fields);
+         return source;
       }
       catch(IllegalArgumentException e) {
          throw e;
