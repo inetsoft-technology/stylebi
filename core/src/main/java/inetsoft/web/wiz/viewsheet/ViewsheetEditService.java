@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TitledVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -27,6 +29,9 @@ import inetsoft.web.composer.vs.objects.controller.ComposerObjectService;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.event.*;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.web.wiz.service.RenderNotReadyException;
+import inetsoft.web.wiz.service.RenderWaitSupport;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
 import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +43,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Applies structural edits by delegating to the Composer's own services.
@@ -133,6 +139,7 @@ public class ViewsheetEditService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          AssemblyNode current = requireExisting(rvs, request.assembly());
+         ensureTableDataReady(rvs, request.assembly());
 
          ResizeVSObjectEvent event = new ResizeVSObjectEvent();
          event.setName(request.assembly());
@@ -145,6 +152,41 @@ public class ViewsheetEditService {
          event.setyOffset(current.y());
          objects.resizeObject(runtimeId, event, user, dispatcher, linkUri);
       });
+   }
+
+   /**
+    * Warms a {@code TableDataVSAssembly}'s query result before {@code resizeObject} runs, bounded
+    * to a short wait, instead of letting {@code resizeObject}'s own unconditional
+    * {@code loadTableLens} call — which has no bound of its own — block the request thread for
+    * however long a first-time query execution takes.
+    *
+    * <p>{@code resizeObject} is shared with the human Composer's own resize path
+    * ({@code ComposerObjectController}), so its synchronous contract is left alone; this only
+    * guards the wiz agent's call to it, ahead of time, without touching that shared method.
+    *
+    * <p>On timeout this throws {@link RenderNotReadyException} <em>before</em> {@code resizeObject}
+    * runs, so the resize itself is not applied yet — unlike the bug this fixes, where the mutation
+    * landed underneath a response that reported failure, the caller now sees a live "not ready,
+    * retry" signal and the resize is guaranteed not to have happened until a retry actually
+    * succeeds.
+    */
+   private void ensureTableDataReady(RuntimeViewsheet rvs, String name) throws Exception {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      Assembly assembly = vs == null ? null : vs.getAssembly(name);
+
+      if(!(assembly instanceof TableDataVSAssembly)) {
+         return;
+      }
+
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
+      RenderWaitSupport.awaitOrRetry(() -> box.get().getVSTableLens(name, false),
+         TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
+         (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
    }
 
    /**
@@ -628,6 +670,11 @@ public class ViewsheetEditService {
             "Edit op '" + op + "' requires both '" + firstName + "' and '" + secondName + "'.");
       }
    }
+
+   // Mirrors ScriptImageService.RENDER_MAX_ATTEMPTS/RENDER_RETRY_SLEEP_MS: the same "how long is
+   // acceptable to make a caller wait before answering retry-after" ceiling used for rendering.
+   private static final int TABLE_WARM_MAX_ATTEMPTS = 4;
+   private static final long TABLE_WARM_RETRY_SLEEP_MS = 500;
 
    private final ViewsheetSessionService sessions;
    private final ComposerObjectService objects;

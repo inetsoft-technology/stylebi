@@ -301,4 +301,35 @@ class ScriptImageServiceTest {
       assertEquals(200, img.width());
       assertEquals(150, img.height());
    }
+
+   /**
+    * Bug #76331: a table/crosstab whose query hasn't run yet in this runtime made the export
+    * pipeline block synchronously with no bound of its own, so the caller saw a plain 30s network
+    * timeout instead of the "not ready yet, retry" signal a chart's own render path already had.
+    * Simulates that with an export call that blocks past the bound {@code getViewsheetImage} now
+    * enforces via {@link inetsoft.web.wiz.service.RenderWaitSupport} and asserts it surfaces as
+    * {@link RenderNotReadyException} instead of hanging for the caller's full client timeout.
+    */
+   @Test
+   void getViewsheetImageThrowsRenderNotReadyWhenTheExportTakesTooLong() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
+      VSExportService exportService = mock(VSExportService.class);
+
+      doAnswer(invocation -> {
+         // Longer than the 4x500ms bound getViewsheetImage waits before giving up.
+         Thread.sleep(3_000);
+         ExportResponse response = invocation.getArgument(9);
+         response.getOutputStream().write(fakePng(200, 150));
+         return null;
+      }).when(exportService).exportViewsheet(
+         any(), anyInt(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(),
+         any(), anyBoolean(), any(ExportResponse.class), any());
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+
+      RenderNotReadyException ex = assertThrows(RenderNotReadyException.class,
+         () -> svc.getViewsheetImage(rvs, null, null, TestPrincipals.user("alice", "host-org")));
+      assertTrue(ex.getRetryAfter() > 0);
+   }
 }
