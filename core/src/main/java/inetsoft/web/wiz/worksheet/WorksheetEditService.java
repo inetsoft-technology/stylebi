@@ -2222,7 +2222,7 @@ public class WorksheetEditService {
          if(mappings != null) {
             for(WorksheetMutationSupport.GroupMapping m : mappings) {
                ngi.setGroupCondition(m.name(),
-                  WorksheetMutationSupport.buildGroupConditionList(conditionType, conditionRef, m));
+                  WorksheetMutationSupport.buildGroupConditionList(conditionType, conditionRef, m, ws));
             }
          }
 
@@ -2541,7 +2541,7 @@ public class WorksheetEditService {
 
             for(WorksheetMutationSupport.GroupMapping m : mappings) {
                ngi.setGroupCondition(m.name(),
-                  WorksheetMutationSupport.buildGroupConditionList(conditionType, conditionRef, m));
+                  WorksheetMutationSupport.buildGroupConditionList(conditionType, conditionRef, m, ws));
             }
          }
 

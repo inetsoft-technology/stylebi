@@ -754,7 +754,7 @@ class WorksheetReadServiceTest {
       DataRef conditionRef = attachedAttribute != null ? attachedAttribute
          : new BaseField("this");
       ngi.setGroupCondition(groupName,
-         WorksheetMutationSupport.buildGroupConditionList(XSchema.STRING, conditionRef, mapping));
+         WorksheetMutationSupport.buildGroupConditionList(XSchema.STRING, conditionRef, mapping, ws));
 
       DefaultNamedGroupAssembly assembly = new DefaultNamedGroupAssembly(ws, name);
       assembly.setNamedGroupInfo(ngi);

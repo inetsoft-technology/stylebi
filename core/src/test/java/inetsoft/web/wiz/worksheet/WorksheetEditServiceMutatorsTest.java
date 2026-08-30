@@ -3854,6 +3854,148 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals(XCondition.DATE_IN, WorksheetMutationSupport.parseOperation("date_in"));
    }
 
+   // =========================================================================
+   // date_in value resolution (PC-006 follow-on item C)
+   // =========================================================================
+
+   private static XCondition firstXCondition(TableAssembly t) {
+      return ((ConditionItem) t.getPreConditionList().getConditionList().getItem(0))
+         .getXCondition();
+   }
+
+   /**
+    * A builtin named range must resolve to the actual DateCondition the rest of the product uses
+    * for it (mirroring ConditionUtil.fromModelToConditionList's DATE_IN branch) -- not a plain
+    * Condition holding the raw string, which never carries date-range semantics through this
+    * object shape.
+    */
+   @Test
+   void addFilterWithDateInResolvesNamedRangeToADateCondition() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "Last month"));
+
+      XCondition xc = firstXCondition(t);
+      assertInstanceOf(DateCondition.MonthCondition.class, xc,
+         "date_in must resolve to a real DateCondition, not a plain Condition");
+      DateCondition.MonthCondition mc = (DateCondition.MonthCondition) xc;
+      assertEquals(0, mc.getYearN());
+      assertEquals(1, mc.getMonthN());
+   }
+
+   /**
+    * An unmatched/typo'd range name must fail loudly, naming the bad value -- not silently
+    * substitute the shared rescue mechanism's hardcoded "one year ago" default (see
+    * ConditionTest#toSqlConditionSilentlyDefaultsOnAnUnmatchedName for that default's own
+    * characterization).
+    */
+   @Test
+   void addFilterWithDateInRejectsAnUnknownRangeName() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "not a real range")));
+
+      assertTrue(thrown.getMessage().contains("not a real range"),
+         "the refusal must name the bad value");
+      assertNull(firstConditionOrNull(t), "nothing may be written when the value is rejected");
+   }
+
+   /**
+    * A worksheet-level DateRangeAssembly is the reference implementation's second tier (after
+    * built-in names) -- the gap the shared Condition.toSqlCondition(boolean, String) rescue
+    * mechanism does not have.
+    */
+   @Test
+   void addFilterWithDateInResolvesAWorksheetNamedDateRange() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+
+      DateCondition.MonthCondition rangeCondition = new DateCondition.MonthCondition(2, 0);
+      DefaultDateRangeAssembly range = new DefaultDateRangeAssembly(ws, "Recent Orders");
+      range.setDateRange(rangeCondition);
+      ws.addAssembly(range);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "Recent Orders"));
+
+      XCondition xc = firstXCondition(t);
+      assertInstanceOf(DateCondition.MonthCondition.class, xc);
+      DateCondition.MonthCondition mc = (DateCondition.MonthCondition) xc;
+      assertEquals(0, mc.getYearN());
+      assertEquals(2, mc.getMonthN());
+      assertNotSame(rangeCondition, xc,
+         "must be a clone -- the assembly's own DateRange must not be aliased into the condition");
+   }
+
+   /** Mirrors addFilter's resolution through set_conditions's separate condition-building path. */
+   @Test
+   void setConditionsWithDateInResolvesNamedRangeToADateCondition() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "a", "date_in", List.of("Last month"), false, null), null, 0))));
+
+      XCondition xc = firstXCondition(t);
+      assertInstanceOf(DateCondition.MonthCondition.class, xc);
+      DateCondition.MonthCondition mc = (DateCondition.MonthCondition) xc;
+      assertEquals(0, mc.getYearN());
+      assertEquals(1, mc.getMonthN());
+   }
+
+   /**
+    * add_named_group/edit_named_group share buildGroupConditionList's condition-building logic
+    * with no enum constraint on their operation field, so date_in is reachable here too -- the
+    * same defect surface, fixed at the shared method.
+    */
+   @Test
+   void buildGroupConditionListWithDateInResolvesNamedRangeToADateCondition() throws Exception {
+      Worksheet ws = new Worksheet();
+      DataRef conditionRef = new AttributeRef(null, "a");
+      WorksheetMutationSupport.GroupMapping mapping =
+         new WorksheetMutationSupport.GroupMapping("g1", List.of("Last month"), "date_in");
+
+      ConditionList conds = WorksheetMutationSupport.buildGroupConditionList(
+         XSchema.DATE, conditionRef, mapping, ws);
+
+      XCondition xc = ((ConditionItem) conds.getItem(0)).getXCondition();
+      assertInstanceOf(DateCondition.MonthCondition.class, xc);
+      DateCondition.MonthCondition mc = (DateCondition.MonthCondition) xc;
+      assertEquals(0, mc.getYearN());
+      assertEquals(1, mc.getMonthN());
+   }
+
+   @Test
+   void buildGroupConditionListWithDateInRejectsAnUnknownRangeName() {
+      Worksheet ws = new Worksheet();
+      DataRef conditionRef = new AttributeRef(null, "a");
+      WorksheetMutationSupport.GroupMapping mapping = new WorksheetMutationSupport.GroupMapping(
+         "g1", List.of("not a real range"), "date_in");
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, () ->
+         WorksheetMutationSupport.buildGroupConditionList(XSchema.DATE, conditionRef, mapping, ws));
+
+      assertTrue(thrown.getMessage().contains("not a real range"),
+         "the refusal must name the bad value");
+   }
+
    private static Object firstConditionOrNull(TableAssembly t) {
       ConditionListWrapper w = t.getPreConditionList();
       return w == null || w.isEmpty() ? null : firstCondition(t);

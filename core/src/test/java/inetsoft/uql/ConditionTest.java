@@ -18,6 +18,7 @@
 package inetsoft.uql;
 
 import inetsoft.test.*;
+import inetsoft.uql.asset.DateCondition;
 import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
@@ -1440,6 +1441,45 @@ class ConditionTest {
          cal.add(Calendar.DAY_OF_MONTH, -1);
 
          assertFalse(cond.isInDateRange("tomorrow", cal.getTime()));
+      }
+
+      // PC-006 (bug corpus #76350 follow-on item C), control case: toSqlCondition(boolean, String)
+      // is the rescue mechanism XUtil.convertVariableCondition's trailing else branch routes a
+      // plain-string DATE_IN value through at SQL-merge time. A builtin range name already resolves
+      // correctly here today -- this is not itself the bug; it documents the case the original
+      // diagnosis wrongly believed was broken, and guards it against a future regression.
+      @Test
+      void toSqlConditionResolvesABuiltinRangeNameCaseInsensitively() {
+         DateCondition expected = new DateCondition.MonthCondition(1, 0);
+         Condition expectedRange = expected.toSqlCondition(false);
+
+         Condition exact = new Condition(XSchema.DATE).toSqlCondition(false, "Last month");
+         Condition differentCase = new Condition(XSchema.DATE).toSqlCondition(false, "LAST MONTH");
+
+         assertEquals(XCondition.BETWEEN, exact.getOperation());
+         assertEquals(expectedRange.getValue(0), exact.getValue(0));
+         assertEquals(expectedRange.getValue(1), exact.getValue(1));
+         assertEquals(XCondition.BETWEEN, differentCase.getOperation());
+         assertEquals(expectedRange.getValue(0), differentCase.getValue(0));
+         assertEquals(expectedRange.getValue(1), differentCase.getValue(1));
+      }
+
+      // PC-006 follow-on item C, the actual surviving defect: an unmatched/typo'd DATE_IN name does
+      // not error -- it silently falls back to toNullSqlCondition(1), a hardcoded "one year ago"
+      // range with no relationship to the caller's intent. WorksheetMutationSupport.
+      // resolveDateInCondition intercepts before this point for add_filter/set_conditions/
+      // add_named_group, but this method's own behavior is unchanged and shared by every other
+      // DATE_IN caller system-wide (MV building, report-binding query generation) -- documented here
+      // as a permanent characterization, not a target this fix flips.
+      @Test
+      void toSqlConditionSilentlyDefaultsOnAnUnmatchedName() {
+         Condition expected = new Condition(XSchema.DATE).toNullSqlCondition(1);
+
+         Condition actual = new Condition(XSchema.DATE).toSqlCondition(false, "not a real range");
+
+         assertEquals(XCondition.BETWEEN, actual.getOperation());
+         assertEquals(expected.getValue(0), actual.getValue(0));
+         assertEquals(expected.getValue(1), actual.getValue(1));
       }
    }
 }
