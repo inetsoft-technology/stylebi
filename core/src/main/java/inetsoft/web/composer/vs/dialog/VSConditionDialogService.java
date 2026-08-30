@@ -87,6 +87,12 @@ public class VSConditionDialogService {
          rvs = viewsheetService.getViewsheet(runtimeId, principal);
          vs = rvs.getViewsheet();
          vsAssembly = vs.getAssembly(assemblyName);
+
+         if(vsAssembly == null) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is not an assembly in this viewsheet.");
+         }
+
          vsAssemblyInfo = vsAssembly.getVSAssemblyInfo();
       }
       catch(Exception e) {
