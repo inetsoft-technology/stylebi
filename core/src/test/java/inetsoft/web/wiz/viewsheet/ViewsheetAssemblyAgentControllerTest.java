@@ -93,6 +93,31 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    /**
+    * PC-003 (bug corpus #76350): conditionVocabulary hardcoded {@code sessions.resolve(...)},
+    * which forces a VIEWSHEET-typed {@code RuntimeViewsheet} lookup that a worksheet-only session
+    * token can never satisfy -- every call from a worksheet session failed with "Viewsheet
+    * runtime not found or expired", mislabeling a live worksheet session as an invalid viewsheet
+    * one. {@code vocabulary()} takes no arguments and never uses the resolved object, so
+    * {@code requireSession()} (sheet-type-agnostic) is enough to keep the same liveness/
+    * ownership/pane-scope guarantee without the VIEWSHEET-only lookup.
+    */
+   @Test
+   void conditionVocabularySucceedsForAWorksheetSession() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      AssemblyConditionService conditionService = mock(AssemblyConditionService.class);
+      Map<String, Object> vocabulary = Map.of("operators", List.of("date_in"));
+      when(conditionService.vocabulary()).thenReturn(vocabulary);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWithConditionService(sessions, conditionService);
+
+      assertSame(vocabulary, controller.conditionVocabulary("tok", principal()));
+
+      verify(sessions).requireSession(eq("tok"), any(Principal.class));
+      verify(sessions, never()).resolve(anyString(), any(Principal.class));
+   }
+
+   /**
     * detach took the session token and nothing else, so any authenticated caller holding or
     * guessing another user's token could terminate their pairing session. Every other endpoint
     * binds the token to the caller through {@code sessions.resolve(token, user)}; this one
@@ -414,6 +439,43 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
                                           layoutSessionService,
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class));
+   }
+
+   /** Feature enabled, {@code sessions} and {@code conditionService} wired -- for the
+    * conditionVocabulary worksheet-session test. */
+   private static ViewsheetAssemblyAgentController controllerWithConditionService(
+      ViewsheetSessionService sessions, AssemblyConditionService conditionService)
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          sessions,
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          conditionService,
+                                          mock(AssemblyHighlightService.class),
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class),
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),

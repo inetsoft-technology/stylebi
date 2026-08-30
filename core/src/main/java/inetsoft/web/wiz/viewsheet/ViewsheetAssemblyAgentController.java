@@ -604,7 +604,13 @@ public class ViewsheetAssemblyAgentController {
       throws Exception
    {
       requireEnabled();
-      sessions.resolve(sessionToken, user);
+      // vocabulary() is a pure static lookup with no per-sheet-type argument, so this only needs
+      // resolve()'s underlying liveness/ownership/pane-scope check, not its VIEWSHEET-hardcoded
+      // RuntimeViewsheet lookup -- which made this endpoint unreachable from a worksheet-only
+      // session (it would 100% throw "Viewsheet runtime not found or expired", mislabeling a
+      // worksheet session as an invalid viewsheet one). requireSession() is the sheet-type-agnostic
+      // check resolve() itself calls before doing that VIEWSHEET-specific part.
+      sessions.requireSession(sessionToken, user);
       return conditionService.vocabulary();
    }
 

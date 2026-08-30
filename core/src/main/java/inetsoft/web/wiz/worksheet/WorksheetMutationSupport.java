@@ -1960,11 +1960,18 @@ public final class WorksheetMutationSupport {
          case "LIKE"                     -> XCondition.LIKE;
          case "NULL", "IS_NULL"          -> XCondition.NULL;
          case "NOT_NULL"                 -> XCondition.NULL;    // negated via setNegated
+         // DATE_IN was already a first-class viewsheet-side operator (ConditionVocabulary maps
+         // it to XCondition.DATE_IN and advertises it via list_condition_operators), but this
+         // worksheet-side parser never got the same case -- add_filter/set_conditions rejected an
+         // operator the vocabulary endpoint told the caller was legal. Value semantics (resolving
+         // a named range like "Last month" into a literal) are a separate, still-open piece of
+         // work; this only stops the operator name itself from being rejected.
+         case "DATE_IN"                  -> XCondition.DATE_IN;
          default -> throw new IllegalArgumentException(
             "'" + operation + "' is not a condition operator. Accepted: =, !=, <, <=, >, >=, " +
-            "BETWEEN, ONE_OF, NOT_ONE_OF, STARTING_WITH, CONTAINS, LIKE, NULL, NOT_NULL. Omit the " +
-            "operator entirely to mean equals -- an unrecognised one used to be applied as " +
-            "equals, which quietly returns a different data set.");
+            "BETWEEN, ONE_OF, NOT_ONE_OF, STARTING_WITH, CONTAINS, LIKE, NULL, NOT_NULL, " +
+            "DATE_IN. Omit the operator entirely to mean equals -- an unrecognised one used to " +
+            "be applied as equals, which quietly returns a different data set.");
       };
    }
 
