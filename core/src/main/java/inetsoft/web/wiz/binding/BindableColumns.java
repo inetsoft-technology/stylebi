@@ -79,12 +79,6 @@ public final class BindableColumns {
          }
       }
 
-      // No listing at all means the tree could not be read — a different failure, and refusing
-      // every column on the strength of it would turn a read problem into a write problem.
-      if(available.isEmpty()) {
-         return;
-      }
-
       for(FieldRef field : fields) {
          if(field == null || field.column() == null || field.column().isBlank()) {
             continue;
