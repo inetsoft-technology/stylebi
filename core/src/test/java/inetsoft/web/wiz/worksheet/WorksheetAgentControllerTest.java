@@ -44,6 +44,7 @@ import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.web.wiz.model.DatabaseTableMeta;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.tabular.RestParameter;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularUtil;
@@ -210,6 +211,19 @@ class WorksheetAgentControllerTest {
          null, null, null, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null, null, null,
          null, null,
+         null, null,
+         null, null, null, null, null, null, null
+      );
+   }
+
+   /** Builds a {@code reorder_concat_subtables} EditRequest that routes to reorderConcatSubtables(). */
+   private static EditRequest reorderConcatSubtablesRequest(String table, List<String> subtables) {
+      return new EditRequest(
+         "reorder_concat_subtables", table, null, null, null, null, null, null, null, null,
+         null, null, null, false, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, subtables,
          null, null,
          null, null, null, null, null, null, null
       );
@@ -670,6 +684,103 @@ class WorksheetAgentControllerTest {
       ctrl.edit("TOK-RD2", refreshDataRequest("Crosstab1"), agent);
 
       verify(box, atLeastOnce()).refreshColumnSelection(eq("Crosstab1"), anyBoolean());
+   }
+
+   /**
+    * Bug #76350 follow-on (item A), review round 1: {@code insertColumn} calls the same unwrapped
+    * {@code refreshColumnSelection}/{@code loadTableData} pair 3a already bounds for
+    * {@code refresh_data} -- a prior {@code set_group_aggregate(crosstab=true)} on this same
+    * embedded table makes it pay the same expensive query-execution path.
+    */
+   @Test
+   void insertColumnThrowsRenderNotReadyWhenColumnSelectionIsSlow() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      // Row 0 is the header row insertColumn's setEmbeddedData/getEmbeddedData work off of --
+      // TestWorksheets.tableWithColumns only sets a ColumnSelection, no actual XEmbeddedTable
+      // rows, so insertColumn's real column-insertion logic needs a table built this way instead
+      // (mirrors WorksheetEditServiceMutatorsTest#embeddedWithData).
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, "T");
+      t.setEmbeddedData(new XEmbeddedTable(
+         new String[] { XSchema.STRING, XSchema.DOUBLE },
+         new Object[][] { { "cust", "amount" }, { "x1", 1.0 } }));
+      TestWorksheets.withGroupSumAndSort(t, "cust", "amount");
+      ws.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      doAnswer(invocation -> {
+         Thread.sleep(3_000);
+         return null;
+      }).when(box).refreshColumnSelection(eq("T"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-ICS"), any())).thenReturn(session("TOK-ICS"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      assertThrows(RenderNotReadyException.class,
+         () -> ctrl.edit("TOK-ICS", insertColumnRequest("T"), agent));
+   }
+
+   /**
+    * Bug #76350 follow-on (item A), review round 1: {@code reorderConcatSubtables} calls the same
+    * unwrapped pair -- a prior {@code set_group_aggregate(crosstab=true)} on this same
+    * concatenated table makes it pay the same expensive query-execution path.
+    */
+   @Test
+   void reorderConcatSubtablesThrowsRenderNotReadyWhenColumnSelectionIsSlow() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "k", "v");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "k", "v");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+
+      TableAssemblyOperator top = new TableAssemblyOperator();
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setOperation(TableAssemblyOperator.UNION);
+      top.addOperator(op);
+
+      ConcatenatedTableAssembly concat = new ConcatenatedTableAssembly(
+         ws, "Concat1", new TableAssembly[]{ a, b }, new TableAssemblyOperator[]{ top });
+      TestWorksheets.withGroupSumAndSort(concat, "k", "v");
+      ws.addAssembly(concat);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      doAnswer(invocation -> {
+         Thread.sleep(3_000);
+         return null;
+      }).when(box).refreshColumnSelection(eq("Concat1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RC"), any())).thenReturn(session("TOK-RC"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      assertThrows(RenderNotReadyException.class,
+         () -> ctrl.edit("TOK-RC", reorderConcatSubtablesRequest("Concat1", List.of("B", "A")), agent));
    }
 
    @Test
@@ -2709,6 +2820,68 @@ class WorksheetAgentControllerTest {
                  "error should name the denied datasource READ, got: " + ex.getMessage());
 
       verify(dataSourceService).checkPermission(eq("myds"), eq(ResourceAction.READ), eq(agent));
+   }
+
+   /**
+    * Bug #76350 follow-on (item A), review round 1: {@code editSqlQuery} calls
+    * {@code refreshColumnSelection} unwrapped after committing the new SQL/column selection --
+    * the same unbounded-hang shape as {@code refreshData}'s single-table branch (3a), reachable
+    * on any SQL-bound table since {@code set_group_aggregate} can make one crosstab-shaped.
+    * {@code queryManagerService.getColumnSelection} is stubbed directly (bypassing real JDBC
+    * metadata resolution) and the SQL string has no {@code FROM} clause, so
+    * {@code JDBCUtil.fixUniformSQLInfo}'s in-memory shortcut ({@code sql.getTableCount() <= 0})
+    * fires without a live datasource or a {@code Config} Spring bean -- letting the test reach
+    * the wrap without a live JDBC connection, matching this class's existing "stop before real
+    * query execution" convention for SQL-query tests (e.g.
+    * {@code addSqlQueryGrantedPassesBothPermissionGates}, which also uses a table-less
+    * {@code "SELECT 1"}).
+    */
+   @Test
+   void editSqlQueryThrowsRenderNotReadyWhenColumnSelectionIsSlow() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
+      ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
+      ws.addAssembly(sqlt);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      doAnswer(invocation -> {
+         Thread.sleep(3_000);
+         return null;
+      }).when(box).refreshColumnSelection(eq("SqlTable1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-ES4"), any())).thenReturn(session("TOK-ES4"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      ColumnSelection newColumns = new ColumnSelection();
+      newColumns.addAttribute(new ColumnRef(new AttributeRef(null, "a")));
+      newColumns.addAttribute(new ColumnRef(new AttributeRef(null, "b")));
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenReturn(newColumns);
+
+      WorksheetAgentController ctrl = securityController(editSvc, mock(DataSourceService.class),
+         securityEngine, mock(MetadataApiService.class), mock(XRepository.class),
+         queryManagerService);
+
+      EditRequest req = editSqlQueryRequest("SqlTable1", "SELECT 1");
+
+      assertThrows(RenderNotReadyException.class,
+         () -> ctrl.edit("TOK-ES4", req, agent));
    }
 
    // ---------------------------------------------------------------------------

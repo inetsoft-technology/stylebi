@@ -2174,7 +2174,16 @@ public class WorksheetAgentController {
          info.getQuery().setSQLDefinition(sql);
          sqlTable.setSQLEdited(true);
          sqlTable.setColumnSelection(columns);
-         WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+
+         // Bug #76350 follow-on (item A), review round 1: refreshColumnSelection executes the
+         // table's query for any crosstab-shaped table (set_group_aggregate works on any
+         // TableAssembly by name, including a SQL-bound one) -- unbounded here had the same hang
+         // shape as refreshData's own single-table branch (3a) above.
+         RenderWaitSupport.awaitOrRetry(() -> {
+            WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+            return null;
+         }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
+            (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
          return null;
       });
    }
@@ -2436,8 +2445,17 @@ public class WorksheetAgentController {
          column.setAlias(alias);
          columns.addAttribute(csIndex, column);
          assembly.setColumnSelection(columns);
-         WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
-         WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+
+         // Bug #76350 follow-on (item A), review round 1: same unbounded shape as refreshData's
+         // single-table branch (3a) above -- an embedded table can be made crosstab-shaped by a
+         // prior set_group_aggregate(crosstab=true), which makes refreshColumnSelection execute
+         // a real query here.
+         RenderWaitSupport.awaitOrRetry(() -> {
+            WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+            WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+            return null;
+         }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
+            (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
          AssetEventUtil.refreshTableLastModified(ws, req.table(), true);
          return null;
       });
@@ -2529,8 +2547,16 @@ public class WorksheetAgentController {
 
          table.reorderTableAssemblies(reordered);
 
-         WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
-         WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+         // Bug #76350 follow-on (item A), review round 1: same unbounded shape as refreshData's
+         // single-table branch (3a) above -- a concatenated table can be made crosstab-shaped by
+         // a prior set_group_aggregate(crosstab=true), which makes refreshColumnSelection
+         // execute a real query here.
+         RenderWaitSupport.awaitOrRetry(() -> {
+            WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+            WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+            return null;
+         }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
+            (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
          return null;
       });
    }
