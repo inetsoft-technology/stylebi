@@ -195,9 +195,14 @@ public final class WorksheetMutationSupport {
     * to a datasource/logical-model or physical-table attribute) — the condition-building logic is
     * identical either way; only how {@code conditionRef}/{@code conditionType} were resolved
     * differs.</p>
+    *
+    * @param ws the worksheet the group is being built against, used only to resolve a
+    *           {@code DATE_IN} mapping's value against a worksheet-level {@link DateRangeAssembly}
+    *           when it does not name a built-in date range; see {@link #resolveDateInCondition}.
     */
    static ConditionList buildGroupConditionList(
-      String conditionType, DataRef conditionRef, GroupMapping m) throws PairingException
+      String conditionType, DataRef conditionRef, GroupMapping m, Worksheet ws)
+      throws PairingException
    {
       String operation = m.operation();
       int op = parseOperation(operation);
@@ -257,6 +262,16 @@ public final class WorksheetMutationSupport {
          return conds;
       }
 
+      if(op == XCondition.DATE_IN) {
+         // Same single-condition shape as NULL/ONE_OF/BETWEEN above -- DATE_IN is one range name,
+         // not a per-value OR list. See resolveDateInCondition.
+         XCondition resolved = resolveDateInCondition(
+            ws, m.values() != null && !m.values().isEmpty() ? m.values().get(0) : null);
+         resolved.setNegated(negate);
+         conds.append(new ConditionItem(conditionRef, resolved, 0));
+         return conds;
+      }
+
       for(int i = 0; i < m.values().size(); i++) {
          if(i > 0) {
             conds.append(new JunctionOperator(JunctionOperator.OR, 0));
@@ -309,22 +324,36 @@ public final class WorksheetMutationSupport {
       String dtype = ref.getDataType() != null && !ref.getDataType().isBlank()
          ? ref.getDataType() : XSchema.STRING;
 
-      Condition c = new Condition(dtype);
-      c.setOperation(op);
+      ConditionItem item;
 
-      if(isEqualInclusive(operation)) {
-         c.setEqual(true);
+      if(op == XCondition.DATE_IN) {
+         // DATE_IN is inherently single-valued (a range name, not a list) and is never negated
+         // through this operator token -- isNegatedOperation("date_in") is always false, there is
+         // no "not_date_in" form -- so the equal-inclusive/negate/value-loop logic below does not
+         // apply here.
+         XCondition resolved = resolveDateInCondition(
+            t.getWorksheet(), values.length > 0 ? values[0] : null);
+         item = new ConditionItem(ref, resolved, 0);
+      }
+      else {
+         Condition c = new Condition(dtype);
+         c.setOperation(op);
+
+         if(isEqualInclusive(operation)) {
+            c.setEqual(true);
+         }
+
+         if(negate) {
+            c.setNegated(true);
+         }
+
+         for(String v : values) {
+            c.addValue(conditionValue(dtype, v));
+         }
+
+         item = new ConditionItem(ref, c, 0);
       }
 
-      if(negate) {
-         c.setNegated(true);
-      }
-
-      for(String v : values) {
-         c.addValue(conditionValue(dtype, v));
-      }
-
-      ConditionItem item = new ConditionItem(ref, c, 0);
       ConditionListWrapper existing = t.getPreConditionList();
 
       if(existing != null && !existing.isEmpty()) {
@@ -1370,31 +1399,40 @@ public final class WorksheetMutationSupport {
             String dtype = spec.type() != null ? spec.type() : inferColumnType(t, spec.field(), post);
 
             DataRef ref = resolveField(t, spec.field(), post);
-            Condition c = new Condition(dtype);
-            c.setOperation(op);
 
-            if(isEqualInclusive(spec.operation())) {
-               c.setEqual(true);
+            if(op == XCondition.DATE_IN) {
+               XCondition resolved = resolveDateInCondition(t.getWorksheet(),
+                  spec.values() != null && !spec.values().isEmpty() ? spec.values().get(0) : null);
+               resolved.setNegated(negate);
+               cl.append(new ConditionItem(ref, resolved, node.level()));
             }
+            else {
+               Condition c = new Condition(dtype);
+               c.setOperation(op);
 
-            if(negate) {
-               c.setNegated(true);
-            }
-
-            if(spec.values() != null) {
-               for(String v : spec.values()) {
-                  // Shared with addFilter rather than parsed a second time here. The local copy
-                  // had no lower bound on the name, so "$()" became a variable named "" -- one
-                  // nothing can ever resolve, reported as ok. Typing was NOT the difference,
-                  // though the bare constructor reads as though it would be: Condition.addValue
-                  // routes every value through convertType, whose UserVariable branch
-                  // (Condition:2129-2149) sets the type node from the condition's own type, so
-                  // the variable was typed from the column either way.
-                  c.addValue(conditionValue(dtype, v));
+               if(isEqualInclusive(spec.operation())) {
+                  c.setEqual(true);
                }
-            }
 
-            cl.append(new ConditionItem(ref, c, node.level()));
+               if(negate) {
+                  c.setNegated(true);
+               }
+
+               if(spec.values() != null) {
+                  for(String v : spec.values()) {
+                     // Shared with addFilter rather than parsed a second time here. The local copy
+                     // had no lower bound on the name, so "$()" became a variable named "" -- one
+                     // nothing can ever resolve, reported as ok. Typing was NOT the difference,
+                     // though the bare constructor reads as though it would be: Condition.addValue
+                     // routes every value through convertType, whose UserVariable branch
+                     // (Condition:2129-2149) sets the type node from the condition's own type, so
+                     // the variable was typed from the column either way.
+                     c.addValue(conditionValue(dtype, v));
+                  }
+               }
+
+               cl.append(new ConditionItem(ref, c, node.level()));
+            }
          }
          else if(node.junction() != null) {
             JunctionSpec js = node.junction();
@@ -1928,6 +1966,52 @@ public final class WorksheetMutationSupport {
       }
 
       return value;
+   }
+
+   /**
+    * Resolves a {@code DATE_IN} clause's value -- a named range such as {@code "Last month"} --
+    * into the {@link XCondition} that actually carries date-range semantics, mirroring
+    * {@code ConditionUtil.fromModelToConditionList}'s {@code DATE_IN} branch: the built-in ranges
+    * from {@code dateConditions.xml} ({@link DateCondition#getBuiltinDateConditions()}) are tried
+    * first by exact name, then a worksheet-level {@link DateRangeAssembly} of that name.
+    *
+    * <p>This is deliberately eager rather than left to query time. {@code addFilter}/
+    * {@code setConditions} built a plain {@link Condition} with the literal string as its value;
+    * that string is only ever rescued later by {@code Condition.toSqlCondition(boolean, String)},
+    * which (a) has no {@code DateRangeAssembly} fallback at all -- a user-defined named range never
+    * resolves through it -- and (b) on any other unmatched/typo'd name silently returns
+    * {@code toNullSqlCondition(1)}, a hardcoded "one year ago" range, with no error. Resolving here
+    * closes both gaps and, as a side effect, keeps the non-SQL-mergeable evaluate() path correct
+    * too: a {@link DateCondition} is not a {@link Condition} subclass, so it can never reach
+    * {@code Condition.evaluate()}'s separate, hardcoded {@code isInDateRange} name table.
+    *
+    * @param ws    the worksheet to check for a matching {@link DateRangeAssembly}; may be
+    *              {@code null} if no worksheet is available, in which case only built-in ranges
+    *              are checked
+    * @param value the named range, e.g. {@code "Last month"}
+    * @throws IllegalArgumentException if {@code value} is blank or matches neither a built-in
+    *                                  range nor a worksheet {@link DateRangeAssembly}
+    */
+   private static XCondition resolveDateInCondition(Worksheet ws, String value) {
+      if(value == null || value.isBlank()) {
+         throw new IllegalArgumentException(
+            "'date_in' needs a value naming a built-in range (e.g. \"Last month\") or a worksheet " +
+            "date-range assembly -- call list_condition_date_ranges for the exact names.");
+      }
+
+      for(DateCondition dc : DateCondition.getBuiltinDateConditions()) {
+         if(dc.getName().equals(value)) {
+            return dc.clone();
+         }
+      }
+
+      if(ws != null && ws.getAssembly(value) instanceof DateRangeAssembly dra) {
+         return dra.getDateRange().clone();
+      }
+
+      throw new IllegalArgumentException(
+         "'" + value + "' is not a known date range. Call list_condition_date_ranges for the exact " +
+         "built-in names (e.g. \"Last month\"), or name a worksheet date-range assembly.");
    }
 
    /**

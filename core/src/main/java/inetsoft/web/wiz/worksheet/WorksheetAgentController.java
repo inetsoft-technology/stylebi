@@ -838,7 +838,7 @@ public class WorksheetAgentController {
          if(mappings != null) {
             for(WorksheetMutationSupport.GroupMapping m : mappings) {
                ngi.setGroupCondition(m.name(),
-                  WorksheetMutationSupport.buildGroupConditionList(conditionType, ref, m));
+                  WorksheetMutationSupport.buildGroupConditionList(conditionType, ref, m, ws));
             }
          }
 
