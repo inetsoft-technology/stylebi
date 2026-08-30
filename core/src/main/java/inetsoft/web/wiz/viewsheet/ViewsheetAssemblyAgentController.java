@@ -918,17 +918,34 @@ public class ViewsheetAssemblyAgentController {
       return layoutUndoService.layoutRedo(sessionToken, user, request.layoutName());
    }
 
+   /**
+    * Request body for the save endpoint. Mirrors
+    * {@link inetsoft.web.wiz.worksheet.WorksheetAgentController.SaveRequest}.
+    *
+    * @param name  optional name/path to save the viewsheet as (e.g. {@code "agent_vs_1"} or
+    *              {@code "My Folder/agent_vs_1"}). Required when the viewsheet is untitled
+    *              (i.e. has not been saved before). When omitted the viewsheet is saved in-place.
+    * @param scope optional scope — {@code "global"} (default) for the shared repository,
+    *              {@code "user"} for the user's private folder.
+    */
+   public record SaveRequest(String name, String scope) {}
+
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/save")
-   public void save(@PathVariable String sessionToken, Principal user) throws PairingException {
+   public void save(@PathVariable String sessionToken,
+                    @RequestBody(required = false) SaveRequest body,
+                    Principal user) throws PairingException
+   {
       requireEnabled();
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       AssetEntry entry = rvs.getEntry();
+      String name = body != null && body.name() != null ? body.name().trim() : null;
 
       if(entry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
-         throw new PairingException(
-            "Viewsheet is unsaved (\"" + entry.toView() + "\"). Save it with a name in the " +
-            "StyleBI Composer first — there is no save-as through this tool — then call " +
-            "save_viewsheet again.");
+         if(name == null || name.isEmpty()) {
+            throw new PairingException(
+               "Viewsheet is unsaved (\"" + entry.toView() + "\"). Provide a 'name' to save it " +
+               "(e.g. \"agent_vs_1\").");
+         }
       }
 
       if(!(user instanceof XPrincipal xp)) {
@@ -936,8 +953,18 @@ public class ViewsheetAssemblyAgentController {
                                     user.getClass().getName() + ")");
       }
 
+      if(name != null && !name.isEmpty()) {
+         IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
+         int assetScope = body != null && "user".equalsIgnoreCase(body.scope())
+            ? AssetRepository.USER_SCOPE
+            : AssetRepository.GLOBAL_SCOPE;
+         IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
+         entry = new AssetEntry(assetScope, AssetEntry.Type.VIEWSHEET, name, owner, uname.orgID);
+      }
+
       try {
          viewsheetService.setViewsheet(rvs.getViewsheet(), entry, xp, true, true);
+         rvs.setEntry(entry);
          rvs.setSavePoint(rvs.getCurrent());
       }
       catch(Exception e) {

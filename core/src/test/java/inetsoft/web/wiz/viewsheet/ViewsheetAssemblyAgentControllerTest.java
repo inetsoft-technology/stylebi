@@ -18,12 +18,15 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.model.LayoutModel;
 import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
@@ -669,6 +672,138 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class));
+   }
+
+   /** Feature enabled, {@code sessions}/{@code viewsheetService}/{@code broadcast} wired -- for the save tests. */
+   private static ViewsheetAssemblyAgentController controllerWith(
+      ViewsheetSessionService sessions,
+      inetsoft.analytic.composition.ViewsheetService viewsheetService,
+      SheetAgentBroadcastService broadcast)
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          sessions,
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          viewsheetService,
+                                          broadcast,
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class));
+   }
+
+   // ---------------------------------------------------------------------------
+   // save -- PVA-001: no save-as for a first-time (never-saved) viewsheet
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Regression for Bug PVA-001: {@code save()} used to take no request body at all and refuse
+    * unconditionally when the viewsheet's entry was still {@code TEMPORARY_SCOPE} -- there was no
+    * way to name-and-save a first-time viewsheet through this tool. With a {@code name} supplied,
+    * save must build a {@code GLOBAL_SCOPE} {@link AssetEntry} and persist under it, mirroring
+    * {@code WorksheetAgentController.save()}'s already-working Save-As.
+    */
+   @Test
+   void saveWithNameOnATemporaryEntrySavesAsANewGlobalAsset() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "__TEMPORARY__/vs-1", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(tempEntry);
+      when(rvs.getCurrent()).thenReturn(3);
+      when(rvs.getID()).thenReturn("rt-vs-1");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(sessions, viewsheetService, broadcast);
+
+      controller.save("tok",
+         new ViewsheetAssemblyAgentController.SaveRequest("agent_vs_1", null), agent);
+
+      ArgumentCaptor<AssetEntry> captor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(viewsheetService).setViewsheet(any(), captor.capture(), any(), eq(true), eq(true));
+      assertEquals(AssetRepository.GLOBAL_SCOPE, captor.getValue().getScope());
+      assertEquals(AssetEntry.Type.VIEWSHEET, captor.getValue().getType());
+      assertEquals("agent_vs_1", captor.getValue().getPath());
+      verify(rvs).setEntry(captor.getValue());
+      verify(rvs).setSavePoint(3);
+      verify(broadcast).broadcastSave(eq(rvs), eq("rt-vs-1"), eq(agent));
+   }
+
+   /** Companion negative case: the original refusal must survive when no name is supplied. */
+   @Test
+   void saveWithoutNameOnATemporaryEntryStillFailsLoud() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "__TEMPORARY__/vs-1", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(tempEntry);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      assertThrows(PairingException.class, () -> controller.save("tok",
+         new ViewsheetAssemblyAgentController.SaveRequest(null, null), agent));
+   }
+
+   /** A plain save on an already-saved viewsheet (no name) must keep saving in-place. */
+   @Test
+   void saveWithoutNameOnAnAlreadySavedEntrySavesInPlace() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry savedEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "Existing VS", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(savedEntry);
+      when(rvs.getCurrent()).thenReturn(1);
+      when(rvs.getID()).thenReturn("rt-vs-2");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions, viewsheetService,
+         mock(SheetAgentBroadcastService.class));
+
+      controller.save("tok",
+         new ViewsheetAssemblyAgentController.SaveRequest(null, null), agent);
+
+      verify(viewsheetService).setViewsheet(any(), eq(savedEntry), any(), eq(true), eq(true));
+      verify(rvs).setEntry(savedEntry);
    }
 
    // ---------------------------------------------------------------------------
