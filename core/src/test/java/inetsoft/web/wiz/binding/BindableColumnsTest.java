@@ -306,13 +306,47 @@ class BindableColumnsTest {
    }
 
    /**
-    * An empty listing means the binding tree could not be read — a different failure. Refusing
-    * every column on the strength of it would turn a read problem into a write problem.
+    * An empty {@code tables} reaching {@code require} does NOT mean "the tree could not be read"
+    * (bug #76350, PCB-002's own reasoning for {@code requireSource}, which applies identically
+    * here — see {@code requireBindableColumns}/{@code resolveSourceTable}'s shared try/catch). A
+    * genuine read failure is already caught one layer up, before this method ever runs — so by the
+    * time it sees an empty list, the listing succeeded and genuinely found nothing bindable. That
+    * case must refuse, not silently accept the bind and crash later on render.
     */
    @Test
-   void staysOutOfTheWayWhenNothingCouldBeListed() {
-      assertDoesNotThrow(() -> BindableColumns.require(List.of(), "Crosstab1", dim("ANYTHING")));
-      assertDoesNotThrow(() -> BindableColumns.require(null, "Crosstab1", dim("ANYTHING")));
+   void refusesWhenNothingCouldBeListed() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.require(List.of(), "Crosstab1", dim("ANYTHING")));
+      assertTrue(thrown.getMessage().contains("ANYTHING"));
+
+      thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.require(null, "Crosstab1", dim("ANYTHING")));
+      assertTrue(thrown.getMessage().contains("ANYTHING"));
+   }
+
+   /**
+    * Worse than an empty listing overall: the assembly's current table is present but its own
+    * column list came back empty, while a different, non-current table in the same listing still
+    * has columns. The old bypass fired on {@code available} being empty regardless of why, so it
+    * waved through a column belonging to that other table — a cross-table silent bind, not just a
+    * "nothing could be listed" false accept.
+    */
+   @Test
+   void refusesAColumnFromAnotherTableWhenTheCurrentTablesOwnListingIsEmpty() {
+      List<BindableTable> currentTableWithNoColumns = List.of(
+         new BindableTable("Query1", true, List.of()),
+         new BindableTable("Products", false,
+                           List.of(new BindableField("PRODUCT_NAME", null, null))));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.require(currentTableWithNoColumns, "Chart1", dim("PRODUCT_NAME")));
+
+      assertTrue(thrown.getMessage().contains("PRODUCT_NAME"));
+      assertTrue(thrown.getMessage().contains("Query1"),
+                 "the message must name the source the assembly is actually bound to");
    }
 
    @Test
