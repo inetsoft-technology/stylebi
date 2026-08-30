@@ -243,8 +243,49 @@ class ScriptImageServiceTest {
       assertTrue(img.note().contains("Table1"));
    }
 
+   /**
+    * Charts default to {@code titleVisible=true} ({@code ChartVSAssemblyInfo}'s own
+    * {@code titleInfo} field init), so this hides the title explicitly — otherwise it would be
+    * indistinguishable from {@link #attachesATitleNoteWhenTheChartsTitleIsVisible}.
+    */
    @Test
-   void successfulRenderHasNoNote() throws Exception {
+   void successfulRenderHasNoNoteWhenTheTitleIsHidden() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
+      ChartVSAssembly chart = (ChartVSAssembly) rvs.getViewsheet().getAssembly("Chart1");
+      // The runtime setter, not ChartVSAssembly.setTitleVisible (which only sets the design-time
+      // value) — isTitleVisible() reads the runtime value, which nothing here executes/syncs.
+      chart.getChartInfo().setTitleVisible(false);
+      byte[] png = fakePng(800, 600);
+      BinaryTransfer transfer = mock(BinaryTransfer.class);
+      AssemblyImageService.ImageRenderResult result =
+         new AssemblyImageService.ImageRenderResult(true, transfer, 800, 600);
+
+      AssemblyImageService imageService = mock(AssemblyImageService.class);
+      when(imageService.processGetAssemblyImage(
+         eq(rvs), anyString(), eq(800.0), eq(600.0), eq(800.0), eq(600.0),
+         isNull(), eq(0), eq(0), eq(0), any(), eq(false), eq(true)))
+         .thenReturn(result);
+
+      BinaryTransferService binaryTransferService = mock(BinaryTransferService.class);
+      when(binaryTransferService.getData(transfer)).thenReturn(png);
+
+      ScriptImageService svc = new ScriptImageService(
+         imageService, binaryTransferService, mock(VSExportService.class));
+      ScriptImageService.ChartImage img = svc.getAssemblyImage(
+         rvs, "Chart1", null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertNull(img.note());
+   }
+
+   /**
+    * Bug #76325 item 4: a chart's own title bar is drawn by the live browser as a DOM sibling of
+    * the tile image, never inside the tile bytes — the single-assembly render path
+    * ({@code AssemblyImageService.getChartImage}) has no title-drawing code at all, so a caller
+    * asking for just the chart would otherwise get a plausible-but-incomplete image with no
+    * warning that the (visible, correctly-configured) title was left out.
+    */
+   @Test
+   void attachesATitleNoteWhenTheChartsTitleIsVisible() throws Exception {
       RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
       byte[] png = fakePng(800, 600);
       BinaryTransfer transfer = mock(BinaryTransfer.class);
@@ -264,6 +305,26 @@ class ScriptImageServiceTest {
          imageService, binaryTransferService, mock(VSExportService.class));
       ScriptImageService.ChartImage img = svc.getAssemblyImage(
          rvs, "Chart1", null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertNotNull(img.note());
+      assertTrue(img.note().contains("Chart1"));
+      assertTrue(img.note().contains("get_viewsheet_image"));
+   }
+
+   /**
+    * The whole-viewsheet/export path (no {@code target}) already paints the title via
+    * {@code AbstractVSExporter} — it has nothing to warn about, regardless of title visibility.
+    */
+   @Test
+   void getViewsheetImageNeverAttachesATitleNote() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
+      VSExportService exportService = mock(VSExportService.class);
+      stubExport(exportService, fakePng(400, 300));
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+      ScriptImageService.ChartImage img = svc.getViewsheetImage(
+         rvs, null, null, TestPrincipals.user("alice", "host-org"));
 
       assertNull(img.note());
    }
