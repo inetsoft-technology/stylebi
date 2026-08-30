@@ -94,6 +94,70 @@ class WorksheetReadServiceTest {
       assertEquals("QUARTER", group.dateLevel());
    }
 
+   /**
+    * PWA-004: read_worksheet_model must report the same post-aggregation column shape that
+    * list_bindable_fields/preview_worksheet_data already do. A grouped table's public column
+    * selection carries only columns that are a group key or an aggregate output (a raw column
+    * that is neither is dropped, per AbstractTableAssembly's own public-selection regeneration);
+    * the private (pre-aggregation) selection this method used to read unconditionally keeps every
+    * raw column regardless. None of this file's other aggregate fixtures can catch a regression
+    * here: readsColumnsAggregatesConditionsSort sets its AggregateInfo directly
+    * (t.setAggregateInfo), which never flips isAggregate() true, so
+    * t.getColumnSelection(t.isAggregate()) resolves identically to the old unconditional
+    * getColumnSelection(false) there regardless of this fix; readsDateGroupLevelOnGroupedColumn
+    * and readsNForParametrizedFormula do go through applyAggregateInfo (isAggregate() true), but
+    * their 2-column fixtures make every raw column either the group key or the aggregated column,
+    * so private and public selections have the identical shape either way. This fixture adds a
+    * 3rd, untouched raw column ("region") specifically so the two selections differ in shape.
+    */
+   @Test
+   void groupedTableReportsOnlyThePublicAggregateOutputColumns() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val", "region");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("cat", null)),
+         List.of(new WorksheetMutationSupport.AggregateSpec("val", "SUM", null)));
+
+      // applyAggregateInfo itself only regenerates the public selection when a secondary
+      // aggregate forces a cs2 rebuild (see its own setColumnSelection(cs2) call) -- a plain
+      // single-group/single-aggregate call, the common case here, does not. In production this
+      // regeneration instead happens via WorksheetEventUtil.refreshColumnSelection, called by
+      // WorksheetAgentController right after set_group_aggregate, which needs a live
+      // AssetQuerySandbox this unit test has no reason to stand up. Forcing the same
+      // setColumnSelection(private, false) regeneration directly is the same idiom this file's own
+      // concatenationReportsWhetherItsSourcesLineUpByType test already uses for the identical
+      // reason (public selection holds clones taken when private was installed).
+      t.setColumnSelection(t.getColumnSelection(false), false);
+
+      WorksheetModel.TableModel tm = tableNamed(read(ws), "T");
+      List<String> names = tm.columns().stream().map(WorksheetModel.ColumnModel::name).toList();
+
+      assertTrue(names.contains("cat"));
+      assertTrue(names.contains("val"));
+      assertFalse(names.contains("region"),
+         "\"region\" is neither a group key nor an aggregate output -- the public selection " +
+            "list_bindable_fields/preview_worksheet_data already read drops it, and " +
+            "read_worksheet_model must agree rather than keep reporting the private, " +
+            "pre-aggregation column list: " + names);
+   }
+
+   /** The fix must be a no-op for a non-grouped table: isAggregate() is false, so
+    *  t.getColumnSelection(t.isAggregate()) resolves to the same private selection
+    *  getColumnSelection(false) always read here -- byte-identical to the pre-fix behaviour. */
+   @Test
+   void nonGroupedTableStillReportsAllItsRawColumns() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val", "region");
+      ws.addAssembly(t);
+
+      WorksheetModel.TableModel tm = tableNamed(read(ws), "T");
+      List<String> names = tm.columns().stream().map(WorksheetModel.ColumnModel::name).toList();
+
+      assertEquals(List.of("cat", "val", "region"), names);
+   }
+
    // Bug #75954: even after set_group_aggregate correctly applied N, read_worksheet_model
    // reported the formula as bare "NthLargest" with N gone — this is the read-back half
    // of that bug.
