@@ -60,8 +60,9 @@ public class ChartRegionPropertyService {
                "when a measure uses the secondary axis",
             "legend", "the legend's 0-based index",
             "title", "which axis title — x, x2, y, y2, and only ones this chart has. NOT the " +
-               "chart's own title: that lives on the assembly, as set_assembly_properties " +
-               "'title' and 'titleVisible'"),
+               "chart's own title: its text/visibility are set_assembly_properties 'title' and " +
+               "'titleVisible', and its font/color are set_format {assemblies: [chart], target: " +
+               "'title'}"),
          "note", "An axis may also need 'field' when a chart has more than one axis of a type.");
    }
 
@@ -202,9 +203,10 @@ public class ChartRegionPropertyService {
       if("title".equals(region) && "chart".equals(ChartRegionResolver.canonical(target))) {
          throw new IllegalArgumentException(
             "The chart title is not a chart region — only the axis titles (x, x2, y, y2) are. " +
-            "It lives on the assembly: set its text with set_assembly_properties 'title', and " +
-            "show or hide it with 'titleVisible' or with " +
-            "set_chart_element_visibility {element: 'title', target: 'chart'}.");
+            "It lives on the assembly: set its text with set_assembly_properties 'title', show " +
+            "or hide it with 'titleVisible' or with set_chart_element_visibility {element: " +
+            "'title', target: 'chart'}, and set its font/color with set_format {assemblies: " +
+            "[chart], target: 'title'}.");
       }
 
       ChartRegionResolver.Axes axes = sessions.read(
@@ -290,7 +292,8 @@ public class ChartRegionPropertyService {
                case "axis" -> "the axis type, such as y or x.";
                case "legend" -> "the legend's 0-based index.";
                default -> "which axis title: x, x2, y, y2. The chart's own title is not a " +
-                  "region — it is set_assembly_properties 'title'.";
+                  "region — its text is set_assembly_properties 'title', its font/color is " +
+                  "set_format {assemblies: [chart], target: 'title'}.";
             });
       }
 

@@ -19,6 +19,8 @@ package inetsoft.web.wiz.viewsheet;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.StyleConstants;
+import inetsoft.report.TableDataPath;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
@@ -27,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -348,6 +351,83 @@ class ViewsheetFormatServiceTest {
       verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
                                 anyString());
       assertTrue(captor.getValue().isReset());
+   }
+
+   /**
+    * Bug 76325 item 3: no existing tool could format a chart's own title without also bleeding
+    * onto its axis titles and tick labels, because the only write path was the whole-OBJECT
+    * format. {@code target: "title"} routes the write through {@code event.getData()} instead —
+    * the same per-assembly {@code TableDataPath[]} mechanism a table already uses for its own
+    * title/header/cell formats — landing on {@code VSAssemblyInfo.TITLEPATH} specifically rather
+    * than {@code TableDataPath.OBJECT}.
+    */
+   @Test
+   void targetTitleRoutesThroughTheTitlePathInsteadOfTheWholeObject() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#000080");
+
+      serviceWith(painter).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Chart1"), format, false, "title"), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      ArrayList<TableDataPath[]> data = captor.getValue().getData();
+      assertNotNull(data, "target:title must populate event.getData()");
+      assertEquals(1, data.size());
+      assertArrayEquals(new TableDataPath[]{ VSAssemblyInfo.TITLEPATH }, data.get(0));
+   }
+
+   /** Default behaviour (no target, or target:"object") must be unchanged — a whole-object write. */
+   @Test
+   void defaultTargetLeavesDataNullForAWholeObjectWrite() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+
+      serviceWith(painter).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Chart1"), format, false), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      assertNull(captor.getValue().getData(), "no target must not touch event.getData()");
+   }
+
+   @Test
+   void targetTitleAlignsOneTitlePathPerAssembly() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+
+      serviceWith(painter).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Chart1", "Table1"), format, false, "title"), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      ArrayList<TableDataPath[]> data = captor.getValue().getData();
+      assertEquals(2, data.size(), "one TableDataPath[] per assembly, same order as objects[]");
+      assertArrayEquals(new TableDataPath[]{ VSAssemblyInfo.TITLEPATH }, data.get(1));
+   }
+
+   @Test
+   void refusesATargetThatIsNeitherObjectNorTitle() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Chart1"), new VSObjectFormatInfoModel(), false, "axis"), ""));
+      assertTrue(thrown.getMessage().contains("target"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("axis"), thrown.getMessage());
    }
 
    private static ViewsheetFormatService serviceWith(FormatPainterService painter) {
