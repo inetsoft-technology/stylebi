@@ -55,6 +55,7 @@ import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.FakeNamedConnectorQuery;
 import inetsoft.web.wiz.service.MetadataApiService;
+import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.junit.jupiter.api.Tag;
@@ -205,6 +206,19 @@ class WorksheetAgentControllerTest {
    private static EditRequest insertColumnRequest(String table) {
       return new EditRequest(
          "insert_column", table, null, null, null, null, null, null, null, null,
+         null, null, null, false, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null,
+         null, null,
+         null, null, null, null, null, null, null
+      );
+   }
+
+   /** Builds a {@code refresh_data} EditRequest that routes to refreshData(). */
+   private static EditRequest refreshDataRequest(String table) {
+      return new EditRequest(
+         "refresh_data", table, null, null, null, null, null, null, null, null,
          null, null, null, false, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null, null, null,
@@ -580,6 +594,82 @@ class WorksheetAgentControllerTest {
          "the refusal must name the column kind that does work here: " + ex.getMessage());
       assertEquals(2, t.getColumnSelection(false).getAttributeCount(),
          "nothing may be added to the selection when the data cannot follow");
+   }
+
+   /**
+    * Bug #76350 follow-on (item A): {@code refresh_data} on an explicit table called
+    * {@code refreshColumnSelection} (the call that actually executes a crosstab/grouped table's
+    * query, via {@code AssetQuerySandbox}'s internal {@code query.getTableLens}) with no bound at
+    * all -- a table whose query hadn't run yet in this runtime (e.g. PWA-005's cross-join-grouped
+    * crosstab) blocked this request for however long that query took. Mirrors
+    * {@code ViewsheetEditServiceTest#resizeThrowsRenderNotReadyWhenTableDataIsSlowAndDoesNotDelegate}.
+    */
+   @Test
+   void refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      TableAssembly crosstab = TestWorksheets.withGroupSumAndSort(
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, "Crosstab1", "cust", "amount"),
+         "cust", "amount");
+      ws.addAssembly(crosstab);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      doAnswer(invocation -> {
+         Thread.sleep(3_000);
+         return null;
+      }).when(box).refreshColumnSelection(eq("Crosstab1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD"), any())).thenReturn(session("TOK-RD"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      assertThrows(RenderNotReadyException.class,
+         () -> ctrl.edit("TOK-RD", refreshDataRequest("Crosstab1"), agent));
+   }
+
+   /** A table whose data is already warm (or warms within the bound) refreshes normally. */
+   @Test
+   void refreshDataSucceedsWhenColumnSelectionIsFast() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      TableAssembly crosstab = TestWorksheets.withGroupSumAndSort(
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, "Crosstab1", "cust", "amount"),
+         "cust", "amount");
+      ws.addAssembly(crosstab);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD2"), any())).thenReturn(session("TOK-RD2"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.edit("TOK-RD2", refreshDataRequest("Crosstab1"), agent);
+
+      verify(box, atLeastOnce()).refreshColumnSelection(eq("Crosstab1"), anyBoolean());
    }
 
    @Test
