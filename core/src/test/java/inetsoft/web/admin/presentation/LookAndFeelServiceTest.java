@@ -50,23 +50,45 @@ package inetsoft.web.admin.presentation;
  * [G5] A safe, ordinary file name still succeeds on all three methods.
  * [G6] A name with no dot at all (falls into the default-extension branch) is unaffected by the
  *      fix for setLogo/setFavicon.
+ *
+ * Bug 76360's fix left the font-upload path (updateFonts/saveFontFaceFiles/writeFontCSS/
+ * deleteFontFiles) untouched even though it carries the identical unvalidated-caller-controlled-
+ * filename pattern, keyed off FontFaceModel/UserFontModel.getFileNamePrefix() and the raw
+ * userFont family string, reaching the same DataSpace write/delete/transaction calls. Bug 76362's
+ * fix reuses the same requireSafeFileName() at each of the three call sites.
+ *
+ * [G7] saveFontFaceFiles rejects a traversal-shaped getFileNamePrefix() before any
+ *      writeStyleFile/withOutputStream call.
+ * [G8] saveFontFaceFiles still succeeds and writes the expected "<prefix>.ttf" for a safe name.
+ * [G9] deleteFontFiles rejects a traversal-shaped name before any space.exists/space.delete call.
+ * [G10] deleteFontFiles still succeeds for a safe name.
+ * [G11] writeFontCSS rejects a traversal-shaped family/userFont string before
+ *       beginTransaction()/newStream().
+ * [G12] writeFontCSS still succeeds and writes "<family>.css" for a safe family name.
+ * [G13] A name containing "^" (the FontFaceModel identifier-separator case) is still accepted by
+ *       all three font-path methods -- pins that the fix does not regress the legitimate
+ *       multi-variant-font case.
  */
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.portal.FontFaceModel;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.DataSpace;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.model.FileData;
+import inetsoft.web.admin.presentation.model.UserFontModel;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 
+import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -239,5 +261,144 @@ class LookAndFeelServiceTest {
       invoke("setFavicon", safe, "portal", true);
 
       verify(space, times(2)).withOutputStream(eq("portal"), eq("favicon.ico"), any());
+   }
+
+   private UserFontModel userFontModel(String name, String identifier) {
+      return UserFontModel.builder()
+         .name(name)
+         .identifier(identifier)
+         .ttf(fileData("font.ttf", "data"))
+         .build();
+   }
+
+   private void invokeDeleteFontFiles(List<String> fontNames, String fontPath) throws Throwable {
+      Method method = LookAndFeelService.class.getDeclaredMethod(
+         "deleteFontFiles", List.class, String.class, DataSpace.class);
+      method.setAccessible(true);
+
+      try {
+         method.invoke(service, fontNames, fontPath, space);
+      }
+      catch(InvocationTargetException ex) {
+         throw ex.getCause();
+      }
+   }
+
+   private void invokeSaveFontFaceFiles(UserFontModel model, String fontPath) throws Throwable {
+      Method method = LookAndFeelService.class.getDeclaredMethod(
+         "saveFontFaceFiles", UserFontModel.class, String.class, DataSpace.class, Principal.class);
+      method.setAccessible(true);
+
+      try {
+         method.invoke(service, model, fontPath, space, principal);
+      }
+      catch(InvocationTargetException ex) {
+         throw ex.getCause();
+      }
+   }
+
+   private void invokeWriteFontCSS(String family, List<FontFaceModel> fontFaces, String dir) throws Throwable {
+      Method method = LookAndFeelService.class.getDeclaredMethod(
+         "writeFontCSS", String.class, List.class, String.class, DataSpace.class);
+      method.setAccessible(true);
+
+      try {
+         method.invoke(service, family, fontFaces, dir, space);
+      }
+      catch(InvocationTargetException ex) {
+         throw ex.getCause();
+      }
+   }
+
+   @Test
+   void saveFontFaceFilesRejectsTraversalName() throws Exception {
+      UserFontModel traversal = userFontModel("../../../etc/evil", FontFaceModel.EMPTY_IDENTIFIER);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> invokeSaveFontFaceFiles(traversal, "portal/font"));
+      assertTrue(ex.getMessage().contains("../../../etc/evil"));
+
+      verify(space, never()).withOutputStream(anyString(), anyString(), any());
+   }
+
+   @Test
+   void saveFontFaceFilesAcceptsSafeName() throws Throwable {
+      UserFontModel safe = userFontModel("myfont", FontFaceModel.EMPTY_IDENTIFIER);
+
+      invokeSaveFontFaceFiles(safe, "portal/font");
+
+      verify(space).withOutputStream(eq("portal/font"), eq("myfont.ttf"), any());
+   }
+
+   @Test
+   void saveFontFaceFilesAcceptsNameWithIdentifierCaret() throws Throwable {
+      UserFontModel safe = userFontModel("myfont", "bold");
+
+      invokeSaveFontFaceFiles(safe, "portal/font");
+
+      verify(space).withOutputStream(eq("portal/font"), eq("myfont^bold.ttf"), any());
+   }
+
+   @Test
+   void deleteFontFilesRejectsTraversalName() {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> invokeDeleteFontFiles(Collections.singletonList("../../../etc/evil"), "portal/font"));
+      assertTrue(ex.getMessage().contains("../../../etc/evil"));
+
+      verify(space, never()).exists(anyString(), anyString());
+      verify(space, never()).delete(anyString(), anyString());
+   }
+
+   @Test
+   void deleteFontFilesAcceptsSafeName() throws Throwable {
+      when(space.exists("portal/font", "myfont.ttf")).thenReturn(true);
+
+      invokeDeleteFontFiles(Collections.singletonList("myfont"), "portal/font");
+
+      verify(space).delete("portal/font", "myfont.ttf");
+   }
+
+   @Test
+   void deleteFontFilesAcceptsNameWithIdentifierCaret() throws Throwable {
+      when(space.exists("portal/font", "myfont^bold.ttf")).thenReturn(true);
+      when(space.exists("portal/font", "myfont.css")).thenReturn(true);
+
+      invokeDeleteFontFiles(Collections.singletonList("myfont^bold"), "portal/font");
+
+      verify(space).delete("portal/font", "myfont^bold.ttf");
+      verify(space).delete("portal/font", "myfont.css");
+   }
+
+   @Test
+   void writeFontCSSRejectsTraversalFamilyName() {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> invokeWriteFontCSS("../../../etc/evil", Collections.emptyList(), "portal/font"));
+      assertTrue(ex.getMessage().contains("../../../etc/evil"));
+
+      verify(space, never()).beginTransaction();
+   }
+
+   @Test
+   void writeFontCSSAcceptsSafeFamilyName() throws Throwable {
+      DataSpace.Transaction tx = mock(DataSpace.Transaction.class, withSettings().lenient());
+      when(space.beginTransaction()).thenReturn(tx);
+      when(tx.newStream(eq("portal/font"), eq("myfont.css"))).thenReturn(new ByteArrayOutputStream());
+
+      invokeWriteFontCSS("myfont", Collections.emptyList(), "portal/font");
+
+      verify(tx).newStream("portal/font", "myfont.css");
+      verify(tx).commit();
+   }
+
+   @Test
+   void writeFontCSSAcceptsNameWithIdentifierCaret() throws Throwable {
+      DataSpace.Transaction tx = mock(DataSpace.Transaction.class, withSettings().lenient());
+      when(space.beginTransaction()).thenReturn(tx);
+      when(tx.newStream(eq("portal/font"), eq("myfont^bold.css")))
+         .thenReturn(new ByteArrayOutputStream());
+
+      invokeWriteFontCSS("myfont^bold", Collections.emptyList(), "portal/font");
+
+      verify(tx).newStream("portal/font", "myfont^bold.css");
    }
 }

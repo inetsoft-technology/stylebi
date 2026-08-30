@@ -360,6 +360,8 @@ public class LookAndFeelService {
       }
 
       for(String fontName : fontNames) {
+         fontName = requireSafeFileName(fontName);
+
          if(space.exists(fontPath, fontName + ".ttf")) {
             space.delete(fontPath, fontName + ".ttf");
          }
@@ -389,7 +391,7 @@ public class LookAndFeelService {
    private void saveFontFaceFiles(UserFontModel fontFaceModel, String fontPath, DataSpace space, Principal principal)
       throws Exception
    {
-      final String fileName = fontFaceModel.getFileNamePrefix();
+      final String fileName = requireSafeFileName(fontFaceModel.getFileNamePrefix());
       deleteFontFiles(Collections.singletonList(fileName), fontPath, space);
 
       Base64.Decoder decoder = Base64.getDecoder();
@@ -424,7 +426,7 @@ public class LookAndFeelService {
    private void writeFontCSS(String family, List<FontFaceModel> fontFaces, String dir, DataSpace space)
       throws IOException
    {
-      final String file = family + ".css";
+      final String file = requireSafeFileName(family) + ".css";
 
       try(DataSpace.Transaction tx = space.beginTransaction();
           OutputStream output = tx.newStream(dir, file))
@@ -491,7 +493,7 @@ public class LookAndFeelService {
 
    /**
     * Rejects a caller-supplied file name that contains a path separator, a ".." traversal
-    * segment, or a NUL byte, since none of these are valid in a CSS/logo/favicon file name.
+    * segment, or a NUL byte, since none of these are valid in a CSS/logo/favicon/font file name.
     */
    private static String requireSafeFileName(String name) {
       if(name == null || name.isEmpty() || name.contains("/") || name.contains("\\") ||
