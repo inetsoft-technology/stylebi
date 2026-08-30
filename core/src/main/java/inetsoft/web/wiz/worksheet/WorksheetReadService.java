@@ -347,7 +347,12 @@ public class WorksheetReadService {
    // -------------------------------------------------------------------------
 
    private List<WorksheetModel.ColumnModel> readColumns(TableAssembly t) {
-      ColumnSelection cs = t.getColumnSelection(false);
+      // A grouped/aggregated table's private (pre-aggregation) selection keeps the original
+      // column definitions, while its public selection is regenerated from the AggregateInfo and
+      // reflects the query's actual output (correct alias, correct computed type) — the same
+      // public view list_bindable_fields/preview_worksheet_data already read. Reading the private
+      // selection unconditionally here is what made read_worksheet_model disagree with them.
+      ColumnSelection cs = t.getColumnSelection(t.isAggregate());
 
       if(cs == null) {
          return Collections.emptyList();
