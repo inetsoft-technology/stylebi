@@ -121,6 +121,29 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    /**
+    * A bad {@code assembly} name (item D, corpus follow-on): {@code VSConditionDialogService
+    * .getModel} now throws a named {@code IllegalArgumentException} instead of NPE-ing on the
+    * dereference of {@code Viewsheet.getAssembly}'s documented {@code null} return. This asserts
+    * the controller doesn't swallow or re-wrap that -- it reaches {@code WizControllerErrorHandler}
+    * as the same named-field 400 the "not a field of" precedent already gets, never a bare 500.
+    */
+   @Test
+   void browseConditionValuesPropagatesTheNamedFieldErrorForAnUnknownAssembly() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      AssemblyConditionService conditionService = mock(AssemblyConditionService.class);
+      doThrow(new IllegalArgumentException("'NoSuchAssembly' is not an assembly in this viewsheet."))
+         .when(conditionService).browseValues(anyString(), any(Principal.class), anyString(), anyString());
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWithConditionService(sessions, conditionService);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         controller.browseConditionValues("tok", "NoSuchAssembly", "ORDER_DATE", principal()));
+
+      assertTrue(thrown.getMessage().contains("NoSuchAssembly"));
+   }
+
+   /**
     * detach took the session token and nothing else, so any authenticated caller holding or
     * guessing another user's token could terminate their pairing session. Every other endpoint
     * binds the token to the caller through {@code sessions.resolve(token, user)}; this one

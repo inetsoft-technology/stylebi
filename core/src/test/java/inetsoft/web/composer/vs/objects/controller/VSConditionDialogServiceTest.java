@@ -43,6 +43,8 @@ import java.security.Principal;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -108,6 +110,23 @@ class VSConditionDialogServiceTest {
          service.getModel("Viewsheet1", "TextAssembly", null);
 
       assertEquals(7, result.getRevision());
+   }
+
+   /**
+    * {@code Viewsheet.getAssembly} returns null, not an exception, when the name doesn't match —
+    * documented on the method itself. Dereferencing that null unchecked used to NPE here; callers
+    * (browse_condition_values, get_condition, set_condition) deserve a named, actionable error
+    * instead of an unhandled NPE that surfaces as a raw 500.
+    */
+   @Test
+   void getModelThrowsNamedErrorWhenAssemblyNotFound() throws Exception {
+      when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.getModel("Viewsheet1", "NoSuchAssembly", null));
+      assertTrue(ex.getMessage().contains("NoSuchAssembly"));
    }
 
    /**
