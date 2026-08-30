@@ -167,4 +167,67 @@ class ChartBindingMutatorTest {
       assertEquals(13, ChartBindingFields.AESTHETIC.size(),
                    "the 2b/2c split is declared once; changing it changes both sides");
    }
+
+   // ── per-dimension sort/ranking (bug #76350, PCB-001) ──────────────────────
+   //
+   // ChartDimensionRefModel extends BDimensionRefModel, the same class TableBindingMutator
+   // already drives with DimensionSortRanking for a crosstab's rows/cols — these mirror that
+   // suite's shape for a chart's x/y/group shelves.
+
+   @Test
+   void sortsADimensionByABoundMeasuresValue() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+
+      ChartBindingMutator.setSort(model, "x", "Region", null,
+         new DimensionSortRanking.Sort("value_desc", "Sales", null));
+
+      Map<String, Object> described = ChartBindingMutator.describeSorts(model, "x");
+      assertEquals("value_desc", ((Map<?, ?>) described.get("Region")).get("direction"));
+      assertEquals("Sales", ((Map<?, ?>) described.get("Region")).get("sortByField"));
+   }
+
+   @Test
+   void ranksADimensionByABoundMeasure() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+
+      ChartBindingMutator.setRanking(model, "x", "Region", null,
+         new DimensionSortRanking.Ranking("top", 5, "Sales", true));
+
+      Map<String, Object> described = ChartBindingMutator.describeSorts(model, "x");
+      Map<?, ?> region = (Map<?, ?>) described.get("Region");
+      assertEquals("top", region.get("ranking"));
+      assertEquals("5", region.get("rankingN"));
+      assertEquals("Sales", region.get("rankingMeasure"));
+   }
+
+   @Test
+   void rejectsSortingAColumnNotOnTheShelfNamingWhatIsBound() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setSort(model, "x", "Product", null,
+            new DimensionSortRanking.Sort("asc", null, null)));
+      assertTrue(thrown.getMessage().contains("Product"));
+      assertTrue(thrown.getMessage().contains("Region"));
+   }
+
+   @Test
+   void doesNotConfuseAMeasureOnTheShelfWithADimension() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setSort(model, "y", "Sales", null,
+            new DimensionSortRanking.Sort("asc", null, null)));
+      assertTrue(thrown.getMessage().contains("Sales"));
+   }
 }

@@ -128,8 +128,17 @@ public final class BindableColumns {
       List<BindableTable> listed = tables == null ? List.of() : tables;
       List<FieldRef> named = named(fields);
 
-      // No listing is a read failure, and nothing being written has no source to decide.
-      if(listed.isEmpty() || named.isEmpty()) {
+      // Nothing being written has no source to decide. An empty `listed` used to bail here too,
+      // on the theory that no listing meant the tree could not be read (bug #76350, PCB-002) —
+      // but resolveSourceTable's own surrounding try/catch already turns a genuine read failure
+      // into this same null one layer up, before requireSource ever runs. So an empty `listed`
+      // reaching here always means a *successful* listing that is genuinely empty — e.g. a table
+      // not yet visible to the viewsheet because it was never saved — which requested != null
+      // below already refuses correctly via matchListed's "Available: " message, the same
+      // refusal set_chart_source gives for the identical case. Bailing early swallowed that
+      // refusal and returned null instead, so the write proceeded with no source and no error,
+      // then crashed later on render.
+      if(named.isEmpty()) {
          return null;
       }
 

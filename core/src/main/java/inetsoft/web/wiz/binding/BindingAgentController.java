@@ -181,6 +181,46 @@ public class BindingAgentController {
                                   request.field(), source, linkUri);
    }
 
+   /** @see TableSortRequest — same shape, applied to a chart's x/y/group dimension shelves. */
+   public record ChartSortRequest(String assembly, String shelf, String column, Integer index,
+                                  String direction, String sortByField,
+                                  List<String> manualOrder) {}
+   /** @see TableRankingRequest */
+   public record ChartRankingRequest(String assembly, String shelf, String column, Integer index,
+                                     String mode, Integer n, String measure, Boolean others) {}
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/sort")
+   public void setChartSort(@PathVariable String sessionToken,
+                            @RequestBody ChartSortRequest request,
+                            @RequestParam(required = false, defaultValue = "") String linkUri,
+                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      chartService.setSort(sessionToken, user, request.assembly(), request.shelf(),
+                           request.column(), request.index(),
+                           new DimensionSortRanking.Sort(request.direction(),
+                                                         request.sortByField(),
+                                                         request.manualOrder()),
+                           linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/ranking")
+   public void setChartRanking(@PathVariable String sessionToken,
+                               @RequestBody ChartRankingRequest request,
+                               @RequestParam(required = false, defaultValue = "") String linkUri,
+                               Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      chartService.setRanking(sessionToken, user, request.assembly(), request.shelf(),
+                              request.column(), request.index(),
+                              new DimensionSortRanking.Ranking(request.mode(), request.n(),
+                                                               request.measure(),
+                                                               request.others()),
+                              linkUri);
+   }
+
    @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/type")
    public ChartTypeState chartType(@PathVariable String sessionToken,
                                    @RequestParam String assembly,

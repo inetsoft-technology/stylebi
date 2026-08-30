@@ -265,12 +265,38 @@ class BindableColumnsTest {
       assertTrue(thrown.getMessage().contains("set_chart_source"), "name the way through");
    }
 
-   /** No listing means the tree could not be read — a read failure, not a write one. */
+   /**
+    * An empty {@code tables} reaching {@code requireSource} does NOT mean "the tree could not be
+    * read" (bug #76350, PCB-002). A genuine read failure is already caught one layer up, in
+    * {@code BindingAgentController.resolveSourceTable}'s own try/catch, before this method ever
+    * runs — so by the time it sees an empty list, the listing succeeded and genuinely found
+    * nothing bindable (e.g. a table that was never saved). That case must refuse exactly the way
+    * set_chart_source already does, not silently accept the bind and crash later on render.
+    */
    @Test
-   void establishesNothingWhenNothingCouldBeListed() {
-      assertNull(BindableColumns.requireSource(List.of(), "Chart1", null,
-                                              List.of(field("ANYTHING"))));
-      assertNull(BindableColumns.requireSource(null, "Chart1", null, List.of(field("ANYTHING"))));
+   void refusesWhenNothingIsListedAndNoTableIsNamed() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.requireSource(List.of(), "Chart1", null,
+                                             List.of(field("ANYTHING"))));
+      assertTrue(thrown.getMessage().contains("ANYTHING"));
+
+      thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.requireSource(null, "Chart1", null, List.of(field("ANYTHING"))));
+      assertTrue(thrown.getMessage().contains("ANYTHING"));
+   }
+
+   /** The same case, with a table named — refuses the same way set_chart_source already does. */
+   @Test
+   void refusesAStatedTableWhenNothingIsListed() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.requireSource(List.of(), "Chart1", "Sales",
+                                             List.of(field("ANYTHING"))));
+
+      assertTrue(thrown.getMessage().contains("Sales"));
+      assertTrue(thrown.getMessage().contains("Available"));
    }
 
    /** Nothing being written means nothing to decide a source from. */

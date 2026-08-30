@@ -250,6 +250,47 @@ public class ChartBindingService {
       });
    }
 
+   /**
+    * Sorts a dimension already on the chart's x/y/group shelf, including by another bound
+    * measure's value (bug #76350, PCB-001) — {@code ChartDimensionRefModel} carries the same
+    * order/sortByCol fields {@code TableBindingService.setSort} already drives on a crosstab's
+    * dimensions, {@code FieldRefFactory.toChartRef} just never set them from a shelf write.
+    */
+   public void setSort(String sessionToken, Principal user, String assemblyName, String shelf,
+                       String column, Integer index, DimensionSortRanking.Sort sort,
+                       String linkUri) throws Exception
+   {
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChartVSAssembly chart = requireChart(rvs, assemblyName);
+         ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
+         ChartBindingMutator.setSort(model, shelf, column, index, sort);
+
+         ChangeChartRefEvent event = new ChangeChartRefEvent();
+         event.setName(assemblyName);
+         event.setFieldType(shelf);
+         event.setModel(model);
+         refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
+      });
+   }
+
+   /** @see #setSort */
+   public void setRanking(String sessionToken, Principal user, String assemblyName, String shelf,
+                          String column, Integer index, DimensionSortRanking.Ranking ranking,
+                          String linkUri) throws Exception
+   {
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChartVSAssembly chart = requireChart(rvs, assemblyName);
+         ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
+         ChartBindingMutator.setRanking(model, shelf, column, index, ranking);
+
+         ChangeChartRefEvent event = new ChangeChartRefEvent();
+         event.setName(assemblyName);
+         event.setFieldType(shelf);
+         event.setModel(model);
+         refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
+      });
+   }
+
    public void setChartType(String sessionToken, Principal user, String assemblyName, int type,
                             Boolean multi, Boolean stackMeasures, Boolean separate, String field,
                             String linkUri) throws Exception

@@ -2018,8 +2018,8 @@ public class MetadataApiService {
             DatasourceTablesResponse tablesResponse = getDatabaseTables(dsName, principal);
 
             for(DatabaseTableInfo tableInfo : tablesResponse.getTables()) {
-               boolean tableMatches = tableInfo.getTable().toLowerCase(Locale.ROOT)
-                  .contains(queryLower);
+               boolean tableMatches = tableNameMatches(
+                  tableInfo.getTable().toLowerCase(Locale.ROOT), queryLower);
 
                // If searching by field names, look for column matches
                List<SchemaSearchResponse.ColumnMatch> columnMatches = null;
@@ -2059,6 +2059,49 @@ public class MetadataApiService {
       SchemaSearchResponse response = new SchemaSearchResponse();
       response.setResults(results);
       return response;
+   }
+
+   /**
+    * Whether a (lowercased) table name matches a (lowercased) search query — a plain substring
+    * check, plus a stemmed fallback so a singular/plural mismatch (bug #76350, PSD-001, e.g.
+    * "category" searched against a table named "categories") isn't a silent miss.
+    */
+   static boolean tableNameMatches(String tableNameLower, String queryLower) {
+      return tableNameLower.contains(queryLower) || stem(tableNameLower).contains(stem(queryLower));
+   }
+
+   /**
+    * Reduces a lowercased word to a rough singular stem, so a search term and a
+    * pluralized/singularized table name still match (bug #76350, PSD-001 -
+    * "categories".contains("category") is false, a plain English -y -&gt; -ies plural). Not a
+    * full stemmer - just closes the common regular-English-plural gap, applied in addition to
+    * (not instead of) the existing plain substring check.
+    */
+   static String stem(String word) {
+      if(word.length() > 3 && word.endsWith("ies")) {
+         return word.substring(0, word.length() - 3) + "y";
+      }
+
+      // Only treat a trailing "es" as a plural suffix when it forms after a sibilant sound
+      // (box -> boxes, glass -> glasses, church -> churches) - otherwise "es" is just "e" + "s"
+      // (wine -> wines) and stripping both characters overshoots into the wrong stem, which is
+      // how a naive "always strip -es" rule would collide two unrelated words (e.g. "wines" and
+      // "win") that a sibilant check keeps apart.
+      if(word.length() > 2 && word.endsWith("es")) {
+         String base = word.substring(0, word.length() - 2);
+
+         if(base.endsWith("s") || base.endsWith("x") || base.endsWith("z") ||
+            base.endsWith("ch") || base.endsWith("sh"))
+         {
+            return base;
+         }
+      }
+
+      if(word.length() > 1 && word.endsWith("s") && !word.endsWith("ss")) {
+         return word.substring(0, word.length() - 1);
+      }
+
+      return word;
    }
 
    /**
