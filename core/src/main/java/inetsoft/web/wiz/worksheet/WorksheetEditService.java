@@ -42,6 +42,7 @@ import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.service.RenderWaitSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -229,6 +230,31 @@ public class WorksheetEditService {
     * Refresh column selections and reload table data for all assemblies in the worksheet.
     * Mirrors the UI's post-edit steps (InsertDataService calls refreshColumnSelection +
     * loadTableData after column mutations).
+    *
+    * <p>{@code refreshColumnSelection} — not {@code loadTableData} — is the call that actually
+    * executes a crosstab/grouped table's query ({@code AssetQuerySandbox.refreshColumnSelection}'s
+    * {@code query.getTableLens(vars)}); {@code loadTableData} is structural validation and cache
+    * invalidation only. Both are bounded together in one {@link RenderWaitSupport#awaitOrRetry}
+    * call per table so a table whose query hasn't executed yet in this runtime cannot block this
+    * best-effort warm-up past its share of the budget below.</p>
+    *
+    * <p>Bug #76350 follow-on (item A): before this, neither call had any bound, so a single slow
+    * table anywhere in the worksheet — not necessarily the one just edited — made an unrelated,
+    * already-committed write op (add_expression_column, set_group_aggregate, etc.) hang until
+    * that table's query finished, reported to the caller as a false 30s timeout on a call that had
+    * actually already succeeded.</p>
+    *
+    * <p>All tables share one wall-clock budget ({@link #REFRESH_ASSEMBLIES_BUDGET_MS}) rather than
+    * each getting its own independent wait, so the aggregate cost of this warm-up is capped at a
+    * flat ~2s regardless of how many tables the worksheet has. Trade-off, accepted deliberately: a
+    * persistently slow table that sorts early in {@code ws.getAssemblies()}'s iteration order can
+    * consume the whole budget and starve every table after it, on every write op, indefinitely —
+    * worse for those specific tables than the old fully-unbounded design, which eventually warmed
+    * every table given enough time. This is acceptable because this loop is best-effort
+    * cache-warming, not a correctness precondition (unlike {@code ViewsheetEditService}'s
+    * {@code ensureTableDataReady}, which guards a mutation that hasn't happened yet): a table
+    * skipped here is not warmed by this request, but still executes — and gets cached — on the
+    * next real read that needs it.</p>
     */
    private void refreshAssemblies(RuntimeWorksheet rws) {
       Worksheet ws = rws.getWorksheet();
@@ -237,21 +263,45 @@ public class WorksheetEditService {
          return;
       }
 
+      long deadline = System.currentTimeMillis() + REFRESH_ASSEMBLIES_BUDGET_MS;
+
       for(Assembly a : ws.getAssemblies()) {
          if(a instanceof TableAssembly ta) {
             String name = ta.getName();
+            long remaining = deadline - System.currentTimeMillis();
+
+            if(remaining <= 0) {
+               LOG.warn("Skipping refresh for assembly {} - refreshAssemblies budget exhausted",
+                        name);
+               continue;
+            }
 
             try {
-               WorksheetEventUtil.refreshColumnSelection(rws, name, true);
-               WorksheetEventUtil.loadTableData(rws, name, true, true);
+               RenderWaitSupport.awaitOrRetry(() -> {
+                  WorksheetEventUtil.refreshColumnSelection(rws, name, true);
+                  WorksheetEventUtil.loadTableData(rws, name, true, true);
+                  return null;
+               }, remaining, (int) Math.max(1, remaining / 1000));
                WorksheetEventUtil.fixAssemblyInfo(rws, ta);
             }
             catch(Exception ex) {
+               // RenderNotReadyException (a timed-out table) is deliberately swallowed here,
+               // same as any other per-table failure: the mutation this method runs after has
+               // already succeeded and been checkpointed, so this is a best-effort warm-up, not
+               // a precondition the caller needs to know failed.
                LOG.warn("Failed to refresh assembly: {}", name, ex);
             }
          }
       }
    }
+
+   // Mirrors ViewsheetEditService.TABLE_WARM_MAX_ATTEMPTS/TABLE_WARM_RETRY_SLEEP_MS: the same
+   // "how long is acceptable to make a caller wait before answering retry-after" ceiling, applied
+   // here as one shared budget across the whole refreshAssemblies loop rather than per-table.
+   private static final int TABLE_WARM_MAX_ATTEMPTS = 4;
+   private static final long TABLE_WARM_RETRY_SLEEP_MS = 500;
+   private static final long REFRESH_ASSEMBLIES_BUDGET_MS =
+      TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS;
 
    private void applySocketSession(RuntimeWorksheet rws, JoinSession session) {
       if(session.socketSessionId() != null && rws.getSocketSessionId() == null) {

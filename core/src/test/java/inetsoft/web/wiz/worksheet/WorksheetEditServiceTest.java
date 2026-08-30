@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.ColumnSelection;
@@ -73,6 +74,106 @@ class WorksheetEditServiceTest {
 
       assertNull(t.getColumnSelection(false).getAttribute("a"));
       verify(broadcast).broadcastRefresh(eq(rws), eq(SheetType.WORKSHEET), eq("Worksheet/foo-7"), eq(agent));
+   }
+
+   /**
+    * Bug #76350 follow-on (item A): {@code refreshAssemblies} — called unconditionally at the end
+    * of every mutation-applying method, looping over every {@link TableAssembly} in the
+    * worksheet, not just the one edited — called {@code refreshColumnSelection} (the call that
+    * actually executes a crosstab/grouped table's query) with no bound. A slow-to-execute table
+    * anywhere in the worksheet made an unrelated, already-succeeded edit hang and look like a
+    * false 30s timeout (PSM-003/PQE-001). Bounding it in {@code RenderWaitSupport.awaitOrRetry}
+    * and letting the existing {@code catch(Exception ex)} swallow a timeout like any other
+    * per-table failure means the edit itself still returns promptly, successfully.
+    */
+   @Test
+   void applySwallowsATimedOutTableInsteadOfPropagatingTheFailure() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+
+      // An unrelated table elsewhere in the same worksheet whose query hasn't run yet in this
+      // runtime -- refreshAssemblies loops over every TableAssembly, not just "T".
+      TableAssembly slow = TestWorksheets.withGroupSumAndSort(
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, "Slow1", "cust", "amount"),
+         "cust", "amount");
+      ws.addAssembly(slow);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      doAnswer(invocation -> {
+         Thread.sleep(3_000);
+         return null;
+      }).when(box).refreshColumnSelection(eq("Slow1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      // Must not throw -- the mutation on "T" already succeeded; "Slow1" timing out during the
+      // best-effort post-edit warm-up must not be reported back as the whole edit failing.
+      svc.apply("TOK", agent, ed -> ed.removeColumn("T", "a"));
+
+      assertNull(t.getColumnSelection(false).getAttribute("a"),
+                 "the mutation itself must still succeed even though Slow1's warm-up timed out");
+   }
+
+   /**
+    * The shared wall-clock budget across the whole {@code refreshAssemblies} loop (added so the
+    * loop's aggregate cost is capped regardless of table count, instead of N x 2s) means a table
+    * that is genuinely slow -- not stuck, just slow -- consumes the entire budget if it sorts
+    * early in {@code ws.getAssemblies()}'s iteration order, and every table after it is skipped
+    * for that pass rather than getting its own independent wait. This is a deliberate, accepted
+    * trade-off (documented on {@code WorksheetEditService.refreshAssemblies} itself) — this test
+    * pins down the behavior so it does not silently change.
+    */
+   @Test
+   void refreshAssembliesSharedBudgetSkipsTablesAfterTheFirstSlowOne() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly slow1 = TestWorksheets.withGroupSumAndSort(
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, "Slow1", "cust", "amount"),
+         "cust", "amount");
+      ws.addAssembly(slow1);
+      TableAssembly slow2 = TestWorksheets.withGroupSumAndSort(
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, "Slow2", "cust", "amount"),
+         "cust", "amount");
+      ws.addAssembly(slow2);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      // Slow1 alone blocks past the whole shared budget, so it consumes it entirely.
+      doAnswer(invocation -> {
+         Thread.sleep(3_000);
+         return null;
+      }).when(box).refreshColumnSelection(eq("Slow1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      svc.apply("TOK", agent, ed -> {});
+
+      verify(box, never()).refreshColumnSelection(eq("Slow2"), anyBoolean());
    }
 
    @Test
