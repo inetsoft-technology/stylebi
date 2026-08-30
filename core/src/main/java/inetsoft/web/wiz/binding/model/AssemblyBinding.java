@@ -34,6 +34,13 @@ import java.util.Map;
  * present only when bound, unlike the three list shelves above which are always present: they are
  * meaningful on every chart, whereas {@code milestone} on a pie chart is not, and listing it would
  * advertise a shelf that chart cannot use.
+ *
+ * <p>{@code sorts} carries per-dimension sort/ranking, keyed by column (or {@code "column [i]"}
+ * when the same column is bound more than once on the same shelf) — currently populated for a
+ * chart's x/y/group shelves only, in the vocabulary {@code DimensionSortRanking.describe}
+ * produces. Empty for a table or crosstab, whose own sort/ranking is reported by the richer
+ * {@code table/binding} read instead.
  */
 public record AssemblyBinding(String assembly, String objectType, String source,
-                              Map<String, List<FieldRef>> shelves) {}
+                              Map<String, List<FieldRef>> shelves,
+                              Map<String, Object> sorts) {}

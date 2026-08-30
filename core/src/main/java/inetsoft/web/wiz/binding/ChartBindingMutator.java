@@ -19,6 +19,7 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
@@ -27,7 +28,9 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Read-modify-write over {@code ChartBindingModel}.
@@ -164,6 +167,110 @@ public final class ChartBindingMutator {
       };
 
       return refs == null ? List.of() : refs;
+   }
+
+   // ── per-dimension sort/ranking (bug #76350, PCB-001) ──────────────────────────────────────
+   //
+   // ChartDimensionRefModel extends BDimensionRefModel — the same base class TableBindingMutator
+   // already drives with DimensionSortRanking for a crosstab's rows/cols. A chart's x/y/group
+   // dimensions carry the identical order/sortByCol/ranking fields; FieldRefFactory.toChartRef
+   // simply never set them, which is the whole reason "sort a chart axis by a measure's value"
+   // had no tool despite the model underneath already supporting it.
+
+   /**
+    * The dimension a call means, on a chart's x/y/group shelf. Mirrors
+    * {@code TableBindingMutator.requireDimension} exactly — chart dimensions are addressed by
+    * column name for the same reason: a stable index would silently point at the wrong column
+    * after any shelf reorder.
+    */
+   private static BDimensionRefModel requireDimension(ChartBindingModel model, String shelf,
+                                                       String column, Integer index)
+   {
+      List<ChartRefModel> refs = readShelf(model, shelf);
+      List<String> present = new ArrayList<>();
+      Map<Integer, BDimensionRefModel> matches = new LinkedHashMap<>();
+
+      for(int i = 0; i < refs.size(); i++) {
+         ChartRefModel ref = refs.get(i);
+
+         if(!(ref instanceof ChartDimensionRefModel dimension)) {
+            continue;
+         }
+
+         String value = dimension.getColumnValue() == null
+            ? dimension.getName() : dimension.getColumnValue();
+         present.add(value);
+
+         if(value != null && value.equalsIgnoreCase(column)) {
+            matches.put(i, dimension);
+         }
+      }
+
+      if(index != null) {
+         BDimensionRefModel chosen = matches.get(index);
+
+         if(chosen == null) {
+            throw new IllegalArgumentException(
+               "index " + index + " is not a position of '" + column + "' on the " + shelf +
+               " shelf. It is bound at: " + matches.keySet() + ".");
+         }
+
+         return chosen;
+      }
+
+      if(matches.size() > 1) {
+         throw new IllegalArgumentException(
+            "'" + column + "' is bound " + matches.size() + " times on the " + shelf +
+            " shelf, so this call is ambiguous. Pass 'index' to say which.");
+      }
+
+      if(matches.size() == 1) {
+         return matches.values().iterator().next();
+      }
+
+      throw new IllegalArgumentException(
+         "'" + column + "' is not a dimension on the " + shelf + " shelf. It holds: " +
+         (present.isEmpty() ? "(nothing)" : String.join(", ", present)) + ".");
+   }
+
+   public static void setSort(ChartBindingModel model, String shelf, String column,
+                              Integer index, DimensionSortRanking.Sort sort)
+   {
+      DimensionSortRanking.applySort(requireDimension(model, shelf, column, index), sort);
+   }
+
+   public static void setRanking(ChartBindingModel model, String shelf, String column,
+                                 Integer index, DimensionSortRanking.Ranking ranking)
+   {
+      DimensionSortRanking.applyRanking(requireDimension(model, shelf, column, index), ranking);
+   }
+
+   /** The sort and ranking on every dimension of a chart shelf. */
+   public static Map<String, Object> describeSorts(ChartBindingModel model, String shelf) {
+      Map<String, Object> out = new LinkedHashMap<>();
+      List<ChartRefModel> refs = readShelf(model, shelf);
+      List<BDimensionRefModel> dimensions = new ArrayList<>();
+
+      for(ChartRefModel ref : refs) {
+         if(ref instanceof ChartDimensionRefModel dimension) {
+            dimensions.add(dimension);
+         }
+      }
+
+      for(int i = 0; i < dimensions.size(); i++) {
+         BDimensionRefModel dimension = dimensions.get(i);
+         String column = dimension.getColumnValue() == null
+            ? dimension.getName() : dimension.getColumnValue();
+         long occurrences = dimensions.stream()
+            .map(d -> d.getColumnValue() == null ? d.getName() : d.getColumnValue())
+            .filter(value -> value != null && value.equalsIgnoreCase(column))
+            .count();
+
+         out.put(occurrences > 1 ? column + " [" + i + "]" : column,
+                 DimensionSortRanking.describe(dimension));
+      }
+
+      return out;
    }
 
    /** Reads one single-field shelf, or null when nothing is bound to it. */
