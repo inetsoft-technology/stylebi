@@ -22,6 +22,7 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
@@ -196,7 +197,21 @@ public class ScriptImageService {
          }
       }
 
-      return new ChartImage(bytes, result.isPng(), result.getWidth(), result.getHeight(), null);
+      // This tile render is the same title-less path the live browser uses for its own on-screen
+      // assembly tile (title.getInfo() is drawn separately as a sibling DOM element there) — so
+      // unlike a whole-viewsheet render, a titled assembly's own title bar never appears in these
+      // bytes no matter what titleVisible is set to. Note it rather than silently returning a
+      // plausible-but-incomplete image (see class doc's tables/crosstabs fallback for the same
+      // pattern).
+      String note = null;
+
+      if(assembly.getInfo() instanceof TitledVSAssemblyInfo titledInfo && titledInfo.isTitleVisible()) {
+         note = "\"" + assemblyName + "\" has its own title bar, which this single-assembly " +
+            "render does not include — call get_viewsheet_image without a target to see the " +
+            "whole viewsheet, including this assembly's title.";
+      }
+
+      return new ChartImage(bytes, result.isPng(), result.getWidth(), result.getHeight(), note);
    }
 
    /**
