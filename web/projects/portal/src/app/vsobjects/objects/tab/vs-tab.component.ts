@@ -247,6 +247,7 @@ export class VSTab extends NavigationComponent<VSTabModel> implements OnChanges,
 
    // an un-formatted tab strip has no background/border feedback of its own, since
    // getFormat()/getBorder() come entirely from the (empty) format model with no fallback.
+   // Modern-gated only: gate-off keeps pre-existing dashboards pixel-identical.
    getBackground(tabID: number): string {
       const background = this.getFormat(tabID).background;
 
@@ -254,7 +255,8 @@ export class VSTab extends NavigationComponent<VSTabModel> implements OnChanges,
          return background;
       }
 
-      return this.tabHovered.has(tabID) ? "var(--inet-ui-neutral-hover-bg-color)" : null;
+      return this.model.vizModern && this.tabHovered.has(tabID)
+         ? "var(--inet-ui-neutral-hover-bg-color)" : null;
    }
 
    getBorder(tabID: number): Border {
@@ -285,10 +287,11 @@ export class VSTab extends NavigationComponent<VSTabModel> implements OnChanges,
    // layered on top of getBorder(tabID).bottom for the border-bottom style only — kept out of
    // getBorder() itself so it doesn't feed getMargin()'s border-width math (which needs the
    // real, un-indicated border) or the corner-workaround div's border-bottom check.
+   // Modern-gated only: gate-off keeps pre-existing dashboards pixel-identical.
    getTabIndicatorBorder(tabID: number): string {
       const bottom = this.getBorder(tabID).bottom;
 
-      if(!this.tabHovered.has(tabID) && this.isTabSelected(tabID) &&
+      if(this.model.vizModern && !this.tabHovered.has(tabID) && this.isTabSelected(tabID) &&
          Tool.getBorderStyle(bottom) == "none")
       {
          return "2px solid var(--inet-nav-tabs-selected-border-color)";

@@ -17,9 +17,13 @@
  */
 .vs-group-container {
   overflow: hidden;
-  // objectFormat.border is entirely inline-style-bound (per-side) with no default, so an
-  // author-set-nothing container renders no border at all. Inline per-side border styles still
-  // win over this shorthand fallback when the format is actually set.
+}
+
+// objectFormat.border is entirely inline-style-bound (per-side) with no default, so an
+// author-set-nothing container previously rendered no border at all. Gated to modern only so
+// pre-existing, un-modernized dashboards keep that borderless look byte-identical; inline
+// per-side border styles still win over this shorthand fallback when the format is actually set.
+:host-context(.viz-modern) .vs-group-container {
   border: 1px solid var(--inet-default-border-color);
 }
 
