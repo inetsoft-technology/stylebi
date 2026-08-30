@@ -175,6 +175,103 @@ class CalendarInputServiceTest {
       verifyNoInteractions(h.calendars);
    }
 
+   // ── setDates ──────────────────────────────────────────────────────────────
+   //
+   // validateDateCount is the mode-aware count check, tested directly for the same reason plan()
+   // is: CalendarVSAssemblyInfo cannot be constructed or mocked outside a Spring context, so the
+   // full setDates flow can only be exercised up to (not through) requireCalendar.
+
+   @Test
+   void refusesNullDates() {
+      CalendarHarness h = calendarWith(null);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setDates("tok", principal(), "Cal1", null, ""));
+
+      assertTrue(e.getMessage().contains("empty"), e.getMessage());
+      verifyNoInteractions(h.calendars);
+   }
+
+   @Test
+   void refusesEmptyDates() {
+      CalendarHarness h = calendarWith(null);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setDates("tok", principal(), "Cal1", List.of(), ""));
+
+      assertTrue(e.getMessage().contains("empty"), e.getMessage());
+      verifyNoInteractions(h.calendars);
+   }
+
+   @Test
+   void refusesANonCalendarAssemblyForDates() {
+      CalendarHarness h = calendarWith(mock(ChartVSAssembly.class));
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setDates("tok", principal(), "Chart1", List.of("d2026-3-1"), ""));
+
+      assertTrue(e.getMessage().contains("not a calendar"), e.getMessage());
+      verifyNoInteractions(h.calendars);
+   }
+
+   @Test
+   void refusesAnUnknownCalendarForDates() {
+      CalendarHarness h = calendarWith(null);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setDates("tok", principal(), "Nope", List.of("d2026-3-1"), ""));
+
+      assertTrue(e.getMessage().contains("Nope"), e.getMessage());
+      verifyNoInteractions(h.calendars);
+   }
+
+   /** A single calendar ORs every token, so any count is legal -- no mode check applies. */
+   @Test
+   void validateDateCountAllowsAnyCountOnASingleCalendar() {
+      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(false, false, 1, "Cal1"));
+      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(false, false, 15, "Cal1"));
+   }
+
+   /** Double-calendar range mode reads only dates[0]/dates[1] -- up to 2 is fine. */
+   @Test
+   void validateDateCountAllowsUpToTwoInRangeMode() {
+      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(true, false, 1, "Cal1"));
+      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(true, false, 2, "Cal1"));
+   }
+
+   /**
+    * Mirrors {@code CalendarVSAssembly.getConditionList}'s own {@code range && dates.length > 2}
+    * check -- more than 2 would otherwise be silently truncated to the first 2 by the runtime.
+    */
+   @Test
+   void validateDateCountRefusesMoreThanTwoInRangeMode() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> CalendarDisplayService.validateDateCount(true, false, 3, "Cal1"));
+
+      assertTrue(e.getMessage().contains("range mode"), e.getMessage());
+      assertTrue(e.getMessage().contains("Cal1"), e.getMessage());
+   }
+
+   /** Double-calendar period-comparison mode splits the array in half -- even counts are fine. */
+   @Test
+   void validateDateCountAllowsEvenCountInPeriodMode() {
+      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(true, true, 2, "Cal1"));
+      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(true, true, 4, "Cal1"));
+   }
+
+   /**
+    * Mirrors {@code CalendarVSAssembly.getConditionList}'s own {@code period && dates.length % 2 !=
+    * 0} check, which otherwise throws a bare {@code RuntimeException}.
+    */
+   @Test
+   void validateDateCountRefusesOddCountInPeriodMode() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> CalendarDisplayService.validateDateCount(true, true, 3, "Cal1"));
+
+      assertTrue(e.getMessage().contains("period-comparison"), e.getMessage());
+      assertTrue(e.getMessage().contains("Cal1"), e.getMessage());
+   }
+
    // ── inputs ────────────────────────────────────────────────────────────────
 
    /** A check box's several values travel as an Object[] in the scalar parameter. */

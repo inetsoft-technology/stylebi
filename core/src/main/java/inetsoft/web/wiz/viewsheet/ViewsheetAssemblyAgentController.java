@@ -489,6 +489,19 @@ public class ViewsheetAssemblyAgentController {
       return calendarService.clear(sessionToken, user, request.assembly(), linkUri);
    }
 
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/calendar/dates")
+   public Map<String, Object> setCalendarDates(@PathVariable String sessionToken,
+                                               @RequestBody CalendarDatesRequest request,
+                                               @RequestParam(required = false, defaultValue = "")
+                                               String linkUri,
+                                               Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return calendarService.setDates(sessionToken, user, request.assembly(), request.dates(),
+                                     linkUri);
+   }
+
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/input/value")
    public Map<String, Object> setInputValue(@PathVariable String sessionToken,
                                             @RequestBody InputValueRequest request,
@@ -503,6 +516,7 @@ public class ViewsheetAssemblyAgentController {
 
    public record CalendarDisplayRequest(String assembly, Boolean yearView, Boolean doubleCalendar,
                                         Boolean rangeComparison) {}
+   public record CalendarDatesRequest(String assembly, java.util.List<String> dates) {}
    public record InputValueRequest(String assembly, java.util.List<Object> value) {}
 
    public record SubtreeRequest(String assembly, java.util.List<String> path, String mode) {}
