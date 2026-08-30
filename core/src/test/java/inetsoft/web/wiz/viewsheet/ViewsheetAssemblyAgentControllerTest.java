@@ -871,4 +871,71 @@ class ViewsheetAssemblyAgentControllerTest {
                                          mock(SheetAgentBroadcastService.class));
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug #76331 -- render timeout
+   // ---------------------------------------------------------------------------
+
+   /**
+    * This controller only ever declared a local handler for {@code PairingException} (line ~1001)
+    * -- a {@code RenderNotReadyException} from {@code imageService.getViewsheetImage}/
+    * {@code getAssemblyImage} has nothing local to catch it, so it must propagate out of
+    * {@code image()} for {@code WizControllerErrorHandler}'s {@code @ControllerAdvice} (scoped to
+    * {@code inetsoft.web.wiz}, which covers this controller's package) to map it to a 503 +
+    * Retry-After -- see that class's {@code handleRenderNotReady} and its own test for the mapping
+    * itself. If this controller ever grew a catch-all that swallowed it locally, this is the test
+    * that would catch the regression.
+    */
+   @Test
+   void imagePropagatesRenderNotReadyRatherThanSwallowingIt() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getViewsheetImage(eq(rvs), any(), any(), any(Principal.class)))
+         .thenThrow(new inetsoft.web.wiz.service.RenderNotReadyException(2));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(featureOn(), sessions,
+                                                                    imageService);
+
+      inetsoft.web.wiz.service.RenderNotReadyException thrown = assertThrows(
+         inetsoft.web.wiz.service.RenderNotReadyException.class,
+         () -> controller.image("tok", null, null, null, principal()));
+      assertEquals(2, thrown.getRetryAfter());
+   }
+
+   /** Feature enabled, only {@code imageService} (and a fixed {@code sessions.resolve}) wired. */
+   private static ViewsheetAssemblyAgentController controllerWith(
+      SheetAgentFeature feature, ViewsheetSessionService sessions,
+      inetsoft.web.wiz.script.ScriptImageService imageService)
+   {
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          sessions,
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          imageService,
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class));
+   }
 }

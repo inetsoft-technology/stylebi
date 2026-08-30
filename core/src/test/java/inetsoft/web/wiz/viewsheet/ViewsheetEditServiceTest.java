@@ -27,10 +27,13 @@ import inetsoft.web.composer.vs.objects.event.ChangeVSObjectLayerEvent;
 import inetsoft.web.composer.vs.objects.event.LockVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.MoveVSObjectEvent;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -45,6 +48,7 @@ import org.mockito.ArgumentCaptor;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -607,6 +611,61 @@ class ViewsheetEditServiceTest {
          IllegalArgumentException.class,
          () -> service.apply("tok", principal(), sized("resize", "Text1", -50, -20), ""));
       assertTrue(thrown.getMessage().contains("width"));
+   }
+
+   /**
+    * Bug #76331: resizeObject's own loadTableLens call has no bound of its own, so a
+    * TableDataVSAssembly (Crosstab/Table) whose query hasn't run yet in this runtime made the
+    * whole resize request block for however long that query took. Warming the table's data ahead
+    * of resizeObject, bounded, means a slow-but-not-stuck table surfaces as a live
+    * RenderNotReadyException instead of a raw timeout — and, since this happens before
+    * resizeObject runs, the resize is not silently applied underneath the failure the caller sees.
+    */
+   @Test
+   void resizeThrowsRenderNotReadyWhenTableDataIsSlowAndDoesNotDelegate() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      TableDataVSAssembly table = mock(TableDataVSAssembly.class);
+      ViewsheetSandbox sandbox = mock(ViewsheetSandbox.class);
+      RuntimeViewsheet rvs = runtimeWithSandbox("Crosstab1", table, sandbox);
+
+      when(sandbox.getVSTableLens("Crosstab1", false)).thenAnswer(invocation -> {
+         Thread.sleep(3_000);
+         return null;
+      });
+
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Crosstab1", "Crosstab", 10, 20, 300, 150, 0, null, true)), objects);
+
+      assertThrows(RenderNotReadyException.class,
+         () -> service.apply("tok", principal(), sized("resize", "Crosstab1", 300, 150), ""));
+      verifyNoInteractions(objects);
+   }
+
+   /** A table whose data is already warm (or warms within the bound) resizes normally. */
+   @Test
+   void resizeDelegatesOnceTableDataIsReady() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      TableDataVSAssembly table = mock(TableDataVSAssembly.class);
+      ViewsheetSandbox sandbox = mock(ViewsheetSandbox.class);
+      RuntimeViewsheet rvs = runtimeWithSandbox("Crosstab1", table, sandbox);
+
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Crosstab1", "Crosstab", 10, 20, 300, 150, 0, null, true)), objects);
+
+      service.apply("tok", principal(), sized("resize", "Crosstab1", 300, 150), "");
+
+      verify(objects).resizeObject(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   private static RuntimeViewsheet runtimeWithSandbox(String name, VSAssembly assembly,
+                                                      ViewsheetSandbox sandbox)
+   {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly(name)).thenReturn(assembly);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
+      return rvs;
    }
 
    private static EditRequest sized(String op, String assembly, Integer width, Integer height) {
