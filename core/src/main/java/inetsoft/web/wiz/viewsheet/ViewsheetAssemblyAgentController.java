@@ -30,9 +30,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.script.ScriptImageService;
 
 import java.security.Principal;
@@ -972,6 +974,104 @@ public class ViewsheetAssemblyAgentController {
       }
 
       broadcast.broadcastSave(rvs, rvs.getID(), user);
+   }
+
+   /**
+    * Request body for the attach-base-worksheet endpoint.
+    *
+    * @param path  path of an existing worksheet asset to attach as this viewsheet's base
+    *              (e.g. {@code "Sample Queries/customers"} or {@code "My Folder/agent_ws_1"}).
+    * @param scope optional scope to resolve {@code path} in — {@code "global"} (default) for the
+    *              shared repository, {@code "user"} for the caller's private folder.
+    */
+   public record AttachBaseWorksheetRequest(String path, String scope) {}
+
+   /**
+    * {@code attach_base_worksheet}. Attaches an existing, named worksheet asset as this paired
+    * viewsheet's base, for a viewsheet that currently has none — closing the gap
+    * {@code open_base_worksheet} deliberately leaves open (it can only ever follow an
+    * already-attached base, never name one). Refuses rather than silently repointing a viewsheet
+    * that already has a base; use the Composer UI's own Viewsheet Properties dialog to swap one.
+    *
+    * <p>This never persists the viewsheet — like every other mutation on this controller, it only
+    * updates the paired session's own in-memory {@link Viewsheet}. Call {@code save_viewsheet}
+    * separately once ready.</p>
+    *
+    * @param sessionToken the token obtained at join time
+    * @param body         the worksheet path to attach
+    * @param user         the authenticated agent principal
+    * @throws PairingException if the session is invalid/expired, the viewsheet already has a
+    *                          base, no {@code path} was supplied, or {@code path} does not name a
+    *                          worksheet the caller can read
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/attach-base-worksheet")
+   public void attachBaseWorksheet(@PathVariable String sessionToken,
+                                   @RequestBody AttachBaseWorksheetRequest body,
+                                   Principal user) throws PairingException
+   {
+      requireEnabled();
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs.getBaseEntry() != null) {
+         throw new PairingException(
+            "This viewsheet already has a base worksheet (\"" + vs.getBaseEntry().toView() +
+            "\"). attach_base_worksheet only attaches a base when there is none — use " +
+            "open_base_worksheet to inspect the current one.");
+      }
+
+      String path = body != null && body.path() != null ? body.path().trim() : null;
+
+      if(path == null || path.isEmpty()) {
+         throw new PairingException("Provide a 'path' naming the worksheet asset to attach " +
+                                    "(e.g. \"Sample Queries/customers\").");
+      }
+
+      if(!(user instanceof XPrincipal xp)) {
+         throw new PairingException("Cannot attach base worksheet: agent principal is not an " +
+                                    "XPrincipal (" + user.getClass().getName() + ")");
+      }
+
+      IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
+      int assetScope = body.scope() != null && "user".equalsIgnoreCase(body.scope())
+         ? AssetRepository.USER_SCOPE
+         : AssetRepository.GLOBAL_SCOPE;
+      IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
+      AssetEntry entry = new AssetEntry(assetScope, AssetEntry.Type.WORKSHEET, path,
+                                        owner, uname.orgID);
+
+      AssetRepository rep = rvs.getAssetRepository();
+
+      // permission=true so this actually enforces read access, unlike the superficially similar
+      // getSheet(entry, null, false, ...) probe used elsewhere in this codebase for freshness
+      // checks (e.g. ComposerViewsheetService.checkWorksheetChanged) -- that call deliberately
+      // skips the permission check, which would be wrong here: this is a caller-supplied path
+      // naming an arbitrary asset, and only checking existence would let an agent confirm a
+      // worksheet's presence/absence without being able to read it.
+      Object resolved;
+
+      try {
+         resolved = rep.getSheet(entry, xp, true, AssetContent.ALL, false);
+      }
+      catch(Exception e) {
+         throw new PairingException(
+            "no worksheet named '" + path + "' was found, or you lack permission to read it", e);
+      }
+
+      if(resolved == null) {
+         throw new PairingException(
+            "no worksheet named '" + path + "' was found, or you lack permission to read it");
+      }
+
+      try {
+         vs.setBaseEntry(entry);
+         vs.reloadBaseWorksheet(rep, xp);
+      }
+      catch(Exception e) {
+         throw new PairingException("Failed to attach base worksheet: " + e.getMessage(), e);
+      }
+
+      broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, rvs.getID(), user);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/undo")

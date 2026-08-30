@@ -18,8 +18,10 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.model.LayoutModel;
@@ -27,6 +29,7 @@ import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
@@ -804,6 +807,208 @@ class ViewsheetAssemblyAgentControllerTest {
 
       verify(viewsheetService).setViewsheet(any(), eq(savedEntry), any(), eq(true), eq(true));
       verify(rvs).setEntry(savedEntry);
+   }
+
+   // ---------------------------------------------------------------------------
+   // attachBaseWorksheet -- Bug 76332 / PVA-007: no mcp__composer-chat__* tool could attach an
+   // existing worksheet asset as a baseless viewsheet's base. Viewsheet tracks "what worksheet
+   // backs this sheet" in two fields (wentry via setBaseEntry, ws via reloadBaseWorksheet/update);
+   // list_bindable_fields's backing tree-builder (VSEventUtil.refreshBaseWSTree) reads the cached
+   // ws field, not wentry -- so a correct fix must populate both, in that order (reloadBaseWorksheet
+   // reads wentry as an instance field). See docs/teams/2026-08-30-bug-76332/ for the full
+   // deep-debug-workflow archive this fix comes from.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void attachBaseWorksheetOnABaselessViewsheetSetsEntryThenReloads() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rvs.getID()).thenReturn("rt-vs-3");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(sessions, viewsheetService, broadcast);
+
+      controller.attachBaseWorksheet("tok",
+         new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+            "Sample Queries/customers", null),
+         agent);
+
+      ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      // Order matters: reloadBaseWorksheet(...) reads the wentry field setBaseEntry(...) sets, on
+      // the same Viewsheet instance -- verified explicitly, not just that both were called.
+      InOrder order = inOrder(vs);
+      order.verify(vs).setBaseEntry(entryCaptor.capture());
+      order.verify(vs).reloadBaseWorksheet(eq(rep), eq(agent));
+
+      assertEquals(AssetRepository.GLOBAL_SCOPE, entryCaptor.getValue().getScope());
+      assertEquals(AssetEntry.Type.WORKSHEET, entryCaptor.getValue().getType());
+      assertEquals("Sample Queries/customers", entryCaptor.getValue().getPath());
+
+      // Never persisted -- attach only mutates the paired session's in-memory Viewsheet.
+      verifyNoInteractions(viewsheetService);
+      verify(broadcast).broadcastRefresh(eq(rvs), eq(SheetType.VIEWSHEET), eq("rt-vs-3"), eq(agent));
+   }
+
+   /** Permission is actually enforced (getSheet's permission arg is true), not skipped. */
+   @Test
+   void attachBaseWorksheetProbesWithPermissionCheckingEnabled() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), any(), anyBoolean(), any(), anyBoolean()))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      controller.attachBaseWorksheet("tok",
+         new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest("Sample Queries/x", null),
+         agent);
+
+      // permission=true, distinct from the superficially similar existence-only probe used
+      // elsewhere in this codebase (e.g. ComposerViewsheetService.checkWorksheetChanged, which
+      // deliberately passes permission=false/user=null for a freshness check, not a security
+      // gate) -- this endpoint resolves a caller-supplied path naming an arbitrary asset, so
+      // skipping the permission check would let a caller confirm a worksheet's existence without
+      // being able to read it.
+      verify(rep).getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false));
+   }
+
+   @Test
+   void attachBaseWorksheetRefusesWhenAlreadyBased() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry existing = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Existing WS", null);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(existing);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.attachBaseWorksheet("tok",
+            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest("Other WS", null),
+            agent));
+      assertTrue(ex.getMessage().contains("Existing WS"));
+
+      verifyNoInteractions(rep);
+      verify(vs, never()).setBaseEntry(any());
+   }
+
+   @Test
+   void attachBaseWorksheetRefusesOnANonexistentOrUnreadablePath() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), any(), anyBoolean(), any(), anyBoolean())).thenReturn(null);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      assertThrows(PairingException.class, () ->
+         controller.attachBaseWorksheet("tok",
+            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest("No Such WS", null),
+            agent));
+
+      verify(vs, never()).setBaseEntry(any());
+   }
+
+   /** A denied permission check throws out of getSheet -- must surface the same clean refusal. */
+   @Test
+   void attachBaseWorksheetRefusesWhenPermissionCheckThrows() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), any(), anyBoolean(), any(), anyBoolean()))
+         .thenThrow(new SecurityException("no read permission"));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      assertThrows(PairingException.class, () ->
+         controller.attachBaseWorksheet("tok",
+            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest("Secret WS", null),
+            agent));
+
+      verify(vs, never()).setBaseEntry(any());
+   }
+
+   @Test
+   void attachBaseWorksheetRefusesWhenNoPathSupplied() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      assertThrows(PairingException.class, () ->
+         controller.attachBaseWorksheet("tok",
+            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(null, null), agent));
+      assertThrows(PairingException.class, () ->
+         controller.attachBaseWorksheet("tok",
+            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest("  ", null), agent));
    }
 
    // ---------------------------------------------------------------------------
