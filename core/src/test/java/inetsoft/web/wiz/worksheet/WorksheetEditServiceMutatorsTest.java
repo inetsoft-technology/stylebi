@@ -3818,7 +3818,7 @@ class WorksheetEditServiceMutatorsTest {
          () -> WorksheetMutationSupport.parseOperation("nonsense")).getMessage();
 
       for(String op : List.of("=", "!=", "<", "<=", ">", ">=", "BETWEEN", "ONE_OF", "NOT_ONE_OF",
-                              "STARTING_WITH", "CONTAINS", "LIKE", "NULL", "NOT_NULL"))
+                              "STARTING_WITH", "CONTAINS", "LIKE", "NULL", "NOT_NULL", "DATE_IN"))
       {
          assertDoesNotThrow(() -> WorksheetMutationSupport.parseOperation(op),
                             op + " must be a recognised operator");
@@ -3838,6 +3838,20 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals(XCondition.EQUAL_TO, WorksheetMutationSupport.parseOperation("   "));
       assertEquals(XCondition.EQUAL_TO, WorksheetMutationSupport.parseOperation(""));
       assertEquals(XCondition.EQUAL_TO, WorksheetMutationSupport.parseOperation(null));
+   }
+
+   /**
+    * PC-006 (bug corpus #76350): list_condition_operators/list_condition_date_ranges advertise
+    * date_in (ConditionVocabulary maps it to XCondition.DATE_IN), but this worksheet-side parser
+    * had no DATE_IN case at all -- add_filter/set_conditions rejected the exact operator name the
+    * vocabulary endpoint told the caller was legal. Only the operator-name half is fixed here;
+    * resolving a named range (e.g. "Last month") into a literal condition value is untraced and
+    * intentionally not attempted by this test.
+    */
+   @Test
+   void dateInIsAcceptedCaseInsensitively() {
+      assertEquals(XCondition.DATE_IN, WorksheetMutationSupport.parseOperation("DATE_IN"));
+      assertEquals(XCondition.DATE_IN, WorksheetMutationSupport.parseOperation("date_in"));
    }
 
    private static Object firstConditionOrNull(TableAssembly t) {
