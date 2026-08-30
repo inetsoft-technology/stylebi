@@ -2548,7 +2548,7 @@ public class WizVsService {
     *        cause instead, for callers surfacing failures on non-expression tables (e.g. a raw SQL
     *        query table) where the "check the expression columns" advice would mislead.
     */
-   static void checkFailedQuery(XTable lens, boolean wrapExpressionError) {
+   public static void checkFailedQuery(XTable lens, boolean wrapExpressionError) {
       if(lens == null) {
          return;
       }
@@ -2740,7 +2740,7 @@ public class WizVsService {
    }
 
    /** Unwraps dataset wrappers (pair/filter chains) to reach the underlying aggregated data. */
-   private static DataSet unwrapDataSet(DataSet dset) {
+   public static DataSet unwrapDataSet(DataSet dset) {
       while(true) {
          if(dset instanceof VSDataSet) {
             return dset;
