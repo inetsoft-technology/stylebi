@@ -26,6 +26,7 @@ import {
    SimpleChanges,
    ViewChild
 } from "@angular/core";
+import { TinyColor } from "@ctrl/tinycolor";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { ContextProvider } from "../../context-provider.service";
 import { VSSubmitModel } from "../../model/output/vs-submit-model";
@@ -40,12 +41,13 @@ import { SafeFontDirective } from "../../directives/safe-font.directive";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
 import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
+import { NgStyle } from "@angular/common";
 
 @Component({
     selector: "vs-submit",
     templateUrl: "vs-submit.component.html",
     styleUrls: ["vs-submit.component.scss"],
-    imports: [TooltipIfDirective, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective]
+    imports: [TooltipIfDirective, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, NgStyle]
 })
 export class VSSubmit extends NavigationComponent<VSSubmitModel> implements OnChanges {
    @Input() selected: boolean = false;
@@ -54,6 +56,10 @@ export class VSSubmit extends NavigationComponent<VSSubmitModel> implements OnCh
 
    vAlign: string;
    private padding: number = 8;
+   // legacy (gate-off) focus ring only — modern uses the shell's --inet-focus-ring via
+   // :focus-visible in vs-submit.component.scss instead.
+   focusColor: string = "rgba(218,218,218,0.5)";
+   focus: boolean = false;
 
    get hasHyperlinks(): boolean {
       const _model = this.model as any;
@@ -112,6 +118,10 @@ export class VSSubmit extends NavigationComponent<VSSubmitModel> implements OnCh
       if(this.model.objectFormat.vAlign === "top" || this.model.objectFormat.vAlign === "bottom") {
          this.vAlign = this.model.objectFormat.height - Number(fontSize) - this.padding + "px";
       }
+
+      if(changes["model"]) {
+         this.initFocusColor();
+      }
    }
 
    /**
@@ -133,5 +143,32 @@ export class VSSubmit extends NavigationComponent<VSSubmitModel> implements OnCh
     */
    protected clearNavSelection(): void {
       // Do nothing
+   }
+
+   private initFocusColor() {
+      if(!this.model) {
+         return;
+      }
+
+      if(this.model.objectFormat.border) {
+         const borders = [this.model.objectFormat.border.top, this.model.objectFormat.border.right,
+            this.model.objectFormat.border.bottom, this.model.objectFormat.border.left];
+
+         for(let border of borders) {
+            if(border) {
+               let color = border.split(" ")[2];
+
+               if(color) {
+                  this.focusColor = new TinyColor(color).setAlpha(0.5).toRgbString();
+                  return;
+               }
+            }
+         }
+      }
+
+      if(this.model.objectFormat.background) {
+         this.focusColor = new TinyColor(this.model.objectFormat.background)
+            .setAlpha(0.5).toRgbString();
+      }
    }
 }
