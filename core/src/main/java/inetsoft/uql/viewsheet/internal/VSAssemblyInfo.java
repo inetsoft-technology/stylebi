@@ -1289,16 +1289,21 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
 
    /**
     * Whether this assembly type takes the modern card-corner seed. Data and selection surfaces read as
-    * cards; outputs, inputs, tabs, containers, shapes and annotations do not. An explicit positive list,
-    * not a base-class check — TimeSliderVSAssemblyInfo extends SelectionVSAssemblyInfo and must stay out.
+    * cards, as does Slider (form-input modernization, tracked as its own follow-on project); other
+    * outputs, containers, shapes and annotations do not. An explicit positive list, not a base-class
+    * check — TimeSliderVSAssemblyInfo extends SelectionVSAssemblyInfo and must stay out.
     * Calendar is absent by design: it overrides initDefaultFormat and carries its own radius.
+    * The other form-input types (CheckBox, ComboBox, RadioButton, Spinner, Submit, TextInput) are not
+    * listed here — they bypass this hook entirely (see bypassesBaseChrome()) and seed their own
+    * modern-gated round corner directly in their own setDefaultFormat() override.
     */
    private boolean isCornerSeedTarget() {
       return this instanceof TableDataVSAssemblyInfo    // table, crosstab, calc table, embedded table
          || this instanceof ChartVSAssemblyInfo
          || this instanceof SelectionListVSAssemblyInfo
          || this instanceof SelectionTreeVSAssemblyInfo
-         || this instanceof CurrentSelectionVSAssemblyInfo;
+         || this instanceof CurrentSelectionVSAssemblyInfo
+         || this instanceof SliderVSAssemblyInfo;
    }
 
    /**

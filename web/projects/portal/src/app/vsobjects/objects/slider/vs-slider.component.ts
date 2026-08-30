@@ -29,6 +29,7 @@ import {
    SimpleChanges, ViewChild
 } from "@angular/core";
 import { Observable, Subscription } from "rxjs";
+import { Tool } from "../../../../../../shared/util/tool";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { GetVSObjectModelEvent } from "../../../vsview/event/get-vs-object-model-event";
@@ -95,6 +96,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
    private unappliedSelection = false;
    private tickSize: number;
    verticalCenter: number;
+   effectiveGap: number = 7;
    _model: VSSliderModel;
    handleSelected: boolean = false;
    private resizeObserver: ResizeObserver;
@@ -115,17 +117,63 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
    set model(model: VSSliderModel) {
       this._model = model;
       // Center the track vertically, but shift it upward on short components so tick labels fit within the component height.
-      // Known limitation: for height < HANDLE_CLEARANCE + LABEL_BOTTOM_OFFSET (53px),
+      // Known limitation: for height < HANDLE_CLEARANCE + LABEL_BOTTOM_OFFSET (36px),
       // tick labels overflow below the component boundary in viewer mode (overflow: visible).
+      // When the current-value bubble is shown, VALUE_LABEL_CLEARANCE is used instead of
+      // HANDLE_CLEARANCE, which raises that overflow threshold to 60px — chosen deliberately:
+      // an illegible bubble-over-handle overlap is worse than tick labels drawing past the
+      // component's bottom edge, and the latter is already tolerated via overflow: visible.
 
-      // distance from track center to bottom of tick label text.
-      const LABEL_BOTTOM_OFFSET = 36; // note. coupled to CSS tokens
-      // minimum px above center needed for the handle.
-      const HANDLE_CLEARANCE = 17;    // note. coupled to --slider-handle-height
-      this.verticalCenter = Math.max(HANDLE_CLEARANCE, Math.min(
-         Math.ceil(this.model.objectFormat.height / 2),
-         this.model.objectFormat.height - LABEL_BOTTOM_OFFSET
+      // distance from track center to bottom of tick label text; leaves a real margin
+      // before the component's bottom edge so labels don't sit flush against an enabled border.
+      const LABEL_BOTTOM_OFFSET = 27; // note. coupled to CSS tokens (track-height/2 + --slider-gap + label height)
+      // minimum px above center needed for the handle alone.
+      const HANDLE_CLEARANCE = 9;     // note. coupled to --slider-handle-height
+      // minimum px above center needed when the current-value bubble is shown above the handle.
+      // note. matches the CSS ideal bubble offset (--slider-handle-height / 2 + 24px) so the
+      // bubble never gets pinned by its own anti-clip clamp close enough to overlap the handle.
+      const VALUE_LABEL_CLEARANCE = 33;
+      const minClearance = this.model.currentVisible ? VALUE_LABEL_CLEARANCE : HANDLE_CLEARANCE;
+      // the host is box-sizing: border-box with an author-configurable border, so the .slider
+      // div's actual content height is objectFormat.height minus the border, not the full
+      // objectFormat.height — an enabled top/bottom border otherwise eats into the margin this
+      // clamp is trying to preserve, and tick labels overflow past the border early.
+      const contentHeight = this.model.objectFormat.height
+         - Tool.getMarginSize(this.model.objectFormat.border.top)
+         - Tool.getMarginSize(this.model.objectFormat.border.bottom);
+      this.verticalCenter = Math.max(minClearance, Math.min(
+         Math.ceil(contentHeight / 2),
+         contentHeight - LABEL_BOTTOM_OFFSET
       ));
+
+      // The value bubble's top margin (border to bubble) and the tick labels' bottom margin
+      // (labels to border) are visually two sides of the same gap and should match — but they
+      // aren't computed the same way. Top margin is a direct, fixed offset from the border
+      // (see .slider-value in vs-slider.component.scss); bottom margin is whatever's left over
+      // below the track after minClearance is applied above it. Those only coincide by accident:
+      // once minClearance stops being the binding constraint (comfortably tall components, where
+      // the ceil(contentHeight / 2) branch above wins instead of the floor), the leftover below
+      // the track has no relationship to a fixed top offset at all, and the two visibly diverge.
+      //
+      // So instead of a fixed top offset, split whatever vertical slack remains below the track
+      // (after its own mandatory content: TRACK_HALF down to the track edge, then LABEL_HEIGHT for
+      // the tick label text) evenly between the two margins, and use that shared value for both.
+      // At the component's default ~70px height this comes out within a pixel of the original
+      // hand-tuned DEFAULT_GAP (7px); it grows for taller components (more slack to split) and
+      // shrinks under a thick border or short height (less slack), never above MAX_GAP so tick
+      // labels don't drift far from the track on unusually tall sliders.
+      //
+      // MIN_GAP is not just "labels never touch the track": the handle pill is taller than the
+      // track (HANDLE_CLEARANCE > TRACK_HALF, it overhangs the track by HANDLE_CLEARANCE -
+      // TRACK_HALF on each side) and, when dragged over a tick, sits directly above that tick's
+      // label. If the gap were any smaller than that overhang, the handle's own bottom edge would
+      // reach into the label's row and visually clip/touch it whenever they line up horizontally.
+      const TRACK_HALF = 6;    // note. --slider-track-height / 2
+      const LABEL_HEIGHT = 14; // note. approx tick label text height
+      const MIN_GAP = HANDLE_CLEARANCE - TRACK_HALF; // clears the handle's overhang past the track
+      const MAX_GAP = 16;
+      const slackBelowTrack = contentHeight - this.verticalCenter - TRACK_HALF - LABEL_HEIGHT;
+      this.effectiveGap = Math.max(MIN_GAP, Math.min(MAX_GAP, slackBelowTrack / 2));
 
       // calculate the tick size
       this.tickSize = GuiTool.measureText("|", this.getFont());

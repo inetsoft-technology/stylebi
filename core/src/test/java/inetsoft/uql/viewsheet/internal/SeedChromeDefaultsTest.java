@@ -114,6 +114,55 @@ class SeedChromeDefaultsTest {
       return (TimeSliderVSAssemblyInfo) slider.getVSAssemblyInfo();
    }
 
+   private SliderVSAssemblyInfo newSlider() {
+      Viewsheet vs = new Viewsheet();
+      SliderVSAssembly slider = new SliderVSAssembly(vs, "Slider1");
+      slider.getVSAssemblyInfo().initDefaultFormat();
+      return (SliderVSAssemblyInfo) slider.getVSAssemblyInfo();
+   }
+
+   private CheckBoxVSAssemblyInfo newCheckBox() {
+      Viewsheet vs = new Viewsheet();
+      CheckBoxVSAssembly checkBox = new CheckBoxVSAssembly(vs, "CheckBox1");
+      checkBox.getVSAssemblyInfo().initDefaultFormat();
+      return (CheckBoxVSAssemblyInfo) checkBox.getVSAssemblyInfo();
+   }
+
+   private RadioButtonVSAssemblyInfo newRadioButton() {
+      Viewsheet vs = new Viewsheet();
+      RadioButtonVSAssembly radio = new RadioButtonVSAssembly(vs, "RadioButton1");
+      radio.getVSAssemblyInfo().initDefaultFormat();
+      return (RadioButtonVSAssemblyInfo) radio.getVSAssemblyInfo();
+   }
+
+   private ComboBoxVSAssemblyInfo newComboBox() {
+      Viewsheet vs = new Viewsheet();
+      ComboBoxVSAssembly combo = new ComboBoxVSAssembly(vs, "ComboBox1");
+      combo.getVSAssemblyInfo().initDefaultFormat();
+      return (ComboBoxVSAssemblyInfo) combo.getVSAssemblyInfo();
+   }
+
+   private SpinnerVSAssemblyInfo newSpinner() {
+      Viewsheet vs = new Viewsheet();
+      SpinnerVSAssembly spinner = new SpinnerVSAssembly(vs, "Spinner1");
+      spinner.getVSAssemblyInfo().initDefaultFormat();
+      return (SpinnerVSAssemblyInfo) spinner.getVSAssemblyInfo();
+   }
+
+   private SubmitVSAssemblyInfo newSubmit() {
+      Viewsheet vs = new Viewsheet();
+      SubmitVSAssembly submit = new SubmitVSAssembly(vs, "Submit1");
+      submit.getVSAssemblyInfo().initDefaultFormat();
+      return (SubmitVSAssemblyInfo) submit.getVSAssemblyInfo();
+   }
+
+   private TextInputVSAssemblyInfo newTextInput() {
+      Viewsheet vs = new Viewsheet();
+      TextInputVSAssembly textInput = new TextInputVSAssembly(vs, "TextInput1");
+      textInput.getVSAssemblyInfo().initDefaultFormat();
+      return (TextInputVSAssemblyInfo) textInput.getVSAssemblyInfo();
+   }
+
    // ---- object border colour and card radius -------------------------------------------------
 
    @Test
@@ -154,6 +203,142 @@ class SeedChromeDefaultsTest {
       gateOn();
       assertEquals(VSObjectChromeDefaults.cardCornerRadius(),
                    objectDefault(newSelectionList()).getRoundCornerValue());
+   }
+
+   // ---- form-input round corner, seeded by each type's own override --------------------------
+   // These six bypass the base chrome hook entirely (see VSAssemblyInfo.bypassesBaseChrome()) and
+   // seed only round corner via their own seedChromeDefaults() override; border colour is left at
+   // each type's pre-existing legacy value regardless of the gate, unlike the card types above.
+
+   @Test
+   void gateOffSliderTakesNoRadius() {
+      gateOff();
+      assertEquals(0, objectDefault(newSlider()).getRoundCornerValue());
+   }
+
+   @Test
+   void gateOnSliderTakesTheCardRadius() {
+      gateOn();
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(),
+                   objectDefault(newSlider()).getRoundCornerValue());
+   }
+
+   @Test
+   void gateOffCheckBoxTakesNoRadius() {
+      gateOff();
+      assertEquals(0, objectDefault(newCheckBox()).getRoundCornerValue());
+   }
+
+   @Test
+   void gateOnCheckBoxTakesTheCardRadius() {
+      gateOn();
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(),
+                   objectDefault(newCheckBox()).getRoundCornerValue());
+   }
+
+   @Test
+   void gateOffRadioButtonTakesNoRadius() {
+      gateOff();
+      assertEquals(0, objectDefault(newRadioButton()).getRoundCornerValue());
+   }
+
+   @Test
+   void gateOnRadioButtonTakesTheCardRadius() {
+      gateOn();
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(),
+                   objectDefault(newRadioButton()).getRoundCornerValue());
+   }
+
+   @Test
+   void gateOffComboBoxTakesNoRadiusButKeepsItsLegacyBorder() {
+      gateOff();
+      VSFormat fmt = objectDefault(newComboBox());
+      assertEquals(0, fmt.getRoundCornerValue());
+      assertEquals(new Color(0xc0c0c0), fmt.getBorderColorsValue().topColor,
+                   "the combo box's own legacy border colour is untouched by this work");
+   }
+
+   @Test
+   void gateOnComboBoxTakesTheCardRadiusButKeepsItsLegacyBorder() {
+      gateOn();
+      VSFormat fmt = objectDefault(newComboBox());
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(), fmt.getRoundCornerValue());
+      assertEquals(new Color(0xc0c0c0), fmt.getBorderColorsValue().topColor,
+                   "only round corner is gate-dependent for this type; border colour is a separate, " +
+                   "not-yet-scoped follow-up");
+   }
+
+   @Test
+   void gateOffSpinnerTakesNoRadius() {
+      gateOff();
+      assertEquals(0, objectDefault(newSpinner()).getRoundCornerValue());
+   }
+
+   @Test
+   void gateOnSpinnerTakesTheCardRadius() {
+      gateOn();
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(),
+                   objectDefault(newSpinner()).getRoundCornerValue());
+   }
+
+   @Test
+   void gateOffSubmitKeepsItsLegacyThreePixelRadius() {
+      gateOff();
+      assertEquals(3, objectDefault(newSubmit()).getRoundCornerValue(),
+                   "Submit's own legacy radius predates this work and is not 0 like the others");
+   }
+
+   @Test
+   void gateOnSubmitTakesTheCardRadius() {
+      gateOn();
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(),
+                   objectDefault(newSubmit()).getRoundCornerValue());
+   }
+
+   @Test
+   void gateOffTextInputTakesNoRadiusButKeepsItsBugFixBorder() {
+      gateOff();
+      VSFormat fmt = objectDefault(newTextInput());
+      assertEquals(0, fmt.getRoundCornerValue());
+      // bug #23941 sets the RValue tier (setBorderColors), not the DValue tier the other seeded
+      // types use (setBorderColorsValue) — getBorderColors() is the matching getter for this type.
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, fmt.getBorderColors().topColor,
+                   "bug #23941's border colour fix is untouched by this work");
+   }
+
+   @Test
+   void gateOnTextInputTakesTheCardRadiusButKeepsItsBugFixBorder() {
+      gateOn();
+      VSFormat fmt = objectDefault(newTextInput());
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(), fmt.getRoundCornerValue());
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, fmt.getBorderColors().topColor);
+   }
+
+   @Test
+   void theHookModernizesAPreExistingSubmitButtonToo() {
+      // Modernize calls seedChromeDefaults directly on an assembly that already exists, exactly
+      // like it does for the card types; this type's own override must respond the same way
+      gateOff();
+      SubmitVSAssemblyInfo info = newSubmit();
+      assertEquals(3, objectDefault(info).getRoundCornerValue());
+
+      gateOn();
+      info.seedChromeDefaults(VizContext.ofGate());
+
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(),
+                   objectDefault(info).getRoundCornerValue());
+   }
+
+   @Test
+   void theHookRevertsAPreviouslyModernizedCheckBoxToo() {
+      gateOn();
+      CheckBoxVSAssemblyInfo info = newCheckBox();
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(),
+                   objectDefault(info).getRoundCornerValue());
+
+      info.seedChromeDefaults(VizContext.LEGACY);
+
+      assertEquals(0, objectDefault(info).getRoundCornerValue());
    }
 
    @Test
