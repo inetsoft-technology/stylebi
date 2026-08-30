@@ -30,6 +30,7 @@ import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.event.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.web.viewsheet.controller.VSRefreshService;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.RenderWaitSupport;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
@@ -59,7 +60,8 @@ public class ViewsheetEditService {
                                ClipboardControllerService clipboard,
                                VSObjectPropertyService propertyService,
                                ViewsheetReadService reader,
-                               ComposerGroupService groups)
+                               ComposerGroupService groups,
+                               VSRefreshService refreshService)
    {
       this.sessions = sessions;
       this.objects = objects;
@@ -67,13 +69,14 @@ public class ViewsheetEditService {
       this.propertyService = propertyService;
       this.reader = reader;
       this.groups = groups;
+      this.refreshService = refreshService;
    }
 
    /** Ops this service understands, named in the error when an unknown one arrives. */
    static final List<String> OPS = List.of(
       "move", "resize", "resize_title", "add", "remove", "rename", "copy", "cut", "paste",
       "set_z_index", "set_lock", "set_title", "group", "ungroup", "move_from_container",
-      "align", "distribute");
+      "align", "distribute", "refresh");
 
    public void apply(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
@@ -96,6 +99,7 @@ public class ViewsheetEditService {
       case "ungroup" -> ungroup(sessionToken, user, request, linkUri);
       case "move_from_container" -> moveFromContainer(sessionToken, user, request, linkUri);
       case "align", "distribute" -> arrange(sessionToken, user, request, linkUri, op);
+      case "refresh" -> refresh(sessionToken, user, request, linkUri);
       default -> throw new IllegalArgumentException(
          "Unknown edit op '" + request.op() + "'. Supported ops: " + String.join(", ", OPS) + ".");
       }
@@ -231,12 +235,49 @@ public class ViewsheetEditService {
 
       requireValues(request.op(), "x", request.x(), "y", request.y());
 
+      boolean resizeRequested = request.width() != null || request.height() != null;
+
+      if(resizeRequested) {
+         requireValues(request.op(), "width", request.width(), "height", request.height());
+         requirePositive(request.op(), "width", request.width(), "height", request.height());
+      }
+
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          AddNewVSObjectEvent event = new AddNewVSObjectEvent();
          event.setType(request.type());
          event.setxOffset(request.x());
          event.setyOffset(request.y());
-         objects.addNewObject(runtimeId, event, user, dispatcher, linkUri);
+         String name = objects.addNewObject(runtimeId, event, user, dispatcher, linkUri);
+
+         if(name == null) {
+            // The VIEWSHEET_ASSET (embedded viewsheet) branch of addNewObject returns null --
+            // it has no single new assembly name to rename/resize.
+            return;
+         }
+
+         if(request.assembly() != null && !request.assembly().isBlank()) {
+            Viewsheet vs = rvs.getViewsheet();
+            VSAssembly assembly = vs == null ? null : (VSAssembly) vs.getAssembly(name);
+
+            if(assembly != null) {
+               propertyService.editObjectProperty(rvs, assembly.getVSAssemblyInfo(), name,
+                                                  request.assembly(), linkUri, user, dispatcher);
+               name = request.assembly();
+            }
+         }
+
+         if(resizeRequested) {
+            ResizeVSObjectEvent resize = new ResizeVSObjectEvent();
+            resize.setName(name);
+            resize.setWidth(request.width());
+            resize.setHeight(request.height());
+            // resizeObject also *moves* the assembly to the event's offset -- seed it from the
+            // position add() already placed the assembly at (request.x()/y()), the same
+            // 0,0-teleport pitfall resize()'s own wrapper above already guards against.
+            resize.setxOffset(request.x());
+            resize.setyOffset(request.y());
+            objects.resizeObject(runtimeId, resize, user, dispatcher, linkUri);
+         }
       });
    }
 
@@ -406,6 +447,25 @@ public class ViewsheetEditService {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
          groups.ungroup(runtimeId, request.assembly(), linkUri, user, dispatcher);
+      });
+   }
+
+   /**
+    * PVA-010: forces the named assembly to re-execute its query and re-render, picking up a
+    * worksheet-side change (e.g. a ranking/aggregate edit) made after the chart was already
+    * bound — the same mechanism {@code VSRefreshService.refreshVsAssemblyView} already performs
+    * for the Composer's own UI refresh (its own {@code TableDataVSAssembly} reload included), just
+    * not previously reachable from any composer-chat tool.
+    */
+   private void refresh(String sessionToken, Principal user, EditRequest request, String linkUri)
+      throws Exception
+   {
+      requireAssembly(request);
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireExisting(rvs, request.assembly());
+         refreshService.refreshVsAssemblyView(runtimeId, request.assembly(), dispatcher, linkUri,
+                                              user);
       });
    }
 
@@ -682,4 +742,5 @@ public class ViewsheetEditService {
    private final VSObjectPropertyService propertyService;
    private final ViewsheetReadService reader;
    private final ComposerGroupService groups;
+   private final VSRefreshService refreshService;
 }

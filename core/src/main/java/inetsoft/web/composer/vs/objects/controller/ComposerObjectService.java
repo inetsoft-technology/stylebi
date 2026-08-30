@@ -77,7 +77,7 @@ public class ComposerObjectService {
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    @ClusterWriteMethod
-   public Void addNewObject(@ClusterProxyKey String vsId, AddNewVSObjectEvent event, Principal principal,
+   public String addNewObject(@ClusterProxyKey String vsId, AddNewVSObjectEvent event, Principal principal,
                             CommandDispatcher dispatcher, String linkUri) throws Exception
    {
       RuntimeViewsheet rvs = engine.getViewsheet(vsId, principal);
@@ -118,7 +118,7 @@ public class ComposerObjectService {
          dispatcher.sendCommand(assembly.getAbsoluteName(), forceEditModeCommand);
       }
 
-      return null;
+      return assembly.getAbsoluteName();
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.worksheet;
 
+import inetsoft.report.composition.RuntimeSheet;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
@@ -43,6 +45,7 @@ import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularQuery;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.text.TextOutput;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.table.XSwappableTable;
@@ -446,7 +449,7 @@ public class WorksheetAgentController {
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
          String assemblyName = AssetUtil.normalizeTable(tablePath);
-         assemblyName = AssetUtil.getNextName(ws, assemblyName);
+         assemblyName = AssetUtil.getNextName(ws, assemblyName, assemblyName);
 
          PhysicalBoundTableAssembly assembly =
             new PhysicalBoundTableAssembly(ws, assemblyName);
@@ -539,7 +542,7 @@ public class WorksheetAgentController {
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
          String assemblyName = AssetUtil.normalizeTable(entityName);
-         assemblyName = AssetUtil.getNextName(ws, assemblyName);
+         assemblyName = AssetUtil.getNextName(ws, assemblyName, assemblyName);
 
          BoundTableAssembly assembly = new BoundTableAssembly(ws, assemblyName);
 
@@ -648,7 +651,8 @@ public class WorksheetAgentController {
 
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
-         String assemblyName = AssetUtil.getNextName(ws, AssetUtil.normalizeTable(tableName));
+         String normalizedTableName = AssetUtil.normalizeTable(tableName);
+         String assemblyName = AssetUtil.getNextName(ws, normalizedTableName, normalizedTableName);
          TabularTableAssembly assembly = new TabularTableAssembly(ws, assemblyName);
          TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) assembly.getTableInfo();
          info.setQuery(query);
@@ -927,9 +931,9 @@ public class WorksheetAgentController {
     *                          or the worksheet is untitled and no name was supplied
     */
    @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/save")
-   public void save(@PathVariable String sessionToken,
-                    @RequestBody SaveRequest body,
-                    Principal user) throws PairingException
+   public Map<String, Object> save(@PathVariable String sessionToken,
+                                   @RequestBody SaveRequest body,
+                                   Principal user) throws PairingException
    {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
@@ -937,7 +941,8 @@ public class WorksheetAgentController {
          editService.resolveWithSession(sessionToken, user);
       RuntimeWorksheet rws = resolved.rws();
       String runtimeId = resolved.runtimeId();
-      AssetEntry entry = rws.getEntry();
+      AssetEntry oldEntry = rws.getEntry();
+      AssetEntry entry = oldEntry;
 
       String name = body.name() != null ? body.name().trim() : null;
 
@@ -947,6 +952,17 @@ public class WorksheetAgentController {
                "Worksheet is unsaved — provide a 'name' to save it (e.g. \"agent_ws_1\").");
          }
       }
+
+      boolean wasTemporary = oldEntry.getScope() == AssetRepository.TEMPORARY_SCOPE;
+
+      // A Save-As (a name given for a worksheet that already had a saved entry, as opposed to a
+      // first save out of TEMPORARY_SCOPE) only ever moves this session's own RuntimeWorksheet
+      // entry pointer -- nothing here updates a connected viewsheet's Viewsheet.baseEntry, so the
+      // viewsheet silently keeps pointing at the pre-Save-As asset (Bug PVA-003). There is no
+      // in-place fix for that without a repoint tool, so at minimum, warn.
+      boolean isSaveAs = name != null && !name.isEmpty() && !wasTemporary;
+      List<String> affectedViewsheets = isSaveAs
+         ? connectedViewsheetIds(connectedViewsheets(oldEntry, user)) : List.of();
 
       if(name != null && !name.isEmpty()) {
          IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
@@ -973,6 +989,80 @@ public class WorksheetAgentController {
       catch(Exception e) {
          throw new PairingException("Failed to save worksheet: " + e.getMessage(), e);
       }
+
+      // Bug PVA-002: a connected viewsheet's bindable-fields view (list_bindable_fields) is
+      // served from a lazy wall-clock Worksheet.getLastModified() comparison
+      // (BindableFieldsService.list() / CubeTreeModelBuilder), re-checked only on the next read --
+      // nothing here previously told a live viewsheet its base worksheet just changed. Reset
+      // every connected runtime synchronously so the next read is never stale, instead of leaving
+      // it to notice on its own. Only applies to a plain save-in-place: a Save-As writes under a
+      // brand-new entry no viewsheet points at yet (see the PVA-003 warning above for that case),
+      // and a first save out of TEMPORARY_SCOPE is likewise a brand-new entry nothing could have
+      // been pointing at before.
+      //
+      // NOTE: does NOT address PVA-009 (set_table_source/set_chart_source's "Available" guard) --
+      // per docs/teams/2026-08-29-bugs-plugin-composer-corpus/cluster-C/03-escalate-pva008.md,
+      // that guard is VSBindingService.createSourceTables, a different code path with no
+      // timestamp/cache mechanism this reset touches at all. PVA-009's pairing with PVA-002 is
+      // unconfirmed; excluded from this fix pass.
+      if(!isSaveAs && !wasTemporary) {
+         for(RuntimeViewsheet connected : connectedViewsheets(entry, user)) {
+            connected.resetRuntime();
+         }
+      }
+
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("ok", true);
+
+      if(!affectedViewsheets.isEmpty()) {
+         result.put("warning", "This Save-As created a new copy at \"" + entry.toView() +
+            "\". The following open viewsheet(s) still point at the original worksheet (\"" +
+            oldEntry.toView() + "\") and will not see this copy's changes: " +
+            affectedViewsheets + ".");
+      }
+
+      return result;
+   }
+
+   /**
+    * Every live {@link RuntimeViewsheet} belonging to {@code user} whose
+    * {@code Viewsheet.getBaseEntry()} currently matches {@code worksheetEntry}.
+    *
+    * <p>Scoped to {@code user}'s own runtimes only -- {@code WorksheetService.getRuntimeSheets}
+    * has no global/all-users variant, so a viewsheet another user has open on the same base
+    * worksheet is not detected here. Documented limitation, not a bug in this check.
+    */
+   private List<RuntimeViewsheet> connectedViewsheets(AssetEntry worksheetEntry, Principal user) {
+      RuntimeSheet[] sheets = worksheetService.getRuntimeSheets(user);
+      List<RuntimeViewsheet> connected = new ArrayList<>();
+
+      if(sheets == null) {
+         return connected;
+      }
+
+      for(RuntimeSheet sheet : sheets) {
+         if(!(sheet instanceof RuntimeViewsheet rvs)) {
+            continue;
+         }
+
+         Viewsheet vs = rvs.getViewsheet();
+
+         if(vs != null && worksheetEntry.equals(vs.getBaseEntry())) {
+            connected.add(rvs);
+         }
+      }
+
+      return connected;
+   }
+
+   private static List<String> connectedViewsheetIds(List<RuntimeViewsheet> connected) {
+      List<String> ids = new ArrayList<>();
+
+      for(RuntimeViewsheet rvs : connected) {
+         ids.add(rvs.getID());
+      }
+
+      return ids;
    }
 
    /**
