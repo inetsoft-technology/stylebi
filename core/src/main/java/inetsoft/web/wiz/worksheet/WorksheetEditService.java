@@ -774,6 +774,11 @@ public class WorksheetEditService {
             throw new PairingException("Join requires a name.");
          }
 
+         // Unlike the two-table addJoin overload, this path cannot go through placeAssembly (see
+         // the comment below on ws.addAssembly(join)), so the name has to be checked explicitly
+         // here instead of inheriting placeAssembly's requireStorableName call.
+         requireStorableName(name, "An assembly name");
+
          if(joinPaths == null || joinPaths.isEmpty()) {
             throw new PairingException("Multi-table join requires at least one join path.");
          }
@@ -2363,6 +2368,19 @@ public class WorksheetEditService {
          TableAssembly newTable = requireTable(tableName);
          TableAssembly[] existing = ctbl.getTableAssemblies();
 
+         // Refuse the concatenation as a source of itself. This is a special case neither check
+         // below catches: ctbl is never a member of `existing` (it IS the concatenation, not one
+         // of its subtables), so the duplicate-source loop can't see it, and
+         // checkCyclicalDependency(ws, ctbl, newTable) can't either when newTable == ctbl --
+         // AssetUtil#getDependedAssemblies0 seeds its visited set with the root and passes
+         // included=false for it, so asking whether ctbl (as `otherAssembly`) already depends on
+         // itself (as `targetAssembly`) finds nothing, because before this attach nothing yet
+         // links ctbl back to itself.
+         if(tableName.equals(concatName)) {
+            throw new PairingException(
+               "\"" + concatName + "\" cannot be a source of itself.");
+         }
+
          // Refuse a source that is already present. ConcatenateTablesService#checkValidity refuses
          // it with common.table.unionDuplicate; this path never ported the check, so a repeated
          // source was accepted and counted its rows twice in the UNION with nothing reporting it.
@@ -2655,6 +2673,8 @@ public class WorksheetEditService {
             throw new PairingException("Assembly already exists: " + newName);
          }
 
+         requireStorableName(newName, "An assembly name");
+
          try {
             WSAssembly clone = (WSAssembly) wsa.clone();
             clone.getWSAssemblyInfo().setName(newName);
@@ -2793,6 +2813,8 @@ public class WorksheetEditService {
          if(!(a instanceof DefaultVariableAssembly)) {
             throw new PairingException("Variable assembly not found: " + oldName);
          }
+
+         requireStorableName(newName, "A variable name");
 
          if(!ws.renameAssembly(oldName, newName, true)) {
             throw new PairingException(

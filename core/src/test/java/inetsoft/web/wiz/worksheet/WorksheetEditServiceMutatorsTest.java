@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -3014,6 +3015,38 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals("integer", ((ColumnRef) ref).getDataType());
    }
 
+   /**
+    * The defect this guards: {@code XEmbeddedTable#setDataType} writes the new type into its
+    * internal {@code types[]} array unconditionally, before converting a single row. When
+    * {@code confirmed=false} (force=false) and a value can't be parsed, it throws instead of
+    * nulling the value out -- but nothing had reverted {@code types[col]}, so the "Nothing was
+    * changed" exception left the embedded table's own bookkeeping pointing at the rejected type
+    * even though not one value had actually been converted. {@code EmbeddedTableAssembly
+    * #getEmbeddedData()} returns that same live array (not a copy), so the desync landed
+    * directly on the assembly and would have surfaced the next time
+    * {@code refreshColumnType()} read it.
+    */
+   @Test
+   void changeColumnTypeWithoutConfirmationLeavesEmbeddedTableUnchanged() throws Exception {
+      Worksheet ws = new Worksheet();
+      // Column "a" holds "x1"/"x2" -- not parseable as integer -- so force=false throws.
+      EmbeddedTableAssembly t = embeddedWithData(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "a", "integer", false)));
+
+      assertTrue(ex.getMessage().contains("Nothing was changed"), ex.getMessage());
+      DataRef ref = t.getColumnSelection(false).getAttribute("a");
+      assertInstanceOf(ColumnRef.class, ref);
+      assertEquals(XSchema.STRING, ((ColumnRef) ref).getDataType(),
+         "the ColumnRef's declared type must be rolled back");
+      assertEquals(XSchema.STRING, t.getEmbeddedData().getDataType(0),
+         "the embedded table's internal types[] must be rolled back too, not just the ColumnRef");
+   }
+
    // =========================================================================
    // Column reorder tests
    // =========================================================================
@@ -3354,6 +3387,28 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
+    * {@code distinct} is threaded onto each pair's operator only "when asked" (a null leaves the
+    * engine's default), so a {@code true} has to actually land on the built
+    * {@link ConcatenatedTableAssembly}'s operator rather than silently being dropped.
+    */
+   @Test
+   void addConcatenationThreadsDistinctIntoTheOperator() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      EmbeddedTableAssembly b = table(ws, "B", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION", true));
+
+      ConcatenatedTableAssembly ctbl = (ConcatenatedTableAssembly) ws.getAssembly("U");
+      assertTrue(ctbl.getOperator(0).isDistinct(),
+         "distinct=true must be threaded through to the pair's operator");
+   }
+
+   /**
     * Sources are combined BY POSITION, so a pair that lines up numerically but not by type produces
     * a column carrying two unrelated kinds of value — which renders as an ordinary column and
     * reports no error anywhere. The message has to name the position and both sides, since that is
@@ -3459,6 +3514,69 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
+    * {@code requireStorableName} was wired into {@code placeAssembly}/{@code renameTable} only.
+    * The multi-table {@code addJoin} overload cannot go through {@code placeAssembly} (it has to
+    * register the join before wiring its edges via {@code InnerJoinService}), so it bypassed the
+    * guard the same way an unescaped-CDATA name would corrupt storage from any of these entry
+    * points.
+    */
+   @Test
+   void addJoinMultiTableRefusesANameThatWouldBreakTheStoredXml() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "A", col("id", XSchema.INTEGER)));
+      ws.addAssembly(table(ws, "B", col("id", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      List<WorksheetMutationSupport.JoinPathSpec> paths =
+         List.of(new WorksheetMutationSupport.JoinPathSpec("A", "id", "B", "id", "INNER"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addJoin("bad]]>name", paths)));
+
+      assertTrue(ex.getMessage().contains("]]>"), ex.getMessage());
+      assertNull(ws.getAssembly("bad]]>name"));
+   }
+
+   /**
+    * Same gap as above, for {@code duplicateAssembly}: it calls {@code ws.addAssembly(clone)}
+    * directly after {@code setName}, bypassing {@code placeAssembly}'s
+    * {@code requireStorableName} check.
+    */
+   @Test
+   void duplicateAssemblyRefusesANameThatWouldBreakTheStoredXml() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "A", col("id", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.duplicateAssembly("A", "bad]]>name")));
+
+      assertTrue(ex.getMessage().contains("]]>"), ex.getMessage());
+      assertNull(ws.getAssembly("bad]]>name"));
+   }
+
+   /**
+    * Same gap again, for {@code renameVariable}: it calls {@code ws.renameAssembly} directly with
+    * no name check at all, even though a variable name hits the same unescaped-CDATA write path
+    * as a table name.
+    */
+   @Test
+   void renameVariableRefusesANameThatWouldBreakTheStoredXml() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.renameVariable("region", "bad]]>name")));
+
+      assertTrue(ex.getMessage().contains("]]>"), ex.getMessage());
+      assertNotNull(ws.getAssembly("region"), "the rename must not have happened");
+      assertNull(ws.getAssembly("bad]]>name"));
+   }
+
+   /**
     * A negative limit is a mistake, not a way to say "unlimited". The Composer's control refuses it
     * (FormValidators.positiveIntegerInRange); this path folded it into -1 and reported success, so
     * a caller asking for a limit got none and no indication of it.
@@ -3475,6 +3593,72 @@ class WorksheetEditServiceMutatorsTest {
                          ed -> ed.setTableProperties("A", null, null, -100, null, null, null, null)));
 
       assertTrue(ex.getMessage().contains("negative"), ex.getMessage());
+   }
+
+   /**
+    * {@code rowCount} is the dialog's "Rows" field for an embedded table
+    * ({@code TablePropertyDialogService:113-121}), which counts data rows only -- the stored
+    * table carries an extra header row ({@code getRowCount() - 1} in the dialog's terms). None of
+    * grow, shrink, the non-embedded no-op, or the negative rejection had a test.
+    */
+   @Test
+   void setTablePropertiesGrowsEmbeddedRowCount() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedWithData(ws, "T"); // header + 2 data rows
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", null, null, null, null, null, null, 5));
+
+      assertEquals(6, t.getEmbeddedData().getRowCount(),
+         "5 data rows plus the header row");
+   }
+
+   @Test
+   void setTablePropertiesShrinksEmbeddedRowCount() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedWithData(ws, "T"); // header + 2 data rows
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", null, null, null, null, null, null, 1));
+
+      assertEquals(2, t.getEmbeddedData().getRowCount(),
+         "1 data row plus the header row");
+   }
+
+   @Test
+   void setTablePropertiesIgnoresRowCountOnANonEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // The dialog omits the "Rows" control for a non-embedded table; this must not throw just
+      // because a caller sent it anyway.
+      assertDoesNotThrow(() -> svc.apply(
+         "TOK", agent, ed -> ed.setTableProperties("T", null, null, null, null, null, null, 5)));
+   }
+
+   @Test
+   void setTablePropertiesRefusesANegativeRowCount() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedWithData(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.setTableProperties("T", null, null, null, null, null, null, -1)));
+
+      assertTrue(ex.getMessage().contains("negative"), ex.getMessage());
+      assertEquals(3, t.getEmbeddedData().getRowCount(), "the refused call must not touch the data");
    }
 
    /**
@@ -3526,6 +3710,35 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
+    * Same fix as {@link #setTableModeRestoresTheAggregateFlagWhenReturningToLive}, for the
+    * {@code "default"} branch: {@code TableModeService#setDefaultTableMode:334} computes the
+    * aggregate flag the same way {@code setLiveTableMode} does, but only {@code "live"} had a
+    * test for it.
+    */
+   @Test
+   void setTableModeRestoresTheAggregateFlagForDefaultMode() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a =
+         table(ws, "A", col("g", XSchema.STRING), col("n", XSchema.INTEGER));
+      ws.addAssembly(a);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate(
+         "A", groups("g"),
+         List.of(new WorksheetMutationSupport.AggregateSpec("n", "SUM", null))));
+      svc.apply("TOK", agent, ed -> ed.setTableMode("A", "full"));
+      assertFalse(((inetsoft.uql.asset.internal.TableAssemblyInfo) a.getTableInfo()).isAggregate(),
+                  "precondition: full mode forces the flag off");
+
+      svc.apply("TOK", agent, ed -> ed.setTableMode("A", "default"));
+
+      assertTrue(((inetsoft.uql.asset.internal.TableAssemblyInfo) a.getTableInfo()).isAggregate(),
+                 "the \"default\" branch must recompute the flag the same way \"live\" does, not "
+                 + "leave it forced off from the earlier full-mode switch");
+      assertTrue(a.isLiveData(), "\"default\" is live for an embedded table");
+   }
+
+   /**
     * Both range columns take their name from the source column and the option rather than from the
     * caller, so issuing the same call twice generated the same name twice — and a second column
     * with the same identity makes every later lookup by name ambiguous. ValueRangeService:204
@@ -3543,6 +3756,40 @@ class WorksheetEditServiceMutatorsTest {
          () -> svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("A", "when", "YEAR")));
 
       assertTrue(ex.getMessage().contains("already exists"), ex.getMessage());
+   }
+
+   /**
+    * {@code requireDerivedColumnFits} has two branches -- a name collision (covered above) and a
+    * column-count cap -- and only the collision branch had a test. This exercises the cap branch
+    * via {@code max.col.count}, restored in a {@code finally} so the property does not leak into
+    * later tests.
+    */
+   @Test
+   void addDateRangeColumnRefusesAtTheColumnCapWithoutMutating() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "2");
+
+         PairingException ex = assertThrows(PairingException.class,
+            () -> svc.apply("TOK", agent,
+                            ed -> ed.addDateRangeColumn("T", "orderDate", "QUARTER_OF_YEAR")));
+
+         assertTrue(ex.getMessage().toLowerCase().contains("maximum"), ex.getMessage());
+         assertEquals(2, t.getColumnSelection(false).getAttributeCount(),
+            "the refused add must not have added a column past the cap");
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
    }
 
    /**
@@ -3652,6 +3899,35 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(ex.getMessage().contains("M"), ex.getMessage());
       assertEquals(2, ((ConcatenatedTableAssembly) ws.getAssembly("C")).getTableAssemblies().length,
                    "the cycle must be refused before the subtable list is written");
+   }
+
+   /**
+    * The defect this guards: {@code add_concat_subtable(concatName, concatName)} was caught by
+    * neither existing guard. The duplicate-source loop only walks {@code ctbl}'s current
+    * subtables, and {@code ctbl} is never one of those -- it IS the concatenation. And
+    * {@code checkCyclicalDependency(ws, ctbl, newTable)} can't see it either when
+    * {@code newTable == ctbl}: {@code AssetUtil#getDependedAssemblies0} seeds its visited set
+    * with the root and passes {@code included=false} for it, so before the attach there is
+    * nothing yet linking {@code ctbl} back to itself. Without an explicit check, {@code ctbl}
+    * was appended to its own {@code TableAssemblies} array.
+    */
+   @Test
+   void addConcatSubtableRefusesSelfReferenceWithoutMutating() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      EmbeddedTableAssembly b = table(ws, "B", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("C", List.of("A", "B"), "UNION"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addConcatSubtable("C", "C")));
+
+      assertTrue(ex.getMessage().contains("itself"), ex.getMessage());
+      assertEquals(2, ((ConcatenatedTableAssembly) ws.getAssembly("C")).getTableAssemblies().length,
+                   "the self-reference must be refused before the subtable list is written");
    }
 
    /**
