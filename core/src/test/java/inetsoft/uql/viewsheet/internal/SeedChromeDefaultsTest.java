@@ -346,6 +346,38 @@ class SeedChromeDefaultsTest {
                  "Revert restores a chart title with no foreground of its own");
    }
 
+   // A chart draws its own title rule, so the object frame's colour must not reach it. The copy
+   // that would overwrite it lives in FormatInfo.getFormat, which mutates the stored title format
+   // in place, so the seeded colour has to survive a read through that path.
+
+   @Test
+   void aUserObjectBorderColourDoesNotReachAChartTitleRule() {
+      gateOn();
+      VizContext ctx = VizContext.ofGate();
+      ChartVSAssemblyInfo info = newChart();
+      info.getFormat().getUserDefinedFormat().setBorderColorsValue(
+         new BorderColors(Color.RED, Color.RED, Color.RED, Color.RED));
+
+      VSCompositeFormat title = info.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH, false);
+
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
+                   title.getBorderColors().bottomColor,
+                   "the chart's title rule keeps its own colour, not the author's frame colour");
+   }
+
+   @Test
+   void aUserObjectBorderColourStillReachesATableTitle() {
+      gateOn();
+      TableVSAssemblyInfo info = newTable();
+      info.getFormat().getUserDefinedFormat().setBorderColorsValue(
+         new BorderColors(Color.RED, Color.RED, Color.RED, Color.RED));
+
+      VSCompositeFormat title = info.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH, false);
+
+      assertEquals(Color.RED, title.getBorderColors().bottomColor,
+                   "a table's title still follows the frame, which is long-standing behaviour");
+   }
+
    @Test
    void aModernizedChartEqualsAFreshlyCreatedOne() {
       // the equality the re-invocation must preserve: creation and Modernize run the same hook
