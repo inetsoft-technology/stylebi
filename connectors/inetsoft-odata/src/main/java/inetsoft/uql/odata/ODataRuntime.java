@@ -19,6 +19,7 @@ package inetsoft.uql.odata;
 
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
+import inetsoft.uql.schema.*;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.AuthorizationClient;
 import inetsoft.uql.tabular.oauth.Tokens;
@@ -362,6 +363,73 @@ public class ODataRuntime extends TabularRuntime {
       return entitySet;
    }
 
+   static XTypeNode[] getProperties(Node schemaNode, String entityType) {
+      if(schemaNode == null || entityType == null || entityType.isEmpty()) {
+         return new XTypeNode[0];
+      }
+
+      String simpleName = entityType.contains(".") ?
+         entityType.substring(entityType.lastIndexOf('.') + 1) : entityType;
+
+      NodeList entityTypeNodes = Tool.getChildNodesByTagName(schemaNode, "EntityType");
+      Node entityTypeNode = null;
+
+      for(int i = 0; i < entityTypeNodes.getLength(); i++) {
+         Node node = entityTypeNodes.item(i);
+
+         if(simpleName.equals(Tool.getAttribute((Element) node, "Name"))) {
+            entityTypeNode = node;
+            break;
+         }
+      }
+
+      if(entityTypeNode == null) {
+         return new XTypeNode[0];
+      }
+
+      List<XTypeNode> result = new ArrayList<>();
+      NodeList propertyNodes = Tool.getChildNodesByTagName(entityTypeNode, "Property");
+
+      for(int i = 0; i < propertyNodes.getLength(); i++) {
+         Element property = (Element) propertyNodes.item(i);
+         String name = Tool.getAttribute(property, "Name");
+         String edmType = Tool.getAttribute(property, "Type");
+
+         if(name == null || edmType == null) {
+            continue;
+         }
+
+         result.add(toXTypeNode(name, edmType));
+      }
+
+      return result.toArray(new XTypeNode[0]);
+   }
+
+   private static XTypeNode toXTypeNode(String name, String edmType) {
+      switch(edmType) {
+         case "Edm.Boolean":
+            return new BooleanType(name);
+         case "Edm.Byte":
+         case "Edm.SByte":
+         case "Edm.Int16":
+         case "Edm.Int32":
+         case "Edm.Int64":
+            return new LongType(name);
+         case "Edm.Decimal":
+         case "Edm.Double":
+         case "Edm.Single":
+            return new DoubleType(name);
+         case "Edm.Date":
+            return new DateType(name);
+         case "Edm.DateTimeOffset":
+            return new TimeInstantType(name);
+         case "Edm.TimeOfDay":
+            return new TimeType(name);
+         default:
+            return new StringType(name);
+      }
+   }
+
    static Document getMetaDataDocument(ODataDataSource ds) {
       try(CloseableHttpClient httpClient = HttpClients.createDefault()) {
          String metadataUrl = ds.getURL();
@@ -422,8 +490,14 @@ public class ODataRuntime extends TabularRuntime {
    }
 
    public static Node getSchemaNode(ODataDataSource ds) {
-      NodeList nodes = ODataRuntime.getMetaDataDocument((ODataDataSource) ds)
-         .getElementsByTagName("edmx:Edmx");
+      Document metadata = ODataRuntime.getMetaDataDocument((ODataDataSource) ds);
+
+      if(metadata == null) {
+         LOG.warn("Could not get schema for datasource: " + ds.getName());
+         return null;
+      }
+
+      NodeList nodes = metadata.getElementsByTagName("edmx:Edmx");
 
       if(nodes.getLength() > 0) {
          Node elem = nodes.item(0);

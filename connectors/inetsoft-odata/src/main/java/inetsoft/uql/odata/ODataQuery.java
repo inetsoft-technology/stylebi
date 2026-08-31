@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.odata;
 
+import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
 import org.w3c.dom.*;
@@ -38,9 +39,14 @@ import java.util.stream.Collectors;
       @View1("top"),
       @View1("skip")
    })
-public class ODataQuery extends TabularQuery {
+public class ODataQuery extends TabularQuery implements AnnotatableQuery {
    public ODataQuery() {
       super(ODataDataSource.TYPE);
+   }
+
+   @Override
+   public String getAnnotationTargetProperty() {
+      return "entity";
    }
 
    @Property(label="Entity")
@@ -364,8 +370,40 @@ public class ODataQuery extends TabularQuery {
       return nameSpace;
    }
 
+   @Override
+   public XTypeNode[] getOutputColumns() {
+      XTypeNode[] columns = super.getOutputColumns();
+
+      if((columns == null || columns.length == 0) && getDataSource() != null &&
+         entity != null && !entity.isEmpty())
+      {
+         columns = fetchColumns();
+
+         if(columns.length > 0) {
+            setOutputColumns(columns);
+         }
+      }
+
+      return columns;
+   }
+
+   private XTypeNode[] fetchColumns() {
+      ODataDataSource ds = (ODataDataSource) getDataSource();
+      Node schema = ODataRuntime.getSchemaNode(ds);
+      String entityType = ODataRuntime.getEntityType(schema, entity);
+      entityType = entityType == null ? "" : entityType;
+      return ODataRuntime.getProperties(schema, entityType);
+   }
+
    private void loadSchema() {
       Node schema = ODataRuntime.getSchemaNode((ODataDataSource) getDataSource());
+
+      if(schema == null) {
+         nameSpace = null;
+         functions = new ArrayList<>();
+         return;
+      }
+
       nameSpace = Tool.getAttribute((Element) schema, "Namespace");
       String entityType = ODataRuntime.getEntityType(schema, entity);
       entityType = entityType == null ? "" : entityType;
