@@ -1,10 +1,14 @@
 # Chart Card — Roadmap
 
-**Amended 2026-08-28 (not a revision — the seventeenth still stands below).** Two additions, both in "What
-to pick up next" and both mirrored in the dependency picture: **decision 10 / bookmarks is IN FLIGHT in a
-parallel session**, so check for its branch before starting it; and **a new item enters at #2 — defaulting
-`viewsheet.modernVisualization` to true**, which must follow bookmarks because the gate being off is what
-currently confines decision 10's defect to opted-in dashboards. The seventeenth revision's note follows.
+**Amended 2026-08-28 (not a revision — the seventeenth still stands below).** Three additions, all in "What
+to pick up next" and all mirrored in the dependency picture. **Decision 10 / bookmarks is IN FLIGHT in a
+parallel session** — check for its branch before starting it. **A new #2: defaulting
+`viewsheet.modernVisualization` to true**, which must follow bookmarks, because the gate being off is what
+currently confines decision 10's defect to opted-in dashboards. **A new #3: migrating the five read-time
+resolvers onto `seedChromeDefaults`** — a value computed only at render is not in the asset, so an export
+into an older build renders the card mixed, modern where a value was seeded and classic where it was
+substituted. That third one came out of designing the title lane and is the more general form of the
+question that design had to answer. The seventeenth revision's note follows.
 
 
 **Date:** 2026-08-27 (seventeenth revision — **S / §04, the card's sizing and spacing, has SHIPPED, and this file costed it XL when it was not.** `2afb06bc1` carries the 12px card inset and the 4 / 8 / 14(+2) interior gap scale, `2b86a9fa3` two follow-ups. The estimate was wrong for a reason that generalises to every remaining item taken from the external set: it assumed binding §04's gaps meant introducing a spacing scale into a subsystem CSS cannot reach, and three of the four gaps turned out to be **tiered `CompositeValue`s that `GraphGenerator` already threaded, in a class that already held a `VizContext`**. The work was seeding DEFAULT tiers on values that existed. **Check for an existing tier before costing anything else from that set.** **FOUR of §04's own numbers are disproved in code** and each is recorded with its evidence in the new [chart-card-geometry-decisions.md](./chart-card-geometry-decisions.md): `padding` already IS the card inset with the title lane inside it; there is no graph outer margin to zero, confirmed at render, because the band §04 measured was that same padding seen from inside an exported SVG; the legend panel's border and fill return ~2px, not 8–10px; and the gaps needed no new scale. **§05's legend is CLOSED BY DECISION rather than deferred** — every mechanical and palette item was already in, and what the drawing still asks for is declined or moot, reasoning in the dependency picture. **The one thing nobody has answered: the plot lost ~28px of width and ~14px of height, where §2.1 predicted ~19px**, because the difference was §04-b's legend return and that return does not exist. **What is left of §04 is one item, `--inet-chart-line-height` at 1.2.** Bookmarks is still first and still the only thing between this branch and a release. The sixteenth revision's note follows — **L″, the geometric suppression, has shipped, and the anchored strip is no longer gated on density anywhere.** The predicate now measures the assembly's own lane: `lane >= 24` draws the strip, below it draws no chrome at all, and a hidden title yields lane 0 so one rule covers both populations. **The threshold shipped at 26 and was corrected to 24 the same day** — 26 bought 1px of clearance whose only stated purpose was keeping the pill's border off the lane edge, §10.2 deletes that border, and lanes of 24 and 25 were losing their toolbar while the strip physically fitted. `GuiTool.isVizDensityAtLeastCompact`, `rightEdgeReserve` and `SORT_CONTROL_RESERVE` are all deleted, so title-hidden tables get 22px of plot back. **One design premise in L″'s own spec was false and is corrected there rather than quietly dropped:** it claimed touch loses its action route when a lane suppresses, but mobile never used this mechanism — `mini-toolbar.component.html:35` hides the buttons on mobile and `viewer-app.component.html:304` renders a page-level `viewer-mobile-toolbar` fed the selected assembly's actions. The fifteenth revision's note follows: **L′, the title lane height row, has shipped, and with it the last of the six items the seed mark existed to free.** The mark has now paid for all six. Nine included assembly types take the 20/26/30 lane at their org's density, the three excluded types are confirmed unmoved, and title and selection cell height each gained a follow-the-default-density checkbox that replaces the value comparison the dialogs used to infer authorship from. It is off the ranking, in the Done table, and it makes L″ startable for the first time — under decision 3's one-directional rule, which is the thing not to get wrong next. The fourteenth revision's note follows: **§04, the card's sizing and spacing model, is now tracked
@@ -205,6 +209,54 @@ rather than repairing it — the whole of its content is one reading of the two 
      Also re-reads the srinter tooltip at `srinter.properties:4508`, which is written for an
      opt-in switch.
 
+  READ-TIME MIGRATION. Move the substituting resolvers onto seedChromeDefaults   NEW 2026-08-28
+     Five resolvers substitute a modern value at render instead of writing it at creation. A read-time
+     value is NOT IN THE ASSET, so an export/import into a build older than this work renders the card
+     MIXED — modern frame, radius, background, bars and palette (all seeded, all stored), classic title
+     lane and legacy 10px inset (both substituted, both absent). That is the defect this item closes.
+
+       VSTitleChromeDefaults.applyModernDefaults / InPlace     18 sites · 9 converted by the title-lane
+                                                               spec, the other 9 are this item
+       VSCalendarChromeDefaults.applyModernDefaults             4 sites (VSCalendar, VSCalendarModel)
+       VSObjectChromeDefaults.applyDarkForeground / InPlace     6 sites (slider, selection list/tree,
+                                                               HTML helpers, format painter)
+       VSOutputChromeDefaults.applyModernDefaults / InPlace     3 sites (exporter, painter, VSTextModel)
+       VSObjectChromeDefaults.chartPadding                      1 site — ChartVSAssemblyInfo.getPadding
+                                                               (:2855), the 12px card inset
+
+     NOT IN SCOPE, and the distinction is the whole safety property: VSDensityDefaults.rowHeight /
+     titleHeight / mode() must STAY read-time. mode() reads the live org property viewsheet.density
+     (:66-69) and the dependency picture is explicit that the mark decides whether an assembly honours
+     density, not which density is in force. Seeding a density-derived value freezes it at creation.
+     Dark is the opposite and IS seedable: VizContext.of(VizMark) derives it from mark == MODERN_DARK,
+     so it is already per-assembly and already stamped at creation.
+
+     The three arguments that produced the read-time family in the first place are all disproved, and
+     the disproof is recorded in 2026-08-28-title-lane-unfilled-design.md section 1 rather than here
+     because whoever picks this up will reach for them again: a seeded value needs no Revert reverser
+     (revert clears the mark and re-runs the same hook); the chart's title format is not in its
+     bookmark at all (state_format is the OBJECT format); and the bookmark collision is obsolete since
+     the bookmark work made parseState call reseedAfterRestore, which resolves any seeded value on restore BY
+     CONSTRUCTION. What each conversion does owe is a LEGACY BRANCH THAT EXACTLY REPRODUCES A GATE-OFF
+     CREATION — per type, since the legacy title chrome differs by type.
+
+     ORDERING TRAP, paid once per type: VSAssemblyInfo.setDefaultFormat calls seedChromeDefaults last
+     (:1235), but ChartVSAssemblyInfo (:98), SelectionBaseVSAssemblyInfo and TimeSliderVSAssemblyInfo
+     each install or overwrite their TITLEPATH composite AFTER super, so the hook seeds a composite
+     they then discard. Each needs the hook re-invoked after its install. This is what
+     installsOwnTitleFormat() (:1340) exists to work around today.
+
+
+     ONE SHIPPED ENTRY STATES THE SUPERSEDED RATIONALE. S / §04's row in the Done table reads "Nothing is
+     seeded, so clearing the mark reverts by construction — no reverser, no migration, nothing added to
+     the bookmark path." That was an accurate description of a real trade at the time and it is why the
+     card inset is on the list above. It is not an endorsement to copy: the same three arguments are
+     disproved, and what the inset bought with them was a value that does not travel in the asset.
+
+     END STATE: VSTitleChromeDefaults.applyModernDefaults is deleted and all 18 of its call sites drop
+     it. Same for the other four. The classes survive as palette suppliers, which is what
+     VSObjectChromeDefaults already is.
+
      P4 unblocked the first of the six — L' — directly, ahead of P5. P5 gated four of the other five. P1 and
      P2 unblocked none of the six, by design; P3 unblocked P4's testability rather than any of the six; P4
      was the first phase whose landing moved one.
@@ -331,14 +383,22 @@ the picture above moved, so the ranking below still reads correctly and only gai
   what an untouched customer sees. It sits behind bookmarks for the reason in the dependency picture: the
   gate being off is what currently keeps decision 10's defect to opted-in dashboards, and default-true makes
   every newly created dashboard marked. §04's last item and the dark palette each move down one.
+- **And a third enters at #3, added the same day: migrate the read-time resolvers onto
+  `seedChromeDefaults`.** It came out of designing the title lane, where the mechanism question turned out
+  to decide something larger than the title lane: five resolvers substitute their modern value at render
+  rather than writing it at creation, and a value that is only ever computed at render **is not in the
+  asset**. Export such a dashboard and import it into a build older than this work and the card arrives
+  mixed — everything seeded renders, everything substituted falls back to legacy. §04's last item, the
+  dark palette and the cheap items each move down one again.
 
 | # | Item | Impact | Effort | Unblocks | Risk |
 |---|---|---|---|---|---|
 | 1 | **Decision 10 — resolve chrome on bookmark restore** | the last release-gate item, and a correctness defect rather than a polish one: a bookmark taken before a Revert silently un-reverts the assembly | **M** — four restore points across three classes, not the two this row used to claim: `ChartVSAssembly` writes `state_info` (`:470`), `state_descriptor` (`:479`) and `state_format` (`:488`), `TableVSAssembly` writes `state_tableformat` (`:161`) and `CrosstabVSAssembly` writes `state_crosstabformat` (`:362`). `CalcTableVSAssembly` writes only `state_calctable` (`:503`) and carries no format, so it is out of scope | the release | see the three notes below; the surface is wider than decision 10 was written against |
 | 2 | **Default `viewsheet.modernVisualization` to true** | the switch that makes the whole initiative the product's look rather than an opt-in; first item since P6 that changes what an untouched customer sees | **S** in code — four gate reads (`VSDensityDefaults:42`, `LookAndFeelService:59`, `PortalController:115`, `CoreLifecycleService:305`) plus the EM checkbox's unset state and the `srinter.properties:4508` tooltip, which is worded for an opt-in switch. The cost is the decision and the sign-off, not the diff | the rollout as a default | **the highest-risk item on this table, and the risk is not in the code.** Creation-time only, so no existing dashboard re-renders — but every new one is stamped, which promotes decision 10's bookmark defect from an opt-in path to the common one. Must follow #1 |
-| 3 | **§04's last item — `--inet-chart-line-height` at 1.2** | closes §04 completely; the rest of it shipped in `2afb06bc1` + `2b86a9fa3` | **M** — server-painted text, so Java font metrics, no CSS half despite the token-shaped name | closing §04 | low-med. Touches every chart text run, so budget the export pass |
-| 4 | **Chart interior dark palette** | the last visible hole in a dark mode that is otherwise complete | **M-L**, design first — `GDefaults` has no dark branch to reconcile against | nothing | med |
-| 5 | The ungated cheap items | low each, additive | **S** each | nothing | none |
+| 3 | **Migrate the read-time resolvers onto `seedChromeDefaults`** | closes a portability defect, not a polish one: a read-time value is not in the asset, so an export into an older build renders the card mixed — modern frame, radius, background, bars and palette, classic title lane and legacy inset | **M** — 32 call sites across five resolvers (title 18, dark-foreground 6, calendar 4, output 3, chart inset 1), but the mechanism is settled and the per-type ordering trap is written down | deleting `applyModernDefaults` outright, and the title-lane work's own follow-on | med. Each conversion owes a legacy branch that exactly reproduces a gate-off creation, per type. **Density must NOT be converted** — `mode()` reads a live org property |
+| 4 | **§04's last item — `--inet-chart-line-height` at 1.2** | closes §04 completely; the rest of it shipped in `2afb06bc1` + `2b86a9fa3` | **M** — server-painted text, so Java font metrics, no CSS half despite the token-shaped name | closing §04 | low-med. Touches every chart text run, so budget the export pass |
+| 5 | **Chart interior dark palette** | the last visible hole in a dark mode that is otherwise complete | **M-L**, design first — `GDefaults` has no dark branch to reconcile against | nothing | med |
+| 6 | The ungated cheap items | low each, additive | **S** each | nothing | none |
 
 **Re-derived a third time on 2026-08-25, after L′ shipped in this commit.** L′ comes off the table because it is built, reviewed and seen in a browser — nine included assembly types checked at three densities, the three excluded types confirmed unmoved, export agreement across PDF, PNG and Excel, and the composer round-trip for the new checkbox. It is the last of the six items the seed mark existed to free, so **the mark has now paid for all six**. §04 and the cheap items each move up one; nothing else changed, and bookmarks stays first because it is still the only thing between this branch and a release.
 
@@ -1336,18 +1396,18 @@ darken slightly, over near-black it lightens a long way. So `.chart-object-canva
 `.viz-modern` rule (`_themeable.scss:1442-1445`), the fill stays the brand accent it is meant to be in both
 modes, and no dark alpha, token or rule was added. Do not reopen this as an unexamined item.
 
-**The title band becomes unfilled — DESIGNED 2026-08-28, and the design moved three of §1's premises.**
-The mechanism, the scope and the call-site split are in
+**The title band becomes unfilled — DESIGNED 2026-08-28, and the design reversed its own mechanism.**
+The scope, the values and the call-site split are in
 [2026-08-28-title-lane-unfilled-design.md](./2026-08-28-title-lane-unfilled-design.md); read it before
-costing this from §1's text. What §1 did not have: **the rule does not exist yet** — `titleBorderColor()`
-has no production caller and a modern chart's title format carries no borders value, so this introduces
-the hairline rather than swapping the fill for it; **the treatment is scoped to the chart and the three
-table types**, with the selection and input family deferred in code rather than in prose; and **clearing
-the fill is not the mirror of setting one**, because `VSFormat.getBackground():276` falls back to the `bg`
-field, so a half-clear leaves a runtime background alive. Read-time substitution, deliberately — a
-creation-time seed would land in `state_format` / `state_tableformat`, the surface the bookmark work is
-being built against right now. Both export paths already thread the border except one block in
-`AbstractVSExporter`; print layout needs no change at all. Still no dependency on the seed mark, still
+costing this from §1's text. Three things §1 did not have. **The rule does not exist yet** —
+`titleBorderColor()` has no production caller and a modern chart's title format carries no borders value,
+so this introduces the hairline rather than swapping the fill for it; a chart's `#F1EFEA` comes entirely
+from `applyModernDefaults`, so its fill needs no clearing at all once it stops calling it. **The treatment
+is scoped to the chart and the three table types**, with the selection and input family following, and for
+tables only the border WIDTHS and the fill move — the colour is already `#D9D5CC` via
+`seedChromeDefaults`. **And the value is SEEDED AT CREATION, not substituted at read time** — the first
+revision chose read-time and was wrong on all three of its reasons; the disproof is in that file's §1 and
+is what produced the read-time migration item above. Still no dependency on the seed mark, still
 export-affecting, and it still breaks the title-bar/table-header equality the sibling project's §05
 endorses — show it to them before it merges.
 
@@ -1519,11 +1579,12 @@ needed, or simply removed if the parenthetical has lost its explanatory value by
 - [chart-card-open-item-decisions.md](./chart-card-open-item-decisions.md) — the title band, dark scope and
   range slider decisions, with the consequences each triggers
 - [2026-08-28-title-lane-unfilled-design.md](./2026-08-28-title-lane-unfilled-design.md) — **how the
-  unfilled title lane is built**: the read-time mechanism scoped by assembly type, the 18 call sites split
-  9 convert / 9 stay, where the border reaches on each of the five render paths and the one place it does
-  not, and the `getBackground()` clear trap. Supersedes
-  [chart-card-open-item-decisions.md](./chart-card-open-item-decisions.md) §1 on mechanism and scope; §1
-  remains the authority on *why* the band is unfilled
+  unfilled title lane is built**: creation-time seeding through `seedChromeDefaults`, the per-type legacy
+  branches Revert depends on, the chart's ordering trap, where the border reaches on each of the five
+  render paths and the one place it does not. Its **§1 is the general argument for seeding over read-time
+  substitution** and is the reasoning behind the read-time migration item — read it before converting any
+  other resolver. Supersedes [chart-card-open-item-decisions.md](./chart-card-open-item-decisions.md) §1
+  on mechanism and scope; §1 remains the authority on *why* the band is unfilled
 - [chart-card-anchored-strip-lane-decisions.md](./chart-card-anchored-strip-lane-decisions.md) — which v3
   document governs the title lane, the strip's size and containment, and what suppresses it. **Overrides
   `Chart Card Spec v3.dc.html` §04's lane model and §03's title-hidden overlay**
