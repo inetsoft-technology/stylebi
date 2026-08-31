@@ -225,6 +225,44 @@ class TabVSAssemblyInfoTest {
    }
 
    @Test
+   void repositionForBottomTabsInScaledSpaceReflowsShorterChildWithTabBar() {
+      Viewsheet vs = Mockito.mock(Viewsheet.class);
+
+      // tall child defines the tab bar's new anchor: bottom = 24 + 200 = 224
+      SelectionListVSAssemblyInfo tallChildInfo = new SelectionListVSAssemblyInfo();
+      tallChildInfo.setShowTypeValue(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      tallChildInfo.setScaledPosition(new Point(50, 24));
+      tallChildInfo.setScaledSize(new Dimension(200, 200));
+      VSAssembly tallChild = Mockito.mock(VSAssembly.class);
+      when(tallChild.getVSAssemblyInfo()).thenReturn(tallChildInfo);
+      when(vs.getAssembly("Tall1")).thenReturn(tallChild);
+
+      // short text child baked at the same top-tabs position (y=24) as the tall child,
+      // but with a much smaller height -- it does not define the extent
+      TextVSAssemblyInfo shortChildInfo = new TextVSAssemblyInfo();
+      shortChildInfo.setScaledPosition(new Point(50, 24));
+      shortChildInfo.setScaledSize(new Dimension(200, 40));
+      VSAssembly shortChild = Mockito.mock(VSAssembly.class);
+      when(shortChild.getVSAssemblyInfo()).thenReturn(shortChildInfo);
+      when(vs.getAssembly("Text1")).thenReturn(shortChild);
+
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setAssemblies(new String[]{"Tall1", "Text1"});
+      tabInfo.setScaledPosition(new Point(50, 0));
+      tabInfo.setScaledSize(new Dimension(200, 24));
+
+      TabVSAssemblyInfo.repositionForBottomTabsInScaledSpace(tabInfo, vs, true);
+
+      // tab bar anchors to the tall child's bottom
+      assertEquals(224, tabInfo.getLayoutPosition(true).y);
+      // tall child already flush -- unchanged
+      assertEquals(24, tallChildInfo.getLayoutPosition(true).y);
+      // Bug #76038: short child must follow the tab bar (224 - 40 = 184), not stay at
+      // its old top-tabs y=24
+      assertEquals(184, shortChildInfo.getLayoutPosition(true).y);
+   }
+
+   @Test
    void getBottomTabChildHeightReturnsPixelHeightForNonDropdown() {
       SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
       info.setShowTypeValue(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
