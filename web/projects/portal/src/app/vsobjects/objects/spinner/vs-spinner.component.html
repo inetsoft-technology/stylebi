@@ -17,6 +17,7 @@
 -->
 @if (model) {
   @let textVerticalPosition = getTextVerticalPosition();
+  @let showAsLabel = showLabel && !model.vizModern;
   <vs-input-label-wrapper
     [labelModel]="model.labelModel"
     [labelSelected]="model.labelSelected"
@@ -34,9 +35,29 @@
     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
     [popZIndex]="model.objectFormat.zIndex"
     (selectLabel)="selectLabel($event)">
-    <div class="vs-spinner" (click)="clearLabelSelection()">
-      @if (!showLabel && model) {
+    <div class="vs-spinner" [class.has-steppers]="model.vizModern"
+      [style.border-radius.px]="model.vizModern ? model.objectFormat.roundCorner : null"
+      (click)="clearLabelSelection()" (dblclick)="enableEditing()">
+      @if (!showAsLabel && model) {
+        @if (model.vizModern) {
+          <button type="button" class="vs-spinner-btn vs-spinner-btn-decrement"
+            [class.disable-actions-fade]="!model.enabled"
+            [disabled]="isDecrementDisabled"
+            [attr.aria-disabled]="isDecrementDisabled"
+            [attr.aria-label]="model.absoluteName + ' _#(Decrease)'"
+            [style.border-top-left-radius.px]="model.objectFormat.roundCorner"
+            [style.border-bottom-left-radius.px]="model.objectFormat.roundCorner"
+            (click)="onDecrementClick()"
+            (mousedown)="$event.preventDefault(); startHold(-1)"
+            (mouseup)="cancelHold()"
+            (mouseleave)="cancelHold()">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M3 8h10" stroke-linecap="round"/>
+            </svg>
+          </button>
+        }
         <input
+          #spinnerInput
           (click)="onClick($event)"
           (blur)="onBlur($event)"
           (keyup.enter)="onBlur($event)"
@@ -45,9 +66,10 @@
           [(ngModel)]="model.value"
           [class.form-control]="model.vizModern"
           [class.disable-actions-fade]="!model.enabled"
+          [class.disable-input]="isInputDisabled()"
           [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
-          [style.text-align]="model.objectFormat.hAlign"
-          [style.padding]="textVerticalPosition"
+          [style.text-align]="model.vizModern ? 'center' : model.objectFormat.hAlign"
+          [style.padding]="model.vizModern ? null : textVerticalPosition"
           [safeFont]="model.objectFormat.font"
           [style.background]="model.objectFormat.background"
           [style.color]="model.objectFormat.foreground"
@@ -59,11 +81,27 @@
           [style.border-top]="model.objectFormat.border.top"
           [style.border-left]="model.objectFormat.border.left"
           [style.border-right]="model.objectFormat.border.right"
-          [style.border-radius.px]="model.objectFormat.roundCorner"
-          (mouseleave)="showLabel = true"
-          (mousedown)="$event.stopPropagation()">
+          [style.border-radius.px]="model.vizModern ? 0 : model.objectFormat.roundCorner"
+          (mouseleave)="showLabel = true">
+        @if (model.vizModern) {
+          <button type="button" class="vs-spinner-btn vs-spinner-btn-increment"
+            [class.disable-actions-fade]="!model.enabled"
+            [disabled]="isIncrementDisabled"
+            [attr.aria-disabled]="isIncrementDisabled"
+            [attr.aria-label]="model.absoluteName + ' _#(Increase)'"
+            [style.border-top-right-radius.px]="model.objectFormat.roundCorner"
+            [style.border-bottom-right-radius.px]="model.objectFormat.roundCorner"
+            (click)="onIncrementClick()"
+            (mousedown)="$event.preventDefault(); startHold(1)"
+            (mouseup)="cancelHold()"
+            (mouseleave)="cancelHold()">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M8 3v10M3 8h10" stroke-linecap="round"/>
+            </svg>
+          </button>
+        }
       }
-      @if (showLabel && model) {
+      @if (showAsLabel && model) {
         <div class="text-label"
           [style.background-color]="model.objectFormat.background"
           [style.justify-content]="model.objectFormat.justifyContent"

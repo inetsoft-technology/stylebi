@@ -17,6 +17,7 @@
  */
 import {
    Component,
+   ElementRef,
    EventEmitter,
    Input,
    NgZone,
@@ -25,7 +26,8 @@ import {
    OnInit,
    Output,
    SimpleChanges,
-   HostListener
+   HostListener,
+   ViewChild
 } from "@angular/core";
 import { Observable, Subscription } from "rxjs";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
@@ -61,6 +63,7 @@ implements OnInit, OnChanges, OnDestroy
       this._selected = selected;
 
       if(!selected && this.model) {
+         this.model.editing = false;
          this.model.labelSelected = false;
       }
    }
@@ -70,10 +73,15 @@ implements OnInit, OnChanges, OnDestroy
    }
    @Input() submitted: Observable<boolean>;
    @Output() spinnerClicked = new EventEmitter();
+   @ViewChild("spinnerInput") spinnerInputRef: ElementRef<HTMLInputElement>;
    private _updateOnChange: boolean = true;
    private pendingChange: boolean = false;
    private ovalue: any = null;
    showLabel: boolean = true;
+   private holdInitTimer: any = null;
+   private holdRepeatTimer: any = null;
+   private holdAccelTimer: any = null;
+   private holdRepeatInterval: number = 60;
 
    @Input()
    set updateOnChange(value: boolean) {
@@ -129,10 +137,102 @@ implements OnInit, OnChanges, OnDestroy
       if(this.submittedForm) {
          this.submittedForm.unsubscribe();
       }
+
+      this.cancelHold();
+   }
+
+   enableEditing(): void {
+      this.model.editing = !this.viewer;
+
+      if(this.model.editing) {
+         this.spinnerInputRef?.nativeElement?.focus();
+      }
+   }
+
+   isInputDisabled(): boolean {
+      return !this.viewer && (!this.selected || !this.model?.editing);
+   }
+
+   get isIncrementDisabled(): boolean {
+      return !this.model.enabled || (this.model.value != null && this.model.value >= this.model.max);
+   }
+
+   get isDecrementDisabled(): boolean {
+      return !this.model.enabled || (this.model.value != null && this.model.value <= this.model.min);
+   }
+
+   onIncrementClick(): void {
+      if(!this.isIncrementDisabled) {
+         this.stepValue(this.model.increment);
+         this.spinnerInputRef?.nativeElement?.focus();
+      }
+   }
+
+   onDecrementClick(): void {
+      if(!this.isDecrementDisabled) {
+         this.stepValue(-this.model.increment);
+         this.spinnerInputRef?.nativeElement?.focus();
+      }
+   }
+
+   startHold(direction: 1 | -1): void {
+      this.cancelHold();
+      this.holdRepeatInterval = 60;
+
+      this.holdInitTimer = setTimeout(() => {
+         this.holdInitTimer = null;
+
+         const doRepeat = () => {
+            if(direction > 0 && this.isIncrementDisabled || direction < 0 && this.isDecrementDisabled) {
+               this.cancelHold();
+               return;
+            }
+
+            this.stepValue(direction * this.model.increment);
+            this.holdRepeatTimer = setTimeout(doRepeat, this.holdRepeatInterval);
+         };
+
+         doRepeat();
+
+         this.holdAccelTimer = setTimeout(() => {
+            this.holdRepeatInterval = 20;
+         }, 1500);
+      }, 300);
+   }
+
+   cancelHold(): void {
+      if(this.holdInitTimer != null) {
+         clearTimeout(this.holdInitTimer);
+         this.holdInitTimer = null;
+      }
+
+      if(this.holdRepeatTimer != null) {
+         clearTimeout(this.holdRepeatTimer);
+         this.holdRepeatTimer = null;
+      }
+
+      if(this.holdAccelTimer != null) {
+         clearTimeout(this.holdAccelTimer);
+         this.holdAccelTimer = null;
+      }
+   }
+
+   private stepValue(delta: number): void {
+      this.model.value = (isNaN(this.model.value) ? 0 : this.model.value) + delta;
+      this.validate();
+      this.spinnerClicked.emit(this.model.absoluteName);
+      this.unappliedChange = true;
+
+      if(this.model.refresh && this.updateOnChange || this.model.writeBackDirectly) {
+         this.changeValue();
+      }
+      else {
+         this.pendingChange = true;
+         this.formInputService.addPendingValue(this.model.absoluteName, this.model.value);
+      }
    }
 
    onClick(event: MouseEvent) {
-      event.stopPropagation();
       this.validate();
       this.spinnerClicked.emit(this.model.absoluteName);
       this.unappliedChange = true;
