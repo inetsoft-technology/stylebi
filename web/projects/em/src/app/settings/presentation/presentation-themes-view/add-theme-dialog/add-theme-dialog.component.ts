@@ -37,6 +37,9 @@ import { NgIf } from "@angular/common";
     imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, FileChooserComponent, MatIcon, MatSuffix, MatDialogActions, MatButton, MatDialogClose]
 })
 export class AddThemeDialogComponent implements OnInit {
+   /** Mirrors CustomTheme.DEFAULT_THEME_ID: the reserved ID of the built-in theme. */
+   private static readonly RESERVED_ID = "default";
+
    form: UntypedFormGroup;
    private ids: string[];
    private jar: FileData;
@@ -74,7 +77,11 @@ export class AddThemeDialogComponent implements OnInit {
    private createId(): string {
       const nameValue = this.form.get("name").value;
 
-      if(!this.ids.includes(nameValue)) {
+      // "default" is the reserved ID of the built-in theme and doubles as the sentinel meaning
+      // "no custom theme selected", so a theme that took it as its ID would be stored and listed
+      // but never applied. The server reserves it too; check it here as well so a stale or failed
+      // /themes/ids response cannot reintroduce the collision. The name is kept either way.
+      if(!this.ids.includes(nameValue) && nameValue !== AddThemeDialogComponent.RESERVED_ID) {
          return nameValue;
       }
 
@@ -87,7 +94,10 @@ export class AddThemeDialogComponent implements OnInit {
 
       let newId = base;
 
-      for(let counter = 1; !!this.ids.find(s => s == newId); counter++) {
+      for(let counter = 1;
+          !!this.ids.find(s => s == newId) || newId === AddThemeDialogComponent.RESERVED_ID;
+          counter++)
+      {
          newId = base + counter;
       }
 
