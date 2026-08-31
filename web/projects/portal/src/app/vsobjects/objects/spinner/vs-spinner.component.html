@@ -82,7 +82,8 @@
           [style.border-left]="model.objectFormat.border.left"
           [style.border-right]="model.objectFormat.border.right"
           [style.border-radius.px]="model.vizModern ? 0 : model.objectFormat.roundCorner"
-          (mouseleave)="showLabel = true">
+          (mouseleave)="showLabel = true"
+          (mousedown)="onMouseDown($event)">
         @if (model.vizModern) {
           <button type="button" class="vs-spinner-btn vs-spinner-btn-increment"
             [class.disable-actions-fade]="!model.enabled"

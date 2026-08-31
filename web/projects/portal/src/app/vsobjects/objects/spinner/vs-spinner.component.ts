@@ -142,6 +142,11 @@ implements OnInit, OnChanges, OnDestroy
    }
 
    enableEditing(): void {
+      if(!this.model.vizModern) {
+         // legacy spinners have no select-then-edit gate, so there is nothing to enable
+         return;
+      }
+
       this.model.editing = !this.viewer;
 
       if(this.model.editing) {
@@ -229,6 +234,14 @@ implements OnInit, OnChanges, OnDestroy
       else {
          this.pendingChange = true;
          this.formInputService.addPendingValue(this.model.absoluteName, this.model.value);
+      }
+   }
+
+   onMouseDown(event: MouseEvent): void {
+      if(!this.model.vizModern) {
+         // legacy spinners have no select-then-edit gate, so the input is always directly
+         // interactive; stop the mousedown from also selecting/dragging the composer object.
+         event.stopPropagation();
       }
    }
 
