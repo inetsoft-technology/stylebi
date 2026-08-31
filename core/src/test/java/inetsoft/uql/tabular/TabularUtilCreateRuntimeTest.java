@@ -69,7 +69,33 @@ class TabularUtilCreateRuntimeTest {
          // to be the checked UnsupportedDatasourceException the "not implemented" path throws —
          // the two signals cannot collapse into the same catch clause at the caller.
          assertTrue(ex.getMessage().contains(DS_NAME));
-         assertTrue(ex.getMessage().contains(BrokenConstructorRuntime.class.getName()));
+         // Review r1 nit: the message must NOT leak the runtime's fully-qualified class name —
+         // it propagates verbatim to the HTTP error body via DatasourceMetaApiController.
+         assertFalse(ex.getMessage().contains(BrokenConstructorRuntime.class.getName()));
+      }
+   }
+
+   @Test
+   void createRuntime_configLookupThrows_stillReturnsNull() throws Exception {
+      // Review r1 finding 3: Config.getConfig().getRuntime(...) sits outside the try/catch that
+      // guards class-loading/construction failures. It must still be treated as "not available",
+      // per this method's javadoc contract (never throws — only ever null), not propagate.
+      XDataSource ds = mock(XDataSource.class);
+      when(ds.getType()).thenReturn("Flaky");
+
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSource(DS_NAME)).thenReturn(ds);
+
+      Config config = mock(Config.class);
+      when(config.getRuntime("Flaky")).thenThrow(new IllegalStateException("config unavailable"));
+
+      try(MockedStatic<XRepository> xrepositoryStatic = mockStatic(XRepository.class);
+          MockedStatic<Config> configStatic = mockStatic(Config.class))
+      {
+         xrepositoryStatic.when(XRepository::getRepository).thenReturn(xrepository);
+         configStatic.when(Config::getConfig).thenReturn(config);
+
+         assertNull(TabularUtil.createRuntime(DS_NAME));
       }
    }
 

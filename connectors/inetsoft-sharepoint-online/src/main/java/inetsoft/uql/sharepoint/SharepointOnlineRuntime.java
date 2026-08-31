@@ -151,6 +151,13 @@ public class SharepointOnlineRuntime extends TabularRuntime implements TabularCa
    //  (b) descends every level, not one — fixing the existing getChildSites() limitation for this
    //      path only. The dropdown's one-level behavior is unchanged because this is new code, not
    //      a modification of getChildSites().
+   // No depth bound: recursion (collectDescendants below) goes as deep as the tenant's actual
+   // subsite nesting, with no cap and no StackOverflowError guard (P5 review r1, nit). Cycle-safe
+   // (the bySiteId de-dup guard below), but a genuinely very deep, non-cyclic subsite chain could
+   // still exhaust the stack. Not fixed this round — real tenants rarely nest this deep, and
+   // rewriting a just-written recursion into an explicit work queue for a low-probability case
+   // isn't worth it — but, per this round's own rule for the grandchild-site limitation, not fixing
+   // it does not mean not saying it.
    static List<SiteRef> listSitesOrThrow(SharepointOnlineDataSource dataSource) throws Exception {
       return withClassLoaderThrowing(() -> doListSitesOrThrow(dataSource));
    }

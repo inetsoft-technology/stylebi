@@ -33,10 +33,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Covers charter assertions C1-C3: {@link TabularCatalogService} must not trust a connector's
- * {@link TabularCatalog}/{@link TabularDatasetSchema} at face value — a null relationships list, a
- * relationship pointing at an unknown dataset, or a blank id/column name must each produce a named
- * exception, not an NPE or a silently-broken wire response.
+ * Covers charter assertions C1-C3 and C6: {@link TabularCatalogService} must not trust a
+ * connector's {@link TabularCatalog}/{@link TabularDatasetSchema} at face value — a null
+ * relationships list, a relationship pointing at an unknown dataset, a blank id/column name, a
+ * dotted dataset id, a blank relationship name, or a mismatched/empty column pairing must each
+ * produce a named exception, not an NPE or a silently-broken wire response.
+ *
+ * C6 was added after P5 review r1 (finding 1): the original C1-C3 pass checked only three of the
+ * SPI's documented invariants, leaving the ones on {@code TabularDatasetRef.id} (no {@code .}) and
+ * {@code TabularRelationship} (non-blank name, paired columns) unchecked — including the very
+ * invariant ({@code id} must not contain {@code .}) that motivated {@code SharepointDatasetId}'s
+ * whole escaping scheme in the sibling implementer.
  *
  * Kept out of {@link TabularCatalogServiceTest} deliberately — that file's stated scope is charter
  * assertion B5 (core carries zero OData knowledge), and charter assertion C5 requires it stay
@@ -172,5 +179,90 @@ class TabularCatalogServiceContractValidationTest {
       assertFalse(ex instanceof UnsupportedDatasourceException);
       assertTrue(ex.getMessage().contains(DS_NAME));
       assertTrue(ex.getMessage().toLowerCase().contains("column"));
+   }
+
+   // ----- C6: TabularDatasetRef.id must not contain '.' -----
+
+   @Test
+   void listTables_dottedDatasetId_throwsNamedException() throws Exception {
+      TabularCatalog catalog =
+         new TabularCatalog(List.of(new TabularDatasetRef("contoso.sharepoint.com")), List.of());
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(catalog, Map.of());
+      TabularCatalogService service = createService(dsName -> runtime);
+
+      Exception ex = assertThrows(Exception.class, () -> service.listTables(DS_NAME));
+
+      assertFalse(ex instanceof UnsupportedDatasourceException);
+      assertTrue(ex.getMessage().contains(DS_NAME));
+      assertTrue(ex.getMessage().contains("contoso.sharepoint.com"),
+         "message must name the offending id: " + ex.getMessage());
+   }
+
+   // ----- C6: TabularRelationship.name must be non-blank -----
+
+   @Test
+   void listTables_blankRelationshipName_throwsNamedException() throws Exception {
+      TabularCatalog catalog = new TabularCatalog(
+         List.of(new TabularDatasetRef("A"), new TabularDatasetRef("B")),
+         List.of(new TabularRelationship("   ", "A", "B", List.of("x"), List.of("y"))));
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(catalog, Map.of());
+      TabularCatalogService service = createService(dsName -> runtime);
+
+      Exception ex = assertThrows(Exception.class, () -> service.listTables(DS_NAME));
+
+      assertFalse(ex instanceof UnsupportedDatasourceException);
+      assertTrue(ex.getMessage().contains(DS_NAME));
+      assertTrue(ex.getMessage().toLowerCase().contains("name"));
+   }
+
+   // ----- C6: TabularRelationship.fromColumns/toColumns must be non-empty and equal-length -----
+
+   @Test
+   void listTables_emptyFromColumns_throwsNamedException() throws Exception {
+      TabularCatalog catalog = new TabularCatalog(
+         List.of(new TabularDatasetRef("A"), new TabularDatasetRef("B")),
+         List.of(new TabularRelationship("R_A_B", "A", "B", List.of(), List.of("y"))));
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(catalog, Map.of());
+      TabularCatalogService service = createService(dsName -> runtime);
+
+      Exception ex = assertThrows(Exception.class, () -> service.listTables(DS_NAME));
+
+      assertFalse(ex instanceof UnsupportedDatasourceException);
+      assertTrue(ex.getMessage().contains(DS_NAME));
+      assertTrue(ex.getMessage().contains("R_A_B"),
+         "message must name the offending relationship: " + ex.getMessage());
+   }
+
+   @Test
+   void listTables_emptyToColumns_throwsNamedException() throws Exception {
+      TabularCatalog catalog = new TabularCatalog(
+         List.of(new TabularDatasetRef("A"), new TabularDatasetRef("B")),
+         List.of(new TabularRelationship("R_A_B", "A", "B", List.of("x"), List.of())));
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(catalog, Map.of());
+      TabularCatalogService service = createService(dsName -> runtime);
+
+      Exception ex = assertThrows(Exception.class, () -> service.listTables(DS_NAME));
+
+      assertFalse(ex instanceof UnsupportedDatasourceException);
+      assertTrue(ex.getMessage().contains(DS_NAME));
+      assertTrue(ex.getMessage().contains("R_A_B"),
+         "message must name the offending relationship: " + ex.getMessage());
+   }
+
+   @Test
+   void listTables_mismatchedColumnListSizes_throwsNamedException() throws Exception {
+      TabularCatalog catalog = new TabularCatalog(
+         List.of(new TabularDatasetRef("A"), new TabularDatasetRef("B")),
+         List.of(new TabularRelationship("R_A_B", "A", "B",
+            List.of("x1", "x2"), List.of("y1"))));
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(catalog, Map.of());
+      TabularCatalogService service = createService(dsName -> runtime);
+
+      Exception ex = assertThrows(Exception.class, () -> service.listTables(DS_NAME));
+
+      assertFalse(ex instanceof UnsupportedDatasourceException);
+      assertTrue(ex.getMessage().contains(DS_NAME));
+      assertTrue(ex.getMessage().contains("R_A_B"),
+         "message must name the offending relationship: " + ex.getMessage());
    }
 }

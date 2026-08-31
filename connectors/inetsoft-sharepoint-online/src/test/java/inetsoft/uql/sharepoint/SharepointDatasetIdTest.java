@@ -93,6 +93,37 @@ class SharepointDatasetIdTest {
          () -> SharepointDatasetId.parse("no-separator-here"));
    }
 
+   // ----- P5 review r1, finding 2: parse() rejects anything compose() could not have produced -----
+
+   @Test
+   void parse_blankSiteComponent_throwsIllegalArgumentException() {
+      // compose() itself doesn't reject a blank component (composing isn't given a datasetId to
+      // validate against); parse() is where illegitimate input must be caught.
+      String id = SharepointDatasetId.compose("", "list-1");
+      assertThrows(IllegalArgumentException.class, () -> SharepointDatasetId.parse(id));
+   }
+
+   @Test
+   void parse_blankListComponent_throwsIllegalArgumentException() {
+      String id = SharepointDatasetId.compose("site-1", "   ");
+      assertThrows(IllegalArgumentException.class, () -> SharepointDatasetId.parse(id));
+   }
+
+   @Test
+   void parse_doesNotRoundTrip_throwsIllegalArgumentException() {
+      // A hand-crafted id with a SECOND, unescaped separator character after the real one — never
+      // producible by compose(), which always escapes every literal separator in its inputs before
+      // joining. indexOf() alone would misparse this by splitting at the first separator and
+      // leaving the second raw separator sitting inside the decoded "list" value; the round-trip
+      // check is what catches it, since re-composing that (site, list) pair would re-escape the
+      // stray separator and therefore not reproduce the original string.
+      String separator = discoverSeparator();
+      String adversarial = "site" + separator + "list" + separator + "extra";
+
+      assertThrows(IllegalArgumentException.class,
+         () -> SharepointDatasetId.parse(adversarial));
+   }
+
    // ----- S3: verified against the Graph client the decoded value actually reaches -----
 
    @Test

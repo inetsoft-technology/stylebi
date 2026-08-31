@@ -44,6 +44,31 @@ import java.util.List;
  * whose {@code toColumns} names a column absent from the target's own reported schema would be a
  * permanently unresolvable declared edge, worse than no edge at all. Honest-drop, same rule OData's
  * own design already established: when no candidate pairing can be verified, drop it and say so.
+ *
+ * <p><b>{@code describeDataset} does NOT validate that {@code datasetId} was one this same data
+ * source's own {@code listDatasets} actually enumerated</b> — a real, deliberate gap, not an
+ * oversight (raised in P5 review r1). {@link SharepointDatasetId#parse} rejects anything that could
+ * not possibly have come out of {@link SharepointDatasetId#compose} (blank site/list, or a string
+ * that doesn't round-trip), but a caller-supplied id whose (site, list) shape is well-formed and
+ * simply never appeared in this data source's own catalog is not rejected before its {@code site}/
+ * {@code list} values reach a live {@code client.sites(site).lists(list).columns()} Graph call.
+ * Unlike OData's {@code ODataRuntime.describeDataset}, which resolves against a bounded snapshot
+ * built by that same source's own prior {@code listDatasets}/{@code $metadata} fetch (so an
+ * unrecognized id can only ever answer "not found"), SharePoint has no analogous snapshot to check
+ * against: full membership validation would require enumerating every site's lists first — which
+ * IS {@code listDatasets} itself, the exact O(sites) cost this class deliberately does not cache
+ * (see above). Doing that enumeration on every {@code describeDataset} call to validate one id
+ * would reverse that no-cache decision for a marginal gain.
+ *
+ * <p>This is NOT a privilege-escalation risk: Microsoft Graph/Azure AD's own site-level permission
+ * model (e.g. {@code Sites.Selected}) is the real authorization boundary underneath the connector's
+ * credentials, and a crafted {@code datasetId} cannot make a Graph call reach a site the connector's
+ * own service principal could not already reach with the identical credential through the
+ * connect-dialog dropdown ({@code SharepointOnlineQuery.getSites()}/{@code getLists()}). The caller
+ * must also already hold READ on this data source ({@code MetadataApiService} checks that before
+ * either {@code listTables} or {@code describeTable} is reached). Full membership validation (and
+ * the cache it would require) is a candidate for a future round if this connector's enumeration
+ * cost ever needs amortizing for other reasons.
  */
 final class SharepointOnlineCatalog {
    private SharepointOnlineCatalog() {

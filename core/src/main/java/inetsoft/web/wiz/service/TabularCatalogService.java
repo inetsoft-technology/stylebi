@@ -93,6 +93,13 @@ public class TabularCatalogService {
          if(ref == null || ref.id() == null || ref.id().isBlank()) {
             throw new Exception("Data source '" + dsName + "' returned a dataset with a blank id.");
          }
+         if(ref.id().contains(".")) {
+            // TabularDatasetRef.id's javadoc: "Must not contain a '.' character" — wiz's own
+            // bareTableName/sourceMatches split a non-FILE source on '.', so a dotted id would
+            // silently collide two different datasets, or resolve to the wrong one, downstream.
+            throw new Exception("Data source '" + dsName + "' returned a dataset id '" + ref.id() +
+               "' containing '.', which TabularDatasetRef.id's contract forbids.");
+         }
       }
    }
 
@@ -106,11 +113,28 @@ public class TabularCatalogService {
          if(rel == null) {
             throw new Exception("Data source '" + dsName + "' returned a null relationship entry.");
          }
+         if(rel.name() == null || rel.name().isBlank()) {
+            throw new Exception("Data source '" + dsName + "' declared a relationship with a " +
+               "blank name.");
+         }
          if(!ids.contains(rel.fromDataset()) || !ids.contains(rel.toDataset())) {
             throw new Exception("Data source '" + dsName + "' declared relationship '" + rel.name() +
                "' referencing an unknown dataset ('" + rel.fromDataset() + "' -> '" +
                rel.toDataset() + "'); every relationship endpoint must be one of the datasets " +
                "returned by listDatasets.");
+         }
+         if(rel.fromColumns() == null || rel.fromColumns().isEmpty() ||
+            rel.toColumns() == null || rel.toColumns().isEmpty())
+         {
+            throw new Exception("Data source '" + dsName + "' declared relationship '" +
+               rel.name() + "' with an empty fromColumns/toColumns list; both must be non-empty " +
+               "and positionally paired.");
+         }
+         if(rel.fromColumns().size() != rel.toColumns().size()) {
+            throw new Exception("Data source '" + dsName + "' declared relationship '" +
+               rel.name() + "' with fromColumns/toColumns of different sizes (" +
+               rel.fromColumns().size() + " vs " + rel.toColumns().size() +
+               "); they must be positionally paired.");
          }
       }
    }

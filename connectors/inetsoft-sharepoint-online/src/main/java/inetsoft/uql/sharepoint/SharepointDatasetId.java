@@ -42,6 +42,21 @@ final class SharepointDatasetId {
 
    record Parsed(String site, String list) {}
 
+   /**
+    * Parses a dataset id previously produced by {@link #compose}.
+    *
+    * This is a shape check, not a membership check: it rejects anything that could not possibly
+    * have come out of {@link #compose} for this data source, but does NOT confirm the resulting
+    * (site, list) pair is one this data source's {@code listDatasets} would actually enumerate —
+    * see {@link SharepointOnlineCatalog}'s javadoc for why that fuller check is not done here and
+    * why that residual is not a privilege-escalation risk.
+    *
+    * @throws IllegalArgumentException if {@code datasetId} has no separator, either decoded
+    *         component is blank, or re-composing the decoded components does not reproduce
+    *         {@code datasetId} exactly (catches, among other things, a second raw, unescaped
+    *         separator character elsewhere in the string, which would otherwise silently split
+    *         into the wrong halves).
+    */
    static Parsed parse(String datasetId) {
       int sep = datasetId.indexOf(SEPARATOR);
 
@@ -49,8 +64,20 @@ final class SharepointDatasetId {
          throw new IllegalArgumentException("Not a SharePoint dataset id: " + datasetId);
       }
 
-      return new Parsed(unescape(datasetId.substring(0, sep)),
-                        unescape(datasetId.substring(sep + 1)));
+      String site = unescape(datasetId.substring(0, sep));
+      String list = unescape(datasetId.substring(sep + 1));
+
+      if(site.isBlank() || list.isBlank()) {
+         throw new IllegalArgumentException(
+            "Not a SharePoint dataset id (blank site or list): " + datasetId);
+      }
+
+      if(!datasetId.equals(compose(site, list))) {
+         throw new IllegalArgumentException(
+            "Not a SharePoint dataset id (does not round-trip): " + datasetId);
+      }
+
+      return new Parsed(site, list);
    }
 
    // Order matters both ways. '%' must be escaped FIRST (else escaping '.'/'~' would introduce new

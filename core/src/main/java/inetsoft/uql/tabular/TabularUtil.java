@@ -1134,7 +1134,18 @@ public class TabularUtil {
          return null;
       }
 
-      String runtimeClass = Config.getConfig().getRuntime(ds.getType());
+      String runtimeClass;
+
+      try {
+         runtimeClass = Config.getConfig().getRuntime(ds.getType());
+      }
+      catch(Exception e) {
+         // Same "not implemented" treatment as the class-loading catch below — this call is close
+         // to a plain map lookup and unlikely to throw, but the method's contract (never throw,
+         // only ever return null) predates this round's split and must not narrow silently.
+         LOG.error("Failed to look up the tabular runtime class for data source {}", dataSource, e);
+         return null;
+      }
 
       if(runtimeClass == null) {
          return null;
@@ -1164,8 +1175,12 @@ public class TabularUtil {
          // production caller, so this is a safe, contained behavior change.
          LOG.error("Failed to construct tabular runtime {} for data source {}",
                    runtimeClass, dataSource, e);
+         // The full RuntimeException (with the FQCN) is logged above for diagnosis; the message
+         // that reaches the caller — and, via DatasourceMetaApiController.handleException, the
+         // HTTP error body — names only the data source, matching the controlled style
+         // UnsupportedDatasourceException already uses in this area, not an internal class name.
          throw new RuntimeException("Failed to construct the tabular runtime for data source '" +
-            dataSource + "' (" + runtimeClass + "): " + e.getMessage(), e);
+            dataSource + "': " + e.getMessage(), e);
       }
    }
 
