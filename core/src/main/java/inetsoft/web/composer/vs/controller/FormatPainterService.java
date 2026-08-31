@@ -217,7 +217,7 @@ public class FormatPainterService {
       VizContext ctx = VizContext.of(info);
 
       if(dataPath != null && dataPath.getType() == TableDataPath.TITLE) {
-         VSTitleChromeDefaults.applyModernDefaultsInPlace(format, ctx);
+         VSTitleChromeDefaults.applyModernDefaultsInPlace(format, ctx, info);
       }
       else if(assembly instanceof TextVSAssembly) {
          VSOutputChromeDefaults.applyModernDefaultsInPlace(format, ctx);

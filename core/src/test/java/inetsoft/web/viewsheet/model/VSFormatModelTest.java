@@ -18,8 +18,13 @@
 package inetsoft.web.viewsheet.model;
 
 import inetsoft.analytic.composition.VSCSSUtil;
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
+import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.VSCompositeFormat;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -32,10 +37,12 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.awt.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, LibManagerTestConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
@@ -54,6 +61,31 @@ class VSFormatModelTest {
       assertEquals(formatModel.getForeground(), VSCSSUtil.getForegroundColor(fg));
       assertEquals(formatModel.getBackground(), VSCSSUtil.getForegroundColor(bg));
       assertEquals(formatModel.getFont(), VSCSSUtil.getFont(font));
+   }
+
+   @Test
+   void aSeededTitleSerialisesTheBottomRuleOnly() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+
+      try {
+         Viewsheet vs = new Viewsheet();
+         TableVSAssembly table = new TableVSAssembly(vs, "Table1");
+         table.getVSAssemblyInfo().initDefaultFormat();
+         VSAssemblyInfo info = table.getVSAssemblyInfo();
+         VSCompositeFormat title = info.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH);
+
+         VSFormatModel model = new VSFormatModel(title, info);
+
+         assertEquals("1px solid #d9d5cc", model.getBorder().getBottom());
+         assertTrue(model.getBorder().getTop().startsWith("0px"),
+                    "a zero-width side draws nothing");
+         // a cleared background is still "value defined" (as null), so VSCSSUtil serialises it as
+         // "" rather than a Java null -- same convention as every other untinted assembly
+         assertEquals("", model.getBackground(), "the modern title lane serialises no fill");
+      }
+      finally {
+         SreeEnv.setProperty("viewsheet.modernVisualization", null);
+      }
    }
 
    @Mock TextVSAssemblyInfo textVSAssemblyInfo;

@@ -197,6 +197,58 @@ class VSTitleChromeDefaultsTest {
       });
    }
 
+   @Test
+   void aSeededTypeIsNotSubstituted() {
+      withProperty("viewsheet.modernVisualization", "true", () -> {
+         VizContext ctx = VizContext.ofGate();
+         VSCompositeFormat fmt = new VSCompositeFormat();
+         ChartVSAssemblyInfo chart = new ChartVSAssemblyInfo();
+         TableVSAssemblyInfo table = new TableVSAssemblyInfo();
+
+         assertSame(fmt, VSTitleChromeDefaults.applyModernDefaults(fmt, ctx, chart),
+                    "a chart carries its title chrome in the stored format");
+         assertSame(fmt, VSTitleChromeDefaults.applyModernDefaults(fmt, ctx, table),
+                    "so does a table");
+      });
+   }
+
+   @Test
+   void aDeferredTypeIsStillSubstituted() {
+      withProperty("viewsheet.modernVisualization", "true", () -> {
+         VizContext ctx = VizContext.ofGate();
+         VSCompositeFormat fmt = new VSCompositeFormat();
+         SelectionListVSAssemblyInfo list = new SelectionListVSAssemblyInfo();
+
+         assertEquals(0xF1EFEA,
+                      rgb(VSTitleChromeDefaults.applyModernDefaults(fmt, ctx, list).getBackground()),
+                      "the selection and input family has not converted yet");
+      });
+   }
+
+   @Test
+   void aNullInfoKeepsTheOldBehaviour() {
+      withProperty("viewsheet.modernVisualization", "true", () -> {
+         VizContext ctx = VizContext.ofGate();
+         VSCompositeFormat fmt = new VSCompositeFormat();
+
+         assertEquals(0xF1EFEA, rgb(VSTitleChromeDefaults.applyModernDefaults(fmt, ctx).getBackground()),
+                      "an unconverted call site keeps substituting");
+      });
+   }
+
+   @Test
+   void theInPlaceVariantSkipsASeededTypeToo() {
+      withProperty("viewsheet.modernVisualization", "true", () -> {
+         VizContext ctx = VizContext.ofGate();
+         VSCompositeFormat fmt = new VSCompositeFormat();
+
+         VSTitleChromeDefaults.applyModernDefaultsInPlace(fmt, ctx, new ChartVSAssemblyInfo());
+
+         assertNull(fmt.getDefaultFormat().getBackgroundValue(),
+                    "nothing is written onto a seeded type's format");
+      });
+   }
+
    private static void withProperty(String name, String value, Runnable body) {
       String saved = SreeEnv.getProperty(name);
 

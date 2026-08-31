@@ -1597,6 +1597,35 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
          objFormat.getDefaultFormat().setBackgroundValue(
             ctx.modern ? VSObjectChromeDefaults.cardBackgroundCss(ctx) : null);
       }
+
+      // the title lane: modern is unfilled with a bottom rule, legacy is the filled band and the
+      // four-side box setDefaultFormat(border = true) writes. Both branches write, because the
+      // legacy one is what Revert relies on to restore a never-modernized table
+      VSCompositeFormat titleFormat = getFormatInfo().getFormat(TITLEPATH);
+
+      if(titleFormat != null) {
+         VSFormat def = titleFormat.getDefaultFormat();
+
+         if(ctx.modern) {
+            def.setBackgroundValue(null);
+            // getBackground() falls back to the bg field when bgval yields nothing, so a clear
+            // has to null both or a runtime background survives it
+            def.setBackground(null);
+            def.setBordersValue(VSTitleChromeDefaults.titleRuleBorders());
+            def.setBorderColorsValue(VSTitleChromeDefaults.titleRuleColors(ctx));
+            def.setForegroundValue(VSTitleChromeDefaults.titleForegroundValue(ctx));
+         }
+         else {
+            def.setBackgroundValue(DEFAULT_TITLE_BG);
+            def.setBordersValue(new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                                           StyleConstants.THIN_LINE, StyleConstants.THIN_LINE));
+            def.setForegroundValue(null);
+         }
+
+         // getForeground() falls back to the fg field when fgval yields nothing, so the clear has
+         // to null both or a runtime foreground survives it
+         def.setForeground(null);
+      }
    }
 
    /**
