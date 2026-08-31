@@ -30,6 +30,7 @@ import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.graph.AxisDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.CompositeTextFormat;
 import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -38,7 +39,10 @@ import inetsoft.web.wiz.model.CreateViewsheetResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.awt.Color;
 import java.security.Principal;
 import java.util.Optional;
 
@@ -310,6 +314,80 @@ class WizAutoBindingServiceSetChartFormatTest {
 
       verify(axis).setMaximum(1000.0);
       assertNull(result.getWarnings());
+   }
+
+   // ── Axis color (RI-004: regression guard against the axis color painting the series instead) ──
+
+   @Test
+   void xAxisColorIsAppliedToTheLineAndLabelsOfEveryXAxis() throws Exception {
+      AxisDescriptor axis = mock(AxisDescriptor.class);
+      CompositeTextFormat labelFormat = mock(CompositeTextFormat.class);
+      when(axis.getAxisLabelTextFormat()).thenReturn(labelFormat);
+      ChartRef xref = mock(ChartRef.class);
+      when(xref.getAxisDescriptor()).thenReturn(axis);
+      VSChartInfo chartInfo = mock(VSChartInfo.class);
+      when(chartInfo.getXFields()).thenReturn(new ChartRef[]{ xref });
+      when(info.getVSChartInfo()).thenReturn(chartInfo);
+
+      ChartFormatRequest request = titleRequest("visualizations-xyz");
+      request.setXAxisColor("#FF0000");
+
+      CreateViewsheetResult result = service.setChartFormat(request, null);
+
+      verify(axis).setLineColor(new Color(0xFF0000));
+      verify(labelFormat).setColor(new Color(0xFF0000));
+      assertNull(result.getWarnings());
+   }
+
+   @Test
+   void xAxisColorRequestOnAChartWithNoXAxisIsReportedWhileTheRestStillApplies() throws Exception {
+      VSChartInfo chartInfo = mock(VSChartInfo.class);
+      when(chartInfo.getXFields()).thenReturn(new ChartRef[0]);
+      when(info.getVSChartInfo()).thenReturn(chartInfo);
+
+      ChartFormatRequest request = titleRequest("visualizations-xyz");
+      request.setXAxisColor("#FF0000");
+
+      CreateViewsheetResult result = service.setChartFormat(request, null);
+
+      verify(info).setTitleValue("Contacts per Account");
+      assertEquals(1, result.getWarnings().size());
+      assertEquals("xAxisColor", result.getWarnings().get(0).getOption());
+   }
+
+   @Test
+   void yAxisColorIsAppliedToTheLineAndLabelsOfEveryYAxisIndependentlyOfXAxisColor() throws Exception {
+      AxisDescriptor yAxis = mock(AxisDescriptor.class);
+      CompositeTextFormat yLabelFormat = mock(CompositeTextFormat.class);
+      when(yAxis.getAxisLabelTextFormat()).thenReturn(yLabelFormat);
+      ChartRef yref = mock(ChartRef.class);
+      when(yref.getAxisDescriptor()).thenReturn(yAxis);
+      VSChartInfo chartInfo = mock(VSChartInfo.class);
+      when(chartInfo.getYFields()).thenReturn(new ChartRef[]{ yref });
+      when(chartInfo.getXFields()).thenReturn(new ChartRef[0]);
+      when(info.getVSChartInfo()).thenReturn(chartInfo);
+
+      ChartFormatRequest request = titleRequest("visualizations-xyz");
+      request.setYAxisColor("#0000FF");
+
+      CreateViewsheetResult result = service.setChartFormat(request, null);
+
+      verify(yAxis).setLineColor(new Color(0x0000FF));
+      verify(yLabelFormat).setColor(new Color(0x0000FF));
+      assertNull(result.getWarnings());
+   }
+
+   @Test
+   void aMalformedAxisColorHexIsRejectedAs400() throws Exception {
+      ChartFormatRequest request = new ChartFormatRequest();
+      request.setWizRuntimeId("rt-1");
+      request.setAssemblyName("vs_1");
+      request.setXAxisColor("not-a-color");
+
+      ResponseStatusException thrown = assertThrows(ResponseStatusException.class,
+         () -> service.setChartFormat(request, null));
+
+      assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
    }
 
    @Test

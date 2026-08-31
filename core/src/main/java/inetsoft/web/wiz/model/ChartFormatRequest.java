@@ -75,6 +75,17 @@ public class ChartFormatRequest {
    public Boolean getYAxisLogarithmic() { return yAxisLogarithmic; }
    public void setYAxisLogarithmic(Boolean yAxisLogarithmic) { this.yAxisLogarithmic = yAxisLogarithmic; }
 
+   /** Hex #RRGGBB for the X-axis's own line and label color; null = no change. Distinct from the chart's
+    *  DATA/series color (set via /viewsheet/colors) — this colors the axis itself. */
+   @JsonProperty("xAxisColor")
+   public String getXAxisColor() { return xAxisColor; }
+   public void setXAxisColor(String xAxisColor) { this.xAxisColor = xAxisColor; }
+
+   /** Hex #RRGGBB for the Y-axis's own line and label color; null = no change. */
+   @JsonProperty("yAxisColor")
+   public String getYAxisColor() { return yAxisColor; }
+   public void setYAxisColor(String yAxisColor) { this.yAxisColor = yAxisColor; }
+
    /** none | top | right | bottom | left | in_place (case-insensitive); null leaves the legend unchanged. */
    public String getLegendPosition() { return legendPosition; }
    public void setLegendPosition(String legendPosition) { this.legendPosition = legendPosition; }
@@ -138,6 +149,8 @@ public class ChartFormatRequest {
    private Double yAxisMax;
    private Double yAxisIncrement;
    private Boolean yAxisLogarithmic;
+   private String xAxisColor;
+   private String yAxisColor;
    private String legendPosition;
    private Boolean markerVisible;
    private String markerShape;
