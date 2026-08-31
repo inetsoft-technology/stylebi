@@ -1107,6 +1107,41 @@ public class TabularUtil {
       return query;
    }
 
+   /**
+    * Creates the runtime for the specified data source, the data-source-level counterpart of
+    * {@link #createQuery(String)}.
+    *
+    * Returns a NEW instance on every call — the same lifetime createQuery has. Anything a
+    * connector wants to remember between calls must therefore be held statically by the
+    * connector, not on the runtime instance.
+    *
+    * @return the runtime, or {@code null} if the source does not exist, is not tabular, or its
+    *         connector plugin is not loaded.
+    */
+   public static TabularRuntime createRuntime(String dataSource) {
+      try {
+         XDataSource ds = XRepository.getRepository().getDataSource(dataSource);
+
+         if(ds == null) {
+            return null;
+         }
+
+         String runtimeClass = Config.getConfig().getRuntime(ds.getType());
+
+         if(runtimeClass == null) {
+            return null;
+         }
+
+         return (TabularRuntime) Config.getConfig().getClass(ds.getType(), runtimeClass)
+            .getDeclaredConstructor().newInstance();
+      }
+      catch(Exception e) {
+         LOG.error("Failed to create a tabular runtime for the given data source: {}",
+                   dataSource, e);
+         return null;
+      }
+   }
+
    public static void setSessionId(String sessionId) {
       TabularUtil.sessionId.set(sessionId);
    }
