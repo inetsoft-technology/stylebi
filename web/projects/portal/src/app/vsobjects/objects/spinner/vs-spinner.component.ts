@@ -224,17 +224,7 @@ implements OnInit, OnChanges, OnDestroy
 
    private stepValue(delta: number): void {
       this.model.value = (isNaN(this.model.value) ? 0 : this.model.value) + delta;
-      this.validate();
-      this.spinnerClicked.emit(this.model.absoluteName);
-      this.unappliedChange = true;
-
-      if(this.model.refresh && this.updateOnChange || this.model.writeBackDirectly) {
-         this.changeValue();
-      }
-      else {
-         this.pendingChange = true;
-         this.formInputService.addPendingValue(this.model.absoluteName, this.model.value);
-      }
+      this.commitChange(this.model.writeBackDirectly);
    }
 
    onMouseDown(event: MouseEvent): void {
@@ -252,25 +242,20 @@ implements OnInit, OnChanges, OnDestroy
          event.stopPropagation();
       }
 
-      this.validate();
-      this.spinnerClicked.emit(this.model.absoluteName);
-      this.unappliedChange = true;
-
-      if(this.model.refresh && this.updateOnChange || this.model.writeBackDirectly) {
-         this.changeValue();
-      }
-      else {
-         this.pendingChange = true;
-         this.formInputService.addPendingValue(this.model.absoluteName, this.model.value);
-      }
+      this.commitChange(this.model.writeBackDirectly);
    }
 
    onBlur(event: MouseEvent) {
+      // unlike onClick/stepValue, onBlur has no writeBackDirectly bypass
+      this.commitChange(false);
+   }
+
+   private commitChange(bypassRefreshGate: boolean): void {
       this.validate();
       this.spinnerClicked.emit(this.model.absoluteName);
       this.unappliedChange = true;
 
-      if(this.model.refresh && this.updateOnChange) {
+      if(this.model.refresh && this.updateOnChange || bypassRefreshGate) {
          this.changeValue();
       }
       else {
