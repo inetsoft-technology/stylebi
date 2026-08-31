@@ -121,6 +121,20 @@ public final class VSDensityDefaults {
    }
 
    /**
+    * Whether height matches one of the three density-derived control heights (24/28/30) at any
+    * tier, regardless of the org's current density. Used to revert a modernized control's height
+    * back to AssetUtil.defh when its mark is cleared - unlike round corner, a control's Dimension
+    * has no separate user-override tier to fall back on, so this is a best-effort substitute: a
+    * control an author manually resized to exactly one of these three pixel values is also reset.
+    * Accepted because leaving every modernized control's height permanently changed on Revert is
+    * worse than that narrow false positive.
+    */
+   public static boolean isControlHeight(int height) {
+      return height == controlHeightForMode(DENSE) || height == controlHeightForMode(COMPACT) ||
+         height == controlHeightForMode(COMFORTABLE);
+   }
+
+   /**
     * Title-lane height for one assembly: the density row when the assembly is marked, its author
     * has not set a height, and the stored height is still the type's pre-density default;
     * otherwise the stored height unchanged. The stored height is a parameter so a composer dialog

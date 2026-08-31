@@ -426,6 +426,9 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
       if(ctx.modern && getPixelSize().height == AssetUtil.defh) {
          setPixelSize(new Dimension(getPixelSize().width, VSDensityDefaults.controlHeight(ctx)));
       }
+      else if(!ctx.modern && VSDensityDefaults.isControlHeight(getPixelSize().height)) {
+         setPixelSize(new Dimension(getPixelSize().width, AssetUtil.defh));
+      }
    }
 
    /**

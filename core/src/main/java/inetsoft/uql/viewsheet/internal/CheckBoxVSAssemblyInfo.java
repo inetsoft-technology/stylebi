@@ -458,6 +458,11 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
       if(ctx.modern && getPixelSize().height == 2 * AssetUtil.defh) {
          setPixelSize(new Dimension(getPixelSize().width, 2 * VSDensityDefaults.controlHeight(ctx)));
       }
+      else if(!ctx.modern && getPixelSize().height % 2 == 0 &&
+         VSDensityDefaults.isControlHeight(getPixelSize().height / 2))
+      {
+         setPixelSize(new Dimension(getPixelSize().width, 2 * AssetUtil.defh));
+      }
    }
 
    /**

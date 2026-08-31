@@ -121,6 +121,21 @@ class VSDensityDefaultsTest {
    }
 
    @Test
+   void isControlHeightMatchesAllThreeTiers() {
+      assertTrue(VSDensityDefaults.isControlHeight(24), "dense");
+      assertTrue(VSDensityDefaults.isControlHeight(28), "compact");
+      assertTrue(VSDensityDefaults.isControlHeight(30), "comfortable");
+   }
+
+   @Test
+   void isControlHeightRejectsEverythingElse() {
+      assertFalse(VSDensityDefaults.isControlHeight(AssetUtil.defh));
+      assertFalse(VSDensityDefaults.isControlHeight(20));
+      assertFalse(VSDensityDefaults.isControlHeight(40));
+      assertFalse(VSDensityDefaults.isControlHeight(0));
+   }
+
+   @Test
    void normalizeModeKeepsRecognizedValues() {
       assertEquals("comfortable", VSDensityDefaults.normalizeMode("comfortable"));
       assertEquals("compact", VSDensityDefaults.normalizeMode("compact"));

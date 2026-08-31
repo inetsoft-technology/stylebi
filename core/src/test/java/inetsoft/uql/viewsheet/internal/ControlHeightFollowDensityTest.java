@@ -39,6 +39,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * is called a second time here with an explicit VizContext, the same way Modernize (and, for a
  * freshly created assembly, the two-arg AbstractVSAssembly constructor's later mark stamp) call
  * it again after construction - see VSAssemblyInfo.seedChromeDefaults()'s own Javadoc.
+ *
+ * Also verifies the reverse direction: VizModernizeUtil.revert() clears the mark and calls
+ * seedChromeDefaults() again with ctx.modern == false, so height must go back to the legacy
+ * default too, the same way round corner already does - see VSDensityDefaults.isControlHeight().
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -84,6 +88,29 @@ class ControlHeightFollowDensityTest {
    }
 
    @Test
+   void spinnerHeightRestoresLegacyOnRevert() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      SpinnerVSAssemblyInfo info = new SpinnerVSAssemblyInfo();
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+      assertEquals(30, info.getPixelSize().height, "modernized before revert");
+
+      // VizModernizeUtil.revert() clears the mark and re-seeds with a non-modern context
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(AssetUtil.defh, info.getPixelSize().height, "reverted back to legacy");
+   }
+
+   @Test
+   void spinnerHeightAtACustomValueIsUnaffectedByRevert() {
+      SpinnerVSAssemblyInfo info = new SpinnerVSAssemblyInfo();
+      info.setPixelSize(new Dimension(info.getPixelSize().width, 40));
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(40, info.getPixelSize().height, "a genuinely custom height is never reverted");
+   }
+
+   @Test
    void comboBoxHeightFollowsDensityWhenMarkedModern() {
       SreeEnv.setProperty("viewsheet.density", "compact");
       ComboBoxVSAssemblyInfo info = new ComboBoxVSAssemblyInfo();
@@ -123,5 +150,28 @@ class ControlHeightFollowDensityTest {
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
 
       assertEquals(60, info.getPixelSize().height, "an author-resized checkbox is never substituted");
+   }
+
+   @Test
+   void checkBoxHeightRestoresLegacyTwoRowRatioOnRevert() {
+      SreeEnv.setProperty("viewsheet.density", "compact");
+      CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+      assertEquals(2 * 28, info.getPixelSize().height, "modernized before revert");
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(2 * AssetUtil.defh, info.getPixelSize().height, "reverted back to legacy 2x ratio");
+   }
+
+   @Test
+   void checkBoxHeightAtAnOddValueIsUnaffectedByRevert() {
+      CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
+      // odd height can never be 2 * a control height, so the %2==0 guard must reject it outright
+      info.setPixelSize(new Dimension(info.getPixelSize().width, 61));
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(61, info.getPixelSize().height, "an odd custom height is never reverted");
    }
 }
