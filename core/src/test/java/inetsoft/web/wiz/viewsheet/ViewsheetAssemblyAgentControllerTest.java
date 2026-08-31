@@ -898,6 +898,54 @@ class ViewsheetAssemblyAgentControllerTest {
       verify(rep).getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false));
    }
 
+   /**
+    * reloadBaseWorksheet performs its own independent getSheet call and can fail even after the
+    * endpoint's earlier probe succeeded (permission change, storage error, corrupt worksheet XML
+    * in the narrow window between the two fetches). Without a rollback, a failure here would leave
+    * wentry set / ws null -- this bug's own exact broken state -- on a session the already-based
+    * guard would then refuse to ever retry. Regression for docs/teams/2026-08-30-bug-76332's
+    * 06-review-r1.md finding.
+    */
+   @Test
+   void attachBaseWorksheetRollsBackSetBaseEntryWhenReloadBaseWorksheetFails() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      doThrow(new java.io.IOException("worksheet XML corrupt"))
+         .when(vs).reloadBaseWorksheet(any(), any());
+
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.attachBaseWorksheet("tok",
+            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+               "Sample Queries/customers", null),
+            agent));
+      assertTrue(ex.getMessage().contains("Failed to attach base worksheet"));
+
+      // setBaseEntry is called twice: once with the real entry (before reloadBaseWorksheet
+      // throws), once with null to roll back -- confirms the failure path doesn't leave the
+      // session in the wentry-set/ws-null state this bug is about.
+      ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(vs, times(2)).setBaseEntry(entryCaptor.capture());
+      assertEquals("Sample Queries/customers", entryCaptor.getAllValues().get(0).getPath());
+      assertNull(entryCaptor.getAllValues().get(1));
+   }
+
    @Test
    void attachBaseWorksheetRefusesWhenAlreadyBased() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");

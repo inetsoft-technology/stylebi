@@ -1068,6 +1068,14 @@ public class ViewsheetAssemblyAgentController {
          vs.reloadBaseWorksheet(rep, xp);
       }
       catch(Exception e) {
+         // reloadBaseWorksheet performs its own independent getSheet call and can fail even
+         // after the probe above succeeded (a permission change, storage error, or corrupt
+         // worksheet XML in the narrow window between the two fetches). Roll back setBaseEntry
+         // so a failed attach leaves the session exactly as it was before this call -- without
+         // this, wentry would stay set while the worksheet (ws) never got populated, reproducing
+         // this bug's own broken state, and the guard above would then refuse every retry with a
+         // misleading "already has a base worksheet" message.
+         vs.setBaseEntry(null);
          throw new PairingException("Failed to attach base worksheet: " + e.getMessage(), e);
       }
 
