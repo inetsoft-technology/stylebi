@@ -22,14 +22,13 @@ import java.util.List;
 /**
  * A relationship the SOURCE ITSELF declares between two of its datasets — not an inferred one.
  *
- * <p><b>Stated residual (P5 review r2, declined as candidate work; see
- * {@code SharepointOnlineCatalog}'s javadoc for the fuller reasoning):</b>
- * {@code TabularCatalogService} checks {@code fromColumns}/{@code toColumns} for non-emptiness and
- * equal size, but does NOT verify that an entry actually names a real column of
- * {@code fromDataset}/{@code toDataset}'s own schema — doing so would require the
- * {@code listDatasets} phase to call {@code describeDataset} for every referenced dataset, which
- * reverses the SPI's two-phase separation (the reason a connector like SharePoint does not cache
- * between phases). A connector emitting a relationship is responsible for this invariant itself.
+ * <p><b>Stated residual:</b> {@code TabularCatalogService} checks {@code fromColumns}/
+ * {@code toColumns} for non-emptiness and equal size, but does NOT verify that an entry actually
+ * names a real column of {@code fromDataset}/{@code toDataset}'s own schema — doing so would
+ * require the {@code listDatasets} phase to call {@code describeDataset} for every referenced
+ * dataset, which reverses the SPI's two-phase separation (the reason a connector like SharePoint
+ * does not cache between phases). A connector emitting a relationship is responsible for this
+ * invariant itself.
  *
  * @param name        stable identifier for this edge within the catalog; non-blank, and unique
  *                    within the catalog.

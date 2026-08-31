@@ -201,7 +201,7 @@ public class TabularCatalogService {
          }
          if(!XSCHEMA_TYPE_CONSTANTS.contains(column.type())) {
             // TabularColumn.type's javadoc: "any XSchema type constant" — a closed vocabulary of
-            // 21, not the handful the javadoc names as examples (P5 review r3). This catches input
+            // 21, not the handful the javadoc names as examples. This catches input
             // that never used the vocabulary at all ("varchar", a typo, null) — it cannot and does
             // not catch a semantically wrong but valid choice (a date column labeled STRING); no
             // whitelist can. Deliberately every declared constant, not a curated subset: a
@@ -231,6 +231,13 @@ public class TabularCatalogService {
       throws Exception
    {
       if(schema.keyColumns() == null) {
+         // Stated residual: TabularDatasetSchema.keyColumns is documented "Never null", but a null
+         // here is tolerated rather than rejected. Unlike TabularCatalog.relationships() — also
+         // documented "Never null", and enforced above (C1), because a null there is a real NPE in
+         // toTablesResponse's for-each — a null keyColumns is fully absorbed by toDataset below:
+         // `schema.keyColumns() == null || schema.keyColumns().isEmpty() ? null : ...` produces an
+         // identical OsiDataset.primaryKey either way. Rejecting it would only punish a connector
+         // that passed null instead of List.of() to no observable difference.
          return;
       }
 

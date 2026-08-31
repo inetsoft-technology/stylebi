@@ -24,9 +24,7 @@ package inetsoft.uql.tabular;
  * @param type any {@link inetsoft.uql.schema.XSchema} type constant — e.g. XSchema.STRING, LONG,
  *             DOUBLE, DATE, TIME_INSTANT, TIME, BOOLEAN. The names listed here are illustrative,
  *             not exhaustive: the actual, closed vocabulary is every {@code public static final
- *             String} constant {@code XSchema} itself declares (P5 review r3 — an earlier trailing
- *             "..." on this list was read as open-ended and cost a full round to resolve; it is
- *             not open-ended). The connector maps its own native type onto this vocabulary; the
- *             native type name does not cross this boundary.
+ *             String} constant {@code XSchema} itself declares. The connector maps its own native
+ *             type onto this vocabulary; the native type name does not cross this boundary.
  */
 public record TabularColumn(String name, String type) {}

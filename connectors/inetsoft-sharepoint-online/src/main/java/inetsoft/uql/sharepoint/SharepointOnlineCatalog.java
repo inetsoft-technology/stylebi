@@ -45,20 +45,15 @@ import java.util.List;
  * permanently unresolvable declared edge, worse than no edge at all. Honest-drop, same rule OData's
  * own design already established: when no candidate pairing can be verified, drop it and say so.
  *
- * <p><b>Stated residual (P5 review r2, declined by the lead as candidate work):</b> even where a
- * connector DOES emit relationships, {@code TabularCatalogService} does not verify that
- * {@code TabularRelationship.fromColumns}/{@code toColumns} actually name real columns of
- * {@code fromDataset}/{@code toDataset}'s own reported schema — see
- * {@link TabularRelationship}'s javadoc for the same note. Checking it would mean the
- * {@code listDatasets} phase transitively calling {@code describeDataset} for every dataset any
- * relationship references, which reverses the two-phase separation this class's own no-cache
- * decision above depends on. Not enforced, and said to be not enforced, rather than silently
- * assumed — this connector's own honest-drop above sidesteps the question by emitting no
- * relationships at all, but the gap is in the shared validation layer, not specific to SharePoint.
+ * <p>SharePoint's own honest-drop above sidesteps a related question by emitting no relationships
+ * at all, but even where a connector DOES emit relationships, {@code TabularCatalogService} does
+ * not verify {@code fromColumns}/{@code toColumns} name real columns of their datasets' own
+ * schemas — see {@link TabularRelationship}'s javadoc for the stated reason (a gap in the shared
+ * validation layer, not specific to SharePoint).
  *
  * <p><b>{@code describeDataset} does NOT validate that {@code datasetId} was one this same data
  * source's own {@code listDatasets} actually enumerated</b> — a real, deliberate gap, not an
- * oversight (raised in P5 review r1). {@link SharepointDatasetId#parse} rejects anything that could
+ * oversight. {@link SharepointDatasetId#parse} rejects anything that could
  * not possibly have come out of {@link SharepointDatasetId#compose} (blank site/list, or a string
  * that doesn't round-trip), but a caller-supplied id whose (site, list) shape is well-formed and
  * simply never appeared in this data source's own catalog is not rejected before its {@code site}/
@@ -71,11 +66,10 @@ import java.util.List;
  * (see above). Doing that enumeration on every {@code describeDataset} call to validate one id
  * would reverse that no-cache decision for a marginal gain.
  *
- * <p>This is NOT a privilege-escalation risk — but the reason is a stronger, more directly
- * verifiable one than "the dropdown reaches the same credential" (P5 review r2 corrected this):
- * {@code SharepointOnlineQuery.setSite}/{@code setList} are plain, unvalidated {@code String}
- * setters, and {@code @PropertyEditor(tagsMethod = "getSites"/"getLists")} only populates a UI
- * dropdown — it enforces nothing server-side. So anyone who already holds whatever permission lets
+ * <p>This is NOT a privilege-escalation risk. {@code SharepointOnlineQuery.setSite}/
+ * {@code setList} are plain, unvalidated {@code String} setters, and
+ * {@code @PropertyEditor(tagsMethod = "getSites"/"getLists")} only populates a UI dropdown — it
+ * enforces nothing server-side. So anyone who already holds whatever permission lets
  * them author and run a query against this data source can point {@code runQuery} at ANY
  * {@code (site, list)} string the connector's credential can reach, with no dependency on
  * {@code listDatasets}/the dropdown ever having enumerated it first — and that path returns actual
