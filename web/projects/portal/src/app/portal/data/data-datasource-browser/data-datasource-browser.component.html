@@ -95,7 +95,7 @@
       <div class="datasource-table-header d-flex align-items-center th-cell-border flex-grow-0 flex-shrink-0">
         @if (selectionOn) {
           <div class="col-sm-1 table-cell-padding-sm">
-            <input type="checkbox" class="align-middle"
+            <input type="checkbox" class="align-middle form-check-input"
               [checked]="selectAllChecked"
               (change)="selectAllChanged($event.target.checked)"/>
           </div>
@@ -181,7 +181,7 @@
             (click)="updateAssetSelection(datasource, $event)">
             @if (selectionOn) {
               <div class="col-sm-1 table-cell-padding-sm">
-                <input type="checkbox" class="align-middle"
+                <input type="checkbox" class="align-middle form-check-input"
                   [checked]="selectedItems.includes(datasource)"
                   (change)="updateSelection(datasource)"
                   (click)="$event.stopPropagation()"/>

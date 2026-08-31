@@ -21,7 +21,7 @@
       <thead class="thead-light">
         <tr>
           <th class="table-header">
-            <input type="checkbox" [ngModel]="isModelAllSelected()"
+            <input type="checkbox" class="form-check-input" [ngModel]="isModelAllSelected()"
               (ngModelChange)="selectionAll($event)">
           </th>
           @for (header of tableHeaders; track header.name) {
@@ -35,7 +35,7 @@
         @for (model of models; track model.name; let i = $index) {
           <tr>
             <td>
-              <input type="checkbox" [ngModel]="isModelSelected(model)"
+              <input type="checkbox" class="form-check-input" [ngModel]="isModelSelected(model)"
                 (ngModelChange)="selectionChanged($event, model)">
             </td>
             @for (header of tableHeaders; track header.name) {
