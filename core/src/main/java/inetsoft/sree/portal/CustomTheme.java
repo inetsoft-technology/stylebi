@@ -30,6 +30,30 @@ import java.util.*;
  */
 public final class CustomTheme implements XMLSerializable, Cloneable {
    /**
+    * The reserved theme identifier that denotes the built-in theme. It doubles as the sentinel
+    * written to the selected-theme pointers ({@code portal.org.selectedThemeId[.<orgID>]} and
+    * {@code Organization.theme}) to mean "no custom theme selected", so it must never be the ID
+    * of an installed custom theme: such a theme is stored and listed, but every consumer of the
+    * pointers reads it as "nothing selected" and the built-in theme is served instead.
+    *
+    * <p>Only the <em>ID</em> is reserved. A theme may still be <em>named</em> "default"; it is
+    * assigned a different ID.
+    */
+   public static final String DEFAULT_THEME_ID = "default";
+
+   /**
+    * Determines whether a theme identifier is reserved and therefore unavailable to a custom
+    * theme.
+    *
+    * @param id the theme identifier to test.
+    *
+    * @return {@code true} if the identifier is reserved.
+    */
+   public static boolean isReservedId(String id) {
+      return DEFAULT_THEME_ID.equals(id);
+   }
+
+   /**
     * Gets the display name of the theme.
     *
     * @return the theme name.
