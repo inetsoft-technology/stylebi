@@ -32,6 +32,9 @@ import inetsoft.uql.XNode;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
+import inetsoft.uql.asset.sync.DependencyTool;
+import inetsoft.uql.asset.sync.RenameDependencyInfo;
+import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.XAttribute;
@@ -104,6 +107,18 @@ class WorksheetAgentControllerTest {
                                                        WorksheetEditService edit,
                                                        WorksheetService ws)
    {
+      return controller(feature, join, sessions, read, edit, ws,
+                        mock(inetsoft.uql.asset.sync.RenameTransformHandler.class));
+   }
+
+   private static WorksheetAgentController controller(SheetAgentFeature feature,
+                                                       SheetJoinService join,
+                                                       SheetSessionService sessions,
+                                                       WorksheetReadService read,
+                                                       WorksheetEditService edit,
+                                                       WorksheetService ws,
+                                                       inetsoft.uql.asset.sync.RenameTransformHandler renameTransformHandler)
+   {
       return new WorksheetAgentController(feature, join, sessions, read, edit, ws,
                                           mock(WorksheetPreviewService.class),
                                           mock(SheetAgentBroadcastService.class),
@@ -113,7 +128,8 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.web.portal.controller.database.QueryManagerService.class),
                                           mock(inetsoft.web.composer.ws.LayoutGraphService.class),
                                           mock(inetsoft.web.portal.controller.database.DataSourceService.class),
-                                          mock(inetsoft.sree.security.SecurityEngine.class));
+                                          mock(inetsoft.sree.security.SecurityEngine.class),
+                                          renameTransformHandler);
    }
 
    private static SheetAgentFeature featureOn() {
@@ -146,7 +162,8 @@ class WorksheetAgentControllerTest {
          mock(WorksheetPreviewService.class), mock(SheetAgentBroadcastService.class),
          xrepository, mock(AssetRepository.class), metadataApiService,
          queryManagerService, mock(LayoutGraphService.class),
-         dataSourceService, securityEngine);
+         dataSourceService, securityEngine,
+         mock(inetsoft.uql.asset.sync.RenameTransformHandler.class));
    }
 
    /** Builds an {@code add_table} EditRequest that routes to addBoundTable() (no logicalModel). */
@@ -3226,8 +3243,17 @@ class WorksheetAgentControllerTest {
       WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
          mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
 
-      Map<String, Object> result = ctrl.save("TOK-SAVE4",
-         new WorksheetAgentController.SaveRequest(null, null), agent);
+      // Unrelated to this test's own concern (PVA-002's reset), but every plain in-place save now
+      // also runs PVA-011's rename check (DependencyTransformer.createRenameInfo), which always
+      // calls DependencyTool.getDependencies(id) once even when there is nothing to rename --
+      // stub it so this test doesn't reach the real Spring-backed dependency storage service.
+      Map<String, Object> result;
+
+      try(MockedStatic<DependencyTool> dependencyTool = mockStatic(DependencyTool.class)) {
+         dependencyTool.when(() -> DependencyTool.getDependencies(anyString())).thenReturn(List.of());
+
+         result = ctrl.save("TOK-SAVE4", new WorksheetAgentController.SaveRequest(null, null), agent);
+      }
 
       assertEquals(Boolean.TRUE, result.get("ok"));
       verify(connectedRvs).resetRuntime();
@@ -3266,6 +3292,168 @@ class WorksheetAgentControllerTest {
          new WorksheetAgentController.SaveRequest("Orders WS Copy", null), agent);
 
       verify(connectedRvs, never()).resetRuntime();
+   }
+
+   // ---------------------------------------------------------------------------
+   // save -- PVA-011: a plain re-save must cascade a column/table rename to already-saved
+   // dependent assets (e.g. a bound viewsheet), the same "Dependencies Changed" update the
+   // Composer UI's own Save button performs -- there is no user in an MCP session to answer
+   // that dialog, so this must happen unconditionally.
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Regression for Bug PVA-011: {@code save()} used to call only
+    * {@code worksheetService.setWorksheet(...)}, never {@code DependencyTransformer.createRenameInfo}
+    * / {@code RenameTransformHandler.addTransformTask} -- so a column renamed via
+    * {@code rename_column} and then saved through this endpoint left every already-saved dependent
+    * viewsheet's binding silently pointing at the old name. A rename with a real persisted
+    * dependent must now synchronously cascade (waitDone=true) and say so in the response.
+    */
+   @Test
+   void plainSaveInPlaceCascadesRenamedColumnToDependentAsset() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+
+      Worksheet worksheet = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(worksheet, "T", "DISCOUNT");
+      worksheet.addAssembly(t);
+
+      // Simulate rename_column("T", "DISCOUNT", "DISCOUNT_PCT"): the display name changes (here,
+      // via alias) but oldName is left untouched -- exactly what DependencyTransformer.
+      // addAssemblyRenameInfo diffs against to detect the rename.
+      ColumnRef discount = (ColumnRef) t.getColumnSelection(false).getAttribute("DISCOUNT");
+      discount.setOldName("DISCOUNT");
+      discount.setAlias("DISCOUNT_PCT");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(entry);
+      when(rws.getWorksheet()).thenReturn(worksheet);
+      when(rws.getCurrent()).thenReturn(3);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-SAVE6"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-6"));
+
+      WorksheetService ws = mock(WorksheetService.class);
+      when(ws.getRuntimeSheets(eq(agent))).thenReturn(new RuntimeSheet[0]);
+
+      RenameTransformHandler renameTransformHandler = mock(RenameTransformHandler.class);
+
+      // DependencyTransformer.createRenameInfo(rws) resolves dependents through
+      // DependencyTool.getDependencies(entryId), which is backed by a live cluster/storage
+      // service; stub it to report the worksheet has one dependent asset (a viewsheet), the way a
+      // real installation's persisted dependency graph would.
+      AssetEntry dependentViewsheet = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "Orders VS", null);
+
+      try(MockedStatic<DependencyTool> dependencyTool = mockStatic(DependencyTool.class)) {
+         dependencyTool.when(() -> DependencyTool.getDependencies(anyString()))
+            .thenReturn(List.of(dependentViewsheet));
+
+         WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+            mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws,
+            renameTransformHandler);
+
+         Map<String, Object> result = ctrl.save("TOK-SAVE6",
+            new WorksheetAgentController.SaveRequest(null, null), agent);
+
+         assertEquals(Boolean.TRUE, result.get("ok"));
+         assertEquals(Boolean.TRUE, result.get("dependenciesUpdated"),
+            "a save that found a renamed column with a real dependent must report the cascade");
+         assertNotNull(result.get("message"));
+         verify(renameTransformHandler)
+            .addTransformTask(any(RenameDependencyInfo.class), eq(true));
+      }
+   }
+
+   /**
+    * An ordinary re-save with no rename must not invoke the cascade at all -- the common case
+    * (the vast majority of saves) stays exactly as fast/simple as before this fix.
+    */
+   @Test
+   void plainSaveInPlaceDoesNotCascadeWhenNoColumnWasRenamed() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+
+      Worksheet worksheet = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(worksheet, "T", "DISCOUNT");
+      worksheet.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(entry);
+      when(rws.getWorksheet()).thenReturn(worksheet);
+      when(rws.getCurrent()).thenReturn(3);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-SAVE7"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-7"));
+
+      WorksheetService ws = mock(WorksheetService.class);
+      when(ws.getRuntimeSheets(eq(agent))).thenReturn(new RuntimeSheet[0]);
+
+      RenameTransformHandler renameTransformHandler = mock(RenameTransformHandler.class);
+
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws,
+         renameTransformHandler);
+
+      Map<String, Object> result;
+
+      try(MockedStatic<DependencyTool> dependencyTool = mockStatic(DependencyTool.class)) {
+         dependencyTool.when(() -> DependencyTool.getDependencies(anyString())).thenReturn(List.of());
+
+         result = ctrl.save("TOK-SAVE7", new WorksheetAgentController.SaveRequest(null, null), agent);
+      }
+
+      assertEquals(Boolean.TRUE, result.get("ok"));
+      assertNull(result.get("dependenciesUpdated"));
+      verifyNoInteractions(renameTransformHandler);
+   }
+
+   /** A Save-As must not cascade -- a brand-new entry has no pre-existing dependent to update. */
+   @Test
+   void saveAsDoesNotCascadeRenames() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry oldEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+
+      Worksheet worksheet = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(worksheet, "T", "DISCOUNT");
+      worksheet.addAssembly(t);
+
+      ColumnRef discount = (ColumnRef) t.getColumnSelection(false).getAttribute("DISCOUNT");
+      discount.setOldName("DISCOUNT");
+      discount.setAlias("DISCOUNT_PCT");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(oldEntry);
+      when(rws.getWorksheet()).thenReturn(worksheet);
+      when(rws.getCurrent()).thenReturn(4);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-SAVE8"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-8"));
+
+      WorksheetService ws = mock(WorksheetService.class);
+      when(ws.getRuntimeSheets(eq(agent))).thenReturn(new RuntimeSheet[0]);
+
+      RenameTransformHandler renameTransformHandler = mock(RenameTransformHandler.class);
+
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws,
+         renameTransformHandler);
+
+      Map<String, Object> result = ctrl.save("TOK-SAVE8",
+         new WorksheetAgentController.SaveRequest("Orders WS Copy", null), agent);
+
+      assertEquals(Boolean.TRUE, result.get("ok"));
+      assertNull(result.get("dependenciesUpdated"));
+      verifyNoInteractions(renameTransformHandler);
    }
 
    // ---------------------------------------------------------------------------
