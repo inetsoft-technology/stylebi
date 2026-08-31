@@ -968,16 +968,30 @@ class WorksheetEditServiceMutatorsTest {
          ed.editDateRangeColumn("T", "QuarterOfYear(orderDate)", "MONTH_OF_YEAR"));
 
       // Reaches the exact name the rename above just produced.
-      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "MONTH_OF_YEAR"));
+      //
+      // This used to be a silent no-op: addAttribute's exclusivity check dropped the duplicate and
+      // the call still answered success, so a caller issuing it believed a second column existed.
+      // add_date_range_column now refuses the collision up front (requireDerivedColumnFits,
+      // mirroring what ValueRangeService:204 does with an ERROR command), which is the same
+      // outcome for the asset and an honest one for the caller.
+      //
+      // Note for whoever revisits the cached-hashCode fix described above: it is untouched and
+      // still required, but this path no longer reaches it -- the guard runs first, and it
+      // compares names rather than relying on hashCode. So this test now locks in the refusal,
+      // not the hash invalidation.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "MONTH_OF_YEAR")));
+
+      assertTrue(ex.getMessage().contains("MonthOfYear(orderDate)"), ex.getMessage());
 
       ColumnSelection cs = t.getColumnSelection(false);
       long monthColumns = cs.stream()
          .filter(r -> "MonthOfYear(orderDate)".equals(r.getName()))
          .count();
       assertEquals(1, monthColumns,
-         "add_date_range_column must refuse (no-op) rather than duplicate a name the edit just produced");
+         "the refused add must not have duplicated the name the edit just produced");
       assertEquals(4, cs.getAttributeCount(),
-         "the colliding add must be a no-op — no net column added");
+         "and must not have added a column");
    }
 
    @Test
@@ -3364,6 +3378,280 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(ex.getMessage().contains("name"), ex.getMessage());
       assertTrue(ex.getMessage().contains("amount"), ex.getMessage());
       assertNull(ws.getAssembly("U"), "nothing may be added when the sources do not line up");
+   }
+
+   /**
+    * ws.removeAssembly does not clean up what depended on the deleted table: its removeMirrors call
+    * returns immediately unless the assembly BEING deleted is itself an outer mirror. So the
+    * dependent survived pointing at a name that was gone, every query against it failed, and no
+    * tool on this surface could repair it. Reproduced live before the guard existed.
+    *
+    * <p>The UI's own write path checks the same thing with the same helper
+    * ({@code WSRemoveAssembliesService#removeAssemblies}, AssetEventUtil.hasDependent); it skips
+    * and warns because it is deleting a batch, while this op deletes one named table and so
+    * refuses.
+    */
+   @Test
+   void deleteTableRefusesWhenSomethingIsBuiltOnIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "A"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.deleteTable("A")));
+
+      assertTrue(ex.getMessage().contains("built on it"), ex.getMessage());
+      assertNotNull(ws.getAssembly("A"), "the table must still be there");
+      assertNotNull(ws.getAssembly("M"), "and so must the mirror that depends on it");
+   }
+
+   /** A table nothing depends on still deletes — the guard must not block ordinary deletion. */
+   @Test
+   void deleteTableStillDeletesWhenNothingDependsOnIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "A", col("id", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.deleteTable("A"));
+
+      assertNull(ws.getAssembly("A"));
+   }
+
+   /**
+    * AssemblyInfo:254 writes the name into a CDATA section verbatim, so a name containing the
+    * terminator closes it early and leaves malformed XML in storage. The Composer's Angular
+    * whitelist refuses it; nothing on this path did, and the save path validates no assembly name.
+    *
+    * <p>Only the terminator is refused, not the whole whitelist: '/' and '"' are legal CDATA
+    * content and round-trip intact, so refusing them here would break names that already work.
+    */
+   @Test
+   void renameTableRefusesANameThatWouldBreakTheStoredXml() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.renameTable("A", "bad]]>name")));
+
+      assertTrue(ex.getMessage().contains("]]>"), ex.getMessage());
+      assertNotNull(ws.getAssembly("A"), "the rename must not have happened");
+      assertNull(ws.getAssembly("bad]]>name"));
+   }
+
+   /** A slash and a quote are legal CDATA content, so the guard must let them through. */
+   @Test
+   void renameTableAllowsCharactersTheComposerRefusesButStorageAccepts() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "A", col("id", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.renameTable("A", "a/b\"c"));
+
+      assertNotNull(ws.getAssembly("a/b\"c"));
+   }
+
+   /**
+    * A negative limit is a mistake, not a way to say "unlimited". The Composer's control refuses it
+    * (FormValidators.positiveIntegerInRange); this path folded it into -1 and reported success, so
+    * a caller asking for a limit got none and no indication of it.
+    */
+   @Test
+   void setTablePropertiesRefusesANegativeMaxRows() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "A", col("id", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.setTableProperties("A", null, null, -100, null, null, null, null)));
+
+      assertTrue(ex.getMessage().contains("negative"), ex.getMessage());
+   }
+
+   /**
+    * Making a table primary also exposes it to viewsheets, as WSPrimaryService:84 does. Only
+    * matters for a table whose flag was cleared earlier, which is why the test clears it first.
+    */
+   @Test
+   void setPrimaryAssemblyAlsoMakesTheTableVisibleToViewsheets() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ((inetsoft.uql.asset.internal.TableAssemblyInfo) a.getTableInfo()).setVisibleTable(false);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setPrimaryAssembly("A"));
+
+      assertTrue(((inetsoft.uql.asset.internal.TableAssemblyInfo) a.getTableInfo()).isVisibleTable(),
+                 "the primary table must be reachable from a viewsheet binding");
+   }
+
+   /**
+    * The aggregate flag follows whether the table groups, not which display mode is selected:
+    * TableModeService#setLiveTableMode:353 and #setDefaultTableMode:334 compute it, while
+    * full/detail/edit force it false. "live" and "default" left it untouched here, so a table
+    * switched to "full" earlier kept aggregate=false after coming back — and isAggregate() is real
+    * query state, selecting the public vs private column selection and forming part of the lens
+    * cache key.
+    */
+   @Test
+   void setTableModeRestoresTheAggregateFlagWhenReturningToLive() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a =
+         table(ws, "A", col("g", XSchema.STRING), col("n", XSchema.INTEGER));
+      ws.addAssembly(a);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate(
+         "A", groups("g"),
+         List.of(new WorksheetMutationSupport.AggregateSpec("n", "SUM", null))));
+      svc.apply("TOK", agent, ed -> ed.setTableMode("A", "full"));
+      assertFalse(((inetsoft.uql.asset.internal.TableAssemblyInfo) a.getTableInfo()).isAggregate(),
+                  "precondition: full mode forces the flag off");
+
+      svc.apply("TOK", agent, ed -> ed.setTableMode("A", "live"));
+
+      assertTrue(((inetsoft.uql.asset.internal.TableAssemblyInfo) a.getTableInfo()).isAggregate(),
+                 "returning to live must restore it, since the table still groups");
+   }
+
+   /**
+    * Both range columns take their name from the source column and the option rather than from the
+    * caller, so issuing the same call twice generated the same name twice — and a second column
+    * with the same identity makes every later lookup by name ambiguous. ValueRangeService:204
+    * refuses it; this path did not.
+    */
+   @Test
+   void addDateRangeColumnRefusesASecondColumnWithTheSameGeneratedName() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "A", col("when", XSchema.DATE)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("A", "when", "YEAR"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("A", "when", "YEAR")));
+
+      assertTrue(ex.getMessage().contains("already exists"), ex.getMessage());
+   }
+
+   /**
+    * {@code Worksheet.addAssembly} replaces a same-named assembly without complaint, so reusing a
+    * name never created a second assembly — it destroyed the first and handed every dependent of
+    * that name to the replacement. Reproduced through this op against a live server: a
+    * concatenation named after one of its own sources became its own source, ended up with zero
+    * columns, and left the concatenation downstream of the destroyed original reading from an empty
+    * table, while the call reported a 500 and all of it stuck.
+    *
+    * <p>The surviving assembly must still be the original, not a replacement — asserting only that
+    * the call threw would pass even if the overwrite had already happened.
+    */
+   @Test
+   void addConcatenationRefusesANameAlreadyInUse() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      EmbeddedTableAssembly b = table(ws, "B", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addConcatenation("A", List.of("A", "B"), "UNION")));
+
+      assertTrue(ex.getMessage().contains("already exists"), ex.getMessage());
+      assertSame(a, ws.getAssembly("A"), "the existing assembly must not be replaced");
+      assertTrue(ws.getAssembly("A") instanceof EmbeddedTableAssembly,
+                 "A must still be the original table, not a concatenation standing in its place");
+   }
+
+   /**
+    * A source listed twice counts its rows twice in the UNION and reports nothing.
+    * {@code ConcatenateTablesService#checkValidity} refuses it with
+    * {@code common.table.unionDuplicate}; this path never ported the check.
+    */
+   @Test
+   void addConcatenationRefusesARepeatedSource() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "A"), "UNION")));
+
+      assertTrue(ex.getMessage().contains("twice"), ex.getMessage());
+      assertNull(ws.getAssembly("U"), "nothing may be added when a source is repeated");
+   }
+
+   /** Same rule as above, reached through the other entry point. */
+   @Test
+   void addConcatSubtableRefusesASourceAlreadyPresent() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      EmbeddedTableAssembly b = table(ws, "B", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addConcatSubtable("U", "A")));
+
+      assertTrue(ex.getMessage().contains("already a source"), ex.getMessage());
+      assertEquals(2, ((ConcatenatedTableAssembly) ws.getAssembly("U")).getTableAssemblies().length,
+                   "the subtable list must be unchanged");
+   }
+
+   /**
+    * The defect this guards: adding a mirror of a concatenation back into that concatenation closed
+    * a C -> M -> C cycle. The mutation committed, {@code apply} checkpointed it, and the caller got
+    * an unhandled 500 from further down the post-edit pipeline — so a caller that reasonably
+    * concluded nothing had changed was wrong.
+    *
+    * <p>Two things make the pre-write placement necessary rather than merely tidy.
+    * {@code Worksheet#checkDependencies} is reached from
+    * {@code AssetQuerySandbox#refreshColumnSelection} only after the commit and the checkpoint. And
+    * {@code AbstractWSAssembly#checkDependency} cannot see a two-node cycle at all:
+    * {@code AssetUtil#getDependedAssemblies0} seeds its visited set with the root and passes
+    * {@code included=false} for it, so a loop back to the root is dropped as already-visited and
+    * never reaches the array it matches against.
+    *
+    * <p>Asserting the subtable count is the point of the test. A version of this fix that threw
+    * after {@code setTableAssemblies} would satisfy the exception assertion and still leave the
+    * cycle in the asset.
+    */
+   @Test
+   void addConcatSubtableRefusesACycleWithoutMutating() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      EmbeddedTableAssembly b = table(ws, "B", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("C", List.of("A", "B"), "UNION"));
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "C"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addConcatSubtable("C", "M")));
+
+      assertTrue(ex.getMessage().contains("circular"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("M"), ex.getMessage());
+      assertEquals(2, ((ConcatenatedTableAssembly) ws.getAssembly("C")).getTableAssemblies().length,
+                   "the cycle must be refused before the subtable list is written");
    }
 
    /**

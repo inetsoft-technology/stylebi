@@ -1864,9 +1864,12 @@ public class WorksheetAgentController {
             editor.setColumnVisibility(req.table(), req.column(),
                                        req.visible() != null && req.visible());
          case "change_column_type" ->
-            editor.changeColumnType(req.table(), req.column(), req.type());
+            // Absent confirmed means force, matching what this op did before the flag existed.
+            editor.changeColumnType(req.table(), req.column(), req.type(),
+                                    req.confirmed() == null || req.confirmed());
          case "add_concatenation" ->
-            editor.addConcatenation(req.name(), req.tables(), req.concatType());
+            editor.addConcatenation(req.name(), req.tables(), req.concatType(),
+                                    req.concatDistinct());
          case "add_mirror" ->
             editor.addMirror(req.name(), req.source());
          case "set_conditions" ->
@@ -1922,7 +1925,7 @@ public class WorksheetAgentController {
             editor.setTableProperties(
                req.table(), req.newName() != null ? req.newName() : req.alias(),
                req.description(), req.maxRows(), req.distinct(), req.mergeable(),
-               req.visibleInViewsheet());
+               req.visibleInViewsheet(), req.rowCount());
          case "add_cross_join" ->
             editor.addCrossJoin(req.name(), req.leftTable(), req.rightTable());
          case "add_merge_join" ->

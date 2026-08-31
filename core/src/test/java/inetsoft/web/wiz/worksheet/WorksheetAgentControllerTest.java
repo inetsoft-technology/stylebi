@@ -554,7 +554,12 @@ class WorksheetAgentControllerTest {
          true,                  // crosstab
          null,                  // labels
          null,                  // choices
-         null                   // joinPaths
+         null,                  // joinPaths
+         null,                  // mergeable
+         null,                  // visibleInViewsheet
+         null,                  // confirmed
+         null,                  // rowCount
+         null                   // concatDistinct
       );
 
       WorksheetAgentController ctrl = controller(featureOn(),
@@ -1110,7 +1115,12 @@ class WorksheetAgentControllerTest {
          null,                        // crosstab
          null,                        // labels
          choices,                     // choices
-         null                         // joinPaths
+         null,                        // joinPaths
+         null,                        // mergeable
+         null,                        // visibleInViewsheet
+         null,                        // confirmed
+         null,                        // rowCount
+         null                         // concatDistinct
       );
 
       ctrl.edit("TOK-AVC", req, agent);
