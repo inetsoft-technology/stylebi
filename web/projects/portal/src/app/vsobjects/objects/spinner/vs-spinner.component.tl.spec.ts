@@ -757,6 +757,34 @@ describe("VSSpinner — onIncrementClick / onDecrementClick", () => {
       comp.onDecrementClick();
       expect(comp.model.value).toBe(0);
    });
+
+   it("should focus the input after stepping when the input is not gated (viewer)", () => {
+      const { comp } = createComponent({
+         viewer: true,
+         model: makeModel({ vizModern: true, value: 0, increment: 20, max: 100 } as any)
+      });
+      const focusSpy = vi.fn();
+      (comp as any).spinnerInputRef = { nativeElement: { focus: focusSpy } };
+
+      comp.onIncrementClick();
+
+      expect(focusSpy).toHaveBeenCalled();
+   });
+
+   it("should NOT focus the input after stepping when it is still select-then-edit gated", () => {
+      const { comp } = createComponent({
+         viewer: false,
+         model: makeModel({ vizModern: true, value: 0, increment: 20, max: 100 } as any)
+      });
+      comp.selected = false; // not yet selected -> isInputDisabled() is true
+      const focusSpy = vi.fn();
+      (comp as any).spinnerInputRef = { nativeElement: { focus: focusSpy } };
+
+      comp.onIncrementClick();
+
+      expect(comp.model.value).toBe(20); // stepping itself is still unaffected by the gate
+      expect(focusSpy).not.toHaveBeenCalled();
+   });
 });
 
 // ---------------------------------------------------------------------------

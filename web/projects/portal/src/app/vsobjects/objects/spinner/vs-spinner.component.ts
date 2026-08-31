@@ -169,13 +169,22 @@ implements OnInit, OnChanges, OnDestroy
    onIncrementClick(): void {
       if(!this.isIncrementDisabled) {
          this.stepValue(this.model.increment);
-         this.spinnerInputRef?.nativeElement?.focus();
+         this.focusInputIfEditable();
       }
    }
 
    onDecrementClick(): void {
       if(!this.isDecrementDisabled) {
          this.stepValue(-this.model.increment);
+         this.focusInputIfEditable();
+      }
+   }
+
+   private focusInputIfEditable(): void {
+      // stepping is always allowed, but the input itself stays gated behind select-then-edit;
+      // focusing it here would grant real keyboard access around that gate (pointer-events:
+      // none only blocks pointer interaction, not a programmatic .focus()).
+      if(!this.isInputDisabled()) {
          this.spinnerInputRef?.nativeElement?.focus();
       }
    }
