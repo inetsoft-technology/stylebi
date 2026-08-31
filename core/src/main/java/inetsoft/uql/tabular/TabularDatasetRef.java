@@ -30,22 +30,31 @@ package inetsoft.uql.tabular;
  *           {@code OsiDataset.source} on the wiz side ({@code TabularCatalogService.toDataset}
  *           does {@code dataset.setSource(schema.datasetId())}). wiz's own
  *           {@code bareTableName(source, category)}
- *           ({@code wiz-services/src/v1/services/tabularBinding.ts:68-71}) treats {@code source}
- *           as a qualified name and splits it on {@code "."} for every category except
- *           {@code FILE} — which now includes {@code METADATA} — keeping only the last segment;
- *           its sibling {@code sourceMatches}
- *           ({@code wiz-services/src/services/tableDocResolver.ts:27-33}) does the same
- *           unconditional split with no category parameter at all. That is correct for a JDBC
- *           source, where the qualifier really is there to be stripped, and wrong for an opaque
- *           connector-native id: two ids {@code "A.B"} and {@code "C.B"} would both bare-reduce to
- *           {@code "B"} and be reported as duplicates of each other, and lookups could resolve to
- *           the wrong dataset. A connector whose native identity is composite (e.g. SharePoint's
+ *           ({@code wiz-services/src/v1/services/tabularBinding.ts:68-71}) exempts only the
+ *           {@code FILE} category from splitting {@code source} on {@code "."}. Every other
+ *           category still has {@code source} split on {@code "."}, keeping only the last
+ *           segment — {@code METADATA} included. <b>That has NOT been fixed.</b> Nothing in wiz
+ *           exempts a METADATA id from the split today. Its sibling {@code sourceMatches}
+ *           ({@code wiz-services/src/services/tableDocResolver.ts:27-33}) is worse: it takes no
+ *           category parameter at all and always splits.
+ *
+ *           <p>Splitting on {@code "."} is correct for a JDBC source, whose id genuinely is a
+ *           qualified name meant to have its qualifier stripped. It is wrong for an opaque
+ *           connector-native id, which was never a qualified name: two ids {@code "A.B"} and
+ *           {@code "C.B"} would both bare-reduce to {@code "B"} and be reported as duplicates of
+ *           each other, and a lookup could resolve to the wrong dataset. This javadoc constraint
+ *           — no dot in the id — is the SPI's only defense against that today, and it holds only
+ *           because OData's own EDM grammar happens to forbid a dot in an entity set name;
+ *           nothing in this codebase enforces it for a connector that does not have that
+ *           accident of grammar in its favor.
+ *
+ *           <p>A connector whose native identity is composite (e.g. SharePoint's
  *           {@code site → list}, named in this SPI's design doc as the first case expected to need
- *           one) must therefore join its parts with something other than {@code .} — or this
- *           constraint has to be revisited together with making those two wiz-side helpers treat a
- *           METADATA id as opaque instead of qualified, which is the more correct fix and is
- *           deliberately not done as a partial patch here, since {@code sourceMatches} has no
- *           category parameter and fixing only dedup while leaving resolution wrong would be worse
- *           than fixing neither.
+ *           one) must therefore either join its parts with something other than {@code .}, or this
+ *           constraint has to be revisited together with making {@code bareTableName}/
+ *           {@code sourceMatches} treat a METADATA id as opaque instead of qualified — the more
+ *           correct fix, deliberately not done as a partial patch here, since
+ *           {@code sourceMatches} has no category parameter and fixing only dedup while leaving
+ *           resolution wrong would be worse than fixing neither.
  */
 public record TabularDatasetRef(String id) {}

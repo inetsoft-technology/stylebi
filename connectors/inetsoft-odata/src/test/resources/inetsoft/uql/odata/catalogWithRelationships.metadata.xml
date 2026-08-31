@@ -71,6 +71,35 @@
         <Property Name="ID" Type="Edm.Int32" Nullable="false" />
         <Property Name="WarehouseID" Type="Edm.Int32" />
       </EntityType>
+      <EntityType Name="Invoice">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+        <Property Name="ContactID" Type="Edm.Int32" />
+        <!-- Contact (below) is exposed by TWO entity sets (Customers, Vendors). This navigation
+             property has a constraint but no NavigationPropertyBinding, so the target is
+             genuinely ambiguous and must be dropped, not guessed as "the first one declared". -->
+        <NavigationProperty Name="Contact" Type="ODataDemo.Contact">
+          <ReferentialConstraint Property="ContactID" ReferencedProperty="ID" />
+        </NavigationProperty>
+      </EntityType>
+      <EntityType Name="Contact">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+        <Property Name="Name" Type="Edm.String" />
+      </EntityType>
+      <EntityType Name="Employee">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+        <Property Name="Name" Type="Edm.String" />
+        <Property Name="ManagerID" Type="Edm.Int32" />
+        <!-- Employee (this type) is exposed by exactly ONE entity set (Employees) below. This
+             navigation property has a constraint but no NavigationPropertyBinding either, but
+             unlike Invoice.Contact above there is nothing ambiguous here, so the single-candidate
+             fallback must still resolve it rather than being over-corrected into dropping it. -->
+        <NavigationProperty Name="Manager" Type="ODataDemo.Employee">
+          <ReferentialConstraint Property="ManagerID" ReferencedProperty="ID" />
+        </NavigationProperty>
+      </EntityType>
       <EntityContainer Name="DemoService">
         <EntitySet Name="Products" EntityType="ODataDemo.Product">
           <NavigationPropertyBinding Path="Category" Target="Categories" />
@@ -84,6 +113,10 @@
         </EntitySet>
         <EntitySet Name="Suppliers" EntityType="ODataDemo.Supplier" />
         <EntitySet Name="Warehouses" EntityType="ODataDemo.Warehouse" />
+        <EntitySet Name="Invoices" EntityType="ODataDemo.Invoice" />
+        <EntitySet Name="Customers" EntityType="ODataDemo.Contact" />
+        <EntitySet Name="Vendors" EntityType="ODataDemo.Contact" />
+        <EntitySet Name="Employees" EntityType="ODataDemo.Employee" />
       </EntityContainer>
     </Schema>
   </edmx:DataServices>

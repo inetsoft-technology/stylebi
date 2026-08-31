@@ -116,12 +116,57 @@ class ODataCatalogRelationshipTest {
       assertTrue(find(relationships, "Warehouses_Bins").isEmpty());
    }
 
+   /**
+    * P5 review round 2 (PR #4904): {@code resolveBindingTarget}'s own javadoc says the
+    * declaring entity set's {@code <NavigationPropertyBinding>} is "the only thing that is
+    * correct when one entity type is exposed as several entity sets." Before this fix, no
+    * binding meant a silent fallback to whichever entity set happened to be declared first for
+    * that type — a structurally valid, semantically WRONG edge. Contact is exposed by both
+    * "Customers" and "Vendors"; Invoice.Contact has a constraint but no binding, so the target is
+    * genuinely ambiguous and must be dropped rather than guessed.
+    */
+   @Test
+   void navigationPropertyToATypeExposedByMultipleEntitySetsWithNoBindingIsDropped()
+      throws Exception
+   {
+      List<TabularRelationship> relationships =
+         ODataCatalog.parse(schemaNode()).catalog().relationships();
+
+      assertTrue(find(relationships, "Invoices_Contact").isEmpty());
+      assertTrue(relationships.stream().noneMatch(r -> r.fromDataset().equals("Invoices")),
+         "an ambiguous target must be dropped, not guessed as \"Customers\" (the first-declared " +
+         "entity set exposing Contact)");
+   }
+
+   /**
+    * The fix for the ambiguous case above must not over-correct into dropping an edge that was
+    * always fine: Employee is exposed by exactly one entity set ("Employees"), so
+    * Employee.Manager — constraint present, no binding, but nothing ambiguous about it — must
+    * still resolve through the single-candidate fallback.
+    */
+   @Test
+   void navigationPropertyToATypeExposedByExactlyOneEntitySetWithNoBindingStillResolves()
+      throws Exception
+   {
+      List<TabularRelationship> relationships =
+         ODataCatalog.parse(schemaNode()).catalog().relationships();
+
+      TabularRelationship rel = find(relationships, "Employees_Manager")
+         .orElseThrow(() -> new AssertionError("Employees_Manager relationship not found"));
+
+      assertEquals("Employees", rel.fromDataset());
+      assertEquals("Employees", rel.toDataset());
+      assertEquals(List.of("ManagerID"), rel.fromColumns());
+      assertEquals(List.of("ID"), rel.toColumns());
+   }
+
    @Test
    void exactlyTheExpressibleRelationshipsAppearAndNothingElse() throws Exception {
       List<TabularRelationship> relationships =
          ODataCatalog.parse(schemaNode()).catalog().relationships();
 
-      assertEquals(2, relationships.size(),
-         "only Products_Category and OrderDetails_Order can be expressed from this fixture");
+      assertEquals(3, relationships.size(), "only Products_Category, OrderDetails_Order, and " +
+         "Employees_Manager can be expressed from this fixture -- Invoices_Contact is ambiguous " +
+         "and must be dropped");
    }
 }

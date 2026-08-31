@@ -25,6 +25,7 @@ import inetsoft.uql.tabular.*;
 import inetsoft.web.wiz.model.DatabaseTableInfo;
 import inetsoft.web.wiz.model.DatasourceTablesResponse;
 import inetsoft.web.wiz.model.osi.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -45,6 +46,7 @@ import java.util.function.Function;
  */
 @Service
 public class TabularCatalogService {
+   @Autowired
    public TabularCatalogService(XRepository xrepository, ObjectMapper objectMapper) {
       this(xrepository, objectMapper, TabularUtil::createRuntime);
    }

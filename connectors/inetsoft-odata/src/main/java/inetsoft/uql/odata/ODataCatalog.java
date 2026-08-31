@@ -61,7 +61,11 @@ final class ODataCatalog {
       // comes back in the source's own order, per the SPI contract.
       Map<String, Element> entitySetsByName = new LinkedHashMap<>();
       Map<String, String> entitySetToTypeSimpleName = new LinkedHashMap<>();
-      Map<String, String> typeSimpleNameToFirstEntitySet = new LinkedHashMap<>();
+
+      // Every entity set that exposes a given entity type, in document order — NOT just the
+      // first. A relationship target can only fall back to this map when it names exactly one
+      // entry; see addRelationshipIfExpressible.
+      Map<String, List<String>> typeSimpleNameToEntitySets = new LinkedHashMap<>();
 
       NodeList containers = Tool.getChildNodesByTagName(schemaNode, "EntityContainer");
 
@@ -79,7 +83,8 @@ final class ODataCatalog {
             String simpleType = simpleName(Tool.getAttribute(entitySet, "EntityType"));
             entitySetsByName.put(name, entitySet);
             entitySetToTypeSimpleName.put(name, simpleType);
-            typeSimpleNameToFirstEntitySet.putIfAbsent(simpleType, name);
+            typeSimpleNameToEntitySets.computeIfAbsent(simpleType, k -> new ArrayList<>())
+               .add(name);
          }
       }
 
@@ -97,7 +102,7 @@ final class ODataCatalog {
       }
 
       List<TabularRelationship> relationships = buildRelationships(
-         entitySetsByName, entityTypeBySimpleName, typeSimpleNameToFirstEntitySet);
+         entitySetsByName, entityTypeBySimpleName, typeSimpleNameToEntitySets);
 
       return new ODataCatalogSnapshot(
          new TabularCatalog(List.copyOf(datasets), relationships), Map.copyOf(schemasByEntitySet));
@@ -156,16 +161,16 @@ final class ODataCatalog {
    /**
     * Walks every entity set's {@code <NavigationProperty>}s and maps the ones that carry a
     * {@code <ReferentialConstraint>} to a {@link TabularRelationship}. See
-    * {@code 12-spi-design.md} §7.3 for the five cases that are honestly dropped instead: no
-    * constraint, no resolvable target entity set, containment navigation, a property declared on
-    * a {@code <ComplexType>} (structurally excluded here — only {@code <EntityType>} children are
-    * ever visited), and OData v2/v3 {@code <Association>}/{@code <AssociationSet>} (not parsed at
-    * all this round — a v2 service therefore yields an empty relationship list, unchanged from
-    * before this SPI existed).
+    * {@code 12-spi-design.md} §7.3 for the cases that are honestly dropped instead: no
+    * constraint, no resolvable target entity set, an AMBIGUOUS target entity set (see below),
+    * containment navigation, a property declared on a {@code <ComplexType>} (structurally
+    * excluded here — only {@code <EntityType>} children are ever visited), and OData v2/v3
+    * {@code <Association>}/{@code <AssociationSet>} (not parsed at all this round — a v2 service
+    * therefore yields an empty relationship list, unchanged from before this SPI existed).
     */
    private static List<TabularRelationship> buildRelationships(
       Map<String, Element> entitySetsByName, Map<String, Element> entityTypeBySimpleName,
-      Map<String, String> typeSimpleNameToFirstEntitySet)
+      Map<String, List<String>> typeSimpleNameToEntitySets)
    {
       List<TabularRelationship> result = new ArrayList<>();
       Set<String> seen = new HashSet<>();
@@ -185,7 +190,7 @@ final class ODataCatalog {
          for(int i = 0; i < navProps.getLength(); i++) {
             Element nav = (Element) navProps.item(i);
             addRelationshipIfExpressible(nav, fromEntitySet, entitySetElement,
-               typeSimpleNameToFirstEntitySet, result, seen);
+               typeSimpleNameToEntitySets, result, seen);
          }
       }
 
@@ -194,7 +199,7 @@ final class ODataCatalog {
 
    private static void addRelationshipIfExpressible(
       Element nav, String fromEntitySet, Element fromEntitySetElement,
-      Map<String, String> typeSimpleNameToFirstEntitySet, List<TabularRelationship> result,
+      Map<String, List<String>> typeSimpleNameToEntitySets, List<TabularRelationship> result,
       Set<String> seen)
    {
       if("true".equalsIgnoreCase(Tool.getAttribute(nav, "ContainsTarget"))) {
@@ -225,8 +230,27 @@ final class ODataCatalog {
       String toEntitySet = resolveBindingTarget(fromEntitySetElement, navName);
 
       if(toEntitySet == null) {
+         // No <NavigationPropertyBinding> to consult — the ONLY thing that is correct when one
+         // entity type is exposed by several entity sets (see resolveBindingTarget's javadoc).
+         // Falling back to "the first one in document order" would silently guess a
+         // structurally-valid, semantically-WRONG target in exactly that ambiguous case, which is
+         // worse than dropping the edge — the same reasoning this method already applies to a
+         // constraint-less or containment navigation property. So the fallback is only taken when
+         // there is nothing to be ambiguous about: exactly one entity set exposes the type.
          String targetSimpleType = simpleName(stripCollection(Tool.getAttribute(nav, "Type")));
-         toEntitySet = typeSimpleNameToFirstEntitySet.get(targetSimpleType);
+         List<String> candidates =
+            typeSimpleNameToEntitySets.getOrDefault(targetSimpleType, List.of());
+
+         if(candidates.size() == 1) {
+            toEntitySet = candidates.get(0);
+         }
+         else if(candidates.size() > 1) {
+            LOG.debug("Dropping navigation property '{}' on entity set '{}' — its target entity " +
+                      "type '{}' is exposed by {} entity sets ({}) with no " +
+                      "<NavigationPropertyBinding> to say which one this edge points to",
+                      navName, fromEntitySet, targetSimpleType, candidates.size(), candidates);
+            return;
+         }
       }
 
       if(toEntitySet == null) {
