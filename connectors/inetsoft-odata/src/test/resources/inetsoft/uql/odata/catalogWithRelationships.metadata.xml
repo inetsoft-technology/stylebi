@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+  <edmx:DataServices>
+    <Schema Namespace="ODataDemo" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+      <EntityType Name="Product">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+        <Property Name="Name" Type="Edm.String" />
+        <Property Name="CategoryID" Type="Edm.Int32" />
+        <NavigationProperty Name="Category" Type="ODataDemo.Category" Partner="Products">
+          <ReferentialConstraint Property="CategoryID" ReferencedProperty="ID" />
+        </NavigationProperty>
+      </EntityType>
+      <EntityType Name="Category">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+        <Property Name="Name" Type="Edm.String" />
+        <!-- Reverse of Product.Category. The constraint lives only on the dependent (Product)
+             side, as is typical in real services: this side has none, so it must NOT produce a
+             second, reversed edge for the same relationship (Partner-pair dedup). -->
+        <NavigationProperty Name="Products" Type="Collection(ODataDemo.Product)" Partner="Category" />
+      </EntityType>
+      <EntityType Name="Order">
+        <Key>
+          <PropertyRef Name="ID" />
+          <PropertyRef Name="Year" />
+        </Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+        <Property Name="Year" Type="Edm.Int32" Nullable="false" />
+        <Property Name="Total" Type="Edm.Double" />
+      </EntityType>
+      <EntityType Name="OrderDetail">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+        <Property Name="OrderID" Type="Edm.Int32" />
+        <Property Name="OrderYear" Type="Edm.Int32" />
+        <Property Name="Quantity" Type="Edm.Int32" />
+        <!-- Composite foreign key: two <ReferentialConstraint> children, positionally paired. -->
+        <NavigationProperty Name="Order" Type="ODataDemo.Order">
+          <ReferentialConstraint Property="OrderID" ReferencedProperty="ID" />
+          <ReferentialConstraint Property="OrderYear" ReferencedProperty="Year" />
+        </NavigationProperty>
+      </EntityType>
+      <EntityType Name="Supplier">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+        <Property Name="Name" Type="Edm.String" />
+        <!-- SupplierNote (below) has no <EntitySet> anywhere in this document; even with a
+             constraint, this edge cannot be expressed and must be dropped. -->
+        <NavigationProperty Name="PrivateNote" Type="ODataDemo.SupplierNote">
+          <ReferentialConstraint Property="ID" ReferencedProperty="ID" />
+        </NavigationProperty>
+      </EntityType>
+      <EntityType Name="SupplierNote">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+        <Property Name="Text" Type="Edm.String" />
+      </EntityType>
+      <EntityType Name="Warehouse">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+        <Property Name="Name" Type="Edm.String" />
+        <!-- Containment navigation, even though it carries a constraint: must be dropped
+             unconditionally, not merely because it lacks one. -->
+        <NavigationProperty Name="Bins" Type="Collection(ODataDemo.Bin)" ContainsTarget="true">
+          <ReferentialConstraint Property="ID" ReferencedProperty="WarehouseID" />
+        </NavigationProperty>
+      </EntityType>
+      <EntityType Name="Bin">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+        <Property Name="WarehouseID" Type="Edm.Int32" />
+      </EntityType>
+      <EntityType Name="Invoice">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+        <Property Name="ContactID" Type="Edm.Int32" />
+        <!-- Contact (below) is exposed by TWO entity sets (Customers, Vendors). This navigation
+             property has a constraint but no NavigationPropertyBinding, so the target is
+             genuinely ambiguous and must be dropped, not guessed as "the first one declared". -->
+        <NavigationProperty Name="Contact" Type="ODataDemo.Contact">
+          <ReferentialConstraint Property="ContactID" ReferencedProperty="ID" />
+        </NavigationProperty>
+      </EntityType>
+      <EntityType Name="Contact">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+        <Property Name="Name" Type="Edm.String" />
+      </EntityType>
+      <EntityType Name="Employee">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+        <Property Name="Name" Type="Edm.String" />
+        <Property Name="ManagerID" Type="Edm.Int32" />
+        <!-- Employee (this type) is exposed by exactly ONE entity set (Employees) below. This
+             navigation property has a constraint but no NavigationPropertyBinding either, but
+             unlike Invoice.Contact above there is nothing ambiguous here, so the single-candidate
+             fallback must still resolve it rather than being over-corrected into dropping it. -->
+        <NavigationProperty Name="Manager" Type="ODataDemo.Employee">
+          <ReferentialConstraint Property="ManagerID" ReferencedProperty="ID" />
+        </NavigationProperty>
+      </EntityType>
+      <EntityContainer Name="DemoService">
+        <EntitySet Name="Products" EntityType="ODataDemo.Product">
+          <NavigationPropertyBinding Path="Category" Target="Categories" />
+        </EntitySet>
+        <EntitySet Name="Categories" EntityType="ODataDemo.Category">
+          <NavigationPropertyBinding Path="Products" Target="Products" />
+        </EntitySet>
+        <EntitySet Name="Orders" EntityType="ODataDemo.Order" />
+        <EntitySet Name="OrderDetails" EntityType="ODataDemo.OrderDetail">
+          <NavigationPropertyBinding Path="Order" Target="Orders" />
+        </EntitySet>
+        <EntitySet Name="Suppliers" EntityType="ODataDemo.Supplier" />
+        <EntitySet Name="Warehouses" EntityType="ODataDemo.Warehouse" />
+        <EntitySet Name="Invoices" EntityType="ODataDemo.Invoice" />
+        <EntitySet Name="Customers" EntityType="ODataDemo.Contact" />
+        <EntitySet Name="Vendors" EntityType="ODataDemo.Contact" />
+        <EntitySet Name="Employees" EntityType="ODataDemo.Employee" />
+      </EntityContainer>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>

@@ -56,6 +56,15 @@
       <scope>provided</scope>
     </dependency>
 
+    <!-- Backs ODataCatalogCache. `provided`, same treatment as inetsoft-core: core already
+         depends on Caffeine at `compile` scope (see core/pom.xml), so it resolves at runtime
+         through the parent class loader — this plugin must not bundle a second copy. -->
+    <dependency>
+      <groupId>com.github.ben-manes.caffeine</groupId>
+      <artifactId>caffeine</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
     <dependency>
       <groupId>org.apache.olingo</groupId>
       <artifactId>odata-client-core</artifactId>

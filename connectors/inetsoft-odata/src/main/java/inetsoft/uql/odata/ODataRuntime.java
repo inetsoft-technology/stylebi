@@ -19,6 +19,7 @@ package inetsoft.uql.odata;
 
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
+import inetsoft.uql.schema.*;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.AuthorizationClient;
 import inetsoft.uql.tabular.oauth.Tokens;
@@ -53,7 +54,27 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @SuppressWarnings("WeakerAccess")
-public class ODataRuntime extends TabularRuntime {
+public class ODataRuntime extends TabularRuntime implements TabularCatalogProvider {
+   @Override
+   public TabularCatalog listDatasets(TabularDataSource<?> dataSource) throws Exception {
+      return ODataCatalogCache.snapshot((ODataDataSource) dataSource).catalog();
+   }
+
+   @Override
+   public TabularDatasetSchema describeDataset(TabularDataSource<?> dataSource, String datasetId)
+      throws Exception
+   {
+      TabularDatasetSchema schema =
+         ODataCatalogCache.snapshot((ODataDataSource) dataSource).schemasByEntitySet().get(datasetId);
+
+      if(schema == null) {
+         throw new Exception("Entity set '" + datasetId + "' not found in the metadata of '" +
+                             dataSource.getName() + "'.");
+      }
+
+      return schema;
+   }
+
    public XTableNode runQuery(TabularQuery query0, VariableTable params) {
       ODataQuery query = (ODataQuery) query0;
 
@@ -362,6 +383,106 @@ public class ODataRuntime extends TabularRuntime {
       return entitySet;
    }
 
+   static XTypeNode[] getProperties(Node schemaNode, String entityType) {
+      if(schemaNode == null || entityType == null || entityType.isEmpty()) {
+         return new XTypeNode[0];
+      }
+
+      String simpleName = entityType.contains(".") ?
+         entityType.substring(entityType.lastIndexOf('.') + 1) : entityType;
+
+      NodeList entityTypeNodes = Tool.getChildNodesByTagName(schemaNode, "EntityType");
+      Node entityTypeNode = null;
+
+      for(int i = 0; i < entityTypeNodes.getLength(); i++) {
+         Node node = entityTypeNodes.item(i);
+
+         if(simpleName.equals(Tool.getAttribute((Element) node, "Name"))) {
+            entityTypeNode = node;
+            break;
+         }
+      }
+
+      if(entityTypeNode == null) {
+         return new XTypeNode[0];
+      }
+
+      List<XTypeNode> result = new ArrayList<>();
+      NodeList propertyNodes = Tool.getChildNodesByTagName(entityTypeNode, "Property");
+
+      for(int i = 0; i < propertyNodes.getLength(); i++) {
+         Element property = (Element) propertyNodes.item(i);
+         String name = Tool.getAttribute(property, "Name");
+         String edmType = Tool.getAttribute(property, "Type");
+
+         if(name == null || edmType == null) {
+            continue;
+         }
+
+         result.add(toXTypeNode(name, edmType));
+      }
+
+      return result.toArray(new XTypeNode[0]);
+   }
+
+   private static XTypeNode toXTypeNode(String name, String edmType) {
+      String type = toXSchemaType(edmType);
+
+      if(XSchema.BOOLEAN.equals(type)) {
+         return new BooleanType(name);
+      }
+      else if(XSchema.LONG.equals(type)) {
+         return new LongType(name);
+      }
+      else if(XSchema.DOUBLE.equals(type)) {
+         return new DoubleType(name);
+      }
+      else if(XSchema.DATE.equals(type)) {
+         return new DateType(name);
+      }
+      else if(XSchema.TIME_INSTANT.equals(type)) {
+         return new TimeInstantType(name);
+      }
+      else if(XSchema.TIME.equals(type)) {
+         return new TimeType(name);
+      }
+      else {
+         return new StringType(name);
+      }
+   }
+
+   /**
+    * Maps an EDM type name to the {@link XSchema} vocabulary core already uses downstream (the
+    * JDBC branch writes the same constants into its field COMMON extension). Shared by
+    * {@link #toXTypeNode} (still needed for {@code ODataQuery.getOutputColumns()}, which returns
+    * a live {@link XTypeNode}) and {@link ODataCatalog} (which needs the type name only, not the
+    * mutable node — see the tabular catalog SPI design, §3.2).
+    */
+   static String toXSchemaType(String edmType) {
+      switch(edmType) {
+         case "Edm.Boolean":
+            return XSchema.BOOLEAN;
+         case "Edm.Byte":
+         case "Edm.SByte":
+         case "Edm.Int16":
+         case "Edm.Int32":
+         case "Edm.Int64":
+            return XSchema.LONG;
+         case "Edm.Decimal":
+         case "Edm.Double":
+         case "Edm.Single":
+            return XSchema.DOUBLE;
+         case "Edm.Date":
+            return XSchema.DATE;
+         case "Edm.DateTimeOffset":
+            return XSchema.TIME_INSTANT;
+         case "Edm.TimeOfDay":
+            return XSchema.TIME;
+         default:
+            return XSchema.STRING;
+      }
+   }
+
    static Document getMetaDataDocument(ODataDataSource ds) {
       try(CloseableHttpClient httpClient = HttpClients.createDefault()) {
          String metadataUrl = ds.getURL();
@@ -422,8 +543,14 @@ public class ODataRuntime extends TabularRuntime {
    }
 
    public static Node getSchemaNode(ODataDataSource ds) {
-      NodeList nodes = ODataRuntime.getMetaDataDocument((ODataDataSource) ds)
-         .getElementsByTagName("edmx:Edmx");
+      Document metadata = ODataRuntime.getMetaDataDocument((ODataDataSource) ds);
+
+      if(metadata == null) {
+         LOG.warn("Could not get schema for datasource: " + ds.getName());
+         return null;
+      }
+
+      NodeList nodes = metadata.getElementsByTagName("edmx:Edmx");
 
       if(nodes.getLength() > 0) {
          Node elem = nodes.item(0);

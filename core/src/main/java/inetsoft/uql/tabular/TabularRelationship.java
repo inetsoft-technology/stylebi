@@ -1,0 +1,33 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.uql.tabular;
+
+import java.util.List;
+
+/**
+ * A relationship the SOURCE ITSELF declares between two of its datasets — not an inferred one.
+ *
+ * @param name        stable identifier for this edge within the catalog; non-blank.
+ * @param fromDataset a {@link TabularDatasetRef#id()} present in the same {@link TabularCatalog}.
+ * @param toDataset   likewise.
+ * @param fromColumns column names in {@code fromDataset}; non-empty, and the same size as
+ *                    {@code toColumns}, positionally paired.
+ * @param toColumns   column names in {@code toDataset}; non-empty.
+ */
+public record TabularRelationship(String name, String fromDataset, String toDataset,
+                                  List<String> fromColumns, List<String> toColumns) {}
