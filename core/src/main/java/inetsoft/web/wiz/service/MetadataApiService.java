@@ -44,6 +44,7 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import inetsoft.web.wiz.request.SchemaSearchRequest;
@@ -58,15 +59,30 @@ import java.util.regex.Matcher;
 
 @Service
 public class MetadataApiService {
+   // Kept for existing callers/tests that predate the tabular catalog SPI (e.g.
+   // MetadataApiServiceGetJDBCDatasourceTest, MetadataApiServiceGetMetaDataTest,
+   // MetadataApiServiceNonJdbcTreeTest — none of which may be edited, see the charter's
+   // regression requirement). Builds a default, non-injected TabularCatalogService from the
+   // same XRepository/ObjectMapper rather than duplicating this class's whole body.
    public MetadataApiService(XRepository xrepository, DataSourceService dataSourceService,
                              AssetRepository assetRepository, AssetTreeService assetTreeService,
                              ObjectMapper objectMapper)
+   {
+      this(xrepository, dataSourceService, assetRepository, assetTreeService, objectMapper,
+           new TabularCatalogService(xrepository, objectMapper));
+   }
+
+   @Autowired
+   public MetadataApiService(XRepository xrepository, DataSourceService dataSourceService,
+                             AssetRepository assetRepository, AssetTreeService assetTreeService,
+                             ObjectMapper objectMapper, TabularCatalogService tabularCatalogService)
    {
       this.xrepository = xrepository;
       this.dataSourceService = dataSourceService;
       this.assetRepository = assetRepository;
       this.assetTreeService = assetTreeService;
       this.objectMapper = objectMapper;
+      this.tabularCatalogService = tabularCatalogService;
    }
 
    /**
@@ -97,7 +113,18 @@ public class MetadataApiService {
          throw new SecurityException("Access denied to data source: " + dsName);
       }
 
-      JDBCDataSource jdbcDataSource = getJDBCDatasource(dsName);
+      JDBCDataSource jdbcDataSource;
+
+      try {
+         jdbcDataSource = getJDBCDatasource(dsName);
+      }
+      catch(UnsupportedDatasourceException e) {
+         // Not relational, but the connector may still be able to describe its own catalog
+         // through TabularCatalogProvider. No line below this branch runs for a non-JDBC source,
+         // and none of it changed.
+         return tabularCatalogService.describeTable(dsName, data.getTableName());
+      }
+
       DefaultMetaDataProvider metaDataProvider = getMetaDataProvider(dsName);
 
       if(metaDataProvider == null) {
@@ -1182,7 +1209,18 @@ public class MetadataApiService {
 
       // getJDBCDatasource throws clearly if the source doesn't exist or isn't JDBC; call it
       // first so we fail fast before the more expensive metadata connection is opened.
-      JDBCDataSource jdbcDataSource = getJDBCDatasource(dsName);
+      JDBCDataSource jdbcDataSource;
+
+      try {
+         jdbcDataSource = getJDBCDatasource(dsName);
+      }
+      catch(UnsupportedDatasourceException e) {
+         // Not relational, but the connector may still be able to describe its own catalog
+         // through TabularCatalogProvider. No line below this branch runs for a non-JDBC source,
+         // and none of it changed.
+         return tabularCatalogService.listTables(dsName);
+      }
+
       DefaultMetaDataProvider metaDataProvider = getMetaDataProvider(dsName);
 
       if(metaDataProvider == null) {
@@ -2108,6 +2146,7 @@ public class MetadataApiService {
    private final AssetRepository assetRepository;
    private final AssetTreeService assetTreeService;
    private final ObjectMapper objectMapper;
+   private final TabularCatalogService tabularCatalogService;
    // Only TABLE and VIEW are meaningful for data modelling; other types (PROCEDURE, SYNONYM,
    // ALIAS, GLOBAL TEMPORARY, etc.) are excluded.
    private static final Set<String> SUPPORTED_TABLE_TYPES = Set.of("TABLE", "VIEW");

@@ -31,6 +31,7 @@ import inetsoft.web.composer.vs.objects.event.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.web.viewsheet.controller.VSRefreshService;
+import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.RenderWaitSupport;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
@@ -76,7 +77,7 @@ public class ViewsheetEditService {
    static final List<String> OPS = List.of(
       "move", "resize", "resize_title", "add", "remove", "rename", "copy", "cut", "paste",
       "set_z_index", "set_lock", "set_title", "group", "ungroup", "move_from_container",
-      "align", "distribute", "refresh");
+      "align", "distribute", "refresh", "refresh_viewsheet");
 
    public void apply(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
@@ -100,6 +101,7 @@ public class ViewsheetEditService {
       case "move_from_container" -> moveFromContainer(sessionToken, user, request, linkUri);
       case "align", "distribute" -> arrange(sessionToken, user, request, linkUri, op);
       case "refresh" -> refresh(sessionToken, user, request, linkUri);
+      case "refresh_viewsheet" -> refreshWholeSheet(sessionToken, user, linkUri);
       default -> throw new IllegalArgumentException(
          "Unknown edit op '" + request.op() + "'. Supported ops: " + String.join(", ", OPS) + ".");
       }
@@ -467,6 +469,23 @@ public class ViewsheetEditService {
          refreshService.refreshVsAssemblyView(runtimeId, request.assembly(), dispatcher, linkUri,
                                               user);
       });
+   }
+
+   /**
+    * PSM-004 fix C: forces the WHOLE viewsheet to reset and re-render -- the same sheet-level
+    * refresh {@code VSRefreshController}'s {@code /vs/refresh} performs for the Composer UI's
+    * own Refresh toolbar button ({@code VSRefreshService.refreshViewsheet}), previously reachable
+    * only by a human clicking that button. No assembly is named; this is a sibling of
+    * {@code refresh} (per-assembly), not a synonym for it -- in particular it is the one MCP-only
+    * recovery path from a wedged runtime (e.g. a failed whole-sheet
+    * {@code get_viewsheet_image()}) that does not require a human at the browser UI.
+    */
+   private void refreshWholeSheet(String sessionToken, Principal user, String linkUri)
+      throws Exception
+   {
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
+         refreshService.refreshViewsheet(runtimeId, VSRefreshEvent.builder().confirmed(false).build(),
+                                         user, dispatcher, linkUri));
    }
 
    private void moveFromContainer(String sessionToken, Principal user, EditRequest request,

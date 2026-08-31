@@ -29,6 +29,7 @@ import inetsoft.web.composer.vs.objects.event.MoveVSObjectEvent;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.web.viewsheet.controller.VSRefreshService;
+import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
@@ -180,6 +181,28 @@ class ViewsheetEditServiceTest {
          IllegalArgumentException.class,
          () -> service.apply("tok", principal(), request("refresh", null), ""));
       assertTrue(thrown.getMessage().contains("assembly"));
+   }
+
+   /**
+    * Regression for bug PSM-004 (fix C): no agent-API endpoint reached the sheet-level
+    * {@code /vs/refresh} the Composer UI's own Refresh toolbar button uses -- {@code edit
+    * op:"refresh"} only ever reaches the per-assembly {@code refreshVsAssemblyView}. Asserts
+    * {@code refresh_viewsheet} calls the whole-sheet {@code refreshViewsheet} instead, and that
+    * it needs no {@code assembly} (a sibling of {@code refresh}, not a synonym).
+    */
+   @Test
+   void refreshViewsheetDelegatesToTheWholeSheetRefresh() throws Exception {
+      VSRefreshService refreshService = mock(VSRefreshService.class);
+      ViewsheetEditService service = serviceWithRefresh(mock(ViewsheetReadService.class),
+         refreshService);
+
+      service.apply("tok", principal(), request("refresh_viewsheet", null), "linkUri1");
+
+      ArgumentCaptor<VSRefreshEvent> captor = ArgumentCaptor.forClass(VSRefreshEvent.class);
+      verify(refreshService).refreshViewsheet(eq("rt1"), captor.capture(), any(Principal.class),
+                                              any(), eq("linkUri1"));
+      verify(refreshService, never()).refreshVsAssemblyView(any(), any(), any(), any(), any());
+      assertFalse(captor.getValue().confirmed());
    }
 
    @Test

@@ -329,8 +329,16 @@ public class VSExportService {
          ChangedAssemblyList clist = this.coreLifecycleService.createList(false, d, rvs, null);
          // do not reset the form table.
          ViewsheetSandbox.exportRefresh.set(true);
-         coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false, true, true, clist);
-         ViewsheetSandbox.exportRefresh.set(false);
+
+         try {
+            coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false, true, true, clist);
+         }
+         finally {
+            // Must clear even when refreshViewsheet throws -- otherwise this ThreadLocal is left
+            // stuck true (PSM-004), which TableDataVSAScriptable/ViewsheetSandbox both read.
+            ViewsheetSandbox.exportRefresh.set(false);
+         }
+
          return null;
       });
 
