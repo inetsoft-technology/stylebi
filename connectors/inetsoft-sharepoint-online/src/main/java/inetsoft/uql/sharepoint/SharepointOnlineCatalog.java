@@ -60,15 +60,31 @@ import java.util.List;
  * (see above). Doing that enumeration on every {@code describeDataset} call to validate one id
  * would reverse that no-cache decision for a marginal gain.
  *
- * <p>This is NOT a privilege-escalation risk: Microsoft Graph/Azure AD's own site-level permission
- * model (e.g. {@code Sites.Selected}) is the real authorization boundary underneath the connector's
- * credentials, and a crafted {@code datasetId} cannot make a Graph call reach a site the connector's
- * own service principal could not already reach with the identical credential through the
- * connect-dialog dropdown ({@code SharepointOnlineQuery.getSites()}/{@code getLists()}). The caller
- * must also already hold READ on this data source ({@code MetadataApiService} checks that before
- * either {@code listTables} or {@code describeTable} is reached). Full membership validation (and
- * the cache it would require) is a candidate for a future round if this connector's enumeration
- * cost ever needs amortizing for other reasons.
+ * <p>This is NOT a privilege-escalation risk — but the reason is a stronger, more directly
+ * verifiable one than "the dropdown reaches the same credential" (P5 review r2 corrected this):
+ * {@code SharepointOnlineQuery.setSite}/{@code setList} are plain, unvalidated {@code String}
+ * setters, and {@code @PropertyEditor(tagsMethod = "getSites"/"getLists")} only populates a UI
+ * dropdown — it enforces nothing server-side. So anyone who already holds whatever permission lets
+ * them author and run a query against this data source can point {@code runQuery} at ANY
+ * {@code (site, list)} string the connector's credential can reach, with no dependency on
+ * {@code listDatasets}/the dropdown ever having enumerated it first — and that path returns actual
+ * row data, not just a column schema. {@code describeDataset}'s unvalidated {@code datasetId}
+ * therefore grants strictly LESS than a capability that already exists, unmediated, elsewhere in
+ * this same connector.
+ *
+ * <p>The dropdown specifically cannot be cited as the reachability ceiling: its enumeration walks
+ * the same site tree {@code listSitesOrThrow} does (root, its subsites, each group's root site and
+ * subsites), so a site reachable only through a permission grant outside that tree — e.g. a Graph
+ * {@code Sites.Selected} grant on a site not linked under root or under any group — is invisible to
+ * both the dropdown and {@code listDatasets}, yet still reachable by a raw
+ * {@code client.sites(id)} call under the identical credential. Citing "the dropdown already
+ * reaches it" as the safety argument would therefore be false in exactly the case that matters;
+ * citing the already-unmediated {@code runQuery} path does not have that hole.
+ *
+ * <p>The caller must also already hold READ on this data source ({@code MetadataApiService} checks
+ * that before either {@code listTables} or {@code describeTable} is reached). Full membership
+ * validation (and the cache it would require) is a candidate for a future round if this
+ * connector's enumeration cost ever needs amortizing for other reasons.
  */
 final class SharepointOnlineCatalog {
    private SharepointOnlineCatalog() {

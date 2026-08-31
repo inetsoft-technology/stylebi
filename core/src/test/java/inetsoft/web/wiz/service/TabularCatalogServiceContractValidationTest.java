@@ -43,7 +43,11 @@ import static org.mockito.Mockito.when;
  * SPI's documented invariants, leaving the ones on {@code TabularDatasetRef.id} (no {@code .}) and
  * {@code TabularRelationship} (non-blank name, paired columns) unchecked — including the very
  * invariant ({@code id} must not contain {@code .}) that motivated {@code SharepointDatasetId}'s
- * whole escaping scheme in the sibling implementer.
+ * whole escaping scheme in the sibling implementer. Extended again after P5 review r2 (finding 1):
+ * C6 itself still missed the uniqueness half of both "non-blank and unique within one catalog"
+ * ({@code TabularDatasetRef.id}) and "stable identifier ... within the catalog"
+ * ({@code TabularRelationship.name}), plus (r2 nit 2) that {@code TabularDatasetSchema.keyColumns}
+ * entries must actually be one of the dataset's own reported {@code columns}.
  *
  * Kept out of {@link TabularCatalogServiceTest} deliberately — that file's stated scope is charter
  * assertion B5 (core carries zero OData knowledge), and charter assertion C5 requires it stay
@@ -264,5 +268,61 @@ class TabularCatalogServiceContractValidationTest {
       assertTrue(ex.getMessage().contains(DS_NAME));
       assertTrue(ex.getMessage().contains("R_A_B"),
          "message must name the offending relationship: " + ex.getMessage());
+   }
+
+   // ----- C6 (r2, finding 1): TabularDatasetRef.id must be unique within one catalog -----
+
+   @Test
+   void listTables_duplicateDatasetId_throwsNamedException() throws Exception {
+      TabularCatalog catalog = new TabularCatalog(
+         List.of(new TabularDatasetRef("A"), new TabularDatasetRef("A")), List.of());
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(catalog, Map.of());
+      TabularCatalogService service = createService(dsName -> runtime);
+
+      Exception ex = assertThrows(Exception.class, () -> service.listTables(DS_NAME));
+
+      assertFalse(ex instanceof UnsupportedDatasourceException);
+      assertTrue(ex.getMessage().contains(DS_NAME));
+      assertTrue(ex.getMessage().contains("A"),
+         "message must name the offending duplicate id: " + ex.getMessage());
+   }
+
+   // ----- C6 (r2, finding 1): TabularRelationship.name must be unique within one catalog -----
+
+   @Test
+   void listTables_duplicateRelationshipName_throwsNamedException() throws Exception {
+      TabularCatalog catalog = new TabularCatalog(
+         List.of(new TabularDatasetRef("A"), new TabularDatasetRef("B"),
+            new TabularDatasetRef("C")),
+         List.of(new TabularRelationship("R", "A", "B", List.of("x"), List.of("y")),
+            new TabularRelationship("R", "B", "C", List.of("x"), List.of("y"))));
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(catalog, Map.of());
+      TabularCatalogService service = createService(dsName -> runtime);
+
+      Exception ex = assertThrows(Exception.class, () -> service.listTables(DS_NAME));
+
+      assertFalse(ex instanceof UnsupportedDatasourceException);
+      assertTrue(ex.getMessage().contains(DS_NAME));
+      assertTrue(ex.getMessage().contains("R"),
+         "message must name the offending duplicate relationship name: " + ex.getMessage());
+   }
+
+   // ----- C6 (r2, nit 2): TabularDatasetSchema.keyColumns entries must come from columns -----
+
+   @Test
+   void describeTable_keyColumnNotInColumns_throwsNamedException() throws Exception {
+      TabularDatasetSchema schema = new TabularDatasetSchema("Products",
+         List.of(new TabularColumn("ID", XSchema.LONG)), List.of("NotAColumn"));
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(
+         new TabularCatalog(List.of(), List.of()), Map.of("Products", schema));
+      TabularCatalogService service = createService(dsName -> runtime);
+
+      Exception ex = assertThrows(Exception.class,
+         () -> service.describeTable(DS_NAME, "Products"));
+
+      assertFalse(ex instanceof UnsupportedDatasourceException);
+      assertTrue(ex.getMessage().contains(DS_NAME));
+      assertTrue(ex.getMessage().contains("NotAColumn"),
+         "message must name the offending key column: " + ex.getMessage());
    }
 }

@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,6 +90,8 @@ public class TabularCatalogService {
    private static void validateDatasetIds(String dsName, List<TabularDatasetRef> datasets)
       throws Exception
    {
+      Set<String> seen = new HashSet<>();
+
       for(TabularDatasetRef ref : datasets) {
          if(ref == null || ref.id() == null || ref.id().isBlank()) {
             throw new Exception("Data source '" + dsName + "' returned a dataset with a blank id.");
@@ -100,6 +103,13 @@ public class TabularCatalogService {
             throw new Exception("Data source '" + dsName + "' returned a dataset id '" + ref.id() +
                "' containing '.', which TabularDatasetRef.id's contract forbids.");
          }
+         if(!seen.add(ref.id())) {
+            // TabularDatasetRef.id's javadoc: "must be non-blank and unique within one catalog."
+            // A duplicate becomes two DatabaseTableInfo rows with an identical table field, and a
+            // later describeTable(dsName, thatId) has no way to know which one was meant.
+            throw new Exception("Data source '" + dsName + "' returned the dataset id '" +
+               ref.id() + "' more than once; every dataset id must be unique within one catalog.");
+         }
       }
    }
 
@@ -108,6 +118,7 @@ public class TabularCatalogService {
    {
       Set<String> ids = catalog.datasets().stream().map(TabularDatasetRef::id)
          .collect(Collectors.toSet());
+      Set<String> seenNames = new HashSet<>();
 
       for(TabularRelationship rel : catalog.relationships()) {
          if(rel == null) {
@@ -116,6 +127,14 @@ public class TabularCatalogService {
          if(rel.name() == null || rel.name().isBlank()) {
             throw new Exception("Data source '" + dsName + "' declared a relationship with a " +
                "blank name.");
+         }
+         if(!seenNames.add(rel.name())) {
+            // TabularRelationship.name's javadoc: "stable identifier for this edge within the
+            // catalog" — a duplicate is the same "which one did the connector mean" ambiguity
+            // the dataset-id uniqueness check above exists to close.
+            throw new Exception("Data source '" + dsName + "' declared the relationship name '" +
+               rel.name() + "' more than once; every relationship name must be unique within one " +
+               "catalog.");
          }
          if(!ids.contains(rel.fromDataset()) || !ids.contains(rel.toDataset())) {
             throw new Exception("Data source '" + dsName + "' declared relationship '" + rel.name() +
@@ -153,6 +172,7 @@ public class TabularCatalogService {
             "' returned no columns — cannot annotate.");
       }
       validateColumnNames(dsName, target, schema.columns());
+      validateKeyColumns(dsName, target, schema);
 
       return toDataset(dsName, xrepository.getDataSource(dsName).getType(), schema, objectMapper);
    }
@@ -164,6 +184,29 @@ public class TabularCatalogService {
          if(column == null || column.name() == null || column.name().isBlank()) {
             throw new Exception("Data source '" + dsName + "' target '" + target +
                "' returned a column with a blank name.");
+         }
+      }
+   }
+
+   private static void validateKeyColumns(String dsName, String target, TabularDatasetSchema schema)
+      throws Exception
+   {
+      if(schema.keyColumns() == null) {
+         return;
+      }
+
+      Set<String> columnNames = schema.columns().stream().map(TabularColumn::name)
+         .collect(Collectors.toSet());
+
+      for(String keyColumn : schema.keyColumns()) {
+         if(!columnNames.contains(keyColumn)) {
+            // TabularDatasetSchema.keyColumns' javadoc: "names, from columns, that the source
+            // declares as this dataset's key." A dangling name mislabels the reported primary key
+            // rather than causing an ambiguous lookup, but it is still a documented invariant this
+            // validation layer should not silently trust.
+            throw new Exception("Data source '" + dsName + "' target '" + target +
+               "' declared key column '" + keyColumn + "', which is not one of its own reported " +
+               "columns.");
          }
       }
    }
