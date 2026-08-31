@@ -3037,8 +3037,14 @@ public class WorksheetEditService {
        * rejects '/' and '"', but those are legal CDATA content and round-trip intact -- confirmed
        * live -- so enforcing the full rule here would break names that already exist and work
        * while protecting nothing.
+       *
+       * <p>Package-private (not {@code private}) so {@link WorksheetAgentController} can reuse
+       * the same check for the assembly-creation paths it builds directly against
+       * {@code Worksheet}/{@code RuntimeWorksheet} rather than through this {@code Editor} --
+       * {@code createVariable} and {@code addDatasourceScopedNamedGroup} -- instead of
+       * duplicating the rule.
        */
-      private static void requireStorableName(String name, String what) throws PairingException {
+      static void requireStorableName(String name, String what) throws PairingException {
          if(name != null && name.contains("]]>")) {
             throw new PairingException(
                what + " cannot contain \"]]>\". The name is written into a CDATA section " +

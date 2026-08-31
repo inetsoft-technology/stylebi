@@ -707,6 +707,12 @@ public class WorksheetAgentController {
       String attributeName = req.attribute();
       String name = req.name();
 
+      // Same unescaped-CDATA write path as WorksheetEditService.Editor.placeAssembly/
+      // renameTable/addJoin/duplicateAssembly/renameVariable/createVariable -- see
+      // requireStorableName's javadoc. Checked up front, before the permission checks and
+      // datasource/logical-model metadata lookups below, so a doomed name fails fast.
+      WorksheetEditService.Editor.requireStorableName(name, "A named group name");
+
       SourceInfo sinfo;
       DataRef ref;
 
@@ -1595,6 +1601,13 @@ public class WorksheetAgentController {
          String tableName = (name != null && !name.isBlank())
             ? name
             : AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
+
+         // Unlike add_table's datasource-bound paths (addBoundTable/addLogicalModelTable/
+         // addTabularTable), this name comes from the CSV/Excel import's caller-supplied
+         // 'name' verbatim -- it is never run through AssetUtil.normalizeTable, so it needs
+         // its own check for the same unescaped-CDATA write path. See requireStorableName's
+         // javadoc.
+         WorksheetEditService.Editor.requireStorableName(tableName, "A table name");
 
          EmbeddedTableAssembly assembly = new EmbeddedTableAssembly(ws, tableName);
 
@@ -2649,6 +2662,12 @@ public class WorksheetAgentController {
             "Use edit_variable to change its type, label, or default value instead.");
       }
 
+      // Same unescaped-CDATA write path as WorksheetEditService.Editor.placeAssembly/
+      // renameTable/addJoin/duplicateAssembly/renameVariable -- see requireStorableName's
+      // javadoc. This path builds its own DefaultVariableAssembly and adds it directly
+      // rather than through Editor, so it needs its own call.
+      WorksheetEditService.Editor.requireStorableName(name, "A variable name");
+
       AssetVariable var = new AssetVariable(name);
 
       if(label != null) {
@@ -2909,6 +2928,11 @@ public class WorksheetAgentController {
          String tableName = body.name() != null && !body.name().isBlank()
             ? body.name()
             : AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
+
+         // Same caller-supplied-name-used-verbatim gap as createEmbeddedTable: this dedicated
+         // /sql-query endpoint's 'name' never goes through AssetUtil.normalizeTable, so it needs
+         // its own check for the unescaped-CDATA write path. See requireStorableName's javadoc.
+         WorksheetEditService.Editor.requireStorableName(tableName, "A table name");
 
          SQLBoundTableAssembly assembly = new SQLBoundTableAssembly(ws, tableName);
 

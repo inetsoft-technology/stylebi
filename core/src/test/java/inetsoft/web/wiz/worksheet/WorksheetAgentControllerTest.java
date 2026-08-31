@@ -1055,6 +1055,41 @@ class WorksheetAgentControllerTest {
                    "the original variable's type must be unchanged");
    }
 
+   /**
+    * PR #4901 round-2 review follow-up: {@code createVariable} builds a
+    * {@code DefaultVariableAssembly} and adds it directly, bypassing
+    * {@code WorksheetEditService.Editor.placeAssembly}'s {@code requireStorableName} guard the
+    * same way {@code addJoin}/{@code duplicateAssembly}/{@code renameVariable} did before the
+    * round-1 fix. {@code AssemblyInfo:254} writes the name into a CDATA section verbatim, so a
+    * name containing the terminator closes it early and leaves malformed XML in storage.
+    */
+   @Test
+   void editRejectsAddVariableWithANameThatWouldBreakTheStoredXml() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-AV-CDATA"), any())).thenReturn(session("TOK-AV-CDATA"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-AV-CDATA", addVariableRequest("bad]]>name", "double"), agent));
+      assertTrue(ex.getMessage().contains("]]>"), ex.getMessage());
+      assertNull(ws.getAssembly("bad]]>name"));
+   }
+
    @Test
    void editAddVariableWiresChoicesThrough() throws Exception {
       // Regression for Bug #76328: add_variable/edit_variable had no way to populate
@@ -1320,6 +1355,33 @@ class WorksheetAgentControllerTest {
       assertEquals(2, resp.rows());
       assertEquals(2, resp.columns());
       assertNotNull(ws.getAssembly("Imported"));
+   }
+
+   /**
+    * PR #4901 round-2 review follow-up: an audit for other bypasses of the round-1
+    * {@code requireStorableName} guard (added for {@code placeAssembly}/{@code renameTable}/
+    * {@code addJoin}/{@code duplicateAssembly}/{@code renameVariable}) turned up a third site:
+    * {@code createEmbeddedTable}'s {@code name} param -- the import's caller-supplied table
+    * name -- is used verbatim and, unlike {@code add_table}'s datasource-bound paths, is never
+    * run through {@code AssetUtil.normalizeTable} either. {@code AssemblyInfo:254} writes the
+    * name into a CDATA section verbatim, so a name containing the terminator closes it early and
+    * leaves malformed XML in storage.
+    */
+   @Test
+   void importCsvRefusesANameThatWouldBreakTheStoredXml() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
+
+      WorksheetAgentController ctrl = importController("TOK-CSV-CDATA", rws);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.importCsv("TOK-CSV-CDATA",
+            new WorksheetAgentController.ImportCsvRequest("bad]]>name", "a,b\n1,x\n2,y"), agent));
+      assertTrue(ex.getMessage().contains("]]>"), ex.getMessage());
+      assertNull(ws.getAssembly("bad]]>name"));
    }
 
    /**
@@ -2727,6 +2789,35 @@ class WorksheetAgentControllerTest {
          "group mappings must still be applied");
    }
 
+   /**
+    * PR #4901 round-2 review follow-up: {@code addDatasourceScopedNamedGroup} builds a
+    * {@code DefaultNamedGroupAssembly} and adds it directly, the same unescaped-CDATA write path
+    * {@code createVariable} and the round-1 sites ({@code addJoin}/{@code duplicateAssembly}/
+    * {@code renameVariable}) had before being guarded. Checked up front, before any permission
+    * check or datasource/logical-model lookup, so a doomed name fails fast without touching
+    * either mock.
+    */
+   @Test
+   void addNamedGroupRefusesANameThatWouldBreakTheStoredXml() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = namedGroupDatasourceRequest(
+         "bad]]>name", "Examples/Orders", "Order Model", null, null,
+         "Customer", "State", List.of(), false);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-NGD-CDATA", req, agent));
+      assertTrue(ex.getMessage().contains("]]>"), ex.getMessage());
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
    // ---------------------------------------------------------------------------
    // editSqlQuery — FREE_FORM_SQL / ACCESS permission gate
    // ---------------------------------------------------------------------------
@@ -2987,6 +3078,58 @@ class WorksheetAgentControllerTest {
       verify(securityEngine).checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
                                              eq("*"), eq(ResourceAction.ACCESS));
       verify(dataSourceService).checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent));
+   }
+
+   /**
+    * PR #4901 round-2 review follow-up: like {@code createEmbeddedTable}, {@code addSqlQuery}'s
+    * {@code name} is the caller-supplied table name used verbatim -- never run through
+    * {@code AssetUtil.normalizeTable} -- and is written directly into a new
+    * {@code SQLBoundTableAssembly} added to the worksheet. Checked as the very first thing inside
+    * the {@code applyOnRuntime} callback, before any SQL parsing or JDBC metadata work, so a
+    * doomed name fails fast without needing the SQL to actually parse.
+    */
+   @Test
+   void addSqlQueryRefusesANameThatWouldBreakTheStoredXml() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      // Mocked: constructing a real JDBCDataSource pulls a CredentialService bean the
+      // lightweight test context does not provide (see editSqlQueryDeniedByDatasourceReadThrows-
+      // PairingException above), and requireStorableName throws before this datasource's
+      // metadata is ever touched.
+      JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
+      when(xrepository.getDataSource("MyDatasource")).thenReturn(jdbcDs);
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-SQ-CDATA"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, securityEngine, mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      WorksheetAgentController.SqlQueryRequest body =
+         new WorksheetAgentController.SqlQueryRequest("MyDatasource", "SELECT 1", "bad]]>name");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.addSqlQuery("TOK-SQ-CDATA", body, agent));
+      assertTrue(ex.getMessage().contains("]]>"), ex.getMessage());
+      assertNull(ws.getAssembly("bad]]>name"));
    }
 
    // ---------------------------------------------------------------------------
