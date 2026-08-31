@@ -216,17 +216,43 @@ class AdminPropertyCatalogTest {
 
    @Test
    void keepsWithholdingSecretNamesThatNoWriterEncrypts() {
-      // The union must not have narrowed to the allow-list. Fifteen of the sixteen names isSecret
-      // withheld before #76006 are written by nothing that encrypts, so the writer test alone
-      // would have unmasked them all in order to close the four above.
+      // The union must not have narrowed to the allow-list. Fourteen of the sixteen names
+      // isSecret withheld before #76006 are written by nothing that encrypts, so the writer test
+      // alone would have unmasked them all in order to close the four above. (The sixteenth,
+      // enable.changepassword, moved to CONFIRMED_NOT_SECRET below - see the item-4 fix.)
       for(String name : new String[] { "license.key", "jwt.signing.key", "password.encryption.key",
-                                       "sso.rsa.private.key", "log.fluentd.security.password",
-                                       "enable.changepassword" })
+                                       "sso.rsa.private.key", "log.fluentd.security.password" })
       {
          assertFalse(AdminPropertyCatalog.isEncryptedCredential(name),
                      name + ": nothing encrypts this on write, so only the name test can cover it");
          assertTrue(AdminPropertyCatalog.isSecret(name), name + " must stay withheld");
       }
+   }
+
+   @Test
+   void unmasksConfirmedFalsePositivesTheShapeTestCaughtForTheWrongReason() {
+      // Known gap 4 (plugin/admin/README.md): the name-shape test over-matched these three.
+      // Each was individually verified against its writer/reader before being carved out, the
+      // same way ENCRYPTED_CREDENTIALS is verified - narrowing the shared pattern instead would
+      // risk unmasking an unrelated property that happens to share its shape.
+      for(String name : new String[] { "enable.changepassword", "sso.rsa.public.key",
+                                       "google.maps.key" })
+      {
+         assertFalse(AdminPropertyCatalog.isSecret(name),
+                     name + " is not a credential and must be readable through admin-chat");
+      }
+
+      // sso.rsa.public.key's PRIVATE counterpart must still be withheld - the exception list
+      // must name the exact false positive, not loosen the .key suffix test generally.
+      assertTrue(AdminPropertyCatalog.isSecret("sso.rsa.private.key"),
+                 "sso.rsa.private.key is the actual secret and must stay withheld");
+   }
+
+   @Test
+   void unmasksAConfirmedFalsePositiveWhateverCasingTheCallerUses() {
+      assertFalse(AdminPropertyCatalog.isSecret("Enable.ChangePassword"));
+      assertFalse(AdminPropertyCatalog.isSecret("SSO.RSA.Public.Key"));
+      assertFalse(AdminPropertyCatalog.isSecret("Google.Maps.Key"));
    }
 
    @Test
@@ -248,6 +274,30 @@ class AdminPropertyCatalogTest {
       assertTrue(AdminPropertyCatalog.isSecret("mail.smtp.accessToken"));
       assertTrue(AdminPropertyCatalog.isSecret("mail.smtp.refreshToken"));
       assertTrue(AdminPropertyCatalog.isSecret("log.fluentd.security.sharedKey"));
+   }
+
+   @Test
+   void withholdsServerSaveLocationsEvenThoughNeitherTheNamePatternNorEncryptedCredentialCoversIt() {
+      // SchedulerConfigurationService.setServerLocations embeds a plaintext password as the
+      // fourth pipe-delimited field of a "path|label|username|password" segment when the operator
+      // types credentials directly, and writes the whole "server.save.locations" property with a
+      // plain SreeEnv.setProperty. The name matches none of the five isSecret substrings/suffixes
+      // and is not a single encrypted value, so it belongs in neither the name test nor
+      // ENCRYPTED_CREDENTIALS - only the dedicated COMPOSITE_SECRET_PROPERTIES withhold list.
+      assertFalse(matchesTheNamePattern("server.save.locations"),
+                  "the point of this test is that the NAME does not match - if it now does, the "
+                  + "union below is no longer what covers it");
+      assertFalse(AdminPropertyCatalog.isEncryptedCredential("server.save.locations"),
+                  "server.save.locations is a multi-location composite value, not a single "
+                  + "credential admin-chat can round-trip through SreeEnv.setPassword");
+      assertTrue(AdminPropertyCatalog.isSecret("server.save.locations"),
+                 "server.save.locations can embed a plaintext password and must not be read back "
+                 + "through admin-chat");
+   }
+
+   @Test
+   void withholdsServerSaveLocationsWhateverCasingTheCallerUses() {
+      assertTrue(AdminPropertyCatalog.isSecret("Server.Save.Locations"));
    }
 
    /**

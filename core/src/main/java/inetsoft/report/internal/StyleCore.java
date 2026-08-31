@@ -78,14 +78,14 @@ public abstract class StyleCore extends AbstractAssetEngine
       String prop = SreeEnv.getProperty("format.date", "");
 
       if(!prop.equals("")) {
-         Format fmt = Tool.createDateFormat(prop, locale);
+         Format fmt = Tool.createDateFormat(prop, locale, CoreTool.DateFormatKind.DATE);
          this.formatmap.put(java.sql.Date.class, fmt);
       }
 
       prop = SreeEnv.getProperty("format.date.time", "");
 
       if(!prop.equals("")) {
-         Format fmt = Tool.createDateFormat(prop, locale);
+         Format fmt = Tool.createDateFormat(prop, locale, CoreTool.DateFormatKind.DATE_TIME);
          this.formatmap.put(Date.class, fmt);
          this.formatmap.put(java.sql.Timestamp.class, fmt);
       }
@@ -93,7 +93,7 @@ public abstract class StyleCore extends AbstractAssetEngine
       prop = SreeEnv.getProperty("format.time", "");
 
       if(!prop.equals("")) {
-         Format fmt = Tool.createDateFormat(prop, locale);
+         Format fmt = Tool.createDateFormat(prop, locale, CoreTool.DateFormatKind.TIME);
          this.formatmap.put(java.sql.Time.class, fmt);
       }
    }

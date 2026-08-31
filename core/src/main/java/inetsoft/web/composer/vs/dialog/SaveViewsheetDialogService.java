@@ -23,6 +23,7 @@ import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
@@ -110,11 +111,23 @@ public class SaveViewsheetDialogService {
       vsOptionsPaneModel.setMaxRowsWarning(info.isMaxRowsWarning());
       vsOptionsPaneModel.setHideNotifications(info.isHideNotifications());
       vsOptionsPaneModel.setCreateMv(info.isMVOnDemand());
+      // the shared pane hides the whole Create MV On-demand checkbox on !onDemandMvEnabled, so
+      // without this the createMv value populated above is unreachable from this dialog.
+      vsOptionsPaneModel.setOnDemandMvEnabled(!SUtil.isSharedDefaultOrgDashboard(rvs.getEntry()) &&
+                                                 "true".equals(SreeEnv.getProperty("mv.ondemand")));
       vsOptionsPaneModel.setAlias(viewsheet.getRuntimeEntry() == null ? null:
                                      viewsheet.getRuntimeEntry().getAlias());
       vsOptionsPaneModel.setDesc(info.getDescription());
       vsOptionsPaneModel.setServerSideUpdate(info.isUpdateEnabled());
       vsOptionsPaneModel.setTouchInterval(info.getTouchInterval());
+      // mirrors ViewsheetPropertyDialogService.getViewsheetInfo(): viewsheet-options-pane is shared
+      // by both dialogs and disables the Server-Side Update checkbox on !autoRefreshEnabled, so
+      // leaving this unset would leave the checkbox permanently greyed out in the Save dialog.
+      vsOptionsPaneModel.setAutoRefreshEnabled(
+         !"false".equals(SreeEnv.getProperty("vs.auto.refresh.enabled")));
+      // saveViewsheet() writes this back unconditionally, and VSOptionsPaneModel.snapGrid
+      // defaults to 20, so leaving it unpopulated resets any other snap grid to 20 on save.
+      vsOptionsPaneModel.setSnapGrid(info.getSnapGrid());
       vsOptionsPaneModel.setListOnPortalTree(info.isOnReport());
 
       //use worksheet data size if datasource is worksheet

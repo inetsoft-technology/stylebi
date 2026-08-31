@@ -38,15 +38,20 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
 import java.awt.Point;
 import java.util.Enumeration;
+import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
+import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.service.RenderWaitSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Session-resolved edit service for worksheets.
@@ -62,12 +67,14 @@ public class WorksheetEditService {
    public WorksheetEditService(SheetSessionService sessions,
                                SheetRuntimeAccess runtimeAccess,
                                SheetAgentBroadcastService broadcast,
-                               SecurityEngine securityEngine)
+                               SecurityEngine securityEngine,
+                               InnerJoinService innerJoinService)
    {
       this.sessions = sessions;
       this.runtimeAccess = runtimeAccess;
       this.broadcast = broadcast;
       this.securityEngine = securityEngine;
+      this.innerJoinService = innerJoinService;
    }
 
    /**
@@ -93,7 +100,7 @@ public class WorksheetEditService {
          SheetType.WORKSHEET, session.runtimeId(), agent);
       applySocketSession(rws, session);
 
-      Editor editor = new Editor(rws.getWorksheet(), agent, securityEngine);
+      Editor editor = new Editor(rws.getWorksheet(), agent, securityEngine, innerJoinService);
 
       try {
          mutation.accept(editor);
@@ -223,6 +230,31 @@ public class WorksheetEditService {
     * Refresh column selections and reload table data for all assemblies in the worksheet.
     * Mirrors the UI's post-edit steps (InsertDataService calls refreshColumnSelection +
     * loadTableData after column mutations).
+    *
+    * <p>{@code refreshColumnSelection} — not {@code loadTableData} — is the call that actually
+    * executes a crosstab/grouped table's query ({@code AssetQuerySandbox.refreshColumnSelection}'s
+    * {@code query.getTableLens(vars)}); {@code loadTableData} is structural validation and cache
+    * invalidation only. Both are bounded together in one {@link RenderWaitSupport#awaitOrRetry}
+    * call per table so a table whose query hasn't executed yet in this runtime cannot block this
+    * best-effort warm-up past its share of the budget below.</p>
+    *
+    * <p>Bug #76350 follow-on (item A): before this, neither call had any bound, so a single slow
+    * table anywhere in the worksheet — not necessarily the one just edited — made an unrelated,
+    * already-committed write op (add_expression_column, set_group_aggregate, etc.) hang until
+    * that table's query finished, reported to the caller as a false 30s timeout on a call that had
+    * actually already succeeded.</p>
+    *
+    * <p>All tables share one wall-clock budget ({@link #REFRESH_ASSEMBLIES_BUDGET_MS}) rather than
+    * each getting its own independent wait, so the aggregate cost of this warm-up is capped at a
+    * flat ~2s regardless of how many tables the worksheet has. Trade-off, accepted deliberately: a
+    * persistently slow table that sorts early in {@code ws.getAssemblies()}'s iteration order can
+    * consume the whole budget and starve every table after it, on every write op, indefinitely —
+    * worse for those specific tables than the old fully-unbounded design, which eventually warmed
+    * every table given enough time. This is acceptable because this loop is best-effort
+    * cache-warming, not a correctness precondition (unlike {@code ViewsheetEditService}'s
+    * {@code ensureTableDataReady}, which guards a mutation that hasn't happened yet): a table
+    * skipped here is not warmed by this request, but still executes — and gets cached — on the
+    * next real read that needs it.</p>
     */
    private void refreshAssemblies(RuntimeWorksheet rws) {
       Worksheet ws = rws.getWorksheet();
@@ -231,21 +263,45 @@ public class WorksheetEditService {
          return;
       }
 
+      long deadline = System.currentTimeMillis() + REFRESH_ASSEMBLIES_BUDGET_MS;
+
       for(Assembly a : ws.getAssemblies()) {
          if(a instanceof TableAssembly ta) {
             String name = ta.getName();
+            long remaining = deadline - System.currentTimeMillis();
+
+            if(remaining <= 0) {
+               LOG.warn("Skipping refresh for assembly {} - refreshAssemblies budget exhausted",
+                        name);
+               continue;
+            }
 
             try {
-               WorksheetEventUtil.refreshColumnSelection(rws, name, true);
-               WorksheetEventUtil.loadTableData(rws, name, true, true);
+               RenderWaitSupport.awaitOrRetry(() -> {
+                  WorksheetEventUtil.refreshColumnSelection(rws, name, true);
+                  WorksheetEventUtil.loadTableData(rws, name, true, true);
+                  return null;
+               }, remaining, (int) Math.max(1, remaining / 1000));
                WorksheetEventUtil.fixAssemblyInfo(rws, ta);
             }
             catch(Exception ex) {
+               // RenderNotReadyException (a timed-out table) is deliberately swallowed here,
+               // same as any other per-table failure: the mutation this method runs after has
+               // already succeeded and been checkpointed, so this is a best-effort warm-up, not
+               // a precondition the caller needs to know failed.
                LOG.warn("Failed to refresh assembly: {}", name, ex);
             }
          }
       }
    }
+
+   // Mirrors ViewsheetEditService.TABLE_WARM_MAX_ATTEMPTS/TABLE_WARM_RETRY_SLEEP_MS: the same
+   // "how long is acceptable to make a caller wait before answering retry-after" ceiling, applied
+   // here as one shared budget across the whole refreshAssemblies loop rather than per-table.
+   private static final int TABLE_WARM_MAX_ATTEMPTS = 4;
+   private static final long TABLE_WARM_RETRY_SLEEP_MS = 500;
+   private static final long REFRESH_ASSEMBLIES_BUDGET_MS =
+      TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS;
 
    private void applySocketSession(RuntimeWorksheet rws, JoinSession session) {
       if(session.socketSessionId() != null && rws.getSocketSessionId() == null) {
@@ -274,6 +330,7 @@ public class WorksheetEditService {
    private final SheetRuntimeAccess runtimeAccess;
    private final SheetAgentBroadcastService broadcast;
    private final SecurityEngine securityEngine;
+   private final InnerJoinService innerJoinService;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetEditService.class);
 
    // =========================================================================
@@ -288,10 +345,12 @@ public class WorksheetEditService {
     */
    public static final class Editor {
 
-      Editor(Worksheet ws, Principal agent, SecurityEngine securityEngine) {
+      Editor(Worksheet ws, Principal agent, SecurityEngine securityEngine,
+             InnerJoinService innerJoinService) {
          this.ws = ws;
          this.agent = agent;
          this.securityEngine = securityEngine;
+         this.innerJoinService = innerJoinService;
       }
 
       /**
@@ -300,7 +359,8 @@ public class WorksheetEditService {
        *
        * @param table the assembly name
        * @param col   the column attribute name to remove
-       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, or if
+       *                          a dependent join/composite table still uses this column
        */
       public void removeColumn(String table, String col) throws PairingException {
          TableAssembly t = requireTable(table);
@@ -309,6 +369,13 @@ public class WorksheetEditService {
 
          if(toRemove != null) {
             WorksheetMutationSupport.assertSnapshotAllowsColumnRemove(t, table, col, toRemove);
+
+            if(toRemove instanceof ColumnRef cr &&
+               !WorksheetControllerService.allowsDeletion(ws, t, cr))
+            {
+               throw new PairingException(Catalog.getCatalog().getString(
+                  "common.columnDependency", col));
+            }
 
             // For embedded tables, also remove the data column from XEmbeddedTable.
             // Snapshots are excluded, and not just as an optimization: the guard above lets
@@ -425,7 +492,8 @@ public class WorksheetEditService {
        * @param table   the assembly name
        * @param col     the column attribute name to rename
        * @param newName the new alias
-       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, or if
+       *                          a dependent join/composite table still uses this column
        */
       public void renameColumn(String table, String col, String newName) throws PairingException {
          TableAssembly t = requireTable(table);
@@ -433,6 +501,11 @@ public class WorksheetEditService {
          DataRef existing = cs.getAttribute(col);
 
          if(existing instanceof ColumnRef cr) {
+            if(!WorksheetControllerService.allowsDeletion(ws, t, cr)) {
+               throw new PairingException(Catalog.getCatalog().getString(
+                  "common.columnDependency", col));
+            }
+
             cr.setAlias(newName);
          }
       }
@@ -655,6 +728,110 @@ public class WorksheetEditService {
       }
 
       /**
+       * Creates a new {@link RelationalJoinTableAssembly} spanning three or more tables in a
+       * single call, matching the Composer UI's multi-select-then-join capability (as opposed
+       * to {@link #addJoin(String, String, String, String, String, String, List, List)}, which
+       * joins exactly two).
+       *
+       * <p>The edges need not form a single left-to-right chain — either side of any edge may
+       * name a table introduced by another edge (e.g. a hub table joined to two others) — because
+       * this delegates to {@link InnerJoinService#editExistingJoinTable}, the same mechanism
+       * behind Composer's own N-ary join (normally reached only via a live STOMP session through
+       * {@code WSJoinTablesEvent}), which resolves edges by table name rather than by position.
+       * That method takes a plain {@link Worksheet} and no runtime/session context, so it is
+       * safe to call here — this mirrors {@code WorksheetTableService.buildJoinTable}, which
+       * already calls it the same way for the {@code add_table} "relational join table" type.
+       *
+       * @param name      the name for the new join assembly
+       * @param joinPaths the join edges (at least one); each names its own left/right table and
+       *                  key columns, so tables may be introduced across multiple edges
+       * @throws PairingException if {@code name}/{@code joinPaths} are empty, a referenced table
+       *                    is not found, an edge specifies {@code joinType == "MERGE"}, or a
+       *                    {@code "CROSS"} edge is combined with any other edge (a cross join is
+       *                    an exclusive operation — {@link TableAssemblyOperator#checkValidity}
+       *                    rejects it once the combined operator holds more than one edge — so
+       *                    a lone {@code joinPaths} entry may be {@code "CROSS"}, but a 2+-edge
+       *                    call may not mix one in)
+       */
+      public void addJoin(String name, List<WorksheetMutationSupport.JoinPathSpec> joinPaths)
+         throws PairingException, SecurityException
+      {
+         if(name == null || name.isBlank()) {
+            throw new PairingException("Join requires a name.");
+         }
+
+         if(joinPaths == null || joinPaths.isEmpty()) {
+            throw new PairingException("Multi-table join requires at least one join path.");
+         }
+
+         Set<TableAssembly> tableSet = new LinkedHashSet<>();
+         TableAssemblyOperator noperator = new TableAssemblyOperator();
+         boolean crossJoin = false;
+
+         for(WorksheetMutationSupport.JoinPathSpec path : joinPaths) {
+            if("MERGE".equalsIgnoreCase(path.joinType())) {
+               throw new PairingException(
+                  "Multi-table join does not support MERGE per edge (\"" + path.leftTable() +
+                  "\" / \"" + path.rightTable() + "\"); use add_merge_join instead.");
+            }
+
+            if("CROSS".equalsIgnoreCase(path.joinType()) && joinPaths.size() > 1) {
+               throw new PairingException(
+                  "Multi-table join does not support combining CROSS with other edges (\"" +
+                  path.leftTable() + "\" / \"" + path.rightTable() + "\" is CROSS, but " +
+                  joinPaths.size() + " edges were given); a cross join must be the only edge " +
+                  "in the call, or use add_cross_join for a standalone two-table cross join.");
+            }
+
+            TableAssembly left = requireTable(path.leftTable());
+            TableAssembly right = requireTable(path.rightTable());
+            tableSet.add(left);
+            tableSet.add(right);
+
+            int operation = parseJoinType(path.joinType());
+            crossJoin = crossJoin || operation == TableAssemblyOperator.CROSS_JOIN;
+
+            TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+            op.setLeftTable(path.leftTable());
+            op.setRightTable(path.rightTable());
+
+            if(operation != TableAssemblyOperator.CROSS_JOIN) {
+               op.setLeftAttribute(new AttributeRef(null, path.leftKey()));
+               op.setRightAttribute(new AttributeRef(null, path.rightKey()));
+            }
+
+            op.setOperation(operation);
+            noperator.addOperator(op);
+         }
+
+         if(crossJoin) {
+            requirePermission(ResourceType.CROSS_JOIN);
+         }
+
+         RelationalJoinTableAssembly join = new RelationalJoinTableAssembly(
+            ws, name, tableSet.toArray(new TableAssembly[0]), new TableAssemblyOperator[0]);
+
+         // Position + register before wiring the edges (matching placeAssembly's order for
+         // every other join creator here), since editExistingJoinTable needs the assembly
+         // already registered in ws to resolve table names against.
+         join.setPixelOffset(new Point(25, 25));
+         AssetEventUtil.adjustAssemblyPosition(join, ws);
+         ws.addAssembly(join);
+
+         try {
+            innerJoinService.editExistingJoinTable(ws, join, noperator, true);
+         }
+         catch(PairingException | SecurityException e) {
+            ws.removeAssembly(name);
+            throw e;
+         }
+         catch(Exception e) {
+            ws.removeAssembly(name);
+            throw new PairingException("Failed to build multi-table join: " + e.getMessage());
+         }
+      }
+
+      /**
        * Removes an assembly (typically a join assembly) from the worksheet by name.
        *
        * <p>No-ops if no assembly with {@code name} exists.</p>
@@ -844,14 +1021,20 @@ public class WorksheetEditService {
        * @param table      the assembly name
        * @param column     the source numeric column name
        * @param boundaries the bucket boundary values (e.g. [0, 50, 100])
+       * @param labels     optional custom bucket labels, one more than {@code boundaries}
+       *                   (e.g. 2 boundaries -> 3 labels: below, between, above). {@code null}
+       *                   or empty keeps the engine's default auto-generated range text.
        */
-      public void addNumericRangeColumn(String table, String column, double[] boundaries)
+      public void addNumericRangeColumn(String table, String column, double[] boundaries,
+                                         String[] labels)
          throws PairingException
       {
          if(boundaries == null || boundaries.length == 0) {
             throw new PairingException(
                "boundaries must be a non-empty array of numbers (e.g. [0, 50, 100]).");
          }
+
+         validateLabelCount(boundaries, labels);
 
          TableAssembly t = requireTable(table);
          ColumnSelection cs = t.getColumnSelection(false);
@@ -866,11 +1049,186 @@ public class WorksheetEditService {
          NumericRangeRef rangeRef = new NumericRangeRef(column + "_range", baseRef);
          ValueRangeInfo info = new ValueRangeInfo();
          info.setValues(boundaries);
+         info.setLabels(labels);
          rangeRef.setValueRangeInfo(info);
 
          ColumnRef colRef = new ColumnRef(rangeRef);
          colRef.setDataType(XSchema.STRING);
          cs.addAttribute(colRef);
+         t.setColumnSelection(cs, false);
+      }
+
+      /**
+       * Validates that a caller-supplied label array, if present, has exactly one more entry
+       * than there are boundaries — the count {@link NumericRangeRef#getExpression} and
+       * {@link NumericRangeRef#getScriptExpression} index into (bottom bucket + one per gap +
+       * top bucket) given the engine's fixed defaults of showing both the bottom and top
+       * buckets. A shorter array is not just cosmetically wrong: those methods index straight
+       * into it with no bounds check, so a mismatch throws {@code ArrayIndexOutOfBoundsException}
+       * deep inside expression generation instead of failing here with a clear message.
+       */
+      private static void validateLabelCount(double[] boundaries, String[] labels)
+         throws PairingException
+      {
+         if(labels == null || labels.length == 0) {
+            return;
+         }
+
+         int expected = boundaries.length + 1;
+
+         if(labels.length != expected) {
+            throw new PairingException(
+               "labels must have exactly " + expected + " entries for " + boundaries.length +
+               " boundaries (one below the first, one between each pair, one above the last) " +
+               "— got " + labels.length + ".");
+         }
+      }
+
+      /**
+       * Changes the grouping level of an existing date range column, in place. The column's
+       * name encodes its option (see {@link DateRangeRef#getName}), so it is renamed to match
+       * the new option — e.g. {@code "QuarterOfYear(Order Date)"} becomes
+       * {@code "MonthOfYear(Order Date)"} when {@code dateOption} changes from
+       * {@code QUARTER_OF_YEAR} to {@code MONTH_OF_YEAR}. Anything already bound to the old
+       * name is left pointing at nothing, the same as a manual {@code rename_column}.
+       *
+       * @param table      the assembly name
+       * @param column     the existing date range column's current name
+       * @param dateOption the new grouping option string (e.g. "YEAR", "QUARTER", "MONTH")
+       */
+      public void editDateRangeColumn(String table, String column, String dateOption)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+         ColumnSelection cs = t.getColumnSelection(false);
+         DataRef ref = cs.getAttribute(column);
+
+         if(ref == null) {
+            throw new PairingException("Column not found: " + column);
+         }
+
+         DataRef unwrapped = ref instanceof ColumnRef cr ? cr.getDataRef() : ref;
+
+         if(!(unwrapped instanceof DateRangeRef dateRef)) {
+            throw new PairingException(
+               "Column \"" + column + "\" is not a date range column. Use " +
+               "add_date_range_column to create one, or pass the range column's own name " +
+               "(e.g. \"QuarterOfYear(Order Date)\"), not its source date column.");
+         }
+
+         int option = parseDateOption(dateOption);
+         DataRef baseRef = dateRef.getDataRef();
+
+         if(baseRef == null) {
+            // Not reachable via add_date_range_column, which always constructs one with a
+            // non-null base ref — but falling back to dateRef.getAttribute() here (the range
+            // column's OWN name) would silently compute a wrong, nested name like
+            // "MonthOfYear(QuarterOfYear(orderDate))" instead of failing loud.
+            throw new PairingException(
+               "Column \"" + column + "\" has no source column reference and cannot be re-leveled.");
+         }
+
+         String baseAttr = baseRef.getAttribute();
+         String currentName = dateRef.getName();
+         String newName = DateRangeRef.getName(baseAttr, option);
+
+         // ColumnSelection enforces name-uniqueness only on addAttribute (a no-op add on
+         // collision); renaming an existing entry in place bypasses that check entirely, so a
+         // rename onto a name already held by another column (e.g. a second range column
+         // already added at the target option) would silently shadow it instead of failing.
+         if(!newName.equals(currentName)) {
+            DataRef existing = cs.getAttribute(newName);
+
+            if(existing != null && existing != ref) {
+               throw new PairingException(
+                  "Cannot change \"" + column + "\" to " + dateOption + " — table \"" + table +
+                  "\" already has a column named \"" + newName + "\". Remove or rename that " +
+                  "column first.");
+            }
+         }
+
+         dateRef.setDateOption(option);
+         dateRef.setName(newName);
+
+         // AbstractDataRef.hashCode() caches its result (chash) from getEntity()+getAttribute()
+         // at first use, and ColumnRef.getAttribute() delegates live to the wrapped ref's — so
+         // renaming dateRef changes what that hash SHOULD be without invalidating the wrapping
+         // ColumnRef's already-cached one. ColumnSelection's backing ListWithFastLookup uses
+         // that cached hashCode() for its O(1) addAttribute exclusivity check (rebuilt lazily by
+         // iterating current elements' hashCode(), so a per-element stale cache survives even a
+         // full rebuild). Left uninvalidated, a later add_date_range_column producing this same
+         // new name is not caught as a duplicate — confirmed empirically: without the reset
+         // below, two columns end up reporting the identical getName(). setDataRef() re-assigns
+         // the same ref purely to invalidate ColumnRef's own cname/chash, the same mechanism
+         // renameColumn's setAlias() already relies on for its own (narrower) case.
+         if(ref instanceof ColumnRef cr) {
+            cr.setDataRef(dateRef);
+         }
+
+         t.setColumnSelection(cs, false);
+      }
+
+      /**
+       * Changes the bucket boundaries (and optionally the custom labels) of an existing
+       * numeric range column, in place. Unlike the date range column's name, a numeric range
+       * column's name ({@code column + "_range"}) does not encode its boundaries, so it is
+       * left unchanged.
+       *
+       * @param table      the assembly name
+       * @param column     the existing numeric range column's current name
+       * @param boundaries the new bucket boundary values (e.g. [0, 50, 100])
+       * @param labels     optional custom bucket labels, one more than {@code boundaries}. A
+       *                   {@code null}/empty array clears any custom labels back to the
+       *                   engine's default auto-generated range text — it does not preserve
+       *                   whatever labels the column already had, since there is no partial
+       *                   "leave labels alone" signal distinguishable from "clear them."
+       */
+      public void editNumericRangeColumn(String table, String column, double[] boundaries,
+                                          String[] labels)
+         throws PairingException
+      {
+         if(boundaries == null || boundaries.length == 0) {
+            throw new PairingException(
+               "boundaries must be a non-empty array of numbers (e.g. [0, 50, 100]).");
+         }
+
+         validateLabelCount(boundaries, labels);
+
+         TableAssembly t = requireTable(table);
+         ColumnSelection cs = t.getColumnSelection(false);
+         DataRef ref = cs.getAttribute(column);
+
+         if(ref == null) {
+            throw new PairingException("Column not found: " + column);
+         }
+
+         DataRef unwrapped = ref instanceof ColumnRef cr ? cr.getDataRef() : ref;
+
+         if(!(unwrapped instanceof NumericRangeRef rangeRef)) {
+            throw new PairingException(
+               "Column \"" + column + "\" is not a numeric range column. Use " +
+               "add_numeric_range_column to create one, or pass the range column's own name " +
+               "(e.g. \"Amount_range\"), not its source numeric column.");
+         }
+
+         // Mutate the existing ValueRangeInfo rather than replacing it wholesale: this tool
+         // only ever settles values/labels, but showBottomValue/showTopValue/inclusiveType are
+         // also user-settable (via the Composer's own Range Column dialog, or a future richer
+         // wiz op) and replacing the object outright would silently reset those three back to
+         // ValueRangeInfo's constructor defaults on every edit — an undocumented side effect
+         // for a tool whose whole contract is "boundaries and labels, nothing else."
+         ValueRangeInfo info = rangeRef.getValueRangeInfo();
+
+         if(info == null) {
+            info = new ValueRangeInfo();
+         }
+
+         info.setValues(boundaries);
+         // Unconditional, even when labels is null/empty: the javadoc above promises omitting
+         // labels clears any existing ones, and that contract must hold now that boundaries'
+         // sibling settings survive the edit.
+         info.setLabels(labels);
+         rangeRef.setValueRangeInfo(info);
          t.setColumnSelection(cs, false);
       }
 
@@ -1123,7 +1481,9 @@ public class WorksheetEditService {
        * @param table   the assembly name
        * @param col     the column attribute name
        * @param visible {@code true} to show, {@code false} to hide
-       * @throws PairingException if the table or column is not found
+       * @throws PairingException if the table or column is not found, or if hiding would
+       *                          break a dependent join/composite table that still uses
+       *                          this column
        */
       public void setColumnVisibility(String table, String col, boolean visible)
          throws PairingException
@@ -1134,6 +1494,11 @@ public class WorksheetEditService {
 
          if(!(ref instanceof ColumnRef cr)) {
             throw new PairingException("Column not found: " + col);
+         }
+
+         if(cr.isVisible() && !visible && !WorksheetControllerService.allowsDeletion(ws, t, cr)) {
+            throw new PairingException(Catalog.getCatalog().getString(
+               "common.columnDependency", col));
          }
 
          cr.setVisible(visible);
@@ -1532,6 +1897,8 @@ public class WorksheetEditService {
        * @param description table description, or {@code null} to leave unchanged
        * @param maxRows     max rows limit, or {@code null} to leave unchanged
        * @param distinct    distinct flag, or {@code null} to leave unchanged
+       * @param mergeable   SQL-mergeable flag, or {@code null} to leave unchanged
+       * @param visibleInViewsheet visible-in-viewsheet flag, or {@code null} to leave unchanged
        * @throws PairingException if the table is not found
        */
       /**
@@ -1551,7 +1918,8 @@ public class WorksheetEditService {
        * setters cannot fail, so ordering it this way makes the whole call all-or-nothing.
        */
       public void setTableProperties(String table, String newName, String description,
-                                      Integer maxRows, Boolean distinct)
+                                      Integer maxRows, Boolean distinct, Boolean mergeable,
+                                      Boolean visibleInViewsheet)
          throws PairingException
       {
          // Resolved before the rename so an unknown table is reported against the name the caller
@@ -1586,6 +1954,14 @@ public class WorksheetEditService {
 
          if(distinct != null) {
             t.setDistinct(distinct);
+         }
+
+         if(mergeable != null) {
+            t.setSQLMergeable(mergeable);
+         }
+
+         if(visibleInViewsheet != null) {
+            t.setVisibleTable(visibleInViewsheet);
          }
       }
 
@@ -1896,7 +2272,7 @@ public class WorksheetEditService {
          if(mappings != null) {
             for(WorksheetMutationSupport.GroupMapping m : mappings) {
                ngi.setGroupCondition(m.name(),
-                  WorksheetMutationSupport.buildGroupConditionList(conditionType, conditionRef, m));
+                  WorksheetMutationSupport.buildGroupConditionList(conditionType, conditionRef, m, ws));
             }
          }
 
@@ -2079,9 +2455,12 @@ public class WorksheetEditService {
        * @param type         new data type, or {@code null} to leave unchanged
        * @param label        new display label, or {@code null} to leave unchanged
        * @param defaultValue new default value, or {@code null} to leave unchanged
+       * @param choices      the variable's enumerated "Values" picker (embedded list or query
+       *                     source), or {@code null} to leave it unchanged
        * @throws PairingException if the assembly is not found or not a variable
        */
-      public void editVariable(String name, String type, String label, String defaultValue)
+      public void editVariable(String name, String type, String label, String defaultValue,
+                               WorksheetMutationSupport.VariableChoicesSpec choices)
          throws PairingException
       {
          Assembly a = ws.getAssembly(name);
@@ -2090,11 +2469,19 @@ public class WorksheetEditService {
             throw new PairingException("Variable assembly not found: " + name);
          }
 
-         AssetVariable var = va.getVariable();
+         AssetVariable existing = va.getVariable();
 
-         if(var == null) {
+         if(existing == null) {
             throw new PairingException("Variable has no definition: " + name);
          }
+
+         // Every edit below is applied to a scratch copy, published only at the very end.
+         // applyOnRuntime mutates the live worksheet with no rollback on a thrown exception, so
+         // editing 'existing' in place would let an invalid 'choices' (mismatched labels/values,
+         // an unknown displayStyle, a circular query source, ...) discovered partway through
+         // leave the already-applied label/type/defaultValue changes committed even though the
+         // whole call is reported as a failure.
+         AssetVariable var = (AssetVariable) existing.clone();
 
          if(label != null) {
             var.setAlias(label);
@@ -2124,6 +2511,10 @@ public class WorksheetEditService {
                var.setValueNode(valueNode);
             }
          }
+
+         WorksheetMutationSupport.applyVariableChoices(ws, var, choices);
+
+         va.setVariable(var);
       }
 
       /**
@@ -2200,7 +2591,7 @@ public class WorksheetEditService {
 
             for(WorksheetMutationSupport.GroupMapping m : mappings) {
                ngi.setGroupCondition(m.name(),
-                  WorksheetMutationSupport.buildGroupConditionList(conditionType, conditionRef, m));
+                  WorksheetMutationSupport.buildGroupConditionList(conditionType, conditionRef, m, ws));
             }
          }
 
@@ -2390,5 +2781,6 @@ public class WorksheetEditService {
       private final Worksheet ws;
       private final Principal agent;
       private final SecurityEngine securityEngine;
+      private final InnerJoinService innerJoinService;
    }
 }

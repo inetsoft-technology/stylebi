@@ -1242,7 +1242,7 @@ public class MapGenerator extends MergedGraphGenerator {
          return false;
       }
 
-      String suspend = SreeEnv.getProperty("webmap.suspend.until");
+      String suspend = SreeEnv.getProperty("webmap.suspend.until", false, true);
 
       if(suspend != null) {
          long suspendTS = Long.parseLong(suspend);
@@ -1251,7 +1251,7 @@ public class MapGenerator extends MergedGraphGenerator {
             return false;
          }
 
-         SreeEnv.setProperty("webmap.suspend.until", null);
+         SreeEnv.setProperty("webmap.suspend.until", null, true);
       }
 
       String service = SreeEnv.getProperty("webmap.service");

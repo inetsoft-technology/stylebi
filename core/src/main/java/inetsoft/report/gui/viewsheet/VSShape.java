@@ -17,7 +17,9 @@
  */
 package inetsoft.report.gui.viewsheet;
 
+import inetsoft.report.io.viewsheet.ShapeShadowUtil;
 import inetsoft.uql.viewsheet.GradientColor;
+import inetsoft.uql.viewsheet.ShapeShadow;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.*;
 
@@ -50,10 +52,18 @@ public abstract class VSShape extends VSFloatable {
       g2.dispose();
 
       if(isShadow()) {
-         image = VSFaceUtil.addShadow(image, 6);
+         ShapeShadow shadow = getInfo().getShadowInfo();
+         // must match the insets getImage() grew the canvas by
+         Insets insets = ShapeShadowUtil.getScaledShadowInsets(getInfo());
+         image = VSFaceUtil.addShadow(image, shadow, insets);
+         // the shape sits at (left, top) inside the composite; draw it back by
+         // that much so the shape itself still lands on the origin, which is
+         // where getImage() has already translated to
+         g.drawImage(image, -insets.left, -insets.top, null);
       }
-
-      g.drawImage(image, 0, 0, null);
+      else {
+         g.drawImage(image, 0, 0, null);
+      }
    }
 
    /**

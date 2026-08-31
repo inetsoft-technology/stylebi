@@ -592,6 +592,26 @@ public class VSExportService {
       }
    }
 
+   /**
+    * Gets the Content-disposition value for an export. Shared with
+    * ExportControllerService.exportViewsheet() so the viewer and Composer export paths
+    * cannot disagree about whether a PDF opens in the browser or downloads.
+    *
+    * @param format   the export format, one of the FileFormatInfo.EXPORT_TYPE_* constants.
+    * @param preview  <tt>true</tt> if the viewsheet is being previewed.
+    * @param embedded <tt>true</tt> if the "pdf.output.attachment" property is "embed" and the
+    *                 export is not addressed by asset ID.
+    * @param print    <tt>true</tt> if this export feeds the print flow.
+    *
+    * @return "inline" or "attachment".
+    */
+   public static String getContentDisposition(int format, boolean preview, boolean embedded,
+                                              boolean print)
+   {
+      return !preview && FileFormatInfo.EXPORT_TYPE_PDF == format &&
+         embedded || print ? "inline" : "attachment";
+   }
+
    private void writeViewsheetExport(RuntimeViewsheet rvs, ExportResponse response,
                                      Principal principal, int format, boolean previewPrintLayout,
                                      boolean print, boolean match, boolean expandSelections,
@@ -602,9 +622,7 @@ public class VSExportService {
       throws Exception
    {
       String name = getViewsheetFileName(rvs.getEntry());
-      String disposition = !rvs.isPreview() &&
-         FileFormatInfo.EXPORT_TYPE_PDF == format &&
-         embedded || print ? "inline" : "attachment";
+      String disposition = getContentDisposition(format, rvs.isPreview(), embedded, print);
 
       if(!print) {
          setResponseHeader(response, suffix, disposition, name, mime);

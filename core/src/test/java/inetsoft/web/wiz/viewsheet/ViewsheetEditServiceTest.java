@@ -27,10 +27,15 @@ import inetsoft.web.composer.vs.objects.event.ChangeVSObjectLayerEvent;
 import inetsoft.web.composer.vs.objects.event.LockVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.MoveVSObjectEvent;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.web.viewsheet.controller.VSRefreshService;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.wiz.service.RenderNotReadyException;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -45,6 +50,7 @@ import org.mockito.ArgumentCaptor;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -145,6 +151,37 @@ class ViewsheetEditServiceTest {
                                    any());
    }
 
+   /**
+    * Regression for Bug PVA-010: a worksheet-side change made after a chart is already bound
+    * (e.g. a ranking/aggregate edit) does not propagate to the chart's render, and nothing under
+    * {@code plugin/composer/src/tools} could force a requery scoped to one assembly --
+    * {@code refresh_data} is worksheet-scoped only. {@code edit op:"refresh"} wraps the same
+    * mechanism {@code VSRefreshService.refreshVsAssemblyView} already performs for the
+    * Composer's own UI refresh.
+    */
+   @Test
+   void refreshDelegatesToVSRefreshServiceForTheNamedAssembly() throws Exception {
+      VSRefreshService refreshService = mock(VSRefreshService.class);
+      ViewsheetEditService service = serviceWithRefresh(readerReturning(
+         new AssemblyNode("Chart1", "Chart", 0, 0, 400, 300, 0, null, true)), refreshService);
+
+      service.apply("tok", principal(), request("refresh", "Chart1"), "linkUri1");
+
+      verify(refreshService).refreshVsAssemblyView(eq("rt1"), eq("Chart1"), any(),
+                                                    eq("linkUri1"), any(Principal.class));
+   }
+
+   @Test
+   void refreshRequiresAnAssemblyAndFailsLoudWithoutOne() {
+      ViewsheetEditService service = serviceWithRefresh(mock(ViewsheetReadService.class),
+         mock(VSRefreshService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request("refresh", null), ""));
+      assertTrue(thrown.getMessage().contains("assembly"));
+   }
+
    @Test
    void addRequiresATypeAndFailsLoudWithoutOne() {
       ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
@@ -171,6 +208,112 @@ class ViewsheetEditServiceTest {
                                    anyString());
       assertEquals(111, captor.getValue().getType());
       assertEquals(40, captor.getValue().getxOffset());
+   }
+
+   /**
+    * Regression for Bug PVA-004: {@code edit op:"add"} used to silently drop a caller-supplied
+    * {@code assembly} name -- {@code addNewObject} always auto-names the new assembly, and
+    * nothing chained a rename afterward. With {@code addNewObject} now returning the new
+    * assembly's name, {@code add} must chain a rename through
+    * {@code VSObjectPropertyService.editObjectProperty} when {@code assembly} is supplied.
+    */
+   @Test
+   void addWithAssemblyNameRenamesTheNewObject() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      when(objects.addNewObject(eq("rt1"), any(), any(Principal.class), any(), anyString()))
+         .thenReturn("Chart1");
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      VSAssembly assembly = mock(VSAssembly.class);
+      VSAssemblyInfo info = mock(VSAssemblyInfo.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("Chart1")).thenReturn(assembly);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+
+      VSObjectPropertyService propertyService = mock(VSObjectPropertyService.class);
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, propertyService);
+
+      EditRequest request = new EditRequest("add", "MyChart", 40, 60, null, null, null, null,
+                                            null, null, null, null, 1000, null);
+      service.apply("tok", principal(), request, "linkUri1");
+
+      verify(propertyService).editObjectProperty(eq(rvs), eq(info), eq("Chart1"), eq("MyChart"),
+                                                 eq("linkUri1"), any(Principal.class), any());
+      verify(objects, never()).resizeObject(anyString(), any(), any(Principal.class), any(),
+                                            anyString());
+   }
+
+   /**
+    * Regression for Bug PVA-004: with {@code width}/{@code height} supplied, {@code add} must
+    * chain a resize on the newly-created assembly -- seeded from the position {@code add()}
+    * itself already placed the assembly at ({@code request.x()}/{@code request.y()}), not left
+    * unset, which would silently teleport it to 0,0 (the same pitfall {@code resize()}'s own
+    * wrapper already guards against).
+    */
+   @Test
+   void addWithSizeResizesTheNewObjectSeedingItsOwnPosition() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      when(objects.addNewObject(eq("rt1"), any(), any(Principal.class), any(), anyString()))
+         .thenReturn("Chart1");
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, mock(VSObjectPropertyService.class));
+
+      EditRequest request = new EditRequest("add", null, 40, 60, 900, 600, null, null,
+                                            null, null, null, null, 1000, null);
+      service.apply("tok", principal(), request, "linkUri1");
+
+      ArgumentCaptor<ResizeVSObjectEvent> captor =
+         ArgumentCaptor.forClass(ResizeVSObjectEvent.class);
+      verify(objects).resizeObject(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                   eq("linkUri1"));
+      assertEquals("Chart1", captor.getValue().getName());
+      assertEquals(900, captor.getValue().getWidth());
+      assertEquals(600, captor.getValue().getHeight());
+      assertEquals(40, captor.getValue().getxOffset());
+      assertEquals(60, captor.getValue().getyOffset());
+   }
+
+   /**
+    * A plain {@code add} with no name/size hints must stay a single mutate/undo step -- no
+    * rename, no resize -- so the fix for PVA-004 does not change behavior for the common case.
+    */
+   @Test
+   void addWithoutAssemblyOrSizeDoesNotRenameOrResize() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      when(objects.addNewObject(eq("rt1"), any(), any(Principal.class), any(), anyString()))
+         .thenReturn("Chart1");
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      VSObjectPropertyService propertyService = mock(VSObjectPropertyService.class);
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, propertyService);
+
+      EditRequest request = new EditRequest("add", null, 40, 60, null, null, null, null,
+                                            null, null, null, null, 1000, null);
+      service.apply("tok", principal(), request, "");
+
+      verify(objects, never()).resizeObject(anyString(), any(), any(Principal.class), any(),
+                                            anyString());
+      verifyNoInteractions(propertyService);
+   }
+
+   /**
+    * Mirrors {@code resize()}'s own "both or neither" contract: a partial size on {@code add}
+    * must fail loud rather than be silently ignored or clamped.
+    */
+   @Test
+   void addWithOnlyWidthFailsLoudRatherThanIgnoringIt() {
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
+      EditRequest request = new EditRequest("add", null, 40, 60, 900, null, null, null,
+                                            null, null, null, null, 1000, null);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request, ""));
+      assertTrue(thrown.getMessage().contains("height"));
    }
 
    @Test
@@ -609,6 +752,61 @@ class ViewsheetEditServiceTest {
       assertTrue(thrown.getMessage().contains("width"));
    }
 
+   /**
+    * Bug #76331: resizeObject's own loadTableLens call has no bound of its own, so a
+    * TableDataVSAssembly (Crosstab/Table) whose query hasn't run yet in this runtime made the
+    * whole resize request block for however long that query took. Warming the table's data ahead
+    * of resizeObject, bounded, means a slow-but-not-stuck table surfaces as a live
+    * RenderNotReadyException instead of a raw timeout — and, since this happens before
+    * resizeObject runs, the resize is not silently applied underneath the failure the caller sees.
+    */
+   @Test
+   void resizeThrowsRenderNotReadyWhenTableDataIsSlowAndDoesNotDelegate() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      TableDataVSAssembly table = mock(TableDataVSAssembly.class);
+      ViewsheetSandbox sandbox = mock(ViewsheetSandbox.class);
+      RuntimeViewsheet rvs = runtimeWithSandbox("Crosstab1", table, sandbox);
+
+      when(sandbox.getVSTableLens("Crosstab1", false)).thenAnswer(invocation -> {
+         Thread.sleep(3_000);
+         return null;
+      });
+
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Crosstab1", "Crosstab", 10, 20, 300, 150, 0, null, true)), objects);
+
+      assertThrows(RenderNotReadyException.class,
+         () -> service.apply("tok", principal(), sized("resize", "Crosstab1", 300, 150), ""));
+      verifyNoInteractions(objects);
+   }
+
+   /** A table whose data is already warm (or warms within the bound) resizes normally. */
+   @Test
+   void resizeDelegatesOnceTableDataIsReady() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      TableDataVSAssembly table = mock(TableDataVSAssembly.class);
+      ViewsheetSandbox sandbox = mock(ViewsheetSandbox.class);
+      RuntimeViewsheet rvs = runtimeWithSandbox("Crosstab1", table, sandbox);
+
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Crosstab1", "Crosstab", 10, 20, 300, 150, 0, null, true)), objects);
+
+      service.apply("tok", principal(), sized("resize", "Crosstab1", 300, 150), "");
+
+      verify(objects).resizeObject(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   private static RuntimeViewsheet runtimeWithSandbox(String name, VSAssembly assembly,
+                                                      ViewsheetSandbox sandbox)
+   {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly(name)).thenReturn(assembly);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
+      return rvs;
+   }
+
    private static EditRequest sized(String op, String assembly, Integer width, Integer height) {
       return new EditRequest(op, assembly, null, null, width, height, null, null, null, null,
                              null, null, null, null);
@@ -661,6 +859,29 @@ class ViewsheetEditServiceTest {
                          mock(ComposerGroupService.class));
    }
 
+   /** Exposes {@code refreshService} -- for the refresh op tests. */
+   private static ViewsheetEditService serviceWithRefresh(ViewsheetReadService reader,
+                                                          VSRefreshService refreshService)
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+
+      try {
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+            mutation.run(null, "rt1", null);
+            return null;
+         }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return new ViewsheetEditService(sessions, mock(ComposerObjectService.class),
+                                      mock(ClipboardControllerService.class),
+                                      mock(VSObjectPropertyService.class), reader,
+                                      mock(ComposerGroupService.class), refreshService);
+   }
+
    /** Runs the mutation against a supplied runtime, for the guards that inspect the assembly. */
    private static ViewsheetEditService serviceWithRuntime(RuntimeViewsheet rvs,
                                                           ViewsheetReadService reader)
@@ -671,6 +892,14 @@ class ViewsheetEditServiceTest {
    private static ViewsheetEditService serviceWithRuntime(RuntimeViewsheet rvs,
                                                           ViewsheetReadService reader,
                                                           ComposerObjectService objects)
+   {
+      return serviceWithRuntime(rvs, reader, objects, mock(VSObjectPropertyService.class));
+   }
+
+   private static ViewsheetEditService serviceWithRuntime(RuntimeViewsheet rvs,
+                                                          ViewsheetReadService reader,
+                                                          ComposerObjectService objects,
+                                                          VSObjectPropertyService propertyService)
    {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
 
@@ -686,8 +915,9 @@ class ViewsheetEditServiceTest {
       }
 
       return new ViewsheetEditService(sessions, objects, mock(ClipboardControllerService.class),
-                                      mock(VSObjectPropertyService.class), reader,
-                                      mock(ComposerGroupService.class));
+                                      propertyService, reader,
+                                      mock(ComposerGroupService.class),
+                                      mock(VSRefreshService.class));
    }
 
    private static ViewsheetEditService serviceWith(ComposerObjectService objects,
@@ -709,6 +939,7 @@ class ViewsheetEditServiceTest {
       }
 
       return new ViewsheetEditService(sessions, objects, clipboard,
-                                     mock(VSObjectPropertyService.class), reader, groups);
+                                     mock(VSObjectPropertyService.class), reader, groups,
+                                     mock(VSRefreshService.class));
    }
 }

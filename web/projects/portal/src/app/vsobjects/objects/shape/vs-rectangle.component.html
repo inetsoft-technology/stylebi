@@ -30,8 +30,7 @@
     [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
     [style.width.px]="model.objectFormat.width"
     [style.height.px]="model.objectFormat.height"
-    [style.z-index]="viewer ? model.objectFormat.zIndex : null"
-    [class.vs-rectangle--shadow]="model.shadow">
+    [style.z-index]="viewer ? model.objectFormat.zIndex : null">
     <svg class="vs-rectangle__svg"
       [attr.shape-rendering]="roundCornerValue ? 'auto' : 'crispEdges'"
       [attr.width]="model.objectFormat.width"
@@ -97,7 +96,7 @@
       [style.width.px]="model.objectFormat.width"
       [style.height.px]="model.objectFormat.height"
       [style.border-radius.px]="roundCornerValue"
-      [style.opacity]="model.objectFormat.alpha">
+      [style.box-shadow]="shadowCss">
     </div>
     @if (viewer) {
       <div class="annotation-hidden-container">

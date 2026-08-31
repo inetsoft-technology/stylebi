@@ -1149,7 +1149,10 @@ public class PPTVSExporter extends AbstractVSExporter {
          return;
       }
 
-      Rectangle2D bounds = coordinator.getBounds(info);
+      // the shadow can fall outside the assembly's own bounds, so grow the
+      // destination or it would be clipped and squeezed
+      Rectangle2D bounds = ShapeShadowUtil.expandForShadow(
+         coordinator.getBounds(info), info, coordinator.getScale());
 
       try {
          writePicture(getImage(assembly), bounds);

@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.graph.internal.DimensionD;
+import inetsoft.report.ReportSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
@@ -145,6 +146,11 @@ class LayoutReadServiceTest {
       assertEquals(10, text.viewsheetX());
       assertEquals(20, text.viewsheetY());
       assertFalse(text.supportsTableLayout(), "a Text object does not support table layout");
+      assertEquals(ReportSheet.TABLE_FIT_PAGE, text.tableLayout(),
+                   "installPrintLayout never sets Text1's tableLayout -- the class's own default");
+      // installPrintLayout's real Letter/0.5in PrintInfo gives a 720-unit page height -- both
+      // y=200 and y=400 land on page 1 at that height (ceil(200/720) == ceil(400/720) == 1).
+      assertEquals(1, text.pageIndex());
 
       LayoutObjectModel table = model.objects().stream()
          .filter(o -> "Table1".equals(o.name())).findFirst().orElseThrow();
@@ -154,6 +160,51 @@ class LayoutReadServiceTest {
       assertEquals(60, table.viewsheetY());
       assertTrue(table.supportsTableLayout(),
                  "a TableDataVSAssembly-backed object supports table layout");
+      assertEquals(ReportSheet.TABLE_EQUAL_WIDTH, table.tableLayout(),
+                   "installPrintLayout explicitly sets Table1's tableLayout to a non-default value");
+      assertEquals(1, table.pageIndex());
+   }
+
+   @Test
+   void getReportsDifferentPageIndicesForObjectsOnDifferentPages() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayoutSpanningTwoPages();
+
+      LayoutModel model = fx.service.get("tok1", AGENT, PRINT_LAYOUT);
+
+      LayoutObjectModel text = model.objects().stream()
+         .filter(o -> "Text1".equals(o.name())).findFirst().orElseThrow();
+      assertEquals(1, text.pageIndex(), "y=200 is within the first 720-unit page");
+
+      LayoutObjectModel table = model.objects().stream()
+         .filter(o -> "Table1".equals(o.name())).findFirst().orElseThrow();
+      assertEquals(2, table.pageIndex(), "y=800 is past the first page's 720-unit height");
+   }
+
+   @Test
+   void getReportsNullPageIndexWhenThePrintLayoutHasNeverHadPrintInfoConfigured()
+      throws Exception
+   {
+      Fixture fx = new Fixture();
+      fx.installPrintLayoutWithoutPrintInfo();
+
+      LayoutModel model = fx.service.get("tok1", AGENT, PRINT_LAYOUT);
+
+      LayoutObjectModel text = model.objects().stream()
+         .filter(o -> "Text1".equals(o.name())).findFirst().orElseThrow();
+      assertNull(text.pageIndex(),
+                 "no PrintInfo means page size can't be computed -- null, not a sentinel int");
+   }
+
+   @Test
+   void getReportsNullPageIndexForEveryObjectInADeviceLayout() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installDeviceLayoutWithObject("Phone", "Text1");
+
+      LayoutModel model = fx.service.get("tok1", AGENT, "Phone");
+
+      assertEquals(1, model.objects().size());
+      assertNull(model.objects().get(0).pageIndex(), "a device layout has no pages");
    }
 
    @Test
@@ -235,7 +286,7 @@ class LayoutReadServiceTest {
 
       PrintLayoutSettingsModel printSettings = model.printSettings();
       assertNotNull(printSettings);
-      assertEquals("Letter", printSettings.paperSize());
+      assertEquals("Letter [8.5x11 in]", printSettings.paperSize());
       assertEquals(0.8f, printSettings.scaleFont(), 0.0001f);
    }
 
@@ -323,7 +374,63 @@ class LayoutReadServiceTest {
                                             0.5f, 0.5f, 0.5f, 0.5f, "inches"));
          List<VSAssemblyLayout> objects = new ArrayList<>();
          objects.add(new VSAssemblyLayout("Text1", new Point(100, 200), new Dimension(30, 40)));
-         objects.add(new VSAssemblyLayout("Table1", new Point(300, 400), new Dimension(50, 60)));
+         VSAssemblyLayout tableLayout =
+            new VSAssemblyLayout("Table1", new Point(300, 400), new Dimension(50, 60));
+         // Explicit, non-default value -- TABLE_FIT_PAGE (1) is VSAssemblyLayout's own default,
+         // so leaving this unset would let the read-back assertion pass even if the service read
+         // nothing at all.
+         tableLayout.setTableLayout(ReportSheet.TABLE_EQUAL_WIDTH);
+         objects.add(tableLayout);
+         layout.setVSAssemblyLayouts(objects);
+
+         masterVs.getLayoutInfo().setPrintLayout(layout);
+      }
+
+      /**
+       * A print layout using the same real Letter/0.5in PrintInfo as {@link #installPrintLayout},
+       * but with {@code Table1} moved past the first page boundary -- {@code Text1} stays at
+       * {@code y=200} (page 1), {@code Table1} moves to {@code y=800} (page 2, since the fixed
+       * 720-unit page height means {@code ceil(800/720) == 2}) -- so {@code pageIndex} actually
+       * differs between the two objects, unlike {@link #installPrintLayout}'s own {@code
+       * y=200}/{@code y=400} (both page 1 at this page height).
+       */
+      void installPrintLayoutSpanningTwoPages() {
+         TextVSAssembly text = new TextVSAssembly(masterVs, "Text1");
+         text.setPixelOffset(new Point(10, 20));
+         text.setPixelSize(new Dimension(15, 10));
+         masterVs.addAssembly(text);
+
+         TableVSAssembly table = new TableVSAssembly(masterVs, "Table1");
+         table.setPixelOffset(new Point(50, 60));
+         table.setPixelSize(new Dimension(80, 40));
+         masterVs.addAssembly(table);
+
+         PrintLayout layout = new PrintLayout();
+         layout.setPrintInfo(new PrintInfo("Letter", new DimensionD(8.5, 11),
+                                            0.5f, 0.5f, 0.5f, 0.5f, "inches"));
+         List<VSAssemblyLayout> objects = new ArrayList<>();
+         objects.add(new VSAssemblyLayout("Text1", new Point(100, 200), new Dimension(30, 40)));
+         objects.add(new VSAssemblyLayout("Table1", new Point(300, 800), new Dimension(50, 60)));
+         layout.setVSAssemblyLayouts(objects);
+
+         masterVs.getLayoutInfo().setPrintLayout(layout);
+      }
+
+      /**
+       * A print layout that has never had its {@code PrintInfo} configured -- {@code pageIndex}
+       * must read back {@code null} for every object here, the same "unconfigured, not zeroed"
+       * convention {@code printSettings} already follows.
+       */
+      void installPrintLayoutWithoutPrintInfo() {
+         TextVSAssembly text = new TextVSAssembly(masterVs, "Text1");
+         text.setPixelOffset(new Point(10, 20));
+         text.setPixelSize(new Dimension(15, 10));
+         masterVs.addAssembly(text);
+
+         PrintLayout layout = new PrintLayout();
+         // No setPrintInfo call -- this is the "never configured" case.
+         List<VSAssemblyLayout> objects = new ArrayList<>();
+         objects.add(new VSAssemblyLayout("Text1", new Point(100, 200), new Dimension(30, 40)));
          layout.setVSAssemblyLayouts(objects);
 
          masterVs.getLayoutInfo().setPrintLayout(layout);
@@ -337,6 +444,30 @@ class LayoutReadServiceTest {
          layout.setMobileOnly(mobileOnly);
          layout.setDeviceIds(deviceIds);
          layout.setVSAssemblyLayouts(new ArrayList<>());
+         List<ViewsheetLayout> layouts = new ArrayList<>(info.getViewsheetLayouts());
+         layouts.add(layout);
+         info.setViewsheetLayouts(layouts);
+      }
+
+      /**
+       * A device (viewsheet) layout named {@code name} with one placed object -- for asserting
+       * {@code pageIndex} is {@code null} on a device layout's own objects (a device layout has
+       * no pages), which {@link #installDeviceLayout}'s empty object list can't exercise.
+       */
+      void installDeviceLayoutWithObject(String name, String objectName) {
+         TextVSAssembly text = new TextVSAssembly(masterVs, objectName);
+         text.setPixelOffset(new Point(10, 20));
+         text.setPixelSize(new Dimension(15, 10));
+         masterVs.addAssembly(text);
+
+         LayoutInfo info = masterVs.getLayoutInfo();
+         ViewsheetLayout layout = new ViewsheetLayout();
+         layout.setName(name);
+         layout.setMobileOnly(false);
+         layout.setDeviceIds(new String[0]);
+         List<VSAssemblyLayout> objects = new ArrayList<>();
+         objects.add(new VSAssemblyLayout(objectName, new Point(50, 60), new Dimension(30, 40)));
+         layout.setVSAssemblyLayouts(objects);
          List<ViewsheetLayout> layouts = new ArrayList<>(info.getViewsheetLayouts());
          layouts.add(layout);
          info.setViewsheetLayouts(layouts);

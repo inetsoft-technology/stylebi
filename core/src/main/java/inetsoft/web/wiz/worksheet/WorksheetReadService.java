@@ -132,7 +132,7 @@ public class WorksheetReadService {
          // -1 and 0 both report null rather than reading back as a limit of -1 or of zero rows.
          // Note this is the effective limit, capped by query.runtime.maxrow; see TableModel.
          maxRows <= 0 ? null : maxRows,
-         t.isDistinct(), t.isVisibleTable(), tableMode(t),
+         t.isDistinct(), t.isSQLMergeable(), t.isVisibleTable(), tableMode(t),
          offset == null ? null : offset.x, offset == null ? null : offset.y);
    }
 
@@ -347,7 +347,12 @@ public class WorksheetReadService {
    // -------------------------------------------------------------------------
 
    private List<WorksheetModel.ColumnModel> readColumns(TableAssembly t) {
-      ColumnSelection cs = t.getColumnSelection(false);
+      // A grouped/aggregated table's private (pre-aggregation) selection keeps the original
+      // column definitions, while its public selection is regenerated from the AggregateInfo and
+      // reflects the query's actual output (correct alias, correct computed type) — the same
+      // public view list_bindable_fields/preview_worksheet_data already read. Reading the private
+      // selection unconditionally here is what made read_worksheet_model disagree with them.
+      ColumnSelection cs = t.getColumnSelection(t.isAggregate());
 
       if(cs == null) {
          return Collections.emptyList();
@@ -647,6 +652,24 @@ public class WorksheetReadService {
    }
 
    private List<String> extractValues(XCondition xc) {
+      if(xc instanceof RankingCondition rc) {
+         // RankingCondition.getN() carries the ranking's row count, which -- since Bug #75950
+         // -- can itself be a "$(variableName)" reference (a raw String, or a UserVariable if
+         // this condition round-tripped through XML). Surfacing it here, the same way a filter
+         // condition's values are surfaced, is what lets rename_variable/delete_variable's
+         // findVariableReferences scan (stylebi-wiz's worksheetTools.ts) actually see it --
+         // without this, that scan finds every $(name) EXCEPT one used only as a ranking count,
+         // and rename/delete reports no dangling references while leaving a live one behind.
+         Object n = rc.getN();
+
+         if(n == null) {
+            return Collections.emptyList();
+         }
+
+         return Collections.singletonList(
+            n instanceof UserVariable uvar ? "$(" + uvar.getName() + ")" : n.toString());
+      }
+
       if(!(xc instanceof Condition c)) {
          return Collections.emptyList();
       }
@@ -719,7 +742,9 @@ public class WorksheetReadService {
          alias = cr.getAlias();
       }
 
-      return new WorksheetModel.AggregateModel.AggregateRefModel(column, formulaName, alias);
+      Integer n = formula != null && formula.hasN() ? ar.getN() : null;
+
+      return new WorksheetModel.AggregateModel.AggregateRefModel(column, formulaName, alias, n);
    }
 
    // -------------------------------------------------------------------------

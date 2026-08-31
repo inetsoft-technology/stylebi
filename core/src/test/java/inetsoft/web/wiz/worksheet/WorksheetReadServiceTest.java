@@ -94,6 +94,115 @@ class WorksheetReadServiceTest {
       assertEquals("QUARTER", group.dateLevel());
    }
 
+   /**
+    * PWA-004: read_worksheet_model must report the same post-aggregation column shape that
+    * list_bindable_fields/preview_worksheet_data already do. A grouped table's public column
+    * selection carries only columns that are a group key or an aggregate output (a raw column
+    * that is neither is dropped, per AbstractTableAssembly's own public-selection regeneration);
+    * the private (pre-aggregation) selection this method used to read unconditionally keeps every
+    * raw column regardless. None of this file's other aggregate fixtures can catch a regression
+    * here: readsColumnsAggregatesConditionsSort sets its AggregateInfo directly
+    * (t.setAggregateInfo), which never flips isAggregate() true, so
+    * t.getColumnSelection(t.isAggregate()) resolves identically to the old unconditional
+    * getColumnSelection(false) there regardless of this fix; readsDateGroupLevelOnGroupedColumn
+    * and readsNForParametrizedFormula do go through applyAggregateInfo (isAggregate() true), but
+    * their 2-column fixtures make every raw column either the group key or the aggregated column,
+    * so private and public selections have the identical shape either way. This fixture adds a
+    * 3rd, untouched raw column ("region") specifically so the two selections differ in shape.
+    */
+   @Test
+   void groupedTableReportsOnlyThePublicAggregateOutputColumns() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val", "region");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("cat", null)),
+         List.of(new WorksheetMutationSupport.AggregateSpec("val", "SUM", null)));
+
+      // applyAggregateInfo itself only regenerates the public selection when a secondary
+      // aggregate forces a cs2 rebuild (see its own setColumnSelection(cs2) call) -- a plain
+      // single-group/single-aggregate call, the common case here, does not. In production this
+      // regeneration instead happens via WorksheetEventUtil.refreshColumnSelection, called by
+      // WorksheetAgentController right after set_group_aggregate, which needs a live
+      // AssetQuerySandbox this unit test has no reason to stand up. Forcing the same
+      // setColumnSelection(private, false) regeneration directly is the same idiom this file's own
+      // concatenationReportsWhetherItsSourcesLineUpByType test already uses for the identical
+      // reason (public selection holds clones taken when private was installed).
+      t.setColumnSelection(t.getColumnSelection(false), false);
+
+      WorksheetModel.TableModel tm = tableNamed(read(ws), "T");
+      List<String> names = tm.columns().stream().map(WorksheetModel.ColumnModel::name).toList();
+
+      assertTrue(names.contains("cat"));
+      assertTrue(names.contains("val"));
+      assertFalse(names.contains("region"),
+         "\"region\" is neither a group key nor an aggregate output -- the public selection " +
+            "list_bindable_fields/preview_worksheet_data already read drops it, and " +
+            "read_worksheet_model must agree rather than keep reporting the private, " +
+            "pre-aggregation column list: " + names);
+   }
+
+   /** The fix must be a no-op for a non-grouped table: isAggregate() is false, so
+    *  t.getColumnSelection(t.isAggregate()) resolves to the same private selection
+    *  getColumnSelection(false) always read here -- byte-identical to the pre-fix behaviour. */
+   @Test
+   void nonGroupedTableStillReportsAllItsRawColumns() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val", "region");
+      ws.addAssembly(t);
+
+      WorksheetModel.TableModel tm = tableNamed(read(ws), "T");
+      List<String> names = tm.columns().stream().map(WorksheetModel.ColumnModel::name).toList();
+
+      assertEquals(List.of("cat", "val", "region"), names);
+   }
+
+   // Bug #75954: even after set_group_aggregate correctly applied N, read_worksheet_model
+   // reported the formula as bare "NthLargest" with N gone — this is the read-back half
+   // of that bug.
+   @Test
+   void readsNForParametrizedFormula() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("cat", null)),
+         List.of(new WorksheetMutationSupport.AggregateSpec("val", "NthLargest", null, 5)));
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetModel m = new WorksheetReadService().read(rws);
+      WorksheetModel.AggregateModel.AggregateRefModel agg =
+         m.tables().get(0).aggregates().aggregates().get(0);
+      assertEquals("NthLargest", agg.formula());
+      assertEquals(5, agg.n());
+   }
+
+   // N must not be surfaced for a formula that doesn't use it, even if the underlying
+   // AggregateRef.num happens to be nonzero from a prior formula switch.
+   @Test
+   void omitsNForNonParametrizedFormula() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("cat", null)),
+         List.of(new WorksheetMutationSupport.AggregateSpec("val", "SUM", null)));
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetModel m = new WorksheetReadService().read(rws);
+      WorksheetModel.AggregateModel.AggregateRefModel agg =
+         m.tables().get(0).aggregates().aggregates().get(0);
+      assertEquals("SUM", agg.formula());
+      assertNull(agg.n());
+   }
+
    @Test
    void nullOrEmptyAggregateInfoReturnsNullAggregates() {
       Worksheet ws = new Worksheet();
@@ -116,6 +225,35 @@ class WorksheetReadServiceTest {
       when(rws.getWorksheet()).thenReturn(ws);
       WorksheetModel m = new WorksheetReadService().read(rws);
       assertEquals("EMBEDDED", m.tables().get(0).type());
+   }
+
+   @Test
+   void rankingConditionSurfacesVariableReferenceInValues() {
+      // Regression: extractValues() previously returned an empty list for ANY
+      // RankingCondition, so a Top-N count bound to $(topN) (Bug #75950) was invisible to
+      // findVariableReferences (stylebi-wiz's worksheetTools.ts), which scans
+      // rankingConditions[].values for "$(name)" tokens to warn rename_variable/delete_variable
+      // about dangling references -- a ranking-only reference would silently report as none.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total");
+      ws.addAssembly(t);
+      WorksheetMutationSupport.setRanking(t,
+         new WorksheetMutationSupport.RankingSpec("total", "$(topN)", "TOP_N", false));
+
+      WorksheetModel.FilterModel ranking = tableNamed(read(ws), "T").rankingConditions().get(0);
+      assertEquals(List.of("$(topN)"), ranking.values());
+   }
+
+   @Test
+   void rankingConditionSurfacesNumericNInValues() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total");
+      ws.addAssembly(t);
+      WorksheetMutationSupport.setRanking(t,
+         new WorksheetMutationSupport.RankingSpec("total", 5, "TOP_N", false));
+
+      WorksheetModel.FilterModel ranking = tableNamed(read(ws), "T").rankingConditions().get(0);
+      assertEquals(List.of("5"), ranking.values());
    }
 
    private static WorksheetModel.TableModel tableNamed(WorksheetModel m, String name) {
@@ -516,6 +654,7 @@ class WorksheetReadServiceTest {
       t.setDescription("what this table is for");
       t.setMaxRows(25);
       t.setDistinct(true);
+      t.setSQLMergeable(false);
       ws.addAssembly(t);
 
       WorksheetModel.TableModel m = tableNamed(read(ws), "T");
@@ -523,6 +662,7 @@ class WorksheetReadServiceTest {
       assertEquals("what this table is for", m.description());
       assertEquals(Integer.valueOf(25), m.maxRows());
       assertTrue(m.distinct());
+      assertFalse(m.mergeable());
    }
 
    /**
@@ -614,7 +754,7 @@ class WorksheetReadServiceTest {
       DataRef conditionRef = attachedAttribute != null ? attachedAttribute
          : new BaseField("this");
       ngi.setGroupCondition(groupName,
-         WorksheetMutationSupport.buildGroupConditionList(XSchema.STRING, conditionRef, mapping));
+         WorksheetMutationSupport.buildGroupConditionList(XSchema.STRING, conditionRef, mapping, ws));
 
       DefaultNamedGroupAssembly assembly = new DefaultNamedGroupAssembly(ws, name);
       assembly.setNamedGroupInfo(ngi);

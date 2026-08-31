@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableMap;
 import inetsoft.report.pdf.PDFDevice;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.web.viewsheet.command.MessageCommand.Type;
@@ -557,6 +558,12 @@ public class CoreTool {
    }
 
    /**
+    * The kind of date/time value a keyword style (FULL/LONG/MEDIUM/SHORT) should be
+    * resolved to by createDateFormat.
+    */
+   public enum DateFormatKind { DATE, TIME, DATE_TIME }
+
+   /**
     * Create an Extended version of the SimpleDateFormatter.
     * @return an instance of the ExtendedDateFormat.
     */
@@ -593,33 +600,59 @@ public class CoreTool {
    public static SimpleDateFormat createDateFormat(String pattern,
                      Locale locale)
    {
-      if(locale == null) {
+      return createDateFormat(pattern, locale, DateFormatKind.DATE);
+   }
+
+   /**
+    * Create an Extended version of the SimpleDateFormatter.
+    * @return an instance of the ExtendedDateFormat.
+    */
+   public static SimpleDateFormat createDateFormat(String pattern, Locale locale,
+                     DateFormatKind kind)
+   {
+      if(locale == null && kind == DateFormatKind.DATE) {
          return createDateFormat(pattern);
       }
 
       DateFormat fmt = null;
 
       if(pattern.equalsIgnoreCase("FULL")) {
-         fmt = DateFormat.getDateInstance(DateFormat.FULL, locale);
+         fmt = getStyledInstance(DateFormat.FULL, locale, kind);
       }
       else if(pattern.equalsIgnoreCase("LONG")) {
-         fmt = DateFormat.getDateInstance(DateFormat.LONG, locale);
+         fmt = getStyledInstance(DateFormat.LONG, locale, kind);
       }
       else if(pattern.equalsIgnoreCase("MEDIUM")) {
-         fmt = DateFormat.getDateInstance(DateFormat.MEDIUM, locale);
+         fmt = getStyledInstance(DateFormat.MEDIUM, locale, kind);
       }
       else if(pattern.equalsIgnoreCase("SHORT")) {
-         fmt = DateFormat.getDateInstance(DateFormat.SHORT, locale);
+         fmt = getStyledInstance(DateFormat.SHORT, locale, kind);
       }
       else if(pattern.equalsIgnoreCase("yyyy")) {
-         fmt = new SimpleDateFormat("yyyy", locale);
+         fmt = locale == null ? new SimpleDateFormat("yyyy") : new SimpleDateFormat("yyyy", locale);
       }
 
       if(fmt instanceof SimpleDateFormat) {
          return (SimpleDateFormat) fmt;
       }
 
-      return new ExtendedDateFormat(pattern, locale);
+      return locale == null ? new ExtendedDateFormat(pattern) : new ExtendedDateFormat(pattern, locale);
+   }
+
+   private static DateFormat getStyledInstance(int style, Locale locale, DateFormatKind kind) {
+      if(locale == null) {
+         return switch(kind) {
+            case DATE -> DateFormat.getDateInstance(style);
+            case TIME -> DateFormat.getTimeInstance(style);
+            case DATE_TIME -> DateFormat.getDateTimeInstance(style, style);
+         };
+      }
+
+      return switch(kind) {
+         case DATE -> DateFormat.getDateInstance(style, locale);
+         case TIME -> DateFormat.getTimeInstance(style, locale);
+         case DATE_TIME -> DateFormat.getDateTimeInstance(style, style, locale);
+      };
    }
 
    /**
@@ -2237,36 +2270,43 @@ public class CoreTool {
 
    // @by stevenkuo feature1413407457765 2014/12/11
    // uses the property sree.collator to instantiate a custom collator depending on
-   // the user's needs
-   private static boolean hasCollator = false;
+   // the user's needs. sree.collator supports an org-scoped override, so the resolved
+   // Collator must be cached per organization, not JVM-wide.
+   private static final Map<String, Optional<Collator>> collatorCache = new ConcurrentHashMap<>();
+
    private static Collator getCollator() {
-      if(!hasCollator) {
-         String collatorName;
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      String key = orgId == null ? "" : orgId;
+      Optional<Collator> cached = collatorCache.get(key);
 
-         if((collatorName = SreeEnv.getProperty("sree.collator")) != null) {
-            try {
-               collator = (Collator) Class.forName(collatorName).getConstructor().newInstance();
-            }
-            catch(Exception e) {
-               //Collator does not exist, collator stays equal to null
-            }
+      if(cached != null) {
+         return cached.orElse(null);
+      }
 
-            hasCollator = true;
+      String collatorName;
+      Collator resolved = null;
+      boolean cacheable = true;
+
+      if((collatorName = SreeEnv.getProperty("sree.collator")) != null) {
+         try {
+            resolved = (Collator) Class.forName(collatorName).getConstructor().newInstance();
          }
-         else if(Locale.getDefault().getLanguage().equals("en")) {
-            hasCollator = true;
-         }
-         else {
-            // Defer caching until Collator_CN's background map load completes so
-            // we don't permanently store the fallback Collator.getInstance().
-            collator = Collator_CN.getCollator();
-
-            if(Collator_CN.isMapLoaded()) {
-               hasCollator = true;
-            }
+         catch(Exception e) {
+            //Collator does not exist, resolved stays equal to null
          }
       }
-      return collator;
+      else if(!Locale.getDefault().getLanguage().equals("en")) {
+         // Defer caching until Collator_CN's background map load completes so
+         // we don't permanently store the fallback Collator.getInstance().
+         resolved = Collator_CN.getCollator();
+         cacheable = Collator_CN.isMapLoaded();
+      }
+
+      if(cacheable) {
+         collatorCache.put(key, Optional.ofNullable(resolved));
+      }
+
+      return resolved;
    }
 
    /**
@@ -2285,7 +2325,9 @@ public class CoreTool {
       }
 
       if(!caseSensitive && v1 instanceof String && v2 instanceof String) {
-         if(getCollator() != null) {
+         Collator collator = getCollator();
+
+         if(collator != null) {
             try {
                String str1 = ((String) v1).toLowerCase();
                String str2 = ((String) v2).toLowerCase();
@@ -3914,7 +3956,6 @@ public class CoreTool {
    private static volatile DocumentBuilderFactory docFactory;
    private static volatile SAXParserFactory saxParserFactory;
    private static DocumentBuilder builder;
-   private static Collator collator = null;
    private static ImmutableMap<String, IDateTimeConfig> localeToConfig = ImmutableMap.of();
    private static final Map<String, Object> cloneFns = new ConcurrentHashMap<>();
    private static final String NOCLONE = "noclone";

@@ -136,13 +136,26 @@ export class ClusterMonitoringPageComponent implements OnInit, OnDestroy {
             }
 
             this.http.post("../api/em/monitoring/cluster/pause-server",
-               this.selectedNodes.map((node) => node.server)).subscribe();
+               this.selectedNodes.map((node) => node.server)).subscribe(
+                  (results: Record<string, boolean>) => this.notifyFailedServers(results));
       });
    }
 
    resumeServers() {
       this.http.post("../api/em/monitoring/cluster/resume-server",
-         this.selectedNodes.map((node) => node.server)).subscribe();
+         this.selectedNodes.map((node) => node.server)).subscribe(
+            (results: Record<string, boolean>) => this.notifyFailedServers(results));
+   }
+
+   private notifyFailedServers(results: Record<string, boolean>) {
+      const failedServers = Object.keys(results || {}).filter((server) => !results[server]);
+
+      if(failedServers.length > 0) {
+         this.snackBar.open(
+            "_#(js:em.cluster.pauseResume.failed): " + failedServers.join(", "), null, {
+               duration: Tool.SNACKBAR_DURATION,
+            });
+      }
    }
 
    ngOnInit() {

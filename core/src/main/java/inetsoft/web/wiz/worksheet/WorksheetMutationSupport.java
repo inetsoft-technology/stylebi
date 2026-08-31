@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.DataRefWrapper;
@@ -34,6 +35,7 @@ import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.util.Tool;
 import inetsoft.web.wiz.pairing.PairingException;
 
 import java.util.*;
@@ -70,8 +72,16 @@ public final class WorksheetMutationSupport {
     * @param formula a formula name recognised by {@link AggregateFormula#getFormula}
     *                (e.g. {@code "SUM"}, {@code "COUNT"}, {@code "AVG"})
     * @param alias   optional output alias; may be {@code null}
+    * @param n       the N/P operand for a parametrized formula (e.g. {@code "NthLargest"},
+    *                {@code "NthSmallest"}, {@code "NthMostFrequent"}, {@code "PthPercentile"});
+    *                {@code null} (or a formula that doesn't take one, per
+    *                {@link AggregateFormula#hasN}) is ignored
     */
-   public record AggregateSpec(String field, String formula, String alias) {}
+   public record AggregateSpec(String field, String formula, String alias, Integer n) {
+      public AggregateSpec(String field, String formula, String alias) {
+         this(field, formula, alias, null);
+      }
+   }
 
    /**
     * Describes a single group-by column for
@@ -134,6 +144,31 @@ public final class WorksheetMutationSupport {
    }
 
    /**
+    * Describes one edge of an N-ary {@code add_join} (three or more tables joined into a single
+    * assembly in one call, as opposed to the pairwise {@code leftTable}/{@code rightTable} form).
+    *
+    * @param leftTable  a source table assembly name — either side of any edge may name a table
+    *                    introduced by another edge, so the edges need not form a single left-to-
+    *                    right chain (e.g. a hub table joined to two others)
+    * @param leftKey    the column name from {@code leftTable} to join on; ignored for
+    *                    {@code joinType == "CROSS"}
+    * @param rightTable the other source table assembly name
+    * @param rightKey   the column name from {@code rightTable} to join on; ignored for
+    *                    {@code joinType == "CROSS"}
+    * @param joinType   one of {@code "INNER"}, {@code "LEFT"}, {@code "RIGHT"}, {@code "FULL"},
+    *                   {@code "CROSS"} (case-insensitive; defaults to {@code "INNER"}).
+    *                   {@code "MERGE"} is not valid per-edge here — a merge join is a distinct
+    *                   assembly type ({@code MergeJoinTableAssembly}) that cannot be mixed into a
+    *                   multi-table {@code RelationalJoinTableAssembly}; use {@code add_merge_join}.
+    *                   {@code "CROSS"} is likewise an exclusive operation and may only appear
+    *                   when it is the SOLE edge in the call — combined with any other edge it is
+    *                   rejected, since {@link TableAssemblyOperator#checkValidity} refuses an
+    *                   exclusive operator once more than one edge is present.
+    */
+   public record JoinPathSpec(String leftTable, String leftKey, String rightTable, String rightKey,
+                              String joinType) {}
+
+   /**
     * Builds the {@link ConditionList} for one named-group mapping, honoring the mapping's
     * {@code operation} (any operator accepted by {@link #parseOperation}, defaulting to
     * {@code EQUAL_TO} when omitted, matching this method's historical behavior).
@@ -160,9 +195,14 @@ public final class WorksheetMutationSupport {
     * to a datasource/logical-model or physical-table attribute) — the condition-building logic is
     * identical either way; only how {@code conditionRef}/{@code conditionType} were resolved
     * differs.</p>
+    *
+    * @param ws the worksheet the group is being built against, used only to resolve a
+    *           {@code DATE_IN} mapping's value against a worksheet-level {@link DateRangeAssembly}
+    *           when it does not name a built-in date range; see {@link #resolveDateInCondition}.
     */
    static ConditionList buildGroupConditionList(
-      String conditionType, DataRef conditionRef, GroupMapping m) throws PairingException
+      String conditionType, DataRef conditionRef, GroupMapping m, Worksheet ws)
+      throws PairingException
    {
       String operation = m.operation();
       int op = parseOperation(operation);
@@ -222,6 +262,16 @@ public final class WorksheetMutationSupport {
          return conds;
       }
 
+      if(op == XCondition.DATE_IN) {
+         // Same single-condition shape as NULL/ONE_OF/BETWEEN above -- DATE_IN is one range name,
+         // not a per-value OR list. See resolveDateInCondition.
+         XCondition resolved = resolveDateInCondition(
+            ws, m.values() != null && !m.values().isEmpty() ? m.values().get(0) : null);
+         resolved.setNegated(negate);
+         conds.append(new ConditionItem(conditionRef, resolved, 0));
+         return conds;
+      }
+
       for(int i = 0; i < m.values().size(); i++) {
          if(i > 0) {
             conds.append(new JunctionOperator(JunctionOperator.OR, 0));
@@ -274,22 +324,36 @@ public final class WorksheetMutationSupport {
       String dtype = ref.getDataType() != null && !ref.getDataType().isBlank()
          ? ref.getDataType() : XSchema.STRING;
 
-      Condition c = new Condition(dtype);
-      c.setOperation(op);
+      ConditionItem item;
 
-      if(isEqualInclusive(operation)) {
-         c.setEqual(true);
+      if(op == XCondition.DATE_IN) {
+         // DATE_IN is inherently single-valued (a range name, not a list) and is never negated
+         // through this operator token -- isNegatedOperation("date_in") is always false, there is
+         // no "not_date_in" form -- so the equal-inclusive/negate/value-loop logic below does not
+         // apply here.
+         XCondition resolved = resolveDateInCondition(
+            t.getWorksheet(), values.length > 0 ? values[0] : null);
+         item = new ConditionItem(ref, resolved, 0);
+      }
+      else {
+         Condition c = new Condition(dtype);
+         c.setOperation(op);
+
+         if(isEqualInclusive(operation)) {
+            c.setEqual(true);
+         }
+
+         if(negate) {
+            c.setNegated(true);
+         }
+
+         for(String v : values) {
+            c.addValue(conditionValue(dtype, v));
+         }
+
+         item = new ConditionItem(ref, c, 0);
       }
 
-      if(negate) {
-         c.setNegated(true);
-      }
-
-      for(String v : values) {
-         c.addValue(conditionValue(dtype, v));
-      }
-
-      ConditionItem item = new ConditionItem(ref, c, 0);
       ConditionListWrapper existing = t.getPreConditionList();
 
       if(existing != null && !existing.isEmpty()) {
@@ -646,6 +710,10 @@ public final class WorksheetMutationSupport {
 
          AggregateRef ar = new AggregateRef(colRef, formula);
 
+         if(spec.n() != null && formula.hasN()) {
+            ar.setN(spec.n());
+         }
+
          if(ainfo.containsAggregate(ar)) {
             // Second aggregate on the same column: clone the ref before aliasing.
             // The shared ref was (correctly) mutated by the first spec — that is how
@@ -660,7 +728,13 @@ public final class WorksheetMutationSupport {
                appliedAliases.add(spec.alias());
             }
 
-            ainfo.addSecondaryAggregate(new AggregateRef(cloned, formula));
+            AggregateRef secondary = new AggregateRef(cloned, formula);
+
+            if(spec.n() != null && formula.hasN()) {
+               secondary.setN(spec.n());
+            }
+
+            ainfo.addSecondaryAggregate(secondary);
          }
          else {
             // First aggregate on this column: set the alias on the shared ref from the
@@ -717,6 +791,11 @@ public final class WorksheetMutationSupport {
 
             // Create a new primary aggregate on the expression column.
             AggregateRef newAgg = new AggregateRef(exprCol, sref.getFormula());
+
+            if(sref.getFormula() != null && sref.getFormula().hasN()) {
+               newAgg.setN(sref.getN());
+            }
+
             ainfo.addAggregate(newAgg, false);
          }
 
@@ -1320,31 +1399,40 @@ public final class WorksheetMutationSupport {
             String dtype = spec.type() != null ? spec.type() : inferColumnType(t, spec.field(), post);
 
             DataRef ref = resolveField(t, spec.field(), post);
-            Condition c = new Condition(dtype);
-            c.setOperation(op);
 
-            if(isEqualInclusive(spec.operation())) {
-               c.setEqual(true);
+            if(op == XCondition.DATE_IN) {
+               XCondition resolved = resolveDateInCondition(t.getWorksheet(),
+                  spec.values() != null && !spec.values().isEmpty() ? spec.values().get(0) : null);
+               resolved.setNegated(negate);
+               cl.append(new ConditionItem(ref, resolved, node.level()));
             }
+            else {
+               Condition c = new Condition(dtype);
+               c.setOperation(op);
 
-            if(negate) {
-               c.setNegated(true);
-            }
-
-            if(spec.values() != null) {
-               for(String v : spec.values()) {
-                  // Shared with addFilter rather than parsed a second time here. The local copy
-                  // had no lower bound on the name, so "$()" became a variable named "" -- one
-                  // nothing can ever resolve, reported as ok. Typing was NOT the difference,
-                  // though the bare constructor reads as though it would be: Condition.addValue
-                  // routes every value through convertType, whose UserVariable branch
-                  // (Condition:2129-2149) sets the type node from the condition's own type, so
-                  // the variable was typed from the column either way.
-                  c.addValue(conditionValue(dtype, v));
+               if(isEqualInclusive(spec.operation())) {
+                  c.setEqual(true);
                }
-            }
 
-            cl.append(new ConditionItem(ref, c, node.level()));
+               if(negate) {
+                  c.setNegated(true);
+               }
+
+               if(spec.values() != null) {
+                  for(String v : spec.values()) {
+                     // Shared with addFilter rather than parsed a second time here. The local copy
+                     // had no lower bound on the name, so "$()" became a variable named "" -- one
+                     // nothing can ever resolve, reported as ok. Typing was NOT the difference,
+                     // though the bare constructor reads as though it would be: Condition.addValue
+                     // routes every value through convertType, whose UserVariable branch
+                     // (Condition:2129-2149) sets the type node from the condition's own type, so
+                     // the variable was typed from the column either way.
+                     c.addValue(conditionValue(dtype, v));
+                  }
+               }
+
+               cl.append(new ConditionItem(ref, c, node.level()));
+            }
          }
          else if(node.junction() != null) {
             JunctionSpec js = node.junction();
@@ -1366,7 +1454,10 @@ public final class WorksheetMutationSupport {
     * Describes a ranking condition.
     *
     * @param field     column to rank — a group/dimension column or an aggregate column
-    * @param n         number of rows (top/bottom N)
+    * @param n         number of rows (top/bottom N) — an {@link Integer}, a numeric
+    *                  {@link String}, or a {@code "$(variableName)"} reference to bind the
+    *                  count to a worksheet variable (same syntax filter condition values
+    *                  support). See {@link RankingCondition#setN}.
     * @param operation {@code "TOP_N"} or {@code "BOTTOM_N"}
     * @param groupOthers {@code true} to group remaining rows as "Others"
     * @param of        optional aggregate column to rank {@code field} by (e.g. {@code field}
@@ -1375,13 +1466,13 @@ public final class WorksheetMutationSupport {
     *                  ranking-condition editor. Only meaningful when {@code field} is a group
     *                  column; omit when {@code field} is itself the aggregate to rank by.
     */
-   public record RankingSpec(String field, int n, String operation,
+   public record RankingSpec(String field, Object n, String operation,
                              boolean groupOthers, String of) {
       /**
        * Compact form for callers that don't need {@code of} (e.g. ranking directly by an
        * aggregate or group column with no separate "of" value).
        */
-      public RankingSpec(String field, int n, String operation, boolean groupOthers) {
+      public RankingSpec(String field, Object n, String operation, boolean groupOthers) {
          this(field, n, operation, groupOthers, null);
       }
    }
@@ -1414,7 +1505,12 @@ public final class WorksheetMutationSupport {
 
       inetsoft.uql.asset.RankingCondition rc = new inetsoft.uql.asset.RankingCondition();
       rc.setOperation(op);
-      rc.setN(spec.n());
+
+      if(!rc.setN(spec.n())) {
+         throw new IllegalArgumentException(
+            "'n' must be an integer or a \"$(variableName)\" reference, got: " + spec.n());
+      }
+
       rc.setGroupOthers(spec.groupOthers());
 
       if(spec.of() != null && !spec.of().isBlank()) {
@@ -1428,6 +1524,284 @@ public final class WorksheetMutationSupport {
       ConditionList cl = new ConditionList();
       cl.append(new ConditionItem(ref, rc, 0));
       t.setRankingConditionList(cl);
+   }
+
+   /**
+    * Describes a variable's enumerated "Values" picker. The Composer's own Variable dialog
+    * offers two mutually exclusive ways to populate it: a fixed embedded list ({@code values},
+    * optionally paired with {@code labels}), or a query against an existing worksheet table's
+    * columns ({@code table} + {@code labelColumn} + {@code valueColumn}). Specifying both
+    * {@code values} and {@code table} in the same spec is rejected rather than silently
+    * preferring one.
+    *
+    * @param values       embedded picker values; empty clears the picker back to free-form,
+    *                     {@code null} leaves any existing embedded list untouched. Mutually
+    *                     exclusive with {@code table}.
+    * @param labels       display labels parallel to {@code values}; must be the same length
+    *                     if given, otherwise {@code values} double as their own labels
+    * @param table        worksheet table supplying picker rows (query mode); {@code null}
+    *                     leaves any existing query source untouched. Mutually exclusive with
+    *                     {@code values}.
+    * @param labelColumn  column on {@code table} supplying each row's display label; required
+    *                     when {@code table} is given
+    * @param valueColumn  column on {@code table} supplying each row's underlying value;
+    *                     required when {@code table} is given
+    * @param displayStyle {@code "none"}, {@code "combobox"}, {@code "list"}, {@code "radio"},
+    *                     or {@code "checkboxes"} — matches the Composer's own picker style
+    *                     choices. {@code null} leaves the existing style untouched unless
+    *                     {@code values} or {@code table} was also given this call, in which
+    *                     case it defaults to {@code "combobox"}.
+    */
+   public record VariableChoicesSpec(List<String> values, List<String> labels, String table,
+                                     String labelColumn, String valueColumn,
+                                     String displayStyle) {}
+
+   /**
+    * Populates a variable's enumerated value list from a {@link VariableChoicesSpec}, matching
+    * {@link UserVariable#setValues}/{@link UserVariable#setChoices} (embedded mode) or
+    * {@link AssetVariable#setTableName}/{@link AssetVariable#setLabelAttribute}/
+    * {@link AssetVariable#setValueAttribute} (query mode). Mirrors
+    * {@code VariableAssemblyDialogService.convertModelToAssetVariable}, the Composer dialog's
+    * own implementation of the same conversion.
+    *
+    * <p>Also sets {@link AssetVariable#setDisplayStyle}: unlike the base
+    * {@link UserVariable#getDisplayStyle}, {@link AssetVariable} does not auto-derive its
+    * display style from whether choices/values are present, it only returns whatever was last
+    * explicitly stored — so a picker populated without this would carry values the Composer's
+    * own Variable UI never renders a control for.
+    *
+    * @param ws   the worksheet {@code spec.table()} is resolved against (query mode only)
+    * @param var  the variable to populate; if its type node is already set, that determines
+    *             how each entry in embedded {@code values} is typed, otherwise entries are
+    *             typed as {@link XSchema#STRING}
+    * @param spec the picker to apply, or {@code null} to leave the variable's picker untouched
+    */
+   public static void applyVariableChoices(Worksheet ws, AssetVariable var,
+                                           VariableChoicesSpec spec)
+   {
+      if(spec == null) {
+         return;
+      }
+
+      boolean hasValues = spec.values() != null;
+      boolean hasTable = spec.table() != null;
+
+      if(hasValues && hasTable) {
+         throw new IllegalArgumentException(
+            "'values' and 'table' are mutually exclusive ways to populate a variable's " +
+            "picker -- specify one or the other, not both.");
+      }
+
+      // Parsed up front, before any mutation below: applyOnRuntime mutates the live worksheet
+      // directly with no rollback on a thrown exception (see WorksheetEditService.apply), so an
+      // invalid displayStyle discovered only after values/table were already applied would
+      // leave the variable half-updated -- state committed, call still reported as failed.
+      Integer explicitStyle = spec.displayStyle() != null
+         ? parseVariableDisplayStyle(spec.displayStyle()) : null;
+
+      if(hasValues) {
+         applyEmbeddedVariableChoices(var, spec.values(), spec.labels());
+      }
+      else if(hasTable) {
+         applyQueryVariableChoices(ws, var, spec.table(), spec.labelColumn(), spec.valueColumn());
+      }
+
+      if(explicitStyle != null) {
+         var.setDisplayStyle(explicitStyle);
+         var.setMultipleSelection(explicitStyle == UserVariable.LIST);
+      }
+      else if(hasValues || hasTable) {
+         // A picker source was (re)supplied but no explicit style was given -- default to a
+         // single-select combobox unless the source ended up empty (no picker at all), which
+         // must read back as NONE or the Composer UI shows a combobox with nothing in it.
+         boolean hasPicker = var.getTableName() != null ||
+            var.getChoices() != null && var.getValues() != null;
+         var.setDisplayStyle(hasPicker ? UserVariable.COMBOBOX : UserVariable.NONE);
+         var.setMultipleSelection(false);
+      }
+   }
+
+   private static void applyEmbeddedVariableChoices(AssetVariable var, List<String> values,
+                                                     List<String> labels)
+   {
+      // Validated before any mutation below -- see the comment on applyVariableChoices'
+      // displayStyle parse for why a validation failure must never land after a partial write.
+      if(!values.isEmpty() && labels != null && !labels.isEmpty() &&
+         labels.size() != values.size())
+      {
+         throw new IllegalArgumentException(
+            "'labels' must have the same number of entries as 'values' (" + values.size() +
+            "), got " + labels.size() + ".");
+      }
+
+      String type = var.getTypeNode() != null ? var.getTypeNode().getType() : XSchema.STRING;
+      Object[] typedValues = new Object[values.size()];
+
+      for(int i = 0; i < values.size(); i++) {
+         String v = values.get(i);
+         Object typed = Tool.getData(type, v);
+
+         // Tool.getData silently returns null for an entry that doesn't parse as 'type' (e.g.
+         // "abc" for an integer variable) instead of throwing -- fail loud here instead,
+         // matching every other validation in this method, rather than writing a value whose
+         // label ('v') and underlying null value end up silently out of sync.
+         if(typed == null && v != null && !v.isEmpty()) {
+            throw new IllegalArgumentException(
+               "'values' entry \"" + v + "\" is not a valid " + type + " value.");
+         }
+
+         typedValues[i] = typed;
+      }
+
+      // Switching to embedded mode must clear any leftover query-mode source -- otherwise
+      // AssetVariable carries both a non-null tableName AND populated choices/values, and the
+      // Composer's own read path (VariableAssemblyDialogService) treats a non-null tableName as
+      // query mode unconditionally, silently ignoring the embedded list this call just set.
+      var.setTableName(null);
+      var.setLabelAttribute(null);
+      var.setValueAttribute(null);
+
+      if(values.isEmpty()) {
+         var.setChoices(null);
+         var.setValues(null);
+         return;
+      }
+
+      List<String> effectiveLabels = labels != null && !labels.isEmpty() ? labels : values;
+
+      // UserVariable defaults sortValue to true, which silently re-sorts choices/values
+      // alphabetically by label the moment both arrays are set -- discarding the caller's
+      // intended order with no error. VariableAssemblyDialogService (the Composer's own
+      // Variable dialog) always disables it for the same reason; match that here.
+      var.setSortValue(false);
+      var.setChoices(effectiveLabels.toArray());
+      var.setValues(typedValues);
+   }
+
+   private static void applyQueryVariableChoices(Worksheet ws, AssetVariable var, String table,
+                                                  String labelColumn, String valueColumn)
+   {
+      if(labelColumn == null || valueColumn == null) {
+         throw new IllegalArgumentException(
+            "'labelColumn' and 'valueColumn' are both required when 'table' is given.");
+      }
+
+      Assembly a = ws.getAssembly(table);
+
+      if(!(a instanceof TableAssembly t)) {
+         throw new IllegalArgumentException("Worksheet table not found: " + table);
+      }
+
+      DataRef labelRef = resolveField(t, labelColumn);
+      DataRef valueRef = resolveField(t, valueColumn);
+
+      if(labelRef == null) {
+         throw new IllegalArgumentException(
+            "'labelColumn' not found on table '" + table + "': " + labelColumn);
+      }
+
+      if(valueRef == null) {
+         throw new IllegalArgumentException(
+            "'valueColumn' not found on table '" + table + "': " + valueColumn);
+      }
+
+      checkNoCircularVariableDependency(ws, var, t);
+
+      // Switching to query mode must clear any leftover embedded list for the same reason
+      // applyEmbeddedVariableChoices clears the table name -- the two sources are mutually
+      // exclusive in how the Composer's own dialog reads a variable back.
+      var.setChoices(null);
+      var.setValues(null);
+      var.setTableName(table);
+      var.setLabelAttribute(labelRef);
+      var.setValueAttribute(valueRef);
+   }
+
+   /**
+    * Rejects a query-mode picker source that would create a circular dependency:
+    * {@code table} (or anything it depends on -- mirrors, joins, concatenations, recursively,
+    * via {@link AssetUtil#getDependedAssemblies}) carrying a filter or ranking condition that
+    * reads {@code $(var.getName())}. Computing the picker's own values would then require the
+    * variable's value first, which is exactly what the picker exists to supply.
+    *
+    * <p>Confirmed live (2026-08-26): mirroring a table whose own ranking condition read
+    * {@code $(TopN)}, then pointing {@code $(TopN)}'s picker at that mirror, silently built
+    * this cycle -- a query-mode variable picker is a worksheet-chat-only capability with no
+    * Composer dialog equivalent to catch it by construction, so it needs its own guard here.
+    */
+   private static void checkNoCircularVariableDependency(Worksheet ws, AssetVariable var,
+                                                          TableAssembly table)
+   {
+      String varName = var.getName();
+      Assembly[] deps = AssetUtil.getDependedAssemblies(ws, table, true);
+
+      for(Assembly a : deps) {
+         if(!(a instanceof TableAssembly t)) {
+            continue;
+         }
+
+         boolean referenced = referencesVariable(t.getPreConditionList(), varName) ||
+            referencesVariable(t.getPostConditionList(), varName) ||
+            referencesVariable(t.getRankingConditionList(), varName);
+
+         if(referenced) {
+            String via = t == table ? "" : " (depended on by '" + table.getName() + "')";
+            throw new IllegalArgumentException(
+               "'table' creates a circular dependency: '" + t.getName() + "'" + via +
+               " has a condition that reads $(" + varName + ") -- computing the picker's own " +
+               "values would require the variable's value first. Point the picker at a table " +
+               "that does not depend on this variable, e.g. an independent copy with its own " +
+               "conditions cleared, not a mirror of the filtered table.");
+         }
+      }
+   }
+
+   /**
+    * {@code true} if any condition in {@code wrapper} reads {@code $(varName)}.
+    */
+   private static boolean referencesVariable(ConditionListWrapper wrapper, String varName) {
+      if(wrapper == null || wrapper.isEmpty()) {
+         return false;
+      }
+
+      int size = wrapper.getConditionSize();
+
+      for(int i = 0; i < size; i++) {
+         if(!wrapper.isConditionItem(i)) {
+            continue;
+         }
+
+         ConditionItem item = wrapper.getConditionItem(i);
+         XCondition xc = item == null ? null : item.getXCondition();
+
+         if(xc == null) {
+            continue;
+         }
+
+         for(UserVariable uvar : xc.getAllVariables()) {
+            if(varName.equals(uvar.getName())) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Maps a display-style token to its {@link UserVariable} constant.
+    */
+   private static int parseVariableDisplayStyle(String style) {
+      return switch(style.toLowerCase()) {
+         case "none" -> UserVariable.NONE;
+         case "combobox" -> UserVariable.COMBOBOX;
+         case "list" -> UserVariable.LIST;
+         case "radio", "radio_buttons" -> UserVariable.RADIO_BUTTONS;
+         case "checkboxes" -> UserVariable.CHECKBOXES;
+         default -> throw new IllegalArgumentException(
+            "'" + style + "' is not a display style. Accepted: none, combobox, list, radio, " +
+            "checkboxes.");
+      };
    }
 
    /**
@@ -1595,6 +1969,52 @@ public final class WorksheetMutationSupport {
    }
 
    /**
+    * Resolves a {@code DATE_IN} clause's value -- a named range such as {@code "Last month"} --
+    * into the {@link XCondition} that actually carries date-range semantics, mirroring
+    * {@code ConditionUtil.fromModelToConditionList}'s {@code DATE_IN} branch: the built-in ranges
+    * from {@code dateConditions.xml} ({@link DateCondition#getBuiltinDateConditions()}) are tried
+    * first by exact name, then a worksheet-level {@link DateRangeAssembly} of that name.
+    *
+    * <p>This is deliberately eager rather than left to query time. {@code addFilter}/
+    * {@code setConditions} built a plain {@link Condition} with the literal string as its value;
+    * that string is only ever rescued later by {@code Condition.toSqlCondition(boolean, String)},
+    * which (a) has no {@code DateRangeAssembly} fallback at all -- a user-defined named range never
+    * resolves through it -- and (b) on any other unmatched/typo'd name silently returns
+    * {@code toNullSqlCondition(1)}, a hardcoded "one year ago" range, with no error. Resolving here
+    * closes both gaps and, as a side effect, keeps the non-SQL-mergeable evaluate() path correct
+    * too: a {@link DateCondition} is not a {@link Condition} subclass, so it can never reach
+    * {@code Condition.evaluate()}'s separate, hardcoded {@code isInDateRange} name table.
+    *
+    * @param ws    the worksheet to check for a matching {@link DateRangeAssembly}; may be
+    *              {@code null} if no worksheet is available, in which case only built-in ranges
+    *              are checked
+    * @param value the named range, e.g. {@code "Last month"}
+    * @throws IllegalArgumentException if {@code value} is blank or matches neither a built-in
+    *                                  range nor a worksheet {@link DateRangeAssembly}
+    */
+   private static XCondition resolveDateInCondition(Worksheet ws, String value) {
+      if(value == null || value.isBlank()) {
+         throw new IllegalArgumentException(
+            "'date_in' needs a value naming a built-in range (e.g. \"Last month\") or a worksheet " +
+            "date-range assembly -- call list_condition_date_ranges for the exact names.");
+      }
+
+      for(DateCondition dc : DateCondition.getBuiltinDateConditions()) {
+         if(dc.getName().equals(value)) {
+            return dc.clone();
+         }
+      }
+
+      if(ws != null && ws.getAssembly(value) instanceof DateRangeAssembly dra) {
+         return dra.getDateRange().clone();
+      }
+
+      throw new IllegalArgumentException(
+         "'" + value + "' is not a known date range. Call list_condition_date_ranges for the exact " +
+         "built-in names (e.g. \"Last month\"), or name a worksheet date-range assembly.");
+   }
+
+   /**
     * Maps an operator token to its XCondition constant.
     *
     * <p>An absent operator still means equals -- callers such as add_named_group leave it out on
@@ -1624,11 +2044,18 @@ public final class WorksheetMutationSupport {
          case "LIKE"                     -> XCondition.LIKE;
          case "NULL", "IS_NULL"          -> XCondition.NULL;
          case "NOT_NULL"                 -> XCondition.NULL;    // negated via setNegated
+         // DATE_IN was already a first-class viewsheet-side operator (ConditionVocabulary maps
+         // it to XCondition.DATE_IN and advertises it via list_condition_operators), but this
+         // worksheet-side parser never got the same case -- add_filter/set_conditions rejected an
+         // operator the vocabulary endpoint told the caller was legal. Value semantics (resolving
+         // a named range like "Last month" into a literal) are a separate, still-open piece of
+         // work; this only stops the operator name itself from being rejected.
+         case "DATE_IN"                  -> XCondition.DATE_IN;
          default -> throw new IllegalArgumentException(
             "'" + operation + "' is not a condition operator. Accepted: =, !=, <, <=, >, >=, " +
-            "BETWEEN, ONE_OF, NOT_ONE_OF, STARTING_WITH, CONTAINS, LIKE, NULL, NOT_NULL. Omit the " +
-            "operator entirely to mean equals -- an unrecognised one used to be applied as " +
-            "equals, which quietly returns a different data set.");
+            "BETWEEN, ONE_OF, NOT_ONE_OF, STARTING_WITH, CONTAINS, LIKE, NULL, NOT_NULL, " +
+            "DATE_IN. Omit the operator entirely to mean equals -- an unrecognised one used to " +
+            "be applied as equals, which quietly returns a different data set.");
       };
    }
 

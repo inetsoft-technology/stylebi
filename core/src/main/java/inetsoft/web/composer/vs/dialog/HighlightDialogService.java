@@ -94,6 +94,19 @@ public class HighlightDialogService {
 
       if(box.isPresent() && assemblyInfo instanceof TableDataVSAssemblyInfo) {
          lens = box.get().getVSTableLens(objectId, false);
+
+         if(assembly instanceof CrosstabVSAssembly) {
+            VSCrosstabInfo cinfo = ((CrosstabVSAssembly) assembly).getVSCrosstabInfo();
+            int[] resolved = resolveStackedMeasureCell(cinfo.getRuntimeAggregates(),
+               cinfo.isSummarySideBySide(), lens.getHeaderRowCount(), lens.getHeaderColCount(),
+               colName);
+
+            if(resolved != null) {
+               row = resolved[0];
+               col = resolved[1];
+            }
+         }
+
          dataPath = lens.getTableDataPath(row, col);
 
          if(assemblyInfo instanceof TableVSAssemblyInfo) {
@@ -371,6 +384,64 @@ public class HighlightDialogService {
       model.setHighlights(highlightModelList.toArray(new HighlightModel[0]));
       model.setRevision(rvs.getWriteRevision());
       return model;
+   }
+
+   /**
+    * The physical {@code {row, col}} of a crosstab's stacked aggregate measure named by
+    * {@code colName}, or {@code null} when there is nothing to resolve or nothing to disambiguate.
+    *
+    * <p>{@code lens.getTableDataPath(row, col)} is a pure function of {@code (row, col)} alone --
+    * {@code colName} plays no part in it -- so two calls that differ only in which measure they
+    * name, both leaving {@code row}/{@code col} at their caller-omitted default, always land on the
+    * exact same {@code TableDataPath}. Every stacked measure's highlight then collapses onto the
+    * one cell the first measure occupies (bug 76307), the same way {@code colName} already fails to
+    * disambiguate the fields available in {@code getRefsForVSAssembly} -- it is read there too, but
+    * only to filter, never to pick a cell.
+    *
+    * <p>A crosstab's stacked measures sit at one fixed offset apart from the first data cell -- one
+    * row apart when stacked (the default), one column apart when
+    * {@code VSCrosstabInfo#isSummarySideBySide()} -- in the same order as
+    * {@code VSCrosstabInfo#getRuntimeAggregates()}, which is also the order
+    * {@code AbstractCrosstabVSAQuery} assigns each aggregate's column when it builds the rendered
+    * lens. Reusing that order resolves the measure's cell directly, without re-deriving the lens's
+    * own row/col header traversal.
+    *
+    * <p>Mirrors the chart branch below, where {@code colName} is already a standalone address
+    * (a chart has no rows/columns to combine it with) -- here it takes priority over whatever
+    * {@code row}/{@code col} arrived, but only once it actually matches one of this crosstab's
+    * aggregates; a {@code colName} naming something else (or absent, or a crosstab with fewer than
+    * two aggregates, where there is nothing to disambiguate) leaves {@code row}/{@code col}
+    * untouched.
+    */
+   static int[] resolveStackedMeasureCell(DataRef[] runtimeAggregates, boolean summarySideBySide,
+                                          int headerRowCount, int headerColCount, String colName)
+   {
+      if(colName == null || runtimeAggregates == null || runtimeAggregates.length < 2) {
+         return null;
+      }
+
+      int index = -1;
+
+      for(int i = 0; i < runtimeAggregates.length; i++) {
+         if(runtimeAggregates[i] instanceof VSAggregateRef) {
+            VSAggregateRef aggregate = (VSAggregateRef) runtimeAggregates[i];
+
+            if(Tool.equals(aggregate.getName(), colName) ||
+               Tool.equals(aggregate.getFullName(), colName))
+            {
+               index = i;
+               break;
+            }
+         }
+      }
+
+      if(index < 0) {
+         return null;
+      }
+
+      return summarySideBySide
+         ? new int[] { headerRowCount, headerColCount + index }
+         : new int[] { headerRowCount + index, headerColCount };
    }
 
    /**

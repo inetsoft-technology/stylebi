@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.worksheet;
 
+import inetsoft.report.composition.RuntimeSheet;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
@@ -43,6 +45,7 @@ import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularQuery;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.text.TextOutput;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.table.XSwappableTable;
@@ -54,10 +57,12 @@ import inetsoft.uql.util.filereader.ExcelFileSupport;
 import inetsoft.util.Catalog;
 import inetsoft.util.FileSystemService;
 import inetsoft.web.composer.ws.LayoutGraphService;
+import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.service.RenderWaitSupport;
 import inetsoft.web.wiz.service.TabularEndpointBindingSupport;
 import inetsoft.web.wiz.script.PaneScopeService;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
@@ -445,7 +450,7 @@ public class WorksheetAgentController {
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
          String assemblyName = AssetUtil.normalizeTable(tablePath);
-         assemblyName = AssetUtil.getNextName(ws, assemblyName);
+         assemblyName = AssetUtil.getNextName(ws, assemblyName, assemblyName);
 
          PhysicalBoundTableAssembly assembly =
             new PhysicalBoundTableAssembly(ws, assemblyName);
@@ -538,7 +543,7 @@ public class WorksheetAgentController {
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
          String assemblyName = AssetUtil.normalizeTable(entityName);
-         assemblyName = AssetUtil.getNextName(ws, assemblyName);
+         assemblyName = AssetUtil.getNextName(ws, assemblyName, assemblyName);
 
          BoundTableAssembly assembly = new BoundTableAssembly(ws, assemblyName);
 
@@ -647,7 +652,8 @@ public class WorksheetAgentController {
 
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
-         String assemblyName = AssetUtil.getNextName(ws, AssetUtil.normalizeTable(tableName));
+         String normalizedTableName = AssetUtil.normalizeTable(tableName);
+         String assemblyName = AssetUtil.getNextName(ws, normalizedTableName, normalizedTableName);
          TabularTableAssembly assembly = new TabularTableAssembly(ws, assemblyName);
          TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) assembly.getTableInfo();
          info.setQuery(query);
@@ -833,7 +839,7 @@ public class WorksheetAgentController {
          if(mappings != null) {
             for(WorksheetMutationSupport.GroupMapping m : mappings) {
                ngi.setGroupCondition(m.name(),
-                  WorksheetMutationSupport.buildGroupConditionList(conditionType, ref, m));
+                  WorksheetMutationSupport.buildGroupConditionList(conditionType, ref, m, ws));
             }
          }
 
@@ -926,9 +932,9 @@ public class WorksheetAgentController {
     *                          or the worksheet is untitled and no name was supplied
     */
    @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/save")
-   public void save(@PathVariable String sessionToken,
-                    @RequestBody SaveRequest body,
-                    Principal user) throws PairingException
+   public Map<String, Object> save(@PathVariable String sessionToken,
+                                   @RequestBody SaveRequest body,
+                                   Principal user) throws PairingException
    {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
@@ -936,7 +942,8 @@ public class WorksheetAgentController {
          editService.resolveWithSession(sessionToken, user);
       RuntimeWorksheet rws = resolved.rws();
       String runtimeId = resolved.runtimeId();
-      AssetEntry entry = rws.getEntry();
+      AssetEntry oldEntry = rws.getEntry();
+      AssetEntry entry = oldEntry;
 
       String name = body.name() != null ? body.name().trim() : null;
 
@@ -946,6 +953,17 @@ public class WorksheetAgentController {
                "Worksheet is unsaved — provide a 'name' to save it (e.g. \"agent_ws_1\").");
          }
       }
+
+      boolean wasTemporary = oldEntry.getScope() == AssetRepository.TEMPORARY_SCOPE;
+
+      // A Save-As (a name given for a worksheet that already had a saved entry, as opposed to a
+      // first save out of TEMPORARY_SCOPE) only ever moves this session's own RuntimeWorksheet
+      // entry pointer -- nothing here updates a connected viewsheet's Viewsheet.baseEntry, so the
+      // viewsheet silently keeps pointing at the pre-Save-As asset (Bug PVA-003). There is no
+      // in-place fix for that without a repoint tool, so at minimum, warn.
+      boolean isSaveAs = name != null && !name.isEmpty() && !wasTemporary;
+      List<String> affectedViewsheets = isSaveAs
+         ? connectedViewsheetIds(connectedViewsheets(oldEntry, user)) : List.of();
 
       if(name != null && !name.isEmpty()) {
          IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
@@ -972,6 +990,80 @@ public class WorksheetAgentController {
       catch(Exception e) {
          throw new PairingException("Failed to save worksheet: " + e.getMessage(), e);
       }
+
+      // Bug PVA-002: a connected viewsheet's bindable-fields view (list_bindable_fields) is
+      // served from a lazy wall-clock Worksheet.getLastModified() comparison
+      // (BindableFieldsService.list() / CubeTreeModelBuilder), re-checked only on the next read --
+      // nothing here previously told a live viewsheet its base worksheet just changed. Reset
+      // every connected runtime synchronously so the next read is never stale, instead of leaving
+      // it to notice on its own. Only applies to a plain save-in-place: a Save-As writes under a
+      // brand-new entry no viewsheet points at yet (see the PVA-003 warning above for that case),
+      // and a first save out of TEMPORARY_SCOPE is likewise a brand-new entry nothing could have
+      // been pointing at before.
+      //
+      // NOTE: does NOT address PVA-009 (set_table_source/set_chart_source's "Available" guard) --
+      // per docs/teams/2026-08-29-bugs-plugin-composer-corpus/cluster-C/03-escalate-pva008.md,
+      // that guard is VSBindingService.createSourceTables, a different code path with no
+      // timestamp/cache mechanism this reset touches at all. PVA-009's pairing with PVA-002 is
+      // unconfirmed; excluded from this fix pass.
+      if(!isSaveAs && !wasTemporary) {
+         for(RuntimeViewsheet connected : connectedViewsheets(entry, user)) {
+            connected.resetRuntime();
+         }
+      }
+
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("ok", true);
+
+      if(!affectedViewsheets.isEmpty()) {
+         result.put("warning", "This Save-As created a new copy at \"" + entry.toView() +
+            "\". The following open viewsheet(s) still point at the original worksheet (\"" +
+            oldEntry.toView() + "\") and will not see this copy's changes: " +
+            affectedViewsheets + ".");
+      }
+
+      return result;
+   }
+
+   /**
+    * Every live {@link RuntimeViewsheet} belonging to {@code user} whose
+    * {@code Viewsheet.getBaseEntry()} currently matches {@code worksheetEntry}.
+    *
+    * <p>Scoped to {@code user}'s own runtimes only -- {@code WorksheetService.getRuntimeSheets}
+    * has no global/all-users variant, so a viewsheet another user has open on the same base
+    * worksheet is not detected here. Documented limitation, not a bug in this check.
+    */
+   private List<RuntimeViewsheet> connectedViewsheets(AssetEntry worksheetEntry, Principal user) {
+      RuntimeSheet[] sheets = worksheetService.getRuntimeSheets(user);
+      List<RuntimeViewsheet> connected = new ArrayList<>();
+
+      if(sheets == null) {
+         return connected;
+      }
+
+      for(RuntimeSheet sheet : sheets) {
+         if(!(sheet instanceof RuntimeViewsheet rvs)) {
+            continue;
+         }
+
+         Viewsheet vs = rvs.getViewsheet();
+
+         if(vs != null && worksheetEntry.equals(vs.getBaseEntry())) {
+            connected.add(rvs);
+         }
+      }
+
+      return connected;
+   }
+
+   private static List<String> connectedViewsheetIds(List<RuntimeViewsheet> connected) {
+      List<String> ids = new ArrayList<>();
+
+      for(RuntimeViewsheet rvs : connected) {
+         ids.add(rvs.getID());
+      }
+
+      return ids;
    }
 
    /**
@@ -1133,7 +1225,7 @@ public class WorksheetAgentController {
       // The same guard the multipart route gets: a JSON body's csv string is no less capable of
       // driving an unbounded temp-file write and loader scan than an uploaded file is.
       byte[] bytes = body.csv().getBytes(StandardCharsets.UTF_8);
-      checkImportFileSize(bytes.length, "CSV");
+      checkImportFileSize(bytes.length, "CSV", true);
 
       return importCsvBytes(sessionToken, user, body.name(), body.replaceTable(), bytes, settings);
    }
@@ -1170,7 +1262,7 @@ public class WorksheetAgentController {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file is required");
       }
 
-      checkImportFileSize(file.getSize(), "CSV");
+      checkImportFileSize(file.getSize(), "CSV", true);
 
       CsvSettings settings = csvSettings(encoding, delimiter, delimiterTab, detectType,
                                          firstRowAsHeader, removeQuotes, unpivot, headerCols);
@@ -1336,7 +1428,7 @@ public class WorksheetAgentController {
                                            "fileType must be either \"XLS\" or \"XLSX\"");
       }
 
-      checkImportFileSize(file.getSize(), "Excel");
+      checkImportFileSize(file.getSize(), "Excel", false);
 
       byte[] bytes = file.getBytes();
 
@@ -1439,9 +1531,16 @@ public class WorksheetAgentController {
          : createEmbeddedTable(sessionToken, user, name, types, data, nrows, ncols);
    }
 
-   private void checkImportFileSize(long size, String what) {
+   private void checkImportFileSize(long size, String what, boolean csv) {
       String excelImportMax = SreeEnv.getProperty("excel.import.max");
-      String max = excelImportMax != null ? excelImportMax : SreeEnv.getProperty("csv.import.max");
+      String csvImportMax = SreeEnv.getProperty("csv.import.max");
+      String max = csv ? csvImportMax : excelImportMax;
+
+      // csv max applied to excel if excel max is not defined -- mirrors
+      // ImportCSVDialogService.isAboveMaxFileSize
+      if(max == null && !csv) {
+         max = csvImportMax;
+      }
 
       if(max == null) {
          return;
@@ -1715,7 +1814,7 @@ public class WorksheetAgentController {
                                      req.aggregates() != null
                                         ? req.aggregates().stream()
                                             .map(a -> new WorksheetMutationSupport.AggregateSpec(
-                                                a.field(), a.formula(), a.alias()))
+                                                a.field(), a.formula(), a.alias(), a.n()))
                                             .toList()
                                         : List.of(),
                                      Boolean.TRUE.equals(req.crosstab()));
@@ -1728,10 +1827,16 @@ public class WorksheetAgentController {
          }
          case "set_sort" ->
             editor.setSort(req.table(), req.field(), req.direction());
-         case "add_join" ->
-            editor.addJoin(req.name(), req.leftTable(), req.leftKey(),
-                           req.rightTable(), req.rightKey(), req.joinType(),
-                           req.leftKeys(), req.rightKeys());
+         case "add_join" -> {
+            if(req.joinPaths() != null && !req.joinPaths().isEmpty()) {
+               editor.addJoin(req.name(), req.joinPaths());
+            }
+            else {
+               editor.addJoin(req.name(), req.leftTable(), req.leftKey(),
+                              req.rightTable(), req.rightKey(), req.joinType(),
+                              req.leftKeys(), req.rightKeys());
+            }
+         }
          case "remove_join" ->
             editor.removeJoin(req.name());
          case "add_table" ->
@@ -1778,7 +1883,13 @@ public class WorksheetAgentController {
          case "add_date_range_column" ->
             editor.addDateRangeColumn(req.table(), req.column(), req.dateOption());
          case "add_numeric_range_column" ->
-            editor.addNumericRangeColumn(req.table(), req.column(), req.boundaries());
+            editor.addNumericRangeColumn(req.table(), req.column(), req.boundaries(),
+               req.labels() != null ? req.labels().toArray(new String[0]) : null);
+         case "edit_date_range_column" ->
+            editor.editDateRangeColumn(req.table(), req.column(), req.dateOption());
+         case "edit_numeric_range_column" ->
+            editor.editNumericRangeColumn(req.table(), req.column(), req.boundaries(),
+               req.labels() != null ? req.labels().toArray(new String[0]) : null);
          case "edit_cell" -> {
             if(req.row() == null || req.col() == null) {
                throw new PairingException("edit_cell requires 'row' and 'col' fields");
@@ -1810,7 +1921,8 @@ public class WorksheetAgentController {
             // which is the whole defect this op was fixed for.
             editor.setTableProperties(
                req.table(), req.newName() != null ? req.newName() : req.alias(),
-               req.description(), req.maxRows(), req.distinct());
+               req.description(), req.maxRows(), req.distinct(), req.mergeable(),
+               req.visibleInViewsheet());
          case "add_cross_join" ->
             editor.addCrossJoin(req.name(), req.leftTable(), req.rightTable());
          case "add_merge_join" ->
@@ -1840,7 +1952,8 @@ public class WorksheetAgentController {
          case "set_primary_assembly" ->
             editor.setPrimaryAssembly(req.table());
          case "edit_variable" ->
-            editor.editVariable(req.name(), req.type(), req.label(), req.defaultValue());
+            editor.editVariable(req.name(), req.type(), req.label(), req.defaultValue(),
+                                req.choices());
          case "rename_variable" ->
             editor.renameVariable(req.name(), req.newName());
          case "delete_variable" ->
@@ -1991,15 +2104,23 @@ public class WorksheetAgentController {
                "Access denied: no READ permission on datasource " + dsName);
          }
 
-         UniformSQL sql = (UniformSQL) info.getQuery().getSQLDefinition();
+         // Work on a scratch clone of the live query (JDBCQuery.clone() deep-clones its
+         // SQLDefinition too) so a rejected edit -- parse failure, or the dependency check
+         // further down -- never mutates the assembly's persisted query or column selection.
+         // Mirrors SQLQueryDialogService, which builds an entirely new JDBCQuery for the same
+         // reason and only assigns it to the live info once the edit is accepted.
+         JDBCQuery scratchQuery = info.getQuery().clone();
+         UniformSQL sql = (UniformSQL) scratchQuery.getSQLDefinition();
 
          if(sql == null) {
             sql = new UniformSQL();
-            JDBCDataSource ds = (JDBCDataSource) info.getQuery().getDataSource();
+            JDBCDataSource ds = (JDBCDataSource) scratchQuery.getDataSource();
 
             if(ds != null) {
                sql.setDataSource(ds);
             }
+
+            scratchQuery.setSQLDefinition(sql);
          }
 
          // setSQLString() with parseSQL=true fires an async parse on a background thread
@@ -2024,9 +2145,6 @@ public class WorksheetAgentController {
             throw new PairingException("SQL parsing was interrupted.");
          }
 
-         info.getQuery().setSQLDefinition(sql);
-         sqlTable.setSQLEdited(true);
-
          // initColumnSelection does NOT work for SQL-edited assemblies (returns empty
          // selection). Use the same path as addSqlQuery / SQLQueryDialogService:
          // fixUniformSQLInfo expands SELECT *, then getColumnSelection reads result metadata.
@@ -2034,9 +2152,9 @@ public class WorksheetAgentController {
             new DefaultMetaDataProvider(xrepository).getSession();
          JDBCUtil.fixUniformSQLInfo(
             sql, xrepository, metaSession,
-            (JDBCDataSource) info.getQuery().getDataSource());
+            (JDBCDataSource) scratchQuery.getDataSource());
          ColumnSelection columns = queryManagerService.getColumnSelection(
-            info.getQuery(), new VariableTable(), sqlTable, metaSession, null);
+            scratchQuery, new VariableTable(), sqlTable, metaSession, null);
 
          if(columns == null || columns.getAttributeCount() == 0) {
             throw new PairingException(
@@ -2045,10 +2163,65 @@ public class WorksheetAgentController {
 
          WorksheetMutationSupport.sanitizeSqlColumnNames(columns);
          WorksheetMutationSupport.sanitizeSqlSelectionAliases(sql);
+
+         // Refuse an edit that drops or renames a column a dependent join/composite table
+         // still keys on -- mirrors SQLQueryDialogService's guard for the human-driven SQL
+         // Query dialog, which reverts rather than applying such an edit. Everything above
+         // this point ran against scratchQuery/sql (clones), so nothing has been committed
+         // to the live assembly yet, and this throws before anything is.
+         assertSqlEditAllowsColumnRemoval(ws, sqlTable, sqlTable.getColumnSelection(), columns);
+
+         info.getQuery().setSQLDefinition(sql);
+         sqlTable.setSQLEdited(true);
          sqlTable.setColumnSelection(columns);
-         WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+
+         // Bug #76350 follow-on (item A), review round 1: refreshColumnSelection executes the
+         // table's query for any crosstab-shaped table (set_group_aggregate works on any
+         // TableAssembly by name, including a SQL-bound one) -- unbounded here had the same hang
+         // shape as refreshData's own single-table branch (3a) above.
+         RenderWaitSupport.awaitOrRetry(() -> {
+            WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+            return null;
+         }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
+            (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
          return null;
       });
+   }
+
+   /**
+    * Refuses a SQL edit that would drop or rename a column a dependent join/composite table
+    * still keys on. Mirrors {@code SQLQueryDialogService}'s equivalent check for the
+    * human-driven SQL Query dialog, translated into a thrown {@link PairingException} instead
+    * of a reverted {@code MessageCommand} -- the wiz plugin has no dialog to revert back into.
+    *
+    * @param ws         the worksheet, for walking dependents
+    * @param assembly   the SQL-bound table whose column selection is about to change
+    * @param oldColumns the table's column selection before the edit
+    * @param newColumns the column selection the new SQL would produce
+    * @throws PairingException naming the first old column that is both absent from
+    *                          {@code newColumns} and still used by a dependent
+    */
+   private static void assertSqlEditAllowsColumnRemoval(Worksheet ws, TableAssembly assembly,
+                                                         ColumnSelection oldColumns,
+                                                         ColumnSelection newColumns)
+      throws PairingException
+   {
+      if(oldColumns == null) {
+         return;
+      }
+
+      ColumnSelection safeNewColumns = newColumns != null ? newColumns : new ColumnSelection();
+
+      for(int i = 0; i < oldColumns.getAttributeCount(); i++) {
+         ColumnRef attribute = (ColumnRef) oldColumns.getAttribute(i);
+
+         if(!safeNewColumns.containsAttribute(attribute) &&
+            !WorksheetControllerService.allowsDeletion(ws, assembly, attribute))
+         {
+            throw new PairingException(Catalog.getCatalog().getString(
+               "common.columnDependency", attribute.getAttribute()));
+         }
+      }
    }
 
    // ---------------------------------------------------------------------------
@@ -2168,8 +2341,21 @@ public class WorksheetAgentController {
             }
 
             box.resetTableLens(req.table());
-            WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
-            WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+
+            // Bug #76350 follow-on (item A): refreshColumnSelection (not loadTableData) is the
+            // call that actually executes a crosstab/grouped table's query, and had no bound —
+            // an explicit refresh_data on a table whose query hadn't run yet in this runtime
+            // (e.g. a cross-join-grouped crosstab) blocked this request for however long that
+            // query took. Bounding both together mirrors ViewsheetEditService.ensureTableDataReady:
+            // this is an explicit, caller-requested op, so a timeout throws RenderNotReadyException
+            // (mapped to 503/RENDER_NOT_READY by WizControllerErrorHandler) rather than being
+            // swallowed — the caller gets a live "not ready, retry" signal instead of a raw hang.
+            RenderWaitSupport.awaitOrRetry(() -> {
+               WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+               WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+               return null;
+            }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
+               (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
          }
          else {
             // Refresh all table assemblies.
@@ -2259,8 +2445,17 @@ public class WorksheetAgentController {
          column.setAlias(alias);
          columns.addAttribute(csIndex, column);
          assembly.setColumnSelection(columns);
-         WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
-         WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+
+         // Bug #76350 follow-on (item A), review round 1: same unbounded shape as refreshData's
+         // single-table branch (3a) above -- an embedded table can be made crosstab-shaped by a
+         // prior set_group_aggregate(crosstab=true), which makes refreshColumnSelection execute
+         // a real query here.
+         RenderWaitSupport.awaitOrRetry(() -> {
+            WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+            WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+            return null;
+         }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
+            (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
          AssetEventUtil.refreshTableLastModified(ws, req.table(), true);
          return null;
       });
@@ -2352,8 +2547,16 @@ public class WorksheetAgentController {
 
          table.reorderTableAssemblies(reordered);
 
-         WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
-         WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+         // Bug #76350 follow-on (item A), review round 1: same unbounded shape as refreshData's
+         // single-table branch (3a) above -- a concatenated table can be made crosstab-shaped by
+         // a prior set_group_aggregate(crosstab=true), which makes refreshColumnSelection
+         // execute a real query here.
+         RenderWaitSupport.awaitOrRetry(() -> {
+            WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+            WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+            return null;
+         }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
+            (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
          return null;
       });
    }
@@ -2415,17 +2618,21 @@ public class WorksheetAgentController {
 
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
-         createVariable(ws, varName, req.type(), req.label(), req.defaultValue());
+         createVariable(ws, varName, req.type(), req.label(), req.defaultValue(), req.choices());
          return null;
       });
    }
 
    /**
     * Shared helper that creates a {@link DefaultVariableAssembly} with the given
-    * name, type, label, and default value.
+    * name, type, label, default value, and (optional) enumerated value picker.
+    *
+    * @param choices the variable's enumerated "Values" picker (embedded list or query
+    *               source), or {@code null} to leave the variable free-form
     */
-   private void createVariable(Worksheet ws, String name, String type,
-                               String label, String defaultValue)
+   private void createVariable(Worksheet ws, String name, String type, String label,
+                               String defaultValue,
+                               WorksheetMutationSupport.VariableChoicesSpec choices)
       throws PairingException
    {
       if(ws.getAssembly(name) != null) {
@@ -2474,6 +2681,8 @@ public class WorksheetAgentController {
             var.setValueNode(valueNode);
          }
       }
+
+      WorksheetMutationSupport.applyVariableChoices(ws, var, choices);
 
       DefaultVariableAssembly assembly = new DefaultVariableAssembly(ws, name);
       assembly.setVariable(var);
@@ -2579,8 +2788,12 @@ public class WorksheetAgentController {
    // Variables endpoint
    // ---------------------------------------------------------------------------
 
-   public record VariableRequest(String name, String type, String label,
-                                 String defaultValue) {}
+   /**
+    * @param choices the variable's enumerated "Values" picker (embedded list or query
+    *               source), or {@code null} for a free-form value
+    */
+   public record VariableRequest(String name, String type, String label, String defaultValue,
+                                 WorksheetMutationSupport.VariableChoicesSpec choices) {}
 
    /**
     * Add a user variable to the worksheet.
@@ -2599,7 +2812,8 @@ public class WorksheetAgentController {
 
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
-         createVariable(ws, body.name(), body.type(), body.label(), body.defaultValue());
+         createVariable(ws, body.name(), body.type(), body.label(), body.defaultValue(),
+                        body.choices());
          return null;
       });
    }
@@ -2845,4 +3059,10 @@ public class WorksheetAgentController {
    private final DataSourceService dataSourceService;
    private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetAgentController.class);
+
+   // Mirrors ViewsheetEditService.TABLE_WARM_MAX_ATTEMPTS/TABLE_WARM_RETRY_SLEEP_MS: the same
+   // "how long is acceptable to make a caller wait before answering retry-after" ceiling used
+   // for refreshData's explicit single-table warm-up (see RenderWaitSupport.awaitOrRetry above).
+   private static final int TABLE_WARM_MAX_ATTEMPTS = 4;
+   private static final long TABLE_WARM_RETRY_SLEEP_MS = 500;
 }

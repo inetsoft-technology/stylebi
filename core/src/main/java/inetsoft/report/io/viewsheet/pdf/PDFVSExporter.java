@@ -848,7 +848,11 @@ public class PDFVSExporter extends AbstractVSExporter {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
       if(info != null) {
-         helper.drawImage(getImage(assembly), helper.getBounds(info));
+         // a shape's shadow can fall outside the assembly's own bounds; a
+         // no-op for everything else
+         Rectangle2D bounds = ShapeShadowUtil.expandForShadow(
+            helper.getBounds(info), info, helper.getScale());
+         helper.drawImage(getImage(assembly), bounds);
       }
    }
 

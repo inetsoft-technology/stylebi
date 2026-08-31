@@ -18,6 +18,7 @@
 package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.graph.internal.DimensionD;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.test.*;
@@ -110,6 +111,59 @@ public class ViewsheetPropertyDialogServiceTest {
       assertEquals("VSLayout001", viewsheetLayout.getID());
       assertEquals("Foo001", viewsheetLayout.getName());
       assertNotNull(viewsheetLayout.getVSAssemblyLayout("Bar001"));
+   }
+
+   /**
+    * Bug #76325 item 2: set_viewsheet_properties (SheetPropertyService.set) never patches the
+    * print layout at all, but setViewsheetInfo unconditionally recomputes the print layout's
+    * page size whenever one exists. A viewsheet whose print layout was persisted with a null
+    * unit -- left over from before requireUsableUnits existed, or from any path that never runs
+    * it -- must not take down an unrelated write. The persisted PrintInfo (read here via
+    * oldPageSize) and the incoming dialog model are two independent objects: guarding only the
+    * incoming model (as PrintDeviceLayoutPropertyService's own call-site guard does) would still
+    * let this NPE through for a caller, like SheetPropertyService, that has no access to the
+    * persisted LayoutInfo to repair it itself.
+    */
+   @Test
+   public void aPersistedNullUnitsPrintLayoutIsRepairedRatherThanCrashingAnUnrelatedWrite()
+      throws Exception
+   {
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(viewsheetSandbox));
+      ViewsheetInfo viewsheetInfo = new ViewsheetInfo();
+      when(viewsheet.getViewsheetInfo()).thenReturn(viewsheetInfo);
+
+      PrintInfo persistedInfo =
+         new PrintInfo("Letter", new DimensionD(8.5, 11), 1f, 1f, 1f, 1f, null);
+      PrintLayout persistedLayout = new PrintLayout();
+      persistedLayout.setPrintInfo(persistedInfo);
+      LayoutInfo layoutInfo = new LayoutInfo();
+      layoutInfo.setPrintLayout(persistedLayout);
+      when(viewsheet.getLayoutInfo()).thenReturn(layoutInfo);
+
+      ViewsheetPropertyDialogModel model = ViewsheetPropertyDialogModel.builder().build();
+      ScreensPaneModel screensPaneModel = model.screensPane();
+      VSPrintLayoutDialogModel vsPrintLayoutDialog = new VSPrintLayoutDialogModel();
+      vsPrintLayoutDialog.setPaperSize("Letter");
+      vsPrintLayoutDialog.setScaleFont(1.0f);
+      screensPaneModel.setPrintLayout(vsPrintLayoutDialog);
+      screensPaneModel.setDevices(new ArrayList<>());
+      FiltersPaneModel filtersPaneModel = model.filtersPane();
+      filtersPaneModel.setSharedFilters(new ArrayList<>());
+      filtersPaneModel.setFilters(new ArrayList<>());
+      model.vsOptionsPane().getViewsheetParametersDialogModel().setDisabledParameters(new String[0]);
+      model.vsOptionsPane().setDesc("new description");
+
+      if(model.localizationPane() != null) {
+         model.localizationPane().setLocalized(new ArrayList<>());
+      }
+
+      // Must not throw -- this is the reported false 500.
+      service.setViewsheetInfo("Viewsheet1", model, null, commandDispatcher, null, null);
+
+      assertEquals("new description", viewsheetInfo.getDescription());
+      assertEquals("inches", persistedInfo.getUnit());
    }
 
    /**

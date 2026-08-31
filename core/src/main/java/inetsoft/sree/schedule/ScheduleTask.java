@@ -62,10 +62,12 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
     * value logs a warning and falls back to DEFAULT_TASK_TIMEOUT.
     *
     * <p>The value is returned as configured; no meaning is imposed on zero or a negative
-    * number here, because the call sites do not agree on one. The three that wait on a
-    * future or a latch (doRun below, MVAction.createMV, ScheduleTaskCloudJob.execute) treat
-    * 0 or less as "wait without a timeout", whereas Scheduler.runTask uses the value only as
-    * a staleness window and does not special-case it.
+    * number here, because the call sites do not agree on one. The two that wait on a
+    * future or a latch (doRun below, MVAction.createMV) treat 0 or less as "wait without a
+    * timeout", whereas Scheduler.runTask uses the value only as a staleness window and does
+    * not special-case it. ScheduleTaskCloudJob.execute instead clamps a non-positive value to
+    * DEFAULT_TASK_TIMEOUT and always waits with a bound, since it consumes billed cloud
+    * compute and must never wait unbounded.
     *
     * @return the configured task timeout in milliseconds.
     */
@@ -1678,6 +1680,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
                         "thread count property (scheduleTask.thread.count): " +
                         SreeEnv.getProperty("scheduleTask.thread.count") +
                         ", using default", ex);
+            hcount = scount * 2;
          }
 
          threadPool = Executors.newFixedThreadPool(hcount, new GroupedThreadFactory());

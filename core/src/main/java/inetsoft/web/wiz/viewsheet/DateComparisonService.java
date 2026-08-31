@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.uql.XConstants;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
 import inetsoft.web.wiz.binding.VisualFrameAliases;
@@ -234,7 +235,7 @@ public class DateComparisonService {
       }
 
       if(comparison.level() != null) {
-         setDynamic(standard.getDateLevel(), comparison.level());
+         setDynamic(standard.getDateLevel(), normalizeLevel(comparison.level()));
       }
 
       // Setting the end date clears the today anchor, because leaving it set is what discarded
@@ -252,6 +253,32 @@ public class DateComparisonService {
       if(comparison.interval() != null && interval != null) {
          setDynamic(interval.getLevel(), comparison.interval());
       }
+   }
+
+   private static final Map<String, Integer> LEVEL_WORDS = Map.of(
+      "year", XConstants.YEAR_DATE_GROUP,
+      "quarter", XConstants.QUARTER_DATE_GROUP,
+      "month", XConstants.MONTH_DATE_GROUP,
+      "week", XConstants.WEEK_DATE_GROUP,
+      "day", XConstants.DAY_DATE_GROUP
+   );
+
+   /**
+    * Translates the agent vocabulary's period-level word to the numeric
+    * {@code XConstants.*_DATE_GROUP} code every Angular consumer of {@code standardPeriodLevel}
+    * expects. Writing the raw word through untranslated is what emptied
+    * {@code date-comparison-interval-pane.component.ts}'s granularities list and crashed the
+    * Date Comparison editor.
+    */
+   private static String normalizeLevel(String level) {
+      Integer code = LEVEL_WORDS.get(level.trim().toLowerCase());
+
+      if(code == null) {
+         throw new IllegalArgumentException(
+            "'level' must be one of: year, quarter, month, week, day. Got '" + level + "'.");
+      }
+
+      return code.toString();
    }
 
    private static void setDynamic(DynamicValueModel target, String value) {

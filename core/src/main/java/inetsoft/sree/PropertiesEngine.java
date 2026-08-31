@@ -67,6 +67,21 @@ public class PropertiesEngine {
    @PostConstruct
    public void initEngine() {
       addPropertyChangeListener("string.compare.casesensitive", evt -> Tool.invalidateCaseSensitive());
+      // the new value is taken from the event rather than read back, because the
+      // in-memory properties are not reloaded until the change task is debounced
+      addPropertyChangeListener(
+         QueryCacheSettings.LIMIT_PROPERTY,
+         evt -> QueryCacheSettings.applyLimit((String) evt.getNewValue()));
+      addPropertyChangeListener(
+         QueryCacheSettings.TIMEOUT_PROPERTY,
+         evt -> QueryCacheSettings.applyTimeout((String) evt.getNewValue()));
+      // mysql.server.timezone/mysql.local.timezone are baked into SQLHelper's static dfuncs cache
+      // on first load. applySqlHelperProperty() (below) already resets that cache on the node
+      // that writes the property; this listener covers the cluster-sync path, where a peer node
+      // learns of the change via this KeyValueStorage listener instead of its own setProperty
+      // call and would otherwise never invalidate its own copy of the cache.
+      addPropertyChangeListener("mysql.server.timezone", evt -> SQLHelper.resetCache());
+      addPropertyChangeListener("mysql.local.timezone", evt -> SQLHelper.resetCache());
       kvStorage = keyValueStorageManager.getStorage("sreeProperties");
    }
 
@@ -198,6 +213,10 @@ public class PropertiesEngine {
          getInternalProperties().remove(name);
          changedProps.add(name);
       }
+
+      // the log and SQL helper properties are deliberately not applied here, to keep the
+      // existing removal behavior
+      applyQueryCacheProperty(name);
    }
 
    /**
@@ -277,6 +296,22 @@ public class PropertiesEngine {
    private void applyProperty(String name) {
       applyLogProperty(name);
       applySqlHelperProperty(name);
+      applyQueryCacheProperty(name);
+   }
+
+   /**
+    * Push a changed query cache setting into the running caches, so that it takes effect
+    * without a restart. This handles the change on this node; the property change
+    * listener handles it on the other nodes of the cluster.
+    *
+    * @param name the property name.
+    */
+   private void applyQueryCacheProperty(String name) {
+      if(QueryCacheSettings.LIMIT_PROPERTY.equals(name) ||
+         QueryCacheSettings.TIMEOUT_PROPERTY.equals(name))
+      {
+         QueryCacheSettings.apply();
+      }
    }
 
    private void applySqlHelperProperty(String name) {

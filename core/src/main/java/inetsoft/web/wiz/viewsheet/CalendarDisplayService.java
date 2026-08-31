@@ -168,6 +168,91 @@ public class CalendarDisplayService {
    }
 
    /**
+    * Sets a calendar's selected date(s) — the real setter behind the browser's own calendar
+    * widget ({@link VSCalendarService#applyCalendar}), previously unreachable via REST.
+    *
+    * <p>Which shape {@code dates} needs depends on the calendar's mode (read from
+    * {@code CalendarVSAssembly.getConditionList}, not guessed): a single calendar ORs every token
+    * as its own condition — a drag-selected "March 1–15" arrives as 15 day tokens, not a compact
+    * range; a double calendar in range mode reads only the first two entries as literal min/max
+    * endpoints; a double calendar in period-comparison mode needs an even-length array, split in
+    * half between the two periods. {@code getConditionList} already throws a bare
+    * {@code RuntimeException} for a malformed count (period odd-length, range more-than-two) — this
+    * validates the same two cases first, with a named, field-specific message, rather than letting
+    * that exception surface.
+    *
+    * <p>{@code currentDate1}/{@code currentDate2} are the calendar's navigation position (which
+    * month is currently displayed), not part of the selection, so they are echoed back unchanged
+    * rather than taken as a parameter — mirroring {@link #setDisplay}.
+    */
+   public Map<String, Object> setDates(String sessionToken, Principal user, String assemblyName,
+                                       List<String> dates, String linkUri)
+      throws Exception
+   {
+      requireName(assemblyName);
+
+      if(dates == null || dates.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'dates' is required and must not be empty — use clear_calendar to clear a " +
+            "selection.");
+      }
+
+      final Map<String, Object> result = new LinkedHashMap<>();
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         CalendarVSAssembly calendar = requireCalendar(rvs, assemblyName);
+         CalendarVSAssemblyInfo info = (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
+
+         boolean dual = info.getViewMode() == CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE;
+         boolean period = dual && info.isPeriod();
+
+         validateDateCount(dual, period, dates.size(), assemblyName);
+
+         String[] previous = info.getDates();
+
+         result.put("assembly", assemblyName);
+         result.put("mode", period ? "period" : dual ? "range" : "single");
+         result.put("datesSelected", dates.size());
+         result.put("previousDatesCleared", previous != null && previous.length > 0);
+
+         calendars.applyCalendar(
+            runtimeId, assemblyName,
+            ImmutableCalendarSelectionEvent.builder()
+               .dates(dates.toArray(new String[0]))
+               .currentDate1(nullToEmpty(info.getCurrentDate1()))
+               .currentDate2(info.getCurrentDate2())
+               .build(),
+            user, dispatcher, linkUri);
+      });
+
+      result.put("persistsOnSave", true);
+      return result;
+   }
+
+   /**
+    * Refuses a {@code dates} count that {@code CalendarVSAssembly.getConditionList} would reject
+    * (period mode: odd length; range mode: more than two) with a named, field-specific message
+    * before the call ever reaches the server — turning an existing but unfriendly runtime
+    * {@code RuntimeException} into an actionable one, not closing a silent-failure gap (the runtime
+    * is already loud for these two cases).
+    */
+   static void validateDateCount(boolean dual, boolean period, int count, String assemblyName) {
+      if(dual && period && count % 2 != 0) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is a double calendar in period-comparison mode, which needs " +
+            "an even number of dates split evenly between the two periods — got " + count + ".");
+      }
+
+      if(dual && !period && count > 2) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is a double calendar in range mode, which reads only the " +
+            "first two dates as the range's start and end — got " + count + ". Pass at most 2 " +
+            "dates, or use an even-length array with rangeComparison on for period-comparison " +
+            "mode.");
+      }
+   }
+
+   /**
     * What a display request means: which endpoints to call, and which invisible side effects to
     * report.
     *

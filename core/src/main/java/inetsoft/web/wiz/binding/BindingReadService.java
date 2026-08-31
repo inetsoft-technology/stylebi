@@ -71,6 +71,7 @@ public class BindingReadService {
 
       BindingModel model = binding.createModel(assembly);
       Map<String, List<FieldRef>> shelves = new LinkedHashMap<>();
+      Map<String, Object> sorts = new LinkedHashMap<>();
 
       if(model instanceof ChartBindingModel chart) {
          // Under Multi Style each measure renders with its own type, so x and y carry it per field.
@@ -86,6 +87,10 @@ public class BindingReadService {
          shelves.put("x", refs(chart.getXFields(), perField));
          shelves.put("y", refs(chart.getYFields(), perField));
          shelves.put("group", refs(chart.getGroupFields()));
+
+         for(String shelf : ChartBindingMutator.SHELVES) {
+            sorts.putAll(ChartBindingMutator.describeSorts(chart, shelf));
+         }
 
          // The ten single-field shelves. Left out of this read until now, so a
          // set_chart_single_shelf write could not be read back at all: four OHLC shelves bound and
@@ -119,7 +124,7 @@ public class BindingReadService {
                                  assembly.getClass().getSimpleName(),
                                  model == null || model.getSource() == null
                                     ? null : model.getSource().getSource(),
-                                 shelves);
+                                 shelves, sorts);
    }
 
    private static List<FieldRef> refs(List<? extends DataRefModel> models) {

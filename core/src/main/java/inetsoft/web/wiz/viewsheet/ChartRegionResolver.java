@@ -114,9 +114,18 @@ final class ChartRegionResolver {
        * not to say the two always agree on <em>which</em> channel: a line chart renders the field
        * on its shape channel as a {@code line} legend. Empty for a legend with no describable
        * frame, which is also a legend with no field, so neither can be named.
+       *
+       * <p><b>A node aesthetic is reported as {@code node-color}/{@code node-size}</b>, the names
+       * that bind it. The underlying {@code aestheticType} is plain {@code Color}/{@code Size} for
+       * both a relation chart's node legend and its edge legend, so reporting that raw dropped a
+       * distinction this record already carries: {@code get_chart_aesthetics} put the field on
+       * {@code node-color} while this said {@code color} and reported {@code color} as empty, so
+       * the only name the reader was given for the legend was one that did not address it.
        */
       String channel() {
-         return aestheticType == null ? "" : aestheticType.toLowerCase();
+         String name = aestheticType == null ? "" : aestheticType.toLowerCase();
+
+         return nodeAesthetic && !name.isEmpty() ? "node-" + name : name;
       }
    }
 
@@ -255,6 +264,14 @@ final class ChartRegionResolver {
     * both put in front of the caller (see {@link #channelFamily}). Two legends in the same family
     * make it ambiguous, so that is refused with both fields named rather than resolved to the
     * first.
+    *
+    * <p><b>{@code node-color} and {@code node-size} narrow to the node legend</b> rather than
+    * folding onto {@code color}/{@code size}. Those are the only names that bind a relation
+    * chart's node aesthetic, and {@code get_chart_aesthetics} reports the field under them, so a
+    * caller naming what it bound was being refused; folding them instead would have resolved
+    * {@code node-color} to an <em>edge</em> legend on a chart that has no node aesthetic at all,
+    * which is the mis-resolution this method exists to prevent. Narrowing also makes the
+    * both-bound case unambiguous, since the node flag says which one was meant.
     */
    static LegendTarget requireLegendField(Legends legends, String target) {
       String wanted = target == null ? "" : target.trim();
@@ -279,9 +296,25 @@ final class ChartRegionResolver {
          }
       }
 
-      String family = channelFamily(wanted);
+      // node-color / node-size name a relation chart's node legend specifically. The underlying
+      // aestheticType is plain Color/Size for a node legend and its edge counterpart alike, so the
+      // node flag rather than the channel name is what tells them apart - and it is what makes
+      // "node-color" resolve to the node legend on a chart that has both, instead of being refused
+      // as ambiguous. Plain "color" stays permissive and matches either, so a chart carrying only
+      // a node legend still resolves it: there is one colour legend and no other thing meant.
+      String requested = wanted.toLowerCase();
+      boolean nodeWanted = requested.startsWith("node");
+      String named = requested;
+
+      if(nodeWanted) {
+         named = requested.substring("node".length());
+         named = named.startsWith("-") ? named.substring(1) : named;
+      }
+
+      String family = channelFamily(named);
       List<LegendTarget> byChannel = family.isEmpty() ? List.of() : legends.legends().stream()
          .filter(legend -> channelFamily(legend.aestheticType()).equals(family))
+         .filter(legend -> !nodeWanted || legend.nodeAesthetic())
          .toList();
 
       if(byChannel.size() == 1) {

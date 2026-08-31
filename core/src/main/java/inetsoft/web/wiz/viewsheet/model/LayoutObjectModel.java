@@ -30,9 +30,21 @@ package inetsoft.web.wiz.viewsheet.model;
  *   PageBreak object that exists only inside this layout and has no assembly on the viewsheet at
  *   all).</li>
  * </ul>
+ *
+ * <p>{@code tableLayout} is this object's own {@code VSAssemblyLayout.getTableLayout()} value
+ * (the same int {@code set_layout_table_options} writes) — reported for every object regardless
+ * of {@code supportsTableLayout}, since the field always has a value even where this tool refuses
+ * to *write* it.
+ *
+ * <p>{@code pageIndex} is the page this object lands on within a <b>print</b> layout, derived
+ * from its layout position and the print layout's page size — {@code null} for a device-layout
+ * object (a device layout has no pages) and also {@code null} for a print layout whose
+ * {@code PrintInfo} has never been configured (mirroring {@link LayoutModel#printSettings()}'s
+ * own null-vs-zeroed convention, rather than a sentinel int that could be mistaken for a real
+ * page).
  */
 public record LayoutObjectModel(String name, int layoutX, int layoutY, int layoutWidth,
                                 int layoutHeight, int viewsheetX, int viewsheetY,
                                 int viewsheetWidth, int viewsheetHeight,
-                                boolean supportsTableLayout) {
+                                boolean supportsTableLayout, int tableLayout, Integer pageIndex) {
 }

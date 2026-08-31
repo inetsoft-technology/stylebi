@@ -46,10 +46,13 @@ import org.xml.sax.InputSource;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.StringReader;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
 import java.util.Enumeration;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -146,6 +149,38 @@ public class ScheduleTaskTest {
       assertEquals(Long.parseLong(shipped), ScheduleTask.DEFAULT_TASK_TIMEOUT,
                    "DEFAULT_TASK_TIMEOUT must track schedule.task.timeout in " +
                    "defaults.properties so the fallback does not silently change the timeout");
+   }
+
+   // --- getThreadPool ---
+
+   @Test
+   void getThreadPoolFallsBackToDefaultCapacityWhenThreadCountIsNotANumber() throws Exception {
+      // threadPool is a cached static singleton (double-checked locking); reset it so the
+      // parse/creation block actually runs instead of returning a pool from another test.
+      Field poolField = ScheduleTask.class.getDeclaredField("threadPool");
+      poolField.setAccessible(true);
+      poolField.set(null, null);
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty(eq("scheduleTask.thread.count"), any(String.class)))
+            .thenReturn("not-a-number");
+         sreeEnv.when(() -> SreeEnv.getProperty(eq("scheduleTask.thread.count")))
+            .thenReturn("not-a-number");
+
+         Method getThreadPool = ScheduleTask.class.getDeclaredMethod("getThreadPool");
+         getThreadPool.setAccessible(true);
+         ExecutorService pool = (ExecutorService) getThreadPool.invoke(null);
+
+         assertTrue(pool instanceof ThreadPoolExecutor,
+                    "getThreadPool() is expected to return a fixed thread pool");
+         assertTrue(((ThreadPoolExecutor) pool).getMaximumPoolSize() > 0,
+                    "An invalid scheduleTask.thread.count must fall back to a non-zero pool " +
+                    "size instead of silently caching a dead (0-thread) executor");
+      }
+      finally {
+         ScheduleTask.shutdownThreadPool();
+         poolField.set(null, null);
+      }
    }
 
    @Test

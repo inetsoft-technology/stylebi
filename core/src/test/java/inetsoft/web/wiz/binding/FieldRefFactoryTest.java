@@ -29,6 +29,7 @@ import inetsoft.uql.asset.AttachedAssembly;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
 import inetsoft.uql.asset.NamedGroupInfo;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.AbstractTableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
@@ -258,6 +259,50 @@ class FieldRefFactoryTest {
       assertEquals(1, model.getConditions().size());
       assertEquals("West", model.getConditions().get(0).getName());
       assertEquals(1, model.getConditions().get(0).getList().length);
+   }
+
+   /**
+    * Bug 76311 / stylebi#4731 (reopened): {@code add_named_group}'s datasource-scoped mode
+    * attaches {@code SourceInfo.MODEL}, source = the logical model name -- never equal to the
+    * field's own bound {@code SourceInfo} (always {@code SourceInfo.ASSET}, source = the
+    * worksheet table's own assembly name). Must resolve via the worksheet table's own
+    * underlying source rather than throwing.
+    */
+   @Test
+   void resolveNamedGroupInfoBuildsAnExpertNamedGroupForALogicalModelBoundDimension()
+      throws Exception
+   {
+      SourceInfo modelSource = new SourceInfo(SourceInfo.MODEL, "ds", "Order Model");
+      SourceInfo boundSource = new SourceInfo(SourceInfo.ASSET, null, "Customer1");
+
+      Condition condition = mock(Condition.class);
+      when(condition.getOperation()).thenReturn(Condition.EQUAL_TO);
+      when(condition.getValues()).thenReturn(java.util.List.of("CA"));
+      ConditionList conditionList = new ConditionList();
+      conditionList.append(new ConditionItem(new AttributeRef(null, "State"), condition, 0));
+      NamedGroupInfo namedGroupInfo = new NamedGroupInfo();
+      namedGroupInfo.setGroupCondition("West", conditionList);
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn("WestStates");
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource()).thenReturn(modelSource);
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "State"));
+      when(ngAssembly.getNamedGroupInfo()).thenReturn(namedGroupInfo);
+
+      AbstractTableAssembly boundTable = mock(AbstractTableAssembly.class);
+      when(boundTable.getSourceInfo()).thenReturn(modelSource);
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[]{ ngAssembly });
+      when(ws.getAssembly("Customer1")).thenReturn(boundTable);
+
+      NamedGroupInfoModel model = FieldRefFactory.resolveNamedGroupInfo(
+         "WestStates", rvsWithWorksheet(ws), boundSource, "State", refModelService());
+
+      assertEquals(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO, model.getType());
+      assertEquals(1, model.getConditions().size());
+      assertEquals("West", model.getConditions().get(0).getName());
    }
 
    @Test

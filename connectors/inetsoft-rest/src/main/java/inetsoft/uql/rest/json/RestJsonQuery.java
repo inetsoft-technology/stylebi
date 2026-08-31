@@ -386,6 +386,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label = "Json Path")
+   @PropertyEditor(dependsOn = "lookupUrl0")
    @SuppressWarnings("unused")
    public String getLookupJsonPath0() {
       return getLookupJsonPath(0);
@@ -397,6 +398,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label = "Key")
+   @PropertyEditor(dependsOn = "lookupUrl0")
    @SuppressWarnings("unused")
    public String getLookupKey0() {
       return getLookupKey(0);
@@ -408,6 +410,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label = "Ignore Base Data Source URL")
+   @PropertyEditor(dependsOn = "lookupUrl0")
    @SuppressWarnings("unused")
    public boolean getLookupIgnoreBaseUrl0() {
       return getLookupIgnoreBaseUrl(0);
@@ -435,6 +438,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label = "Json Path")
+   @PropertyEditor(dependsOn = "lookupUrl1")
    @SuppressWarnings("unused")
    public String getLookupJsonPath1() {
       return getLookupJsonPath(1);
@@ -446,6 +450,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label = "Key")
+   @PropertyEditor(dependsOn = "lookupUrl1")
    @SuppressWarnings("unused")
    public String getLookupKey1() {
       return getLookupKey(1);
@@ -457,6 +462,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label = "Ignore Base Data Source URL")
+   @PropertyEditor(dependsOn = "lookupUrl1")
    @SuppressWarnings("unused")
    public boolean getLookupIgnoreBaseUrl1() {
       return getLookupIgnoreBaseUrl(1);
@@ -484,6 +490,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label = "Json Path")
+   @PropertyEditor(dependsOn = "lookupUrl2")
    @SuppressWarnings("unused")
    public String getLookupJsonPath2() {
       return getLookupJsonPath(2);
@@ -495,6 +502,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label = "Key")
+   @PropertyEditor(dependsOn = "lookupUrl2")
    @SuppressWarnings("unused")
    public String getLookupKey2() {
       return getLookupKey(2);
@@ -506,6 +514,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label = "Ignore Base Data Source URL")
+   @PropertyEditor(dependsOn = "lookupUrl2")
    @SuppressWarnings("unused")
    public boolean getLookupIgnoreBaseUrl2() {
       return getLookupIgnoreBaseUrl(2);
@@ -533,6 +542,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label = "Json Path")
+   @PropertyEditor(dependsOn = "lookupUrl3")
    @SuppressWarnings("unused")
    public String getLookupJsonPath3() {
       return getLookupJsonPath(3);
@@ -544,6 +554,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label = "Key")
+   @PropertyEditor(dependsOn = "lookupUrl3")
    @SuppressWarnings("unused")
    public String getLookupKey3() {
       return getLookupKey(3);
@@ -555,6 +566,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label = "Ignore Base Data Source URL")
+   @PropertyEditor(dependsOn = "lookupUrl3")
    @SuppressWarnings("unused")
    public boolean getLookupIgnoreBaseUrl3() {
       return getLookupIgnoreBaseUrl(3);
@@ -582,6 +594,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label = "Json Path")
+   @PropertyEditor(dependsOn = "lookupUrl4")
    @SuppressWarnings("unused")
    public String getLookupJsonPath4() {
       return getLookupJsonPath(4);
@@ -593,6 +606,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label = "Key")
+   @PropertyEditor(dependsOn = "lookupUrl4")
    @SuppressWarnings("unused")
    public String getLookupKey4() {
       return getLookupKey(4);
@@ -604,6 +618,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label = "Ignore Base Data Source URL")
+   @PropertyEditor(dependsOn = "lookupUrl4")
    @SuppressWarnings("unused")
    public boolean getLookupIgnoreBaseUrl4() {
       return getLookupIgnoreBaseUrl(4);

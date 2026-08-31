@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.VSPortalHelper;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.graph.EGraph;
+import inetsoft.graph.data.DataSet;
 import inetsoft.graph.geo.service.WebMapLimitException;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.report.TableLens;
@@ -29,6 +30,7 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.graph.VGraphPair;
+import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.ColumnMapFilter;
 import inetsoft.report.gui.viewsheet.*;
 import inetsoft.report.gui.viewsheet.cylinder.VSCylinder;
@@ -60,6 +62,7 @@ import inetsoft.util.profile.ProfileUtils;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.VSExportService;
+import inetsoft.web.wiz.service.WizVsService;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -721,6 +724,17 @@ public class AssemblyImageService {
                      return new ImageRenderResult(1);
                   }
 
+                  // pair.isCompleted()/isPlotted() report a normal successful render even when
+                  // the underlying live query failed and AssetQuery silently substituted
+                  // fabricated design-time sample data (see WizVsService#checkFailedQuery) --
+                  // check for that before rendering it as if it were real, instead of returning
+                  // a plausible-looking image over made-up rows.
+                  DataSet dset = WizVsService.unwrapDataSet(pair.getData());
+
+                  if(dset instanceof VSDataSet vds) {
+                     WizVsService.checkFailedQuery(vds.getTable(), false);
+                  }
+
                   if(svg) {
                      svgGraphics = getChartSVG(aname, row, col, index, pair, box.get(), name, height);
 
@@ -735,7 +749,7 @@ public class AssemblyImageService {
                // web map limit exceeded, disable web map for 24 hours.
                catch(WebMapLimitException ex) {
                   long hours24 = System.currentTimeMillis() + 24 * 60 * 60000L;
-                  SreeEnv.setProperty("webmap.suspend.until", hours24 + "");
+                  SreeEnv.setProperty("webmap.suspend.until", hours24 + "", true);
 
                   box.get().clearGraph(name);
                   return processGetAssemblyImage1(rvs, aid, width, height, maxWidth, maxHeight, aname,

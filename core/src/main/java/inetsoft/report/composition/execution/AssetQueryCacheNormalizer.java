@@ -118,7 +118,7 @@ public class AssetQueryCacheNormalizer {
     * Transform the resulting table lens to match the original table
     */
    public TableLens transformTableLens(TableLens tableLens) {
-      if(!isApplicable()) {
+      if(tableLens == null || !isApplicable()) {
          return tableLens;
       }
 

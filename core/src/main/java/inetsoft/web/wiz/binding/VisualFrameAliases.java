@@ -171,7 +171,8 @@ public final class VisualFrameAliases {
          case "color" -> {
             switch(type) {
                case "static", "brightness", "saturation" -> keys.add("color");
-               case "categorical" -> keys.addAll(List.of("colors", "mapping", "useGlobal"));
+               case "categorical" ->
+                  keys.addAll(List.of("colors", "mapping", "shareColors", "colorValueFrame"));
                case "gradient" -> keys.addAll(List.of("from", "to"));
                case "palette" -> keys.add("palette");
                default -> { /* fieldless */ }
@@ -185,18 +186,28 @@ public final class VisualFrameAliases {
             }
          }
          case "size" -> {
-            if("static".equals(type)) {
-               keys.add("size");
+            switch(type) {
+               case "static" -> keys.add("size");
+               // Both graduated size frames map their values onto the same smallest..largest
+               // range -- the two-handle slider in the Composer's binding-size pane. It lives on
+               // SizeFrameModel, so it is the same pair for linear and categorical alike; there
+               // is no per-category size list on the model to expose.
+               case "linear", "categorical" -> keys.addAll(List.of("smallest", "largest"));
+               default -> { /* fieldless */ }
             }
          }
          case "line" -> {
-            if("static".equals(type)) {
-               keys.add("line");
+            switch(type) {
+               case "static" -> keys.add("line");
+               case "categorical" -> keys.add("lines");
+               default -> { /* fieldless */ }
             }
          }
          default -> {
-            if("static".equals(type)) {
-               keys.add("texture");
+            switch(type) {
+               case "static" -> keys.add("texture");
+               case "categorical" -> keys.add("textures");
+               default -> { /* fieldless */ }
             }
          }
       }
@@ -229,6 +240,22 @@ public final class VisualFrameAliases {
       }
    }
 
+   /**
+    * A frame's {@code type} in the agent vocabulary, for naming it in an error message. Answers
+    * the class's simple name for a model {@link #describe} has no branch for, so a diagnostic
+    * never becomes a second, more confusing failure than the one it is reporting.
+    */
+   public static String typeName(VisualFrameModel frame) {
+      Map<String, Object> described = describe(frame);
+      Object type = described == null ? null : described.get("type");
+
+      if(type != null) {
+         return String.valueOf(type);
+      }
+
+      return frame == null ? "null" : frame.getClass().getSimpleName();
+   }
+
    /** Renders a frame back in the agent vocabulary. Never emits {@code clazz}. */
    public static Map<String, Object> describe(VisualFrameModel frame) {
       if(frame == null) {
@@ -248,18 +275,27 @@ public final class VisualFrameAliases {
          out.put("colors", model.getColors() == null
             ? List.of() : Arrays.asList(model.getColors()));
          Map<String, Object> mapping = new LinkedHashMap<>();
+         // The same selection ColorFrameModelFactory.CategoricalColorFactory makes on the way in:
+         // with sharing on the pins live on the viewsheet, off they live on this frame. Reading
+         // the other one would report mapping: {} for a chart that visibly has pinned colours.
+         ColorMapModel[] pins = model.isUseGlobal()
+            ? model.getGlobalColorMaps() : model.getColorMaps();
 
-         for(ColorMapModel map : model.getColorMaps() == null
-            ? new ColorMapModel[0] : model.getColorMaps())
-         {
+         for(ColorMapModel map : pins == null ? new ColorMapModel[0] : pins) {
             if(map != null && map.getOption() != null) {
-               mapping.put(map.getOption(), map.getColor());
+               mapping.put(map.getOption(), readableColor(map.getColor()));
             }
          }
 
          out.put("mapping", mapping);
-         // Reported because a true here means any mapping above is stored but not rendered.
-         out.put("useGlobal", model.isUseGlobal());
+         // One key, matching the one checkbox and the one key the write side takes. The frame's
+         // isUseGlobal() is reported through it rather than beside it: it is the flag the render
+         // path actually consults for the pins above, and a legacy frame where the two disagree
+         // is a state the Composer can neither produce nor repair -- so naming it here would offer
+         // the agent a distinction it has no way to act on. Writes leave such a frame's pair
+         // untouched instead (ChartAestheticMutator.carryShareColorState).
+         out.put("shareColors", model.isUseGlobal());
+         out.put("colorValueFrame", model.isColorValueFrame());
          return out;
       }
 
@@ -307,6 +343,30 @@ public final class VisualFrameAliases {
          return out;
       }
 
+      // These three fall through to BEHAVIOURAL below, which knows only their type name. That
+      // was correct while create() built them empty; now that they carry values, reporting the
+      // name alone would leave the read unable to see what the write set -- a frame that
+      // round-trips as {type: "categorical"} whatever it holds.
+      if(frame instanceof CategoricalLineModel model) {
+         out.put("type", "categorical");
+         out.put("lines", boxed(model.getLines()));
+         return out;
+      }
+
+      if(frame instanceof CategoricalTextureModel model) {
+         out.put("type", "categorical");
+         out.put("textures", boxed(model.getTextures()));
+         return out;
+      }
+
+      if(frame instanceof LinearSizeModel || frame instanceof CategoricalSizeModel) {
+         SizeFrameModel model = (SizeFrameModel) frame;
+         out.put("type", frame instanceof CategoricalSizeModel ? "categorical" : "linear");
+         out.put("smallest", model.getSmallest());
+         out.put("largest", model.getLargest());
+         return out;
+      }
+
       String behavioural = BEHAVIOURAL.get(frame.getClass());
 
       if(behavioural != null) {
@@ -327,6 +387,20 @@ public final class VisualFrameAliases {
       // it with set_visual_frame yet.
       out.put("type", "unsupported");
       out.put("detail", frame.getClass().getSimpleName());
+      return out;
+   }
+
+   private static List<Integer> boxed(int[] values) {
+      if(values == null) {
+         return List.of();
+      }
+
+      List<Integer> out = new ArrayList<>(values.length);
+
+      for(int value : values) {
+         out.add(value);
+      }
+
       return out;
    }
 
@@ -358,6 +432,30 @@ public final class VisualFrameAliases {
       }
 
       return "#" + value;
+   }
+
+   /**
+    * A colour on the way out, in the one spelling {@link #normalizeColor} takes on the way in.
+    *
+    * <p>The two arrays a categorical colour frame reports from are filled by different formatters.
+    * {@code CategoricalColorModel(wrapper)} uses {@code Tool.toString(Color)} for {@code colors}
+    * and {@code colorMaps}, which writes {@code #RRGGBB}; {@code
+    * VSChartBindingFactory.applyColorsToFrame} refills {@code globalColorMaps} from the viewsheet
+    * with {@code Tool.colorToHTMLString}, which returns six hex digits and no {@code #}. So a
+    * shared pin read back as {@code "000000"} — a value this tool's own {@code set_visual_frame}
+    * refuses, making the read impossible to feed back to the write.
+    *
+    * <p>Left alone rather than corrected if it is neither spelling: a diagnostic must not become a
+    * second failure, and reporting the raw value is more use than an exception when something
+    * upstream has put an unexpected string there.
+    */
+   private static String readableColor(String color) {
+      try {
+         return normalizeColor(color);
+      }
+      catch(IllegalArgumentException ex) {
+         return color;
+      }
    }
 
    // ── the coverage test's view ──────────────────────────────────────────────
@@ -454,16 +552,56 @@ public final class VisualFrameAliases {
 
       CategoricalShapeModel model = new CategoricalShapeModel();
       model.setShapes(shapes.toArray(new String[0]));
+      // CategoricalShapeFrameModelFactory ends its update with setChanged(model.isChanged()),
+      // which overwrites the flag setShape(i, ...) had just raised. A model left at the default
+      // false therefore stores the shapes and then reports the frame as untouched, so a chart
+      // type change discards them. An agent write is by definition a deliberate change.
+      model.setChanged(true);
       return model;
    }
 
    private static VisualFrameModel sizeFrame(Map<String, Object> spec, String type) {
       return switch(type) {
          case "static" -> staticSize(spec);
-         case "linear" -> new LinearSizeModel();
-         case "categorical" -> new CategoricalSizeModel();
+         case "linear" -> sizeRange(spec, new LinearSizeModel());
+         case "categorical" -> sizeRange(spec, new CategoricalSizeModel());
          default -> throw unknownType("size", type);
       };
+   }
+
+   /**
+    * The range a graduated size frame maps its values onto, from {@code SizeFrameModel}'s own
+    * {@code smallest}/{@code largest} — the two-handle slider the Composer shows once a field is
+    * bound to the size channel. Both are optional and default to 1 and 30, the same values the
+    * slider opens with.
+    *
+    * <p>{@code setChanged(true)} is not decoration here.
+    * {@code SizeFrameModelFactory.updateVisualFrameWrapper0} returns {@code null} — discarding
+    * the whole wrapper — when the model reports itself unchanged, so a linear or categorical
+    * size frame built without it was accepted, reported as success, and then dropped before it
+    * reached the chart. That is the same silent discard {@link #staticSize} already had to work
+    * around, one class up the hierarchy.
+    */
+   private static VisualFrameModel sizeRange(Map<String, Object> spec, SizeFrameModel model) {
+      Double smallest = number(spec, "smallest");
+      Double largest = number(spec, "largest");
+
+      if(smallest != null) {
+         model.setSmallest(smallest);
+      }
+
+      if(largest != null) {
+         model.setLargest(largest);
+      }
+
+      if(model.getSmallest() > model.getLargest()) {
+         throw new IllegalArgumentException(
+            "'smallest' (" + model.getSmallest() + ") cannot be greater than 'largest' (" +
+            model.getLargest() + ").");
+      }
+
+      model.setChanged(true);
+      return model;
    }
 
    private static VisualFrameModel staticSize(Map<String, Object> spec) {
@@ -487,9 +625,25 @@ public final class VisualFrameAliases {
       return switch(type) {
          case "static" -> staticLine(spec);
          case "linear" -> new LinearLineModel();
-         case "categorical" -> new CategoricalLineModel();
+         case "categorical" -> categoricalLine(spec);
          default -> throw unknownType("line", type);
       };
+   }
+
+   /**
+    * A line style per category — the {@code line-combo-box} row the Composer's categorical pane
+    * shows when the shape channel of a line chart carries a field.
+    *
+    * <p>{@code lines} is optional: an empty categorical frame is a meaningful request ("vary the
+    * line style by category, using the defaults"), and it is what binding a field produces
+    * before anything is picked. {@code CategoricalLineFrameModelFactory} returns the wrapper
+    * untouched for an empty array, so the defaults survive.
+    */
+   private static VisualFrameModel categoricalLine(Map<String, Object> spec) {
+      CategoricalLineModel model = new CategoricalLineModel();
+      model.setLines(intArray(spec, "lines", "line-style code"));
+      model.setChanged(true);
+      return model;
    }
 
    private static VisualFrameModel staticLine(Map<String, Object> spec) {
@@ -508,7 +662,7 @@ public final class VisualFrameAliases {
    private static VisualFrameModel textureFrame(Map<String, Object> spec, String type) {
       return switch(type) {
          case "static" -> staticTexture(spec);
-         case "categorical" -> new CategoricalTextureModel();
+         case "categorical" -> categoricalTexture(spec);
          case "grid" -> new GridTextureModel();
          case "left_tilt" -> new LeftTiltTextureModel();
          case "right_tilt" -> new RightTiltTextureModel();
@@ -528,6 +682,48 @@ public final class VisualFrameAliases {
       StaticTextureModel model = new StaticTextureModel();
       model.setTexture(texture.intValue());
       return model;
+   }
+
+   /** A texture per category. {@code textures} is optional, for the reason in {@link #categoricalLine}. */
+   private static VisualFrameModel categoricalTexture(Map<String, Object> spec) {
+      CategoricalTextureModel model = new CategoricalTextureModel();
+      model.setTextures(intArray(spec, "textures", "texture code"));
+      model.setChanged(true);
+      return model;
+   }
+
+   /**
+    * Reads a list of integer codes. A present-but-not-a-list value is refused rather than read
+    * as an empty list: {@code lines: 4097} means one line style, and silently building an empty
+    * categorical frame from it would report success and change nothing.
+    */
+   private static int[] intArray(Map<String, Object> spec, String key, String what) {
+      Object raw = spec == null ? null : spec.get(key);
+
+      if(raw == null) {
+         return new int[0];
+      }
+
+      if(!(raw instanceof Collection<?>)) {
+         throw new IllegalArgumentException(
+            "'" + key + "' must be a list of " + what + "s, e.g. \"" + key + "\": [4097, 4113], " +
+            "got '" + raw + "'.");
+      }
+
+      List<String> values = strList(spec, key);
+      int[] out = new int[values.size()];
+
+      for(int i = 0; i < out.length; i++) {
+         try {
+            out[i] = (int) Double.parseDouble(values.get(i));
+         }
+         catch(NumberFormatException e) {
+            throw new IllegalArgumentException(
+               "'" + key + "[" + i + "]' must be a " + what + ", got '" + values.get(i) + "'.");
+         }
+      }
+
+      return out;
    }
 
    private static Double number(Map<String, Object> spec, String key) {
@@ -560,42 +756,64 @@ public final class VisualFrameAliases {
    }
 
    /**
-    * A categorical colour frame, optionally with per-value colour mapping.
+    * A categorical colour frame, optionally with per-value colour pins.
     *
-    * <p><b>The {@code useGlobal}/{@code shareColors} footgun lives here.</b>
-    * {@code CategoricalColorModel} defaults both {@code useGlobal} and {@code shareColors} to
-    * {@code true}. While {@code useGlobal} is set the automatic palette wins at render time; and
-    * independently, while {@code shareColors} is set the whole frame is replaced by a cached
-    * shared frame for the same column before per-value colours are even applied. Either flag
-    * alone is enough to make an explicit per-value colour accepted, stored, and never rendered.
-    * That is a recorded defect, and it is invisible — the model round-trips perfectly and the
-    * chart shows something else.
+    * <p>{@code shareColors} is the categorical pane's <b>"Share Colors"</b> checkbox. That one
+    * checkbox drives two different flags on {@code CategoricalColorFrame}
+    * ({@code categorical-color-pane.shareColorsChange} sets both), and they are not the same
+    * mechanism:
     *
-    * <p>So supplying {@code colors} and/or a {@code mapping} clears both flags, because supplying
-    * either <i>is</i> the intent to override the automatic/shared palette. Asking for
-    * {@code useGlobal: true} alongside a mapping is refused rather than honoured, since that
-    * combination cannot render what was asked for.
+    * <ul>
+    *   <li>{@code shareColors} makes {@code VSFrameVisitor.createFrame} replace this frame
+    *       wholesale with a clone of whichever frame the viewsheet has already cached for the same
+    *       (column, date level). <b>That</b> is what makes one dimension render in the same colours
+    *       on every chart of the viewsheet, and it carries the ordinary {@code colors} palette, so
+    *       it needs nothing else set up first.</li>
+    *   <li>{@code useGlobal} makes {@code VSFrameVisitor.applyGlobalColors} stamp the viewsheet's
+    *       fixed value-to-colour pins over the result, and makes
+    *       {@code ColorFrameModelFactory.CategoricalColorFactory} read {@code globalColorMaps}
+    *       instead of {@code colorMaps}.</li>
+    * </ul>
+    *
+    * <p>Set together here, as the checkbox sets them. An omitted {@code shareColors} is left at a
+    * definite {@code false} and resolved against the channel's current frame by
+    * {@code ChartAestheticMutator.carryShareColorState}, which is the only place with the frame to
+    * leave alone — a spec that does not mention the checkbox is not asking to move it.
+    *
+    * <p>A {@code mapping} works either way; the flag decides where the pins land, exactly as
+    * {@code openColorMappingDialog}'s callback does ({@code if(useGlobal) globalColorMaps = maps;
+    * else colorMaps = maps;}). Off, they pin values on this chart. On, they pin them on the
+    * viewsheet, so every chart colouring by that column shows the same colour for that value —
+    * which is what "Assign Fixed Mapping" with "Share Colors" checked does in the Composer, and
+    * the more useful of the two. {@code ColorFrameModelFactory.CategoricalColorFactory} reads
+    * whichever array the flag selects, so writing to the other one is what would silently lose
+    * them.
+    *
+    * <p>{@code colorValueFrame} is the pane's other checkbox, "Use Column Values as Colors": the
+    * bound column's own values are read as colours rather than mapped to a palette, which
+    * {@code CategoricalColorFrameWrapper.getVisualFrame} implements by handing back a
+    * {@code ColorValueColorFrame} instead of the categorical one. The Composer only shows that
+    * checkbox where the deployment lists {@code ColorValueColorFrame} in the
+    * {@code custom.chart.frames} property, which is empty by default; the backend honours the flag
+    * either way, so it is accepted here and the visibility rule is documented rather than
+    * enforced — a deployment that has not enabled the checkbox has not disabled the feature.
     */
    private static VisualFrameModel categoricalColor(Map<String, Object> spec) {
       List<String> colors = strList(spec, "colors");
       Map<String, Object> mapping = mapping(spec);
+      Boolean colorValueFrame = bool(spec, "colorValueFrame");
 
-      if(colors.isEmpty() && mapping.isEmpty()) {
+      // Tested for TRUE, not for presence: colorValueFrame satisfies this precondition by
+      // replacing what drives the chart, so only switching it on does. An explicit false says
+      // "read the palette", which leaves the frame with no palette to read all over again.
+      if(colors.isEmpty() && mapping.isEmpty() && !Boolean.TRUE.equals(colorValueFrame)) {
          throw new IllegalArgumentException(
-            "A categorical colour frame needs a non-empty 'colors' list, or a 'mapping' of " +
-            "value to colour, e.g. {type: \"categorical\", mapping: {\"East\": \"#4E79A7\"}}.");
+            "A categorical colour frame needs a non-empty 'colors' list, a 'mapping' of value to " +
+            "colour, or 'colorValueFrame', e.g. " +
+            "{type: \"categorical\", mapping: {\"East\": \"#4E79A7\"}}.");
       }
 
-      Boolean useGlobal = bool(spec, "useGlobal");
-
-      if(Boolean.TRUE.equals(useGlobal) && !mapping.isEmpty()) {
-         throw new IllegalArgumentException(
-            "'useGlobal: true' cannot be combined with a 'mapping'. While useGlobal is set the " +
-            "automatic palette wins, so the mapped colours would be stored and never rendered — " +
-            "the model would round-trip perfectly and the chart would show something else. Drop " +
-            "useGlobal to apply the mapping, or drop the mapping to keep the automatic palette.");
-      }
-
+      Boolean share = shareColors(spec);
       CategoricalColorModel model = new CategoricalColorModel();
 
       if(!colors.isEmpty()) {
@@ -613,19 +831,48 @@ public final class VisualFrameAliases {
             maps.add(map);
          }
 
-         model.setColorMaps(maps.toArray(new ColorMapModel[0]));
+         // The flag picks the destination, the way the Color Mapping dialog's callback does.
+         // Writing to the array the factory is not reading is what loses the pins silently.
+         if(Boolean.TRUE.equals(share)) {
+            model.setGlobalColorMaps(maps.toArray(new ColorMapModel[0]));
+         }
+         else {
+            model.setColorMaps(maps.toArray(new ColorMapModel[0]));
+         }
       }
 
-      // Supplying colours and/or a mapping is the intent to override the automatic/shared
-      // palette. useGlobal and shareColors both default to true on a fresh CategoricalColorModel;
-      // leaving either set is what makes an explicit frame round-trip perfectly and never render.
-      // Default both false; honour an explicit useGlobal: true if the caller actually wants to
-      // keep sharing.
-      boolean share = Boolean.TRUE.equals(useGlobal);
-      model.setUseGlobal(share);
-      model.setShareColors(share);
+      // Both flags together, the way the "Share Colors" checkbox sets them. An omitted
+      // shareColors leaves them here at a definite false and is resolved against the channel's
+      // current frame by ChartAestheticMutator.carryShareColorState, which is the only place that
+      // has the frame to leave alone.
+      boolean shared = Boolean.TRUE.equals(share);
+      model.setUseGlobal(shared);
+      model.setShareColors(shared);
+
+      if(colorValueFrame != null) {
+         model.setColorValueFrame(colorValueFrame);
+      }
 
       return model;
+   }
+
+   /**
+    * The "Share Colors" checkbox as the spec asked for it, or {@code null} when the spec did not
+    * mention it — which means "leave the checkbox where it is", the way the Composer's Apply does.
+    * Resolving that against the channel's current frame needs the frame, so it happens in
+    * {@code ChartAestheticMutator}; this only reports what was asked.
+    *
+    * <p>Deliberately one key, not two. The underlying frame carries {@code useGlobal} and
+    * {@code shareColors} separately for historical reasons — {@code useGlobal} came first, for the
+    * Color Mapping dialog, and {@code shareColors} was added later for frame sharing, which is why
+    * {@code CategoricalColorFrameWrapper.parseContents} has a legacy default for one and not the
+    * other. The Composer has driven them from a single checkbox ever since; the dialog's own
+    * {@code toggleGlobal()} is left over from before that and is wired to nothing. Exposing both
+    * would offer a distinction the product does not have and no caller could use correctly, so
+    * the agent vocabulary has one name and the pair is derived from it.
+    */
+   static Boolean shareColors(Map<String, Object> spec) {
+      return bool(spec, "shareColors");
    }
 
    @SuppressWarnings("unchecked")

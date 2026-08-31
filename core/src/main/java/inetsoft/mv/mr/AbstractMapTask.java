@@ -238,5 +238,5 @@ public abstract class AbstractMapTask implements XMapTask {
    private String id;
    private String bid;
    private String host;
-   private boolean cancelled;
+   private volatile boolean cancelled;
 }

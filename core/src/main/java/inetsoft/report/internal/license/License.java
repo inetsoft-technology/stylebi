@@ -89,14 +89,6 @@ public abstract class License {
    }
 
    /**
-    * A flag indicating if data write-back forms are permitted by the license.
-    */
-   @Value.Default
-   public boolean formLicensed() {
-      return true;
-   }
-
-   /**
     * A flag indicating if the license is already in use elsewhere on the network.
     */
    @Value.Default

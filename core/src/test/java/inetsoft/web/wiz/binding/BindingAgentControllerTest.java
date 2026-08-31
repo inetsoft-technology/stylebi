@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.junit.jupiter.api.Tag;
@@ -238,5 +239,97 @@ class BindingAgentControllerTest {
          controllerWith(feature, chartService).chartType("tok", "Chart1", principal());
 
       assertSame(state, read, "the controller is a passthrough; it must not rebuild the state");
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #76350, PCB-002: set_chart_shelf silently accepted a bind to a table the viewsheet
+   // cannot see yet (unsaved), reported success, then crashed later on render -- while
+   // set_chart_source correctly refused the identical case. BindableColumns.requireSource's own
+   // unit tests (BindableColumnsTest) cover the fixed logic directly; this drives it end to end
+   // through the controller endpoint an agent actually calls.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void setChartShelfRefusesATableTheListingDoesNotHaveInsteadOfSilentlyDroppingTheSource()
+      throws Exception
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.runtimeId(eq("tok"), any(Principal.class))).thenReturn("rt1");
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+
+      // The shape an unsaved table produces: a successful listing that is genuinely empty, not a
+      // read failure -- see BindableColumnsTest for why those two used to be conflated.
+      when(fields.list(eq("rt1"), eq("Chart1"), any(Principal.class))).thenReturn(List.of());
+      ChartBindingService chartService = mock(ChartBindingService.class);
+
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
+         mock(BindingReadService.class), chartService, mock(ChartAestheticAgentService.class),
+         mock(TableBindingService.class), mock(CalcTableService.class));
+
+      BindingAgentController.ShelfRequest request = new BindingAgentController.ShelfRequest(
+         "Chart1", "x", List.of(new FieldRef("Region", "dimension", null, null, null)), "Sales");
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.setChartShelf("tok", request, "", principal()));
+
+      assertTrue(thrown.getMessage().contains("Sales"), thrown.getMessage());
+      verifyNoInteractions(chartService);
+   }
+
+   /** Same fix, same underlying resolveSourceTable call -- confirming the blast radius is 3
+    *  tools, not 1: set_chart_single_shelf shares the identical gap set_chart_shelf had. */
+   @Test
+   void setChartSingleShelfRefusesATableTheListingDoesNotHave() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.runtimeId(eq("tok"), any(Principal.class))).thenReturn("rt1");
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+      when(fields.list(eq("rt1"), eq("Chart1"), any(Principal.class))).thenReturn(List.of());
+      ChartBindingService chartService = mock(ChartBindingService.class);
+
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
+         mock(BindingReadService.class), chartService, mock(ChartAestheticAgentService.class),
+         mock(TableBindingService.class), mock(CalcTableService.class));
+
+      BindingAgentController.SingleShelfRequest request = new BindingAgentController.SingleShelfRequest(
+         "Chart1", "close", new FieldRef("Price", "measure", "Sum", null, null), "Sales");
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.setChartSingleShelf("tok", request, "", principal()));
+
+      assertTrue(thrown.getMessage().contains("Sales"), thrown.getMessage());
+      verifyNoInteractions(chartService);
+   }
+
+   /** @see #setChartSingleShelfRefusesATableTheListingDoesNotHave -- the third of the 3 tools. */
+   @Test
+   void setAestheticFieldRefusesATableTheListingDoesNotHave() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.runtimeId(eq("tok"), any(Principal.class))).thenReturn("rt1");
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+      when(fields.list(eq("rt1"), eq("Chart1"), any(Principal.class))).thenReturn(List.of());
+      ChartAestheticAgentService aestheticService = mock(ChartAestheticAgentService.class);
+
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
+         mock(BindingReadService.class), mock(ChartBindingService.class), aestheticService,
+         mock(TableBindingService.class), mock(CalcTableService.class));
+
+      BindingAgentController.AestheticFieldRequest request =
+         new BindingAgentController.AestheticFieldRequest(
+            "Chart1", "color", new FieldRef("Region", "dimension", null, null, null), "Sales");
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.setAestheticField("tok", request, "", principal()));
+
+      assertTrue(thrown.getMessage().contains("Sales"), thrown.getMessage());
+      verifyNoInteractions(aestheticService);
    }
 }

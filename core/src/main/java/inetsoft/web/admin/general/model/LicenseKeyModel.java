@@ -47,7 +47,8 @@ public interface LicenseKeyModel {
    final class Builder extends ImmutableLicenseKeyModel.Builder {
       public Builder from(License license) {
          return key(license.key())
-            .type(license.description());
+            .type(license.description())
+            .valid(license.valid());
       }
    }
 }

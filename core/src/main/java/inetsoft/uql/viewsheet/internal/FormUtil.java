@@ -19,7 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
@@ -124,12 +124,26 @@ public final class FormUtil {
    }
 
    /**
+    * Check if the form (data write-back) features are enabled. This is controlled by the
+    * {@code vs.form.enabled} property, which is enabled unless explicitly set to
+    * {@code false}. It is not a licensed component.
+    */
+   public static boolean isFormEnabled() {
+      try {
+         return !"false".equals(SreeEnv.getProperty("vs.form.enabled"));
+      }
+      catch(Exception ignore) {
+         // the properties engine may not be initialized yet, treat form as disabled
+         return false;
+      }
+   }
+
+   /**
     * Check if the viewsheet contains input form.
     * @param tblonly true to only check for form table.
     */
    public static boolean containsForm(Viewsheet viewsheet, boolean tblonly) {
-      return LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM) &&
-         checkContainsForm(viewsheet, tblonly);
+      return isFormEnabled() && checkContainsForm(viewsheet, tblonly);
    }
 
    /**

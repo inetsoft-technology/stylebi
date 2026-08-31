@@ -376,6 +376,31 @@ public class ViewsheetPropertyDialogService {
 
       VSPrintLayoutDialogModel vsPrintLayoutDialog = screensPane.getPrintLayout();
       LayoutInfo layoutInfo = viewsheet.getLayoutInfo();
+
+      // Guarantee usable units before either side of the print-layout math below is read.
+      // VSLayoutService.getPLayoutSize's switch(unit) throws NPE unconditionally on a null
+      // unit, and the persisted PrintInfo (read a few lines below via oldPageSize) and the
+      // incoming dialog model (read via radio/newPageSize) are two independent objects -- a
+      // caller that never patches the print layout at all (e.g. set_viewsheet_properties) can
+      // still hit this NPE purely from a layout persisted with null units before this guard
+      // existed. Centralized here, at the one method every print-layout-touching caller shares,
+      // rather than left to each caller to repeat.
+      if(layoutInfo.getPrintLayout() != null) {
+         PrintInfo persistedInfo = layoutInfo.getPrintLayout().getPrintInfo();
+
+         if(persistedInfo != null &&
+            (persistedInfo.getUnit() == null || persistedInfo.getUnit().isBlank()))
+         {
+            persistedInfo.setUnit("inches");
+         }
+      }
+
+      if(vsPrintLayoutDialog != null &&
+         (vsPrintLayoutDialog.getUnits() == null || vsPrintLayoutDialog.getUnits().isBlank()))
+      {
+         vsPrintLayoutDialog.setUnits("inches");
+      }
+
       Dimension oldPageSize = null;
 
       if(vsPrintLayoutDialog != null) {

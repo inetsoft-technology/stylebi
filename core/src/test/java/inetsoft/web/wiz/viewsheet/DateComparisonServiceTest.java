@@ -18,11 +18,15 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.security.Principal;
 import java.util.Map;
@@ -188,7 +192,55 @@ class DateComparisonServiceTest {
       StandardPeriodPaneModel standard =
          model.getPeriodPaneModel().getStandardPeriodPaneModel();
       assertEquals("4", standard.getPreCount().getValue());
-      assertEquals("year", standard.getDateLevel().getValue());
+      assertEquals(String.valueOf(XConstants.YEAR_DATE_GROUP), standard.getDateLevel().getValue());
+   }
+
+   /**
+    * {@code standardPeriodLevel.value} is read as a numeric group code by every Angular
+    * consumer (both {@code date-comparison-standard-periods.component.ts} and, critically,
+    * {@code date-comparison-interval-pane.component.ts}'s {@code granularitiesAllIntervalVisible}).
+    * Writing the raw agent-vocabulary word through untranslated left it stuck at "year", which
+    * matched no case in that switch and emptied the granularities list, crashing the Date
+    * Comparison editor with a {@code TypeError} on {@code granularities[0].value} — bug #76306.
+    */
+   @ParameterizedTest
+   @CsvSource({
+      "year, 5",
+      "quarter, 4",
+      "month, 3",
+      "week, 2",
+      "day, 1",
+      "Year, 5",
+      "QUARTER, 4"
+   })
+   void translatesThePeriodLevelWordToTheNumericGroupCode(String word, String code)
+      throws Exception
+   {
+      DateComparisonPaneModel model = model();
+      DateComparisonService.Comparison comparison =
+         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null,
+                                              null);
+
+      harness(model).service.set("tok", principal(), "Chart1", comparison, "");
+
+      StandardPeriodPaneModel standard =
+         model.getPeriodPaneModel().getStandardPeriodPaneModel();
+      assertEquals(code, standard.getDateLevel().getValue());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {"annual", "Y", "", "years"})
+   void refusesAnUnrecognizedPeriodLevel(String word) {
+      DateComparisonPaneModel model = model();
+      DateComparisonService.Comparison comparison =
+         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null,
+                                              null);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(model).service.set("tok", principal(), "Chart1", comparison, ""));
+
+      assertTrue(thrown.getMessage().contains("level"), thrown.getMessage());
    }
 
    @Test

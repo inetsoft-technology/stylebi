@@ -270,6 +270,52 @@ class PresentationSettingsControllerTest {
       verify(aiSettingsService, never()).resetSettings();
    }
 
+   // [single-tenant, site admin] globalSettings=true, matching what getSettings/applySettings
+   // compute for the identical principal/config (bug #76341) — !isMultiTenant forces global
+   // directly, so no checkPermission call is made
+   @Test
+   void resetSettings_singleTenant_matchesGetAndApplyGlobalScope() throws Exception {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(securityProvider.isVirtual()).thenReturn(false);
+      sUtilStatic.when(SUtil::isMultiTenant).thenReturn(false);
+      stubAllGetters(true);
+
+      controller.resetSettings(
+         PresentationSettingsModel.builder().orgSettings(true).build(), principal);
+
+      verify(fontMappingSettingsService).resetSettings();
+      verify(aiSettingsService).resetSettings();
+      verify(securityProvider, never()).checkPermission(any(), any(), any(), any());
+   }
+
+   // [single-tenant, non-admin caller granted only the narrow presentation-settings
+   // EM_COMPONENT permission] models a caller granted only settings/presentation/org-settings,
+   // who is not a site admin or org admin and so fails the broader EM/*/ACCESS check. Before the
+   // #76341 fix, resetSettings replaced its already-true single-tenant result with this failing
+   // checkPermission call and ended up org-scoped, diverging from getSettings/applySettings for
+   // the identical caller; after the fix !isMultiTenant forces global directly and
+   // checkPermission is never consulted.
+   @Test
+   void resetSettings_singleTenant_nonAdminNarrowPermission_matchesGetAndApplyGlobalScope()
+      throws Exception
+   {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+      when(securityProvider.isVirtual()).thenReturn(false);
+      sUtilStatic.when(SUtil::isMultiTenant).thenReturn(false);
+      stubAllGetters(true);
+
+      lenient().when(securityProvider.checkPermission(
+            any(), eq(ResourceType.EM), eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(false);
+
+      controller.resetSettings(
+         PresentationSettingsModel.builder().orgSettings(true).build(), principal);
+
+      verify(fontMappingSettingsService).resetSettings();
+      verify(aiSettingsService).resetSettings();
+      verify(securityProvider, never()).checkPermission(any(), any(), any(), any());
+   }
+
    // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------

@@ -37,8 +37,11 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
@@ -89,7 +92,7 @@ class WorksheetEditServiceMutatorsTest {
       when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq(runtimeId), eq(agent)))
          .thenReturn(rws);
 
-      return new WorksheetEditService(sessions, runtimeAccess, broadcast, securityEngine);
+      return new WorksheetEditService(sessions, runtimeAccess, broadcast, securityEngine, mock(InnerJoinService.class));
    }
 
    private RuntimeWorksheet rws(Worksheet ws) {
@@ -228,6 +231,74 @@ class WorksheetEditServiceMutatorsTest {
       assertFalse(ai.isEmpty());
       assertEquals(1, ai.getGroupCount());
       assertEquals(1, ai.getAggregateCount());
+   }
+
+   // Bug #75954: NthLargest/NthSmallest/etc. silently dropped their N operand and the
+   // aggregate quietly computed as N=1 (Max/Min) instead — no error anywhere.
+   @Test
+   void setGroupAggregateAppliesNForParametrizedFormula() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            groups("cat"),
+            List.of(new WorksheetMutationSupport.AggregateSpec(
+               "val", "NthLargest", "fifth_largest", 5)))
+      );
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertEquals(1, ai.getAggregateCount());
+      assertEquals(5, ai.getAggregate(0).getN());
+   }
+
+   // N must be ignored (not throw, not corrupt the ref) for a formula that doesn't use it.
+   @Test
+   void setGroupAggregateIgnoresNForNonParametrizedFormula() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            groups("cat"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("val", "SUM", null, 5)))
+      );
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertEquals(1, ai.getAggregateCount());
+      assertEquals(0, ai.getAggregate(0).getN());
+   }
+
+   // Bug #75954 follow-up: a second (or later) aggregate on the same column goes through
+   // the secondary-aggregate -> new-expression-column -> new-primary-aggregate conversion
+   // (see the "Convert secondary aggregates" block below) rather than the plain path
+   // covered by setGroupAggregateAppliesNForParametrizedFormula above — N must survive
+   // that conversion too.
+   @Test
+   void setGroupAggregateAppliesNThroughSecondaryConversion() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "price");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            groups("cat"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("price", "SUM", "total_price"),
+                    new WorksheetMutationSupport.AggregateSpec(
+                       "price", "NthLargest", "third_largest_price", 3))));
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertEquals(2, ai.getAggregateCount());
+      assertEquals(0, ai.getAggregate(0).getN());
+      assertEquals(3, ai.getAggregate(1).getN());
    }
 
    @Test
@@ -753,6 +824,367 @@ class WorksheetEditServiceMutatorsTest {
       assertNotNull(cs.getAttribute("orderDate"));
    }
 
+   // =========================================================================
+   // editDateRangeColumn / editNumericRangeColumn (Bug #76084)
+   // =========================================================================
+
+   @Test
+   void editDateRangeColumnChangesOptionAndRenamesInPlace() throws Exception {
+      // The reported bug: an AI agent asked to change "QuarterOfYear(Order Date)" to a
+      // month-level grouping had no edit tool, so it deleted and re-added the column
+      // instead of updating it in place. This is the in-place path that must exist instead.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "QUARTER_OF_YEAR"));
+      svc.apply("TOK", agent, ed ->
+         ed.editDateRangeColumn("T", "QuarterOfYear(orderDate)", "MONTH_OF_YEAR"));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNull(cs.getAttribute("QuarterOfYear(orderDate)"),
+                 "old option's name must be gone — the column was renamed, not duplicated");
+      DataRef edited = cs.getAttribute("MonthOfYear(orderDate)");
+      assertNotNull(edited, "renamed column must exist under the new option's name");
+      DataRef unwrapped = edited instanceof ColumnRef cr ? cr.getDataRef() : edited;
+      assertInstanceOf(DateRangeRef.class, unwrapped);
+      assertEquals(DateRangeRef.MONTH_OF_YEAR_PART, ((DateRangeRef) unwrapped).getDateOption());
+      assertNotNull(cs.getAttribute("orderDate"), "source date column must be untouched");
+      assertEquals(1, cs.stream().filter(r -> r instanceof ColumnRef cr &&
+         cr.getDataRef() instanceof DateRangeRef).count(),
+         "must not leave a stray duplicate column behind");
+   }
+
+   @Test
+   void editDateRangeColumnFailsLoudOnNonRangeColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // "orderDate" is the raw source column, not a range column derived from it.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editDateRangeColumn("T", "orderDate", "MONTH")));
+      assertTrue(ex.getMessage().contains("not a date range column"));
+   }
+
+   @Test
+   void editDateRangeColumnFailsLoudOnMissingColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editDateRangeColumn("T", "Nope(orderDate)", "MONTH")));
+      assertTrue(ex.getMessage().contains("Column not found"));
+   }
+
+   @Test
+   void editDateRangeColumnFailsLoudOnRenameCollision() throws Exception {
+      // Two range columns already exist at different options (QUARTER_OF_YEAR and
+      // MONTH_OF_YEAR). Editing the first to also become MONTH_OF_YEAR would rename it onto
+      // the second's name — must be refused, not silently shadow the other column.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "QUARTER_OF_YEAR"));
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "MONTH_OF_YEAR"));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editDateRangeColumn("T", "QuarterOfYear(orderDate)", "MONTH_OF_YEAR")));
+      assertTrue(ex.getMessage().contains("MonthOfYear(orderDate)"));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNotNull(cs.getAttribute("QuarterOfYear(orderDate)"), "refused edit must leave the original untouched");
+      DataRef stillMonth = cs.getAttribute("MonthOfYear(orderDate)");
+      assertNotNull(stillMonth, "the pre-existing MonthOfYear column must survive, not be shadowed");
+      assertEquals(2, cs.stream().filter(r -> r instanceof ColumnRef cr &&
+         cr.getDataRef() instanceof DateRangeRef).count(),
+         "still exactly two distinct range columns — no shadowing duplicate");
+   }
+
+   @Test
+   void editDateRangeColumnAllowsNoOpWhenOptionUnchanged() throws Exception {
+      // dateOption resolving to the SAME name as the column already has must not trip the
+      // new collision guard against itself.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "QUARTER_OF_YEAR"));
+      svc.apply("TOK", agent, ed ->
+         ed.editDateRangeColumn("T", "QuarterOfYear(orderDate)", "QUARTER_OF_YEAR"));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNotNull(cs.getAttribute("QuarterOfYear(orderDate)"));
+   }
+
+   @Test
+   void editDateRangeColumnRenameDoesNotLeaveStaleHashForLaterAdd() throws Exception {
+      // Regression test for a real bug caught in code review (not a hypothetical): the
+      // ColumnRef wrapping a DateRangeRef caches its hashCode() (AbstractDataRef.chash) on
+      // first use, from getEntity()+getAttribute() — and ColumnSelection's backing
+      // ListWithFastLookup uses that cached hashCode() for add_date_range_column's O(1)
+      // addAttribute exclusivity check (rebuilt lazily by iterating elements' hashCode(), so a
+      // per-element stale cache survives even a full map rebuild). Renaming dateRef in place
+      // without resetting that cache left a later add_date_range_column, whose generated name
+      // happened to collide with the just-renamed column, undetected — silently producing two
+      // columns both reporting getName() == "MonthOfYear(orderDate)". Empirically confirmed
+      // both that the bug existed (bare rename: 2 columns) and that WorksheetEditService's
+      // fix (ColumnRef#setDataRef to force cname/chash invalidation) resolves it (1 column).
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "QUARTER_OF_YEAR"));
+      // A second, distinct add exercises addAttribute's exclusivity check (and so builds
+      // ListWithFastLookup's indexOfs cache) the same way any real multi-column worksheet
+      // would before the edit below ever runs.
+      svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "total", new double[] { 0, 1 }, null));
+      svc.apply("TOK", agent, ed ->
+         ed.editDateRangeColumn("T", "QuarterOfYear(orderDate)", "MONTH_OF_YEAR"));
+
+      // Reaches the exact name the rename above just produced.
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "MONTH_OF_YEAR"));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      long monthColumns = cs.stream()
+         .filter(r -> "MonthOfYear(orderDate)".equals(r.getName()))
+         .count();
+      assertEquals(1, monthColumns,
+         "add_date_range_column must refuse (no-op) rather than duplicate a name the edit just produced");
+      assertEquals(4, cs.getAttributeCount(),
+         "the colliding add must be a no-op — no net column added");
+   }
+
+   @Test
+   void editNumericRangeColumnChangesBoundariesWithoutRenaming() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "amount", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "amount", new double[] { 0, 50, 100 }, null));
+      svc.apply("TOK", agent, ed ->
+         ed.editNumericRangeColumn("T", "amount_range", new double[] { 0, 25, 75, 150 }, null));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      DataRef edited = cs.getAttribute("amount_range");
+      assertNotNull(edited, "column name must be unchanged — boundaries alone don't rename it");
+      DataRef unwrapped = edited instanceof ColumnRef cr ? cr.getDataRef() : edited;
+      assertInstanceOf(NumericRangeRef.class, unwrapped);
+      assertArrayEquals(new double[] { 0, 25, 75, 150 },
+         ((NumericRangeRef) unwrapped).getValueRangeInfo().getValues());
+   }
+
+   @Test
+   void editNumericRangeColumnPreservesShowBottomTopAndInclusiveType() throws Exception {
+      // Regression test from code review: showBottomValue/showTopValue/inclusiveType are also
+      // user-settable (the Composer's own Range Column dialog exposes them) but this tool only
+      // ever takes boundaries/labels — replacing the ValueRangeInfo outright instead of mutating
+      // the existing one would silently reset those three back to constructor defaults on every
+      // edit, discarding a customization this tool was never asked to touch.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "amount", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "amount", new double[] { 0, 50, 100 }, null));
+
+      // Simulate a customization made through some other path (the Composer's Range Column
+      // dialog, in practice) that this tool never exposes a way to set itself.
+      ColumnRef added = (ColumnRef) t.getColumnSelection(false).getAttribute("amount_range");
+      NumericRangeRef addedRef = (NumericRangeRef) added.getDataRef();
+      addedRef.getValueRangeInfo().setShowBottomValue(false);
+      addedRef.getValueRangeInfo().setShowTopValue(false);
+      addedRef.getValueRangeInfo().setInclusiveType(InclusiveType.UPPER);
+
+      svc.apply("TOK", agent, ed ->
+         ed.editNumericRangeColumn("T", "amount_range", new double[] { 0, 25, 75, 150 }, null));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      DataRef edited = cs.getAttribute("amount_range");
+      DataRef unwrapped = edited instanceof ColumnRef cr ? cr.getDataRef() : edited;
+      ValueRangeInfo info = ((NumericRangeRef) unwrapped).getValueRangeInfo();
+      assertArrayEquals(new double[] { 0, 25, 75, 150 }, info.getValues());
+      assertFalse(info.isShowBottomValue(), "edit must not reset showBottomValue to its default");
+      assertFalse(info.isShowTopValue(), "edit must not reset showTopValue to its default");
+      assertEquals(InclusiveType.UPPER, info.getInclusiveType(), "edit must not reset inclusiveType to its default");
+   }
+
+   @Test
+   void editNumericRangeColumnFailsLoudOnEmptyBoundaries() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "amount", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "amount", new double[] { 0, 50, 100 }, null));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editNumericRangeColumn("T", "amount_range", new double[0], null)));
+      assertTrue(ex.getMessage().contains("boundaries must be a non-empty array"));
+   }
+
+   @Test
+   void editNumericRangeColumnFailsLoudOnNonRangeColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "amount", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editNumericRangeColumn("T", "amount", new double[] { 0, 50 }, null)));
+      assertTrue(ex.getMessage().contains("not a numeric range column"));
+   }
+
+   // =========================================================================
+   // Custom bucket labels on numeric range columns (Bug #75942)
+   // =========================================================================
+
+   @Test
+   void addNumericRangeColumnAppliesCustomLabels() throws Exception {
+      // The reported bug: asked for boundaries 10000/50000 labeled "Below standard" /
+      // "Meets standard" / "Good", the AI said this required a formula column even though
+      // the Composer's own Range Column dialog already supports it — ValueRangeInfo.labels.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total", "other");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "total",
+         new double[] { 10000, 50000 },
+         new String[] { "Below standard", "Meets standard", "Good" }));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      DataRef added = cs.getAttribute("total_range");
+      assertNotNull(added);
+      DataRef unwrapped = added instanceof ColumnRef cr ? cr.getDataRef() : added;
+      assertInstanceOf(NumericRangeRef.class, unwrapped);
+      assertArrayEquals(new String[] { "Below standard", "Meets standard", "Good" },
+         ((NumericRangeRef) unwrapped).getValueRangeInfo().getLabels());
+      // The label ordering claim itself, not just that setLabels was called: ask the
+      // generated script expression which label applies below the first boundary, and
+      // confirm it is the bottom label, not the top or middle one.
+      assertTrue(((NumericRangeRef) unwrapped).getScriptExpression().contains("\"Below standard\""));
+   }
+
+   @Test
+   void addNumericRangeColumnFailsLoudOnWrongLabelCount() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total", "other");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // 2 boundaries need 3 labels (below, between, above); only 2 given.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "total",
+            new double[] { 10000, 50000 }, new String[] { "Low", "High" })));
+      assertTrue(ex.getMessage().contains("exactly 3 entries"));
+      assertTrue(ex.getMessage().contains("got 2"));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNull(cs.getAttribute("total_range"), "refused add must not leave a half-built column");
+   }
+
+   @Test
+   void addNumericRangeColumnAllowsOmittedLabels() throws Exception {
+      // null/empty labels must not be misread as "wrong count" — it means "no custom labels".
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total", "other");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.addNumericRangeColumn("T", "total", new double[] { 10000, 50000 }, null));
+      svc.apply("TOK", agent, ed -> ed.editNumericRangeColumn("T", "total_range",
+         new double[] { 10000, 50000 }, new String[0]));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      DataRef edited = cs.getAttribute("total_range");
+      DataRef unwrapped = edited instanceof ColumnRef cr ? cr.getDataRef() : edited;
+      assertEquals(0, ((NumericRangeRef) unwrapped).getValueRangeInfo().getLabels().length);
+   }
+
+   @Test
+   void editNumericRangeColumnOmittingLabelsClearsPreExistingOnes() throws Exception {
+      // Regression test from code review (stylebi-wiz PR #1857): the tool description claims
+      // omitting `labels` on an edit clears any PRE-EXISTING custom labels, distinct from
+      // addNumericRangeColumnAllowsOmittedLabels above, which only exercises a column that never
+      // had labels to begin with. Must hold even after editNumericRangeColumn started mutating
+      // the existing ValueRangeInfo (to preserve showBottomValue/showTopValue/inclusiveType)
+      // instead of always replacing it — labels must still not be one of the preserved fields.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total", "other");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "total",
+         new double[] { 10000, 50000 }, new String[] { "Below standard", "Meets standard", "Good" }));
+      svc.apply("TOK", agent, ed ->
+         ed.editNumericRangeColumn("T", "total_range", new double[] { 10000, 50000 }, null));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      DataRef edited = cs.getAttribute("total_range");
+      DataRef unwrapped = edited instanceof ColumnRef cr ? cr.getDataRef() : edited;
+      assertEquals(0, ((NumericRangeRef) unwrapped).getValueRangeInfo().getLabels().length,
+         "omitting labels on an edit must clear the column's previously-set custom labels");
+   }
+
+   @Test
+   void editNumericRangeColumnFailsLoudOnWrongLabelCountAndLeavesColumnUnchanged() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total", "other");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "total",
+         new double[] { 10000, 50000 }, new String[] { "Below standard", "Meets standard", "Good" }));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editNumericRangeColumn("T", "total_range",
+            new double[] { 10000, 30000, 50000 }, new String[] { "Below standard", "Meets standard", "Good" })));
+      assertTrue(ex.getMessage().contains("exactly 4 entries"));
+
+      // Refused edit must leave the original boundaries/labels untouched.
+      ColumnSelection cs = t.getColumnSelection(false);
+      DataRef unwrapped = ((ColumnRef) cs.getAttribute("total_range")).getDataRef();
+      assertArrayEquals(new double[] { 10000, 50000 },
+         ((NumericRangeRef) unwrapped).getValueRangeInfo().getValues());
+   }
+
    @Test
    void setGroupAggregateFailsLoudOnUnrecognizedDateLevel() throws Exception {
       Worksheet ws = new Worksheet();
@@ -959,6 +1391,567 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals("orderNumber", ref.getAttribute());
    }
 
+   @Test
+   void setRankingAcceptsVariableBinding() throws Exception {
+      // Regression for Bug #75950: 'n' used to be hardcoded to a plain int, so a
+      // Top-N count could never be bound to a worksheet variable the way filter
+      // condition values support $(name). RankingCondition.setN(Object) already
+      // supported it -- the gap was purely in how RankingSpec carried the value.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("total", "$(topN)", "TOP_N", false)));
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      RankingCondition rc = (RankingCondition) cl.getConditionItem(0).getXCondition();
+      assertTrue(Condition.isVariable(rc.getN()) || rc.getN() instanceof UserVariable,
+         "n should round-trip as a variable reference, got: " + rc.getN());
+      UserVariable[] vars = rc.getAllVariables();
+      assertEquals(1, vars.length);
+      assertEquals("topN", vars[0].getName());
+   }
+
+   @Test
+   void setRankingAcceptsNumericStringForN() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("total", "5", "TOP_N", false)));
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      RankingCondition rc = (RankingCondition) cl.getConditionItem(0).getXCondition();
+      assertEquals(5, rc.getN());
+   }
+
+   @Test
+   void setRankingRejectsInvalidN() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setRanking("T",
+               new WorksheetMutationSupport.RankingSpec("total", "not-a-number", "TOP_N", false))));
+      assertTrue(ex.getMessage().contains("not-a-number"),
+         "error should name the rejected value, got: " + ex.getMessage());
+   }
+
+   // =========================================================================
+   // Variable choices tests (Bug #76328)
+   // =========================================================================
+
+   private static DefaultVariableAssembly variableAssembly(Worksheet ws, String name, String type) {
+      AssetVariable var = new AssetVariable(name);
+      var.setTypeNode(XSchema.createPrimitiveType(type));
+      DefaultVariableAssembly assembly = new DefaultVariableAssembly(ws, name);
+      assembly.setVariable(var);
+      ws.addAssembly(assembly);
+      return assembly;
+   }
+
+   private static WorksheetMutationSupport.VariableChoicesSpec embeddedChoices(
+      List<String> values, List<String> labels, String displayStyle)
+   {
+      return new WorksheetMutationSupport.VariableChoicesSpec(
+         values, labels, null, null, null, displayStyle);
+   }
+
+   private static WorksheetMutationSupport.VariableChoicesSpec queryChoices(
+      String table, String labelColumn, String valueColumn, String displayStyle)
+   {
+      return new WorksheetMutationSupport.VariableChoicesSpec(
+         null, null, table, labelColumn, valueColumn, displayStyle);
+   }
+
+   @Test
+   void editVariableSetsTypedChoicesAndValues() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "topN", XSchema.INTEGER);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("topN", null, null, null,
+            embeddedChoices(List.of("1", "5", "10"), List.of("One", "Five", "Ten"), null)));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("topN")).getVariable();
+      assertArrayEquals(new Object[] {"One", "Five", "Ten"}, updated.getChoices());
+      assertArrayEquals(new Object[] {1, 5, 10}, updated.getValues(),
+         "values must be typed to the variable's data type (Integer), not raw strings");
+      assertEquals(UserVariable.COMBOBOX, updated.getDisplayStyle(),
+         "no explicit displayStyle should default to a single-select combobox");
+      assertFalse(updated.isMultipleSelection());
+   }
+
+   @Test
+   void editVariableDefaultsLabelsToValuesWhenOmitted() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, null, null,
+            embeddedChoices(List.of("East", "West"), null, null)));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertArrayEquals(new Object[] {"East", "West"}, updated.getChoices());
+      assertArrayEquals(new Object[] {"East", "West"}, updated.getValues());
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      "list, true",
+      "checkboxes, false",
+      "radio, false",
+      "combobox, false",
+   })
+   void editVariableAppliesExplicitDisplayStyle(String style, boolean expectMultiple)
+      throws Exception
+   {
+      // Mirrors VariableAssemblyDialogService.convertModelToAssetVariable: multipleSelection
+      // is only ever derived from displayStyle == LIST, never from CHECKBOXES -- even though
+      // checkboxes are inherently multi-valued in the UI, isMultipleSelection() itself is not
+      // where that is expressed. Matching that exactly keeps this tool's output identical to
+      // what a human produces through the Composer's own Variable dialog.
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, null, null,
+            embeddedChoices(List.of("East", "West"), null, style)));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertEquals(expectMultiple, updated.isMultipleSelection());
+   }
+
+   @Test
+   void editVariableTogglingDisplayStyleAloneUpdatesExistingPicker() throws Exception {
+      // An explicit displayStyle must take effect even when neither 'values' nor 'table' is
+      // resupplied this call -- e.g. switching an existing combobox to a checkbox list without
+      // touching its value list.
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setChoices(new Object[] {"East", "West"});
+      assembly.getVariable().setValues(new Object[] {"East", "West"});
+      assembly.getVariable().setDisplayStyle(UserVariable.COMBOBOX);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, null, null,
+            new WorksheetMutationSupport.VariableChoicesSpec(
+               null, null, null, null, null, "checkboxes")));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertEquals(UserVariable.CHECKBOXES, updated.getDisplayStyle());
+      assertArrayEquals(new Object[] {"East", "West"}, updated.getChoices(),
+         "toggling style alone must not disturb the existing value list");
+   }
+
+   @Test
+   void editVariableEmptyValuesClearsExistingChoices() throws Exception {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setChoices(new Object[] {"East", "West"});
+      assembly.getVariable().setValues(new Object[] {"East", "West"});
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, null, null, embeddedChoices(List.of(), null, null)));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertNull(updated.getChoices());
+      assertNull(updated.getValues());
+      assertEquals(UserVariable.NONE, updated.getDisplayStyle());
+   }
+
+   @Test
+   void editVariableOmittingChoicesLeavesExistingPickerUnchanged() throws Exception {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setChoices(new Object[] {"East", "West"});
+      assembly.getVariable().setValues(new Object[] {"East", "West"});
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, "New Label", null, null));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertArrayEquals(new Object[] {"East", "West"}, updated.getChoices());
+      assertArrayEquals(new Object[] {"East", "West"}, updated.getValues());
+   }
+
+   @Test
+   void editVariableRejectsMismatchedLabelsLength() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", null, null, null,
+               embeddedChoices(List.of("East", "West"), List.of("Only one"), null))));
+      assertTrue(ex.getMessage().contains("labels"));
+   }
+
+   @Test
+   void editVariableRejectsInvalidChoicesWithoutApplyingLabelTypeOrDefaultValue()
+      throws Exception
+   {
+      // Reviewer-caught regression: editVariable applied label/type/defaultValue directly to
+      // the LIVE AssetVariable before validating choices, so a rejected call (here: mismatched
+      // labels/values lengths) still left those earlier field changes committed on the live
+      // worksheet even though the whole call reported failure. editVariable now edits a scratch
+      // copy and only publishes it once every field -- including choices -- has validated.
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setAlias("Original Label");
+      // setTypeNode (inside variableAssembly's setup) auto-creates a placeholder value node
+      // whenever none exists yet, so the baseline here is that placeholder, not null -- capture
+      // it by reference to prove the rejected call didn't replace it with a new one.
+      Object originalValueNode = assembly.getVariable().getValueNode();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", "integer", "New Label", "5",
+               embeddedChoices(List.of("East", "West"), List.of("Only one"), null))));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertEquals("Original Label", updated.getAlias(),
+         "a rejected call must not leave 'label' applied");
+      assertEquals(XSchema.STRING, updated.getTypeNode().getType(),
+         "a rejected call must not leave 'type' applied");
+      assertSame(originalValueNode, updated.getValueNode(),
+         "a rejected call must not leave 'defaultValue' applied");
+   }
+
+   @Test
+   void editVariableRejectsUnparsableEmbeddedValue() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "topN", XSchema.INTEGER);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Tool.getData("integer", "abc") silently returns null rather than throwing -- editVariable
+      // must reject this itself instead of writing a null value whose label ("abc") and
+      // underlying value end up silently out of sync.
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("topN", null, null, null,
+               embeddedChoices(List.of("5", "abc"), null, null))));
+      assertTrue(ex.getMessage().contains("abc"), ex.getMessage());
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("topN")).getVariable();
+      assertNull(updated.getChoices(), "a rejected value must not leave a partial picker applied");
+   }
+
+   @Test
+   void editVariableRejectsUnknownDisplayStyle() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", null, null, null,
+               embeddedChoices(List.of("East", "West"), null, "dropdown"))));
+      assertTrue(ex.getMessage().contains("dropdown"));
+   }
+
+   @Test
+   void editVariableRejectsUnknownDisplayStyleWithoutMutatingExistingChoices() throws Exception {
+      // applyOnRuntime mutates the live worksheet with no rollback on a thrown exception, so a
+      // validation failure discovered only after values/table were already applied would leave
+      // the variable half-updated. displayStyle must be parsed before any mutation.
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setChoices(new Object[] {"East", "West"});
+      assembly.getVariable().setValues(new Object[] {"East", "West"});
+      assembly.getVariable().setDisplayStyle(UserVariable.COMBOBOX);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", null, null, null,
+               embeddedChoices(List.of("North", "South"), null, "dropdown"))));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertArrayEquals(new Object[] {"East", "West"}, updated.getChoices(),
+         "a rejected displayStyle must not leave the new (unvalidated) values committed");
+      assertArrayEquals(new Object[] {"East", "West"}, updated.getValues());
+      assertEquals(UserVariable.COMBOBOX, updated.getDisplayStyle());
+   }
+
+   @Test
+   void editVariableRejectsMismatchedLabelsLengthWithoutMutatingExistingQuerySource()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.tableWithColumns(ws, "Regions", "RegionName", "RegionId");
+      ws.addAssembly(t);
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setTableName("Regions");
+      assembly.getVariable().setLabelAttribute(t.getColumnSelection().getAttribute("RegionName"));
+      assembly.getVariable().setValueAttribute(t.getColumnSelection().getAttribute("RegionId"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", null, null, null,
+               embeddedChoices(List.of("East", "West"), List.of("Only one"), null))));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertEquals("Regions", updated.getTableName(),
+         "a rejected labels/values mismatch must not clear the existing query source");
+      assertNotNull(updated.getLabelAttribute());
+      assertNotNull(updated.getValueAttribute());
+   }
+
+   @Test
+   void editVariableRejectsBothValuesAndTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "Regions", "RegionName", "RegionId"));
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", null, null, null,
+               new WorksheetMutationSupport.VariableChoicesSpec(
+                  List.of("East", "West"), null, "Regions", "RegionName", "RegionId", null))));
+      assertTrue(ex.getMessage().contains("mutually exclusive"));
+   }
+
+   @Test
+   void editVariableSwitchesToQuerySource() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t =
+         TestWorksheets.tableWithColumns(ws, "Regions", "RegionName", "RegionId");
+      ws.addAssembly(t);
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, null, null,
+            queryChoices("Regions", "RegionName", "RegionId", "combobox")));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertEquals("Regions", updated.getTableName());
+      assertNotNull(updated.getLabelAttribute());
+      assertEquals("RegionName", updated.getLabelAttribute().getAttribute());
+      assertNotNull(updated.getValueAttribute());
+      assertEquals("RegionId", updated.getValueAttribute().getAttribute());
+      assertEquals(UserVariable.COMBOBOX, updated.getDisplayStyle());
+   }
+
+   @Test
+   void editVariableSwitchingToQuerySourceClearsEmbeddedList() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "Regions", "RegionName", "RegionId"));
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setChoices(new Object[] {"East", "West"});
+      assembly.getVariable().setValues(new Object[] {"East", "West"});
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, null, null,
+            queryChoices("Regions", "RegionName", "RegionId", null)));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertNull(updated.getChoices(),
+         "switching to query mode must clear the leftover embedded list");
+      assertNull(updated.getValues());
+   }
+
+   @Test
+   void editVariableSwitchingToEmbeddedClearsQuerySource() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.tableWithColumns(ws, "Regions", "RegionName", "RegionId");
+      ws.addAssembly(t);
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setTableName("Regions");
+      assembly.getVariable().setLabelAttribute(t.getColumnSelection().getAttribute("RegionName"));
+      assembly.getVariable().setValueAttribute(t.getColumnSelection().getAttribute("RegionId"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, null, null,
+            embeddedChoices(List.of("East", "West"), null, null)));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertNull(updated.getTableName(),
+         "switching to embedded mode must clear the leftover query source");
+      assertNull(updated.getLabelAttribute());
+      assertNull(updated.getValueAttribute());
+   }
+
+   @Test
+   void editVariableRejectsQueryModeMissingValueColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "Regions", "RegionName", "RegionId"));
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", null, null, null,
+               queryChoices("Regions", "RegionName", null, null))));
+      assertTrue(ex.getMessage().contains("valueColumn"));
+   }
+
+   @Test
+   void editVariableRejectsQueryModeUnknownTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", null, null, null,
+               queryChoices("NoSuchTable", "RegionName", "RegionId", null))));
+      assertTrue(ex.getMessage().contains("NoSuchTable"));
+   }
+
+   @Test
+   void editVariableRejectsCircularQuerySourceViaRankingCondition() throws Exception {
+      // Confirmed live: mirroring a table whose own ranking condition reads $(TopN), then
+      // pointing $(TopN)'s own picker at that mirror, silently built a circular dependency --
+      // computing the picker's values would require the variable's value first.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly allSales = TestWorksheets.tableWithColumns(ws, "AllSales", "Total");
+      ws.addAssembly(allSales);
+      WorksheetMutationSupport.setRanking(allSales,
+         new WorksheetMutationSupport.RankingSpec("Total", "$(TopN)", "TOP_N", false));
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "AllSalesMirror", allSales);
+      ws.addAssembly(mirror);
+      variableAssembly(ws, "TopN", XSchema.INTEGER);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("TopN", null, null, null,
+               queryChoices("AllSalesMirror", "Total", "Total", null))));
+      assertTrue(ex.getMessage().contains("circular"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("AllSales"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("TopN"), ex.getMessage());
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("TopN")).getVariable();
+      assertNull(updated.getTableName(), "a rejected circular source must not be applied");
+   }
+
+   @Test
+   void editVariableRejectsCircularQuerySourceThroughTransitiveMirrorChain() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly allSales = TestWorksheets.tableWithColumns(ws, "AllSales", "Total");
+      ws.addAssembly(allSales);
+      WorksheetMutationSupport.setRanking(allSales,
+         new WorksheetMutationSupport.RankingSpec("Total", "$(TopN)", "TOP_N", false));
+      MirrorTableAssembly mirror1 = new MirrorTableAssembly(ws, "M1", allSales);
+      ws.addAssembly(mirror1);
+      MirrorTableAssembly mirror2 = new MirrorTableAssembly(ws, "M2", mirror1);
+      ws.addAssembly(mirror2);
+      variableAssembly(ws, "TopN", XSchema.INTEGER);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // The cycle is two mirror-hops away from M2 -- proves the dependency walk is transitive,
+      // not just a check of the immediately-named table.
+      assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("TopN", null, null, null,
+               queryChoices("M2", "Total", "Total", null))));
+   }
+
+   @Test
+   void editVariableRejectsCircularQuerySourceViaFilterCondition() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly allSales = TestWorksheets.tableWithColumns(ws, "AllSales", "Region");
+      ws.addAssembly(allSales);
+      WorksheetMutationSupport.addFilter(allSales, "Region", "=", "$(Region)");
+      variableAssembly(ws, "Region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("Region", null, null, null,
+               queryChoices("AllSales", "Region", "Region", null))));
+      assertTrue(ex.getMessage().contains("circular"), ex.getMessage());
+   }
+
+   @Test
+   void editVariableAllowsQuerySourceFromIndependentCopy() throws Exception {
+      // Mirrors the live scenario's actual fix: an independent copy (not a mirror) with no
+      // conditions of its own has no dependency on the filtered/ranked table at all.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly allSales = TestWorksheets.tableWithColumns(ws, "AllSales", "Total");
+      ws.addAssembly(allSales);
+      WorksheetMutationSupport.setRanking(allSales,
+         new WorksheetMutationSupport.RankingSpec("Total", "$(TopN)", "TOP_N", false));
+      EmbeddedTableAssembly copy = TestWorksheets.tableWithColumns(ws, "AllSalesValues", "Total");
+      ws.addAssembly(copy);
+      variableAssembly(ws, "TopN", XSchema.INTEGER);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("TopN", null, null, null,
+            queryChoices("AllSalesValues", "Total", "Total", null)));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("TopN")).getVariable();
+      assertEquals("AllSalesValues", updated.getTableName());
+   }
+
+   @Test
+   void editVariableAllowsQuerySourceReferencingADifferentVariable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly allSales = TestWorksheets.tableWithColumns(ws, "AllSales", "Total");
+      ws.addAssembly(allSales);
+      WorksheetMutationSupport.setRanking(allSales,
+         new WorksheetMutationSupport.RankingSpec("Total", "$(OtherVar)", "TOP_N", false));
+      variableAssembly(ws, "TopN", XSchema.INTEGER);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("TopN", null, null, null,
+            queryChoices("AllSales", "Total", "Total", null)));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("TopN")).getVariable();
+      assertEquals("AllSales", updated.getTableName());
+   }
+
    // =========================================================================
    // Expression column test
    // =========================================================================
@@ -1159,6 +2152,97 @@ class WorksheetEditServiceMutatorsTest {
       });
 
       assertNull(ws.getAssembly("J"), "join assembly 'J' should have been removed");
+   }
+
+   // =========================================================================
+   // Column-dependency guard tests (Redmine #75968)
+   //
+   // The Composer UI has always refused to hide/remove/rename a column a dependent
+   // join still keys on (SetColumnVisibleService / DeleteColumnsService / RenameColumnService,
+   // via WorksheetControllerService#allowsDeletion). The wiz plugin's Editor skipped that
+   // check entirely, letting an agent silently break a join. These tests lock in the fix.
+   // =========================================================================
+
+   @Test
+   void removeColumnRefusesAJoinKeyStillUsedByADependentJoin() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id", "name");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "value");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("L", "id")));
+
+      assertTrue(ex.getMessage().contains("id"), ex.getMessage());
+      assertNotNull(left.getColumnSelection(false).getAttribute("id"),
+         "the join key must survive the refusal");
+   }
+
+   @Test
+   void removeColumnStillWorksOnAColumnNotUsedByTheJoin() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id", "name");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "value");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null);
+         ed.removeColumn("L", "name");
+      });
+
+      assertNull(left.getColumnSelection(false).getAttribute("name"),
+         "a column the join doesn't key on must still be removable");
+   }
+
+   @Test
+   void setColumnVisibilityRefusesHidingAJoinKeyStillUsedByADependentJoin() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id", "name");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "value");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.setColumnVisibility("L", "id", false)));
+
+      assertTrue(ex.getMessage().contains("id"), ex.getMessage());
+      ColumnRef idRef = (ColumnRef) left.getColumnSelection(false).getAttribute("id");
+      assertTrue(idRef.isVisible(), "the join key must remain visible after the refusal");
+   }
+
+   @Test
+   void renameColumnRefusesRenamingAJoinKeyStillUsedByADependentJoin() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id", "name");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "value");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.renameColumn("L", "id", "renamedId")));
+
+      assertTrue(ex.getMessage().contains("id"), ex.getMessage());
+      ColumnRef idRef = (ColumnRef) left.getColumnSelection(false).getAttribute("id");
+      assertNull(idRef.getAlias(), "the join key must not be renamed by the refused edit");
    }
 
    // =========================================================================
@@ -2423,7 +3507,8 @@ class WorksheetEditServiceMutatorsTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
-      svc.apply("TOK", agent, ed -> ed.setTableProperties("T", "Scores", null, null, null));
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", "Scores", null, null, null, null, null));
 
       assertNotNull(ws.getAssembly("Scores"));
       assertNull(ws.getAssembly("T"));
@@ -2438,12 +3523,77 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       svc.apply("TOK", agent,
-                ed -> ed.setTableProperties("T", "Scores", "the description", 25, true));
+                ed -> ed.setTableProperties(
+                   "T", "Scores", "the description", 25, true, false, false));
 
       TableAssembly renamed = (TableAssembly) ws.getAssembly("Scores");
       assertEquals("the description", renamed.getDescription());
       assertEquals(25, renamed.getMaxRows());
       assertTrue(renamed.isDistinct());
+      assertFalse(renamed.isSQLMergeable());
+      assertFalse(renamed.isVisibleTable());
+   }
+
+   @Test
+   void setTablePropertiesSetsTheMergeableFlag() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      t.setSQLMergeable(true);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", null, null, null, null, false, null));
+
+      assertFalse(((TableAssembly) ws.getAssembly("T")).isSQLMergeable());
+   }
+
+   @Test
+   void omittingMergeableLeavesTheExistingFlagAlone() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      t.setSQLMergeable(false);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", null, "note", null, null, null, null));
+
+      assertFalse(((TableAssembly) ws.getAssembly("T")).isSQLMergeable(),
+                  "mergeable was omitted, so the existing flag must be untouched");
+   }
+
+   @Test
+   void setTablePropertiesSetsTheVisibleInViewsheetFlag() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      t.setVisibleTable(true);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", null, null, null, null, null, false));
+
+      assertFalse(((TableAssembly) ws.getAssembly("T")).isVisibleTable());
+   }
+
+   @Test
+   void omittingVisibleInViewsheetLeavesTheExistingFlagAlone() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      t.setVisibleTable(false);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", null, "note", null, null, null, null));
+
+      assertFalse(((TableAssembly) ws.getAssembly("T")).isVisibleTable(),
+                  "visibleInViewsheet was omitted, so the existing flag must be untouched");
    }
 
    /**
@@ -2461,7 +3611,8 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       assertThrows(Exception.class, () -> svc.apply(
-         "TOK", agent, ed -> ed.setTableProperties("T", "Taken", "should not land", 9, true)));
+         "TOK", agent,
+         ed -> ed.setTableProperties("T", "Taken", "should not land", 9, true, null, null)));
 
       TableAssembly untouched = (TableAssembly) ws.getAssembly("T");
       assertNotNull(untouched, "the table must keep its original name");
@@ -2476,7 +3627,8 @@ class WorksheetEditServiceMutatorsTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
-      svc.apply("TOK", agent, ed -> ed.setTableProperties("T", null, "just a note", null, null));
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", null, "just a note", null, null, null, null));
 
       assertNotNull(ws.getAssembly("T"));
       assertEquals("just a note", ((TableAssembly) ws.getAssembly("T")).getDescription());
@@ -2495,7 +3647,8 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       assertThrows(Exception.class, () -> svc.apply(
-         "TOK", agent, ed -> ed.setTableProperties("T", "   ", "should not land", null, null)));
+         "TOK", agent,
+         ed -> ed.setTableProperties("T", "   ", "should not land", null, null, null, null)));
 
       assertNotNull(ws.getAssembly("T"), "the table keeps its name");
       assertNull(((TableAssembly) ws.getAssembly("T")).getDescription(),
@@ -2511,7 +3664,8 @@ class WorksheetEditServiceMutatorsTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
-      svc.apply("TOK", agent, ed -> ed.setTableProperties("T", "T", "kept", null, null));
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", "T", "kept", null, null, null, null));
 
       assertEquals("kept", ((TableAssembly) ws.getAssembly("T")).getDescription());
    }
@@ -2664,7 +3818,7 @@ class WorksheetEditServiceMutatorsTest {
          () -> WorksheetMutationSupport.parseOperation("nonsense")).getMessage();
 
       for(String op : List.of("=", "!=", "<", "<=", ">", ">=", "BETWEEN", "ONE_OF", "NOT_ONE_OF",
-                              "STARTING_WITH", "CONTAINS", "LIKE", "NULL", "NOT_NULL"))
+                              "STARTING_WITH", "CONTAINS", "LIKE", "NULL", "NOT_NULL", "DATE_IN"))
       {
          assertDoesNotThrow(() -> WorksheetMutationSupport.parseOperation(op),
                             op + " must be a recognised operator");
@@ -2684,6 +3838,162 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals(XCondition.EQUAL_TO, WorksheetMutationSupport.parseOperation("   "));
       assertEquals(XCondition.EQUAL_TO, WorksheetMutationSupport.parseOperation(""));
       assertEquals(XCondition.EQUAL_TO, WorksheetMutationSupport.parseOperation(null));
+   }
+
+   /**
+    * PC-006 (bug corpus #76350): list_condition_operators/list_condition_date_ranges advertise
+    * date_in (ConditionVocabulary maps it to XCondition.DATE_IN), but this worksheet-side parser
+    * had no DATE_IN case at all -- add_filter/set_conditions rejected the exact operator name the
+    * vocabulary endpoint told the caller was legal. Only the operator-name half is fixed here;
+    * resolving a named range (e.g. "Last month") into a literal condition value is untraced and
+    * intentionally not attempted by this test.
+    */
+   @Test
+   void dateInIsAcceptedCaseInsensitively() {
+      assertEquals(XCondition.DATE_IN, WorksheetMutationSupport.parseOperation("DATE_IN"));
+      assertEquals(XCondition.DATE_IN, WorksheetMutationSupport.parseOperation("date_in"));
+   }
+
+   // =========================================================================
+   // date_in value resolution (PC-006 follow-on item C)
+   // =========================================================================
+
+   private static XCondition firstXCondition(TableAssembly t) {
+      return ((ConditionItem) t.getPreConditionList().getConditionList().getItem(0))
+         .getXCondition();
+   }
+
+   /**
+    * A builtin named range must resolve to the actual DateCondition the rest of the product uses
+    * for it (mirroring ConditionUtil.fromModelToConditionList's DATE_IN branch) -- not a plain
+    * Condition holding the raw string, which never carries date-range semantics through this
+    * object shape.
+    */
+   @Test
+   void addFilterWithDateInResolvesNamedRangeToADateCondition() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "Last month"));
+
+      XCondition xc = firstXCondition(t);
+      assertInstanceOf(DateCondition.MonthCondition.class, xc,
+         "date_in must resolve to a real DateCondition, not a plain Condition");
+      DateCondition.MonthCondition mc = (DateCondition.MonthCondition) xc;
+      assertEquals(0, mc.getYearN());
+      assertEquals(1, mc.getMonthN());
+   }
+
+   /**
+    * An unmatched/typo'd range name must fail loudly, naming the bad value -- not silently
+    * substitute the shared rescue mechanism's hardcoded "one year ago" default (see
+    * ConditionTest#toSqlConditionSilentlyDefaultsOnAnUnmatchedName for that default's own
+    * characterization).
+    */
+   @Test
+   void addFilterWithDateInRejectsAnUnknownRangeName() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "not a real range")));
+
+      assertTrue(thrown.getMessage().contains("not a real range"),
+         "the refusal must name the bad value");
+      assertNull(firstConditionOrNull(t), "nothing may be written when the value is rejected");
+   }
+
+   /**
+    * A worksheet-level DateRangeAssembly is the reference implementation's second tier (after
+    * built-in names) -- the gap the shared Condition.toSqlCondition(boolean, String) rescue
+    * mechanism does not have.
+    */
+   @Test
+   void addFilterWithDateInResolvesAWorksheetNamedDateRange() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+
+      DateCondition.MonthCondition rangeCondition = new DateCondition.MonthCondition(2, 0);
+      DefaultDateRangeAssembly range = new DefaultDateRangeAssembly(ws, "Recent Orders");
+      range.setDateRange(rangeCondition);
+      ws.addAssembly(range);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "Recent Orders"));
+
+      XCondition xc = firstXCondition(t);
+      assertInstanceOf(DateCondition.MonthCondition.class, xc);
+      DateCondition.MonthCondition mc = (DateCondition.MonthCondition) xc;
+      assertEquals(0, mc.getYearN());
+      assertEquals(2, mc.getMonthN());
+      assertNotSame(rangeCondition, xc,
+         "must be a clone -- the assembly's own DateRange must not be aliased into the condition");
+   }
+
+   /** Mirrors addFilter's resolution through set_conditions's separate condition-building path. */
+   @Test
+   void setConditionsWithDateInResolvesNamedRangeToADateCondition() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "a", "date_in", List.of("Last month"), false, null), null, 0))));
+
+      XCondition xc = firstXCondition(t);
+      assertInstanceOf(DateCondition.MonthCondition.class, xc);
+      DateCondition.MonthCondition mc = (DateCondition.MonthCondition) xc;
+      assertEquals(0, mc.getYearN());
+      assertEquals(1, mc.getMonthN());
+   }
+
+   /**
+    * add_named_group/edit_named_group share buildGroupConditionList's condition-building logic
+    * with no enum constraint on their operation field, so date_in is reachable here too -- the
+    * same defect surface, fixed at the shared method.
+    */
+   @Test
+   void buildGroupConditionListWithDateInResolvesNamedRangeToADateCondition() throws Exception {
+      Worksheet ws = new Worksheet();
+      DataRef conditionRef = new AttributeRef(null, "a");
+      WorksheetMutationSupport.GroupMapping mapping =
+         new WorksheetMutationSupport.GroupMapping("g1", List.of("Last month"), "date_in");
+
+      ConditionList conds = WorksheetMutationSupport.buildGroupConditionList(
+         XSchema.DATE, conditionRef, mapping, ws);
+
+      XCondition xc = ((ConditionItem) conds.getItem(0)).getXCondition();
+      assertInstanceOf(DateCondition.MonthCondition.class, xc);
+      DateCondition.MonthCondition mc = (DateCondition.MonthCondition) xc;
+      assertEquals(0, mc.getYearN());
+      assertEquals(1, mc.getMonthN());
+   }
+
+   @Test
+   void buildGroupConditionListWithDateInRejectsAnUnknownRangeName() {
+      Worksheet ws = new Worksheet();
+      DataRef conditionRef = new AttributeRef(null, "a");
+      WorksheetMutationSupport.GroupMapping mapping = new WorksheetMutationSupport.GroupMapping(
+         "g1", List.of("not a real range"), "date_in");
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, () ->
+         WorksheetMutationSupport.buildGroupConditionList(XSchema.DATE, conditionRef, mapping, ws));
+
+      assertTrue(thrown.getMessage().contains("not a real range"),
+         "the refusal must name the bad value");
    }
 
    private static Object firstConditionOrNull(TableAssembly t) {

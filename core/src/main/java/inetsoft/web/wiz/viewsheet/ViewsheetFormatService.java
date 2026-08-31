@@ -24,6 +24,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.report.StyleConstants;
+import inetsoft.report.TableDataPath;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
@@ -31,6 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -52,11 +55,20 @@ public class ViewsheetFormatService {
     * @param assemblies the assemblies to format; at least one
     * @param format     the format to apply; may be null only when {@code reset} is true
     * @param reset      clear formatting back to the default rather than applying {@code format}
+    * @param target     {@code "object"} (default, when null/blank) formats the whole assembly;
+    *                   {@code "title"} formats only that assembly's own title-bar text, distinct
+    *                   from a chart's axis titles or any other sub-region
     */
    public record FormatRequest(List<String> assemblies,
                                VSObjectFormatInfoModel format,
-                               boolean reset)
+                               boolean reset,
+                               String target)
    {
+      /** Kept for existing callers that predate {@code target} — defaults it to whole-object. */
+      public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset) {
+         this(assemblies, format, reset, null);
+      }
+
       /**
        * Reads {@code format} as a plain object, supplying the polymorphic type id ourselves.
        *
@@ -75,9 +87,10 @@ public class ViewsheetFormatService {
       @JsonCreator
       public static FormatRequest fromJson(@JsonProperty("assemblies") List<String> assemblies,
                                            @JsonProperty("format") JsonNode format,
-                                           @JsonProperty("reset") boolean reset)
+                                           @JsonProperty("reset") boolean reset,
+                                           @JsonProperty("target") String target)
       {
-         return new FormatRequest(assemblies, toModel(format), reset);
+         return new FormatRequest(assemblies, toModel(format), reset, target);
       }
 
       private static VSObjectFormatInfoModel toModel(JsonNode format) {
@@ -299,6 +312,8 @@ public class ViewsheetFormatService {
             "set_format requires 'format' unless 'reset' is true.");
       }
 
+      String target = requireTarget(request.target());
+
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          FormatVSObjectEvent event = new FormatVSObjectEvent();
          event.setObjects(request.assemblies().toArray(new String[0]));
@@ -310,8 +325,41 @@ public class ViewsheetFormatService {
          // branches that read getColumnNames()/getIndexes()/getRegions() all live inside that
          // loop, so they never execute for these requests.
          event.setCharts(new String[0]);
+
+         // TITLEPATH is FormatPainterService's own per-assembly TableDataPath[] mechanism
+         // (event.getData(), indexed 1:1 with event.getObjects()) — the same generic slot every
+         // titled assembly (table, gauge, crosstab, chart, ...) already stores its own title-bar
+         // format in, entirely separate from a chart's axis/legend descriptors. Leaving data null
+         // (the default) falls through to a whole-OBJECT write, same as before this parameter
+         // existed.
+         if("title".equals(target)) {
+            ArrayList<TableDataPath[]> data = new ArrayList<>();
+
+            for(int i = 0; i < request.assemblies().size(); i++) {
+               data.add(new TableDataPath[]{ VSAssemblyInfo.TITLEPATH });
+            }
+
+            event.setData(data);
+         }
+
          painter.setFormat(runtimeId, event, user, dispatcher, linkUri);
       });
+   }
+
+   /** Bug 76325 item 3: distinguishes a chart's own title from its whole-object format. */
+   private static String requireTarget(String target) {
+      String name = target == null || target.isBlank() ? "object" : target.trim().toLowerCase();
+
+      if(!"object".equals(name) && !"title".equals(name)) {
+         throw new IllegalArgumentException(
+            "set_format 'target' must be 'object' or 'title', got '" + target + "'. 'object' " +
+            "(the default) formats the whole assembly, including — for a chart — the default " +
+            "text style that unstyled axis titles and tick labels fall back to. 'title' formats " +
+            "only that assembly's own title-bar text; for a chart's x/y axis titles, use " +
+            "set_chart_region_properties with region 'title' instead.");
+      }
+
+      return name;
    }
 
    private final ViewsheetSessionService sessions;

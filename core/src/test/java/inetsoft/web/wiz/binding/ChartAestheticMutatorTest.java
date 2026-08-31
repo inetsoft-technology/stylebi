@@ -19,6 +19,7 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.web.binding.model.ChartBindingModel;
+import inetsoft.web.binding.model.ColorMapModel;
 import inetsoft.web.binding.model.graph.*;
 import inetsoft.web.binding.model.graph.aesthetic.*;
 import inetsoft.web.wiz.binding.model.FieldRef;
@@ -652,14 +653,14 @@ class ChartAestheticMutatorTest {
    @Test
    void describesTheBoundChannelsInTheAgentVocabulary() {
       ChartBindingModel model = new ChartBindingModel();
-      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setField(model, "color", measure("Sales", "Sum"));
       ChartAestheticMutator.setFrame(model, "color", spec("type", "palette", "palette", "Reds"));
 
       Map<String, Object> described = ChartAestheticMutator.describe(model);
       @SuppressWarnings("unchecked")
       Map<String, Object> color = (Map<String, Object>) described.get("color");
 
-      assertEquals("Region", color.get("field"));
+      assertEquals("Sales", color.get("field"));
       @SuppressWarnings("unchecked")
       Map<String, Object> frame = (Map<String, Object>) color.get("frame");
       assertEquals("palette", frame.get("type"));
@@ -824,5 +825,920 @@ class ChartAestheticMutatorTest {
       assertEquals("Region", nodeColor.get("field"));
       assertEquals(true, nodeColor.get("acceptsField"));
       assertEquals(true, nodeColor.get("acceptsFrame"));
+   }
+
+   // ── a mapping-only categorical colour frame keeps the channel's palette ───
+   //
+   // Live repro: with a dimension bound to colour, {type: "categorical", mapping: {...}} was
+   // accepted, reported success, and changed nothing — get_chart_aesthetics read back
+   // mapping: {} with useGlobal flipped back to true and the chart kept its old colours.
+   // CategoricalColorFrameModelFactory.updateVisualFrameWrapper0 returns early, before
+   // assignMappedColors/setUseGlobal/setShareColors, when the model carries no colours. The
+   // interactive pane always satisfies that precondition (it sends the whole palette alongside
+   // the colour maps); the agent path did not. Carrying the channel's current palette is what
+   // makes the request the same shape the dialog sends.
+
+   @Test
+   void aMappingOnlyColourFrameCarriesTheChannelsCurrentPalette() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111", "#222222")));
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "mapping", Map.of("East", "#d64541")));
+
+      CategoricalColorModel onField =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      assertArrayEquals(new String[]{ "#111111", "#222222" }, onField.getColors(),
+                        "without colours the factory discards the whole frame, mapping included");
+      assertEquals(1, onField.getColorMaps().length);
+      assertEquals("East", onField.getColorMaps()[0].getOption());
+   }
+
+   /** The same carry-forward on an unbound channel, whose frame lives in a different slot. */
+   @Test
+   void aMappingOnlyColourFrameCarriesTheChartLevelPaletteToo() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#333333")));
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "mapping", Map.of("West", "#f28e2c")));
+
+      CategoricalColorModel frame =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorFrame());
+      assertArrayEquals(new String[]{ "#333333" }, frame.getColors());
+   }
+
+   /** An explicit colours list is the caller's, not something to overwrite with the old palette. */
+   @Test
+   void anExplicitColourListIsNotOverwrittenByTheCarryForward() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111", "#222222")));
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#999999")));
+
+      assertArrayEquals(new String[]{ "#999999" },
+                        ((CategoricalColorModel) model.getColorFrame()).getColors());
+   }
+
+   /**
+    * With no categorical palette on the channel there are no categories a mapping could name.
+    * The Composer hides "Assign Fixed Mapping" in exactly that case; this says so out loud
+    * rather than storing something the factory will drop.
+    */
+   @Test
+   void refusesAMappingOnlyFrameWhenTheChannelHasNoPaletteToPinAgainst() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#4e79a7"));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "color", spec("type", "categorical", "mapping", Map.of("East", "#d64541"))));
+
+      assertTrue(thrown.getMessage().contains("mapping"), thrown.getMessage());
+   }
+
+   /**
+    * The carry-forward is colour-only. Line and texture have no equivalent precondition —
+    * CategoricalLineFrameModelFactory leaves the wrapper's own defaults in place for an empty
+    * array instead of discarding the frame — so a bare categorical line frame still means "the
+    * defaults", not "whatever was there before".
+    */
+   @Test
+   void theCarryForwardLeavesOtherChannelsAlone() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setFrame(
+         model, "line", spec("type", "categorical", "lines", List.of(4097, 4113)));
+      ChartAestheticMutator.setFrame(model, "line", spec("type", "categorical"));
+
+      assertArrayEquals(new int[0],
+                        ((CategoricalLineModel) model.getLineFrame()).getLines(),
+                        "a bare categorical line frame means the defaults, not the old lines");
+   }
+
+   // ── line and texture render off the shape field, when it holds their frame ─
+   //
+   // The Composer has one Shape slot where this tool has three channels: it edits lineFrame on a
+   // chart GraphTypes.supportsLine answers for, textureFrame where supportsTexture does, and
+   // shapeFrame otherwise. So a dimension on shape puts a CategoricalLineModel on the SHAPE field,
+   // and VSLineFrameStrategy.getAestheticRef returns that ref exactly because its frame is a
+   // LineFrame -- createFrame then prefers it over every field-less slot.
+   //
+   // Live repro: line chart, dimension on shape, set_visual_frame channel="line"
+   // {type: "static", line: "large dash"} answered ok, round-tripped through
+   // get_chart_aesthetics, and left the image byte-for-byte unchanged. Clearing the shape field
+   // made the same stored value render at once.
+
+   @Test
+   void aLineFrameLandsOnTheShapeFieldWhenThatFieldCarriesALineFrame() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "shape", dimension("Year(ORDER_DATE)"));
+      model.getShapeField().setFrame(new CategoricalLineModel());
+
+      ChartAestheticMutator.setFrame(
+         model, "line", spec("type", "categorical", "lines", List.of(4241, 4097)));
+
+      CategoricalLineModel onShape = assertInstanceOf(
+         CategoricalLineModel.class, model.getShapeField().getFrame(),
+         "the shape field's frame is the one VSLineFrameStrategy hands the renderer");
+      assertArrayEquals(new int[]{ 4241, 4097 }, onShape.getLines());
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      assertNull(agg.getLineFrame(),
+                 "writing the per-measure slot too would leave a second value nothing renders");
+   }
+
+   @Test
+   void aTextureFrameLandsOnTheShapeFieldWhenThatFieldCarriesATextureFrame() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "shape", dimension("Year(ORDER_DATE)"));
+      model.getShapeField().setFrame(new CategoricalTextureModel());
+
+      ChartAestheticMutator.setFrame(
+         model, "texture", spec("type", "categorical", "textures", List.of(19, 12)));
+
+      CategoricalTextureModel onShape = assertInstanceOf(
+         CategoricalTextureModel.class, model.getShapeField().getFrame());
+      assertArrayEquals(new int[]{ 19, 12 }, onShape.getTextures());
+   }
+
+   /** The read has to come from the same slot, or it reports a value the chart never shows. */
+   @Test
+   void theLineChannelReportsTheShapeFieldsFrameAndField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "shape", dimension("Year(ORDER_DATE)"));
+      CategoricalLineModel onShape = new CategoricalLineModel();
+      onShape.setLines(new int[]{ 4097, 4113 });
+      model.getShapeField().setFrame(onShape);
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> line =
+         (Map<String, Object>) ChartAestheticMutator.describe(model).get("line");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> frame = (Map<String, Object>) line.get("frame");
+
+      assertEquals("Year(ORDER_DATE)", line.get("field"));
+      assertEquals(List.of(4097, 4113), frame.get("lines"));
+      assertEquals(false, line.get("acceptsField"),
+                   "the field goes on shape, so line still refuses set_aesthetic_field");
+   }
+
+   /**
+    * The gate is the strategy's own frame-family test, not "is anything bound to shape". A point
+    * chart's shape field holds a ShapeFrame, and there line and texture really do render from
+    * their field-less slots.
+    */
+   @Test
+   void aShapeFieldHoldingAShapeFrameLeavesLineOnItsFieldLessSlot() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "shape", dimension("Year(ORDER_DATE)"));
+      model.getShapeField().setFrame(new CategoricalShapeModel());
+
+      ChartAestheticMutator.setFrame(model, "line", spec("type", "static", "line", 4241));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      assertInstanceOf(StaticLineModel.class, agg.getLineFrame());
+      assertInstanceOf(CategoricalShapeModel.class, model.getShapeField().getFrame(),
+                       "the shape field's own frame is not line's to overwrite");
+   }
+
+   /** With nothing on shape, both keep their existing field-less behaviour. */
+   @Test
+   void anUnboundShapeChannelLeavesLineAndTextureOnTheMeasures() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "line", spec("type", "static", "line", 4241));
+      ChartAestheticMutator.setFrame(model, "texture", spec("type", "static", "texture", 5));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      assertInstanceOf(StaticLineModel.class, agg.getLineFrame());
+      assertInstanceOf(StaticTextureModel.class, agg.getTextureFrame());
+   }
+
+   // ── a bound field decides which kind of frame can drive its channel ───────
+   //
+   // getEditPaneId() picks the editor from the bound field, not from the caller: a dimension (or a
+   // discrete aggregate) opens the Categorical pane and nothing else, a measure opens the Linear
+   // one, and Static is offered only when nothing is bound. Anything else is a state the Composer
+   // cannot produce and the backend does not cope with.
+   //
+   // Live repro: line chart, dimension on shape, set_visual_frame channel="line"
+   // {type: "static", line: "large dash"} answered ok, the image did not change, and the
+   // categorical lines array came back with the static value sitting in one of its slots.
+   // Control on another channel: {type: "static", color: "#FF0000"} on a colour channel with a
+   // dimension bound rendered the ordinary categorical palette, no red anywhere.
+
+   @Test
+   void refusesAStaticFrameOnAChannelBoundToADimension() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "color", spec("type", "static", "color", "#ff0000")));
+
+      assertTrue(thrown.getMessage().contains("categorical"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("clear_aesthetic_field"),
+                 "the refusal has to name the way to the fixed-value outcome, not just say no");
+   }
+
+   /** A ramp is as unrenderable there as a static value, and was equally silent. */
+   @Test
+   void refusesAGraduatedFrameOnAChannelBoundToADimension() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> ChartAestheticMutator.setFrame(
+                      model, "color", spec("type", "palette", "palette", "Reds")));
+   }
+
+   @Test
+   void refusesAStaticFrameOnAChannelBoundToAMeasure() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", measure("Sales", "Sum"));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "color", spec("type", "static", "color", "#ff0000")));
+
+      assertTrue(thrown.getMessage().contains("gradient"),
+                 "the survivors differ per family, so the message names this channel's: " +
+                 thrown.getMessage());
+   }
+
+   @Test
+   void refusesACategoricalFrameOnAChannelBoundToAMeasure() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "size", measure("Sales", "Sum"));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "size", spec("type", "categorical", "smallest", 2, "largest", 20)));
+
+      assertTrue(thrown.getMessage().contains("linear"),
+                 "size's only graduated frame is linear: " + thrown.getMessage());
+   }
+
+   @Test
+   void acceptsACategoricalFrameOnAChannelBoundToADimension() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111")));
+
+      assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+   }
+
+   @Test
+   void acceptsAGraduatedFrameOnAChannelBoundToAMeasure() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", measure("Sales", "Sum"));
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "gradient", "from", "#eeeeff", "to", "#005599"));
+
+      assertInstanceOf(GradientColorModel.class, model.getColorField().getFrame());
+   }
+
+   /** The rule follows the bound field to wherever the channel reads it — shape, for line. */
+   @Test
+   void theRuleFollowsLineAndTextureToTheShapeField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "shape", dimension("Year(ORDER_DATE)"));
+      model.getShapeField().setFrame(new CategoricalLineModel());
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> ChartAestheticMutator.setFrame(
+                      model, "line", spec("type", "static", "line", 4241)));
+   }
+
+   /** With nothing bound the rule does not apply — static is exactly what that slot takes. */
+   @Test
+   void theRuleDoesNotApplyToAFieldLessChannel() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#123456"));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      assertInstanceOf(StaticColorModel.class, agg.getColorFrame());
+   }
+
+   // ── a field-less colour frame on the measures must be static ──────────────
+   //
+   // Live repro: on a bar chart with the colour channel unbound, set_visual_frame color
+   // {type: "categorical", colors: [...]} answered ok and the chart stopped rendering entirely —
+   // every later get_viewsheet_image, clear_aesthetic_field and set_aesthetic_field on it returned
+   // a 500 too, because the bad frame was now sitting on the measures. The stack is
+   // GraphUtil.fixDuplicateColor:1056 casting ChartAggregateRef.getColorFrameWrapper() to
+   // StaticColorFrameWrapper. {type: "gradient"} did the same; {type: "static"} rendered fine and
+   // restored the chart. The Composer cannot reach the state at all: with nothing on the colour
+   // shelf, color-field-mc.getEditPaneId() only ever opens StaticColor or CombinedColor.
+
+   @Test
+   void refusesACategoricalColourFrameOnMeasuresWithNoColourField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "color", spec("type", "categorical", "colors", List.of("#111111"))));
+
+      assertTrue(thrown.getMessage().contains("static"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("set_aesthetic_field"),
+                 "the refusal has to name the way forward, not just the rule");
+   }
+
+   @Test
+   void refusesAGradientColourFrameOnMeasuresWithNoColourField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> ChartAestheticMutator.setFrame(
+                      model, "color", spec("type", "gradient", "from", "#fff", "to", "#000")));
+   }
+
+   /** The one frame the measures can actually carry. */
+   @Test
+   void acceptsAStaticColourFrameOnMeasuresWithNoColourField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#4e79a7"));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      assertEquals("#4E79A7",
+                   assertInstanceOf(StaticColorModel.class, agg.getColorFrame()).getColor());
+   }
+
+   /** With a field bound the frame lands on the AestheticInfo, which the cast never sees. */
+   @Test
+   void aCategoricalColourFrameIsFineOnceAFieldIsBound() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111")));
+
+      assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+   }
+
+   /** The other channels have no such cast, and keep working field-less. */
+   @Test
+   void theStaticOnlyRuleIsColourOnly() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      ChartAestheticMutator.setFrame(
+         model, "line", spec("type", "categorical", "lines", List.of(4097, 4113)));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      assertInstanceOf(CategoricalLineModel.class, agg.getLineFrame());
+   }
+
+   // ── Share Colors needs the field name and the viewsheet's existing pins ───
+   //
+   // Live repro: with a dimension on colour, set_visual_frame color
+   // {type: "categorical", colors: [...], useGlobal: true} returned a 500 every time, while the
+   // identical call with useGlobal false succeeded. VSChartBindingFactory.applyColorsToViewsheet
+   // only runs when the flag is set, and hands frame.getField() to Viewsheet.setDimensionColors,
+   // whose getAttribute does column.indexOf(":") -- NPE, because a frame built here is a bare
+   // new CategoricalColorModel() and nothing ever set its field.
+
+   @Test
+   void aSharedColourFrameCarriesTheFieldNameThatViewsheetLevelPinsAreKeyedBy() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "colors", List.of("#111111"), "shareColors", true));
+
+      CategoricalColorModel frame =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      assertEquals("Region", frame.getField(),
+                   "a null here is an NPE in Viewsheet.setDimensionColors, not a missing label");
+   }
+
+   /** Carried even when sharing is off, so turning it on later is not the call that breaks. */
+   @Test
+   void anUnsharedColourFrameCarriesTheFieldNameToo() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111")));
+
+      assertEquals("Region",
+                   ((CategoricalColorModel) model.getColorField().getFrame()).getField());
+   }
+
+   /**
+    * applyColorsToViewsheet rewrites the column's whole entry from globalColorMaps, and
+    * Viewsheet.setDimensionColors drops the column's existing keys first — so an empty array does
+    * not leave the viewsheet's fixed pins alone, it deletes them. The agent cannot author them, so
+    * carrying what the channel already has is the only way a frame write avoids destroying them.
+    */
+   @Test
+   void aSharedColourFrameCarriesTheViewsheetLevelPinsForward() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111")));
+
+      CategoricalColorModel existing = (CategoricalColorModel) model.getColorField().getFrame();
+      existing.setGlobalColorMaps(new ColorMapModel[]{ new ColorMapModel("East", "#D64541") });
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "colors", List.of("#222222"), "shareColors", true));
+
+      CategoricalColorModel frame =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      assertEquals(1, frame.getGlobalColorMaps().length,
+                   "an empty array here wipes the column's pins off the viewsheet");
+      assertEquals("East", frame.getGlobalColorMaps()[0].getOption());
+   }
+
+   /**
+    * Turning sharing on is the transition categorical-color-pane.shareColorsChange handles by
+    * seeding globalColorMaps from colorMaps — the frame's own pins become the viewsheet's. The
+    * option moves where the pins live; it does not discard them.
+    */
+   @Test
+   void turningSharingOnPromotesTheFramesOwnPinsToTheViewsheetLevelOnes() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111")));
+
+      CategoricalColorModel existing = (CategoricalColorModel) model.getColorField().getFrame();
+      existing.setColorMaps(new ColorMapModel[]{ new ColorMapModel("West", "#F28E2C") });
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "colors", List.of("#222222"), "shareColors", true));
+
+      CategoricalColorModel frame =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      assertEquals(1, frame.getGlobalColorMaps().length);
+      assertEquals("West", frame.getGlobalColorMaps()[0].getOption());
+   }
+
+   /**
+    * Pinning a value while sharing is on is the "Assign Fixed Mapping" + "Share Colors" pairing,
+    * and it must add to the column's pins rather than replace them: Viewsheet.setDimensionColors
+    * drops the column's existing keys before putting the new ones, so a request naming one value
+    * would otherwise unpin every other one. The unshared path already behaves that way, because
+    * assignMappedColors only calls setColor for the values it was given.
+    */
+   @Test
+   void aSharedMappingAddsToTheColumnsPinsInsteadOfReplacingThem() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111")));
+
+      CategoricalColorModel existing = (CategoricalColorModel) model.getColorField().getFrame();
+      existing.setGlobalColorMaps(new ColorMapModel[]{ new ColorMapModel("East", "#D64541") });
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "shareColors", true, "mapping", Map.of("West", "#F28E2C")));
+
+      CategoricalColorModel frame =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      Map<String, String> pins = new LinkedHashMap<>();
+
+      for(ColorMapModel pin : frame.getGlobalColorMaps()) {
+         pins.put(pin.getOption(), pin.getColor());
+      }
+
+      assertEquals(Map.of("East", "#D64541", "West", "#F28E2C"), pins,
+                   "naming one value must not unpin the others");
+   }
+
+   /** Naming a value that is already pinned re-colours it rather than duplicating it. */
+   @Test
+   void aSharedMappingOverwritesAPinItNames() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111")));
+
+      CategoricalColorModel existing = (CategoricalColorModel) model.getColorField().getFrame();
+      existing.setGlobalColorMaps(new ColorMapModel[]{ new ColorMapModel("East", "#D64541") });
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "shareColors", true, "mapping", Map.of("East", "#000000")));
+
+      CategoricalColorModel frame =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      assertEquals(1, frame.getGlobalColorMaps().length);
+      assertEquals("#000000", frame.getGlobalColorMaps()[0].getColor());
+   }
+
+   /**
+    * A spec that does not mention shareColors is not asking about the checkbox. Forcing it off
+    * meant every colour change silently switched sharing off for a chart that had it on, with
+    * nothing in the request to say so. The Composer's Apply posts back whatever
+    * CategoricalColorModel(wrapper) read off the frame, and this now does the same.
+    */
+   @Test
+   void anOmittedShareColorsLeavesTheChannelsCheckboxAlone() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "colors", List.of("#111111"), "shareColors", true));
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#222222")));
+
+      CategoricalColorModel frame =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      assertTrue(frame.isShareColors(), "changing a colour is not a request to stop sharing");
+      assertTrue(frame.isUseGlobal());
+      assertArrayEquals(new String[]{ "#222222" }, frame.getColors());
+   }
+
+   @Test
+   void anExplicitShareColorsFalseStillTurnsSharingOff() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "colors", List.of("#111111"), "shareColors", true));
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "colors", List.of("#222222"), "shareColors", false));
+
+      CategoricalColorModel frame =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      assertFalse(frame.isShareColors());
+      assertFalse(frame.isUseGlobal());
+   }
+
+   /**
+    * The two flags agree on every frame the Composer or this tool writes; a legacy frame where
+    * they do not is one neither can repair, so a write that was not asked about them must not
+    * normalise them either.
+    */
+   @Test
+   void anOmittedShareColorsPreservesALegacyFramesDivergentPair() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111")));
+
+      CategoricalColorModel existing = (CategoricalColorModel) model.getColorField().getFrame();
+      existing.setUseGlobal(true);
+      existing.setShareColors(false);
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#222222")));
+
+      CategoricalColorModel frame =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      assertTrue(frame.isUseGlobal());
+      assertFalse(frame.isShareColors());
+   }
+
+   /**
+    * With sharing carried forward rather than restated, the pins still have to land in the array
+    * the factory reads — VisualFrameAliases routed on the spec, which said nothing.
+    */
+   @Test
+   void anOmittedShareColorsStillRoutesPinsToTheSharedArray() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "colors", List.of("#111111"), "shareColors", true));
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "mapping", Map.of("2022", "#000000")));
+
+      CategoricalColorModel frame =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      assertEquals(1, frame.getGlobalColorMaps().length);
+      assertEquals("2022", frame.getGlobalColorMaps()[0].getOption());
+      assertEquals(0, frame.getColorMaps().length,
+                   "a stale copy in the array the factory ignores is how a read starts lying");
+   }
+
+   /** Sharing off never reaches applyColorsToViewsheet, so nothing is promoted. */
+   @Test
+   void anUnsharedColourFrameDoesNotPromoteAnything() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111")));
+
+      CategoricalColorModel existing = (CategoricalColorModel) model.getColorField().getFrame();
+      existing.setColorMaps(new ColorMapModel[]{ new ColorMapModel("West", "#F28E2C") });
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#222222")));
+
+      CategoricalColorModel frame =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      assertEquals(0, frame.getGlobalColorMaps().length);
+   }
+
+   // ── one measure at a time: the Composer's Combined pane ───────────────────
+   //
+   // getEditPaneId() opens CombinedColor/CombinedSize when the channel is empty and frames.length
+   // > 1 -- one editor per measure, labelled with the measure's name. Without a way to name one,
+   // every field-less write went to all of them, so "make Profit orange" had to mean "make
+   // everything orange".
+
+   @Test
+   void aNamedMeasureGetsTheFrameAndTheOthersKeepTheirs() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), measure("Profit", "Sum")));
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#111111"));
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "static", "color", "#F28E2C"), false,
+         AestheticChannels.FRAME_CHANNELS, "Profit");
+
+      assertEquals("#111111", colorOf(model, 0), "the measure that was not named keeps its own");
+      assertEquals("#F28E2C", colorOf(model, 1));
+   }
+
+   @Test
+   void anUnnamedMeasureStillBroadcasts() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), measure("Profit", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#111111"));
+
+      assertEquals("#111111", colorOf(model, 0));
+      assertEquals("#111111", colorOf(model, 1));
+   }
+
+   @Test
+   void refusesAMeasureTheChartDoesNotHave() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "color", spec("type", "static", "color", "#111111"), false,
+            AestheticChannels.FRAME_CHANNELS, "Nope"));
+
+      assertTrue(thrown.getMessage().contains("Sales"),
+                 "naming the ones that exist is what turns a refusal into a next step: " +
+                 thrown.getMessage());
+   }
+
+   /** With a field bound there is one frame for the channel, not one per measure. */
+   @Test
+   void refusesAMeasureWhenTheChannelHasAFieldBound() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "color", spec("type", "categorical", "colors", List.of("#111111")), false,
+            AestheticChannels.FRAME_CHANNELS, "Sales"));
+
+      assertTrue(thrown.getMessage().contains("clear_aesthetic_field"), thrown.getMessage());
+   }
+
+   /**
+    * frameOf() reports the first measure's frame, which stops being the whole truth the moment a
+    * measure-scoped write makes them differ. Reporting only the first would then describe a chart
+    * that is visibly drawing something else beside it.
+    */
+   @Test
+   void theReadReportsEveryMeasureOnceTheyDisagree() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), measure("Profit", "Sum")));
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#111111"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "static", "color", "#F28E2C"), false,
+         AestheticChannels.FRAME_CHANNELS, "Profit");
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> color =
+         (Map<String, Object>) ChartAestheticMutator.describe(model).get("color");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> byMeasure = (Map<String, Object>) color.get("framesByMeasure");
+
+      assertNotNull(byMeasure, "a read that hid this would report a colour half the chart is not");
+      assertEquals(Set.of("Sales", "Profit"), byMeasure.keySet());
+   }
+
+   /** Agreeing measures keep the common chart's read as short as it was. */
+   @Test
+   void theReadStaysShortWhileTheMeasuresAgree() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), measure("Profit", "Sum")));
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#111111"));
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> color =
+         (Map<String, Object>) ChartAestheticMutator.describe(model).get("color");
+
+      assertFalse(color.containsKey("framesByMeasure"));
+   }
+
+   private static String colorOf(ChartBindingModel model, int index) {
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(index);
+      return assertInstanceOf(StaticColorModel.class, agg.getColorFrame()).getColor();
+   }
+
+   // ── "Reset to Default" ───────────────────────────────────────────────────
+   //
+   // Four panes carry the button and no two do the same thing; three of them are a model change
+   // and are mirrored here. categorical-color restores cssColors ?? defaultColors; combined-color
+   // restores each measure's palette entry for its own position; categorical-shape serves shapes,
+   // lines and textures from one button. linear-color's resetEditors() only re-syncs widgets.
+
+   @Test
+   void resetRestoresACategoricalPaletteToItsDefaults() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111", "#222222")));
+
+      CategoricalColorModel frame = (CategoricalColorModel) model.getColorField().getFrame();
+      frame.setDefaultColors(new String[]{ "#4E79A7", "#F28E2C" });
+
+      ChartAestheticMutator.resetFrame(
+         model, "color", false, AestheticChannels.FRAME_CHANNELS, null);
+
+      assertArrayEquals(
+         new String[]{ "#4E79A7", "#F28E2C" },
+         ((CategoricalColorModel) model.getColorField().getFrame()).getColors());
+   }
+
+   /** The CSS theme's entry wins over the built-in one, as it does in the pane. */
+   @Test
+   void resetPrefersTheCssPaletteOverTheBuiltInOne() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111")));
+
+      CategoricalColorModel frame = (CategoricalColorModel) model.getColorField().getFrame();
+      frame.setCssColors(new String[]{ "#00FF00" });
+      frame.setDefaultColors(new String[]{ "#4E79A7" });
+
+      ChartAestheticMutator.resetFrame(
+         model, "color", false, AestheticChannels.FRAME_CHANNELS, null);
+
+      assertArrayEquals(
+         new String[]{ "#00FF00" },
+         ((CategoricalColorModel) model.getColorField().getFrame()).getColors());
+   }
+
+   /** The button sits beside the palette editors, not beside "Assign Fixed Mapping". */
+   @Test
+   void resetLeavesThePinnedValuesPinned() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "colors", List.of("#111111"),
+              "mapping", Map.of("East", "#d64541")));
+
+      ((CategoricalColorModel) model.getColorField().getFrame())
+         .setDefaultColors(new String[]{ "#4E79A7" });
+
+      ChartAestheticMutator.resetFrame(
+         model, "color", false, AestheticChannels.FRAME_CHANNELS, null);
+
+      CategoricalColorModel frame = (CategoricalColorModel) model.getColorField().getFrame();
+      assertEquals(1, frame.getColorMaps().length);
+      assertEquals("East", frame.getColorMaps()[0].getOption());
+   }
+
+   @Test
+   void resetGivesEachMeasureThePaletteEntryForItsOwnPosition() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), measure("Profit", "Sum")));
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#111111"));
+
+      ChartAestheticMutator.resetFrame(
+         model, "color", false, AestheticChannels.FRAME_CHANNELS, null);
+
+      assertNotEquals(colorOf(model, 0), colorOf(model, 1),
+                      "both measures resetting to one colour is what the position exists to stop");
+   }
+
+   @Test
+   void resetScopedToOneMeasureLeavesTheOthersAlone() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), measure("Profit", "Sum")));
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#111111"));
+
+      ChartAestheticMutator.resetFrame(
+         model, "color", false, AestheticChannels.FRAME_CHANNELS, "Profit");
+
+      assertEquals("#111111", colorOf(model, 0));
+      assertNotEquals("#111111", colorOf(model, 1));
+   }
+
+   /** One button, three families -- categorical-shape-pane switches on the chart's own. */
+   @Test
+   void resetRestoresACategoricalLineSetToThePickersOwnList() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "shape", dimension("Year(ORDER_DATE)"));
+      CategoricalLineModel lines = new CategoricalLineModel();
+      lines.setLines(new int[]{ 4241, 4241 });
+      model.getShapeField().setFrame(lines);
+
+      ChartAestheticMutator.resetFrame(
+         model, "line", false, AestheticChannels.FRAME_CHANNELS, null);
+
+      int[] reset = ((CategoricalLineModel) model.getShapeField().getFrame()).getLines();
+      assertEquals(10, reset.length, "the five styles listed twice, as the pane's reset does");
+      assertEquals(4097, reset[0]);
+   }
+
+   @Test
+   void resetRestoresACategoricalTextureSetWithoutTheNoTextureEntry() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "shape", dimension("Year(ORDER_DATE)"));
+      CategoricalTextureModel textures = new CategoricalTextureModel();
+      textures.setTextures(new int[]{ 19, 19 });
+      model.getShapeField().setFrame(textures);
+
+      ChartAestheticMutator.resetFrame(
+         model, "texture", false, AestheticChannels.FRAME_CHANNELS, null);
+
+      int[] reset = ((CategoricalTextureModel) model.getShapeField().getFrame()).getTextures();
+      assertEquals(20, reset.length);
+      assertEquals(0, reset[0], "PATTERN_NONE is left out -- an invisible category is not a reset");
+   }
+
+   @Test
+   void resetRestoresACategoricalShapeSet() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "shape", dimension("Region"));
+      CategoricalShapeModel shapes = new CategoricalShapeModel();
+      shapes.setShapes(new String[]{ "907", "907" });
+      model.getShapeField().setFrame(shapes);
+
+      ChartAestheticMutator.resetFrame(
+         model, "shape", false, AestheticChannels.FRAME_CHANNELS, null);
+
+      String[] reset = ((CategoricalShapeModel) model.getShapeField().getFrame()).getShapes();
+      assertEquals(32, reset.length, "sixteen point shapes then the sixteen bundled images");
+      assertEquals("900", reset[0]);
+      assertEquals("100ArrowDown.svg", reset[16]);
+   }
+
+   /** A frame with no stored default is refused rather than given an invented one. */
+   @Test
+   void refusesToResetAFrameThatHasNoDefault() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", measure("Sales", "Sum"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "gradient", "from", "#eeeeff", "to", "#005599"));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.resetFrame(
+            model, "color", false, AestheticChannels.FRAME_CHANNELS, null));
+
+      assertTrue(thrown.getMessage().contains("set_visual_frame"),
+                 "the refusal has to name the way to get the value they want: " +
+                 thrown.getMessage());
    }
 }

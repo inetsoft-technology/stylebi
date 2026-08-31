@@ -56,7 +56,7 @@
         <polygon class="ls-el" points="162.618,31.907 126.508,38.319 126.508,80.167 155.929,80.167 162.618,76.305"/>
       </svg>
     </div>
-    <span data-th-if="${#strings.isEmpty(customLoadingLogo)}" data-th-text="#{app.loading}">Loading...</span>
+    <span data-th-if="${#strings.isEmpty(customLoadingText)}" data-th-text="#{app.loading}">Loading...</span>
     <span data-th-if="${not #strings.isEmpty(customLoadingText)}" data-th-text="${customLoadingText}"></span>
   </div>
   <app-root></app-root>

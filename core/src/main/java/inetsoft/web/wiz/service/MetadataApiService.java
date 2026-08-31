@@ -1296,15 +1296,6 @@ public class MetadataApiService {
       TreeNodeModel.Builder builder = TreeNodeModel.builder().from(node);
       builder.children(new ArrayList<>());
 
-      // A non-relational source has no catalog/schema/table metadata to hand back, so expanding it
-      // returns an empty child list forever -- it looks identical to a database that is still
-      // loading. Marking it a leaf says plainly that there is nothing to open. It stays in the tree
-      // on purpose: the source IS usable, through a worksheet built on it, and hiding it would send
-      // the operator hunting for something they can see in StyleBI.
-      if(isNonJdbcDataSource(entry)) {
-         builder.leaf(true);
-      }
-
       for(TreeNodeModel child : node.children()) {
          TreeNodeModel filteredChild = filterWizTree(child, filterCache, partitionCache);
 
@@ -1314,35 +1305,6 @@ public class MetadataApiService {
       }
 
       return builder.build();
-   }
-
-   /**
-    * Whether this entry is a data source that is not relational.
-    *
-    * Tabular/NoSQL sources extend TabularDataSource rather than JDBCDataSource; the metadata calls
-    * behind a tree expansion have nothing to return for them.
-    *
-    * Answers false when the source cannot be resolved. A lookup failure is not evidence that a
-    * source is non-relational, and treating it as such would collapse a real database to a leaf and
-    * make its tables unreachable -- far worse than leaving one node expandable.
-    */
-   // Package-private so the tree-filtering decision can be tested directly.
-   boolean isNonJdbcDataSource(AssetEntry entry) {
-      if(entry == null || !entry.isDataSource()) {
-         return false;
-      }
-
-      try {
-         XDataSource dataSource = xrepository.getDataSource(entry.getPath());
-
-         return dataSource != null && !(dataSource instanceof JDBCDataSource);
-      }
-      catch(Exception e) {
-         log.debug("Could not resolve data source '{}' while filtering the wiz tree: {}",
-                   entry.getPath(), e.getMessage());
-
-         return false;
-      }
    }
 
    private boolean shouldHideWizTreeNode(
@@ -2018,8 +1980,8 @@ public class MetadataApiService {
             DatasourceTablesResponse tablesResponse = getDatabaseTables(dsName, principal);
 
             for(DatabaseTableInfo tableInfo : tablesResponse.getTables()) {
-               boolean tableMatches = tableInfo.getTable().toLowerCase(Locale.ROOT)
-                  .contains(queryLower);
+               boolean tableMatches = tableNameMatches(
+                  tableInfo.getTable().toLowerCase(Locale.ROOT), queryLower);
 
                // If searching by field names, look for column matches
                List<SchemaSearchResponse.ColumnMatch> columnMatches = null;
@@ -2059,6 +2021,49 @@ public class MetadataApiService {
       SchemaSearchResponse response = new SchemaSearchResponse();
       response.setResults(results);
       return response;
+   }
+
+   /**
+    * Whether a (lowercased) table name matches a (lowercased) search query — a plain substring
+    * check, plus a stemmed fallback so a singular/plural mismatch (bug #76350, PSD-001, e.g.
+    * "category" searched against a table named "categories") isn't a silent miss.
+    */
+   static boolean tableNameMatches(String tableNameLower, String queryLower) {
+      return tableNameLower.contains(queryLower) || stem(tableNameLower).contains(stem(queryLower));
+   }
+
+   /**
+    * Reduces a lowercased word to a rough singular stem, so a search term and a
+    * pluralized/singularized table name still match (bug #76350, PSD-001 -
+    * "categories".contains("category") is false, a plain English -y -&gt; -ies plural). Not a
+    * full stemmer - just closes the common regular-English-plural gap, applied in addition to
+    * (not instead of) the existing plain substring check.
+    */
+   static String stem(String word) {
+      if(word.length() > 3 && word.endsWith("ies")) {
+         return word.substring(0, word.length() - 3) + "y";
+      }
+
+      // Only treat a trailing "es" as a plural suffix when it forms after a sibilant sound
+      // (box -> boxes, glass -> glasses, church -> churches) - otherwise "es" is just "e" + "s"
+      // (wine -> wines) and stripping both characters overshoots into the wrong stem, which is
+      // how a naive "always strip -es" rule would collide two unrelated words (e.g. "wines" and
+      // "win") that a sibilant check keeps apart.
+      if(word.length() > 2 && word.endsWith("es")) {
+         String base = word.substring(0, word.length() - 2);
+
+         if(base.endsWith("s") || base.endsWith("x") || base.endsWith("z") ||
+            base.endsWith("ch") || base.endsWith("sh"))
+         {
+            return base;
+         }
+      }
+
+      if(word.length() > 1 && word.endsWith("s") && !word.endsWith("ss")) {
+         return word.substring(0, word.length() - 1);
+      }
+
+      return word;
    }
 
    /**

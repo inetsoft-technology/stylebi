@@ -125,11 +125,17 @@ public class LayoutReadService {
       LayoutInfo info = masterVs.getLayoutInfo();
       AbstractLayout layout = vsLayoutService.getViewsheetLayout(info, layoutName);
       boolean print = vsLayoutService.isPrintLayout(layoutName);
+      // Same page size for every object in this layout -- computed once here, not per-object,
+      // since it depends only on the layout's own PrintInfo. null for a device layout, or a
+      // print layout whose PrintInfo has never been configured (VSLayoutService.getPrintPageSize's
+      // own convention).
+      Dimension printPageSize = print ? VSLayoutService.getPrintPageSize((PrintLayout) layout)
+         : null;
 
       List<LayoutObjectModel> objects = vsLayoutService
          .getVSAssemblyLayouts(layout, VSLayoutService.CONTENT)
          .stream()
-         .map(assemblyLayout -> toObjectModel(masterVs, assemblyLayout))
+         .map(assemblyLayout -> toObjectModel(masterVs, assemblyLayout, printPageSize))
          .collect(Collectors.toList());
 
       Boolean mobileOnly = print ? null : ((ViewsheetLayout) layout).isMobileOnly();
@@ -176,7 +182,9 @@ public class LayoutReadService {
          printLayout.getCustomWidth(), printLayout.getCustomHeight(), printLayout.getUnits());
    }
 
-   private LayoutObjectModel toObjectModel(Viewsheet masterVs, VSAssemblyLayout assemblyLayout) {
+   private LayoutObjectModel toObjectModel(Viewsheet masterVs, VSAssemblyLayout assemblyLayout,
+                                           Dimension printPageSize)
+   {
       VSAssembly assembly = masterVs.getAssembly(assemblyLayout.getName());
       Point layoutPos = assemblyLayout.getPosition();
       Dimension layoutSize = assemblyLayout.getSize();
@@ -184,6 +192,8 @@ public class LayoutReadService {
       // reading from the layout-space one above -- see the class doc.
       Point vsPos = assembly == null ? null : assembly.getPixelOffset();
       Dimension vsSize = assembly == null ? null : assembly.getPixelSize();
+      Integer pageIndex = printPageSize == null ? null
+         : vsLayoutService.getPageNumber(assemblyLayout, printPageSize);
 
       return new LayoutObjectModel(
          assemblyLayout.getName(),
@@ -192,7 +202,9 @@ public class LayoutReadService {
          vsPos == null ? 0 : vsPos.y,
          vsSize == null ? 0 : vsSize.width,
          vsSize == null ? 0 : vsSize.height,
-         vsLayoutService.supportTableLayout(assembly));
+         vsLayoutService.supportTableLayout(assembly),
+         assemblyLayout.getTableLayout(),
+         pageIndex);
    }
 
    private Map<String, Object> summarize(String name, String type, Boolean mobileOnly,

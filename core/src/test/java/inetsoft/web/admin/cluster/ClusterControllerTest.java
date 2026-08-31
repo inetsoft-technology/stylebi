@@ -37,8 +37,8 @@ package inetsoft.web.admin.cluster;
  * [G1] getClusterNodes when server.type != "server_cluster" → returns null (not cluster mode).
  * [G2] getClusterStatus delegates to clusterService and returns the result.
  * [G3] getClusterEnabled delegates to clusterService and returns the result.
- * [G4] pauseServer delegates servers array to clusterService.pauseServers().
- * [G5] resumeServer delegates servers array to clusterService.resumeServers().
+ * [G4] pauseServer delegates servers array to clusterService.pauseServers() and returns its result.
+ * [G5] resumeServer delegates servers array to clusterService.resumeServers() and returns its result.
  * [G6] subscribeClusterStatus STOMP handler throws SecurityException when permission denied.
  */
 
@@ -54,6 +54,7 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -117,23 +118,29 @@ class ClusterControllerTest {
       assertSame(expected, result);
    }
 
-   // [G4] pauseServer delegates server array to clusterService.pauseServers
+   // [G4] pauseServer delegates server array to clusterService.pauseServers and returns its result
    @Test
-   void pauseServer_delegatesToService() {
+   void pauseServer_delegatesToService() throws SecurityException {
       String[] servers = { "node1", "node2" };
+      Map<String, Boolean> expected = Map.of("node1", true, "node2", false);
+      when(clusterService.pauseServers(servers)).thenReturn(expected);
 
-      controller.pauseServer(servers);
+      Map<String, Boolean> result = controller.pauseServer(servers);
 
+      assertSame(expected, result);
       verify(clusterService).pauseServers(servers);
    }
 
-   // [G5] resumeServer delegates server array to clusterService.resumeServers
+   // [G5] resumeServer delegates server array to clusterService.resumeServers and returns its result
    @Test
-   void resumeServer_delegatesToService() {
+   void resumeServer_delegatesToService() throws SecurityException {
       String[] servers = { "node1" };
+      Map<String, Boolean> expected = Map.of("node1", true);
+      when(clusterService.resumeServers(servers)).thenReturn(expected);
 
-      controller.resumeServer(servers);
+      Map<String, Boolean> result = controller.resumeServer(servers);
 
+      assertSame(expected, result);
       verify(clusterService).resumeServers(servers);
    }
 

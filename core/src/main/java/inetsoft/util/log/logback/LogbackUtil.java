@@ -22,6 +22,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.spi.*;
 import ch.qos.logback.core.Appender;
 import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.SreeEnv;
 import inetsoft.util.log.LogLevel;
 
 import java.lang.reflect.Constructor;
@@ -29,7 +30,35 @@ import java.lang.reflect.Method;
 import java.util.function.Function;
 
 public class LogbackUtil {
+   /**
+    * The value of the {@code log.provider} property that selects the local log file.
+    */
+   public static final String FILE_PROVIDER = "file";
+   /**
+    * The value of the {@code log.provider} property that selects log forwarding.
+    */
+   public static final String FLUENTD_PROVIDER = "fluentd";
+
    private LogbackUtil() {
+   }
+
+   /**
+    * Determines whether log forwarding is both selected and available.
+    *
+    * The forwarder is loaded reflectively from {@code inetsoft.enterprise.log.fluentd}, so on a
+    * community build the selection cannot take effect no matter what {@code log.provider} says --
+    * {@code createForwardAppender} throws {@code ClassNotFoundException} and the caller falls back
+    * to the file appender. Every reader of {@code log.provider} must go through here rather than
+    * comparing the raw value, or it reports a provider that is not the one in use: the Logging
+    * page would offer no way back to the file provider, and the Logs monitoring page would hide
+    * the very file the logs are being written to. See {@code resetLog}, which guards the same
+    * enterprise classes; this generalises that guard to the other path.
+    *
+    * @return {@code true} if log records are being forwarded rather than written to a file.
+    */
+   public static boolean isFluentdEnabled() {
+      return FLUENTD_PROVIDER.equals(SreeEnv.getProperty("log.provider")) &&
+         LicenseManager.isEnterprise();
    }
 
    public static LogLevel getLogLevel(Level level) {

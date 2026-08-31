@@ -17,7 +17,9 @@
  */
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import inetsoft.web.binding.model.graph.CalculateInfo;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -46,10 +48,13 @@ public class MeasureFieldInfo extends SimpleFieldInfo {
       this.secondaryField = secondaryField;
    }
 
+   @JsonProperty("nOrP")
    public Integer getNOrP() {
       return nOrP;
    }
 
+   @JsonProperty("nOrP")
+   @JsonAlias("norP")
    public void setNOrP(Integer nOrP) {
       this.nOrP = nOrP;
    }

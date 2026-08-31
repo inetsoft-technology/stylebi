@@ -121,7 +121,7 @@ public final class ScriptTarget {
       /**
        * Whether an action addressed to this kind may run only from a session paired at that
        * expression's own script pane or formula editor -- never from a whole-sheet ("Connect to
-       * Claude" toolbar) session, regardless of the {@code wiz.agent.script.require-script-pane}
+       * Claude" toolbar) session, regardless of the {@code wiz.agent.script.require.script.pane}
        * strict posture (see {@link PaneScopeService}, which enforces this).
        *
        * <p>Deliberately NOT {@code location() == null}. Before G2 Task 8, {@code WORKSHEET_EXPRESSION}/

@@ -20,12 +20,14 @@ package inetsoft.web.wiz;
 import inetsoft.util.Catalog;
 import inetsoft.util.InvalidUserException;
 import inetsoft.web.wiz.dispatch.CommandErrorException;
+import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -96,6 +98,43 @@ public class WizControllerErrorHandler {
       payload.put("error", e.getMessage());
       payload.put("datasourceType", e.getDatasourceType());
       return new ResponseEntity<>(payload, null, HttpStatus.UNPROCESSABLE_ENTITY);
+   }
+
+   /**
+    * Maps a render that has not finished yet to 503 with its own retry hint, instead of a 500 that
+    * tells the caller the opposite.
+    *
+    * <p>{@code RenderNotReadyException} is not an unexpected failure: {@code ScriptImageService}
+    * raises it deliberately, after its own four attempts, to say the graph is still being built and
+    * carries the seconds to wait. Unmapped, it fell through to the catch-all, which logged it as
+    * "Unexpected error in wiz agent request" and answered with the generic server-bug message — so
+    * the caller was told <b>retrying will fail the same way</b> while the exception it came from
+    * said <b>retry after 1s</b>. The advice was the exact inverse of the condition.
+    *
+    * <p>{@code Retry-After} carries the number as a header as well as in the message, since that is
+    * what the status code means and a client that honours it needs no message parsing. It is
+    * floored at 1: a 0 or negative header is not a shorter wait, it is a value the spec gives no
+    * meaning to, and a client that honours it would retry with no delay at all.
+    *
+    * <p>This is the only handler for the exception. {@code ViewsheetAgentController} carried a
+    * local one of its own, which — a local {@code @ExceptionHandler} always winning over a
+    * {@code @ControllerAdvice} — meant the two controllers that render answered the same condition
+    * with two different bodies. It was removed in favour of this one; {@code errorCode} is kept
+    * from it so nothing that read the local shape loses it.
+    */
+   @ExceptionHandler(RenderNotReadyException.class)
+   public ResponseEntity<Map<String, String>> handleRenderNotReady(RenderNotReadyException e) {
+      LOG.debug("Wiz render not ready: {}", e.getMessage());
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error", e.getMessage() + ". The graph is still being built - this is not a " +
+         "failure, and the same call should succeed once it is done. A chart with nothing bound " +
+         "to it never becomes ready and is refused up front instead, so a wait here is a real " +
+         "wait rather than a loop.");
+      payload.put("errorCode", "RENDER_NOT_READY");
+      HttpHeaders headers = new HttpHeaders();
+      headers.set(HttpHeaders.RETRY_AFTER, String.valueOf(Math.max(1, e.getRetryAfter())));
+      return new ResponseEntity<>(payload, headers, HttpStatus.SERVICE_UNAVAILABLE);
    }
 
    /**

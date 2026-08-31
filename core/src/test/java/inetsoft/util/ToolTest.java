@@ -17,6 +17,7 @@
  */
 package inetsoft.util;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +28,9 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -127,5 +131,40 @@ class ToolTest {
    @MethodSource("validDates")
    void validDate(String validDate) {
       assertTrue(Tool.isDate(validDate), String.format("Valid date failed date check: %s", validDate));
+   }
+
+   @Test
+   void getTimeFormatWithKeywordStyleProducesTimeComponent() {
+      String original = SreeEnv.getProperty("format.time");
+
+      try {
+         SreeEnv.setProperty("format.time", "full");
+         Date now = new Date();
+         SimpleDateFormat fmt = Tool.getTimeFormat();
+
+         assertEquals(DateFormat.getTimeInstance(DateFormat.FULL).format(now), fmt.format(now));
+         assertNotEquals(DateFormat.getDateInstance(DateFormat.FULL).format(now), fmt.format(now));
+      }
+      finally {
+         SreeEnv.setProperty("format.time", original);
+      }
+   }
+
+   @Test
+   void getDateTimeFormatWithKeywordStyleProducesDateAndTimeComponents() {
+      String original = SreeEnv.getProperty("format.date.time");
+
+      try {
+         SreeEnv.setProperty("format.date.time", "full");
+         Date now = new Date();
+         SimpleDateFormat fmt = Tool.getDateTimeFormat();
+
+         assertEquals(
+            DateFormat.getDateTimeInstance(DateFormat.FULL, DateFormat.FULL).format(now), fmt.format(now));
+         assertNotEquals(DateFormat.getDateInstance(DateFormat.FULL).format(now), fmt.format(now));
+      }
+      finally {
+         SreeEnv.setProperty("format.date.time", original);
+      }
    }
 }

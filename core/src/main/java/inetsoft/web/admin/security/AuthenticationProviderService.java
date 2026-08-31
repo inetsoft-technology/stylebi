@@ -108,6 +108,12 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
    public AuthenticationProviderModel getAuthenticationProvider(String name) {
       boolean enterprise = LicenseManager.isEnterprise();
       AuthenticationProvider selectedProvider = getProviderByName(name);
+
+      if(selectedProvider == null) {
+         throw new MessageException(
+            "Authentication provider named \"" + name + "\" does not exist");
+      }
+
       AuthenticationProviderModel.Builder builder = AuthenticationProviderModel.builder()
          .providerName(name)
          .oldName(name)
@@ -153,6 +159,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
          throw new MessageException(Catalog.getCatalog().getString("security.authentication.exists"));
       }
 
+      checkProviderTypeLicensed(model.providerType(), null);
       AuthenticationProvider newProvider = getProviderFromModel(model)
          .orElseThrow(() -> new MessageException("Failed to create new authentication provider"));
 
@@ -188,6 +195,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
 
             if(Objects.equals(name, provider.getProviderName())) {
                found = true;
+               checkProviderTypeLicensed(model.providerType(), provider);
                newProvider = getProviderFromModel(model).orElseThrow(
                   () -> new MessageException("Failed to edit authentication provider"));
                providerList.set(i, newProvider);
@@ -667,6 +675,31 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
             principal, ResourceType.SECURITY_ROLE, roleName.convertToKey(), ResourceAction.ASSIGN))
          .sorted()
          .collect(Collectors.toList());
+   }
+
+   private boolean isSameProviderType(AuthenticationProvider existingProvider,
+                                      SecurityProviderType newType)
+   {
+      return switch(existingProvider) {
+         case FileAuthenticationProvider ignored -> newType == SecurityProviderType.FILE;
+         case DatabaseAuthenticationProvider ignored -> newType == SecurityProviderType.DATABASE;
+         case LdapAuthenticationProvider ignored -> newType == SecurityProviderType.LDAP;
+         case null, default -> newType == SecurityProviderType.CUSTOM;
+      };
+   }
+
+   private void checkProviderTypeLicensed(SecurityProviderType newType,
+                                          AuthenticationProvider existingProvider)
+   {
+      boolean introducingUnlicensedType =
+         (newType == SecurityProviderType.DATABASE || newType == SecurityProviderType.CUSTOM) &&
+         (existingProvider == null || !isSameProviderType(existingProvider, newType));
+
+      if(introducingUnlicensedType && !LicenseManager.isEnterprise()) {
+         String key = newType == SecurityProviderType.DATABASE
+            ? "em.securityProvider.databaseNotLicensed" : "em.securityProvider.customNotLicensed";
+         throw new MessageException(Catalog.getCatalog().getString(key));
+      }
    }
 
    private Optional<AuthenticationProvider> getProviderFromModel(AuthenticationProviderModel model)

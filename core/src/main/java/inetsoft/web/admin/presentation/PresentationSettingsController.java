@@ -275,14 +275,10 @@ public class PresentationSettingsController {
    public PresentationSettingsModel resetSettings(@RequestBody() PresentationSettingsModel model,
                                                   Principal principal) throws Exception
    {
-      SecurityProvider provider = securityEngine.getSecurityProvider();
-      boolean securityEnabled = !provider.isVirtual();
+      boolean securityEnabled = !securityEngine.getSecurityProvider().isVirtual();
       boolean globalSettings = OrganizationManager.getInstance().isSiteAdmin(principal) &&
-            (model.orgSettings() != null && !model.orgSettings()) || !securityEnabled;
-
-      if(!globalSettings && securityEnabled && !SUtil.isMultiTenant()) {
-         globalSettings = provider.checkPermission(principal,  ResourceType.EM, "*", ResourceAction.ACCESS);
-      }
+            (model.orgSettings() != null && !model.orgSettings()) || !securityEnabled ||
+            !SUtil.isMultiTenant();
 
       Lock settingsLock = cluster.getLock(SETTINGS_LOCK);
       settingsLock.lock();

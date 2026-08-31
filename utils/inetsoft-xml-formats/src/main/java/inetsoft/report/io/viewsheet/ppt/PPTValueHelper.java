@@ -294,8 +294,15 @@ public class PPTValueHelper {
          PPTVSUtil.getHorizontalAlign(format.getAlignment()));
 
       if(txtFont != null) {
-         if(txtFont.getFontName() != null) {
-            rtr.setFontFamily(txtFont.getFontName());
+         // bug #75992, write the font family, not the face name. getFontName()
+         // returns the face (e.g. "Roboto Bold"), which ppt cannot resolve as a
+         // typeface even when the family is installed, so it substitutes a font
+         // with different metrics and re-wraps the text. Bold/italic are written
+         // separately below. This matches writeRichTextContent and the excel export.
+         String family = VSFontHelper.getExportFontFamily(txtFont);
+
+         if(family != null) {
+            rtr.setFontFamily(family);
          }
 
          rtr.setFontSize((double) txtFont.getSize());
@@ -370,7 +377,7 @@ public class PPTValueHelper {
             rtr.setStrikethrough(((RichTextFont) rt.getFont()).isStrikethrough());
             rtr.setUnderlined(((RichTextFont) rt.getFont()).isUnderline());
             rtr.setFontColor(rt.getFgColor());
-            rtr.setFontFamily(rt.getFont().getFamily());
+            rtr.setFontFamily(VSFontHelper.getExportFontFamily(rt.getFont()));
             rtr.setFontSize((double) rt.getFont().getSize());
             rtr.setText(rt.getContent().replaceAll("%3Cbr%3E", ""));
             rtr.setCharacterSpacing(0);

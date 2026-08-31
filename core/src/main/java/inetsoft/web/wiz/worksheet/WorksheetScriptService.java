@@ -458,7 +458,7 @@ public class WorksheetScriptService {
    /**
     * Reads the strict posture fresh from {@code SreeEnv} on every call (never cached), mirroring
     * {@code ViewsheetAgentController#requirePaneScope} — an administrator flipping
-    * {@code wiz.agent.script.require-script-pane} takes effect immediately.
+    * {@code wiz.agent.script.require.script.pane} takes effect immediately.
     */
    private void requirePaneScope(JoinSession session, ScriptTarget target) throws PairingException {
       boolean strict = SreeEnv.getBooleanProperty(PaneScopeService.STRICT_FLAG);

@@ -73,7 +73,7 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
       this.isImage = isImage ? isImage : null;
       this.rowPadding = rowPadding;
       this.colPadding = colPadding;
-      this.underline = !"false".equals(SreeEnv.getProperty("hyperlink.indicator"));
+      this.underline = "true".equals(SreeEnv.getProperty("hyperlink.indicator"));
    }
 
    private BaseTableCellModel(Object cellData) {
@@ -102,7 +102,7 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
       this.options = options;
       this.presenter = presenter;
       this.editable = editable ? editable : null;
-      this.underline = !"false".equals(SreeEnv.getProperty("hyperlink.indicator"));
+      this.underline = "true".equals(SreeEnv.getProperty("hyperlink.indicator"));
    }
 
    public static BaseTableCellModel createSimpleCell(XTable lens, int row, int col) {

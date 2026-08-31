@@ -19,8 +19,10 @@ package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
@@ -28,6 +30,7 @@ import inetsoft.web.viewsheet.service.ExportResponse;
 import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.service.RenderNotReadyException;
+import inetsoft.web.wiz.service.RenderWaitSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -117,6 +120,38 @@ public class ScriptImageService {
          throw new PairingException("No such assembly \"" + assemblyName + "\"");
       }
 
+      // A chart with no source table has nothing bound to it at all - every field on a chart
+      // comes from one source, so no source means no shelf can hold anything - and so it never
+      // produces a graph. Without this, the loop below sleeps through all RENDER_MAX_ATTEMPTS
+      // attempts and then raises RenderNotReadyException, telling the caller to retry something
+      // that cannot become ready. Rendering right after each binding step is how a caller checks
+      // its work, so a freshly added chart is the state it meets most often.
+      //
+      // Scoped to charts because only a chart can produce the condition this guards: the
+      // retryAfter that drives the loop is set in exactly one place, inside
+      // AssemblyImageService.processGetAssemblyImage's `assembly instanceof ChartVSAssembly`
+      // branch (an incomplete VGraphPair). Every other DataVSAssembly - table, crosstab, calc
+      // table - comes back with retryAfter <= 0 on the first attempt and, when the lightweight
+      // path does not support it, falls back to the whole-viewsheet render below, which succeeds
+      // whether or not a source is bound. Refusing those would take away a working image without
+      // preventing any retry loop.
+      //
+      // The test is the bound source rather than the field lists on purpose: the shelves a chart
+      // reads depend on its type, and a relation chart's source/target or a candlestick's
+      // open/high/low/close are not reachable through getRTFields, so an empty field list is not
+      // evidence of an unbound chart while an absent source is.
+      if(assembly instanceof ChartVSAssembly chart) {
+         String source = chart.getTableName();
+
+         if(source == null || source.isBlank()) {
+            throw new PairingException(
+               "\"" + assemblyName + "\" has no source bound to it, so there is no graph to " +
+               "render and no wait will produce one. Point it at a table first — " +
+               "set_chart_source, or the 'table' argument of the shelf and aesthetic writes — " +
+               "and render it after that.");
+         }
+      }
+
       int w = clamp(width != null && width > 0 ? width : DEFAULT_WIDTH);
       int h = clamp(height != null && height > 0 ? height : DEFAULT_HEIGHT);
       String aid = Tool.byteEncode(assemblyName);
@@ -162,7 +197,21 @@ public class ScriptImageService {
          }
       }
 
-      return new ChartImage(bytes, result.isPng(), result.getWidth(), result.getHeight(), null);
+      // This tile render is the same title-less path the live browser uses for its own on-screen
+      // assembly tile (title.getInfo() is drawn separately as a sibling DOM element there) — so
+      // unlike a whole-viewsheet render, a titled assembly's own title bar never appears in these
+      // bytes no matter what titleVisible is set to. Note it rather than silently returning a
+      // plausible-but-incomplete image (see class doc's tables/crosstabs fallback for the same
+      // pattern).
+      String note = null;
+
+      if(assembly.getInfo() instanceof TitledVSAssemblyInfo titledInfo && titledInfo.isTitleVisible()) {
+         note = "\"" + assemblyName + "\" has its own title bar, which this single-assembly " +
+            "render does not include — call get_viewsheet_image without a target to see the " +
+            "whole viewsheet, including this assembly's title.";
+      }
+
+      return new ChartImage(bytes, result.isPng(), result.getWidth(), result.getHeight(), note);
    }
 
    /**
@@ -171,6 +220,13 @@ public class ScriptImageService {
     * {@link AssemblyImageService#downloadAssemblyImage} for "the whole sheet" (that path is
     * inherently per-assembly), so this always uses the full export pipeline. Acceptable here since
     * this is an explicit, occasional request, not something called after every script edit.
+    *
+    * <p>A table/crosstab whose query hasn't run yet in this runtime makes the export itself pay
+    * that cost synchronously, with no bound of its own — unlike a chart, which has
+    * {@code getAssemblyImage}'s own retry-after loop to fall back on. {@link RenderWaitSupport}
+    * gives this the same "not ready yet, retry after N seconds" contract instead of blocking the
+    * request thread for however long the query takes; the export keeps running in the background,
+    * so a retry lands on a warm cache rather than starting over.
     */
    public ChartImage getViewsheetImage(RuntimeViewsheet rvs, Integer width, Integer height,
                                        Principal principal)
@@ -179,7 +235,9 @@ public class ScriptImageService {
       int w = clamp(width != null && width > 0 ? width : DEFAULT_WIDTH);
       int h = clamp(height != null && height > 0 ? height : DEFAULT_HEIGHT);
 
-      byte[] pngBytes = exportViewsheetToPng(rvs, principal);
+      byte[] pngBytes = RenderWaitSupport.awaitOrRetry(() -> exportViewsheetToPng(rvs, principal),
+         RENDER_MAX_ATTEMPTS * RENDER_RETRY_SLEEP_MS,
+         (int) Math.max(1, (RENDER_MAX_ATTEMPTS * RENDER_RETRY_SLEEP_MS) / 1000));
       BufferedImage full = decodePng(pngBytes, "the viewsheet");
       BufferedImage scaled = scaleToFit(full, w, h);
       byte[] encoded = encodePng(scaled, "the viewsheet");

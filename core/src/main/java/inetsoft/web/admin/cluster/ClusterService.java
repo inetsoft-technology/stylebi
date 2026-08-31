@@ -19,6 +19,7 @@ package inetsoft.web.admin.cluster;
 
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.*;
 import inetsoft.web.cluster.ServerClusterClient;
 import inetsoft.web.cluster.ServerClusterStatus;
@@ -93,40 +94,62 @@ public class ClusterService extends MonitorLevelService implements StatusUpdater
    public ClusterEnabledModel getClusterEnabled() {
       return ClusterEnabledModel.builder()
          .enabled(LicenseManager.isEnterprise())
-         .pauseEnabled("true".equals(SreeEnv.getProperty("cluster.pause.enabled", "false")))
+         .pauseEnabled(isPauseEnabled())
          .build();
    }
 
-   public void pauseServers(String[] servers) {
+   public Map<String, Boolean> pauseServers(String[] servers) throws SecurityException {
+      if(!isPauseEnabled()) {
+         throw new SecurityException("Cluster pause is not enabled");
+      }
+
       ServerClusterClient client = new ServerClusterClient();
+      Map<String, Boolean> results = new LinkedHashMap<>();
 
       for(String server : servers) {
          if(client.getStatus(server).isPaused()) {
+            results.put(server, true);
             continue;
          }
 
          boolean success = client.pauseServer(server);
+         results.put(server, success);
 
          if(!success) {
-            LOG.warn("Failed to pause server");
+            LOG.warn("Failed to pause server {}", server);
          }
       }
+
+      return results;
    }
 
-   public void resumeServers(String[] servers) {
+   public Map<String, Boolean> resumeServers(String[] servers) throws SecurityException {
+      if(!isPauseEnabled()) {
+         throw new SecurityException("Cluster pause is not enabled");
+      }
+
       ServerClusterClient client = new ServerClusterClient();
+      Map<String, Boolean> results = new LinkedHashMap<>();
 
       for(String server : servers) {
          if(!client.getStatus(server).isPaused()) {
+            results.put(server, true);
             continue;
          }
 
          boolean success = client.resumeServer(server);
+         results.put(server, success);
 
          if(!success) {
-            LOG.warn("Failed to resume server");
+            LOG.warn("Failed to resume server {}", server);
          }
       }
+
+      return results;
+   }
+
+   private boolean isPauseEnabled() {
+      return "true".equals(SreeEnv.getProperty("cluster.pause.enabled", "false"));
    }
 
    private final ServerClusterClient client;

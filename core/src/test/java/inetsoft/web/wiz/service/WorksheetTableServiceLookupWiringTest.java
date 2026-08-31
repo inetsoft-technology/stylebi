@@ -28,6 +28,7 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularUtil;
+import inetsoft.uql.util.Config;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.portal.controller.database.DataSourceService;
@@ -38,7 +39,10 @@ import inetsoft.web.wiz.model.WorksheetTablesResponse;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.MockedStatic;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -53,9 +57,9 @@ import static org.mockito.Mockito.*;
 
 /**
  * Proves {@code WorksheetTableService.buildTabularTable} actually calls
- * {@link TabularEndpointBindingSupport#applyLookupChain} when {@code tabularSource.lookup} is
- * supplied -- not just that the helper itself is correct in isolation (already covered by
- * {@link TabularEndpointBindingSupportTest}). A passing unit test that nothing production calls
+ * {@code TabularQueryContractSupport.applyQueryContract} with {@code tabularSource.queryParams}
+ * -- not just that the helper itself is correct in isolation (already covered by
+ * {@link TabularQueryContractSupportTest}). A passing unit test that nothing production calls
  * is worse than no test (see {@code 2026-08-19-tabular-table-creation.md} §5.2).
  *
  * <p>{@link FakeNamedConnectorQuery} stands in for a real connector's query class --
@@ -66,11 +70,31 @@ import static org.mockito.Mockito.*;
  * implementation.</p>
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(
+   classes = { BaseTestConfiguration.class, WorksheetTableServiceLookupWiringTest.TestConfig.class },
+   initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
 class WorksheetTableServiceLookupWiringTest {
+   /**
+    * {@code TabularSchemaExtractor.extract} (now unconditional in {@code buildTabularTable} --
+    * its params list order is the topological sort's tie-break) builds a layout via
+    * {@code LayoutCreator}, which resolves labels through {@code Config.getConfig()}, a Spring
+    * bean {@code BaseTestConfiguration} does not provide. A stub answering no bundle is enough --
+    * same as {@code TabularSchemaExtractorTest}'s manual {@code ConfigurationContext} install,
+    * done here as a Spring bean instead since this test already runs under a real context.
+    */
+   @Configuration
+   static class TestConfig {
+      @Bean
+      public Config config() {
+         Config config = mock(Config.class);
+         when(config.getResourceBundle(ArgumentMatchers.any())).thenReturn(null);
+         return config;
+      }
+   }
+
    private static final ObjectMapper MAPPER = new ObjectMapper();
    private static final Principal USER = mock(Principal.class);
 
@@ -114,8 +138,8 @@ class WorksheetTableServiceLookupWiringTest {
            "tableType": "tabular table",
            "tabularSource": {
              "datasourcePath": "myds",
-             "endpoint": "Repos",
-             "lookup": ["Bogus"]
+             "queryParams": { "endpoint": "Repos", "lookupEndpoint0": "Bogus" },
+             "maxRows": 100
            }
          }
          """);
@@ -131,8 +155,8 @@ class WorksheetTableServiceLookupWiringTest {
 
          assertFalse(table.isSuccess());
          // "Issues" is Repos' one real lookup choice -- proves the request actually reached
-         // TabularEndpointBindingSupport.applyLookupChain (only that code path can name it),
-         // not just some other, unrelated failure.
+         // TabularQueryContractSupport's tagsMethod validation for lookupEndpoint0 (only that
+         // code path can name it), not just some other, unrelated failure.
          assertTrue(table.getErrorMessage().contains("Issues"),
             "expected the lookup-chain rejection naming Repos' real choices, got: " +
                table.getErrorMessage());
@@ -160,8 +184,8 @@ class WorksheetTableServiceLookupWiringTest {
            "tableType": "tabular table",
            "tabularSource": {
              "datasourcePath": "myds",
-             "endpoint": "Repos",
-             "lookup": ["Issues"]
+             "queryParams": { "endpoint": "Repos", "lookupEndpoint0": "Issues" },
+             "maxRows": 100
            }
          }
          """);
@@ -172,15 +196,16 @@ class WorksheetTableServiceLookupWiringTest {
          tabularUtil.when(() -> TabularUtil.createQuery(eq("myds")))
             .thenReturn(new FakeNamedConnectorQuery());
 
-         // A valid lookup name passes applyLookupChain and reaches loadColumnSelection, which
-         // fails for the unrelated reason that FakeNamedConnectorQuery has no real HTTP/data
-         // execution behind it -- proof the lookup validation itself did NOT reject this request.
+         // A valid lookup name passes tagsMethod validation and reaches loadColumnSelection,
+         // which fails for the unrelated reason that FakeNamedConnectorQuery has no real
+         // HTTP/data execution behind it -- proof the lookup validation itself did NOT reject
+         // this request.
          WorksheetTableResponse table =
             only(service(xrepository, dataSourceService, securityEngine).createTables(request, USER));
 
          assertFalse(table.isSuccess());
-         assertFalse(table.getErrorMessage().contains("has no lookup named"),
-            "a known lookup name must not be rejected by applyLookupChain, got: " +
+         assertFalse(table.getErrorMessage().contains("has no value"),
+            "a known lookup name must not be rejected by tagsMethod validation, got: " +
                table.getErrorMessage());
       }
    }

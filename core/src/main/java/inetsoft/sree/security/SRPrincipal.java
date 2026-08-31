@@ -29,6 +29,7 @@ import org.w3c.dom.NodeList;
 
 import java.io.*;
 import java.lang.ref.WeakReference;
+import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -413,6 +414,20 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
 
    public boolean isSelfOrganization() {
       return OrganizationManager.getInstance().getCurrentOrgID(this).equals(Organization.getSelfOrganizationID());
+   }
+
+   /**
+    * Checks whether {@code principal} was authenticated by WizServiceAuthenticationFilter (RSA
+    * JWT signature/expiry/audience verified) -- the single source of the "wiz" property, set only
+    * at {@code WizServiceAuthenticationFilter.validateTokenAndCreatePrincipal()}. StyleBI is a
+    * backend engine for wiz only (no direct/mixed usage is supported), so this is the shared test
+    * used everywhere a wiz-authenticated principal should be trusted unconditionally --
+    * SecurityEngine.isLogin(), WizDelegatingCheckPermissionStrategy, and any future call site --
+    * so the property name/comparison lives in exactly one place.
+    */
+   public static boolean isWizPrincipal(Principal principal) {
+      return principal instanceof SRPrincipal &&
+         "true".equalsIgnoreCase(((SRPrincipal) principal).getProperty("wiz"));
    }
 
    /**

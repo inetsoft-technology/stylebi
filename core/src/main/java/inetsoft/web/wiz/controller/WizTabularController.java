@@ -24,10 +24,13 @@ import inetsoft.uql.DataSourceListing;
 import inetsoft.uql.DataSourceListingService;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.tabular.BrowsableQuery;
 import inetsoft.uql.tabular.LayoutCreator;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularEditor;
 import inetsoft.uql.tabular.TabularQuery;
+import inetsoft.uql.tabular.TabularQueryParamsSchemaBuilder;
+import inetsoft.uql.tabular.TabularQueryContract;
 import inetsoft.uql.tabular.TabularQuerySchema;
 import inetsoft.uql.tabular.TabularSchemaExtractor;
 import inetsoft.uql.tabular.TabularUtil;
@@ -62,6 +65,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * The wiz API for creating and editing tabular (non-JDBC) data sources.
@@ -252,8 +256,12 @@ public class WizTabularController {
     * credentials and so demands WRITE; this returns a description of the connector's shape and no
     * value the user configured.</p>
     *
-    * @param path      the data source's full repository path.
-    * @param principal the current user.
+    * @param path        the data source's full repository path.
+    * @param resolveTags whether to inline runtime candidate values into queryParamsSchema for
+    *                    tagsMethod-backed params with no dependsOn prerequisite -- bounded by a
+    *                    per-call timeout and candidate-count cap; see
+    *                    TabularQueryParamsSchemaBuilder.
+    * @param principal   the current user.
     *
     * @return the parameter contract for that data source's query.
     */
@@ -263,8 +271,11 @@ public class WizTabularController {
          resourceType = ResourceType.DATA_SOURCE, actions = ResourceAction.READ
       )
    })
-   public TabularQuerySchema getQuerySchema(
-      @PermissionPath @RequestParam("path") String path, Principal principal) throws Exception
+   public TabularQueryContract getQuerySchema(
+      @PermissionPath @RequestParam("path") String path,
+      @RequestParam(name = "resolveTags", required = false, defaultValue = "false")
+         boolean resolveTags,
+      Principal principal) throws Exception
    {
       requireTabularDataSource(path);
 
@@ -291,8 +302,19 @@ public class WizTabularController {
          // Not null-checked: this overload describes the instance it is handed and always answers.
          // Only the one that resolves the query class itself can fail to produce a query, and that
          // case is the guard above.
-         return new TabularSchemaExtractor()
+         TabularQuerySchema schema = new TabularSchemaExtractor()
             .extract(query, dataSource == null ? null : dataSource.getType());
+
+         // Same query instance extract() just finished with -- still in its post-createQuery(path),
+         // pre-any-@Property-write state (extract's own probing constructs its OWN fresh instances
+         // and never touches this one), which is why a dependsOn-gated composite's Kind A/B guess
+         // here can only be a guess, and why a resolveTags=true tagsMethod call for a no-dependsOn
+         // param sees the same account/session state a real fill would. Run inside the same
+         // try/finally connector-session block as extract() itself, so a resolveTags tagsMethod
+         // invocation is bound and accounted the same way every other connector-code call already is.
+         return new TabularQueryContract(
+            schema.getDataSourceType(),
+            TabularQueryParamsSchemaBuilder.build(query, schema, resolveTags));
       }
       finally {
          endConnectorSession();
@@ -661,7 +683,7 @@ public class WizTabularController {
     * this honest when a connector adds a format.</p>
     */
    private WizTabularBrowseResult browse(String datasource, String path,
-                                         WizTabularBrowseRequest request)
+                                         WizTabularBrowseRequest request) throws Exception
    {
       TabularQuery query = TabularUtil.createQuery(datasource);
 
@@ -673,6 +695,10 @@ public class WizTabularController {
 
       TabularView view = new LayoutCreator().createLayout(query);
       TabularUtil.callEditorMethods(view.getViews(), query);
+
+      if(query instanceof BrowsableQuery browsable) {
+         return browseViaCapability(datasource, path, request, browsable);
+      }
 
       TabularView fileView = findFileView(view, request.property());
 
@@ -726,6 +752,42 @@ public class WizTabularController {
                         String.CASE_INSENSITIVE_ORDER));
 
       return new WizTabularBrowseResult(datasource, path, entries, truncated);
+   }
+
+   /**
+    * The browse itself, for a connector that answers browseChildren() through a remote API
+    * instead of a local java.io.File tree -- see BrowsableQuery's own doc for why the two paths
+    * cannot share collect().
+    */
+   private WizTabularBrowseResult browseViaCapability(String datasource, String path,
+                                                       WizTabularBrowseRequest request,
+                                                       BrowsableQuery browsable) throws Exception
+   {
+      String propertyName = browsable.getBrowsablePropertyName();
+
+      if(request.property() != null && !request.property().isEmpty() &&
+         !request.property().equals(propertyName))
+      {
+         throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Data source \"" +
+            datasource + "\" has no browsable file property named \"" + request.property() +
+            "\" -- its browsable property is \"" + propertyName + "\".");
+      }
+
+      List<String> acceptTypes = request.all() ? List.of() : browsable.getAcceptedExtensions();
+      BrowsableQuery.BrowseListing listing =
+         browsable.browseChildren(path, request.recursive(), acceptTypes, MAX_BROWSE_ENTRIES);
+
+      List<WizTabularBrowseResult.WizTabularBrowseEntry> entries = listing.entries().stream()
+         .map(e -> new WizTabularBrowseResult.WizTabularBrowseEntry(e.path(), e.name(), e.folder()))
+         .collect(Collectors.toCollection(ArrayList::new));
+
+      // Same stable order as the local-file path: folders first, then alphabetical.
+      entries.sort(Comparator.comparing(
+            WizTabularBrowseResult.WizTabularBrowseEntry::folder, Comparator.reverseOrder())
+         .thenComparing(WizTabularBrowseResult.WizTabularBrowseEntry::path,
+                        String.CASE_INSENSITIVE_ORDER));
+
+      return new WizTabularBrowseResult(datasource, path, entries, listing.truncated());
    }
 
    /**

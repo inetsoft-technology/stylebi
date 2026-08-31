@@ -39,9 +39,15 @@ import java.io.IOException;
  * {@code X-Content-Type-Options} header will be set to "nosniff". If it is not set to "true", the
  * header will not be added.
  * <p>
- * The {@code security.robotsTag} property controls the {@code X-Robots-Tag} header. By default,
- * it is set to "noindex, nofollow" to prevent search engines from indexing the application.
- * Set to an empty string to disable the header for publicly accessible dashboards.
+ * The {@code security.robotsTag} property controls the {@code X-Robots-Tag} header. If the
+ * property is not set, the header is set to "noindex, nofollow" to prevent search engines from
+ * indexing the application. Set it to an empty string to disable the header for publicly
+ * accessible dashboards.
+ * <p>
+ * The default is applied here rather than being passed to the {@link SreeEnv.Value} constructor
+ * on purpose. A {@code SreeEnv.Value} created with a default resolves through
+ * {@code SreeEnv.getProperty(name, def)}, and that path converts a stored empty string back into
+ * the default, which would make the empty-string opt-out above unreachable.
  */
 public class SecurityHeaderFilter extends AbstractSecurityFilter {
    public SecurityHeaderFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
@@ -76,7 +82,11 @@ public class SecurityHeaderFilter extends AbstractSecurityFilter {
 
       String robotsTagValue = robotsTag.get();
 
-      if(robotsTagValue != null && !robotsTagValue.isEmpty()) {
+      if(robotsTagValue == null) {
+         robotsTagValue = DEFAULT_ROBOTS_TAG;
+      }
+
+      if(!robotsTagValue.isEmpty()) {
          httpResponse.setHeader("X-Robots-Tag", robotsTagValue);
       }
 
@@ -87,6 +97,7 @@ public class SecurityHeaderFilter extends AbstractSecurityFilter {
       new SreeEnv.Value("security.enableXSSProtection", 10000, "false");
    private final SreeEnv.Value enableContentTypeOptions =
       new SreeEnv.Value("security.enableContentTypeOptions", 10000, "false");
-   private final SreeEnv.Value robotsTag =
-      new SreeEnv.Value("security.robotsTag", 10000, "noindex, nofollow");
+   private final SreeEnv.Value robotsTag = new SreeEnv.Value("security.robotsTag", 10000);
+
+   static final String DEFAULT_ROBOTS_TAG = "noindex, nofollow";
 }

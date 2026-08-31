@@ -18,7 +18,10 @@
 package inetsoft.web.wiz.service;
 
 import inetsoft.uql.tabular.Property;
+import inetsoft.uql.tabular.PropertyEditor;
 import inetsoft.uql.tabular.TabularQuery;
+import inetsoft.uql.tabular.View;
+import inetsoft.uql.tabular.View1;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,18 +29,33 @@ import java.util.List;
 /**
  * Minimal, REAL (non-mock) stand-in for a generic/custom REST-JSON query such as
  * {@code RestJsonQuery} -- has a directly-settable {@code suffix} (unlike
- * {@link FakeNamedConnectorQuery}'s no-op override) and NO {@code endpoint} property, which is
- * exactly the signal {@code WorksheetAgentController.addTabularTable} uses to route between the
- * named-connector and generic/custom paths.
+ * {@link FakeNamedConnectorQuery}'s no-op override) and NO {@code endpoint} property.
  *
  * <p>Only two custom lookup levels are implemented (0 and 1) -- enough to exercise a two-level
  * chain and the per-level ordering dependency ({@code lookupUrl}<i>i</i> must be set before
  * {@code lookupJsonPath}<i>i</i>/{@code lookupKey}<i>i</i>/{@code lookupIgnoreBaseUrl}<i>i</i>,
  * since it is what grows the backing lists to include index <i>i</i> at all, mirroring
- * {@code RestJsonQuery.setLookupURL}/{@code addLookupQuery}). The "chain longer than 5" guard is
- * checked by {@link TabularEndpointBindingSupport#applyCustomLookupChain} BEFORE any property
- * write, so it needs no backing level to test.</p>
+ * {@code RestJsonQuery.setLookupURL}/{@code addLookupQuery}) -- declared via
+ * {@code @PropertyEditor(dependsOn = "lookupUrl"+i)} on the other three, matching the real
+ * {@code RestJsonQuery}'s own dependsOn addition. The "chain longer than 5" guard is checked by
+ * {@code TabularQueryContractSupport}'s custom-lookup-URL-placeholder validation BEFORE any
+ * property write (by name pattern against the top-level queryParams keys), so it needs no
+ * backing level here to test.</p>
+ *
+ * <p>{@code @View} is REQUIRED -- see {@link FakeNamedConnectorQuery}'s own doc for why.</p>
  */
+@View(vertical = true, value = {
+   @View1("suffix"),
+   @View1("jsonPath"),
+   @View1("lookupUrl0"),
+   @View1("lookupJsonPath0"),
+   @View1("lookupKey0"),
+   @View1("lookupIgnoreBaseUrl0"),
+   @View1("lookupUrl1"),
+   @View1("lookupJsonPath1"),
+   @View1("lookupKey1"),
+   @View1("lookupIgnoreBaseUrl1"),
+})
 public class FakeCustomRestQuery extends TabularQuery {
    public FakeCustomRestQuery() {
       super("FakeCustomRest");
@@ -71,6 +89,7 @@ public class FakeCustomRestQuery extends TabularQuery {
    }
 
    @Property(label = "Lookup Json Path 0")
+   @PropertyEditor(dependsOn = "lookupUrl0")
    public String getLookupJsonPath0() {
       return getLookupJsonPath(0);
    }
@@ -80,6 +99,7 @@ public class FakeCustomRestQuery extends TabularQuery {
    }
 
    @Property(label = "Lookup Key 0")
+   @PropertyEditor(dependsOn = "lookupUrl0")
    public String getLookupKey0() {
       return getLookupKey(0);
    }
@@ -89,6 +109,7 @@ public class FakeCustomRestQuery extends TabularQuery {
    }
 
    @Property(label = "Lookup Ignore Base Url 0")
+   @PropertyEditor(dependsOn = "lookupUrl0")
    public boolean getLookupIgnoreBaseUrl0() {
       return getLookupIgnoreBaseUrl(0);
    }
@@ -107,6 +128,7 @@ public class FakeCustomRestQuery extends TabularQuery {
    }
 
    @Property(label = "Lookup Json Path 1")
+   @PropertyEditor(dependsOn = "lookupUrl1")
    public String getLookupJsonPath1() {
       return getLookupJsonPath(1);
    }
@@ -116,6 +138,7 @@ public class FakeCustomRestQuery extends TabularQuery {
    }
 
    @Property(label = "Lookup Key 1")
+   @PropertyEditor(dependsOn = "lookupUrl1")
    public String getLookupKey1() {
       return getLookupKey(1);
    }
@@ -125,6 +148,7 @@ public class FakeCustomRestQuery extends TabularQuery {
    }
 
    @Property(label = "Lookup Ignore Base Url 1")
+   @PropertyEditor(dependsOn = "lookupUrl1")
    public boolean getLookupIgnoreBaseUrl1() {
       return getLookupIgnoreBaseUrl(1);
    }

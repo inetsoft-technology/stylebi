@@ -35,10 +35,12 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Chart aesthetic mutations: channel field bindings and visual frames.
@@ -113,12 +115,30 @@ public class ChartAestheticAgentService {
    public void setFrame(String sessionToken, Principal user, String assemblyName, String channel,
                         Map<String, Object> frame, String linkUri) throws Exception
    {
+      setFrame(sessionToken, user, assemblyName, channel, frame, null, linkUri);
+   }
+
+   public void setFrame(String sessionToken, Principal user, String assemblyName, String channel,
+                        Map<String, Object> frame, String measure, String linkUri) throws Exception
+   {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
       String name = AestheticChannels.requireFrameChannel(channel, relationChart);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
             (chart, model) -> ChartAestheticMutator.setFrame(
-               model, name, frame, relationChart, perMeasureFrameChannels(chart)));
+               model, name, frame, relationChart, perMeasureFrameChannels(chart), measure));
+   }
+
+   /** The aesthetic panes' "Reset to Default" button. */
+   public void resetFrame(String sessionToken, Principal user, String assemblyName, String channel,
+                          String measure, String linkUri) throws Exception
+   {
+      boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
+      String name = AestheticChannels.requireFrameChannel(channel, relationChart);
+
+      apply(sessionToken, user, assemblyName, name, linkUri,
+            (chart, model) -> ChartAestheticMutator.resetFrame(
+               model, name, relationChart, perMeasureFrameChannels(chart), measure));
    }
 
    /** Reads the channels without opening a checkpoint. */
@@ -189,17 +209,45 @@ public class ChartAestheticAgentService {
     * {@code frameChannels} here: this endpoint has no assembly, so no chart to check the type
     * of, and listing them unconditionally would advertise a channel most charts cannot render.
     * {@code get_chart_aesthetics} reports them per-chart, once there is one to check.
+    *
+    * <p>{@code frameTypes} used to be a hard-coded {@code ["static", "categorical", "gradient",
+    * "palette"]}. That was wrong twice over: it named eleven fewer types than
+    * {@link VisualFrameAliases#create} builds, and it implied the answer does not depend on the
+    * channel when {@code gradient} exists only for colour and {@code linear} only for size and
+    * line. A caller following it would be refused for asking for something supported and
+    * accepted-then-refused for asking for something that is not — from the one endpoint whose
+    * job is to stop them guessing. It is derived from
+    * {@link VisualFrameAliases#typeNames(String)} now, so the two cannot drift again.
+    * {@code frameTypes} is kept as the union across channels for callers that read it.
     */
    public Map<String, Object> options() {
-      return Map.of(
-         "fieldChannels", AestheticChannels.FIELD_CHANNELS,
-         "frameChannels", AestheticChannels.SUPPORTED_FRAME_CHANNELS,
-         "frameTypes", List.of("static", "categorical", "gradient", "palette"),
-         "palettes", List.copyOf(VisualFrameAliases.PALETTES.keySet()),
-         "nodeChannels", AestheticChannels.NODE_CHANNELS,
-         "nodeChannelsNote", "node-color and node-size apply only to relation charts " +
-            "(network, tree, chord) — call get_chart_aesthetics on the chart to see whether " +
-            "they apply here.");
+      Map<String, Object> typesByChannel = new LinkedHashMap<>();
+      Set<String> union = new TreeSet<>();
+
+      for(String channel : AestheticChannels.SUPPORTED_FRAME_CHANNELS) {
+         List<String> types = VisualFrameAliases.typeNames(channel);
+         typesByChannel.put(channel, types);
+         union.addAll(types);
+      }
+
+      for(String channel : AestheticChannels.NODE_CHANNELS) {
+         typesByChannel.put(channel, VisualFrameAliases.typeNames(channel));
+      }
+
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("fieldChannels", AestheticChannels.FIELD_CHANNELS);
+      out.put("frameChannels", AestheticChannels.SUPPORTED_FRAME_CHANNELS);
+      out.put("frameTypes", List.copyOf(union));
+      out.put("frameTypesByChannel", typesByChannel);
+      out.put("frameTypesNote",
+              "frameTypes is the union across channels; frameTypesByChannel is what each " +
+              "channel actually accepts, and is what set_visual_frame validates against.");
+      out.put("palettes", List.copyOf(VisualFrameAliases.PALETTES.keySet()));
+      out.put("nodeChannels", AestheticChannels.NODE_CHANNELS);
+      out.put("nodeChannelsNote",
+              "node-color and node-size apply only to relation charts (network, tree, chord) " +
+              "— call get_chart_aesthetics on the chart to see whether they apply here.");
+      return out;
    }
 
    private boolean isRelationChart(String sessionToken, Principal user, String assemblyName)

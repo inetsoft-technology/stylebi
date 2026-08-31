@@ -20,7 +20,13 @@ package inetsoft.web.admin.properties;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.log.*;
+import inetsoft.util.log.logback.LogbackUtil;
 import inetsoft.web.admin.security.PropertyModel;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
@@ -92,6 +98,22 @@ public class PropertiesController {
 
       if(value != null) {
          value = value.trim();
+      }
+
+      // log.provider itself is not hidden by removeUnuseProperties -- "file" is a valid community
+      // value -- so this page is the remaining route by which a community build can be pointed at
+      // the enterprise-only forwarder. Left unchecked the setting saves, reads back, and logging
+      // silently continues to the file (see LogbackUtil.isFluentdEnabled).
+      //
+      // Checked against the submitted value, before the blank-value branch below substitutes the
+      // stored one: a blank submission means "keep what is there", so a build already carrying
+      // log.provider=fluentd would otherwise be unable to submit that field at all.
+      if("log.provider".equals(propertyName) &&
+         LogbackUtil.FLUENTD_PROVIDER.equals(value) && !LicenseManager.isEnterprise())
+      {
+         throw new MessageException(
+            Catalog.getCatalog(user).getString("em.common.log.fluentd.enterpriseOnly"),
+            LogLevel.INFO, false);
       }
 
       if("".equals(value)) {

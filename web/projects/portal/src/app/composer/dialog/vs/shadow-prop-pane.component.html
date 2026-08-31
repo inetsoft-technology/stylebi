@@ -1,0 +1,81 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal container-fluid">
+  <fieldset>
+    <legend>_#(Shadow)</legend>
+    <div class="form-row-float-label row">
+      <div class="col-auto">
+        <label class="form-check-label">
+          <input type="checkbox" class="form-check-input" data-test="shadowApply"
+                 [(ngModel)]="model.apply"/>
+          _#(Apply)
+        </label>
+      </div>
+      <div class="col-auto ps-1" [class.disable-actions-fade]="!enabled">
+        <color-editor data-test="shadowColorPicker"
+                      [color]="model.color" (colorChange)="changeColor($event)"
+                      [enabled]="enabled"
+                      [palette]="shadowColors"></color-editor>
+      </div>
+    </div>
+    <div class="form-row-float-label row" [class.disable-actions-fade]="!enabled">
+      <div class="col">
+        <div class="form-floating">
+          <alpha-dropdown [(alpha)]="model.alpha" [disabled]="!enabled"
+                          (alphaInvalid)="changeAlphaWarning($event)">
+          </alpha-dropdown>
+          <label>_#(Opacity)</label>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-floating">
+          <select class="form-control" data-test="shadowDirection"
+                  [(ngModel)]="model.direction" [disabled]="!enabled">
+            @for (dir of directions; track dir.value) {
+              <option [value]="dir.value">{{dir.label}}</option>
+            }
+          </select>
+          <label>_#(Direction)</label>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row" [class.disable-actions-fade]="!enabled">
+      <div class="col">
+        <div class="form-floating">
+          <input type="number" class="form-control" data-test="shadowDistance"
+                 min="0" max="50" [ngModel]="model.distance" [disabled]="!enabled"
+                 (ngModelChange)="clamp('distance', $event)"/>
+          <label>_#(Distance)</label>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-floating">
+          <input type="number" class="form-control" data-test="shadowBlur"
+                 min="0" max="50" [ngModel]="model.blur" [disabled]="!enabled"
+                 (ngModelChange)="clamp('blur', $event)"/>
+          <label>_#(Blur)</label>
+        </div>
+      </div>
+    </div>
+    @if (alphaInvalid) {
+      <div class="alert alert-danger">
+        _#(viewer.flash.format.invalidTransparencyError)
+      </div>
+    }
+  </fieldset>
+</form>

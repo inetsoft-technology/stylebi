@@ -36,6 +36,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Identity;
+import inetsoft.uql.viewsheet.internal.FormUtil;
 import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
 import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
 import inetsoft.util.*;
@@ -388,22 +389,28 @@ public class SUtil {
     * @return the toolbar elements stored in a <code>List</code> instance.
     */
    public static List<ToolBarElement> getVSToolBarElements(boolean forceGlobal) {
-      List<ToolBarElement> elems = new ArrayList<>(ToolBarElement.VSTOOLBAR_ELEMENTS.length);
+      List<ToolBarElement> elems = new ArrayList<>(ToolBarElement.VSTOOLBAR_ELEMENTS.size());
 
-      for(int i = 0; i < ToolBarElement.VSTOOLBAR_ELEMENTS.length; i++) {
-         String name = ToolBarElement.VSTOOLBAR_ELEMENTS[i];
+      for(int i = 0; i < ToolBarElement.VSTOOLBAR_ELEMENTS.size(); i++) {
+         ToolBarElementDef def = ToolBarElement.VSTOOLBAR_ELEMENTS.get(i);
+         String name = def.property();
 
-         if("vs.import.button".equals(name) && !LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM)) {
+         if("vs.import.button".equals(name) && !FormUtil.isFormEnabled()) {
             continue;
          }
 
+         // the "true" fallback, not the vs.import.button line in defaults.properties, is the
+         // effective default for these: forceGlobal routes this read through
+         // EarlyLoadedProperties, whose default layer is the JVM system properties rather than
+         // defaults.properties, so the declaration there is never consulted here. Keep the two
+         // in sync -- PropertyDefaultsTest pins them together.
          String visible = SreeEnv.getProperty(name, forceGlobal, "true");
          ToolBarElement elem = new ToolBarElement();
 
          elem.name = name;
          elem.visible = visible;
          elem.index = i;
-         elem.id = ToolBarElement.VSTOOLBAR_ELEMENT_ID[i];
+         elem.id = def.actionId();
 
          elems.add(elem);
       }
@@ -434,16 +441,50 @@ public class SUtil {
       public String visible = null;
       public int index = 0;
       public String id = null;
-      static final String[] VSTOOLBAR_ELEMENTS = {
-         "vs.previous.button", "vs.next.button", "vs.edit.button",
-         "vs.refresh.button", "vs.email.button", "vs.share.button", "vs.schedule.button",
-         "vs.export.button", "vs.import.button", "vs.print.button",
-         "vs.zoom", "vs.fullScreen.button", "vs.close.button",
-         "vs.bookmark.button"
-      };
-      static final String[] VSTOOLBAR_ELEMENT_ID = {
-         "Undo", "Redo", "Edit", "Refresh", "Email", "Social Sharing", "Schedule",
-         "Export", "Import", "Print", "Zoom", "Full Screen", "Close", "Bookmark"};
+      /**
+       * The dashboard toolbar buttons, in display order. Declaration order is significant:
+       * it becomes ToolBarElement.index, which compareTo() uses to keep Close last.
+       *
+       * Property names and action ids are paired here on purpose. They were previously two
+       * parallel arrays zipped by index, where inserting a button into one and not the other
+       * silently shifted every pairing below it.
+       *
+       * Two names do not match the button they control: vs.previous.button is Undo and
+       * vs.next.button is Redo. These names are shipped and are stored in operator settings,
+       * so they are deliberately left as they are -- renaming them would strand existing
+       * configuration. The Enterprise Manager toolbar page shows the action id's catalog label
+       * rather than the property name, so the mismatch is only visible to someone setting the
+       * property directly.
+       */
+      static final List<ToolBarElementDef> VSTOOLBAR_ELEMENTS = List.of(
+         new ToolBarElementDef("vs.previous.button", "Undo"),
+         new ToolBarElementDef("vs.next.button", "Redo"),
+         new ToolBarElementDef("vs.edit.button", "Edit"),
+         new ToolBarElementDef("vs.refresh.button", "Refresh"),
+         new ToolBarElementDef("vs.email.button", "Email"),
+         new ToolBarElementDef("vs.share.button", "Social Sharing"),
+         new ToolBarElementDef("vs.schedule.button", "Schedule"),
+         new ToolBarElementDef("vs.export.button", "Export"),
+         new ToolBarElementDef("vs.import.button", "Import"),
+         new ToolBarElementDef("vs.print.button", "Print"),
+         new ToolBarElementDef("vs.zoom", "Zoom"),
+         new ToolBarElementDef("vs.fullScreen.button", "Full Screen"),
+         new ToolBarElementDef("vs.close.button", "Close"),
+         // hiding Bookmark has a second, unrelated effect: AnnotationVSUtil.resetDataAnnotation
+         // reads this action's visibility and folds chart data annotations into the chart
+         // tooltip when it is hidden. Bookmark is the only entry here read outside the toolbar.
+         new ToolBarElementDef("vs.bookmark.button", "Bookmark"));
+   }
+
+   /**
+    * Pairs a dashboard toolbar button's server property name with the action id the toolbar and
+    * VSEventUtil.setActionVisible() use for it. The two used to be held in separate parallel
+    * arrays aligned only by convention.
+    *
+    * @param property the server property that controls the button's visibility.
+    * @param actionId the action id, also the catalog key for the button's label.
+    */
+   public record ToolBarElementDef(String property, String actionId) {
    }
 
    /**

@@ -35,10 +35,12 @@ import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
 import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.model.WizFolderSaveResult;
+import inetsoft.web.wiz.model.WizVisualizationRenameResult;
 import inetsoft.web.wiz.model.WizVisualizationRenderEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveResult;
 import inetsoft.web.wiz.request.WizFolderCreateRequest;
+import inetsoft.web.wiz.request.WizVisualizationRenameRequest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -341,6 +343,104 @@ class WizVisualizationServiceTest {
 
       assertThrows(inetsoft.sree.security.SecurityException.class,
                    () -> service.renderVisualization(ev, mock(Principal.class)));
+   }
+
+   // ── renameVisualization ─────────────────────────────────────────────────────
+
+   @Test
+   void renameRejectsBlankIdentifier() throws Exception {
+      WizVisualizationService service = createService(mock(ViewsheetService.class), mock(AssetRepository.class));
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> service.renameVisualization(
+                      new WizVisualizationRenameRequest("", "New Name"), mock(Principal.class)));
+   }
+
+   @Test
+   void renameRejectsBlankDisplayName() throws Exception {
+      WizVisualizationService service = createService(mock(ViewsheetService.class), mock(AssetRepository.class));
+
+      AssetEntry inside = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/vs1", null);
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> service.renameVisualization(
+                      new WizVisualizationRenameRequest(inside.toIdentifier(), "  "), mock(Principal.class)));
+   }
+
+   @Test
+   void renameRejectsIdentifierOutsideManagedFolder() throws Exception {
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WizVisualizationService service = createService(mock(ViewsheetService.class), assetRepository);
+
+      AssetEntry outside = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "some/unmanaged/vs1", null);
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> service.renameVisualization(
+                      new WizVisualizationRenameRequest(outside.toIdentifier(), "New Name"),
+                      mock(Principal.class)));
+
+      // The folder-scope check must happen before any asset is touched.
+      verifyNoInteractions(assetRepository);
+   }
+
+   @Test
+   void renameConvertsPermissionDenialToSecurityException() throws Exception {
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WizVisualizationService service = createService(mock(ViewsheetService.class), assetRepository);
+
+      AssetEntry inside = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/vs1", null);
+
+      // checkAssetPermission signals a WRITE denial via MessageException — the service must
+      // convert this to SecurityException so it reaches
+      // WizVisualizationController#renameVisualization's catch(SecurityException) branch (a real
+      // 403) instead of falling into catch(Exception) as a misleading "unexpected error" 500.
+      doThrow(new MessageException("Write access denied"))
+         .when(assetRepository).checkAssetPermission(
+            any(Principal.class), any(AssetEntry.class), eq(ResourceAction.WRITE));
+
+      assertThrows(inetsoft.sree.security.SecurityException.class,
+                   () -> service.renameVisualization(
+                      new WizVisualizationRenameRequest(inside.toIdentifier(), "New Name"),
+                      mock(Principal.class)));
+
+      verify(assetRepository, never()).changeSheet(
+         any(AssetEntry.class), any(AssetEntry.class), any(Principal.class), anyBoolean());
+   }
+
+   @Test
+   void renameSetsAliasAndPersistsAnAliasOnlyChangeSheet() throws Exception {
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WizVisualizationService service = createService(mock(ViewsheetService.class), assetRepository);
+
+      AssetEntry inside = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/vs1", null);
+      String identifier = inside.toIdentifier();
+      Principal principal = mock(Principal.class);
+
+      WizVisualizationRenameResult result = service.renameVisualization(
+         new WizVisualizationRenameRequest(identifier, "  New Name  "), principal);
+
+      // The identifier is unchanged by an alias-only rename — toIdentifier() is derived from
+      // scope/type/user/path/orgID only, none of which this call touches.
+      assertEquals(identifier, result.identifier());
+      assertEquals("New Name", result.displayName());
+
+      verify(assetRepository).checkAssetPermission(
+         eq(principal), argThat(e -> identifier.equals(e.toIdentifier())), eq(ResourceAction.WRITE));
+
+      // oentry/nentry compare equal (AssetEntry#equals ignores alias) regardless of whether
+      // changeSheet is handed the same object or a copy — asserting on alias/path is what
+      // actually matters here.
+      verify(assetRepository).changeSheet(
+         argThat(e -> "New Name".equals(e.getAlias()) && identifier.equals(e.toIdentifier())),
+         argThat(e -> "New Name".equals(e.getAlias()) && identifier.equals(e.toIdentifier())),
+         eq(principal), eq(true));
    }
 
    private static WizVisualizationService createService(ViewsheetService viewsheetService,

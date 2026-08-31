@@ -100,6 +100,8 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                           it is positive — and all of those report {@code null}, so {@code 0}
     *                           is not a limit of zero rows.
     * @param distinct           whether the table returns only distinct rows
+    * @param mergeable          whether the table's query is merged into a single SQL statement —
+    *                           the Composer's own table-properties dialog "Mergeable" checkbox
     * @param visibleInViewsheet whether the table is exposed to viewsheets bound to this sheet
     * @param mode               the table's display mode — {@code live}, {@code full},
     *                           {@code detail} or {@code edit} — derived from the same three flags
@@ -132,6 +134,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       String description,
       Integer maxRows,
       boolean distinct,
+      boolean mergeable,
       boolean visibleInViewsheet,
       String mode,
       Integer x,
@@ -233,9 +236,11 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
        * @param column  source column name
        * @param formula formula name (e.g. {@code "Sum"}, {@code "Count"})
        * @param alias   output alias; may be {@code null}
+       * @param n       the N/P operand for a parametrized formula (e.g. {@code "NthLargest"},
+       *                {@code "PthPercentile"}); {@code null} when the formula doesn't take one
        */
       @JsonInclude(JsonInclude.Include.NON_NULL)
-      public record AggregateRefModel(String column, String formula, String alias) {}
+      public record AggregateRefModel(String column, String formula, String alias, Integer n) {}
    }
 
    /**

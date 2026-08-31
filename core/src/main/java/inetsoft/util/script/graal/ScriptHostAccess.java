@@ -17,8 +17,8 @@
  */
 package inetsoft.util.script.graal;
 
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.viewsheet.internal.FormUtil;
 import org.graalvm.polyglot.HostAccess;
 import java.time.Instant;
 import java.util.*;
@@ -34,7 +34,8 @@ public final class ScriptHostAccess {
    }
 
    // Deny-list ported verbatim from SecureClassShutter. Checked AFTER the exact
-   // allow-list (ALLOWED_CLASSES) but BEFORE the allowed prefixes — see classFilter().
+   // allow-list (ALLOWED_CLASSES) but BEFORE the operator-supplied
+   // extras (script.java.allowed.classes) and the allowed prefixes — see classFilter().
    // Dangerous packages — any class whose FQCN equals or starts with "<pkg>." is blocked.
    private static final Set<String> BLOCKED_PACKAGES = Set.of(
       "java.lang.reflect",
@@ -223,8 +224,12 @@ public final class ScriptHostAccess {
     *
     * <p>Delegates to {@link #isVisibleToScripts}, a faithful port of the proven
     * {@code SecureClassShutter.visibleToScripts} precedence from the main-branch
-    * Rhino baseline. Reads the {@code javascript.java.packages} and
-    * {@code javascript.java.com_org} properties once when the filter is built.
+    * Rhino baseline. Reads the {@code script.java.allowed.classes},
+    * {@code javascript.java.packages} and {@code javascript.java.com_org}
+    * properties once when the filter is built. The extra class names given by
+    * {@code script.java.allowed.classes} are additive only: they are consulted
+    * after the deny lists, so they cannot re-enable a class named by
+    * {@code BLOCKED_PACKAGES} or {@code BLOCKED_CLASSES}.
     * Dangerous classes (System/Runtime/Class/ClassLoader, threading,
     * inetsoft.report.internal.license.*, engine internals) are NOT on any allow
     * path, so they stay blocked.
@@ -260,7 +265,17 @@ public final class ScriptHostAccess {
       final String[] customPkgsF = customPkgs;
       final boolean comOrgF = comOrg;
 
-      return fqcn -> isVisibleToScripts(fqcn, extra, customPkgsF, comOrgF);
+      return classFilter(extra, customPkgsF, comOrgF);
+   }
+
+   /**
+    * Package-private overload taking the already-parsed property values, so tests
+    * can exercise the allow/deny precedence without a SreeEnv context.
+    */
+   static Predicate<String> classFilter(Set<String> extra, String[] customPkgs,
+                                        boolean comOrg)
+   {
+      return fqcn -> isVisibleToScripts(fqcn, extra, customPkgs, comOrg);
    }
 
    /**
@@ -279,19 +294,22 @@ public final class ScriptHostAccess {
          return false;
       }
 
-      // java.sql is permitted only when the FORM component is licensed (matches main).
-      if(fqcn.startsWith("java.sql") && isFormLicensed()) {
+      // java.sql is permitted only when form (data write-back) is enabled (matches main).
+      if(fqcn.startsWith("java.sql") && isFormEnabled()) {
          return true;
       }
 
-      // exact allow wins: curated classes, SreeEnv extras, primitive arrays, jdk proxies.
-      if(ALLOWED_CLASSES.contains(fqcn) || extra.contains(fqcn) ||
+      // exact allow wins: curated classes (audited, and deliberately allowed to
+      // override the package deny), primitive arrays, jdk proxies.
+      if(ALLOWED_CLASSES.contains(fqcn) ||
          isPrimitiveArrayType(fqcn) || fqcn.startsWith("jdk.proxy"))
       {
          return true;
       }
 
-      // deny: blocked packages, then blocked classes.
+      // deny: blocked packages, then blocked classes. Checked BEFORE the
+      // operator-supplied extras so script.java.allowed.classes cannot re-enable
+      // a class the sandbox blocks.
       for(String blockedPkg : BLOCKED_PACKAGES) {
          // Match exact package ("java.io") or sub-package/class ("java.io.File").
          // The "sun." entry already contains a trailing dot, so handle both styles.
@@ -304,6 +322,12 @@ public final class ScriptHostAccess {
 
       if(BLOCKED_CLASSES.contains(fqcn)) {
          return false;
+      }
+
+      // operator-supplied extras (script.java.allowed.classes): additive only, so
+      // this runs after the deny checks above and cannot cross them.
+      if(extra.contains(fqcn)) {
+         return true;
       }
 
       // arrays of an allowed object type.
@@ -361,12 +385,12 @@ public final class ScriptHostAccess {
       return false;
    }
 
-   private static boolean isFormLicensed() {
+   private static boolean isFormEnabled() {
       try {
-         return LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM);
+         return FormUtil.isFormEnabled();
       }
       catch(Throwable ignore) {
-         // LicenseManager may be unavailable outside a full server context (tests).
+         // SreeEnv may be unavailable outside a full server context (tests).
          return false;
       }
    }
