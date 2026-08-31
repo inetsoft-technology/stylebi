@@ -57,7 +57,7 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) assembly.getInfo();
       TableDataPath titlePath = new TableDataPath(-1, TableDataPath.TITLE);
       VSCompositeFormat compositeFormat = VSTitleChromeDefaults.applyModernDefaults(
-         info.getFormatInfo().getFormat(titlePath, false), VizContext.of(info));
+         info.getFormatInfo().getFormat(titlePath, false), VizContext.of(info), info);
 
       int titleHeight = info.getTitleHeight();
 

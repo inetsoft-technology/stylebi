@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.report.StyleConstants;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -195,6 +196,63 @@ class SeedChromeDefaultsTest {
    }
 
    @Test
+   void aModernTableTitleIsUnfilledWithABottomRule() {
+      gateOn();
+      VizContext ctx = VizContext.ofGate();
+      VSFormat def = titleFormat(newTable()).getDefaultFormat();
+
+      assertNull(def.getBackgroundValue(), "the modern title lane carries no fill");
+      assertNull(def.getBackground(), "and no runtime background behind it either");
+
+      Insets borders = def.getBordersValue();
+      assertNotNull(borders);
+      assertEquals(StyleConstants.NONE, borders.top, "no top rule");
+      assertEquals(StyleConstants.NONE, borders.left, "no left rule");
+      assertEquals(StyleConstants.NONE, borders.right, "no right rule");
+      assertEquals(StyleConstants.THIN_LINE, borders.bottom, "a bottom rule only");
+
+      BorderColors colors = def.getBorderColorsValue();
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx), colors.bottomColor);
+      assertEquals(colors.bottomColor, colors.topColor,
+                   "all four sides carry the rule colour; report text boxes keep only one");
+   }
+
+   @Test
+   void aLegacyTableTitleKeepsTheFilledBandAndTheFourSideBox() {
+      gateOff();
+      VSFormat def = titleFormat(newTable()).getDefaultFormat();
+
+      assertEquals(VSAssemblyInfo.DEFAULT_TITLE_BG, def.getBackgroundValue());
+
+      Insets borders = def.getBordersValue();
+      assertEquals(StyleConstants.THIN_LINE, borders.top);
+      assertEquals(StyleConstants.THIN_LINE, borders.left);
+      assertEquals(StyleConstants.THIN_LINE, borders.right);
+      assertEquals(StyleConstants.THIN_LINE, borders.bottom);
+   }
+
+   @Test
+   void revertingATableTitleRestoresAGateOffCreation() {
+      gateOff();
+      VSFormat expected = titleFormat(newTable()).getDefaultFormat();
+      String expectedBg = expected.getBackgroundValue();
+      Insets expectedBorders = expected.getBordersValue();
+
+      gateOn();
+      TableVSAssemblyInfo info = newTable();
+      info.setVizMark(VizMark.fromGate());
+      info.seedChromeDefaults(VizContext.of(info));
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      VSFormat reverted = titleFormat(info).getDefaultFormat();
+      assertEquals(expectedBg, reverted.getBackgroundValue(),
+                   "Revert must match a table that was never modernized, not almost match it");
+      assertEquals(expectedBorders, reverted.getBordersValue());
+   }
+
+   @Test
    void theHookLeavesATimeSlidersTitleBorderAlone() {
       // TimeSlider mutates the base's existing TITLEPATH composite in place after super(),
       // forcing a hardcoded bottom-only 0xc0c0c0 border; the hook must not recolour it
@@ -211,14 +269,119 @@ class SeedChromeDefaultsTest {
    }
 
    @Test
-   void aChartTitleCarriesNoBorderColourAtAll() {
-      // Documents an ordering fact the extraction must not disturb: the base seeds a title border
-      // colour, then ChartVSAssemblyInfo replaces the whole TITLEPATH composite, discarding it.
+   void aModernChartTitleCarriesTheBottomRule() {
+      // The base seeds a title composite that ChartVSAssemblyInfo then replaces, so the chart
+      // re-invokes the hook after its own install; without that the rule is written to a
+      // composite that is thrown away.
       gateOn();
-      VSCompositeFormat title = titleFormat(newChart());
-      assertNotNull(title);
-      assertNull(title.getDefaultFormat().getBorderColorsValue(),
-                 "the chart's own title composite wins and sets no borders");
+      VizContext ctx = VizContext.ofGate();
+      VSFormat def = titleFormat(newChart()).getDefaultFormat();
+
+      assertNull(def.getBackgroundValue(),
+                 "the chart's title composite has never carried a fill, on either branch");
+
+      Insets borders = def.getBordersValue();
+      assertNotNull(borders, "the rule reaches the composite the chart actually keeps");
+      assertEquals(StyleConstants.NONE, borders.top);
+      assertEquals(StyleConstants.THIN_LINE, borders.bottom);
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
+                   def.getBorderColorsValue().bottomColor);
+   }
+
+   @Test
+   void aLegacyChartTitleCarriesNoBorderAtAll() {
+      gateOff();
+      VSFormat def = titleFormat(newChart()).getDefaultFormat();
+      assertNull(def.getBordersValue(), "a gate-off chart title has no rule");
+      assertNull(def.getBackgroundValue(), "and no fill");
+   }
+
+   // The read-time substitution carried the title foreground as well as the background. A seeded
+   // type is skipped there, so the colour has to be seeded or the title falls back to the
+   // composite default - black, which is unreadable on a dark card.
+
+   @Test
+   void aModernTitleCarriesTheMutedForeground() {
+      gateOn();
+      VizContext ctx = VizContext.ofGate();
+      assertEquals(VSTitleChromeDefaults.titleForeground(ctx),
+                   titleFormat(newChart()).getDefaultFormat().getForeground(),
+                   "a modern chart title carries the muted foreground");
+      assertEquals(VSTitleChromeDefaults.titleForeground(ctx),
+                   titleFormat(newTable()).getDefaultFormat().getForeground(),
+                   "and so does a modern table title");
+   }
+
+   @Test
+   void aDarkTitleForegroundIsLightEnoughToReadOnTheDarkCard() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertEquals(new Color(0xCAC4D0),
+                   titleFormat(newChart()).getDefaultFormat().getForeground(),
+                   "dark mode seeds the light neutral, not the near-black default");
+   }
+
+   @Test
+   void aLegacyTitleForegroundIsCleared() {
+      gateOff();
+      assertNull(titleFormat(newChart()).getDefaultFormat().getForeground(),
+                 "a gate-off chart title keeps the composite default");
+      assertNull(titleFormat(newTable()).getDefaultFormat().getForeground(),
+                 "and so does a gate-off table title");
+   }
+
+   @Test
+   void revertingClearsTheSeededForeground() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      info.setVizMark(VizMark.fromGate());
+      info.seedChromeDefaults(VizContext.of(info));
+      assertNotNull(titleFormat(info).getDefaultFormat().getForeground(),
+                    "precondition: the modern chart carries the seeded foreground");
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertNull(titleFormat(info).getDefaultFormat().getForeground(),
+                 "Revert restores a chart title with no foreground of its own");
+   }
+
+   @Test
+   void aModernizedChartEqualsAFreshlyCreatedOne() {
+      // the equality the re-invocation must preserve: creation and Modernize run the same hook
+      // against the same composite, so they cannot diverge
+      gateOn();
+      VizContext ctx = VizContext.ofGate();
+      VSFormat fresh = titleFormat(newChart()).getDefaultFormat();
+
+      gateOff();
+      ChartVSAssemblyInfo modernized = newChart();
+      gateOn();
+      modernized.setVizMark(VizMark.fromGate());
+      modernized.seedChromeDefaults(VizContext.of(modernized));
+      VSFormat after = titleFormat(modernized).getDefaultFormat();
+
+      assertEquals(fresh.getBordersValue(), after.getBordersValue());
+      assertEquals(fresh.getBorderColorsValue().bottomColor,
+                   after.getBorderColorsValue().bottomColor);
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
+                   after.getBorderColorsValue().bottomColor);
+   }
+
+   @Test
+   void revertingAChartTitleRemovesTheRule() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      info.setVizMark(VizMark.fromGate());
+      info.seedChromeDefaults(VizContext.of(info));
+      assertNotNull(titleFormat(info).getDefaultFormat().getBordersValue(),
+                    "precondition: the modern chart has the rule");
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertNull(titleFormat(info).getDefaultFormat().getBordersValue(),
+                 "Revert restores a chart title with no rule");
    }
 
    // ---- backgrounds ---------------------------------------------------------------------------

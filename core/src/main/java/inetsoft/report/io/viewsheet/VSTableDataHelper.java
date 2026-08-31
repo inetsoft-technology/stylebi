@@ -399,7 +399,8 @@ public abstract class VSTableDataHelper extends ExporterHelper {
       FormatInfo finfo = info.getFormatInfo();
       VSCompositeFormat format =
          VSTitleChromeDefaults.applyModernDefaults(
-            finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE), false), VizContext.of(info));
+            finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE), false), VizContext.of(info),
+            info);
 
       // set the defaultfont to make the foreground take effect.
       if(format != null && format.getFont() == null) {

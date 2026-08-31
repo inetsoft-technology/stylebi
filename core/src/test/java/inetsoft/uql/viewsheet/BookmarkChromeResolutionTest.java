@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet;
 
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.report.StyleConstants;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
@@ -144,6 +145,31 @@ class BookmarkChromeResolutionTest {
 
       assertEquals(0, info.getFormat().getDefaultFormat().getRoundCornerValue(),
                    "the card radius must follow the cleared mark, not the restored FormatInfo");
+   }
+
+   @Test
+   void aStaleBookmarkDoesNotUnRevertTheTitleLane() throws Exception {
+      // the title chrome rides in state_tableformat, which parseStateContent installs wholesale;
+      // only the re-seed that follows parseState resolves it against the live mark
+      Viewsheet vs = new Viewsheet();
+      TableVSAssembly table = new TableVSAssembly(vs, "Table1");
+      table.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(table);
+      modernizeViaGate(vs);
+
+      String state = writeState(table);
+      assertTrue(state.contains("<state_tableformat>"),
+                 "precondition: the bookmark actually carries the title format");
+
+      VizModernizeUtil.revert(vs);
+      table.parseState(parseXml(state));
+
+      VSFormat def = table.getVSAssemblyInfo().getFormatInfo()
+         .getFormat(VSAssemblyInfo.TITLEPATH).getDefaultFormat();
+      assertEquals(VSAssemblyInfo.DEFAULT_TITLE_BG, def.getBackgroundValue(),
+                   "the restored title lane is filled again, as a classic table's is");
+      assertEquals(StyleConstants.THIN_LINE, def.getBordersValue().top,
+                   "and carries the four-side box, not the modern rule");
    }
 
    @Test

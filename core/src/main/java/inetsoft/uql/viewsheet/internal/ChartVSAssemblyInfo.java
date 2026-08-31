@@ -96,6 +96,9 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       tFormat.getDefaultFormat().setFontValue(getDefaultFont(Font.BOLD, 11));
       tFormat.getDefaultFormat().setAlignmentValue(StyleConstants.H_LEFT | StyleConstants.V_CENTER);
       getFormatInfo().setFormat(TITLEPATH, tFormat);
+      // super seeded the title composite this method just replaced; re-run against the real one.
+      // The hook is a set of unconditional writes, so running it twice changes nothing else
+      seedChromeDefaults(VizContext.of(this));
    }
 
    @Override
@@ -106,6 +109,22 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       if(objFormat != null) {
          objFormat.getDefaultFormat().setBackgroundValue(
             VSObjectChromeDefaults.cardBackgroundCss(ctx));
+      }
+
+      // the title lane's rule and its text colour. No background write on either branch: this
+      // type's own title composite has never carried one, so the modern lane is unfilled by
+      // construction and the legacy branch has nothing to restore
+      VSCompositeFormat titleFormat = getFormatInfo().getFormat(TITLEPATH);
+
+      if(titleFormat != null) {
+         VSFormat def = titleFormat.getDefaultFormat();
+         def.setBordersValue(ctx.modern ? VSTitleChromeDefaults.titleRuleBorders() : null);
+         def.setBorderColorsValue(ctx.modern ? VSTitleChromeDefaults.titleRuleColors(ctx) : null);
+         def.setForegroundValue(
+            ctx.modern ? VSTitleChromeDefaults.titleForegroundValue(ctx) : null);
+         // getForeground() falls back to the fg field when fgval yields nothing, so the legacy
+         // branch has to null both or a runtime foreground survives the clear
+         def.setForeground(null);
       }
 
       PlotDescriptor plotDesc = getChartDescriptor().getPlotDescriptor();

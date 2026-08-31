@@ -17,10 +17,13 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.report.StyleConstants;
+import inetsoft.uql.viewsheet.BorderColors;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.VSFormat;
 
 import java.awt.Color;
+import java.awt.Insets;
 
 /**
  * Supplies the modern object-title-bar palette (background / foreground / bottom-border) for titled
@@ -30,11 +33,12 @@ import java.awt.Color;
  * with no browser CSS hook and is re-drawn in export, so it is server-owned. Unlike chart chrome, the
  * title VSFormat's CSS tier is dictionary-backed (VSCSSFormat reads format.css on demand) and has no
  * writable slot, so the modern default cannot be written to the CSS tier the way VSChartChromeDefaults
- * does. Instead applyModernDefaults substitutes the modern neutral on the DEFAULT tier at read time
- * (live model build, export title draw), only when neither the user (USER tier) nor a format.css TITLE
- * class (CSS tier) has set the value — so a user title format and a customer format.css class both
- * still win. applyModernDefaults returns a clone (never mutates the source); applyModernDefaultsInPlace
- * mutates directly, for the export copy where the viewsheet is already cloned.
+ * does. Instead applyModernDefaults substitutes the modern neutral on the DEFAULT tier at read time,
+ * for the types that have not yet converted to seeding their title chrome at creation. A
+ * converted type is skipped here and carries its values in the stored format instead, so they
+ * survive an asset export and resolve on bookmark restore. applyModernDefaults returns a clone
+ * (never mutates the source); applyModernDefaultsInPlace mutates directly, for the export copy
+ * where the viewsheet is already cloned.
  */
 public final class VSTitleChromeDefaults {
    private VSTitleChromeDefaults() {
@@ -56,6 +60,33 @@ public final class VSTitleChromeDefaults {
    }
 
    /**
+    * The modern title lane's borders: a bottom rule only. A fresh Insets every call, because
+    * Insets is mutable and the caller installs it on a format.
+    */
+   public static Insets titleRuleBorders() {
+      return new Insets(StyleConstants.NONE, StyleConstants.NONE,
+                        StyleConstants.THIN_LINE, StyleConstants.NONE);
+   }
+
+   /**
+    * The rule's colour on all four sides, though only the bottom carries a width. A report text
+    * box keeps one border colour and discards the rest, so one colour four times is what makes
+    * that setter lossless here.
+    */
+   /**
+    * The modern title foreground as a stored format value, for the creation seed. A seeded type is
+    * skipped by the read-time substitution, so the colour has to be written rather than resolved.
+    */
+   public static String titleForegroundValue(VizContext ctx) {
+      return toValue(titleForeground(ctx));
+   }
+
+   public static BorderColors titleRuleColors(VizContext ctx) {
+      Color c = titleBorderColor(ctx);
+      return new BorderColors(c, c, c, c);
+   }
+
+   /**
     * Return a title format with the modern neutrals substituted, or the original format unchanged
     * (legacy context, or already customized). Applied to the DEFAULT tier of a clone, so the stored
     * format is never mutated or serialized and a user (USER tier) or format.css (CSS tier) title color still
@@ -64,7 +95,13 @@ public final class VSTitleChromeDefaults {
     * transparent); modern mode gives them all one consistent title bar.
     */
    public static VSCompositeFormat applyModernDefaults(VSCompositeFormat titleFmt, VizContext ctx) {
-      if(!ctx.modern || titleFmt == null) {
+      return applyModernDefaults(titleFmt, ctx, null);
+   }
+
+   public static VSCompositeFormat applyModernDefaults(VSCompositeFormat titleFmt, VizContext ctx,
+                                                        VSAssemblyInfo info)
+   {
+      if(!ctx.modern || titleFmt == null || isSeededTitle(info)) {
          return titleFmt;
       }
 
@@ -88,7 +125,13 @@ public final class VSTitleChromeDefaults {
     * touches a persisted format (export clones upstream).
     */
    public static void applyModernDefaultsInPlace(VSCompositeFormat titleFmt, VizContext ctx) {
-      if(!ctx.modern || titleFmt == null) {
+      applyModernDefaultsInPlace(titleFmt, ctx, null);
+   }
+
+   public static void applyModernDefaultsInPlace(VSCompositeFormat titleFmt, VizContext ctx,
+                                                  VSAssemblyInfo info)
+   {
+      if(!ctx.modern || titleFmt == null || isSeededTitle(info)) {
          return;
       }
 
@@ -106,6 +149,13 @@ public final class VSTitleChromeDefaults {
       if(fg) {
          def.setForegroundValue(toValue(dark ? TITLE_FG_DARK : TITLE_FG));
       }
+   }
+
+   // these types carry their title chrome in the stored format, written by seedChromeDefaults at
+   // creation; the rest are still substituted here. When the last one converts this is true for
+   // every titled type and both entry points, with all their call sites, can go
+   private static boolean isSeededTitle(VSAssemblyInfo info) {
+      return info instanceof ChartVSAssemblyInfo || info instanceof TableDataVSAssemblyInfo;
    }
 
    // A title color counts as customized (and is preserved) only when the user picker (USER tier) or a

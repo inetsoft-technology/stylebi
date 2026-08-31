@@ -1409,7 +1409,7 @@ public abstract class AbstractVSExporter implements VSExporter {
 
                      if(ctx.modern) {
                         VSCompositeFormat titleFmt = VSTitleChromeDefaults.applyModernDefaults(
-                           info.getFormatInfo().getFormat(tpath, false), ctx);
+                           info.getFormatInfo().getFormat(tpath, false), ctx, info);
                         FormatInfo titleFmtInfo = titleInfo.getFormatInfo().clone();
                         VSCompositeFormat objFmt =
                            titleFmtInfo.getFormat(VSAssemblyInfo.OBJECTPATH);
@@ -1801,7 +1801,7 @@ public abstract class AbstractVSExporter implements VSExporter {
 
       if(vinfo instanceof TitledVSAssemblyInfo && vinfo.getFormatInfo() != null) {
          VSTitleChromeDefaults.applyModernDefaultsInPlace(
-            vinfo.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH), VizContext.of(vinfo));
+            vinfo.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH), VizContext.of(vinfo), vinfo);
       }
    }
 
@@ -1899,7 +1899,7 @@ public abstract class AbstractVSExporter implements VSExporter {
          if(CSSConstants.CHART.equals(fmt.getCSSFormat().getCSSType())) {
             TableDataPath tpath = new TableDataPath(-1, TableDataPath.TITLE);
             chartTitleFormat = VSTitleChromeDefaults.applyModernDefaults(
-               formatInfo.getFormat(tpath, false), ctx);
+               formatInfo.getFormat(tpath, false), ctx, info);
          }
       }
 
