@@ -425,11 +425,6 @@ public final class TabularQueryParamsSchemaBuilder {
     * {@code x-valueSource} is handled here; {@code x-skeleton} in
     * {@link #buildCompositeFragment}; {@code x-enumLabels}/{@code x-candidateCount} in both,
     * where relevant; {@code x-output} is not emitted at all (the omit-by-default Kind B choice).
-    * {@code x-annotationTarget} is also set here, unconditionally ahead of the branches below,
-    * on the one param an {@link AnnotatableQuery} connector names via
-    * {@link AnnotatableQuery#getAnnotationTargetProperty()} -- the annotation entry point's own
-    * signal for which candidate values (once resolved) are this source's annotatable targets,
-    * independent of whether resolution itself succeeded this call.
     *
     * <p>{@code x-valueSource} is only ever emitted when the legal value set is NOT carried as
     * {@code enum} in this response -- {@code "external"} (not attempted, or unattemptable ahead
@@ -442,16 +437,6 @@ public final class TabularQueryParamsSchemaBuilder {
                                        TabularQuerySchema.Param param, boolean resolveTags,
                                        List<String> descParts)
    {
-      // Marked ahead of the dependent/resolveTags branches below, and unconditionally on every
-      // one of them, so a caller can identify the annotation-target parameter from a
-      // resolveTags=false response too -- it carries no candidate enum yet, but the property
-      // name is already enough to drive a follow-up resolveTags=true request against it.
-      if(query instanceof AnnotatableQuery target &&
-         param.getName().equals(target.getAnnotationTargetProperty()))
-      {
-         node.put("x-annotationTarget", true);
-      }
-
       boolean dependent = param.getDependsOn() != null && !param.getDependsOn().isEmpty();
 
       if(dependent) {

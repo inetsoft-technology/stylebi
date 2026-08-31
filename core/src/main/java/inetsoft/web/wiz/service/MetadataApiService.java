@@ -24,7 +24,6 @@ import inetsoft.uql.jdbc.*;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.osi.*;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
-import inetsoft.web.wiz.request.GetTabularTableMetaRequest;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
@@ -33,10 +32,6 @@ import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
-import inetsoft.uql.tabular.AnnotatableQuery;
-import inetsoft.uql.tabular.PropertyMeta;
-import inetsoft.uql.tabular.TabularQuery;
-import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.util.XUtil;
@@ -202,96 +197,6 @@ public class MetadataApiService {
       dataset.setPrimaryKey(primaryKeys.isEmpty() ? null : primaryKeys);
       dataset.setFields(fields);
 
-      return dataset;
-   }
-
-   /**
-    * The METADATA-class counterpart of {@link #getMetaData}: column metadata for one annotation
-    * target of a non-relational {@code TabularDataSource} (an OData entity, a SAP table, ...)
-    * whose query class opts in via {@link AnnotatableQuery}.
-    *
-    * DELIBERATELY ZERO SHARED CODE with {@link #getMetaData}/{@link #getJDBCDatasource}/
-    * {@link #getDatabaseTables} -- this does not call any of them, and none of them call this.
-    * Those three are relational-only by construction (first line of each is
-    * {@code getJDBCDatasource(dsName)}), and a data source reaching this method is, by
-    * definition, not one ({@link AnnotatableQuery} is never implemented by a
-    * {@code JDBCDataSource} query). Keeping the two paths structurally disjoint -- rather than
-    * adding an {@code if (!isJdbc)} branch inside the relational methods -- means a future
-    * refactor of the relational path cannot accidentally change METADATA behavior, and vice
-    * versa.
-    *
-    * Reads the connector's own {@code getOutputColumns()} after writing the target value onto
-    * the {@link AnnotatableQuery}-declared property of a fresh query instance -- no worksheet
-    * runtime, no live query execution; see {@code ODataQuery}/{@code SAPTableQuery} for why that
-    * is safe (the column list is either already cached on the query or derived from metadata the
-    * connector already has, such as OData's downloaded EDMX).
-    */
-   public OsiDataset getTabularTableMeta(GetTabularTableMetaRequest data, Principal principal)
-      throws Exception
-   {
-      String dsName = data.getDsName();
-
-      if(!dataSourceService.checkPermission(dsName, ResourceAction.READ, principal)) {
-         throw new SecurityException("Access denied to data source: " + dsName);
-      }
-
-      TabularQuery query = TabularUtil.createQuery(dsName);
-
-      if(query == null) {
-         throw new Exception("Could not create a query for '" + dsName +
-            "' — its connector plugin may not be loaded.");
-      }
-
-      if(!(query instanceof AnnotatableQuery target)) {
-         XDataSource ds = xrepository.getDataSource(dsName);
-         // Reuses the exact 422 shape getJDBCDatasource() throws for a non-relational source —
-         // wiz-services' isUnsupportedDatasourceError/readUnsupportedDatasourceBody already know
-         // this shape, so a connector that hasn't opted into AnnotatableQuery (e.g. SharePoint,
-         // whose site->list target is a dependent chain resolveTags cannot enumerate yet) needs
-         // no new wiz-services error handling at all.
-         throw new UnsupportedDatasourceException(dsName, ds == null ? null : ds.getType());
-      }
-
-      String targetProperty = target.getAnnotationTargetProperty();
-      PropertyMeta prop = TabularUtil.findProperties(query.getClass()).stream()
-         .filter(p -> targetProperty.equals(p.getName()))
-         .findFirst()
-         .orElseThrow(() -> new Exception(
-            "AnnotatableQuery target property '" + targetProperty + "' not found on " +
-            query.getClass().getName() + " — connector/interface mismatch"));
-
-      prop.setValue(query, data.getTarget());
-
-      XTypeNode[] columns = query.getOutputColumns();
-
-      if(columns == null || columns.length == 0) {
-         // A silently-empty tables record would look like a completed, if uninteresting,
-         // annotation -- the exact failure mode the charter's reverse assertions forbid. Refuse
-         // outright instead.
-         throw new Exception("Data source '" + dsName + "' target '" + data.getTarget() +
-            "' returned no columns — cannot annotate.");
-      }
-
-      OsiDataset dataset = new OsiDataset();
-      dataset.setName(data.getTarget());
-      dataset.setSource(buildSource(null, null, data.getTarget()));
-
-      List<OsiField> fields = new ArrayList<>();
-
-      for(XTypeNode column : columns) {
-         OsiField field = new OsiField();
-         field.setName(column.getName());
-         field.setCustomExtensions(List.of(buildFieldExtension(column.getType(), null,
-                                                                 Collections.emptyList())));
-
-         if(XSchema.isDateType(column.getType())) {
-            field.setDimension(new OsiDimension(true));
-         }
-
-         fields.add(field);
-      }
-
-      dataset.setFields(fields);
       return dataset;
    }
 

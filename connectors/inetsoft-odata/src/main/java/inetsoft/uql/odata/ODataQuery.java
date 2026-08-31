@@ -39,14 +39,9 @@ import java.util.stream.Collectors;
       @View1("top"),
       @View1("skip")
    })
-public class ODataQuery extends TabularQuery implements AnnotatableQuery {
+public class ODataQuery extends TabularQuery {
    public ODataQuery() {
       super(ODataDataSource.TYPE);
-   }
-
-   @Override
-   public String getAnnotationTargetProperty() {
-      return "entity";
    }
 
    @Property(label="Entity")

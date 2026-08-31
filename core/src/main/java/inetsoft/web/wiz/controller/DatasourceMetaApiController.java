@@ -29,7 +29,6 @@ import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.osi.OsiDataset;
 import inetsoft.web.wiz.request.FkIntegrityRequest;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
-import inetsoft.web.wiz.request.GetTabularTableMetaRequest;
 import inetsoft.web.wiz.request.SchemaSearchRequest;
 import inetsoft.web.wiz.service.FkIntegrityService;
 import inetsoft.web.wiz.service.MetadataApiService;
@@ -93,23 +92,6 @@ public class DatasourceMetaApiController {
       throws Exception
    {
       return metadataService.getMetaData(data, principal);
-   }
-
-   /**
-    * The METADATA-class counterpart of {@link #getDatabaseTableMeta}: column metadata for one
-    * annotation target of a non-relational {@code TabularDataSource} (an OData entity, a SAP
-    * table, ...) that implements {@link inetsoft.uql.tabular.AnnotatableQuery}. Deliberately a
-    * separate endpoint and a separate service method rather than a branch inside
-    * {@code getMetaData} / {@code getJDBCDatasource} — see
-    * {@link MetadataApiService#getTabularTableMeta} for why.
-    */
-   @PostMapping("/datasource/tabular-table/meta")
-   public OsiDataset getTabularTableMeta(
-      @RequestBody GetTabularTableMetaRequest data,
-      Principal principal)
-      throws Exception
-   {
-      return metadataService.getTabularTableMeta(data, principal);
    }
 
    /**
