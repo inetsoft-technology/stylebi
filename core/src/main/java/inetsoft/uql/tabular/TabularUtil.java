@@ -1119,26 +1119,53 @@ public class TabularUtil {
     *         connector plugin is not loaded.
     */
    public static TabularRuntime createRuntime(String dataSource) {
+      XDataSource ds;
+
       try {
-         XDataSource ds = XRepository.getRepository().getDataSource(dataSource);
-
-         if(ds == null) {
-            return null;
-         }
-
-         String runtimeClass = Config.getConfig().getRuntime(ds.getType());
-
-         if(runtimeClass == null) {
-            return null;
-         }
-
-         return (TabularRuntime) Config.getConfig().getClass(ds.getType(), runtimeClass)
-            .getDeclaredConstructor().newInstance();
+         ds = XRepository.getRepository().getDataSource(dataSource);
       }
       catch(Exception e) {
-         LOG.error("Failed to create a tabular runtime for the given data source: {}",
+         LOG.error("Failed to look up the data source to create a tabular runtime for: {}",
                    dataSource, e);
          return null;
+      }
+
+      if(ds == null) {
+         return null;
+      }
+
+      String runtimeClass = Config.getConfig().getRuntime(ds.getType());
+
+      if(runtimeClass == null) {
+         return null;
+      }
+
+      Class<?> clazz;
+
+      try {
+         clazz = Config.getConfig().getClass(ds.getType(), runtimeClass);
+      }
+      catch(Exception e) {
+         // Plugin/class not loadable — treated as "no runtime available", same as before: this is
+         // still "not implemented" from the caller's point of view, not "broken".
+         LOG.error("Failed to load tabular runtime class {} for data source {}",
+                   runtimeClass, dataSource, e);
+         return null;
+      }
+
+      try {
+         return (TabularRuntime) clazz.getDeclaredConstructor().newInstance();
+      }
+      catch(Exception e) {
+         // The class WAS found and loaded; constructing it failed. A materially different, and
+         // much more actionable, condition than "no runtime" — must not collapse into the same
+         // null that TabularCatalogService.resolveProvider turns into
+         // UnsupportedDatasourceException. TabularCatalogService.java:51 is this method's only
+         // production caller, so this is a safe, contained behavior change.
+         LOG.error("Failed to construct tabular runtime {} for data source {}",
+                   runtimeClass, dataSource, e);
+         throw new RuntimeException("Failed to construct the tabular runtime for data source '" +
+            dataSource + "' (" + runtimeClass + "): " + e.getMessage(), e);
       }
    }
 

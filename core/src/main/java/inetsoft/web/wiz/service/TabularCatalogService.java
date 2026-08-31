@@ -32,7 +32,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Serves {@code GET /datasource/tables} and {@code POST /datasource/table/meta} for tabular data
@@ -72,8 +74,45 @@ public class TabularCatalogService {
       if(catalog == null || catalog.datasets() == null || catalog.datasets().isEmpty()) {
          throw new Exception("Data source '" + dsName + "' reported no datasets to annotate.");
       }
+      if(catalog.relationships() == null) {
+         throw new Exception("Data source '" + dsName + "' returned a catalog with a null " +
+            "relationships list; TabularCatalogProvider implementations must return an empty " +
+            "list, not null, when there are no relationships.");
+      }
+
+      validateDatasetIds(dsName, catalog.datasets());
+      validateRelationshipEndpoints(dsName, catalog);
 
       return toTablesResponse(dsName, catalog);
+   }
+
+   private static void validateDatasetIds(String dsName, List<TabularDatasetRef> datasets)
+      throws Exception
+   {
+      for(TabularDatasetRef ref : datasets) {
+         if(ref == null || ref.id() == null || ref.id().isBlank()) {
+            throw new Exception("Data source '" + dsName + "' returned a dataset with a blank id.");
+         }
+      }
+   }
+
+   private static void validateRelationshipEndpoints(String dsName, TabularCatalog catalog)
+      throws Exception
+   {
+      Set<String> ids = catalog.datasets().stream().map(TabularDatasetRef::id)
+         .collect(Collectors.toSet());
+
+      for(TabularRelationship rel : catalog.relationships()) {
+         if(rel == null) {
+            throw new Exception("Data source '" + dsName + "' returned a null relationship entry.");
+         }
+         if(!ids.contains(rel.fromDataset()) || !ids.contains(rel.toDataset())) {
+            throw new Exception("Data source '" + dsName + "' declared relationship '" + rel.name() +
+               "' referencing an unknown dataset ('" + rel.fromDataset() + "' -> '" +
+               rel.toDataset() + "'); every relationship endpoint must be one of the datasets " +
+               "returned by listDatasets.");
+         }
+      }
    }
 
    /**
@@ -89,8 +128,20 @@ public class TabularCatalogService {
          throw new Exception("Data source '" + dsName + "' target '" + target +
             "' returned no columns — cannot annotate.");
       }
+      validateColumnNames(dsName, target, schema.columns());
 
       return toDataset(dsName, xrepository.getDataSource(dsName).getType(), schema, objectMapper);
+   }
+
+   private static void validateColumnNames(String dsName, String target, List<TabularColumn> columns)
+      throws Exception
+   {
+      for(TabularColumn column : columns) {
+         if(column == null || column.name() == null || column.name().isBlank()) {
+            throw new Exception("Data source '" + dsName + "' target '" + target +
+               "' returned a column with a blank name.");
+         }
+      }
    }
 
    /**
