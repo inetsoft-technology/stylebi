@@ -199,8 +199,33 @@ public class TabularCatalogService {
             throw new Exception("Data source '" + dsName + "' target '" + target +
                "' returned a column with a blank name.");
          }
+         if(!XSCHEMA_TYPE_CONSTANTS.contains(column.type())) {
+            // TabularColumn.type's javadoc: "any XSchema type constant" — a closed vocabulary of
+            // 21, not the handful the javadoc names as examples (P5 review r3). This catches input
+            // that never used the vocabulary at all ("varchar", a typo, null) — it cannot and does
+            // not catch a semantically wrong but valid choice (a date column labeled STRING); no
+            // whitelist can. Deliberately every declared constant, not a curated subset: a
+            // narrower, hand-picked set would risk rejecting a legitimate future connector mapping
+            // to e.g. XSchema.INTEGER or DECIMAL, which is the same "validator breaks a correct
+            // connector" failure this check exists to avoid causing.
+            throw new Exception("Data source '" + dsName + "' target '" + target +
+               "' returned column '" + column.name() + "' with type '" + column.type() +
+               "', which is not an XSchema type constant.");
+         }
       }
    }
+
+   // Every XSchema type constant, derived directly from XSchema's own declarations rather than
+   // XSchema.isPrimitiveType (checked first, per review guidance: it doesn't fit — it excludes
+   // NULL/COLOR/UNKNOWN and separately includes the non-constant legacy alias "bigdecimal" plus
+   // the UI/role constants ENUM/USER_DEFINED/USER/ROLE, so its shape answers a different question
+   // than "is this any declared XSchema constant").
+   private static final Set<String> XSCHEMA_TYPE_CONSTANTS = Set.of(
+      XSchema.NULL, XSchema.STRING, XSchema.BOOLEAN, XSchema.FLOAT, XSchema.DOUBLE,
+      XSchema.DECIMAL, XSchema.CHAR, XSchema.CHARACTER, XSchema.BYTE, XSchema.SHORT,
+      XSchema.INTEGER, XSchema.LONG, XSchema.TIME_INSTANT, XSchema.DATE, XSchema.TIME,
+      XSchema.ENUM, XSchema.USER_DEFINED, XSchema.ROLE, XSchema.USER, XSchema.COLOR,
+      XSchema.UNKNOWN);
 
    private static void validateKeyColumns(String dsName, String target, TabularDatasetSchema schema)
       throws Exception

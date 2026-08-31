@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.tabular.*;
+import inetsoft.web.wiz.model.osi.OsiDataset;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -52,6 +53,10 @@ import static org.mockito.Mockito.when;
  * {@code TabularDatasetSchema.datasetId} must echo the {@code describeTable} target it was asked
  * to describe — {@code toDataset} uses {@code schema.datasetId()}, not the requested target, to
  * label the resulting {@code OsiDataset}, so an unchecked mismatch would silently mislabel it.
+ * Extended a fourth time, same r3 round, item 3 (unblocked after the lead ruled on the closure of
+ * {@code TabularColumn.type}'s previously open-ended-looking javadoc list): {@code type} must be
+ * one of {@code XSchema}'s declared type constants, not merely the seven the javadoc gives as
+ * examples.
  *
  * Kept out of {@link TabularCatalogServiceTest} deliberately — that file's stated scope is charter
  * assertion B5 (core carries zero OData knowledge), and charter assertion C5 requires it stay
@@ -352,5 +357,47 @@ class TabularCatalogServiceContractValidationTest {
          "message must name the requested target: " + ex.getMessage());
       assertTrue(ex.getMessage().contains("Categories"),
          "message must name the schema's actual (wrong) datasetId: " + ex.getMessage());
+   }
+
+   // ----- C6 (r3, candidate #3): TabularColumn.type must be an XSchema type constant -----
+
+   @Test
+   void describeTable_columnTypeNotAnXSchemaConstant_throwsNamedException() throws Exception {
+      TabularDatasetSchema schema = new TabularDatasetSchema("Products",
+         List.of(new TabularColumn("Name", "varchar")), List.of());
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(
+         new TabularCatalog(List.of(), List.of()), Map.of("Products", schema));
+      TabularCatalogService service = createService(dsName -> runtime);
+
+      Exception ex = assertThrows(Exception.class,
+         () -> service.describeTable(DS_NAME, "Products"));
+
+      assertFalse(ex instanceof UnsupportedDatasourceException);
+      assertTrue(ex.getMessage().contains(DS_NAME));
+      assertTrue(ex.getMessage().contains("Name"),
+         "message must name the offending column: " + ex.getMessage());
+      assertTrue(ex.getMessage().contains("varchar"),
+         "message must name the bad type: " + ex.getMessage());
+   }
+
+   @Test
+   void describeTable_columnTypeIsAnXSchemaConstantNotNamedInJavadocExamples_isAccepted()
+      throws Exception
+   {
+      // The regression guard for the inversion review r3 flagged: TabularColumn's javadoc only
+      // names 7 example constants (STRING, LONG, DOUBLE, DATE, TIME_INSTANT, TIME, BOOLEAN), but
+      // the actual vocabulary is all 21 XSchema declares. A whitelist built from just the 7 named
+      // examples would wrongly reject a legitimate connector mapping to XSchema.INTEGER — this
+      // pins that it does not.
+      TabularDatasetSchema schema = new TabularDatasetSchema("Products",
+         List.of(new TabularColumn("Quantity", XSchema.INTEGER)), List.of());
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(
+         new TabularCatalog(List.of(), List.of()), Map.of("Products", schema));
+      TabularCatalogService service = createService(dsName -> runtime);
+
+      OsiDataset dataset = service.describeTable(DS_NAME, "Products");
+
+      assertEquals(1, dataset.getFields().size());
+      assertEquals("Quantity", dataset.getFields().get(0).getName());
    }
 }
