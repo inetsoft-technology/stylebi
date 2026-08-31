@@ -18,12 +18,17 @@
 <div #dropdownBody class="condition-field-combo">
   <div #conditionFieldToggle class="condition-field-combo-toggle form-control no-caret"
     [class.opacity-0]="showSearch"
+    [class.is-open]="dropdownOpen"
     [ngClass]="{disabled: !enabled}" [fixedDropdown]="dropdownMenu"
     (openChange)="dropDownOpenChange($event)"
     dropdownPlacement="bottom" [autoClose]="false">
     <div class="condition-field-combo-text ps-1" [attr.title]="getTooltip(field)">
       {{field ? field.view : defaultValue}}&nbsp;
     </div>
+    <i class="condition-field-combo-icon dropdown-caret icon-color-default"
+       [class.chevron-up-icon]="dropdownOpen"
+       [class.chevron-down-icon]="!dropdownOpen"
+       aria-hidden="true"></i>
   </div>
   @if (showSearch) {
     <input #searchInput type="text" class="search-field form-control"

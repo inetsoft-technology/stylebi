@@ -153,8 +153,8 @@
         @if (hasScript) {
           <i class="javascript-icon me-1" (click)="onOpenScript.emit(vs)"></i>
         }
-        <button type="button" class="btn btn-sm btn-primary me-1 text-nowrap" (click)="openConsoleDialog()">
-          _#(Console) <span class="badge console-count-badge" [class.console-blink]="newInfoConsoleMessages && hideNotifications">{{consoleMessages ? consoleMessages.length : 0}}</span>
+        <button type="button" class="btn btn-sm btn-default rounded-pill me-1 text-nowrap" (click)="openConsoleDialog()">
+          _#(Console) <span class="badge console-count-badge ms-2" [class.console-blink]="newInfoConsoleMessages && hideNotifications">{{consoleMessages ? consoleMessages.length : 0}}</span>
         </button>
         @if (layoutToolbarVisible) {
           <form class="shell-inline-form layout-dropdown-group">
