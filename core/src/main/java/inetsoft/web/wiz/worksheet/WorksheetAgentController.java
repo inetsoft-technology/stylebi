@@ -33,6 +33,9 @@ import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.sync.DependencyTransformer;
+import inetsoft.uql.asset.sync.RenameDependencyInfo;
+import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.erm.*;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.uql.asset.internal.*;
@@ -60,6 +63,7 @@ import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
+import inetsoft.web.composer.ws.service.SaveWorksheetService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.RenderWaitSupport;
@@ -115,7 +119,8 @@ public class WorksheetAgentController {
                                    QueryManagerService queryManagerService,
                                    LayoutGraphService layoutGraphService,
                                    DataSourceService dataSourceService,
-                                   SecurityEngine securityEngine)
+                                   SecurityEngine securityEngine,
+                                   RenameTransformHandler renameTransformHandler)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -132,6 +137,7 @@ public class WorksheetAgentController {
       this.layoutGraphService = layoutGraphService;
       this.dataSourceService = dataSourceService;
       this.securityEngine = securityEngine;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    // ---------------------------------------------------------------------------
@@ -991,29 +997,52 @@ public class WorksheetAgentController {
          throw new PairingException("Failed to save worksheet: " + e.getMessage(), e);
       }
 
-      // Bug PVA-002: a connected viewsheet's bindable-fields view (list_bindable_fields) is
-      // served from a lazy wall-clock Worksheet.getLastModified() comparison
-      // (BindableFieldsService.list() / CubeTreeModelBuilder), re-checked only on the next read --
-      // nothing here previously told a live viewsheet its base worksheet just changed. Reset
-      // every connected runtime synchronously so the next read is never stale, instead of leaving
-      // it to notice on its own. Only applies to a plain save-in-place: a Save-As writes under a
-      // brand-new entry no viewsheet points at yet (see the PVA-003 warning above for that case),
-      // and a first save out of TEMPORARY_SCOPE is likewise a brand-new entry nothing could have
-      // been pointing at before.
-      //
-      // NOTE: does NOT address PVA-009 (set_table_source/set_chart_source's "Available" guard) --
-      // per docs/teams/2026-08-29-bugs-plugin-composer-corpus/cluster-C/03-escalate-pva008.md,
-      // that guard is VSBindingService.createSourceTables, a different code path with no
-      // timestamp/cache mechanism this reset touches at all. PVA-009's pairing with PVA-002 is
-      // unconfirmed; excluded from this fix pass.
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("ok", true);
+
+      // Only applies to a plain save-in-place: a Save-As writes under a brand-new entry no
+      // viewsheet points at yet (see the PVA-003 warning above for that case), and a first save
+      // out of TEMPORARY_SCOPE is likewise a brand-new entry nothing could have been pointing at
+      // before.
       if(!isSaveAs && !wasTemporary) {
+         // Bug PVA-011: the Composer UI's own Save button runs a "Dependencies Changed" cascade
+         // after every in-place save (SaveWorksheetService.saveWorksheet(), lines 84-90) that
+         // rewrites any already-saved dependent asset's (e.g. a viewsheet's) stored binding to
+         // match a renamed table/column. There is no human present in an MCP session to answer
+         // that dialog, so default to "yes, update" unconditionally. Run this before the PVA-002
+         // reset below so the reset picks up the just-rewritten dependent binding rather than a
+         // stale one.
+         RenameDependencyInfo dinfo = DependencyTransformer.createRenameInfo(rws);
+
+         if(!dinfo.getDependencyMap().isEmpty()) {
+            // Synchronous (waitDone=true), unlike SaveWorksheetService's fire-and-forget call: this
+            // tool's callers immediately chain get_binding/list_bindable_fields, and this area has
+            // already produced a propagation-lag bug class (PVA-008/PVA-009) from returning success
+            // before an async cluster task actually lands.
+            renameTransformHandler.addTransformTask(dinfo, true);
+            result.put("dependenciesUpdated", true);
+            result.put("message",
+                       "Worksheet saved; renamed column(s)/table(s) propagated to dependent asset(s).");
+         }
+
+         SaveWorksheetService.initWorksheetOldName(rws);
+
+         // Bug PVA-002: a connected viewsheet's bindable-fields view (list_bindable_fields) is
+         // served from a lazy wall-clock Worksheet.getLastModified() comparison
+         // (BindableFieldsService.list() / CubeTreeModelBuilder), re-checked only on the next read
+         // -- nothing here previously told a live viewsheet its base worksheet just changed. Reset
+         // every connected runtime synchronously so the next read is never stale, instead of
+         // leaving it to notice on its own.
+         //
+         // NOTE: does NOT address PVA-009 (set_table_source/set_chart_source's "Available" guard)
+         // -- per docs/teams/2026-08-29-bugs-plugin-composer-corpus/cluster-C/03-escalate-pva008.md,
+         // that guard is VSBindingService.createSourceTables, a different code path with no
+         // timestamp/cache mechanism this reset touches at all. PVA-009's pairing with PVA-002 is
+         // unconfirmed; excluded from this fix pass.
          for(RuntimeViewsheet connected : connectedViewsheets(entry, user)) {
             connected.resetRuntime();
          }
       }
-
-      Map<String, Object> result = new LinkedHashMap<>();
-      result.put("ok", true);
 
       if(!affectedViewsheets.isEmpty()) {
          result.put("warning", "This Save-As created a new copy at \"" + entry.toView() +
@@ -3058,6 +3087,7 @@ public class WorksheetAgentController {
    private final LayoutGraphService layoutGraphService;
    private final DataSourceService dataSourceService;
    private final SecurityEngine securityEngine;
+   private final RenameTransformHandler renameTransformHandler;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetAgentController.class);
 
    // Mirrors ViewsheetEditService.TABLE_WARM_MAX_ATTEMPTS/TABLE_WARM_RETRY_SLEEP_MS: the same
