@@ -118,7 +118,7 @@ public class PortalController {
       String vizDensity = SreeEnv.getProperty("viewsheet.density", false, true);
 
       if(vizDensity == null || vizDensity.isEmpty()) {
-         vizDensity = "dense";
+         vizDensity = "compact";
       }
 
       PortalCreationPermisisons creationModel = refreshPortalCreationPermissions(principal);

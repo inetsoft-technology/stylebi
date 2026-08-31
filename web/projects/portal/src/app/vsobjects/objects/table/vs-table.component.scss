@@ -105,6 +105,12 @@ $stacking-order: (
 
 .table-focus-row {
   > tbody > tr:hover > * {
-    background-color: var(--inet-viz-hover-bg) !important;
+    background-color: var(--inet-ws-row-hover-bg) !important;
   }
+}
+
+// modern fill follows the assembly mark, not the body-level shell class, so an unmarked
+// table keeps the legacy hover above. Paired with viz-dark on the same wrapper for dark.
+:host-context(.viz-modern) .table-focus-row > tbody > tr:hover > * {
+  background-color: var(--inet-viz-hover-bg) !important;
 }

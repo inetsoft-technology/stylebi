@@ -72,3 +72,59 @@ describe("GuiTool density mode", () => {
       expect(GuiTool.vizDensityMode()).toBe("comfortable");
    });
 });
+
+describe("GuiTool.isVizModernElement", () => {
+   let container: HTMLElement;
+
+   afterEach(() => {
+      if(container) {
+         container.remove();
+         container = null;
+      }
+
+      document.body.classList.remove("viz-shell");
+   });
+
+   it("returns true when the element itself carries viz-modern", () => {
+      container = document.createElement("div");
+      container.classList.add("viz-modern");
+      document.body.appendChild(container);
+
+      expect(GuiTool.isVizModernElement(container)).toBe(true);
+   });
+
+   it("returns true when an ancestor carries viz-modern", () => {
+      container = document.createElement("div");
+      container.classList.add("viz-modern");
+      const child = document.createElement("div");
+      const grandchild = document.createElement("span");
+      child.appendChild(grandchild);
+      container.appendChild(child);
+      document.body.appendChild(container);
+
+      // native closest matches self-or-ancestor, so a nested descendant still finds it
+      expect(GuiTool.isVizModernElement(grandchild)).toBe(true);
+   });
+
+   it("returns false when neither the element nor any ancestor carries viz-modern", () => {
+      container = document.createElement("div");
+      const child = document.createElement("span");
+      container.appendChild(child);
+      document.body.appendChild(container);
+
+      expect(GuiTool.isVizModernElement(child)).toBe(false);
+   });
+
+   it("returns false for a null element without throwing", () => {
+      expect(GuiTool.isVizModernElement(null)).toBe(false);
+   });
+
+   it("ignores the org-level viz-shell class on the body", () => {
+      document.body.classList.add("viz-shell");
+      container = document.createElement("div");
+      document.body.appendChild(container);
+
+      // viz-shell is a body-level flag; the per-assembly mark must not read it
+      expect(GuiTool.isVizModernElement(container)).toBe(false);
+   });
+});

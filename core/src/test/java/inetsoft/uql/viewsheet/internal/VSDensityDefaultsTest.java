@@ -44,6 +44,20 @@ class VSDensityDefaultsTest {
    }
 
    @Test
+   void unsetResolvesCompact() {
+      // the shipped default, not the legacy dense mode
+      SreeEnv.setProperty("viewsheet.density", null);
+      assertEquals("compact", VSDensityDefaults.mode());
+   }
+
+   @Test
+   void explicitDenseStillWins() {
+      // an org that pinned dense stays on dense no matter what the shipped default is
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      assertEquals("dense", VSDensityDefaults.mode());
+   }
+
+   @Test
    void denseModeMatchesLegacyDataRowHeight() {
       // dense == today's default, so enabling modern at the default mode reflows nothing
       assertEquals(AssetUtil.defh, VSDensityDefaults.rowHeightForMode("dense"));
@@ -94,6 +108,7 @@ class VSDensityDefaultsTest {
    @Test
    void isDarkRequiresModern() {
       // dark alone, without modern, is inert
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       assertFalse(VSDensityDefaults.isDark());
    }
@@ -113,6 +128,7 @@ class VSDensityDefaultsTest {
 
    @Test
    void titleHeightIsDefhWhenGateIsOff() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
       assertEquals(AssetUtil.defh, VSDensityDefaults.titleHeight(VizContext.ofGate()));
    }
 

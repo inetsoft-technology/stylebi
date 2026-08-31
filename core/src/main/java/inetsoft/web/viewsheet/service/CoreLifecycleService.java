@@ -306,7 +306,7 @@ public class CoreLifecycleService {
                      SreeEnv.getBooleanProperty("viewsheet.modernVisualization", false, true));
          String vizDensity = SreeEnv.getProperty("viewsheet.density", false, true);
          infoMap.put("vizDensity",
-                     vizDensity == null || vizDensity.isEmpty() ? "dense" : vizDensity);
+                     vizDensity == null || vizDensity.isEmpty() ? "compact" : vizDensity);
          infoMap.put("darkMode",
                      SreeEnv.getBooleanProperty("viewsheet.darkMode", false, true));
          // recomputed on every refresh, so the composer's Modernize affordance disappears when the

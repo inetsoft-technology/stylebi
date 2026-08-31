@@ -25,12 +25,21 @@ class VSChartInteractionDefaultsTest {
    }
 
    @Test
-   void offByDefaultWhenLegacy() {
+   void onWhenNothingIsSet() {
+      // the shipped default resolves the gate on, so an untouched install gets inline SVG
+      SreeEnv.setProperty("viewsheet.modernVisualization", null);
+      assertTrue(VSChartInteractionDefaults.isInlineSvg());
+   }
+
+   @Test
+   void offWhenGateExplicitlyOff() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
       assertFalse(VSChartInteractionDefaults.isInlineSvg());
    }
 
    @Test
    void explicitTrueStillWinsWhenLegacy() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
       SreeEnv.setProperty("graph.svg.inline", "true");
       assertTrue(VSChartInteractionDefaults.isInlineSvg());
    }

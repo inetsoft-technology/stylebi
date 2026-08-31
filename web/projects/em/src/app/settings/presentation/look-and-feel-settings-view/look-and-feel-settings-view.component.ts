@@ -85,7 +85,7 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
          this.form.get("expand").setValue(model.expand, {emitEvent: false});
          this.form.get("modernVisualization").setValue(model.modernVisualization, {emitEvent: false});
          this.form.get("darkMode").setValue(!!model.darkMode, {emitEvent: false});
-         this.form.get("visualizationDensity").setValue(model.visualizationDensity ?? "dense", {emitEvent: false});
+         this.form.get("visualizationDensity").setValue(model.visualizationDensity ?? "compact", {emitEvent: false});
          this.updateFormFile("Logo", model);
          this.updateFormFile("Favicon", model);
          this.updateFormFile("Viewsheet", model);
@@ -107,9 +107,9 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
          this.form.get("viewsheetFile").setValue(null, {emitEvent: false});
          this.form.get("userformatFile").setValue(null, {emitEvent: false});
          this.form.get("defaultFonts").setValue(true, {emitEvent: false});
-         this.form.get("modernVisualization").setValue(false, {emitEvent: false});
+         this.form.get("modernVisualization").setValue(true, {emitEvent: false});
          this.form.get("darkMode").setValue(false, {emitEvent: false});
-         this.form.get("visualizationDensity").setValue("dense", {emitEvent: false});
+         this.form.get("visualizationDensity").setValue("compact", {emitEvent: false});
       }
    }
 
@@ -136,9 +136,9 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
             userformatFile: [null],
             defaultFonts: [true],
             selectedTheme: ["default"],
-            modernVisualization: [false],
+            modernVisualization: [true],
             darkMode: [false],
-            visualizationDensity: ["dense"]
+            visualizationDensity: ["compact"]
          },
          {
             validator: [
