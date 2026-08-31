@@ -150,7 +150,7 @@ implements OnInit, OnChanges, OnDestroy
    }
 
    isInputDisabled(): boolean {
-      return !this.viewer && (!this.selected || !this.model?.editing);
+      return this.model.vizModern && !this.viewer && (!this.selected || !this.model?.editing);
    }
 
    get isIncrementDisabled(): boolean {
@@ -233,6 +233,12 @@ implements OnInit, OnChanges, OnDestroy
    }
 
    onClick(event: MouseEvent) {
+      if(!this.model.vizModern) {
+         // legacy spinners have no select-then-edit gate, so the input is always directly
+         // interactive; stop the click from also selecting/dragging the composer object.
+         event.stopPropagation();
+      }
+
       this.validate();
       this.spinnerClicked.emit(this.model.absoluteName);
       this.unappliedChange = true;
