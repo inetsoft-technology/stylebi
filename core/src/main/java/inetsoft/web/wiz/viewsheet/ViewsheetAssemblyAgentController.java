@@ -132,6 +132,11 @@ public class ViewsheetAssemblyAgentController {
                               session.sheetType().name().toLowerCase(), session.editorContext());
    }
 
+   /** {@code force} closes a worksheet session already held for this identity instead of
+    *  refusing; absent (including a body-less request from a client predating this field) means
+    *  false, matching every other {@code force} request record on this controller. */
+   public record OpenBaseWorksheetRequest(Boolean force) {}
+
    /**
     * Opens the base worksheet of the viewsheet paired to {@code sessionToken} and pairs a new
     * session for it. {@link SheetOpenService} performs every guard and the browser broadcast;
@@ -139,11 +144,14 @@ public class ViewsheetAssemblyAgentController {
     * returns, with {@code sheetType} read off the session rather than assumed by the caller.
     */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/open-base-worksheet")
-   public JoinResponse openBaseWorksheet(@PathVariable String sessionToken, Principal user)
+   public JoinResponse openBaseWorksheet(@PathVariable String sessionToken,
+                                          @RequestBody(required = false) OpenBaseWorksheetRequest body,
+                                          Principal user)
       throws Exception
    {
       requireEnabled();
-      JoinSession session = openService.openBaseWorksheet(sessionToken, user);
+      boolean force = body != null && Boolean.TRUE.equals(body.force());
+      JoinSession session = openService.openBaseWorksheet(sessionToken, user, force);
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
                               session.sheetType().name().toLowerCase(), session.editorContext());
    }
