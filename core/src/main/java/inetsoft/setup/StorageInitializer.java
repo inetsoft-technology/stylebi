@@ -20,6 +20,7 @@ package inetsoft.setup;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.storage.LoadKeyValueTask;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.HashedPassword;
 import inetsoft.util.PasswordEncryption;
 import inetsoft.util.config.InetsoftConfig;
@@ -87,6 +88,15 @@ public class StorageInitializer implements Callable<Integer> {
 
    @Override
    public Integer call() throws Exception {
+      // Publish the configuration directory as the home before anything can initialize the
+      // InetsoftConfig singleton. Cluster.getInstance(), called while installing plugins, does
+      // just that. If the home is not set first, the singleton config is cached with the default
+      // home (the working directory) and everything later written through it -- including the
+      // assets imported by the local client -- lands outside of the configuration directory.
+      String home = configDirectory.getAbsolutePath();
+      System.setProperty("sree.home", home);
+      ConfigurationContext.getContext().setHome(home);
+
       boolean initialized = isInitialized();
 
       if(initialized) {
