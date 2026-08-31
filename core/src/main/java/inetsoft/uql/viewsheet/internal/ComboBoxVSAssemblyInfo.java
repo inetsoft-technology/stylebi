@@ -422,6 +422,10 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
          objFormat.getDefaultFormat().setRoundCornerValue(
             ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 0);
       }
+
+      if(ctx.modern && getPixelSize().height == AssetUtil.defh) {
+         setPixelSize(new Dimension(getPixelSize().width, VSDensityDefaults.controlHeight(ctx)));
+      }
    }
 
    /**

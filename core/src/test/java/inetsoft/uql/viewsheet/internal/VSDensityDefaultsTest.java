@@ -85,6 +85,42 @@ class VSDensityDefaultsTest {
    }
 
    @Test
+   void denseControlHeightIsNotLegacyDefh() {
+      // control height is the one tier that steps up even at dense - a standalone form input
+      // reads as cramped at the tightest data-row height, unlike row/header/title height
+      assertEquals(24, VSDensityDefaults.controlHeightForMode("dense"));
+      assertNotEquals(AssetUtil.defh, VSDensityDefaults.controlHeightForMode("dense"));
+   }
+
+   @Test
+   void compactAndComfortableControlHeight() {
+      assertEquals(28, VSDensityDefaults.controlHeightForMode("compact"));
+      assertEquals(30, VSDensityDefaults.controlHeightForMode("comfortable"));
+   }
+
+   @Test
+   void unrecognizedControlModeFallsBackToDense() {
+      assertEquals(24, VSDensityDefaults.controlHeightForMode("bogus"));
+   }
+
+   @Test
+   void controlHeightIsDefhWhenGateIsOff() {
+      assertEquals(AssetUtil.defh, VSDensityDefaults.controlHeight(VizContext.ofGate()));
+   }
+
+   @Test
+   void aLegacyContextYieldsLegacyControlHeight() {
+      assertEquals(AssetUtil.defh, VSDensityDefaults.controlHeight(VizContext.LEGACY));
+   }
+
+   @Test
+   void aModernContextYieldsItsDensityControlHeight() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      assertEquals(30, VSDensityDefaults.controlHeight(VizContext.of(VizMark.MODERN_LIGHT)));
+   }
+
+   @Test
    void normalizeModeKeepsRecognizedValues() {
       assertEquals("comfortable", VSDensityDefaults.normalizeMode("comfortable"));
       assertEquals("compact", VSDensityDefaults.normalizeMode("compact"));

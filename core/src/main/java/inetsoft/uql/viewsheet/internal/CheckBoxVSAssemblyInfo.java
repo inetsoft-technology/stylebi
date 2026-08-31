@@ -451,6 +451,13 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
          objFormat.getDefaultFormat().setRoundCornerValue(
             ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 0);
       }
+
+      // legacy default is 2 * defh (title lane + one data row); preserve that ratio rather than
+      // substituting a single control height, or a freshly-created checkbox would lose the room
+      // its second row needs.
+      if(ctx.modern && getPixelSize().height == 2 * AssetUtil.defh) {
+         setPixelSize(new Dimension(getPixelSize().width, 2 * VSDensityDefaults.controlHeight(ctx)));
+      }
    }
 
    /**
