@@ -60,8 +60,26 @@
              [class.disabled]="!newDatasourceEnabled"
              (click)="addFolder()">
           </i>
+          @if (selectionOn) {
+            <i role="button" class="btn py-1 folder-move-icon"
+               title="_#(data.datasets.moveSelected)"
+               [class.disabled]="moveDisable"
+               (click)="moveSelected()">
+            </i>
+            <i role="button" class="btn py-1 trash-icon"
+               title="_#(data.datasets.deleteSelected)"
+               [class.disabled]="selectedItems.length === 0 || !isSelectionDeletable()"
+               (click)="deleteSelected()">
+            </i>
+          }
+          <i role="button" class="btn py-1"
+             [class.selected-icon]="selectionOn"
+             [class.select-empty-icon]="!selectionOn"
+             [title]="toggleSelectTooltip"
+             (click)="toggleSelectionState()">
+          </i>
           </div>
-          @if (currentFolderActionsVisible) {
+          @if (currentFolderActionsVisible && !selectionOn) {
             <div class="datasource-workspace-actions__divider"></div>
             <div class="btn-group datasource-btn-group" role="group">
               <i role="button" class="btn py-1 view-detail-meta-icon"
