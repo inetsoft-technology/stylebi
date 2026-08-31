@@ -159,11 +159,13 @@ implements OnInit, OnChanges, OnDestroy
    }
 
    get isIncrementDisabled(): boolean {
-      return !this.model.enabled || (this.model.value != null && this.model.value >= this.model.max);
+      return !this.model.enabled ||
+         (this.model.max != null && this.model.value != null && this.model.value >= this.model.max);
    }
 
    get isDecrementDisabled(): boolean {
-      return !this.model.enabled || (this.model.value != null && this.model.value <= this.model.min);
+      return !this.model.enabled ||
+         (this.model.min != null && this.model.value != null && this.model.value <= this.model.min);
    }
 
    onIncrementClick(): void {

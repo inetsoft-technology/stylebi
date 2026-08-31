@@ -817,6 +817,16 @@ describe("VSSpinner — isIncrementDisabled / isDecrementDisabled", () => {
       expect(comp.isDecrementDisabled).toBe(true);
    });
 
+   it("should NOT disable increment when max is unset, regardless of value", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 50, max: null } as any) });
+      expect(comp.isIncrementDisabled).toBe(false);
+   });
+
+   it("should NOT disable decrement when min is unset, regardless of value", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 50, min: null } as any) });
+      expect(comp.isDecrementDisabled).toBe(false);
+   });
+
    it("should NOT disable decrement when enabled and above min", () => {
       const { comp } = createComponent({ model: makeModel({ value: 50, min: 0 }) });
       expect(comp.isDecrementDisabled).toBe(false);
