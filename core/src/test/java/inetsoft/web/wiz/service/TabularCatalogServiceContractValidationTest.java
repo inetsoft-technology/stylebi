@@ -47,7 +47,11 @@ import static org.mockito.Mockito.when;
  * C6 itself still missed the uniqueness half of both "non-blank and unique within one catalog"
  * ({@code TabularDatasetRef.id}) and "stable identifier ... within the catalog"
  * ({@code TabularRelationship.name}), plus (r2 nit 2) that {@code TabularDatasetSchema.keyColumns}
- * entries must actually be one of the dataset's own reported {@code columns}.
+ * entries must actually be one of the dataset's own reported {@code columns}. Extended a third
+ * time after P5 review r3 (the lead's scope decision on r2's reported candidates, item 1):
+ * {@code TabularDatasetSchema.datasetId} must echo the {@code describeTable} target it was asked
+ * to describe — {@code toDataset} uses {@code schema.datasetId()}, not the requested target, to
+ * label the resulting {@code OsiDataset}, so an unchecked mismatch would silently mislabel it.
  *
  * Kept out of {@link TabularCatalogServiceTest} deliberately — that file's stated scope is charter
  * assertion B5 (core carries zero OData knowledge), and charter assertion C5 requires it stay
@@ -324,5 +328,29 @@ class TabularCatalogServiceContractValidationTest {
       assertTrue(ex.getMessage().contains(DS_NAME));
       assertTrue(ex.getMessage().contains("NotAColumn"),
          "message must name the offending key column: " + ex.getMessage());
+   }
+
+   // ----- C6 (r3, candidate #1): TabularDatasetSchema.datasetId must echo the requested target -----
+
+   @Test
+   void describeTable_schemaDatasetIdDoesNotMatchTarget_throwsNamedException() throws Exception {
+      // The connector was asked to describe "Products" but answered with a schema self-labeled
+      // as "Categories" — FakeCatalogRuntime's Map key ("Products") is what describeTable is
+      // called with; the schema's own datasetId field is independent and simulates the bug.
+      TabularDatasetSchema schema = new TabularDatasetSchema("Categories",
+         List.of(new TabularColumn("ID", XSchema.LONG)), List.of());
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(
+         new TabularCatalog(List.of(), List.of()), Map.of("Products", schema));
+      TabularCatalogService service = createService(dsName -> runtime);
+
+      Exception ex = assertThrows(Exception.class,
+         () -> service.describeTable(DS_NAME, "Products"));
+
+      assertFalse(ex instanceof UnsupportedDatasourceException);
+      assertTrue(ex.getMessage().contains(DS_NAME));
+      assertTrue(ex.getMessage().contains("Products"),
+         "message must name the requested target: " + ex.getMessage());
+      assertTrue(ex.getMessage().contains("Categories"),
+         "message must name the schema's actual (wrong) datasetId: " + ex.getMessage());
    }
 }

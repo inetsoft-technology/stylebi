@@ -45,6 +45,17 @@ import java.util.List;
  * permanently unresolvable declared edge, worse than no edge at all. Honest-drop, same rule OData's
  * own design already established: when no candidate pairing can be verified, drop it and say so.
  *
+ * <p><b>Stated residual (P5 review r2, declined by the lead as candidate work):</b> even where a
+ * connector DOES emit relationships, {@code TabularCatalogService} does not verify that
+ * {@code TabularRelationship.fromColumns}/{@code toColumns} actually name real columns of
+ * {@code fromDataset}/{@code toDataset}'s own reported schema — see
+ * {@link TabularRelationship}'s javadoc for the same note. Checking it would mean the
+ * {@code listDatasets} phase transitively calling {@code describeDataset} for every dataset any
+ * relationship references, which reverses the two-phase separation this class's own no-cache
+ * decision above depends on. Not enforced, and said to be not enforced, rather than silently
+ * assumed — this connector's own honest-drop above sidesteps the question by emitting no
+ * relationships at all, but the gap is in the shared validation layer, not specific to SharePoint.
+ *
  * <p><b>{@code describeDataset} does NOT validate that {@code datasetId} was one this same data
  * source's own {@code listDatasets} actually enumerated</b> — a real, deliberate gap, not an
  * oversight (raised in P5 review r1). {@link SharepointDatasetId#parse} rejects anything that could

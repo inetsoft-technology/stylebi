@@ -171,10 +171,24 @@ public class TabularCatalogService {
          throw new Exception("Data source '" + dsName + "' target '" + target +
             "' returned no columns — cannot annotate.");
       }
+      validateDatasetIdEchoed(dsName, target, schema);
       validateColumnNames(dsName, target, schema.columns());
       validateKeyColumns(dsName, target, schema);
 
       return toDataset(dsName, xrepository.getDataSource(dsName).getType(), schema, objectMapper);
+   }
+
+   private static void validateDatasetIdEchoed(String dsName, String target,
+                                               TabularDatasetSchema schema) throws Exception
+   {
+      if(!target.equals(schema.datasetId())) {
+         // TabularDatasetSchema.datasetId's javadoc: "echoes the id that was asked for, so a
+         // result is self-identifying." toDataset() below uses schema.datasetId(), not target, to
+         // set OsiDataset.name/.source — a connector that answers with a different dataset's
+         // schema would silently corrupt which dataset the annotation ends up labeled as.
+         throw new Exception("Data source '" + dsName + "' was asked to describe target '" +
+            target + "' but returned a schema for '" + schema.datasetId() + "' instead.");
+      }
    }
 
    private static void validateColumnNames(String dsName, String target, List<TabularColumn> columns)
