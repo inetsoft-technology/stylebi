@@ -146,13 +146,14 @@ class VSTableStructureDefaultsTest {
    @Test
    void darkInertWithoutModern() {
       // dark set but modern off => still light-modern constants are irrelevant; isDark() is false
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       assertEquals(0xE8E5DE, rgb(VSTableStructureDefaults.gridlineColor(VizContext.ofGate())));
    }
 
    @Test
    void lightAndDarkDifferOnTheHeaderAndBody() {
-      // of(VizMark) also requires the gate for dark to take effect: modern = gate && mark != null
+      // of(VizMark) ignores the gate: modern = mark != null, and the mark alone carries dark
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       VizContext light = VizContext.of(VizMark.MODERN_LIGHT);
       VizContext dark = VizContext.of(VizMark.MODERN_DARK);

@@ -85,9 +85,10 @@ class VizContextTest {
    }
 
    @Test
-   void densityFallsBackToDense() {
+   void densityFallsBackToTheShippedDefault() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-      assertEquals("dense", VizContext.ofGate().density);
+      SreeEnv.setProperty("viewsheet.density", null);
+      assertEquals("compact", VizContext.ofGate().density);
 
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       assertEquals("comfortable", VizContext.ofGate().density);

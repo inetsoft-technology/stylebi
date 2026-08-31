@@ -70,12 +70,19 @@ export class GuiTool {
    }
 
    // The mini-toolbar is positioned by JS (mini-toolbar.component.ts topY), so the height it assumes
-   // must match the rendered height. vizModern is the caller's own resolved gate (per-assembly, or
-   // the org-level shell approximation where no assembly model is available).
+   // must match the rendered height. vizModern is the caller's own resolved gate, per-assembly.
    static getMiniToolbarHeight(vizModern: boolean): number {
       return vizModern
          ? GuiTool.MINI_TOOLBAR_HEIGHT_MODERN
          : GuiTool.MINI_TOOLBAR_HEIGHT;
+   }
+
+   // Per-assembly mark read off the DOM, for positioning code that has an element but no model.
+   // Mirrors the :host-context(.viz-modern) rule that pins the compact height, so the assumed
+   // height always matches the rendered one; the wrapper class is bound per-assembly, so its
+   // absence means unmarked, never unknown.
+   static isVizModernElement(element: Element): boolean {
+      return element != null && element.closest(".viz-modern") != null;
    }
 
    // Density reaches the browser as a viz-density-<mode> body class, set by the portal, composer

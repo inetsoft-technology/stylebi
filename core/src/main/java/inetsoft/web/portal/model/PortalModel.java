@@ -54,12 +54,12 @@ public abstract class PortalModel {
 
    @Value.Default
    public boolean modernVisualization() {
-      return false;
+      return true;
    }
 
    @Value.Default
    public String vizDensity() {
-      return "dense";
+      return "compact";
    }
 
    @Value.Default

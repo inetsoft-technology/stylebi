@@ -108,6 +108,7 @@ class VSChartPaletteDefaultsTest {
    @Test
    void darkInertWithoutModern() {
       // dark set but modern off => palette untouched (legacy head)
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       CategoricalColorFrame frame = new CategoricalColorFrame();
       VSChartPaletteDefaults.applyModernPalette(frame, VizContext.ofGate());

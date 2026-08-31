@@ -61,7 +61,7 @@ public class LookAndFeelService {
       boolean darkMode = SreeEnv.getBooleanProperty("viewsheet.darkMode", false, !globalProperty);
 
       if(visualizationDensity == null || visualizationDensity.isEmpty()) {
-         visualizationDensity = "dense";
+         visualizationDensity = "compact";
       }
       boolean repositoryTree = manager.getReportListType() == 0;
       boolean expand = manager.isAutoExpand();

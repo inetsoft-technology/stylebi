@@ -22,8 +22,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.util.Tool;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -47,6 +46,18 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class ChartInfoTooltipPersistenceTest {
+   @BeforeEach
+   void gateOff() {
+      // the subject here is the runtime/design split, not the org default; the two tests that
+      // are about the gate set their own value
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+   }
+
+   @AfterEach
+   void reset() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", null);
+   }
+
    @Test
    void scriptRuntimeWriteDoesNotMutateDesign() {
       VSChartInfo info = new VSChartInfo();
@@ -109,8 +120,8 @@ class ChartInfoTooltipPersistenceTest {
    void legacyXmlMissingTooltipStyleBecomesAuto() throws Exception {
       // Older charts predating the tooltipStyle attribute carry no explicit choice, so
       // the design value becomes AUTO and defers to the org modern-visualization default.
-      // With the gate off (default in tests) the runtime style resolves to DEFAULT, so a
-      // legacy chart keeps its original look until modern is enabled org-wide.
+      // With the gate off the runtime style resolves to DEFAULT, so a legacy chart keeps
+      // its original look in an org that has opted out.
       Document doc = Tool.parseXML(new StringReader("<VSChartInfo/>"));
       VSChartInfo parsed = new VSChartInfo();
       parsed.parseXML(doc.getDocumentElement());
@@ -125,7 +136,7 @@ class ChartInfoTooltipPersistenceTest {
    @Test
    void newChartDefaultsToAutoAndResolvesToLegacyWhenGateOff() {
       // A brand-new chart carries no explicit choice (AUTO); with the gate off it
-      // renders the legacy tooltip, so nothing changes until modern is enabled.
+      // renders the legacy tooltip, so an org that has opted out sees no change.
       VSChartInfo info = new VSChartInfo();
 
       assertEquals(ChartInfo.TooltipStyle.AUTO, info.getTooltipStyleValue());
@@ -134,20 +145,24 @@ class ChartInfoTooltipPersistenceTest {
 
    @Test
    void autoResolvesToCardWhenModernGateOn() {
-      String saved = SreeEnv.getProperty("viewsheet.modernVisualization");
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      VSChartInfo info = new VSChartInfo();
 
-      try {
-         SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-         VSChartInfo info = new VSChartInfo();
+      assertEquals(ChartInfo.TooltipStyle.AUTO, info.getTooltipStyleValue(),
+                   "design value stays AUTO regardless of the gate");
+      assertEquals(ChartInfo.TooltipStyle.CARD, info.getTooltipStyle(),
+                   "AUTO resolves to CARD when the modern gate is on");
+   }
 
-         assertEquals(ChartInfo.TooltipStyle.AUTO, info.getTooltipStyleValue(),
-                      "design value stays AUTO regardless of the gate");
-         assertEquals(ChartInfo.TooltipStyle.CARD, info.getTooltipStyle(),
-                      "AUTO resolves to CARD when the modern gate is on");
-      }
-      finally {
-         SreeEnv.setProperty("viewsheet.modernVisualization", saved);
-      }
+   @Test
+   void autoResolvesToCardWhenNothingIsSet() {
+      // the shipped default resolves the gate on, so a chart carrying no explicit style -
+      // including every chart saved before the attribute existed - takes the card tooltip
+      SreeEnv.setProperty("viewsheet.modernVisualization", null);
+      VSChartInfo info = new VSChartInfo();
+
+      assertEquals(ChartInfo.TooltipStyle.AUTO, info.getTooltipStyleValue());
+      assertEquals(ChartInfo.TooltipStyle.CARD, info.getTooltipStyle());
    }
 
    @Test
