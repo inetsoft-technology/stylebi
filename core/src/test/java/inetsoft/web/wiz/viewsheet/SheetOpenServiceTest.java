@@ -141,6 +141,51 @@ class SheetOpenServiceTest {
    }
 
    /**
+    * PSM-006: without an explicit {@code force} argument, the 2-arg overload must refuse exactly
+    * as before -- the safety check this whole feature relies on (a held session may belong to a
+    * different, concurrently-running agent) must not be silently weakened by adding the flag.
+    */
+   @Test
+   void threeArgOverloadWithForceFalseRefusesJustLikeTheTwoArgOverload() {
+      SheetOpenService service = serviceWithBase(worksheetEntry(), true, "ws-existing");
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.openBaseWorksheet("tok-vs", principal(), false));
+
+      assertTrue(thrown.getMessage().contains("ws-existing"), thrown.getMessage());
+      verify(sheetSessions, never()).close(anyString());
+   }
+
+   /**
+    * PSM-006's recovery path: a session orphaned by a client that lost the local pointer needed to
+    * name it for {@code detach_sheet} can still be recovered by closing it server-side and
+    * proceeding, instead of leaving the caller stuck until the TTL expires it.
+    */
+   @Test
+   void forceClosesTheHeldSessionAndOpensTheNewOneInstead() throws Exception {
+      SheetOpenService service = serviceWithBase(worksheetEntry(), true, "ws-existing");
+
+      JoinSession opened = service.openBaseWorksheet("tok-vs", principal(), true);
+
+      verify(sheetSessions).close("tok-ws-held");
+      assertEquals(SheetType.WORKSHEET, opened.sheetType());
+      assertEquals("ws-runtime-1", opened.runtimeId());
+   }
+
+   /**
+    * {@code force:true} with nothing actually held must behave exactly like the ordinary happy
+    * path -- no session to close, so {@code close} must never be called.
+    */
+   @Test
+   void forceWithNothingHeldStillOpensNormallyWithoutClosingAnything() throws Exception {
+      SheetOpenService service = serviceWithBase(worksheetEntry(), true, null);
+
+      service.openBaseWorksheet("tok-vs", principal(), true);
+
+      verify(sheetSessions, never()).close(anyString());
+   }
+
+   /**
     * A session with no recorded socket cannot reach a browser, so the worksheet would open
     * nowhere. Refusing beats opening a runtime the user never sees and cannot close.
     */
@@ -237,6 +282,60 @@ class SheetOpenServiceTest {
       service.openBaseWorksheet("tok-vs", principal());
 
       verify(worksheetService).openWorksheet(any(AssetEntry.class), same(BROWSER_PRINCIPAL));
+   }
+
+   /**
+    * PSM-006, against a REAL {@link SheetSessionService} rather than a mock -- proves the held
+    * session is actually closed (unreachable via a fresh {@code findOpen}), not merely that
+    * {@code close} was called with some argument a mock accepted regardless.
+    */
+   @Test
+   void forceActuallyClosesTheHeldSessionAgainstARealSheetSessionService() throws Exception {
+      SheetSessionService realSessions = new SheetSessionService();
+      JoinSession held = realSessions.open(
+         "ws-existing", OWNER, SheetType.WORKSHEET, "sock-1", SOCKET_USER, null);
+      assertNotNull(realSessions.findOpen(OWNER, SheetType.WORKSHEET), "sanity: session is held");
+
+      AssetEntry base = worksheetEntry();
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(base);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getUser()).thenReturn(BROWSER_PRINCIPAL);
+
+      JoinSession vsSession = new JoinSession(
+         "tok-vs", "vs-runtime-1", OWNER, SheetType.VIEWSHEET, 0L,
+         SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         "sock-1", SOCKET_USER, null);
+      ViewsheetSessionService viewsheetSessions = mock(ViewsheetSessionService.class);
+      when(viewsheetSessions.requireSessionAllowingPaneScope(anyString(), any(Principal.class)))
+         .thenReturn(vsSession);
+      when(viewsheetSessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      WorksheetService realWorksheetService = mock(WorksheetService.class);
+      when(realWorksheetService.openWorksheet(any(AssetEntry.class), any(Principal.class)))
+         .thenReturn("ws-runtime-new");
+
+      SecurityProvider securityProvider = mock(SecurityProvider.class);
+      when(securityProvider.checkPermission(any(Principal.class), eq(ResourceType.WORKSHEET),
+                                             eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      SheetOpenService service = new SheetOpenService(
+         viewsheetSessions, realSessions, realWorksheetService, securityProvider,
+         mock(SheetAgentBroadcastService.class));
+
+      JoinSession opened = service.openBaseWorksheet("tok-vs", principal(), true);
+
+      assertEquals("ws-runtime-new", opened.runtimeId());
+      assertNull(realSessions.resolve(held.sessionToken(), OWNER),
+                "the held session must be actually closed, not just ignored");
+      // A fresh session for the new runtime is expected to be held now (openBaseWorksheet's own
+      // happy path mints one) -- the assertion is that it is the NEW one, not the stale one force
+      // was supposed to clear.
+      JoinSession stillFound = realSessions.findOpen(OWNER, SheetType.WORKSHEET);
+      assertNotNull(stillFound);
+      assertEquals("ws-runtime-new", stillFound.runtimeId());
    }
 
    // ── harness ───────────────────────────────────────────────────────────────

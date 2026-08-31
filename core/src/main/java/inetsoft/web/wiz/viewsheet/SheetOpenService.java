@@ -72,6 +72,24 @@ public class SheetOpenService {
     *                                  problem and, where there is one, the next tool to call.
     */
    public JoinSession openBaseWorksheet(String sessionToken, Principal user) throws Exception {
+      return openBaseWorksheet(sessionToken, user, false);
+   }
+
+   /**
+    * Open the base worksheet of the viewsheet paired to {@code sessionToken}, for {@code user}.
+    *
+    * @param force when {@code true} and a worksheet session is already held for this identity,
+    *              close it and proceed instead of refusing -- the recovery path for a session
+    *              orphaned by a client that lost the local pointer needed to name it for
+    *              {@code detach_sheet} (e.g. a prior {@code connect_sheet(force:true)} that
+    *              predates that client releasing what it replaces server-side).
+    *
+    * @throws IllegalArgumentException on every refusal, with a message naming the specific
+    *                                  problem and, where there is one, the next tool to call.
+    */
+   public JoinSession openBaseWorksheet(String sessionToken, Principal user, boolean force)
+      throws Exception
+   {
       JoinSession vsSession =
          viewsheetSessions.requireSessionAllowingPaneScope(sessionToken, user);
 
@@ -121,9 +139,18 @@ public class SheetOpenService {
       JoinSession held = sheetSessions.findOpen(vsSession.ownerIdentity(), SheetType.WORKSHEET);
 
       if(held != null) {
-         throw new IllegalArgumentException(
-            "A worksheet session is already open (runtimeId=" + held.runtimeId() + "). Call " +
-            "detach_sheet to close it before opening another base worksheet.");
+         if(!force) {
+            throw new IllegalArgumentException(
+               "A worksheet session is already open (runtimeId=" + held.runtimeId() + "). Call " +
+               "detach_sheet to close it, or -- if detach_sheet reports nothing connected because " +
+               "this held session is not in this client's local state -- call open_base_worksheet " +
+               "again with force:true to close it and open this one instead.");
+         }
+
+         // Best-effort: the caller is discarding this session either way, so a session the server
+         // has already forgotten (or that close() otherwise cannot fully act on) must not block
+         // the open that follows.
+         sheetSessions.close(held.sessionToken());
       }
 
       if(vsSession.socketSessionId() == null) {

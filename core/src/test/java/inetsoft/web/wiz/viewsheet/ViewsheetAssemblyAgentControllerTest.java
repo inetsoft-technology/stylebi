@@ -318,20 +318,57 @@ class ViewsheetAssemblyAgentControllerTest {
    @Test
    void openBaseWorksheetReturnsTheJoinShapeWithSheetTypeReported() throws Exception {
       SheetOpenService openService = mock(SheetOpenService.class);
-      when(openService.openBaseWorksheet(eq("tok-vs"), any()))
+      when(openService.openBaseWorksheet(eq("tok-vs"), any(), eq(false)))
          .thenReturn(new JoinSession("tok-ws", "ws-runtime-1", "alice", SheetType.WORKSHEET,
                                      0L, 1000L, JoinSession.ConnectionMode.PAIRED, "sock-1",
                                      "alice", null));
 
       ViewsheetAssemblyAgentController controller = controllerWith(openService);
 
-      var response = controller.openBaseWorksheet("tok-vs", principal());
+      var response = controller.openBaseWorksheet("tok-vs", null, principal());
 
       assertEquals("tok-ws", response.sessionToken());
       assertEquals("ws-runtime-1", response.runtimeId());
       // Reported by the server, never inferred: a plugin that guesses the runtime type files the
       // session under the wrong key and overwrites a live one while reporting success.
       assertEquals("worksheet", response.sheetType());
+   }
+
+   /**
+    * PSM-006: a body-less request (a client predating this field, or the plugin's own default)
+    * must default {@code force} to false, not throw on a null body.
+    */
+   @Test
+   void openBaseWorksheetDefaultsForceToFalseWhenTheRequestBodyIsAbsent() throws Exception {
+      SheetOpenService openService = mock(SheetOpenService.class);
+      when(openService.openBaseWorksheet(eq("tok-vs"), any(), eq(false)))
+         .thenReturn(new JoinSession("tok-ws", "ws-runtime-1", "alice", SheetType.WORKSHEET,
+                                     0L, 1000L, JoinSession.ConnectionMode.PAIRED, "sock-1",
+                                     "alice", null));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(openService);
+
+      controller.openBaseWorksheet("tok-vs", null, principal());
+
+      verify(openService).openBaseWorksheet(eq("tok-vs"), any(Principal.class), eq(false));
+   }
+
+   /** PSM-006: {@code force:true} in the request body must reach the service as {@code true}. */
+   @Test
+   void openBaseWorksheetPassesForceTrueThrough() throws Exception {
+      SheetOpenService openService = mock(SheetOpenService.class);
+      when(openService.openBaseWorksheet(eq("tok-vs"), any(), eq(true)))
+         .thenReturn(new JoinSession("tok-ws", "ws-runtime-1", "alice", SheetType.WORKSHEET,
+                                     0L, 1000L, JoinSession.ConnectionMode.PAIRED, "sock-1",
+                                     "alice", null));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(openService);
+
+      controller.openBaseWorksheet(
+         "tok-vs", new ViewsheetAssemblyAgentController.OpenBaseWorksheetRequest(true),
+         principal());
+
+      verify(openService).openBaseWorksheet(eq("tok-vs"), any(Principal.class), eq(true));
    }
 
    /**
@@ -345,14 +382,14 @@ class ViewsheetAssemblyAgentControllerTest {
    void openBaseWorksheetReturnsTheSessionsEditorContext() throws Exception {
       SheetOpenService openService = mock(SheetOpenService.class);
       EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
-      when(openService.openBaseWorksheet(eq("tok-vs"), any()))
+      when(openService.openBaseWorksheet(eq("tok-vs"), any(), eq(false)))
          .thenReturn(new JoinSession("tok-ws", "ws-runtime-1", "alice", SheetType.WORKSHEET,
                                      0L, 1000L, JoinSession.ConnectionMode.PAIRED, "sock-1",
                                      "alice", ctx));
 
       ViewsheetAssemblyAgentController controller = controllerWith(openService);
 
-      var response = controller.openBaseWorksheet("tok-vs", principal());
+      var response = controller.openBaseWorksheet("tok-vs", null, principal());
 
       assertEquals(ctx, response.editorContext());
    }

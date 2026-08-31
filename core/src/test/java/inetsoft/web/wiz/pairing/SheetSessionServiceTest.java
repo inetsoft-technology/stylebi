@@ -177,6 +177,31 @@ class SheetSessionServiceTest {
       assertEquals(session.sessionToken(), found.sessionToken());
    }
 
+   /**
+    * Pins the invariant PSM-006's fix (open_base_worksheet's {@code force} flag closing exactly
+    * the one session {@code findOpen} returned) relies on: {@code open()} never consults
+    * {@code findOpen} itself, so two pane-scoped sessions of the same (ownerIdentity, sheetType)
+    * -- e.g. a whole-sheet toolbar pairing plus a script-pane pairing on the same viewsheet -- may
+    * legitimately coexist. A fix that made {@code open()} evict whatever {@code findOpen} returns
+    * before minting a new session would silently kill a live, unrelated pane session the first
+    * time a second one is paired; this test would then fail because only one of the two tokens
+    * would still resolve.
+    */
+   @Test
+   void openTwiceForTheSameOwnerAndTypeLeavesBothSessionsLiveAndIndependentlyReachable() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession first = svc.open("rt-7a", "erin~;~org", SheetType.VIEWSHEET, "sock-1", "erin", null);
+      JoinSession second = svc.open(
+         "rt-7b", "erin~;~org", SheetType.VIEWSHEET, "sock-1", "erin",
+         new EditorContext("assemblyMain", "Chart1", null, null));
+
+      assertNotEquals(first.sessionToken(), second.sessionToken());
+      assertNotNull(svc.resolve(first.sessionToken(), "erin~;~org"),
+                    "the first session must still resolve after the second was opened");
+      assertNotNull(svc.resolve(second.sessionToken(), "erin~;~org"),
+                    "the second session must resolve independently of the first");
+   }
+
    @Test
    void expiresAPaneSessionWhenItsSocketGoesAway() {
       SheetSessionService svc = serviceAt(FIXED_NOW);
