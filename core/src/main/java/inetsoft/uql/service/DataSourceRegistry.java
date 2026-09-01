@@ -1662,7 +1662,8 @@ public class DataSourceRegistry implements MessageListener {
    public AssetEntry[] getEntries(String prefix) {
       ArrayList<AssetEntry> result;
       result = new ArrayList<>();
-      AssetEntry[] allEntries = getRoot().getEntries();
+      AssetFolder root = getRoot();
+      AssetEntry[] allEntries = root == null ? new AssetEntry[0] : root.getEntries();
 
       for(AssetEntry entry : allEntries) {
          if(entry.getPath().startsWith(prefix)) {
@@ -1683,7 +1684,8 @@ public class DataSourceRegistry implements MessageListener {
     */
    public AssetEntry[] getEntries(String prefix, AssetEntry.Type type) {
       ArrayList<AssetEntry> result = new ArrayList<>();
-      AssetEntry[] allEntries = getRoot().getEntries();
+      AssetFolder root = getRoot();
+      AssetEntry[] allEntries = root == null ? new AssetEntry[0] : root.getEntries();
 
       for(AssetEntry entry : allEntries) {
          if(entry.getPath().startsWith(prefix) && entry.getType() == type &&
