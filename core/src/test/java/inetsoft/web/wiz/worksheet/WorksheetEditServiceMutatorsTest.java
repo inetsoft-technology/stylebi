@@ -631,6 +631,176 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void setGroupAggregateAppliesNamedGroup() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("Northeast", List.of("NY", "NJ")));
+      svc.apply("TOK", agent, ed ->
+         ed.addNamedGroup("NortheastGroup", "T", "state", null, mappings, true));
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("state", null, "NortheastGroup")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertEquals(1, ai.getGroupCount());
+      GroupRef gr = ai.getGroup(0);
+      assertEquals("NortheastGroup", gr.getNamedGroupAssembly());
+      assertNotNull(gr.getNamedGroupInfo(),
+         "update() must actually resolve the named group, not just record its name -- " +
+         "this is what add_named_group's own tool description promises set_group_aggregate " +
+         "will do (PWA-006)");
+   }
+
+   @Test
+   void setGroupAggregateFailsLoudOnUnknownNamedGroup() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // GroupRef.update() itself fails silently (returns false, leaves getNamedGroupInfo()
+      // null) on an unresolvable assembly name -- this must be caught and surfaced loudly
+      // instead, or the exact silent-drop bug this fix targets would just move one level down.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T",
+               List.of(new WorksheetMutationSupport.GroupSpec("state", null, "NoSuchGroup")),
+               List.of())));
+      assertTrue(ex.getMessage().contains("NoSuchGroup"));
+   }
+
+   @Test
+   void setGroupAggregateRejectsNamedGroupWithDateLevel() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "amount");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.addNamedGroup("SomeGroup", "T", "orderDate", null, List.of(), false));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T",
+               List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "QUARTER", "SomeGroup")),
+               List.of())));
+      assertTrue(ex.getMessage().contains("mutually exclusive"));
+   }
+
+   @Test
+   void setGroupAggregateAppliesDatasourceScopedNamedGroup() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "amount");
+      ws.addAssembly(t);
+
+      // Built the way WorksheetAgentController#addDatasourceScopedNamedGroup builds a
+      // datasource/logical-model-scoped "Only For" grouping (Bug #76097's shape, and this
+      // bug's own PWA-006 repro): attached to a MODEL SourceInfo/AttributeRef, not to any
+      // worksheet table -- unlike Editor.addNamedGroup's table+column path used by the other
+      // tests above. GroupRef.update()'s COLUMN_ATTACHED branch matches only by attribute
+      // name (not table/source identity, see GroupRef.java:443-450), so this must resolve
+      // for set_group_aggregate even though it would NOT resolve for set_cell_binding's
+      // stricter, source-aware FieldRefFactory#resolveNamedGroupInfo matcher.
+      NamedGroupInfo ngi = new NamedGroupInfo();
+      ngi.setOthers(XConstants.LEAVE_OTHERS);
+      AttributeRef attrRef = new AttributeRef("Customer", "state");
+      attrRef.setDataType(XSchema.STRING);
+      ConditionList conds = WorksheetMutationSupport.buildGroupConditionList(
+         XSchema.STRING, new ColumnRef(attrRef),
+         new WorksheetMutationSupport.GroupMapping("Northeast", List.of("NY", "NJ")), ws);
+      ngi.setGroupCondition("Northeast", conds);
+
+      DefaultNamedGroupAssembly nga = new DefaultNamedGroupAssembly(ws, "NortheastGroup");
+      nga.setNamedGroupInfo(ngi);
+      nga.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+      nga.setAttachedSource(new SourceInfo(SourceInfo.MODEL, "Examples/Orders", "Order Model"));
+      nga.setAttachedAttribute(new ColumnRef(attrRef));
+      ws.addAssembly(nga);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("state", null, "NortheastGroup")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      AggregateInfo ai = t.getAggregateInfo();
+      GroupRef gr = ai.getGroup(0);
+      assertEquals("NortheastGroup", gr.getNamedGroupAssembly());
+      assertNotNull(gr.getNamedGroupInfo(),
+         "a datasource-scoped named group must resolve via set_group_aggregate even though " +
+         "its attached source (MODEL/Examples/Orders) differs from the worksheet table's " +
+         "own source, since GroupRef.update() matches only by attribute name");
+   }
+
+   @Test
+   void setGroupAggregateFailsLoudOnNamedGroupColumnMismatch() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "region", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("Northeast", List.of("NY", "NJ")));
+      svc.apply("TOK", agent, ed ->
+         ed.addNamedGroup("NortheastGroup", "T", "state", null, mappings, true));
+
+      // NortheastGroup is COLUMN_ATTACHED to "state", not "region". GroupRef.update()
+      // matches only by attribute name (GroupRef.java:443-450) and on a mismatch
+      // silently returns true while leaving getNamedGroupInfo() null, degrading to plain
+      // group-by-region with no error -- the exact PWA-006 symptom via a different
+      // trigger (mismatched field/namedGroup pairing instead of a nonexistent name).
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T",
+               List.of(new WorksheetMutationSupport.GroupSpec("region", null, "NortheastGroup")),
+               List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)))));
+      assertTrue(ex.getMessage().contains("NortheastGroup"));
+      assertTrue(ex.getMessage().contains("region"));
+   }
+
+   @Test
+   void setGroupAggregateFailsLoudOnNamedGroupDataTypeMismatch() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // table/column omitted -> a standalone, DATA_TYPE_ATTACHED named group (see
+      // WorksheetEditService.Editor#addNamedGroup) scoped to INTEGER columns, while
+      // "state" (from TestWorksheets.tableWithColumns) defaults to STRING. GroupRef.update()
+      // checks AssetUtil.isCompatible(dtype, ref.getDataType()) and on a mismatch silently
+      // returns true while leaving getNamedGroupInfo() null, same silent degrade as the
+      // COLUMN_ATTACHED mismatch above.
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("Big", List.of("100")));
+      svc.apply("TOK", agent, ed ->
+         ed.addNamedGroup("BigNumbers", null, null, XSchema.INTEGER, mappings, true));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T",
+               List.of(new WorksheetMutationSupport.GroupSpec("state", null, "BigNumbers")),
+               List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)))));
+      assertTrue(ex.getMessage().contains("BigNumbers"));
+      assertTrue(ex.getMessage().contains("state"));
+   }
+
+   @Test
    void setGroupAggregateTreatsNullGroupsAsEmpty() throws Exception {
       // WorksheetAgentController defaults a missing "aggregates" key to List.of() but
       // passes a missing "groups" key through as null unchanged; a null groups list
