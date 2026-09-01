@@ -47,7 +47,15 @@ final class HiveCatalog {
    private HiveCatalog() {
    }
 
-   private static final String[] TABLE_TYPES = {"TABLE", "VIEW"};
+   // "MATERIALIZED_VIEW" is the underscore form ClassicTableTypeMapping$ClassicTableTypes.
+   // MATERIALIZED_VIEW.toString() actually produces (that enum has no toString() override, so it
+   // equals name()) -- not the space form "MATERIALIZED VIEW" HiveDatabaseMetaData.
+   // toJdbcTableType uses elsewhere for an unrelated client-side purpose. ClassicTableTypeMapping
+   // is what HiveServer2 uses under its default hive.server2.table.type.mapping=CLASSIC, and
+   // keeps materialized views as their own client-visible type rather than folding them into
+   // VIEW the way it folds external tables into TABLE; omitting this entry silently drops every
+   // materialized view from listDatasets under that default configuration.
+   private static final String[] TABLE_TYPES = {"TABLE", "VIEW", "MATERIALIZED_VIEW"};
 
    static TabularCatalog listDatasets(Connection conn, String dbName) throws Exception {
       DatabaseMetaData meta = conn.getMetaData();
@@ -82,7 +90,14 @@ final class HiveCatalog {
       }
 
       List<String> keyColumns = primaryKeyColumnNames(meta, dbName, datasetId);
-      String query = "SELECT * FROM `" + datasetId + "`";
+      // hive.support.special.characters.tablename defaults to true (MetastoreConf.ConfVars.
+      // SUPPORT_SPECICAL_CHARACTERS_IN_TABLE_NAMES), and its char[] of legal special characters
+      // includes a literal backtick -- so datasetId is not guaranteed backtick-free even though
+      // it is always a real, existing table name. An embedded backtick is escaped by doubling it,
+      // mirroring Hive's documented backtick-quoting convention (the MySQL convention); this has
+      // not been verified against the Hive parser grammar itself, which is not shipped in the
+      // hive-jdbc client jars available here.
+      String query = "SELECT * FROM `" + datasetId.replace("`", "``") + "`";
 
       return new TabularDatasetSchema(datasetId, columns, keyColumns,
          Map.of("queryString", query));

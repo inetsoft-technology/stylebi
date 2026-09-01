@@ -93,7 +93,14 @@ class HiveCatalogTest {
    }
 
    @Test
-   void listDatasets_passesTableAndViewTypesToGetTables() throws Exception {
+   void listDatasets_passesTableViewAndMaterializedViewTypesToGetTables() throws Exception {
+      // "MATERIALIZED_VIEW" (underscore, not the space form HiveDatabaseMetaData.
+      // toJdbcTableType uses elsewhere) is ClassicTableTypeMapping$ClassicTableTypes.
+      // MATERIALIZED_VIEW.toString() -- that enum has no toString() override, so it equals
+      // name(). ClassicTableTypeMapping is what HiveServer2 uses under the default
+      // hive.server2.table.type.mapping=CLASSIC, and it keeps MATERIALIZED_VIEW as its own
+      // client-visible type rather than folding it into VIEW like it does for external tables
+      // and TABLE.
       ResultSet rs = mockResultSet(List.of());
       DatabaseMetaData meta = mock(DatabaseMetaData.class);
       Connection conn = mock(Connection.class);
@@ -104,7 +111,29 @@ class HiveCatalogTest {
 
       ArgumentCaptor<String[]> typesCaptor = ArgumentCaptor.forClass(String[].class);
       verify(meta).getTables(any(), any(), any(), typesCaptor.capture());
-      assertArrayEquals(new String[]{"TABLE", "VIEW"}, typesCaptor.getValue());
+      assertArrayEquals(new String[]{"TABLE", "VIEW", "MATERIALIZED_VIEW"},
+         typesCaptor.getValue());
+   }
+
+   @Test
+   void listDatasets_includesMaterializedViewTypedRow() throws Exception {
+      // Regression sentinel, not a fail-without-fix case: listDatasets never filtered on
+      // TABLE_TYPE itself (see the passing test above for what actually gates a materialized
+      // view's presence), so a MATERIALIZED_VIEW-typed row already passed through unchanged
+      // before this round's fix. This locks that in explicitly per the review's request.
+      ResultSet rs = mockResultSet(List.of(
+         row("TABLE_SCHEM", "sales", "TABLE_NAME", "orders", "TABLE_TYPE", "TABLE"),
+         row("TABLE_SCHEM", "sales", "TABLE_NAME", "mv_totals", "TABLE_TYPE",
+            "MATERIALIZED_VIEW")));
+      DatabaseMetaData meta = mock(DatabaseMetaData.class);
+      Connection conn = mock(Connection.class);
+      when(conn.getMetaData()).thenReturn(meta);
+      when(meta.getTables(any(), any(), any(), any())).thenReturn(rs);
+
+      TabularCatalog catalog = HiveCatalog.listDatasets(conn, "sales");
+
+      assertEquals(List.of("orders", "mv_totals"),
+         catalog.datasets().stream().map(TabularDatasetRef::id).toList());
    }
 
    @Test
@@ -183,6 +212,51 @@ class HiveCatalogTest {
       TabularDatasetSchema schema = HiveCatalog.describeDataset(conn, "sales", "user_events");
 
       assertEquals("SELECT * FROM `user_events`", schema.params().get("queryString"));
+   }
+
+   @Test
+   void describeDataset_backtickInTableName_escapesByDoubling() throws Exception {
+      // hive.support.special.characters.tablename defaults to true (MetastoreConf.ConfVars.
+      // SUPPORT_SPECICAL_CHARACTERS_IN_TABLE_NAMES), and MetaStoreUtils.
+      // SPECIAL_CHARACTERS_IN_TABLE_NAMES' 32nd entry is a literal backtick -- so a table named
+      // with an embedded backtick is legal under stock configuration, not just some unusual
+      // opt-in. An unescaped wrap would break out of the identifier quoting after the embedded
+      // backtick and produce malformed SQL.
+      String tableName = "weird`table";
+      Connection conn = connectionWithColumns("sales", tableName,
+         List.of(row("COLUMN_NAME", "id", "DATA_TYPE", Types.INTEGER, "ORDINAL_POSITION", 1)));
+
+      TabularDatasetSchema schema = HiveCatalog.describeDataset(conn, "sales", tableName);
+
+      assertEquals("SELECT * FROM `weird``table`", schema.params().get("queryString"));
+   }
+
+   @Test
+   void describeDataset_spaceInTableName_wrappedWithoutEscaping() throws Exception {
+      // Space is also in SPECIAL_CHARACTERS_IN_TABLE_NAMES and legal by default, but unlike a
+      // backtick it needs no escaping inside a backtick-quoted identifier -- this is a cheap
+      // assertion that the doubling fix does not disturb the plain wrap for characters that
+      // don't need it.
+      String tableName = "weird table";
+      Connection conn = connectionWithColumns("sales", tableName,
+         List.of(row("COLUMN_NAME", "id", "DATA_TYPE", Types.INTEGER, "ORDINAL_POSITION", 1)));
+
+      TabularDatasetSchema schema = HiveCatalog.describeDataset(conn, "sales", tableName);
+
+      assertEquals("SELECT * FROM `weird table`", schema.params().get("queryString"));
+   }
+
+   @Test
+   void describeDataset_semicolonInTableName_wrappedWithoutEscaping() throws Exception {
+      // Same rationale as the space case above, for the other SPECIAL_CHARACTERS_IN_TABLE_NAMES
+      // entry the review named.
+      String tableName = "weird;table";
+      Connection conn = connectionWithColumns("sales", tableName,
+         List.of(row("COLUMN_NAME", "id", "DATA_TYPE", Types.INTEGER, "ORDINAL_POSITION", 1)));
+
+      TabularDatasetSchema schema = HiveCatalog.describeDataset(conn, "sales", tableName);
+
+      assertEquals("SELECT * FROM `weird;table`", schema.params().get("queryString"));
    }
 
    // ---- describeDataset: column ordering (open point 4) ----------------------------------------

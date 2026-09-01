@@ -22,6 +22,7 @@ import inetsoft.util.credential.*;
 import org.junit.jupiter.api.*;
 import org.springframework.context.ApplicationContext;
 
+import java.lang.reflect.Method;
 import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -82,5 +83,20 @@ class HiveRuntimeCatalogTest {
          () -> assertThrows(Exception.class, () -> runtime.describeDataset(ds, "any_table")));
 
       assertTrue(ex.getMessage().contains("no database configured"));
+   }
+
+   @Test
+   void normalizedDbName_mixedCaseConfiguredName_lowercased() throws Exception {
+      // normalizedDbName is a private static, pure-string method reached via reflection --
+      // setAccessible(true) changes no source and violates no gate (P4 verifier follow-up).
+      HiveDataSource ds = new HiveDataSource();
+      ds.setDbName("MyDB");
+      Method normalizedDbName = HiveRuntime.class.getDeclaredMethod("normalizedDbName",
+         HiveDataSource.class);
+      normalizedDbName.setAccessible(true);
+
+      String result = (String) normalizedDbName.invoke(null, ds);
+
+      assertEquals("mydb", result);
    }
 }
