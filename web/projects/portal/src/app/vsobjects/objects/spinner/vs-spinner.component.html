@@ -50,7 +50,7 @@
             (click)="onDecrementClick()"
             (mousedown)="$event.preventDefault(); startHold(-1)"
             (mouseup)="cancelHold()"
-            (mouseleave)="cancelHold()">
+            (mouseleave)="onHoldPointerLeave()">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M3 8h10" stroke-linecap="round"/>
             </svg>
@@ -95,7 +95,7 @@
             (click)="onIncrementClick()"
             (mousedown)="$event.preventDefault(); startHold(1)"
             (mouseup)="cancelHold()"
-            (mouseleave)="cancelHold()">
+            (mouseleave)="onHoldPointerLeave()">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M8 3v10M3 8h10" stroke-linecap="round"/>
             </svg>

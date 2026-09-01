@@ -830,6 +830,19 @@ describe("VSSpinner — held click does not double-step on release", () => {
 
       expect(comp.model.value).toBe(40);
    });
+
+   it("should clear the held-repeated flag on pointer-leave so a later keyboard activation still steps", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 0, increment: 20, max: 1000 }) });
+
+      comp.startHold(1);
+      vi.advanceTimersByTime(300); // step 1 -> 20
+      comp.onHoldPointerLeave(); // dragged off the button before release; no trailing click follows
+
+      // a keyboard Enter/Space activation reaches onIncrementClick() directly, without startHold()
+      comp.onIncrementClick();
+
+      expect(comp.model.value).toBe(40); // not silently swallowed by a stale heldRepeated
+   });
 });
 
 // ---------------------------------------------------------------------------

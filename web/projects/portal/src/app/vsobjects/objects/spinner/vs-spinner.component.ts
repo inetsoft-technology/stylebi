@@ -249,6 +249,20 @@ implements OnInit, OnChanges, OnDestroy
       }
    }
 
+   /**
+    * mouseleave-only: cancels the hold same as mouseup, but also clears heldRepeated. Unlike a
+    * release over the button, the pointer leaving mid-hold means no trailing click will ever fire
+    * on this button to consume the flag itself - leaving it set would silently swallow the next
+    * activation that reaches onIncrementClick/onDecrementClick without going through startHold
+    * first (e.g. a keyboard Enter/Space press). Must stay separate from cancelHold(), which
+    * mouseup also calls right before the trailing click reads heldRepeated - resetting it there
+    * would defeat the click-side double-step guard for a normal held-then-released press.
+    */
+   onHoldPointerLeave(): void {
+      this.cancelHold();
+      this.heldRepeated = false;
+   }
+
    private stepValue(delta: number): void {
       this.model.value = (isNaN(this.model.value) ? 0 : this.model.value) + delta;
       this.commitChange(this.model.writeBackDirectly);
