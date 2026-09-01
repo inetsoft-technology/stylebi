@@ -49,6 +49,7 @@ import static org.mockito.Mockito.*;
  *  [Chain optional]     composite provider exposes AuthenticationChain           -> optional present
  *  [Chain optional]     composite provider exposes AuthorizationChain            -> optional present
  *  [Identity validity]  identity lookup delegates by identity type               -> true when provider resolves it
+ *  [Bootstrap disabled] newChain() with security.enabled=false makes chain visible -> optional present, security enabled
  *
  * Test design:
  *  - use the Spring context required by SecurityEngine and chain construction
@@ -163,6 +164,33 @@ class SecurityEngineLifecycleTest {
          // authorization accessor: composite provider should expose the backing AuthorizationChain
          Arguments.of((Function<SecurityEngine, Optional<?>>) SecurityEngine::getAuthorizationChain)
       );
+   }
+
+   // [Scenario: bootstrap from disabled security] newChain() on a deployment where
+   // security.enabled is "false" (its default/common state, e.g. a fresh deployment with an empty
+   // authentication chain) must make the freshly-built chain visible through
+   // getAuthenticationChain()/getAuthorizationChain() -- not just build it and leave it
+   // unreachable. Regression test for a bug where AuthenticationProviderService/
+   // AuthorizationProviderService's "create the first provider into an empty chain" fallback
+   // called newChain() and then immediately re-read getAuthenticationChain(), which stayed
+   // Optional.empty() forever because getSecurityProvider() gates on isSecurityEnabled(), and
+   // newChain() never flipped "security.enabled" to "true" the way enableSecurity() does --
+   // deterministically throwing "Could not initialize security." on every such call.
+   // Setup: security.enabled is explicitly "false" and no provider/vprovider is configured yet.
+   @ParameterizedTest
+   @MethodSource("chainAccessorCases")
+   void chainAccessors_afterNewChainWithSecurityDisabled_returnPresentOptional(
+      Function<SecurityEngine, Optional<?>> accessor)
+   {
+      SreeEnv.setProperty("security.enabled", "false");
+      assertFalse(engine.isSecurityEnabled());
+
+      engine.newChain();
+
+      assertTrue(engine.isSecurityEnabled(),
+                 "newChain() must enable security so the chain it just built is reachable");
+      Optional<?> actual = accessor.apply(engine);
+      assertTrue(actual.isPresent());
    }
 
    // [Scenario: identity validity] identity lookup delegates by identity type -> true when provider resolves it
