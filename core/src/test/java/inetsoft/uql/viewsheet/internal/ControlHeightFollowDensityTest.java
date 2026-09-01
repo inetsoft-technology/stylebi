@@ -147,18 +147,21 @@ class ControlHeightFollowDensityTest {
    }
 
    @Test
-   void checkBoxCellAndTitleHeightStepUpWithTheContainerSoOneRowStaysOneRow() {
+   void checkBoxTitleHeightStaysFixedWhileCellHeightAbsorbsTheContainerGrowth() {
       // reproduces VSCheckBoxModel.updateDataRowCol()'s own formula: dataRowCount must stay 1
-      // across every density tier, not just legacy - a container that grows without cellHeight/
-      // titleHeight growing with it would recompute a phantom second row out of the new headroom.
+      // across every density tier, not just legacy. Title height must NOT move - CheckBox is one
+      // of the types TitleLaneHeightRowTest.excludedTypesNeverTakeTheDensityRow pins to never
+      // follow the density row - so cellHeight alone absorbs the container's growth, or a
+      // container that grows without something absorbing it would recompute a phantom second row
+      // out of the new headroom.
       for(String density : new String[] {"dense", "compact", "comfortable"}) {
          SreeEnv.setProperty("viewsheet.density", density);
          CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
          info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
 
-         int controlHeight = VSDensityDefaults.controlHeight(VizContext.of(VizMark.MODERN_LIGHT));
-         assertEquals(controlHeight, info.getCellHeight(), density + ": cellHeight");
-         assertEquals(controlHeight, info.getTitleHeight(), density + ": titleHeight");
+         assertEquals(AssetUtil.defh, info.getTitleHeight(), density + ": titleHeight never moves");
+         assertEquals(info.getPixelSize().height - AssetUtil.defh, info.getCellHeight(),
+                      density + ": cellHeight absorbs the growth");
 
          int contentHeight = info.getPixelSize().height - info.getTitleHeight();
          int dataRowCount = Math.max(1, contentHeight / info.getCellHeight());
@@ -167,31 +170,28 @@ class ControlHeightFollowDensityTest {
    }
 
    @Test
-   void checkBoxCellAndTitleHeightRestoreLegacyOnRevert() {
+   void checkBoxCellHeightRestoresLegacyOnRevert() {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
-      assertEquals(30, info.getCellHeight(), "modernized before revert");
-      assertEquals(30, info.getTitleHeight(), "modernized before revert");
+      assertEquals(40, info.getCellHeight(), "modernized before revert: 2*30 - defh(20)");
+      assertEquals(AssetUtil.defh, info.getTitleHeight(), "title height never moved");
 
       info.seedChromeDefaults(VizContext.of((VizMark) null));
 
       assertEquals(AssetUtil.defh, info.getCellHeight(), "cellHeight reverted");
-      assertEquals(AssetUtil.defh, info.getTitleHeight(), "titleHeight reverted");
+      assertEquals(AssetUtil.defh, info.getTitleHeight(), "title height still untouched");
    }
 
    @Test
-   void checkBoxCellAndTitleHeightAreLeftAloneWhenAlreadyResized() {
+   void checkBoxCellHeightIsLeftAloneWhenAlreadyResized() {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
       info.setCellHeight(35);
-      info.setTitleHeight(35);
-      info.setUserTitleHeight(true);
 
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
 
       assertEquals(35, info.getCellHeight(), "an author-resized cell height is never substituted");
-      assertEquals(35, info.getTitleHeight(), "an author-resized title height is never substituted");
    }
 
    @Test
@@ -244,15 +244,18 @@ class ControlHeightFollowDensityTest {
    }
 
    @Test
-   void radioButtonCellAndTitleHeightStepUpWithTheContainerSoOneRowStaysOneRow() {
+   void radioButtonTitleHeightStaysFixedWhileCellHeightAbsorbsTheContainerGrowth() {
+      // title height must NOT move - RadioButton is one of the types
+      // TitleLaneHeightRowTest.excludedTypesNeverTakeTheDensityRow pins to never follow the
+      // density row - so cellHeight alone absorbs the container's growth.
       for(String density : new String[] {"dense", "compact", "comfortable"}) {
          SreeEnv.setProperty("viewsheet.density", density);
          RadioButtonVSAssemblyInfo info = new RadioButtonVSAssemblyInfo();
          info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
 
-         int controlHeight = VSDensityDefaults.controlHeight(VizContext.of(VizMark.MODERN_LIGHT));
-         assertEquals(controlHeight, info.getCellHeight(), density + ": cellHeight");
-         assertEquals(controlHeight, info.getTitleHeight(), density + ": titleHeight");
+         assertEquals(AssetUtil.defh, info.getTitleHeight(), density + ": titleHeight never moves");
+         assertEquals(info.getPixelSize().height - AssetUtil.defh, info.getCellHeight(),
+                      density + ": cellHeight absorbs the growth");
 
          int contentHeight = info.getPixelSize().height - info.getTitleHeight();
          int dataRowCount = Math.max(1, contentHeight / info.getCellHeight());
@@ -266,12 +269,13 @@ class ControlHeightFollowDensityTest {
       RadioButtonVSAssemblyInfo info = new RadioButtonVSAssemblyInfo();
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
       assertEquals(2 * 28, info.getPixelSize().height, "modernized before revert");
+      assertEquals(36, info.getCellHeight(), "modernized before revert: 2*28 - defh(20)");
 
       info.seedChromeDefaults(VizContext.of((VizMark) null));
 
       assertEquals(2 * AssetUtil.defh, info.getPixelSize().height, "reverted back to legacy 2x ratio");
       assertEquals(AssetUtil.defh, info.getCellHeight(), "cellHeight reverted");
-      assertEquals(AssetUtil.defh, info.getTitleHeight(), "titleHeight reverted");
+      assertEquals(AssetUtil.defh, info.getTitleHeight(), "title height still untouched");
    }
 
    @Test
