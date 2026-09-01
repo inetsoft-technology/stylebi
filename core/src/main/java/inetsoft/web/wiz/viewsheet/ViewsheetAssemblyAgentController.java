@@ -239,8 +239,11 @@ public class ViewsheetAssemblyAgentController {
          throw new PairingException(e.getMessage(), e);
       }
 
+      // sheetLabel: null, same as openBaseWorksheet -- the newly-created viewsheet is untitled and
+      // unsaved, so there is no resolvable human-readable identity for it yet.
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
-                              session.sheetType().name().toLowerCase(), session.editorContext());
+                              session.sheetType().name().toLowerCase(), session.editorContext(),
+                              null);
    }
 
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/model")

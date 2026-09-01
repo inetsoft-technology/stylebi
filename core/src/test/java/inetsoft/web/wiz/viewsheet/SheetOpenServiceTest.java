@@ -406,6 +406,41 @@ class SheetOpenServiceTest {
       assertEquals("vs-runtime-new", sent.runtimeId());
    }
 
+   /**
+    * agent-sheet-visibility: create_viewsheet is a third real entry point that attaches a
+    * session (alongside SheetJoinService.join and openBaseWorksheet), so it needs the same
+    * sendAgentActive notification for the Composer tab-bar "agent connected" indicator to be
+    * consistent across all three. Mirrors notifiesTheTabBarThatAnAgentIsNowAttachedToTheNewWorksheet.
+    */
+   @Test
+   void notifiesTheTabBarThatAnAgentIsNowAttachedToTheNewViewsheet() throws Exception {
+      AssetEntry wsEntry = new AssetEntry(
+         inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+         "Sample Queries/customers", null);
+      SheetOpenService service = createViewsheetService(SheetType.WORKSHEET, wsEntry, true);
+
+      JoinSession created = service.createViewsheet("tok-acting", principal(), null);
+
+      ArgumentCaptor<JoinSession> sent = ArgumentCaptor.forClass(JoinSession.class);
+      verify(broadcast).sendAgentActive(sent.capture());
+      assertEquals(created.runtimeId(), sent.getValue().runtimeId());
+   }
+
+   /** A broken tab-bar notification must not fail the create -- best-effort, independent try/catch. */
+   @Test
+   void tabBarNotifyFailureDoesNotFailTheCreate() throws Exception {
+      AssetEntry wsEntry = new AssetEntry(
+         inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+         "Sample Queries/customers", null);
+      SheetOpenService service = createViewsheetService(SheetType.WORKSHEET, wsEntry, true);
+      doThrow(new RuntimeException("socket gone")).when(broadcast).sendAgentActive(any());
+
+      JoinSession created = service.createViewsheet("tok-acting", principal(), null);
+
+      assertNotNull(created);
+      assertEquals("vs-runtime-new", created.runtimeId());
+   }
+
    @Test
    void createViewsheetAcceptsExplicitDataSourceFromAViewsheetSession() throws Exception {
       AssetEntry lmEntry = new AssetEntry(
@@ -499,6 +534,7 @@ class SheetOpenServiceTest {
          any(), any(AssetEntry.class), any(Principal.class), any());
       verify(sheetSessions, never()).open(anyString(), anyString(), any(SheetType.class),
                                           any(), any(), any());
+      verify(broadcast, never()).sendAgentActive(any());
       verify(broadcast, never()).sendToComposer(anyString(), any());
    }
 

@@ -300,6 +300,18 @@ public class SheetOpenService {
                                                   actingSession.socketSessionId(),
                                                   actingSession.socketUserName(), null);
 
+      // Tells the Composer tab bar an agent is now attached to this runtime -- the same
+      // best-effort notification openBaseWorksheet sends for its own attach path (see its own
+      // comment); create_viewsheet is a third real entry point that attaches a session, so it
+      // needs the same call for the tab-bar indicator to be consistent across all three.
+      try {
+         broadcast.sendAgentActive(vsSession);
+      }
+      catch(Exception ex) {
+         LOG.warn("Viewsheet created, but notifying the tab bar failed (runtimeId={})",
+                  runtimeId, ex);
+      }
+
       OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
          .assetId(dataSource.toIdentifier())
          .viewsheet(true)
