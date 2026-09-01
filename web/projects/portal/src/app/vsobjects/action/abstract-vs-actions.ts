@@ -136,9 +136,8 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       return this.assemblyMenuActions;
    }
 
-   // TEMPORARY, like the container's isKebabResident: both delegate to isAnchoredResident, the one
-   // rollout boundary in mini-toolbar.service.ts, so the two cannot drift apart. Deleted together
-   // with it when the last family slice lands.
+   // Delegates to isAnchoredResident, the one anchored-set definition in mini-toolbar.service.ts, so
+   // this and the container's isKebabResident cannot drift apart.
    private get resident(): boolean {
       return isAnchoredResident(this.model.objectType, this.model.vizModern,
                                 anchoredLaneHeight(this.model));
@@ -459,8 +458,8 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
             // the menu instead of splicing at index 0 here; createMenuActions() below reads this
             // field to surface it there. Gated on the assembly's own model.vizModern, with no
             // type test — so under the gate this reaches every assembly type, not only the
-            // anchored ones. Types that have not yet joined the rollout therefore reach the
-            // dismissal by right-click until their slice lands and gives them a resident kebab.
+            // anchored ones. A type outside the set has no resident kebab, so it reaches the
+            // dismissal by right-click; the adhoc range slider is now the only one.
             // Not in the binding pane or the wizard's preview, where the strip should look the
             // same marked or not. The dismissal is the only entry the mark moves there, so leaving
             // it on the toolbar keeps the marked strip identical to the unmarked one. In the

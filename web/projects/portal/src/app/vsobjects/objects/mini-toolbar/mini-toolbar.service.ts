@@ -26,17 +26,18 @@ import { VSObjectModel } from "../../model/vs-object-model";
 import { VSSelectionBaseModel } from "../../model/vs-selection-base-model";
 
 /**
- * The assembly types whose mini-toolbar is anchored in the title lane, with the cap of three, the
- * height bands and the resident kebab. A subset of hasMiniToolbar() below, which enumerates the
- * types that get a strip at all.
- *
- * TEMPORARY. This is the rollout boundary, not a permanent distinction. Slice 1 shipped VSChart as
- * the pilot; each family slice adds its types. The last slice deletes this predicate together with
- * AbstractVSActions.resident, its TEMPORARY mobile relaxation of the "menu actions" wrapper
- * (abstract-vs-actions.ts:389), and VSObjectContainerComponent.isToolbarAnchored, leaving the
- * .viz-modern gate as the only condition. VSRangeSlider is excluded permanently, not pending — it
- * declares no titleVisible, so it has no lane to anchor into. See
+ * The assembly types whose toolbar is anchored into the title lane, with the strip's height bands
+ * and the resident kebab. A subset of hasMiniToolbar() below, which enumerates the types that get a
+ * strip at all, and the two now differ by exactly one entry: the range slider, which declares no
+ * titleVisible and so has no lane to anchor into. See
  * chart-card-design/Anchoring beyond charts - discussion.md, Case 4.
+ *
+ * PERMANENT. This was the rollout boundary while the slices landed; all five have, so it is now the
+ * anchored set. Do not delete it and leave the .viz-modern gate as the only condition — an earlier
+ * revision of this comment promised exactly that, and it is unsafe. isAnchoredChromeSuppressed
+ * would then be true for every laneless assembly under the gate (text, gauge, image, spinner, and
+ * the rest resolve to a zero lane), emptying showingActions for all of them. The composer's mobile
+ * toolbar renders that list for whatever assembly is focused, so those toolbars would go blank.
  */
 const ANCHORED_ASSEMBLY_TYPES: ReadonlySet<string> = new Set<string>([
    "vschart",
@@ -92,9 +93,8 @@ export function anchoredLaneHeight(model: VSObjectModel): number {
  * Whether an assembly type's anchored/resident strip design is in effect right now: the modern
  * gate is on, the title lane can hold the 24px strip, and the type is in the anchored set. Lane
  * fit is measured by comparing anchoredLaneHeight against ANCHORED_LANE_MIN. Shared by
- * VSObjectContainerComponent.isKebabResident and AbstractVSActions.resident so the two conditions
- * cannot drift apart; both are TEMPORARY and are deleted together with this predicate (see
- * ANCHORED_ASSEMBLY_TYPES above).
+ * VSObjectContainerComponent.isKebabResident and AbstractVSActions.resident so the two
+ * conditions cannot drift apart.
  */
 export function isAnchoredResident(objectType: string, vizModern: boolean,
                                    laneHeight: number): boolean
