@@ -101,6 +101,13 @@ class SeedChromeDefaultsTest {
       return (SelectionListVSAssemblyInfo) list.getVSAssemblyInfo();
    }
 
+   private SelectionTreeVSAssemblyInfo newSelectionTree() {
+      Viewsheet vs = new Viewsheet();
+      SelectionTreeVSAssembly tree = new SelectionTreeVSAssembly(vs, "SelectionTree1");
+      tree.getVSAssemblyInfo().initDefaultFormat();
+      return (SelectionTreeVSAssemblyInfo) tree.getVSAssemblyInfo();
+   }
+
    private TabVSAssemblyInfo newTab() {
       Viewsheet vs = new Viewsheet();
       TabVSAssembly tab = new TabVSAssembly(vs, "Tab1");
@@ -113,6 +120,13 @@ class SeedChromeDefaultsTest {
       TimeSliderVSAssembly slider = new TimeSliderVSAssembly(vs, "TimeSlider1");
       slider.getVSAssemblyInfo().initDefaultFormat();
       return (TimeSliderVSAssemblyInfo) slider.getVSAssemblyInfo();
+   }
+
+   private CurrentSelectionVSAssemblyInfo newCurrentSelection() {
+      Viewsheet vs = new Viewsheet();
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "Container1");
+      container.getVSAssemblyInfo().initDefaultFormat();
+      return (CurrentSelectionVSAssemblyInfo) container.getVSAssemblyInfo();
    }
 
    // ---- object border colour and card radius -------------------------------------------------
@@ -253,19 +267,49 @@ class SeedChromeDefaultsTest {
    }
 
    @Test
-   void theHookLeavesATimeSlidersTitleBorderAlone() {
-      // TimeSlider mutates the base's existing TITLEPATH composite in place after super(),
-      // forcing a hardcoded bottom-only 0xc0c0c0 border; the hook must not recolour it
+   void aModernRangeSliderTitleTakesTheRuleColour() {
+      gateOn();
+      VizContext ctx = VizContext.ofGate();
+      TimeSliderVSAssemblyInfo info = newTimeSlider();
+      VSFormat def = titleFormat(info).getDefaultFormat();
+
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
+                   def.getBorderColorsValue().bottomColor,
+                   "the hook now owns this title composite");
+      assertNull(def.getBackgroundValue(),
+                 "the slider clears its title fill deliberately; modern keeps it cleared");
+   }
+
+   @Test
+   void aLegacyRangeSliderTitleKeepsTheGreyRuleAndNoFill() {
+      gateOff();
+      VSFormat def = titleFormat(newTimeSlider()).getDefaultFormat();
+
+      assertEquals(new Color(0xc0c0c0), def.getBorderColorsValue().bottomColor);
+      assertNull(def.getBackgroundValue(),
+                 "not DEFAULT_TITLE_BG: this type has always cleared its title fill");
+      assertNull(def.getForegroundValue());
+   }
+
+   @Test
+   void revertingARangeSliderTitleRestoresAGateOffCreation() {
+      gateOff();
+      VSFormat expected = titleFormat(newTimeSlider()).getDefaultFormat();
+      BorderColors expectedColors = expected.getBorderColorsValue();
+
       gateOn();
       TimeSliderVSAssemblyInfo info = newTimeSlider();
-      assertEquals(new Color(0xc0c0c0),
-                   titleFormat(info).getDefaultFormat().getBorderColorsValue().bottomColor);
+      info.setVizMark(VizMark.fromGate());
+      info.seedChromeDefaults(VizContext.of(info));
 
-      info.seedChromeDefaults(VizContext.ofGate());
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
 
-      assertEquals(new Color(0xc0c0c0),
-                   titleFormat(info).getDefaultFormat().getBorderColorsValue().bottomColor,
-                   "the hook does not own this title composite");
+      VSFormat reverted = titleFormat(info).getDefaultFormat();
+      assertEquals(expectedColors.bottomColor, reverted.getBorderColorsValue().bottomColor);
+      assertNull(reverted.getBackgroundValue(),
+                 "Revert must not hand the slider a fill it never had");
+      assertNull(reverted.getForegroundValue());
    }
 
    @Test
@@ -540,20 +584,19 @@ class SeedChromeDefaultsTest {
    }
 
    @Test
-   void theHookLeavesATitleItDoesNotOwnAlone() {
-      // a selection list installs its own title composite after super, with a hardcoded 0xc0c0c0
-      // bottom border; the hook must not recolour it, or a modernized list would differ from a
-      // freshly created one
+   void theHookOwnsASelectionListTitleAndIsIdempotent() {
+      // a selection list installs its own title composite after super, but re-runs the hook
+      // against it, so a second call must not double-apply or drift
       gateOn();
+      VizContext ctx = VizContext.ofGate();
       SelectionListVSAssemblyInfo info = newSelectionList();
-      assertEquals(new Color(0xc0c0c0),
-                   titleFormat(info).getDefaultFormat().getBorderColorsValue().bottomColor);
+      Color before = titleFormat(info).getDefaultFormat().getBorderColorsValue().bottomColor;
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx), before);
 
       info.seedChromeDefaults(VizContext.ofGate());
 
-      assertEquals(new Color(0xc0c0c0),
-                   titleFormat(info).getDefaultFormat().getBorderColorsValue().bottomColor,
-                   "the hook does not own this title composite");
+      assertEquals(before, titleFormat(info).getDefaultFormat().getBorderColorsValue().bottomColor,
+                   "a second call leaves the same colour in place");
    }
 
    @Test
@@ -824,5 +867,128 @@ class SeedChromeDefaultsTest {
       assertEquals(VizMark.MODERN_LIGHT, table.getVSAssemblyInfo().getVizMark());
       assertEquals(VSObjectChromeDefaults.objectBorderColor(ctx), fmt.getBorderColorsValue().topColor);
       assertEquals(VSObjectChromeDefaults.cardCornerRadius(), fmt.getRoundCornerValue());
+   }
+
+   // ---- the selection list and tree title rule -------------------------------------------------
+
+   @Test
+   void aModernSelectionListTitleTakesTheRuleColour() {
+      gateOn();
+      VizContext ctx = VizContext.ofGate();
+      VSFormat def = titleFormat(newSelectionList()).getDefaultFormat();
+
+      assertNull(def.getBackgroundValue(), "this type's title has never carried a fill");
+
+      Insets borders = def.getBordersValue();
+      assertEquals(StyleConstants.NONE, borders.top, "no top rule");
+      assertEquals(StyleConstants.NONE, borders.left, "no left rule");
+      assertEquals(StyleConstants.NONE, borders.right, "no right rule");
+      assertEquals(StyleConstants.THIN_LINE, borders.bottom, "a bottom rule only");
+
+      BorderColors colors = def.getBorderColorsValue();
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx), colors.bottomColor);
+      assertEquals(colors.bottomColor, colors.topColor,
+                   "all four sides carry the rule colour; report text boxes keep only one");
+   }
+
+   @Test
+   void aModernSelectionTreeTitleTakesTheRuleColour() {
+      gateOn();
+      VizContext ctx = VizContext.ofGate();
+      VSFormat def = titleFormat(newSelectionTree()).getDefaultFormat();
+
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
+                   def.getBorderColorsValue().bottomColor,
+                   "the tree takes the same seed through the shared base");
+   }
+
+   @Test
+   void aLegacySelectionListTitleKeepsTheGreyRule() {
+      gateOff();
+      VSFormat def = titleFormat(newSelectionList()).getDefaultFormat();
+
+      assertEquals(new Color(0xc0c0c0), def.getBorderColorsValue().bottomColor);
+      assertNull(def.getForegroundValue(), "and no seeded text colour");
+      assertNull(def.getBackgroundValue(), "and still no fill");
+   }
+
+   @Test
+   void revertingASelectionListTitleRestoresAGateOffCreation() {
+      gateOff();
+      VSFormat expected = titleFormat(newSelectionList()).getDefaultFormat();
+      BorderColors expectedColors = expected.getBorderColorsValue();
+      Insets expectedBorders = expected.getBordersValue();
+
+      gateOn();
+      SelectionListVSAssemblyInfo info = newSelectionList();
+      info.setVizMark(VizMark.fromGate());
+      info.seedChromeDefaults(VizContext.of(info));
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      VSFormat reverted = titleFormat(info).getDefaultFormat();
+      assertEquals(expectedColors.bottomColor, reverted.getBorderColorsValue().bottomColor,
+                   "Revert must match a list that was never modernized, not almost match it");
+      assertEquals(expectedBorders, reverted.getBordersValue());
+      assertNull(reverted.getForegroundValue());
+      assertNull(reverted.getBackgroundValue());
+   }
+
+   // ---- the selection container title lane -----------------------------------------------------
+
+   @Test
+   void aModernSelectionContainerTitleIsUnfilledWithABottomRule() {
+      gateOn();
+      VizContext ctx = VizContext.ofGate();
+      VSFormat def = titleFormat(newCurrentSelection()).getDefaultFormat();
+
+      assertNull(def.getBackgroundValue(), "the modern title lane carries no fill");
+      assertNull(def.getBackground(), "and no runtime background behind it either");
+
+      Insets borders = def.getBordersValue();
+      assertEquals(StyleConstants.NONE, borders.top, "no top rule");
+      assertEquals(StyleConstants.NONE, borders.left, "no left rule");
+      assertEquals(StyleConstants.NONE, borders.right, "no right rule");
+      assertEquals(StyleConstants.THIN_LINE, borders.bottom, "a bottom rule only");
+
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
+                   def.getBorderColorsValue().bottomColor,
+                   "the base's object border colour is already the rule colour");
+   }
+
+   @Test
+   void aLegacySelectionContainerTitleKeepsTheFilledBandAndTheFourSideBox() {
+      gateOff();
+      VSFormat def = titleFormat(newCurrentSelection()).getDefaultFormat();
+
+      assertEquals(VSAssemblyInfo.DEFAULT_TITLE_BG, def.getBackgroundValue());
+
+      Insets borders = def.getBordersValue();
+      assertEquals(StyleConstants.THIN_LINE, borders.top);
+      assertEquals(StyleConstants.THIN_LINE, borders.left);
+      assertEquals(StyleConstants.THIN_LINE, borders.right);
+      assertEquals(StyleConstants.THIN_LINE, borders.bottom);
+   }
+
+   @Test
+   void revertingASelectionContainerTitleRestoresAGateOffCreation() {
+      gateOff();
+      VSFormat expected = titleFormat(newCurrentSelection()).getDefaultFormat();
+      String expectedBg = expected.getBackgroundValue();
+      Insets expectedBorders = expected.getBordersValue();
+
+      gateOn();
+      CurrentSelectionVSAssemblyInfo info = newCurrentSelection();
+      info.setVizMark(VizMark.fromGate());
+      info.seedChromeDefaults(VizContext.of(info));
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      VSFormat reverted = titleFormat(info).getDefaultFormat();
+      assertEquals(expectedBg, reverted.getBackgroundValue(),
+                   "Revert must match a container that was never modernized");
+      assertEquals(expectedBorders, reverted.getBordersValue());
    }
 }

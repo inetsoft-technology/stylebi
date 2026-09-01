@@ -17,10 +17,13 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.report.StyleConstants;
 import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.DynamicValue;
+import inetsoft.uql.viewsheet.VSCompositeFormat;
+import inetsoft.uql.viewsheet.VSFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Tool;
 import inetsoft.util.css.CSSConstants;
@@ -67,6 +70,42 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
    @Override
    public void initDefaultFormat() {
       setDefaultFormat(true, true, false);
+   }
+
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      super.seedChromeDefaults(ctx);
+
+      // the title lane: modern is unfilled with a bottom rule, legacy is the filled band and the
+      // four-side box the base writes for a bordered titled assembly. Both branches write, because
+      // the legacy one is what Revert relies on. The border colours are left to the base's own
+      // block, whose object-border value is already the rule colour in both modes - that block
+      // runs first, in super.seedChromeDefaults above, and only writes when bordersValue is
+      // already non-null, which setDefaultFormat(border = true) guarantees at creation and every
+      // seed run below leaves true for the next one
+      VSCompositeFormat titleFormat = getFormatInfo().getFormat(TITLEPATH);
+
+      if(titleFormat != null) {
+         VSFormat def = titleFormat.getDefaultFormat();
+
+         if(ctx.modern) {
+            def.setBackgroundValue(null);
+            // getBackground() falls back to the bg field when bgval yields nothing, so a clear
+            // has to null both or a runtime background survives it
+            def.setBackground(null);
+            def.setBordersValue(VSTitleChromeDefaults.titleRuleBorders());
+            def.setForegroundValue(VSTitleChromeDefaults.titleForegroundValue(ctx));
+         }
+         else {
+            def.setBackgroundValue(DEFAULT_TITLE_BG);
+            def.setBordersValue(new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                                           StyleConstants.THIN_LINE, StyleConstants.THIN_LINE));
+            def.setForegroundValue(null);
+         }
+
+         // getForeground() has the same field fallback getBackground() has
+         def.setForeground(null);
+      }
    }
 
    /**

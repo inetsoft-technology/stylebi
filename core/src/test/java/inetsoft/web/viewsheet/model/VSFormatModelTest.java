@@ -20,7 +20,9 @@ package inetsoft.web.viewsheet.model;
 import inetsoft.analytic.composition.VSCSSUtil;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
+import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
@@ -81,6 +83,52 @@ class VSFormatModelTest {
                     "a zero-width side draws nothing");
          // a cleared background is still "value defined" (as null), so VSCSSUtil serialises it as
          // "" rather than a Java null -- same convention as every other untinted assembly
+         assertEquals("", model.getBackground(), "the modern title lane serialises no fill");
+      }
+      finally {
+         SreeEnv.setProperty("viewsheet.modernVisualization", null);
+      }
+   }
+
+   @Test
+   void aModernSelectionContainerTitleReachesTheBrowserUnfilled() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+
+      try {
+         Viewsheet vs = new Viewsheet();
+         CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "Container1");
+         container.getVSAssemblyInfo().initDefaultFormat();
+         VSAssemblyInfo info = container.getVSAssemblyInfo();
+         VSCompositeFormat title = info.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH);
+
+         VSFormatModel model = new VSFormatModel(title, info);
+
+         assertEquals("1px solid #d9d5cc", model.getBorder().getBottom());
+         assertTrue(model.getBorder().getTop().startsWith("0px"),
+                    "a zero-width side draws nothing");
+         assertEquals("", model.getBackground(), "the modern title lane serialises no fill");
+      }
+      finally {
+         SreeEnv.setProperty("viewsheet.modernVisualization", null);
+      }
+   }
+
+   @Test
+   void aModernRangeSliderTitleReachesTheBrowserUnfilled() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+
+      try {
+         Viewsheet vs = new Viewsheet();
+         TimeSliderVSAssembly slider = new TimeSliderVSAssembly(vs, "TimeSlider1");
+         slider.getVSAssemblyInfo().initDefaultFormat();
+         VSAssemblyInfo info = slider.getVSAssemblyInfo();
+         VSCompositeFormat title = info.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH);
+
+         VSFormatModel model = new VSFormatModel(title, info);
+
+         assertEquals("1px solid #d9d5cc", model.getBorder().getBottom());
+         assertTrue(model.getBorder().getTop().startsWith("0px"),
+                    "a zero-width side draws nothing");
          assertEquals("", model.getBackground(), "the modern title lane serialises no fill");
       }
       finally {

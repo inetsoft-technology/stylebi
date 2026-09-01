@@ -173,6 +173,108 @@ class BookmarkChromeResolutionTest {
    }
 
    @Test
+   void theSelectionFamilyCarriesNoFormatInItsBookmarkState() throws Exception {
+      // the seeded title lane needs no restore-side resolution for the list or the tree: their
+      // state carries no title format at all. The container's own title carries none either - its
+      // writeStateContent writes nothing of its own before the per-child loop runs - but each
+      // serialized child is a whole assembly.writeXML(writer), which does carry a per-data-path
+      // VSCompositeFormat, title included. That's a known, pre-existing restore hole (children are
+      // re-created from that same blob by Viewsheet.parseState, which only re-seeds the
+      // container's own info) recorded as an open item - this test passing does not close it.
+      //
+      // neither list nor tree here has any selected value, so state_selectionList / state_selectionValue
+      // never serialize - those do carry a per-value VSCompositeFormat when populated
+      // (SelectionList.writeFormats / SelectionValue.writeContents), but that is a per-item value
+      // format, a different concept from title chrome, and out of scope for this guard
+      Viewsheet vs = new Viewsheet();
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "Selection1");
+      list.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(list);
+
+      // the list's own writeStateContent re-implements a subset of SelectionVSAssemblyInfo's
+      // fields directly rather than delegating to it. Only the tree's writeStateContent actually
+      // calls SelectionVSAssemblyInfo.writeStateContent - the method this guard is about - and
+      // only wraps it in <state_info> on the runtime branch, so the tree is needed too or the
+      // guard never reaches the method it names
+      SelectionTreeVSAssembly tree = new SelectionTreeVSAssembly(vs, "Selection2");
+      tree.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(tree);
+
+      // a populated container - a child selection list - so the per-child loop in
+      // CurrentSelectionVSAssembly.writeStateContent actually runs
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "Container1");
+      container.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(container);
+      SelectionListVSAssembly child = new SelectionListVSAssembly(vs, "Selection3");
+      child.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(child);
+      container.setAssemblies(new String[] { child.getName() });
+
+      modernizeViaGate(vs);
+
+      String listState = writeState(list);
+      assertFalse(listState.contains("<state_format>"), "no object format in the list's state");
+      assertFalse(listState.contains("VSCompositeFormat"), "and no title format in it either");
+
+      String treeState = writeState(tree);
+      assertTrue(treeState.contains("<state_info>"),
+                 "precondition: the tree's runtime state must wrap " +
+                 "SelectionVSAssemblyInfo.writeStateContent in state_info, or this test isn't " +
+                 "exercising the branch it's named for");
+      assertFalse(treeState.contains("<state_format>"), "no object format in the tree's state_info");
+      assertFalse(treeState.contains("VSCompositeFormat"), "and no title format in it either");
+
+      String containerState = writeState(container);
+      int firstChild = containerState.indexOf("<oneAssembly>");
+      assertTrue(firstChild >= 0,
+                 "precondition: the container must actually serialize a child, or this test isn't "
+                 + "exercising the branch it's named for");
+      String ownPortion = containerState.substring(0, firstChild);
+      assertFalse(ownPortion.contains("<state_format>"),
+                  "no object format in the container's own state");
+      assertFalse(ownPortion.contains("VSCompositeFormat"),
+                  "and no format for the container's own title either");
+      assertTrue(containerState.contains("VSCompositeFormat"),
+                 "the serialized child does carry its own per-assembly format, title included - "
+                 + "resolved on restore by the mark hand-off in Viewsheet.parseState");
+   }
+
+   @Test
+   void aStaleBookmarkDoesNotUnRevertAContainersChildren() throws Exception {
+      // a container writes each child as a whole assembly, mark and formats included, and
+      // Viewsheet.parseState removes the live children before the container re-creates them from
+      // the blob - so a child never passes through AbstractVSAssembly.parseState and needs the
+      // live mark handed to it there instead
+      Viewsheet vs = new Viewsheet();
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "Container1");
+      container.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(container);
+
+      SelectionListVSAssembly child = new SelectionListVSAssembly(vs, "Child1");
+      child.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(child);
+      container.setAssemblies(new String[]{ "Child1" });
+
+      modernizeViaGate(vs);
+      assertEquals(VizMark.MODERN_LIGHT, child.getVSAssemblyInfo().getVizMark(),
+                   "precondition: the child is marked before the bookmark is taken");
+
+      String state = writeState(vs);
+      VizModernizeUtil.revert(vs);
+      vs.parseState(parseXml(state));
+
+      VSAssembly restored = (VSAssembly) vs.getAssembly("Child1");
+      assertNotNull(restored, "precondition: the child came back");
+      assertNull(restored.getVSAssemblyInfo().getVizMark(),
+                 "a child re-created from the blob takes the live mark, not the bookmark's");
+      assertEquals(new Color(0xc0c0c0),
+                   restored.getVSAssemblyInfo().getFormatInfo()
+                      .getFormat(VSAssemblyInfo.TITLEPATH).getDefaultFormat()
+                      .getBorderColorsValue().bottomColor,
+                   "and its chrome resolves against that mark rather than staying modern");
+   }
+
+   @Test
    void anUnmarkedAssemblyIsUnchangedByARoundTrip() throws Exception {
       // the governing constraint. Nothing may move on unmarked content. An author-modified
       // descriptor value and the sheet's persisted dimensionColors are included because a

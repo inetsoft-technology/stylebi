@@ -69,11 +69,6 @@ public final class VSTitleChromeDefaults {
    }
 
    /**
-    * The rule's colour on all four sides, though only the bottom carries a width. A report text
-    * box keeps one border colour and discards the rest, so one colour four times is what makes
-    * that setter lossless here.
-    */
-   /**
     * The modern title foreground as a stored format value, for the creation seed. A seeded type is
     * skipped by the read-time substitution, so the colour has to be written rather than resolved.
     */
@@ -81,6 +76,11 @@ public final class VSTitleChromeDefaults {
       return toValue(titleForeground(ctx));
    }
 
+   /**
+    * The rule's colour on all four sides, though only the bottom carries a width. A report text
+    * box keeps one border colour and discards the rest, so one colour four times is what makes
+    * that setter lossless here.
+    */
    public static BorderColors titleRuleColors(VizContext ctx) {
       Color c = titleBorderColor(ctx);
       return new BorderColors(c, c, c, c);
@@ -152,10 +152,23 @@ public final class VSTitleChromeDefaults {
    }
 
    // these types carry their title chrome in the stored format, written by seedChromeDefaults at
-   // creation; the rest are still substituted here. When the last one converts this is true for
-   // every titled type and both entry points, with all their call sites, can go
+   // creation; checkbox, radio button and calendar are still substituted here. When the last one
+   // converts this is true for every titled type and both entry points, with all their call sites,
+   // can go
+   //
+   // this skip is what makes a seeded value stick: FormatInfo.getFormat(TITLEPATH, false) still
+   // copies the object format down onto the title's DEFAULT tier (copyDefaultFormat), each field
+   // guarded by !tfmt.isXxxValueDefined() - a seeded value survives only because its setter marks
+   // that field defined, setBackgroundValue(null) included. Borders survive because
+   // copyDefaultFormat never copies them at all
    private static boolean isSeededTitle(VSAssemblyInfo info) {
-      return info instanceof ChartVSAssemblyInfo || info instanceof TableDataVSAssemblyInfo;
+      // TimeSliderVSAssemblyInfo is a sibling of SelectionBaseVSAssemblyInfo, not a subclass, so
+      // it needs its own branch; CurrentSelectionVSAssemblyInfo is a container and shares neither
+      return info instanceof ChartVSAssemblyInfo
+         || info instanceof TableDataVSAssemblyInfo
+         || info instanceof SelectionBaseVSAssemblyInfo
+         || info instanceof TimeSliderVSAssemblyInfo
+         || info instanceof CurrentSelectionVSAssemblyInfo;
    }
 
    // A title color counts as customized (and is preserved) only when the user picker (USER tier) or a

@@ -2131,6 +2131,9 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       // so the fresh assembly createVSAssembly builds from the state blob further down gets the
       // live mark back instead of keeping whatever mark the blob carried
       Map<String, VizMark> vsAnnoMarks = new HashMap<>();
+      // the same, for the children of a current selection: they are removed below and re-created
+      // from the blob by the container's own parseStateContent, so nothing else re-applies a mark
+      Map<String, VizMark> containerChildMarks = new HashMap<>();
       // @by skyf, remove all old annotations firstly.
       Viewsheet vs = VSUtil.getTopViewsheet(this);
 
@@ -2239,6 +2242,15 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             String[] children = cass.getAssemblies();
 
             for(String child : children) {
+               // the child is re-created from the state blob below, mark included, and never
+               // passes through AbstractVSAssembly.parseState - so its live mark is captured
+               // here, while the assembly still exists, and handed back after
+               VSAssembly cvass = getAssembly(child);
+
+               if(cvass != null && cvass.getVSAssemblyInfo() != null) {
+                  containerChildMarks.put(child, cvass.getVSAssemblyInfo().getVizMark());
+               }
+
                removeAssembly(child);
             }
          }
@@ -2285,6 +2297,18 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             nvass.parseState(clist.get(name));
             syncBookmarkAssembly(nvass, vass);
             updateVSAssembly(vass, nvass);
+         }
+      }
+
+      // the container children re-created above: hand each its live mark back and resolve its
+      // chrome against it, the way parseState already does for every assembly it reaches. A child
+      // the blob adds has no live mark to inherit and keeps whatever it was created with
+      for(Map.Entry<String, VizMark> entry : containerChildMarks.entrySet()) {
+         VSAssembly cvass = getAssembly(entry.getKey());
+
+         if(cvass != null && cvass.getVSAssemblyInfo() != null) {
+            cvass.getVSAssemblyInfo().setVizMark(entry.getValue());
+            VizModernizeUtil.reseedAfterRestore(cvass.getVSAssemblyInfo());
          }
       }
 

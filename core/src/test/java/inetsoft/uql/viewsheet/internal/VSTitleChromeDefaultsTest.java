@@ -213,15 +213,35 @@ class VSTitleChromeDefaultsTest {
    }
 
    @Test
+   void theSelectionFamilyIsNotSubstituted() {
+      withProperty("viewsheet.modernVisualization", "true", () -> {
+         VizContext ctx = VizContext.ofGate();
+         VSCompositeFormat fmt = new VSCompositeFormat();
+
+         assertSame(fmt, VSTitleChromeDefaults.applyModernDefaults(
+                       fmt, ctx, new SelectionListVSAssemblyInfo()),
+                    "a selection list carries its title chrome in the stored format");
+         assertSame(fmt, VSTitleChromeDefaults.applyModernDefaults(
+                       fmt, ctx, new SelectionTreeVSAssemblyInfo()), "so does a tree");
+         assertSame(fmt, VSTitleChromeDefaults.applyModernDefaults(
+                       fmt, ctx, new CurrentSelectionVSAssemblyInfo()), "so does a container");
+         assertSame(fmt, VSTitleChromeDefaults.applyModernDefaults(
+                       fmt, ctx, new TimeSliderVSAssemblyInfo()),
+                    "and so does a range slider, which is a sibling of the selection base "
+                       + "rather than a subclass and needs its own branch");
+      });
+   }
+
+   @Test
    void aDeferredTypeIsStillSubstituted() {
       withProperty("viewsheet.modernVisualization", "true", () -> {
          VizContext ctx = VizContext.ofGate();
          VSCompositeFormat fmt = new VSCompositeFormat();
-         SelectionListVSAssemblyInfo list = new SelectionListVSAssemblyInfo();
+         CheckBoxVSAssemblyInfo box = new CheckBoxVSAssemblyInfo();
 
          assertEquals(0xF1EFEA,
-                      rgb(VSTitleChromeDefaults.applyModernDefaults(fmt, ctx, list).getBackground()),
-                      "the selection and input family has not converted yet");
+                      rgb(VSTitleChromeDefaults.applyModernDefaults(fmt, ctx, box).getBackground()),
+                      "checkbox, radio and calendar have not converted yet");
       });
    }
 

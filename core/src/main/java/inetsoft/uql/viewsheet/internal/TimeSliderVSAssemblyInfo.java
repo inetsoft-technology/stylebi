@@ -709,9 +709,33 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
          titleFormat.getDefaultFormat().setBordersValue(
             new Insets(GraphConstants.NONE, GraphConstants.NONE,
                        GraphConstants.THIN_LINE, GraphConstants.NONE));
-         titleFormat.getDefaultFormat().setBorderColorsValue(
-            new BorderColors(new Color(0xc0c0c0), new Color(0xc0c0c0),
-                             new Color(0xc0c0c0), new Color(0xc0c0c0)));
+         titleFormat.getDefaultFormat().setBorderColorsValue(legacyTitleRuleColors());
+      }
+
+      // super seeded the title composite this method then overwrote; re-run against the values
+      // that should stand. The hook is a set of unconditional writes, so a second run is free
+      seedChromeDefaults(VizContext.of(this));
+   }
+
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      super.seedChromeDefaults(ctx);
+
+      // the title lane: this type clears its own title fill at creation and keeps it cleared on
+      // both branches, so only the rule's colour and the text colour move. The legacy branch is
+      // what Revert relies on to restore a never-modernized slider
+      VSCompositeFormat titleFormat = getFormatInfo().getFormat(TITLEPATH);
+
+      if(titleFormat != null) {
+         VSFormat def = titleFormat.getDefaultFormat();
+         def.setBordersValue(VSTitleChromeDefaults.titleRuleBorders());
+         def.setBorderColorsValue(ctx.modern
+            ? VSTitleChromeDefaults.titleRuleColors(ctx) : legacyTitleRuleColors());
+         def.setForegroundValue(
+            ctx.modern ? VSTitleChromeDefaults.titleForegroundValue(ctx) : null);
+         // getForeground() falls back to the fg field when fgval yields nothing, so the legacy
+         // branch has to null both or a runtime foreground survives the clear
+         def.setForeground(null);
       }
    }
 
@@ -1119,4 +1143,11 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
    private TimeSliderSelection timeSliderSelection;
 
    private static final Logger LOG = LoggerFactory.getLogger(TimeSliderVSAssemblyInfo.class);
+
+   // the title rule this type has always drawn; the seed's legacy branch restores it.
+   // Fresh every call - BorderColors is mutable and the caller installs it on a format.
+   private static BorderColors legacyTitleRuleColors() {
+      return new BorderColors(new Color(0xc0c0c0), new Color(0xc0c0c0),
+                              new Color(0xc0c0c0), new Color(0xc0c0c0));
+   }
 }
