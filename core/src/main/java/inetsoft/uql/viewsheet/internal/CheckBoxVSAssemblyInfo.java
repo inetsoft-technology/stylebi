@@ -454,14 +454,34 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
 
       // legacy default is 2 * defh (title lane + one data row); preserve that ratio rather than
       // substituting a single control height, or a freshly-created checkbox would lose the room
-      // its second row needs.
+      // its second row needs. cellHeight and titleHeight must grow by the same amount as the
+      // container, or updateDataRowCol()'s (containerHeight - titleHeight) / cellHeight would
+      // recompute a second row out of the container's new headroom instead of leaving it as
+      // clearance.
       if(ctx.modern && getPixelSize().height == 2 * AssetUtil.defh) {
-         setPixelSize(new Dimension(getPixelSize().width, 2 * VSDensityDefaults.controlHeight(ctx)));
+         int controlHeight = VSDensityDefaults.controlHeight(ctx);
+         setPixelSize(new Dimension(getPixelSize().width, 2 * controlHeight));
+
+         if(getCellHeight() == AssetUtil.defh) {
+            setCellHeight(controlHeight);
+         }
+
+         if(!isUserTitleHeight() && getTitleHeight() == getLegacyTitleHeight()) {
+            setTitleHeight(controlHeight);
+         }
       }
       else if(!ctx.modern && getPixelSize().height % 2 == 0 &&
          VSDensityDefaults.isControlHeight(getPixelSize().height / 2))
       {
          setPixelSize(new Dimension(getPixelSize().width, 2 * AssetUtil.defh));
+
+         if(VSDensityDefaults.isControlHeight(getCellHeight())) {
+            setCellHeight(AssetUtil.defh);
+         }
+
+         if(!isUserTitleHeight() && VSDensityDefaults.isControlHeight(getTitleHeight())) {
+            setTitleHeight(getLegacyTitleHeight());
+         }
       }
    }
 
