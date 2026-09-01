@@ -33,6 +33,14 @@ public class FilterFieldSpec {
    @NotBlank
    private String controlType;
    private String label;
+   /**
+    * The assembly name wiz-services already tracks for this field (from an earlier
+    * add_visualization_filters call), if any. When present and still a live filter-control
+    * assembly on the viewsheet, {@code addFilters} UPDATES it in place (same assemblyName,
+    * re-titled/re-bound/re-positioned) instead of creating a duplicate — the upsert-by-field
+    * half of decision 1. Absent (or stale/no-longer-present) falls back to creating a new control.
+    */
+   private String existingAssemblyName;
 
    public String getField() {
       return field;
@@ -56,5 +64,13 @@ public class FilterFieldSpec {
 
    public void setLabel(String label) {
       this.label = label;
+   }
+
+   public String getExistingAssemblyName() {
+      return existingAssemblyName;
+   }
+
+   public void setExistingAssemblyName(String existingAssemblyName) {
+      this.existingAssemblyName = existingAssemblyName;
    }
 }

@@ -518,14 +518,39 @@ public class WizVsService {
       for(int i = 0; i < resolvable.size(); i++) {
          FilterFieldSpec spec = resolvable.get(i);
          DataRef col = resolvedColumns.get(i);
-         VSAssembly created = VSEventUtil.createVSAssembly(rvs, resolvedTypes.get(i));
+         int type = resolvedTypes.get(i);
 
-         if(!(created instanceof AbstractSelectionVSAssembly control)) {
-            // Cannot happen: resolveAddType only returns the three SELECTION_LIST/TIME_SLIDER/
-            // CALENDAR codes, and createVSAssembly's switch creates an AbstractSelectionVSAssembly
-            // subclass for every one of them.
-            throw new IllegalStateException(
-               "Failed to create filter control for field '" + spec.getField() + "'");
+         // Upsert-by-field (decision 1 / assertion A3): when wiz-services already tracks an
+         // assembly for this field AND it is still present AND still the same control type,
+         // reuse it in place (same assemblyName) instead of creating a duplicate. A stale name (no
+         // longer on the viewsheet) or a type change (e.g. a repeat call with a different explicit
+         // controlType override) falls back to removing the old one and creating fresh.
+         AbstractSelectionVSAssembly control = null;
+         String existingName = spec.getExistingAssemblyName();
+
+         if(!Tool.isEmptyString(existingName)) {
+            VSAssembly existing = vs.getAssembly(existingName);
+
+            if(existing != null && matchesControlType(existing, type)) {
+               control = (AbstractSelectionVSAssembly) existing;
+            }
+            else if(existing != null) {
+               vs.removeAssembly(existingName);
+            }
+         }
+
+         if(control == null) {
+            VSAssembly created = VSEventUtil.createVSAssembly(rvs, type);
+
+            if(!(created instanceof AbstractSelectionVSAssembly newControl)) {
+               // Cannot happen: resolveAddType only returns the three SELECTION_LIST/TIME_SLIDER/
+               // CALENDAR codes, and createVSAssembly's switch creates an AbstractSelectionVSAssembly
+               // subclass for every one of them.
+               throw new IllegalStateException(
+                  "Failed to create filter control for field '" + spec.getField() + "'");
+            }
+
+            control = newControl;
          }
 
          control.setTableNames(List.of(tableName));
@@ -653,6 +678,19 @@ public class WizVsService {
          case "time_slider" -> AbstractSheet.TIME_SLIDER_ASSET;
          case "calendar" -> AbstractSheet.CALENDAR_ASSET;
          default -> throw new IllegalArgumentException("Unsupported controlType: " + controlType);
+      };
+   }
+
+   /** Whether an existing assembly is still the right Java type to reuse for the given
+    *  {@link AbstractSheet} asset-type code -- an assembly's concrete class can't change in
+    *  place, so a type change (e.g. a repeat call with a different controlType override) must
+    *  remove the old assembly and create a fresh one rather than "reuse" a mismatched type. */
+   private static boolean matchesControlType(VSAssembly assembly, int type) {
+      return switch(type) {
+         case AbstractSheet.SELECTION_LIST_ASSET -> assembly instanceof SelectionListVSAssembly;
+         case AbstractSheet.TIME_SLIDER_ASSET -> assembly instanceof TimeSliderVSAssembly;
+         case AbstractSheet.CALENDAR_ASSET -> assembly instanceof CalendarVSAssembly;
+         default -> false;
       };
    }
 
