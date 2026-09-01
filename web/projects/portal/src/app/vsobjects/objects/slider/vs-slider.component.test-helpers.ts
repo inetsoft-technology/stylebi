@@ -27,9 +27,10 @@
  * The model setter computes verticalCenter and tickSize (calls GuiTool.measureText).
  * ngOnChanges() computes handlePosition, sliderLabel, and ticks.
  *
- * Default model: min=0, max=100, increment=20, value=50, objectFormat.width=200, height=60.
+ * Default model: min=0, max=100, increment=20, value=50, objectFormat.width=200, height=60,
+ * currentVisible=true.
  * Computed values:
- *   verticalCenter = Math.max(17, Math.min(30, 60-36)) = Math.max(17, 24) = 24
+ *   verticalCenter = Math.max(33, Math.min(30, 60-27)) = Math.max(33, 30) = 33
  *   handlePosition = (50-0)/(100-0) * 200 = 100
  *
  * GuiTool.measureText must be spied on before calling createVSSlider() because
