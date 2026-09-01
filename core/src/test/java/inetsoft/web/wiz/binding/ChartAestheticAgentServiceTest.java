@@ -325,6 +325,37 @@ class ChartAestheticAgentServiceTest {
       assertEquals("Region", captureEvent(aesthetics).getModel().getColorField().getFullName());
    }
 
+   /**
+    * PR #4921 round-1 finding 2: {@code clearField} calls the identical chart-level
+    * {@code assign(model, name, null)} write {@code setField} does (see
+    * {@code ChartAestheticMutator.clearField}), so it corrupts a multi-style chart the same way —
+    * but the guard was only wired onto {@code setField}. This proves it is now wired onto
+    * {@code clearField} too.
+    */
+   @Test
+   void refusesClearingAFieldWhileTheChartIsAlreadyMultiStyle() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(multiStyleChartAssembly()), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.clearField("tok", principal(), "Chart1", "color", ""));
+      assertTrue(thrown.getMessage().toLowerCase().contains("multi-style"), thrown.getMessage());
+   }
+
+   @Test
+   void allowsClearingAFieldWhenTheChartIsNotMultiStyle() throws Exception {
+      ChartBindingModel existing = new ChartBindingModel();
+      ChartAestheticMutator.setField(existing, "color",
+                                     new FieldRef("Region", "dimension", null, null, null));
+      ChangeChartAestheticService aesthetics = mock(ChangeChartAestheticService.class);
+
+      harness(existing, aesthetics).clearField("tok", principal(), "Chart1", "color", "");
+
+      assertNull(captureEvent(aesthetics).getModel().getColorField());
+   }
+
    private static ChartVSAssembly multiStyleChartAssembly() {
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.isMultiAesthetic()).thenReturn(true);

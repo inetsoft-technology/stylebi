@@ -199,9 +199,19 @@ public final class ChartBindingMutator {
     * {@code Util.getOrganizationMaxColumn()}. {@code chartInfo == null} skips the check: there is
     * no live chart to total against (the no-chartInfo overloads used by unit tests and any other
     * caller that only has a bare {@code ChartBindingModel}).
+    *
+    * <p>The check only fires on <b>net growth</b> of this shelf ({@code newShelfCount >
+    * oldShelfCount}). A net-neutral or net-decreasing edit is always allowed, regardless of the
+    * chart's pre-existing total — mirroring how native's own add/remove split behaves:
+    * {@code VSChartDndService.addColumns} caps a drag-drop add, but
+    * {@code VSChartDndService.removeColumns} has no limit check at all. Without this guard, a
+    * chart that is already over budget (grandfathered, or the org limit lowered by an admin after
+    * the chart was created) would become permanently unable to have any shelf edited through this
+    * path — even a strict shrink — because the absolute post-edit total would still read over
+    * limit.
     */
    private static void requireColumnLimit(VSChartInfo chartInfo, int oldShelfCount, int newShelfCount) {
-      if(chartInfo == null) {
+      if(chartInfo == null || newShelfCount <= oldShelfCount) {
          return;
       }
 

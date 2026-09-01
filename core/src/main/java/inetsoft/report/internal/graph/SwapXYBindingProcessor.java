@@ -63,8 +63,8 @@ public class SwapXYBindingProcessor extends ChangeChartProcessor {
     * unconditionally (it partitions by measure/dimension, never drops one), so only the
     * {@code cinfo instanceof MapInfo} branch of {@link #process()} is exempt.
     *
-    * @throws IllegalStateException naming the field that would be dropped, before anything is
-    *                               mutated — call this before {@link #process()}, not after.
+    * @throws IllegalArgumentException naming the field that would be dropped, before anything is
+    *                                  mutated — call this before {@link #process()}, not after.
     */
    public void requireInvertible() {
       if(cinfo instanceof MapInfo) {

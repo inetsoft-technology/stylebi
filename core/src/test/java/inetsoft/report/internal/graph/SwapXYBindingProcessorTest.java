@@ -76,6 +76,48 @@ class SwapXYBindingProcessorTest {
       assertDoesNotThrow(processor::requireInvertible);
    }
 
+   /**
+    * The per-measure branch of {@code requireInvertible} ({@code multi ? agg.getChartType() :
+    * cinfo.getChartType()}): once the chart is multi-style, each measure's OWN chart type governs
+    * invertibility, not the chart-level type. Here the chart-level type is bar (invertible) but
+    * the bound measure's own type is mekko (not) -- the check must still refuse, proving it reads
+    * the per-measure type once multi-style is on.
+    */
+   @Test
+   void refusesASwapOnAMultiStyleChartWhenTheMeasuresOwnTypeCannotInvert() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_BAR);
+      info.setMultiStyles(true);
+      info.addXField(new VSChartDimensionRef());
+      VSChartAggregateRef measure = new VSChartAggregateRef();
+      measure.setChartType(GraphTypes.CHART_MEKKO);
+      info.addYField(measure);
+
+      SwapXYBindingProcessor processor = new SwapXYBindingProcessor(info, null);
+
+      assertThrows(IllegalArgumentException.class, processor::requireInvertible);
+   }
+
+   /**
+    * The mirror case: chart-level type is mekko (not invertible) but the bound measure's own
+    * type, once multi-style is on, is bar (invertible) -- the check must allow it, proving it is
+    * not simply falling back to the chart-level type.
+    */
+   @Test
+   void allowsASwapOnAMultiStyleChartWhenTheMeasuresOwnTypeCanInvert() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_MEKKO);
+      info.setMultiStyles(true);
+      info.addXField(new VSChartDimensionRef());
+      VSChartAggregateRef measure = new VSChartAggregateRef();
+      measure.setChartType(GraphTypes.CHART_BAR);
+      info.addYField(measure);
+
+      SwapXYBindingProcessor processor = new SwapXYBindingProcessor(info, null);
+
+      assertDoesNotThrow(processor::requireInvertible);
+   }
+
    @Test
    void skipsTheCheckEntirelyForAMapChart() {
       // swapMapXYFields partitions x/y by measure/dimension unconditionally and never drops a

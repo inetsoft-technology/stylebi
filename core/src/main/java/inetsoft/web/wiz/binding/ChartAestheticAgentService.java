@@ -112,6 +112,7 @@ public class ChartAestheticAgentService {
       boolean colorShapeSupported = isColorShapeSupported(sessionToken, user, assemblyName);
       String name = AestheticChannels.requireFieldChannel(
          channel, relationChart, sizeSupported, colorShapeSupported);
+      requireNotMultiAesthetic(sessionToken, user, assemblyName);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
             (chart, model) -> ChartAestheticMutator.clearField(model, name, relationChart));
@@ -301,9 +302,11 @@ public class ChartAestheticAgentService {
    /**
     * Refuses a field write while the chart is already multi-style, instead of corrupting it.
     *
-    * <p>{@code ChartAestheticMutator.setField} writes to the chart-level field slot
-    * unconditionally — it has no equivalent of the per-measure {@code aggr.setShapeField(...)}
-    * path {@code VSFrameVisitor}'s rendering strategies read from once
+    * <p>{@code ChartAestheticMutator.setField} and {@code clearField} both write to the
+    * chart-level field slot unconditionally (the latter via the identical {@code assign(model,
+    * name, null)} call) — neither has an equivalent of the per-measure
+    * {@code aggr.setShapeField(...)} path {@code VSFrameVisitor}'s rendering strategies read from
+    * once
     * {@code info.isMultiAesthetic()} is true ({@code frameField}'s own comment on this class
     * documents that split). Writing there while already multi-style does not merely go
     * unrendered the way an unsupported channel does — it leaves the chart's runtime graph
