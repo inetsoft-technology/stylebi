@@ -72,12 +72,16 @@ import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import inetsoft.web.wiz.BindingFieldSettings;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.*;
+import inetsoft.web.wiz.script.ScriptImageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.security.Principal;
 import java.util.*;
 import java.util.function.BiFunction;
@@ -87,13 +91,15 @@ import java.util.stream.Collectors;
 public class WizVsService {
    public WizVsService(ViewsheetService viewsheetService, AssetRepository engine,
                        SecurityEngine securityEngine, SyncInfoHandler syncInfoHandler,
-                       VSWizardTemporaryInfoService temporaryInfoService)
+                       VSWizardTemporaryInfoService temporaryInfoService,
+                       ScriptImageService scriptImageService)
    {
       this.viewsheetService = viewsheetService;
       this.engine = engine;
       this.securityEngine = securityEngine;
       this.syncInfoHandler = syncInfoHandler;
       this.temporaryInfoService = temporaryInfoService;
+      this.scriptImageService = scriptImageService;
    }
 
    /**
@@ -447,6 +453,227 @@ public class WizVsService {
       }
 
       return result;
+   }
+
+   /**
+    * Attaches 1-3 interactive filter controls (SelectionList/TimeSlider/Calendar) to the chart
+    * identified by {@code (runtimeId, assemblyName)}, packed into a grid below it on the same
+    * viewsheet ({@link WizFilterLayout}). Every control binds {@code setTableNames} to exactly the
+    * chart's own bound table (never a multi-table search — see the design doc section 2.5); a
+    * requested field not found on that table is reported in the response's {@code skipped} list
+    * rather than failing the whole call.
+    *
+    * <p>Never touches {@code conditionModel}/{@code highlightModel} — this only adds sibling
+    * assemblies to the viewsheet, independent of both.
+    *
+    * <p>Upsert-in-place (reusing an existing field's control instead of creating a duplicate) is
+    * the caller's (wiz-services') responsibility, via its own tracked field-&gt;assemblyName state:
+    * a repeat call for an already-attached field removes the old control's assembly first via
+    * {@link #removeFilter}, so this method itself only ever creates.
+    */
+   public AddFiltersResponse addFilters(AddFiltersRequest request, Principal user) throws Exception {
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
+      RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
+         viewsheetService, request.getRuntimeId(), request.getViewsheetIdentifier(), user);
+      Viewsheet vs = getValidatedViewsheet(rvs);
+
+      VSAssembly chartAssembly = vs.getAssembly(request.getAssemblyName());
+
+      if(!(chartAssembly instanceof ChartVSAssembly chart)) {
+         throw new IllegalArgumentException("No chart assembly named '" + request.getAssemblyName() + "'");
+      }
+
+      String tableName = chart.getTableName();
+      AbstractTableAssembly table = resolveBoundTable(vs, tableName, user);
+      ColumnSelection cols = table.getColumnSelection(false);
+
+      List<FilterFieldSpec> resolvable = new ArrayList<>();
+      List<DataRef> resolvedColumns = new ArrayList<>();
+      List<Integer> resolvedTypes = new ArrayList<>();
+      List<SkippedFilter> skipped = new ArrayList<>();
+
+      for(FilterFieldSpec spec : request.getFields()) {
+         DataRef col = cols.getAttribute(spec.getField());
+
+         if(col == null) {
+            skipped.add(new SkippedFilter(spec.getField(), "not found on bound table"));
+            continue;
+         }
+
+         resolvable.add(spec);
+         resolvedColumns.add(col);
+         resolvedTypes.add(resolveAddType(spec.getControlType()));
+      }
+
+      // Packed grid (design doc section 2.4), computed from the chart's own LIVE geometry -- free
+      // here, since `chart` is already in hand. Skipped fields do not consume a shelf slot.
+      List<Rectangle> rects = WizFilterLayout.pack(chart.getPixelOffset(), chart.getPixelSize(), resolvedTypes);
+
+      List<AppliedFilter> applied = new ArrayList<>();
+
+      for(int i = 0; i < resolvable.size(); i++) {
+         FilterFieldSpec spec = resolvable.get(i);
+         DataRef col = resolvedColumns.get(i);
+         VSAssembly created = VSEventUtil.createVSAssembly(rvs, resolvedTypes.get(i));
+
+         if(!(created instanceof AbstractSelectionVSAssembly control)) {
+            // Cannot happen: resolveAddType only returns the three SELECTION_LIST/TIME_SLIDER/
+            // CALENDAR codes, and createVSAssembly's switch creates an AbstractSelectionVSAssembly
+            // subclass for every one of them.
+            throw new IllegalStateException(
+               "Failed to create filter control for field '" + spec.getField() + "'");
+         }
+
+         control.setTableNames(List.of(tableName));
+
+         String title = !Tool.isEmptyString(spec.getLabel()) ? spec.getLabel() : col.getAttribute();
+
+         // SelectionListVSAssembly has its own setTitleValue but does not implement the
+         // TitledVSAssembly interface (unlike Calendar/TimeSlider) -- both branches are needed to
+         // cover all three control types.
+         if(control instanceof TitledVSAssembly titled) {
+            titled.setTitleValue(title);
+         }
+         else if(control instanceof SelectionListVSAssembly selectionList) {
+            selectionList.setTitleValue(title);
+         }
+
+         Rectangle r = rects.get(i);
+         control.setPixelOffset(new Point(r.x, r.y));
+         control.setPixelSize(new Dimension(r.width, r.height));
+         // Re-add for correct z-index AT THE FINAL, PACKED POSITION -- createVSAssembly already
+         // added the control once at its default (0,0) position; Viewsheet.addAssembly is
+         // idempotent (matches by name, replaces in place) but re-runs the z-index adjustment
+         // against whatever geometry the assembly holds at the moment of the call.
+         vs.addAssembly(control);
+
+         // Populates the control's own selectable values/range (box.executeView) -- never on the
+         // chart itself, since the chart's own binding/data is unchanged by adding a sibling filter.
+         executeAndExtract(rvs, control, 0);
+
+         applied.add(new AppliedFilter(spec.getField(), control.getName(), spec.getControlType(), title));
+      }
+
+      String viewsheetIdentifier = request.getViewsheetIdentifier();
+
+      if(!Tool.isEmptyString(viewsheetIdentifier)) {
+         persistViewsheet(vs, viewsheetIdentifier, user);
+      }
+
+      return new AddFiltersResponse(rvs.getID(), applied, skipped);
+   }
+
+   /**
+    * Removes a single filter control assembly (by name) from a live runtime viewsheet and persists
+    * the change back to the managed visualization asset. Idempotent — a missing/expired runtime or
+    * an already-absent assembly is treated as success ({@code removed:false}, not an error), mirroring
+    * {@link #removeVisualization}.
+    */
+   public RemoveFilterResponse removeFilter(RemoveFilterRequest request, Principal user) throws Exception {
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
+      RuntimeViewsheet rvs;
+
+      try {
+         rvs = WizUtil.getViewsheetOrRestore(
+            viewsheetService, request.getRuntimeId(), request.getViewsheetIdentifier(), user);
+      }
+      catch(Exception e) {
+         LOG.warn("Runtime viewsheet [{}] unavailable; treating filter removal as a no-op: {}",
+            request.getRuntimeId(), e.getMessage());
+         return new RemoveFilterResponse(false);
+      }
+
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null || vs.getAssembly(request.getAssemblyName()) == null) {
+         return new RemoveFilterResponse(false); // idempotent: nothing to remove
+      }
+
+      vs.removeAssembly(request.getAssemblyName());
+      rvs.getViewsheetSandbox().ifPresent(box -> {
+         box.resetDataMap(request.getAssemblyName());
+
+         try {
+            box.clearGraph(request.getAssemblyName());
+         }
+         catch(Exception ignore) {
+         }
+      });
+
+      if(!Tool.isEmptyString(request.getViewsheetIdentifier())) {
+         persistViewsheet(vs, request.getViewsheetIdentifier(), user);
+      }
+
+      return new RemoveFilterResponse(true);
+   }
+
+   /**
+    * Renders the whole viewsheet (chart + any filter controls, {@code target} omitted) or a single
+    * assembly, for a headless {@code runtimeId}-keyed runtime — the sibling of the paired-session
+    * {@code /api/wiz/v1/agent/viewsheet/{sessionToken}/image} endpoint
+    * ({@link inetsoft.web.wiz.viewsheet.ViewsheetAssemblyAgentController#image}), reusing the exact
+    * same underlying render mechanism ({@link ScriptImageService}) rather than a bespoke one.
+    */
+   public VisualizationImageResponse getVisualizationImage(VisualizationImageRequest request, Principal user)
+      throws Exception
+   {
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
+      RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
+         viewsheetService, request.getRuntimeId(), request.getViewsheetIdentifier(), user);
+
+      String target = request.getTarget();
+      ScriptImageService.ChartImage image = Tool.isEmptyString(target)
+         ? scriptImageService.getViewsheetImage(rvs, request.getWidth(), request.getHeight(), user)
+         : scriptImageService.getAssemblyImage(rvs, target, request.getWidth(), request.getHeight(), user);
+
+      return new VisualizationImageResponse(
+         Base64.getEncoder().encodeToString(image.pngBytes()),
+         image.isPng() ? "png" : "svg",
+         image.width(), image.height(), image.note());
+   }
+
+   /** {@code controlType} -&gt; {@link AbstractSheet} asset-type code. Fails loud on an unrecognized
+    *  value rather than silently defaulting -- wiz-services' zod enum should already guarantee one
+    *  of the three, so reaching the default branch means the two sides have drifted. */
+   private static int resolveAddType(String controlType) {
+      return switch(controlType) {
+         case "selection_list" -> AbstractSheet.SELECTION_LIST_ASSET;
+         case "time_slider" -> AbstractSheet.TIME_SLIDER_ASSET;
+         case "calendar" -> AbstractSheet.CALENDAR_ASSET;
+         default -> throw new IllegalArgumentException("Unsupported controlType: " + controlType);
+      };
+   }
+
+   /**
+    * Resolves the worksheet table a chart's {@code tableName} refers to, the same pattern already
+    * live at {@code pushAggregationToWorksheet}'s call site: {@code engine.getSheet(vs.getBaseEntry(),
+    * ...)}, not {@code vs.getBaseWorksheet()}.
+    */
+   private AbstractTableAssembly resolveBoundTable(Viewsheet vs, String tableName, Principal user)
+      throws Exception
+   {
+      AssetEntry wsEntry = vs.getBaseEntry();
+      Worksheet ws = wsEntry != null
+         ? (Worksheet) engine.getSheet(wsEntry, user, false, AssetContent.ALL) : null;
+      Assembly wsAssembly = ws != null ? ws.getAssembly(VSUtil.stripOuter(tableName)) : null;
+
+      if(!(wsAssembly instanceof AbstractTableAssembly table)) {
+         throw new IllegalStateException("Cannot resolve worksheet table '" + tableName + "'");
+      }
+
+      return table;
    }
 
    /**
@@ -5815,6 +6042,7 @@ public class WizVsService {
    private final SecurityEngine securityEngine;
    private final SyncInfoHandler syncInfoHandler;
    private final VSWizardTemporaryInfoService temporaryInfoService;
+   private final ScriptImageService scriptImageService;
 
    private static final Logger LOG = LoggerFactory.getLogger(WizVsService.class);
    private static final Map<Class<?>, BiFunction<Viewsheet, String, VSAssembly>> ASSEMBLY_FACTORIES = Map.of(
