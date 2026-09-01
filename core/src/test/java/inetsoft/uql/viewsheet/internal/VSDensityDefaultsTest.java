@@ -105,6 +105,10 @@ class VSDensityDefaultsTest {
 
    @Test
    void controlHeightIsDefhWhenGateIsOff() {
+      // modern is now the shipped default for a new install, so the gate must be turned off
+      // explicitly - VizContext.ofGate() no longer resolves to legacy just because the property
+      // is unset.
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
       assertEquals(AssetUtil.defh, VSDensityDefaults.controlHeight(VizContext.ofGate()));
    }
 
