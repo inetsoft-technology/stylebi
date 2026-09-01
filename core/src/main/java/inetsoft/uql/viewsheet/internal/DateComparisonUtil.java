@@ -712,15 +712,6 @@ public class DateComparisonUtil {
     * A part is not treated as orphaned merely because the most recent year's own rows have
     * no match for it -- that is ordinary data sparsity, not an unreached future bucket, and
     * older periods' real data for it must still render (Bug #76391).
-    *
-    * DateComparisonFormat.initPartDate() also calls this method directly, to drive the same
-    * heuristic at the pre-aggregated partDates level -- but as of Bug #76388, that caller is
-    * NOT gated on facet mode the way applyDateRange() below is. In facet mode this method's
-    * heuristic is wrong for the reason documented at the applyDateRange() call site (a facet
-    * lacking a row in the most recent period isn't a future bucket, it's an ordinary facet
-    * with less data), so initPartDate() can still misclassify facets 5+ as orphaned and blank
-    * their labels even after this fix, independent of Bug #76390's own, separate label-
-    * blanking defect in the same method. Not fixed here -- see PR #4936's discussion.
     */
    static Set<Object> computeValidParts(DataSet data, String periodCol,
                                         String partCol, Date startDate)
@@ -780,18 +771,71 @@ public class DateComparisonUtil {
       // do reach as valid too, so an older period's real data for it isn't dropped just
       // because the most recent period happens to have no row there. A part that sorts
       // strictly after that point is left excluded, preserving the future-bucket
-      // suppression this method was introduced for. (Bug #76391)
+      // suppression this method was introduced for. Scoped by the same startDate condition
+      // as the first pass, so a part appearing only in a row before startDate can't leak in
+      // here -- this loop's result should mean the same thing the first pass's scope means,
+      // not rely on every caller happening to already exclude those rows via a separate
+      // selector. (Bug #76391)
+      //
+      // For a MergePartCell (e.g. "12-1", "12-2" -- a month plus a tie-breaking sub-bucket
+      // for a week that spans two months), a strict tuple compare against maxPart is too
+      // narrow at the trailing edge: if the most recent period's own data reaches "12-1" but
+      // that year's calendar simply never produces a "12-2" split, "12-2" sorts after "12-1"
+      // and would stay excluded even though the most recent period plainly did reach month
+      // 12 -- the missing sub-bucket is calendar variation, not an unreached future month.
+      // Every family strictly before maxPart's own family is already fully valid from the
+      // plain tuple compare above (the leading component alone decides it), so only
+      // maxPart's own family can have this trailing-edge gap: also accept a part that
+      // shares maxPart's leading components (everything but the final, tie-breaking one),
+      // whatever its own trailing value. (Bug #76391)
+      List<Object> maxPartPrefix = mergePartCellPrefix(maxPart);
+
       if(maxPart != null) {
          for(int i = 0; i < data.getRowCount(); i++) {
+            Date date = toPeriodDate(data.getData(periodCol, i));
+
+            if(date == null || (startDate != null && date.before(startDate))) {
+               continue;
+            }
+
             Object part = data.getData(partCol, i);
 
-            if(Tool.compare(part, maxPart) <= 0) {
+            if(Tool.compare(part, maxPart) <= 0 ||
+               (maxPartPrefix != null && maxPartPrefix.equals(mergePartCellPrefix(part))))
+            {
                validParts.add(part);
             }
          }
       }
 
       return validParts;
+   }
+
+   /**
+    * A MergePartCell's own values, minus the final (tie-breaking sub-bucket) value -- e.g.
+    * ["12"] for both "12-1" and "12-2". Returns null for anything that isn't a MergePartCell
+    * with at least two component values, so callers can distinguish "no prefix to compare"
+    * from "empty prefix."
+    */
+   private static List<Object> mergePartCellPrefix(Object part) {
+      if(!(part instanceof MergePartCell)) {
+         return null;
+      }
+
+      MergePartCell cell = (MergePartCell) part;
+      int size = cell.getMergedRefs().size();
+
+      if(size < 2) {
+         return null;
+      }
+
+      List<Object> prefix = new ArrayList<>(size - 1);
+
+      for(int i = 0; i < size - 1; i++) {
+         prefix.add(cell.getValue(i));
+      }
+
+      return prefix;
    }
 
    /** Extract a comparable Date from a period column value (raw Date or MergePartCell). */

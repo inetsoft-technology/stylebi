@@ -19,7 +19,12 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.DefaultDataSet;
+import inetsoft.report.filter.DCMergeDatePartFilter;
+import inetsoft.report.lens.DataSetTable;
 import inetsoft.test.*;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.viewsheet.VSDimensionRef;
+import inetsoft.uql.viewsheet.XDimensionRef;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -28,6 +33,9 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import static inetsoft.test.XTableUtil.date;
@@ -109,5 +117,69 @@ class DateComparisonUtilValidPartsTest {
                                "a bucket the most recent period hasn't chronologically " +
                                "reached yet must stay orphaned even though older periods " +
                                "have real data for it");
+   }
+
+   /**
+    * Reproduces the residual gap in Bug #76391's original fix, found live against the actual
+    * reported Year_MonthToDate Chart4 fixture: WeekOfMonth "12-2" (2019: 18) still didn't
+    * render even after that fix, because the real "12-2"/"12-1" values are not plain
+    * month*10+week integers -- they are DCMergeDatePartFilter.MergePartCell instances whose
+    * compareTo() does a two-element tuple compare (month component, then week-of-month
+    * component; see MergePartCell.getMergedRefs()/compareTo()). The most recent period (2020)
+    * reaches month 12 (has a "12-1" row) but its calendar never produces a "12-2" split week,
+    * so maxPart is "12-1" and the plain "sorts at or before maxPart" rule from the first fix
+    * excludes "12-2" (its own tuple sorts after "12-1") even though 2020 plainly did reach
+    * month 12 -- the missing sub-bucket is calendar variation, not an unreached future month.
+    *
+    * The fix compares only the leading (non-tie-breaking) components against maxPart's own
+    * leading components: sharing "12" is enough to rescue "12-2", regardless of its trailing
+    * week-of-month value.
+    */
+   @Test
+   void mergePartCellSharingMaxPartsLeadingComponentsIsNotOrphaned() {
+      VSDimensionRef monthRef = new VSDimensionRef();
+      monthRef.setDataRef(new AttributeRef("MonthOfWeekN(date)"));
+      VSDimensionRef weekOfMonthRef = new VSDimensionRef();
+      weekOfMonthRef.setDataRef(new AttributeRef("WeekOfMonth(date)"));
+      VSDimensionRef dateGroupRef = new VSDimensionRef();
+      dateGroupRef.setDataRef(new AttributeRef("date"));
+
+      DataSet rawDataSet = new DefaultDataSet(new Object[][] {
+         { "MonthOfWeekN(date)", "WeekOfMonth(date)", "date" },
+         { 12, 1, date("2019-12-02") },   // 2019: 12-1
+         { 12, 2, date("2019-12-09") },   // 2019: 12-2 -- must not be orphaned
+         { 12, 1, date("2020-12-07") },   // 2020 (most recent): reaches month 12 via 12-1 only
+         });
+      DataSetTable base = new DataSetTable(rawDataSet);
+      List<XDimensionRef> extraRefs = Collections.singletonList(monthRef);
+      DCMergeDatePartFilter filter =
+         new DCMergeDatePartFilter(base, extraRefs, weekOfMonthRef, dateGroupRef, null);
+
+      // Column order matches the rawDataSet header above: MonthOfWeekN=0, WeekOfMonth=1, date=2.
+      int weekColIndex = 1;
+      int firstDataRow = base.getHeaderRowCount();
+
+      Object part2019_12_1 = filter.getObject(firstDataRow, weekColIndex);
+      Object part2019_12_2 = filter.getObject(firstDataRow + 1, weekColIndex);
+      Object part2020_12_1 = filter.getObject(firstDataRow + 2, weekColIndex);
+
+      Assertions.assertInstanceOf(DCMergeDatePartFilter.MergePartCell.class, part2019_12_2,
+                                  "test must exercise the real MergePartCell type, not a plain Integer");
+      Assertions.assertEquals("12-1", part2019_12_1.toString());
+      Assertions.assertEquals("12-2", part2019_12_2.toString());
+      Assertions.assertEquals("12-1", part2020_12_1.toString());
+
+      DataSet data = new DefaultDataSet(new Object[][] {
+         { "period", "part" },
+         { date("2019-01-01"), part2019_12_1 },
+         { date("2019-01-01"), part2019_12_2 },
+         { date("2020-01-01"), part2020_12_1 },
+         });
+
+      Set<Object> validParts = DateComparisonUtil.computeValidParts(data, "period", "part", null);
+
+      Assertions.assertTrue(validParts.contains(part2019_12_2),
+         "12-2 shares the most recent period's own reached month (12) and must not be " +
+         "orphaned merely because 2020's calendar never produces a 12-2 split week");
    }
 }
