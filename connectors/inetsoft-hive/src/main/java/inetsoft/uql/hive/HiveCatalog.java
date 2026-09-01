@@ -47,14 +47,24 @@ final class HiveCatalog {
    private HiveCatalog() {
    }
 
-   // "MATERIALIZED_VIEW" is the underscore form ClassicTableTypeMapping$ClassicTableTypes.
+   // "MATERIALIZED_VIEW" is the underscore form that ClassicTableTypeMapping$ClassicTableTypes.
    // MATERIALIZED_VIEW.toString() actually produces (that enum has no toString() override, so it
-   // equals name()) -- not the space form "MATERIALIZED VIEW" HiveDatabaseMetaData.
+   // equals name()) -- not the space form "MATERIALIZED VIEW" that HiveDatabaseMetaData.
    // toJdbcTableType uses elsewhere for an unrelated client-side purpose. ClassicTableTypeMapping
    // is what HiveServer2 uses under its default hive.server2.table.type.mapping=CLASSIC, and
    // keeps materialized views as their own client-visible type rather than folding them into
    // VIEW the way it folds external tables into TABLE; omitting this entry silently drops every
    // materialized view from listDatasets under that default configuration.
+   //
+   // These three strings are ClassicTableTypeMapping client-type names, and this array only works
+   // as intended because that is HiveServer2's compiled-in default mapping. If a deployment
+   // overrides hive.server2.table.type.mapping to HIVE instead, HiveTableTypeMapping.mapToHiveType
+   // resolves each string via TableType.valueOf(name); "TABLE" and "VIEW" have no matching native
+   // TableType constant, so valueOf throws, the exception is caught, and the literal input string
+   // is returned unchanged -- which then matches no real table's type. Under that configuration,
+   // listDatasets silently returns an empty catalog for every ordinary table and view (no
+   // exception, no log from this class); "MATERIALIZED_VIEW" happens to still resolve, since it is
+   // coincidentally also a real TableType constant name, but that is not a general solution.
    private static final String[] TABLE_TYPES = {"TABLE", "VIEW", "MATERIALIZED_VIEW"};
 
    static TabularCatalog listDatasets(Connection conn, String dbName) throws Exception {
@@ -94,9 +104,11 @@ final class HiveCatalog {
       // SUPPORT_SPECICAL_CHARACTERS_IN_TABLE_NAMES), and its char[] of legal special characters
       // includes a literal backtick -- so datasetId is not guaranteed backtick-free even though
       // it is always a real, existing table name. An embedded backtick is escaped by doubling it,
-      // mirroring Hive's documented backtick-quoting convention (the MySQL convention); this has
-      // not been verified against the Hive parser grammar itself, which is not shipped in the
-      // hive-jdbc client jars available here.
+      // which the Hive project documents as the escaping convention for backtick-quoted
+      // identifiers (ASF JIRA HIVE-6013, "Supporting Quoted Identifiers in Column Names"). That
+      // convention has not been exercised here against a live Hive parser -- the grammar that
+      // would parse it ships in hive-exec, not in the hive-jdbc client artifact this module
+      // compiles against.
       String query = "SELECT * FROM `" + datasetId.replace("`", "``") + "`";
 
       return new TabularDatasetSchema(datasetId, columns, keyColumns,

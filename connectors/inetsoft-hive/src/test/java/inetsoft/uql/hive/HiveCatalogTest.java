@@ -94,13 +94,13 @@ class HiveCatalogTest {
 
    @Test
    void listDatasets_passesTableViewAndMaterializedViewTypesToGetTables() throws Exception {
-      // "MATERIALIZED_VIEW" (underscore, not the space form HiveDatabaseMetaData.
-      // toJdbcTableType uses elsewhere) is ClassicTableTypeMapping$ClassicTableTypes.
-      // MATERIALIZED_VIEW.toString() -- that enum has no toString() override, so it equals
-      // name(). ClassicTableTypeMapping is what HiveServer2 uses under the default
-      // hive.server2.table.type.mapping=CLASSIC, and it keeps MATERIALIZED_VIEW as its own
-      // client-visible type rather than folding it into VIEW like it does for external tables
-      // and TABLE.
+      // "MATERIALIZED_VIEW" is the underscore form that ClassicTableTypeMapping$ClassicTableTypes.
+      // MATERIALIZED_VIEW.toString() actually produces (that enum has no toString() override, so
+      // it equals name()) -- not the space form "MATERIALIZED VIEW" that HiveDatabaseMetaData.
+      // toJdbcTableType uses elsewhere for an unrelated client-side purpose. ClassicTableTypeMapping
+      // is what HiveServer2 uses under the default hive.server2.table.type.mapping=CLASSIC, and it
+      // keeps MATERIALIZED_VIEW as its own client-visible type rather than folding it into VIEW
+      // like it does for external tables and TABLE.
       ResultSet rs = mockResultSet(List.of());
       DatabaseMetaData meta = mock(DatabaseMetaData.class);
       Connection conn = mock(Connection.class);
