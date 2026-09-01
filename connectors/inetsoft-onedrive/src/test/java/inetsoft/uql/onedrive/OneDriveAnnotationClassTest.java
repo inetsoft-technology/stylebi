@@ -24,8 +24,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A direct anchor on the one structural fact charter assertion #1
- * (`docs/teams/2026-08-28-onedrive-tabular-target/`) rests on: core's own
+ * A direct anchor on the one structural fact this connector's "must be classified as a FILE
+ * datasource" requirement rests on: core's own
  * {@code WizDatasourceAnnotationClassTest.aBrowsableQueryIsAFileSource} already proves that ANY
  * {@code SelectableTabularQuery} subclass is classified {@code "FILE"}, using a local fake --
  * core cannot import this connector's classes to test the classifier against them directly. This
