@@ -434,9 +434,14 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
    }
 
    /**
-    * Seed the modern-gated round corner and control height. This type bypasses the base chrome
-    * hook (see VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own — form-input
+    * Seed the modern-gated round corner, object border color, and control height, plus the shared
+    * input title lane and value ink (seedInputTitleLane/seedInputValueInk). This type bypasses the
+    * base chrome hook (see VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own — form-input
     * modernization, tracked as its own follow-on project from the card-corner work.
+    *
+    * The object border color matches what the base hook does for Slider and the other card-style
+    * assemblies — otherwise the object border stays the legacy grey while the title picks up the
+    * modern warm-neutral background, and the two surfaces read as mismatched.
     */
    @Override
    protected void seedChromeDefaults(VizContext ctx) {
@@ -450,6 +455,11 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
       if(objFormat != null) {
          objFormat.getDefaultFormat().setRoundCornerValue(
             ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 0);
+
+         Color borderColor = ctx.modern
+            ? VSObjectChromeDefaults.objectBorderColor(ctx) : DEFAULT_BORDER_COLOR;
+         BorderColors bcolors = new BorderColors(borderColor, borderColor, borderColor, borderColor);
+         objFormat.getDefaultFormat().setBorderColorsValue(bcolors);
       }
 
       // legacy default is 2 * defh (title lane + one data row); preserve that ratio rather than
