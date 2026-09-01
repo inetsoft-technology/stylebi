@@ -65,19 +65,19 @@ public class ChangeChartTypeService {
       VSBindingService bindingFactory,
       RuntimeViewsheetRef runtimeViewsheetRef, CoreLifecycleService coreLifecycleService,
       ChartRefModelFactoryService chartRefService,
-      ChangeSeparateStatusController changeSeparateController,
+      ChangeSeparateStatusServiceProxy changeSeparateStatusService,
       VSAssemblyInfoHandler assemblyInfoHandler, VSChartHandler chartHandler,
-      VSBindingTreeController bindingTreeController,
+      VSBindingTreeControllerServiceProxy vsBindingTreeService,
       ViewsheetService viewsheetService)
    {
       this.bindingFactory = bindingFactory;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.coreLifecycleService = coreLifecycleService;
       this.chartRefService = chartRefService;
-      this.changeSeparateController = changeSeparateController;
+      this.changeSeparateStatusService = changeSeparateStatusService;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.chartHandler = chartHandler;
-      this.bindingTreeController = bindingTreeController;
+      this.vsBindingTreeService = vsBindingTreeService;
       this.viewsheetService = viewsheetService;
    }
 
@@ -150,7 +150,7 @@ public class ChangeChartTypeService {
       if(oldType == newType) {
          new ChangeChartTypeProcessor(oldType, newType,
                                       omulti, nmulti, ref, cinfo, false, desc).processMultiChanged();
-         handleMulti(name, omulti, nmulti, separate, chart, principal, dispatcher, linkUri);
+         handleMulti(id, name, omulti, nmulti, separate, chart, principal, dispatcher, linkUri);
 
          if(ostackMeasures == nstackMeasures) {
             // clearRuntime() above discarded the runtime aesthetic fields, and this is the only
@@ -242,7 +242,7 @@ public class ChangeChartTypeService {
       box.get().updateAssembly(chart.getAbsoluteName());
       new ChangeChartProcessor().fixSizeFrame(ninfo.getVSChartInfo());
       ChangeChartProcessor.fixTarget(oinfo.getVSChartInfo(), cinfo, desc);
-      handleMulti(name, omulti, nmulti, separate, chart, principal, dispatcher, linkUri);
+      handleMulti(id, name, omulti, nmulti, separate, chart, principal, dispatcher, linkUri);
       plotDesc.setStackMeasures(nstackMeasures);
 
       if(GraphTypes.isGantt(cinfo.getChartType()) || GraphTypes.isTreemap(cinfo.getChartType()) ||
@@ -284,21 +284,21 @@ public class ChangeChartTypeService {
       if(GraphTypes.isMap(newType)) {
          RefreshBindingTreeEvent refreshBindingTreeEvent = new RefreshBindingTreeEvent();
          refreshBindingTreeEvent.setName(name);
-         bindingTreeController.getBinding(refreshBindingTreeEvent, principal, dispatcher);
+         vsBindingTreeService.getBinding(id, refreshBindingTreeEvent, principal, dispatcher);
       }
 
       return null;
    }
 
 
-   private void handleMulti(String name, boolean omulti, boolean nmulti, boolean separate,
-                            ChartVSAssembly chart, Principal principal,
+   private void handleMulti(String id, String name, boolean omulti, boolean nmulti,
+                            boolean separate, ChartVSAssembly chart, Principal principal,
                             CommandDispatcher dispatcher, String linkUri)
       throws Exception
    {
       if(omulti != nmulti && chart != null) {
          ChangeSeparateStatusEvent cevent = new ChangeSeparateStatusEvent(name, nmulti, separate);
-         changeSeparateController.changeSeparateStatus(cevent, principal, dispatcher, linkUri);
+         changeSeparateStatusService.changeSeparateStatus(id, cevent, principal, dispatcher, linkUri);
       }
    }
 
@@ -359,9 +359,9 @@ public class ChangeChartTypeService {
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final CoreLifecycleService coreLifecycleService;
    private final ChartRefModelFactoryService chartRefService;
-   private final ChangeSeparateStatusController changeSeparateController;
+   private final ChangeSeparateStatusServiceProxy changeSeparateStatusService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
-   private final VSBindingTreeController bindingTreeController;
+   private final VSBindingTreeControllerServiceProxy vsBindingTreeService;
    private final VSChartHandler chartHandler;
    private final ViewsheetService viewsheetService;
    private static final Logger LOG =
