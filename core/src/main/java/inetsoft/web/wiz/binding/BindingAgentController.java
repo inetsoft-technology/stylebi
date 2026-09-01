@@ -64,7 +64,8 @@ public class BindingAgentController {
                                  ChartBindingService chartService,
                                  ChartAestheticAgentService aestheticService,
                                  TableBindingService tableService,
-                                 CalcTableService calcService)
+                                 CalcTableService calcService,
+                                 SelectionBindingService selectionService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -76,6 +77,7 @@ public class BindingAgentController {
       this.aestheticService = aestheticService;
       this.tableService = tableService;
       this.calcService = calcService;
+      this.selectionService = selectionService;
    }
 
    public record JoinRequest(String code) {}
@@ -412,6 +414,23 @@ public class BindingAgentController {
       requireEnabled();
       tableService.setSource(sessionToken, user, request.assembly(), request.table(),
                              Boolean.TRUE.equals(request.force()));
+   }
+
+   public record SelectionSourceRequest(String assembly, String table, List<String> columns,
+                                        List<String> additionalTables, String measure,
+                                        Boolean force) {}
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/selection/source")
+   public Map<String, Object> setSelectionSource(
+      @PathVariable String sessionToken, @RequestBody SelectionSourceRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return selectionService.setSource(sessionToken, user, request.assembly(), request.table(),
+                                        request.columns(), request.additionalTables(),
+                                        request.measure(), Boolean.TRUE.equals(request.force()),
+                                        linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/add")
@@ -754,4 +773,5 @@ public class BindingAgentController {
    private final ChartAestheticAgentService aestheticService;
    private final TableBindingService tableService;
    private final CalcTableService calcService;
+   private final SelectionBindingService selectionService;
 }
