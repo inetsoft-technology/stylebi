@@ -287,16 +287,33 @@ public class AssemblyHighlightService {
       // highlight somewhere they did not ask for.
       // A null model means the assembly has no highlight dialog at all; that is the caller's
       // answer, and re-reading a different cell of it would only produce the same null.
-      if(region == null && model != null && fieldNames(model).isEmpty()) {
-         HighlightDialogModel atData =
-            readAt(runtimeId, assemblyName, firstDataCell(runtimeId, assemblyName, user), user);
+      if(region == null && model != null) {
+         // `fieldNames(model).isEmpty()` is the general "we're stuck on the header" signal, and
+         // it is reliable for a Crosstab (its fields are computed dpath-aware, so a header cell
+         // genuinely reports none). It is NOT reliable for a plain Table:
+         // HighlightService.getRefsForVSAssembly's Table branch reports the table's entire base
+         // column list regardless of row/col, so `fields` comes back non-empty even at (0,0) —
+         // the fall-forward below would never fire and the header would be highlighted silently.
+         // For a Table, check the header extent directly instead.
+         boolean tableAtHeader = model.isTableAssembly() &&
+            isHeaderCell(target, firstDataCell(runtimeId, assemblyName, user));
 
-         if(!fieldNames(atData).isEmpty()) {
-            return atData;
+         if(tableAtHeader || fieldNames(model).isEmpty()) {
+            HighlightDialogModel atData =
+               readAt(runtimeId, assemblyName, firstDataCell(runtimeId, assemblyName, user), user);
+
+            if(!fieldNames(atData).isEmpty()) {
+               return atData;
+            }
          }
       }
 
       return model;
+   }
+
+   /** Whether {@code cell} falls inside the assembly's own reported header extent. */
+   private static boolean isHeaderCell(Region cell, Region firstDataCell) {
+      return cell.row() < firstDataCell.row() || cell.col() < firstDataCell.col();
    }
 
    /**

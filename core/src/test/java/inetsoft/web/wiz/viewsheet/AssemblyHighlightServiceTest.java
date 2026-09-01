@@ -293,6 +293,91 @@ class AssemblyHighlightServiceTest {
                    "must fall forward to (1, 2), the cell getFirstDataCell actually reported");
    }
 
+   /**
+    * PVA-017: a plain {@code Table}'s header cell (0,0) reports a NON-EMPTY field list —
+    * {@code HighlightService.getRefsForVSAssembly}'s Table branch returns the table's entire base
+    * column selection regardless of row/col, unlike a Crosstab's dpath-aware computation — so
+    * {@code fieldNames(model).isEmpty()} never fires and the existing Crosstab fall-forward is
+    * blind to this case. {@code read()} must also check the header extent directly for a Table,
+    * the same way it already works for a Crosstab whose header is genuinely empty.
+    *
+    * <p>Before the fix this returned the header-anchored model (row/col still (0,0)), and a
+    * highlight built from it silently painted the header instead of a data row.
+    */
+   @Test
+   void fallsForwardToADataCellOnATableEvenWhenTheHeaderReportsNonEmptyFields() throws Exception {
+      HighlightDialogModel headerWithFields = model();
+      headerWithFields.setTableAssembly(true);
+
+      HighlightDialogModel dataCell = model();
+      dataCell.setTableAssembly(true);
+      Harness h = harness(headerWithFields);
+      when(h.highlights.getFirstDataCell(anyString(), eq("Table1"), any(Principal.class)))
+         .thenReturn(new int[]{ 1, 0 });
+      when(h.highlights.getHighlightDialogModel(anyString(), anyString(), eq(1), eq(0), any(),
+                                                anyBoolean(), anyBoolean(), any(Principal.class)))
+         .thenReturn(dataCell);
+
+      h.service.list("tok", principal(), "Table1", null);
+
+      verify(h.highlights).getHighlightDialogModel(eq("rt1"), eq("Table1"), eq(1), eq(0), isNull(),
+                                                   eq(false), eq(false), any(Principal.class));
+   }
+
+   /**
+    * PVA-017, {@code applyRow:true} mode: {@code set()} must resolve to the same real data cell
+    * as the non-{@code applyRow} case, not the header — {@code HighlightDialogService} derives its
+    * row-level {@code dataPath} from whatever row/col {@code read()} resolved, so this is the same
+    * upstream defect wearing a different mode.
+    */
+   @Test
+   void resolvesToADataRowOnATableForApplyRowTooEvenWhenTheHeaderReportsNonEmptyFields()
+      throws Exception
+   {
+      HighlightDialogModel headerWithFields = model();
+      headerWithFields.setTableAssembly(true);
+      headerWithFields.setShowRow(true);
+
+      HighlightDialogModel dataCell = model();
+      dataCell.setTableAssembly(true);
+      dataCell.setShowRow(true);
+      Harness h = harness(headerWithFields);
+      when(h.highlights.getFirstDataCell(anyString(), eq("Table1"), any(Principal.class)))
+         .thenReturn(new int[]{ 1, 0 });
+      when(h.highlights.getHighlightDialogModel(anyString(), anyString(), eq(1), eq(0), any(),
+                                                anyBoolean(), anyBoolean(), any(Principal.class)))
+         .thenReturn(dataCell);
+
+      h.service.set("tok", principal(), "Table1", null, highlightApplyRow("RowHighlight"), false,
+                    "");
+
+      verify(h.highlights).setHighlightDialogModel(eq("rt1"), eq("Table1"), eq(dataCell),
+                                                    anyString(), any(Principal.class), any());
+   }
+
+   /**
+    * Control: a Crosstab's already-correct behavior (fall forward only when the header's field
+    * list is actually empty) must be unchanged by the Table-only header-extent check above.
+    */
+   @Test
+   void stillFallsForwardOnACrosstabByTheExistingEmptyFieldsSignal() throws Exception {
+      HighlightDialogModel header = new HighlightDialogModel();
+      header.setFields(new DataRefModel[0]);
+      header.setHighlights(new HighlightModel[0]);
+
+      HighlightDialogModel dataCell = model();
+      Harness h = harness(header);
+      when(h.highlights.getFirstDataCell(anyString(), eq("Crosstab1"), any(Principal.class)))
+         .thenReturn(new int[]{ 1, 1 });
+      when(h.highlights.getHighlightDialogModel(anyString(), anyString(), eq(1), eq(1), any(),
+                                                anyBoolean(), anyBoolean(), any(Principal.class)))
+         .thenReturn(dataCell);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Crosstab1", null);
+
+      assertEquals(List.of("Region", "Revenue"), listed.get("fields"));
+   }
+
    /** An explicit region is never second-guessed — moving it would highlight the wrong cell. */
    @Test
    void doesNotSecondGuessARegionTheCallerNamed() throws Exception {
