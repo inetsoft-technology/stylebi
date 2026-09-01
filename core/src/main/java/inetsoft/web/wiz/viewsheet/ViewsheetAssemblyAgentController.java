@@ -157,6 +157,82 @@ public class ViewsheetAssemblyAgentController {
                               session.sheetType().name().toLowerCase(), session.editorContext());
    }
 
+   /**
+    * Request body for the create-viewsheet endpoint.
+    *
+    * @param fromSessionToken the already-paired session (worksheet or viewsheet) whose browser
+    *                         connection the new session reuses
+    * @param path             see {@link AttachBaseWorksheetRequest#path}
+    * @param scope            see {@link AttachBaseWorksheetRequest#scope}
+    * @param type             see {@link AttachBaseWorksheetRequest#type}; when this and
+    *                         {@code path}/{@code datasource}/{@code table} are all {@code null},
+    *                         defaults to the acting session's own worksheet (requires the acting
+    *                         session to be a worksheet session)
+    * @param datasource       see {@link AttachBaseWorksheetRequest#datasource}
+    * @param table            see {@link AttachBaseWorksheetRequest#table}
+    */
+   public record CreateViewsheetRequest(String fromSessionToken, String path, String scope,
+                                        String type, String datasource, String table) {}
+
+   /**
+    * {@code create_viewsheet}. Mints a brand-new viewsheet, bound to a worksheet/logical
+    * model/physical table, and pairs the caller to it directly — no new pairing code needed, and
+    * the browser visually follows along in the currently-open Composer window — by reusing the
+    * ALREADY-PAIRED session named by {@code fromSessionToken} (worksheet or viewsheet, either is
+    * accepted). If none of type/path/datasource/table are given, defaults to the acting session's
+    * own worksheet (only valid when that session is a worksheet session that has already been
+    * saved).
+    *
+    * <p>Closes the create half of PVA-007/bug 76332 that {@code attach_base_worksheet} (#4900)
+    * explicitly deferred.</p>
+    *
+    * @throws PairingException naming the specific problem: no acting session, no live browser
+    *                          connection on it, an unresolvable data source, or a permission
+    *                          failure.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/create")
+   public JoinResponse createViewsheet(@RequestBody CreateViewsheetRequest body, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+
+      if(!(user instanceof XPrincipal xp)) {
+         throw new PairingException("Cannot create viewsheet: agent principal is not an " +
+                                    "XPrincipal (" + user.getClass().getName() + ")");
+      }
+
+      AssetEntry dataSource = null;
+
+      if(body != null && (body.type() != null || body.path() != null ||
+         body.datasource() != null || body.table() != null))
+      {
+         try {
+            dataSource = resolveDataSourceEntry(body.type(), body.path(), body.scope(),
+               body.datasource(), body.table(), xp,
+               () -> inetsoft.uql.asset.internal.AssetUtil.getAssetRepository(false));
+         }
+         catch(PairingException e) {
+            throw e;
+         }
+         catch(Exception e) {
+            throw new PairingException("Failed to create viewsheet: " + e.getMessage(), e);
+         }
+      }
+
+      JoinSession session;
+
+      try {
+         session = openService.createViewsheet(
+            body == null ? null : body.fromSessionToken(), user, dataSource);
+      }
+      catch(IllegalArgumentException e) {
+         throw new PairingException(e.getMessage(), e);
+      }
+
+      return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
+                              session.sheetType().name().toLowerCase(), session.editorContext());
+   }
+
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/model")
    public ViewsheetModel model(@PathVariable String sessionToken, Principal user)
       throws PairingException
@@ -1024,8 +1100,8 @@ public class ViewsheetAssemblyAgentController {
     *                          never a generic message.
     */
    private AssetEntry resolveDataSourceEntry(String type, String path, String scope,
-                                             String datasource, String table,
-                                             XPrincipal xp, AssetRepository rep)
+                                             String datasource, String table, XPrincipal xp,
+                                             java.util.function.Supplier<AssetRepository> repSupplier)
       throws Exception
    {
       String effectiveType = type == null || type.isBlank() ? "worksheet" : type;
@@ -1050,6 +1126,15 @@ public class ViewsheetAssemblyAgentController {
          // deliberately skips the permission check, which would be wrong here: this is a
          // caller-supplied path naming an arbitrary asset, and only checking existence would let
          // an agent confirm a worksheet's presence/absence without being able to read it.
+         //
+         // repSupplier is not resolved until a validated request actually needs it -- create_
+         // viewsheet's caller resolves a repository via a real (non-mocked, non-trivial) static
+         // lookup that can itself throw when the server isn't fully up, and that failure must
+         // never pre-empt a plain missing-field refusal (confirmed by a failing test: without
+         // this, a physicalTable request missing 'table' surfaced a ShutdownException instead of
+         // the "requires 'table'" message, because the repository was being fetched unconditionally
+         // before any field was even checked).
+         AssetRepository rep = repSupplier.get();
          Object resolved;
 
          try {
@@ -1082,6 +1167,7 @@ public class ViewsheetAssemblyAgentController {
          // null result means either the model does not exist, has no fields, or the caller cannot
          // read it -- all three collapse to the same refusal, matching the worksheet branch's own
          // "not found or no permission" phrasing rather than distinguishing them.
+         AssetRepository rep = repSupplier.get();
          AssetEntry[] probe;
 
          try {
@@ -1110,7 +1196,7 @@ public class ViewsheetAssemblyAgentController {
                "type:\"physicalTable\" requires 'table' naming the physical table.");
          }
 
-         return resolvePhysicalTableEntry(datasource.trim(), table.trim(), xp, rep);
+         return resolvePhysicalTableEntry(datasource.trim(), table.trim(), xp, repSupplier.get());
       }
       else {
          throw new PairingException(
@@ -1235,7 +1321,8 @@ public class ViewsheetAssemblyAgentController {
       try {
          entry = resolveDataSourceEntry(body == null ? null : body.type(),
             body == null ? null : body.path(), body == null ? null : body.scope(),
-            body == null ? null : body.datasource(), body == null ? null : body.table(), xp, rep);
+            body == null ? null : body.datasource(), body == null ? null : body.table(), xp,
+            () -> rep);
       }
       catch(PairingException e) {
          throw e;

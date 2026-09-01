@@ -776,6 +776,78 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // create_viewsheet -- closes the create half of PVA-007/bug 76332 that
+   // attach_base_worksheet (PR #4900) explicitly deferred.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void createViewsheetPassesNoDataSourceWhenBodyNamesNone() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      JoinSession created = new JoinSession("tok-vs-new", "vs-runtime-new", "alice~;~host-org",
+         SheetType.VIEWSHEET, 0L, SheetSessionService.TTL_MILLIS,
+         JoinSession.ConnectionMode.PAIRED, "sock-1", "alice-browser", null);
+
+      SheetOpenService openService = mock(SheetOpenService.class);
+      when(openService.createViewsheet(eq("tok-acting"), eq(agent), isNull()))
+         .thenReturn(created);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(openService);
+
+      ViewsheetAssemblyAgentController.JoinResponse response = controller.createViewsheet(
+         new ViewsheetAssemblyAgentController.CreateViewsheetRequest(
+            "tok-acting", null, null, null, null, null),
+         agent);
+
+      assertEquals("viewsheet", response.sheetType());
+      assertEquals("vs-runtime-new", response.runtimeId());
+      verify(openService).createViewsheet(eq("tok-acting"), eq(agent), isNull());
+   }
+
+   /**
+    * Field-presence validation in resolveDataSourceEntry() runs BEFORE any repository access, so
+    * this is fully testable without a live AssetRepository -- unlike a real logicalModel/
+    * physicalTable resolution, which needs one and is exercised instead by
+    * attach_base_worksheet's own tests against a mocked AssetRepository (both endpoints share
+    * this exact resolveDataSourceEntry() code path, so that coverage carries over).
+    */
+   @Test
+   void createViewsheetRefusesPhysicalTableMissingTableBeforeCallingSheetOpenService() {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SheetOpenService openService = mock(SheetOpenService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(openService);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.createViewsheet(
+            new ViewsheetAssemblyAgentController.CreateViewsheetRequest(
+               "tok-acting", null, null, "physicalTable", "Examples", null),
+            agent));
+      assertTrue(ex.getMessage().contains("table"));
+      verifyNoInteractions(openService);
+   }
+
+   @Test
+   void createViewsheetWrapsAnIllegalArgumentExceptionFromSheetOpenServiceAsPairingException()
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SheetOpenService openService = mock(SheetOpenService.class);
+      when(openService.createViewsheet(any(), any(), any()))
+         .thenThrow(new IllegalArgumentException("no data source was given and..."));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(openService);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.createViewsheet(
+            new ViewsheetAssemblyAgentController.CreateViewsheetRequest(
+               "tok-acting", null, null, null, null, null),
+            agent));
+      assertTrue(ex.getMessage().contains("no data source was given"));
+   }
+
+   // ---------------------------------------------------------------------------
    // save -- PVA-001: no save-as for a first-time (never-saved) viewsheet
    // ---------------------------------------------------------------------------
 
