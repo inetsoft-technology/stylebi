@@ -1179,8 +1179,12 @@ public class TabularUtil {
          // that reaches the caller — and, via DatasourceMetaApiController.handleException, the
          // HTTP error body — names only the data source, matching the controlled style
          // UnsupportedDatasourceException already uses in this area, not an internal class name.
+         // Deliberately NOT appending e.getMessage(): for a missing public no-arg constructor,
+         // getDeclaredConstructor() throws NoSuchMethodException whose own message IS the runtime
+         // class's FQCN, which would leak it right back in. The cause is already chained into this
+         // RuntimeException and already logged in full above, so nothing is lost for diagnosis.
          throw new RuntimeException("Failed to construct the tabular runtime for data source '" +
-            dataSource + "': " + e.getMessage(), e);
+            dataSource + "'", e);
       }
    }
 

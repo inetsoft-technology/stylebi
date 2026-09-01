@@ -199,7 +199,7 @@ public class TabularCatalogService {
             throw new Exception("Data source '" + dsName + "' target '" + target +
                "' returned a column with a blank name.");
          }
-         if(!XSCHEMA_TYPE_CONSTANTS.contains(column.type())) {
+         if(column.type() == null || !XSCHEMA_TYPE_CONSTANTS.contains(column.type())) {
             // TabularColumn.type's javadoc: "any XSchema type constant" — a closed vocabulary of
             // 21, not the handful the javadoc names as examples. This catches input
             // that never used the vocabulary at all ("varchar", a typo, null) — it cannot and does

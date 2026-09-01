@@ -400,4 +400,27 @@ class TabularCatalogServiceContractValidationTest {
       assertEquals(1, dataset.getFields().size());
       assertEquals("Quantity", dataset.getFields().get(0).getName());
    }
+
+   @Test
+   void describeTable_nullColumnType_throwsNamedExceptionNotNpe() throws Exception {
+      // Set.of(...).contains(null) throws NullPointerException — XSCHEMA_TYPE_CONSTANTS is a
+      // Set.of(...), so without an explicit null check first, a connector returning a column with
+      // a null type gets a raw NPE out of the validator instead of the named exception the rest
+      // of C1-C6 exist to produce. Same false-positive concern as C1: assertThrows(Exception.class,
+      // ...) alone would pass on the unfixed code too, since NullPointerException is an Exception.
+      TabularDatasetSchema schema = new TabularDatasetSchema("Products",
+         List.of(new TabularColumn("Name", null)), List.of());
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(
+         new TabularCatalog(List.of(), List.of()), Map.of("Products", schema));
+      TabularCatalogService service = createService(dsName -> runtime);
+
+      Exception ex = assertThrows(Exception.class,
+         () -> service.describeTable(DS_NAME, "Products"));
+
+      assertFalse(ex instanceof NullPointerException);
+      assertFalse(ex instanceof UnsupportedDatasourceException);
+      assertTrue(ex.getMessage().contains(DS_NAME));
+      assertTrue(ex.getMessage().contains("Name"),
+         "message must name the offending column: " + ex.getMessage());
+   }
 }

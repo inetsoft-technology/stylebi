@@ -124,6 +124,38 @@ class TabularUtilCreateRuntimeTest {
       }
    }
 
+   @Test
+   void createRuntime_noPublicNoArgConstructor_messageDoesNotLeakFqcn() throws Exception {
+      // PR #4909 review finding: getDeclaredConstructor() (no args) on a class with no public
+      // no-arg constructor throws NoSuchMethodException, and that exception's OWN message is the
+      // runtime's FQCN. The prior test only covered a constructor whose BODY throws
+      // (InvocationTargetException, whose getMessage() is null), so the no-FQCN assertion there
+      // passed trivially without ever exercising this path.
+      XDataSource ds = mock(XDataSource.class);
+      when(ds.getType()).thenReturn("NoNoArgCtor");
+
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSource(DS_NAME)).thenReturn(ds);
+
+      Config config = mock(Config.class);
+      when(config.getRuntime("NoNoArgCtor")).thenReturn(NoNoArgConstructorRuntime.class.getName());
+      when(config.getClass("NoNoArgCtor", NoNoArgConstructorRuntime.class.getName()))
+         .thenReturn((Class) NoNoArgConstructorRuntime.class);
+
+      try(MockedStatic<XRepository> xrepositoryStatic = mockStatic(XRepository.class);
+          MockedStatic<Config> configStatic = mockStatic(Config.class))
+      {
+         xrepositoryStatic.when(XRepository::getRepository).thenReturn(xrepository);
+         configStatic.when(Config::getConfig).thenReturn(config);
+
+         RuntimeException ex = assertThrows(RuntimeException.class,
+            () -> TabularUtil.createRuntime(DS_NAME));
+
+         assertTrue(ex.getMessage().contains(DS_NAME));
+         assertFalse(ex.getMessage().contains(NoNoArgConstructorRuntime.class.getName()));
+      }
+   }
+
    /**
     * A runtime whose constructor throws — simulates a genuinely broken connector, as opposed to
     * one that was never registered/loadable at all.
@@ -131,6 +163,26 @@ class TabularUtilCreateRuntimeTest {
    public static class BrokenConstructorRuntime extends TabularRuntime {
       public BrokenConstructorRuntime() {
          throw new IllegalStateException("boom");
+      }
+
+      @Override
+      public XTableNode runQuery(TabularQuery query, VariableTable params) {
+         throw new UnsupportedOperationException("not used by these tests");
+      }
+
+      @Override
+      public void testDataSource(TabularDataSource<?> ds, VariableTable params) {
+         throw new UnsupportedOperationException("not used by these tests");
+      }
+   }
+
+   /**
+    * A runtime with no public no-arg constructor at all — simulates a connector class that loads
+    * fine but was never written to be instantiable this way, as opposed to one whose no-arg
+    * constructor exists but throws.
+    */
+   public static class NoNoArgConstructorRuntime extends TabularRuntime {
+      public NoNoArgConstructorRuntime(int unused) {
       }
 
       @Override
