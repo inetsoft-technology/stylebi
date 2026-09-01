@@ -2680,6 +2680,9 @@ public abstract class GraphGenerator {
       spec.setGridBetween(fake);
       boolean width = inverted && inner && x || !(inverted && inner) && !x;
       spec.setAxisSize(width ? xdesc.getAxisWidth() : xdesc.getAxisHeight());
+      // reserves space for the outermost axis label so it fits without being moved; the only
+      // reader is RectCoord.getAxisMargin. this is not PlotDescriptor.isInPlot ("Keep Elements
+      // in Plot") despite the name. (76291)
       spec.setInPlot("true".equals(SreeEnv.getProperty("graph.axis.inplot")));
 
       if(scale instanceof TimeScale) {

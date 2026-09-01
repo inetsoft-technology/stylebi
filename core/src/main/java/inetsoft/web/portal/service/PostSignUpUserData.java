@@ -20,6 +20,7 @@ package inetsoft.web.portal.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.Tool;
 import jakarta.servlet.http.Cookie;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,9 +44,20 @@ public class PostSignUpUserData {
    public void sendUserData() {
       String postURL = SreeEnv.getProperty("selfSignUpPost.url");
       String postUsername = SreeEnv.getProperty("selfSignUpPost.username");
-      String postPassword = SreeEnv.getProperty("selfSignUpPost.password");
       String postHeader = SreeEnv.getProperty("selfSignUpPost.header");
-      String postSecret = SreeEnv.getProperty("selfSignUpPost.secretKey");
+
+      // Nothing in the product writes these two, so they are set by hand in the property store or
+      // through INETSOFTENV_*. Decrypt on read so an operator who does not want a credential
+      // sitting in the clear can store Tool.encryptPassword output instead: decryptPassword
+      // returns an unrecognised value unchanged (LocalPasswordEncryption's clear-text branch), so
+      // a plaintext value keeps working exactly as before.
+      //
+      // Deliberately not SreeEnv.getPassword. Under cloud secrets that treats the stored string as
+      // a secret-manager reference and would resolve a literal to null, and its hardcoded name
+      // switch reads a "password" field out of the JSON for anything outside the OpenID names -
+      // the wrong field for selfSignUpPost.secretKey.
+      String postPassword = Tool.decryptPassword(SreeEnv.getProperty("selfSignUpPost.password"));
+      String postSecret = Tool.decryptPassword(SreeEnv.getProperty("selfSignUpPost.secretKey"));
 
       if(postURL != null) {
          try(HttpClient client = HttpClient.newBuilder()
