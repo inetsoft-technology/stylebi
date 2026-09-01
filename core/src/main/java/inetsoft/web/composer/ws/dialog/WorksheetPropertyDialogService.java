@@ -88,6 +88,18 @@ public class WorksheetPropertyDialogService extends WorksheetControllerService {
       java.util.regex.Pattern.compile("[\\\\/\"<%^~]");
 
    /**
+    * Mirrors {@code FormValidators.assetNameStartWithCharDigit}'s
+    * {@code /^([a-zA-Z0-9À-ɏ一-龥])/} in
+    * {@code web/projects/shared/util/form-validators.ts}: ASCII letters/digits, the
+    * Latin-1 Supplement + Latin Extended-A block, and CJK Unified Ideographs only.
+    * Deliberately narrower than {@link Character#isLetterOrDigit(char)}, which is
+    * Unicode-aware and would also accept Cyrillic, Greek, Arabic, Hangul, Devanagari,
+    * etc. -- none of which the Composer's own dialog allows as a first character.
+    */
+   private static final java.util.regex.Pattern ALIAS_START_CHAR =
+      java.util.regex.Pattern.compile("[a-zA-Z0-9À-ɏ一-龥]");
+
+   /**
     * L2-Group9: {@code assetEntryBannedCharacters}/{@code assetNameStartWithCharDigit} are
     * Angular-only today -- not even this dialog's own backend re-validates before writing the
     * alias, so a non-UI caller (a raw socket payload, or the wiz agent path's
@@ -108,7 +120,7 @@ public class WorksheetPropertyDialogService extends WorksheetControllerService {
             "Properties dialog does not allow: \\ / \" < % ^ ~");
       }
 
-      if(!Character.isLetterOrDigit(alias.charAt(0))) {
+      if(!ALIAS_START_CHAR.matcher(alias.substring(0, 1)).matches()) {
          throw new MessageException(
             "Alias '" + alias + "' must start with a letter or digit.");
       }

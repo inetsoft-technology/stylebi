@@ -3201,6 +3201,14 @@ public class WorksheetEditService {
        * applied, matching the native condition dialog's closed field picker: a human cannot
        * submit an unresolvable column, so neither should this path silently fall back to
        * {@code resolveField}'s {@code new AttributeRef(null, field)} placeholder.
+       *
+       * <p>Also validates each FIELD-typed {@link WorksheetMutationSupport.ConditionValueSpec}
+       * in {@code node.condition().valueSpecs()} -- a column-vs-column comparison condition's
+       * value side goes through the exact same {@code resolveField} fallback (see
+       * {@code WorksheetMutationSupport#conditionValue(TableAssembly, boolean,
+       * ConditionValueSpec)}'s FIELD branch) and would otherwise silently accept a typo'd column
+       * name there instead of being rejected like every other field reference this method
+       * covers.
        */
       private void requireConditionFields(TableAssembly t,
                                           List<WorksheetMutationSupport.ConditionNode> nodes,
@@ -3214,6 +3222,21 @@ public class WorksheetEditService {
          for(WorksheetMutationSupport.ConditionNode node : nodes) {
             if(node.condition() != null) {
                requireColumn(t, node.condition().field(), post);
+
+               if(node.condition().valueSpecs() != null) {
+                  for(WorksheetMutationSupport.ConditionValueSpec vs : node.condition().valueSpecs()) {
+                     // A null/blank field here is a distinct input error ("needs a non-blank
+                     // field") that WorksheetMutationSupport#conditionValue already reports
+                     // clearly when the condition is applied -- leave that message alone and
+                     // only guard against a *named but unresolvable* field, the silent
+                     // placeholder-ref failure mode this check exists for.
+                     if(vs != null && "field".equalsIgnoreCase(vs.valueType()) &&
+                        vs.field() != null && !vs.field().isBlank())
+                     {
+                        requireColumn(t, vs.field(), post);
+                     }
+                  }
+               }
             }
          }
       }

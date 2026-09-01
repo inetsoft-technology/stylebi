@@ -4941,6 +4941,36 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals("b", ((DataRef) c.getValue(0)).getAttribute());
    }
 
+   /**
+    * Review finding on PR #4920: {@code conditionValue}'s FIELD branch resolves
+    * {@code spec.field()} via {@code resolveField}, which falls back to an unresolvable
+    * {@code new AttributeRef(null, field)} placeholder for a name that matches nothing --
+    * exactly the silent failure {@code requireConditionFields} exists to prevent for
+    * {@code node.condition().field()}. This proves a typo'd/nonexistent column name in a
+    * FIELD-typed {@code valueSpecs()} entry (a column-vs-column comparison condition's value
+    * side) is now rejected the same way, instead of silently producing a broken placeholder
+    * ref.
+    */
+   @Test
+   void setConditionsRejectsUnresolvableFieldValueSpec() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+            new WorksheetMutationSupport.ConditionNode(
+               new WorksheetMutationSupport.ConditionSpec("a", ">", null, false, null,
+                  List.of(new WorksheetMutationSupport.ConditionValueSpec(
+                     "field", "typo'd_column", null, null))),
+               null, 0)))));
+
+      assertTrue(ex.getMessage().contains("typo'd_column"));
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty());
+   }
+
    @Test
    void setConditionsExpressionValueSpecBuildsExpressionValue() throws Exception {
       Worksheet ws = new Worksheet();

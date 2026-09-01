@@ -1658,6 +1658,11 @@ class WorksheetAgentControllerTest {
       "'Bad/Alias', does not allow",
       "'Bad<Alias>', does not allow",
       "'_LeadingUnderscore', letter or digit",
+      // Review finding on PR #4920: Character.isLetterOrDigit is Unicode-aware and would accept
+      // a Cyrillic/Greek/Hangul/etc. leading character, which the Angular validator this method
+      // mirrors (assetNameStartWithCharDigit) never allowed -- only ASCII letters/digits, Latin-1
+      // Supplement + Latin Extended-A, and CJK Unified Ideographs.
+      "'Пример', letter or digit",
    })
    void setPropertiesRejectsInvalidAlias(String badAlias, String expectedFragment)
       throws Exception
@@ -1715,6 +1720,41 @@ class WorksheetAgentControllerTest {
          new WorksheetAgentController.WorksheetPropertiesRequest("Good Alias 1", null), agent);
 
       assertEquals("Good Alias 1", ws.getWorksheetInfo().getAlias());
+   }
+
+   /**
+    * Review finding on PR #4920: the fixed start-character check must still accept everything
+    * the Angular validator (assetNameStartWithCharDigit) allows -- CJK Unified Ideographs and
+    * the Latin-1 Supplement/Latin Extended-A block -- not just plain ASCII.
+    */
+   @ParameterizedTest
+   @CsvSource({
+      "'报表别名'",
+      "'Ā_LatinExtendedA'",
+   })
+   void setPropertiesAcceptsNonAsciiAliasWithinAllowedRanges(String goodAlias) throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SP3"), any())).thenReturn(session("TOK-SP3"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.setProperties("TOK-SP3",
+         new WorksheetAgentController.WorksheetPropertiesRequest(goodAlias, null), agent);
+
+      assertEquals(goodAlias, ws.getWorksheetInfo().getAlias());
    }
 
    // ---------------------------------------------------------------------------
