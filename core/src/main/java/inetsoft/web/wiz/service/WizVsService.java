@@ -459,9 +459,9 @@ public class WizVsService {
     * Attaches 1-3 interactive filter controls (SelectionList/TimeSlider/Calendar) to the chart
     * identified by {@code (runtimeId, assemblyName)}, packed into a grid below it on the same
     * viewsheet ({@link WizFilterLayout}). Every control binds {@code setTableNames} to exactly the
-    * chart's own bound table (never a multi-table search — see the design doc section 2.5); a
-    * requested field not found on that table is reported in the response's {@code skipped} list
-    * rather than failing the whole call.
+    * chart's own bound table (never a multi-table search — see the design doc section 2.5) AND
+    * the resolved column itself ({@link #bindColumn}) — a requested field not found on that table
+    * is reported in the response's {@code skipped} list rather than failing the whole call.
     *
     * <p>Never touches {@code conditionModel}/{@code highlightModel} — this only adds sibling
     * assemblies to the viewsheet, independent of both.
@@ -594,6 +594,14 @@ public class WizVsService {
          }
 
          control.setTableNames(List.of(tableName));
+
+         // The actual filter binding -- without this the control has a table but no column, so it
+         // renders as an unbound widget with nothing to select (07-fix-r2.md; the design sketch,
+         // spec section 5, only carried `col` through to the title below, never to the binding
+         // itself). Always rebinds, even when `control` is a reused/existing assembly, since a
+         // reused-via-existingAssemblyName control can legitimately be repointed at a different
+         // field than it currently holds.
+         bindColumn(control, col);
 
          String title = !Tool.isEmptyString(spec.getLabel()) ? spec.getLabel() : col.getAttribute();
 
@@ -779,6 +787,43 @@ public class WizVsService {
          case "calendar" -> AbstractSheet.CALENDAR_ASSET;
          default -> throw new IllegalArgumentException("Unsupported controlType: " + controlType);
       };
+   }
+
+   /**
+    * Binds {@code col} as the control's actual filter column -- not just its display title (that
+    * is set separately, right after this call, in {@link #addFilters}). Mirrors
+    * {@code AddFilterService#createFilterAssembly}, the known-good binding path for these same
+    * three control types (also reused by {@link WizDashboardFilterBuilder}): SelectionList and
+    * Calendar bind directly via their own {@code setDataRef}; TimeSlider has no such direct
+    * setter and binds through a {@link SingleTimeInfo} instead, whose range type must match the
+    * column's own data type (numeric/time/date) the same way {@code createFilterAssembly}
+    * derives it -- getting this branch wrong (e.g. always defaulting to MONTH) would produce a
+    * control that LOOKS bound but silently mis-ranges a numeric or time-of-day column.
+    */
+   private static void bindColumn(AbstractSelectionVSAssembly control, DataRef col) {
+      if(control instanceof SelectionListVSAssembly list) {
+         list.setDataRef(col);
+      }
+      else if(control instanceof CalendarVSAssembly calendar) {
+         calendar.setDataRef(col);
+      }
+      else if(control instanceof TimeSliderVSAssembly slider) {
+         String dtype = col.getDataType();
+         SingleTimeInfo tinfo = new SingleTimeInfo();
+         tinfo.setDataRef(col);
+
+         if(XSchema.isNumericType(dtype)) {
+            tinfo.setRangeTypeValue(TimeInfo.NUMBER);
+         }
+         else if(XSchema.TIME.equals(dtype)) {
+            tinfo.setRangeTypeValue(TimeInfo.MINUTE_OF_DAY);
+         }
+         else {
+            tinfo.setRangeTypeValue(TimeInfo.MONTH);
+         }
+
+         slider.getTimeSliderInfo().setTimeInfo(tinfo);
+      }
    }
 
    /** Whether an existing assembly is still the right Java type to reuse for the given
