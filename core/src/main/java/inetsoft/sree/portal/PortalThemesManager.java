@@ -1092,7 +1092,11 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
          return in == null ? null : digest(in.readAllBytes());
       }
       catch(IOException ex) {
-         LOG.debug("Failed to read portal themes file for comparison: " + name, ex);
+         // a missing file is not this branch (getInputStream returns null for that), so
+         // this is a real read failure: the self-write fence is disabled for this
+         // notification and the reload goes ahead
+         LOG.warn("Failed to read portal themes file for self-write detection, " +
+                     "will reload: " + name, ex);
          return null;
       }
    }
