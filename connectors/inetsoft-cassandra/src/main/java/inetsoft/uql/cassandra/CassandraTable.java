@@ -120,7 +120,22 @@ public class CassandraTable extends XTableNode {
     */
    @Override
    public Class<?> getType(int col) {
-      switch(types[col].getProtocolCode()) {
+      return getType(types[col]);
+   }
+
+   /**
+    * Maps a Cassandra {@link DataType} to the Java class {@link #getObject(int)} returns values
+    * as. Extracted verbatim from the former body of {@link #getType(int)} — case labels, return
+    * values, and the {@code default} are unchanged — so that a schema-only caller (one with a
+    * {@code DataType} from {@code ColumnMetadata.getType()} but no live {@link ResultSet} to build
+    * a {@code CassandraTable} from) can reuse the identical mapping instead of duplicating it.
+    * {@link #getType(int)} now delegates here rather than switching directly, so this one switch
+    * is the sole copy in the module; see
+    * {@code CassandraTableTypeEquivalenceTest} for the regression test that stands in place of the
+    * "this file does not change" guarantee this extraction gives up.
+    */
+   static Class<?> getType(DataType type) {
+      switch(type.getProtocolCode()) {
       case ProtocolConstants.DataType.BIGINT:
       case ProtocolConstants.DataType.COUNTER:
          return Long.class;
