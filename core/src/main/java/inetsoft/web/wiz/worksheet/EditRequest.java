@@ -356,7 +356,40 @@ public record EditRequest(
     * unchanged, matching {@code distinct}/{@code mergeable}. Distinct from {@code visible}, which
     * is a per-column flag for set_column_visibility.
     */
-   Boolean visibleInViewsheet
+   Boolean visibleInViewsheet,
+   /**
+    * For change_column_type: whether to force a conversion that some values cannot survive.
+    *
+    * <p>{@code XEmbeddedTable#setDataType}'s {@code force} flag decides what happens to a value
+    * the target type cannot parse — {@code true} writes {@code null} over it, {@code false}
+    * throws. The Composer asks: it calls with {@code false} first and, on failure, rolls the
+    * column back and puts the choice to the user
+    * ({@code ColumnTypeDialogService#handleChangeTypeParseException}). This op passed a hardcoded
+    * {@code true}, so unconvertible values were discarded with nothing reported.
+    *
+    * <p>Defaults to {@code true} when omitted, preserving that behaviour for callers built
+    * against it; pass {@code false} to be told instead of losing the values.
+    */
+   Boolean confirmed,
+   /**
+    * For set_table_properties on an embedded table: how many data rows it should hold.
+    *
+    * <p>The Composer's table-properties dialog exposes this as "Rows"
+    * ({@code TablePropertyDialogService:113-121}); this op had no way to reach it. Growing the
+    * count appends empty rows, shrinking it drops the ones past the new end. Ignored, rather than
+    * refused, for a table that is not embedded — the dialog omits the control there too.
+    */
+   Integer rowCount,
+   /**
+    * For add_concatenation: whether each adjacent pair's operator de-duplicates. The Composer's
+    * concatenation dialog exposes this per operator and carries it through
+    * {@code WorksheetEventUtil#convertOperator}; this op had no way to set it. Omitted leaves the
+    * engine's default rather than choosing for the caller.
+    *
+    * <p>Named apart from {@code distinct}, which is the table-level "return distinct values"
+    * property on set_table_properties -- a different setting on a different object.
+    */
+   Boolean concatDistinct
 ) {
    /**
     * Compatibility constructor for callers built before {@code visibleInViewsheet} was added —
@@ -391,7 +424,7 @@ public record EditRequest(
            groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
            sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
            lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, joinPaths,
-           mergeable, null);
+           mergeable, null, null, null, null);
    }
 
    /**

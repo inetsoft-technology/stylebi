@@ -286,9 +286,10 @@ public class SSOSettingsService {
       settingsMap.put("onelogin.saml2.sp.entityid", model.spEntityId());
       settingsMap.put("onelogin.saml2.idp.x509cert", model.idpPublicKey());
       settingsMap.put("onelogin.saml2.idp.single_logout_service.url", model.idpLogoutUrl());
-      settingsMap.put("saml.roles.attribute", model.roleClaim());
-      settingsMap.put("saml.groups.attribute", model.groupClaim());
-      settingsMap.put("saml.orgID.attribute", model.orgIDClaim());
+      //the saml.*.attribute claim names are StyleBI's own and are not part of the java-saml
+      //settings vocabulary, so they cannot be checked here -- fromValues drops keys it does
+      //not recognise. Nothing validates a claim name anywhere; a wrong one saves cleanly and
+      //silently maps nothing at login (see SAMLFilter.ClaimNames).
       final Saml2Settings settings = new SettingsBuilder().fromValues(settingsMap).build();
       final List<String> errors = settings.checkSettings();
       final boolean valid = errors.isEmpty();

@@ -458,10 +458,11 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
             this.http.post(TASKS_MOVE_URI, moveTaskFolderRequest).subscribe(() => {
                this.loadTasks();
             }, (error) => {
-               if(error.status == 403) {
-                  this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Unauthorized)`,
-                     "_#(js:schedule.folder.moveTargetPermissionError)", MessageDialogType.ERROR));
-               }
+               const message = error.error != null && error.error.type == "MessageException" ?
+                  error.error.message : "Failed to move selected tasks";
+
+               this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
+                  message, MessageDialogType.ERROR));
             });
          }
       });

@@ -619,4 +619,111 @@ describe("VSComboBox — Pass 1: Interaction", () => {
          expect(unsubSpy).toHaveBeenCalled();
       });
    });
+
+   // -- Group 16 - date-only value round trip ---------------------------------
+   //
+   // A combobox whose dataType is "date" has no time component. The value used to travel as
+   // epoch millis converted into the server timezone, and for a pre-1901 date the browser
+   // (ICU, which models Local Mean Time) and java.util.Date (whole hour offset) disagree on
+   // that offset by 5m43s for Asia/Shanghai, so 1900-01-01 came back as 1899-12-31 carrying a
+   // stale 00:05:43. That stale time then pushed the last allowed day past the max bound
+   // (midnight of that day) and raised a spurious "Invalid date range".
+   describe("Group 16 - date-only value round trip", () => {
+      function dateComboBox(overrides: any = {}) {
+         return createComboBoxComponent({
+            model: Object.assign({
+               calendar: true, dataType: "date", serverTZ: true,
+               serverTZID: "Asia/Shanghai", refresh: false,
+            }, overrides),
+         });
+      }
+
+      it("should send the picked day as a wall clock date string, not an instant", () => {
+         const { comp, formInputService, ngbModal } = dateComboBox();
+         comp.dropdown = { close: vi.fn() } as any;
+
+         comp.updateDate({ year: 1900, month: 1, day: 1 });
+
+         expect(ngbModal.open).not.toHaveBeenCalled();
+         expect(formInputService.addPendingValue).toHaveBeenCalledWith("Combo1", "1900-01-01");
+      });
+
+      it("should send the same date string whatever the server timezone is", () => {
+         const utc = dateComboBox({ serverTZID: "UTC" });
+         const shanghai = dateComboBox({ serverTZID: "Asia/Shanghai" });
+         utc.comp.dropdown = { close: vi.fn() } as any;
+         shanghai.comp.dropdown = { close: vi.fn() } as any;
+
+         utc.comp.updateDate({ year: 1900, month: 1, day: 1 });
+         shanghai.comp.updateDate({ year: 1900, month: 1, day: 1 });
+
+         expect(utc.formInputService.addPendingValue)
+            .toHaveBeenCalledWith("Combo1", "1900-01-01");
+         expect(shanghai.formInputService.addPendingValue)
+            .toHaveBeenCalledWith("Combo1", "1900-01-01");
+      });
+
+      it("should read a wall clock date back without shifting the day or keeping a time", () => {
+         const { comp } = dateComboBox({ selectedObject: "1900-01-01" });
+
+         expect(comp.selectedDate).toEqual({ year: 1900, month: 1, day: 1 });
+         expect(comp.hours).toBe(0);
+         expect(comp.minutes).toBe(0);
+         expect(comp.seconds).toBe(0);
+         expect(comp.meridian).toBe("AM");
+      });
+
+      it("should accept the configured max day even with a left over time of day", () => {
+         const { comp, formInputService, ngbModal } = dateComboBox({
+            minDate: "1900-01-01 00:00:00", maxDate: "2025-12-31 00:00:00",
+         });
+         comp.dropdown = { close: vi.fn() } as any;
+         // a time left over from a previously selected value
+         comp.hours = 12; comp.minutes = 5; comp.seconds = 43;
+
+         comp.updateDate({ year: 2025, month: 12, day: 31 });
+
+         expect(ngbModal.open).not.toHaveBeenCalled();
+         expect(comp.selectedDate).toEqual({ year: 2025, month: 12, day: 31 });
+         expect(formInputService.addPendingValue).toHaveBeenCalledWith("Combo1", "2025-12-31");
+      });
+
+      it("should accept the configured min day", () => {
+         const { comp, formInputService, ngbModal } = dateComboBox({
+            minDate: "1900-01-01 00:00:00", maxDate: "2025-12-31 00:00:00",
+         });
+         comp.dropdown = { close: vi.fn() } as any;
+
+         comp.updateDate({ year: 1900, month: 1, day: 1 });
+
+         expect(ngbModal.open).not.toHaveBeenCalled();
+         expect(formInputService.addPendingValue).toHaveBeenCalledWith("Combo1", "1900-01-01");
+      });
+
+      it("should still reject a day outside the configured range", () => {
+         const { comp, formInputService, ngbModal } = dateComboBox({
+            minDate: "1900-01-01 00:00:00", maxDate: "2025-12-31 00:00:00",
+         });
+         comp.dropdown = { close: vi.fn() } as any;
+
+         comp.updateDate({ year: 2026, month: 1, day: 1 });
+
+         expect(ngbModal.open).toHaveBeenCalled();
+         expect(comp.selectedDate).toBeFalsy();
+         expect(formInputService.addPendingValue).not.toHaveBeenCalled();
+      });
+
+      it("should keep sending epoch millis for a timeInstant combobox", () => {
+         const { comp, formInputService } = createComboBoxComponent({
+            model: { calendar: true, dataType: "timeInstant", refresh: false },
+         });
+         comp.dropdown = { close: vi.fn() } as any;
+         comp.hours = 10; comp.minutes = 0; comp.seconds = 0; comp.meridian = "AM";
+
+         comp.updateDate({ year: 2024, month: 5, day: 6 });
+
+         expect(formInputService.addPendingValue)
+            .toHaveBeenCalledWith("Combo1", new Date(2024, 4, 6, 10, 0, 0, 0).getTime());
+      });
+   });
 });
