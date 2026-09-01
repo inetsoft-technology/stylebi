@@ -409,7 +409,7 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
       // set default format of title
       VSCompositeFormat format = new VSCompositeFormat();
       format.getDefaultFormat().setBordersValue(new Insets(0, 0, 0, 0));
-      format.getDefaultFormat().setFontValue(getDefaultFont(Font.BOLD, 11));
+      format.getDefaultFormat().setFontValue(getDefaultFont(Font.BOLD, 12));
       format.getDefaultFormat().setAlignmentValue(StyleConstants.H_LEFT | StyleConstants.V_TOP);
       format.getCSSFormat().setCSSType(getObjCSSType() + CSSConstants.TITLE);
       getFormatInfo().setFormat(TITLEPATH, format);
@@ -417,7 +417,7 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
       // set default format of cell
       TableDataPath datapath = new TableDataPath(-1, TableDataPath.DETAIL);
       format = new VSCompositeFormat();
-      format.getDefaultFormat().setFontValue(getDefaultFont(Font.PLAIN, 10));
+      format.getDefaultFormat().setFontValue(getDefaultFont(Font.PLAIN, 12));
       format.getDefaultFormat().setAlignmentValue(StyleConstants.CENTER);
       format.getCSSFormat().setCSSType(getObjCSSType() + CSSConstants.CELL);
       getFormatInfo().setFormat(datapath, format);
@@ -434,11 +434,18 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
    }
 
    /**
-    * Seed the modern-gated round corner and object border. This type bypasses the base chrome
-    * hook (see VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own, matching what the base
-    * hook does for Slider and the other card-style assemblies — otherwise the object border stays
-    * the legacy grey while the title picks up the modern warm-neutral background, and the two
-    * surfaces read as mismatched.
+    * Seed the modern-gated round corner and cell alignment. This type bypasses the base chrome
+    * hook (see VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own — form-input
+    * modernization, tracked as its own follow-on project from the card-corner work.
+    *
+    * Deliberately does NOT seed an object border color: the object's visible border is the static
+    * `.vs-check-box__default-border` CSS fallback (var(--inet-default-border-color)), rendered by
+    * checkDefaultBorder() in vs-compound.ts only when no border is defined anywhere in the title
+    * or object format. Setting a DEFAULT-tier border color without a matching width Insets makes
+    * VSCSSUtil.getBorder() return a non-null-but-0px string instead of null, which flips
+    * checkDefaultBorder() to false and kills that fallback — leaving no visible border at all.
+    * Coordinating this border's color with the modern palette belongs in that CSS variable, not
+    * here.
     */
    @Override
    protected void seedChromeDefaults(VizContext ctx) {
@@ -452,11 +459,14 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
       if(objFormat != null) {
          objFormat.getDefaultFormat().setRoundCornerValue(
             ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 0);
+      }
 
-         Color borderColor = ctx.modern
-            ? VSObjectChromeDefaults.objectBorderColor(ctx) : DEFAULT_BORDER_COLOR;
-         BorderColors bcolors = new BorderColors(borderColor, borderColor, borderColor, borderColor);
-         objFormat.getDefaultFormat().setBorderColorsValue(bcolors);
+      VSCompositeFormat cellFormat = getFormatInfo().getFormat(
+         new TableDataPath(-1, TableDataPath.DETAIL));
+
+      if(cellFormat != null) {
+         cellFormat.getDefaultFormat().setAlignmentValue(
+            ctx.modern ? (StyleConstants.H_LEFT | StyleConstants.V_CENTER) : StyleConstants.CENTER);
       }
    }
 

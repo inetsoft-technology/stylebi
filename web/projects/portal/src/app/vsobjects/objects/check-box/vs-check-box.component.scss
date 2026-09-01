@@ -64,3 +64,13 @@ div.checkbox {
 .vs-check-box__default-border {
   border: 1px solid var(--inet-default-border-color);
 }
+
+.checkbox.vs-check-box__modern-body {
+  // SelectionList's own left offset is 2px (selection-list-cell.component.scss), but that sits in
+  // a differently-structured cell; 2px reads as flush-to-the-border on checkbox's tighter
+  // input+label layout, so use a value that actually gives visible breathing room here.
+  // Compound selector (not just the single class) needed to outrank .compound-cell's
+  // padding-left: 3px (vs-compound.scss), which loads after this file and wins at equal
+  // specificity otherwise.
+  padding-left: 8px;
+}

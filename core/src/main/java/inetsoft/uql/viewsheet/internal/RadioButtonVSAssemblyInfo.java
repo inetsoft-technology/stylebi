@@ -384,7 +384,7 @@ public class RadioButtonVSAssemblyInfo extends ListInputVSAssemblyInfo
       // set default format of detail
       TableDataPath datapath = new TableDataPath(-1, TableDataPath.DETAIL);
       format = new VSCompositeFormat();
-      format.getDefaultFormat().setFontValue(getDefaultFont(Font.PLAIN, 10));
+      format.getDefaultFormat().setFontValue(getDefaultFont(Font.PLAIN, 12));
       format.getDefaultFormat().setAlignmentValue(StyleConstants.CENTER);
       format.getCSSFormat().setCSSType(getObjCSSType() + CSSConstants.CELL);
       getFormatInfo().setFormat(datapath, format);
