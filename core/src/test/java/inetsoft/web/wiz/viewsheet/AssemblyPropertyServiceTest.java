@@ -212,6 +212,28 @@ class AssemblyPropertyServiceTest {
       assertTrue(thrown.getMessage().contains("shadow"), "must name the refused key: " + thrown.getMessage());
    }
 
+   /**
+    * The reported defect: {@code rangeValues}/{@code rangeColorValues} are {@code String[]}-typed
+    * and unaliased, so the raw dotted path is the only way to set them, and PropertyPath.coerce
+    * had no branch for an array-typed target -- every input shape failed identically regardless
+    * of value. This exercises the real nested GaugeAdvancedPaneModel/RangePaneModel path, not a
+    * synthetic PropertyPathTest fixture.
+    */
+   @Test
+   void setsGaugeRangeValuesViaRawPath() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      service.set("tok", principal(), "Gauge1",
+                  Map.of("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                         java.util.List.of("60", "90", "100")),
+                  "");
+
+      assertArrayEquals(
+         new String[]{ "60", "90", "100" },
+         model.getGaugeAdvancedPaneModel().getRangePaneModel().getRangeValues());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static AssemblyPropertyService serviceWith(VSAssembly assembly, Object model) {

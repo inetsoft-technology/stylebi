@@ -552,4 +552,76 @@ class PropertyPathTest {
       assertEquals("MiXeD Case", leaf.getTitle(),
                    "only names with a declared domain get canonicalized");
    }
+
+   // ── arrays ────────────────────────────────────────────────────────────────
+
+   /**
+    * Mirrors {@code RangePaneModel.rangeValues}/{@code rangeColorValues} — a {@code String[]}
+    * raw path with no alias, so this is the only way to reach it.
+    */
+   public static class StringArrayHolder {
+      public String[] getValues() { return values; }
+      public void setValues(String[] values) { this.values = values; }
+
+      private String[] values;
+   }
+
+   public static class IntArrayHolder {
+      public int[] getValues() { return values; }
+      public void setValues(int[] values) { this.values = values; }
+
+      private int[] values;
+   }
+
+   @Test
+   void setsAStringArrayFromAJsonArrayOfStrings() {
+      StringArrayHolder target = new StringArrayHolder();
+
+      PropertyPath.set(target, "values", List.of("60", "90", "100"));
+
+      assertArrayEquals(new String[]{ "60", "90", "100" }, target.getValues());
+   }
+
+   /**
+    * The exact reported defect: Jackson deserializes a JSON array of numbers into a
+    * {@code List<Integer>}, which must still coerce onto a {@code String[]} target.
+    */
+   @Test
+   void setsAStringArrayFromAJsonArrayOfNumbers() {
+      StringArrayHolder target = new StringArrayHolder();
+
+      PropertyPath.set(target, "values", List.of(60, 90, 100));
+
+      assertArrayEquals(new String[]{ "60", "90", "100" }, target.getValues());
+   }
+
+   @Test
+   void setsAStringArrayFromDecimalStrings() {
+      StringArrayHolder target = new StringArrayHolder();
+
+      PropertyPath.set(target, "values", List.of("60.0", "90.0", "100.0"));
+
+      assertArrayEquals(new String[]{ "60.0", "90.0", "100.0" }, target.getValues());
+   }
+
+   @Test
+   void refusesANonArrayValueForAnArrayTarget() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(new StringArrayHolder(), "values", "60,90,100"));
+
+      assertTrue(thrown.getMessage().contains("values"), "name the property");
+      assertTrue(thrown.getMessage().contains("JSON array"), "name the expected shape");
+   }
+
+   @Test
+   void anArrayElementThatFailsCoercionNamesItsIndex() {
+      IntArrayHolder target = new IntArrayHolder();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(target, "values", List.of("60", "not-a-number", "100")));
+
+      assertTrue(thrown.getMessage().contains("values[1]"), "name the offending index");
+   }
 }
