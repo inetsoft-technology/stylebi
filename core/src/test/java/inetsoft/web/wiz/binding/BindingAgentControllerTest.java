@@ -337,4 +337,68 @@ class BindingAgentControllerTest {
       assertTrue(thrown.getMessage().contains("Sales"), thrown.getMessage());
       verifyNoInteractions(aestheticService);
    }
+
+   /**
+    * PCB-004: set_table_fields does not go through resolveSourceTable/BindableColumns.requireSource
+    * like the chart callers above -- its own request carries no {@code table} param to resolve
+    * against, so the guard lives directly in {@link TableBindingService#setShelf}. Driven through
+    * a real (not mocked) {@code TableBindingService} to confirm the exception surfaces through the
+    * controller endpoint the plugin actually calls, not just at the service-unit level.
+    */
+   @Test
+   void setTableFieldsRefusesWhenAssemblyHasNoSource() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.runtimeId(eq("tok"), any(Principal.class))).thenReturn("rt1");
+
+      inetsoft.uql.viewsheet.CrosstabVSAssembly assembly =
+         mock(inetsoft.uql.viewsheet.CrosstabVSAssembly.class);
+      when(assembly.getSourceInfo()).thenReturn(null);
+      inetsoft.uql.viewsheet.Viewsheet vs = mock(inetsoft.uql.viewsheet.Viewsheet.class);
+      when(vs.getAssembly("Crosstab1")).thenReturn(assembly);
+      inetsoft.report.composition.RuntimeViewsheet rvs =
+         mock(inetsoft.report.composition.RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      inetsoft.web.binding.service.VSBindingService binding =
+         mock(inetsoft.web.binding.service.VSBindingService.class);
+      when(binding.createModel(assembly))
+         .thenReturn(new inetsoft.web.binding.model.table.CrosstabBindingModel());
+
+      TableBindingService tableService = new TableBindingService(
+         sessions, binding, mock(inetsoft.web.binding.controller.VSBindingModelService.class),
+         mock(inetsoft.web.binding.service.DataRefModelFactoryService.class));
+
+      // A plausible column name present on some other worksheet table, with none marked
+      // "current" -- the exact "no source set yet" shape BindableColumns.require() is documented
+      // to let through, so this listing must not be what refuses the write; the assembly's real
+      // SourceInfo is.
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+      when(fields.list(eq("rt1"), eq("Crosstab1"), any(Principal.class))).thenReturn(
+         List.of(new inetsoft.web.wiz.binding.model.BindableTable("ORDERS", null,
+            List.of(new inetsoft.web.wiz.binding.model.BindableField("Region", "string", null)))));
+
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
+         mock(BindingReadService.class), mock(ChartBindingService.class),
+         mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
+         mock(SelectionBindingService.class));
+
+      BindingAgentController.TableShelfRequest request =
+         new BindingAgentController.TableShelfRequest(
+            "Crosstab1", "rows", List.of(new FieldRef("Region", "dimension", null, null, null)));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.setTableFields("tok", request, principal()));
+
+      assertTrue(thrown.getMessage().contains("Crosstab1"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("set_table_source"), thrown.getMessage());
+   }
 }

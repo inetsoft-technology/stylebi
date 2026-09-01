@@ -53,8 +53,10 @@ class TableBindingServiceTest {
       CrosstabBindingModel existing = new CrosstabBindingModel();
       existing.getName2Labels().put("Region", "Sales Region");
       VSBindingModelService bindings = mock(VSBindingModelService.class);
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getSourceInfo()).thenReturn(new inetsoft.uql.asset.SourceInfo());
 
-      harness(mock(CrosstabVSAssembly.class), existing, bindings)
+      harness(assembly, existing, bindings)
          .setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region")));
 
       ApplyVSAssemblyInfoEvent event = capture(bindings);
@@ -72,8 +74,10 @@ class TableBindingServiceTest {
    @Test
    void leavesTrapCheckingOn() throws Exception {
       VSBindingModelService bindings = mock(VSBindingModelService.class);
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getSourceInfo()).thenReturn(new inetsoft.uql.asset.SourceInfo());
 
-      harness(mock(CrosstabVSAssembly.class), new CrosstabBindingModel(), bindings)
+      harness(assembly, new CrosstabBindingModel(), bindings)
          .setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region")));
 
       assertTrue(capture(bindings).isCheckTrap());
@@ -99,8 +103,10 @@ class TableBindingServiceTest {
    void addAndRemoveDelegate() throws Exception {
       CrosstabBindingModel existing = new CrosstabBindingModel();
       VSBindingModelService bindings = mock(VSBindingModelService.class);
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getSourceInfo()).thenReturn(new inetsoft.uql.asset.SourceInfo());
 
-      harness(mock(CrosstabVSAssembly.class), existing, bindings)
+      harness(assembly, existing, bindings)
          .addField("tok", principal(), "Crosstab1", "rows", dim("Region"), null);
 
       assertEquals(1, ((CrosstabBindingModel) capture(bindings).getBinding()).getRows().size());
@@ -304,6 +310,104 @@ class TableBindingServiceTest {
          Exception.class,
          () -> service.setShelf("tok", principal(), "Calc1", "rows", List.of(dim("Region"))));
       assertTrue(thrown.getMessage().contains("cell layout"));
+   }
+
+   // ── no-source refusal ─────────────────────────────────────────────────────
+   //
+   // set_table_fields/add_table_field must refuse a non-empty shelf write on an assembly with
+   // no source, rather than silently applying it and rendering nothing — see setSource's javadoc
+   // above for why nothing else here catches this.
+
+   @Test
+   void setShelfRefusesWhenAssemblyHasNoSource() {
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getSourceInfo()).thenReturn(null);
+      TableBindingService service =
+         serviceWith(sessionsFor(assembly), new CrosstabBindingModel(),
+                     mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region"))));
+      assertTrue(thrown.getMessage().contains("Crosstab1"));
+      assertTrue(thrown.getMessage().contains("set_table_source"));
+   }
+
+   @Test
+   void setShelfClearingAnEmptyShelfIsNotRefusedEvenWithNoSource() throws Exception {
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getSourceInfo()).thenReturn(null);
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(assembly, new CrosstabBindingModel(), bindings)
+         .setShelf("tok", principal(), "Crosstab1", "rows", List.of());
+
+      assertEquals(0,
+         ((CrosstabBindingModel) capture(bindings).getBinding()).getRows().size());
+   }
+
+   @Test
+   void setShelfProceedsWhenAssemblyHasASource() throws Exception {
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getSourceInfo()).thenReturn(new inetsoft.uql.asset.SourceInfo());
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(assembly, new CrosstabBindingModel(), bindings)
+         .setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region")));
+
+      assertEquals(1,
+         ((CrosstabBindingModel) capture(bindings).getBinding()).getRows().size());
+   }
+
+   @Test
+   void addFieldRefusesWhenAssemblyHasNoSource() {
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getSourceInfo()).thenReturn(null);
+      TableBindingService service =
+         serviceWith(sessionsFor(assembly), new CrosstabBindingModel(),
+                     mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.addField("tok", principal(), "Crosstab1", "rows", dim("Region"), null));
+      assertTrue(thrown.getMessage().contains("Crosstab1"));
+      assertTrue(thrown.getMessage().contains("set_table_source"));
+   }
+
+   @Test
+   void addFieldProceedsWhenAssemblyHasASource() throws Exception {
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getSourceInfo()).thenReturn(new inetsoft.uql.asset.SourceInfo());
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(assembly, new CrosstabBindingModel(), bindings)
+         .addField("tok", principal(), "Crosstab1", "rows", dim("Region"), null);
+
+      assertEquals(1,
+         ((CrosstabBindingModel) capture(bindings).getBinding()).getRows().size());
+   }
+
+   /**
+    * The guard is scoped to {@link TableBindingService#setShelf}/{@link
+    * TableBindingService#addField}'s own call sites, not pushed into {@code applyWithContext}
+    * itself — {@link TableBindingService#moveField} shares that plumbing and must not be refused
+    * on a sourceless assembly, since by construction a sourceless assembly's shelves can never
+    * have anything on them to move once setShelf/addField are guarded.
+    */
+   @Test
+   void moveFieldIsNotRefusedEvenWithNoSource() throws Exception {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region"), dim("Year")));
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getSourceInfo()).thenReturn(null);
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(assembly, existing, bindings)
+         .moveField("tok", principal(), "Crosstab1", "rows", "cols", "Year", null);
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals(1, posted.getRows().size());
+      assertEquals(1, posted.getCols().size());
    }
 
    private static CrosstabBindingModel withTables(String... names) {
