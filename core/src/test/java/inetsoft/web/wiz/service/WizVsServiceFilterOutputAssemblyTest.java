@@ -91,7 +91,7 @@ class WizVsServiceFilterOutputAssemblyTest {
       when(securityEngine.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
       user = mock(Principal.class);
 
-      WizVsService real = new WizVsService(viewsheetService, engine, securityEngine, null, null);
+      WizVsService real = new WizVsService(viewsheetService, engine, securityEngine, null, null, null);
       service = spy(real);
 
       gauge = mock(GaugeVSAssembly.class);

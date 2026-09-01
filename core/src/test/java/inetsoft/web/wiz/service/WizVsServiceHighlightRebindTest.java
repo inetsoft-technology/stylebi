@@ -65,7 +65,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SreeHome
 @Tag("core")
 class WizVsServiceHighlightRebindTest {
-   private final WizVsService service = new WizVsService(null, null, null, null, null);
+   private final WizVsService service = new WizVsService(null, null, null, null, null, null);
 
    private static ColumnSelection viewColumns(String... names) {
       ColumnSelection cols = new ColumnSelection();
