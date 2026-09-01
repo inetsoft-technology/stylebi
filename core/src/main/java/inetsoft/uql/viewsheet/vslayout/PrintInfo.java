@@ -19,6 +19,8 @@ package inetsoft.uql.viewsheet.vslayout;
 
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.report.Margin;
+import inetsoft.report.Size;
+import inetsoft.report.internal.PaperSize;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
@@ -38,6 +40,10 @@ public class PrintInfo implements AssetObject {
     * Constructor.
     */
    public PrintInfo() {
+      // Every other field already reads back safely (0/null) when never set; size is the one
+      // getters dereference directly, so it starts populated rather than joining them as a
+      // second, narrower null-check downstream would require.
+      size = defaultSize();
    }
 
    /**
@@ -74,7 +80,14 @@ public class PrintInfo implements AssetObject {
     */
    public DimensionD getSize() {
       double ratio = 1 / getUnitRatio(); //Convert inches to current unit
-      return new DimensionD(size.getWidth() * ratio, size.getHeight() * ratio);
+      DimensionD stored = size == null ? defaultSize() : size;
+      return new DimensionD(stored.getWidth() * ratio, stored.getHeight() * ratio);
+   }
+
+   /** Letter, in inches -- the same unit {@link #size} is always stored in. */
+   private static DimensionD defaultSize() {
+      Size letter = PaperSize.getSize(0);
+      return new DimensionD(letter.width, letter.height);
    }
 
    /**
