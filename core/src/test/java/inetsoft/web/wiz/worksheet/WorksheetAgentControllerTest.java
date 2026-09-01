@@ -22,6 +22,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.uql.VariableTable;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -64,6 +65,9 @@ import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -989,6 +993,11 @@ class WorksheetAgentControllerTest {
 
    /** Builds an {@code add_variable} EditRequest that routes to addVariableFromEdit(). */
    private static EditRequest addVariableRequest(String name, String type) {
+      return addVariableRequest(name, type, null);
+   }
+
+   /** Same as {@link #addVariableRequest(String, String)}, with an explicit default value. */
+   private static EditRequest addVariableRequest(String name, String type, String defaultValue) {
       return new EditRequest(
          "add_variable", null, null, name, type, null, null, null, null, null, null, null, null, false,
          null, null, null, null, null,
@@ -996,7 +1005,7 @@ class WorksheetAgentControllerTest {
          null, null, null, null, null, null, null, null, null, null,
          null, null, null, null,
          null, null,
-         null, null,
+         null, defaultValue,
          null, null, null,
          null, null,
          null, null, null, null, null, null, null
@@ -1070,6 +1079,134 @@ class WorksheetAgentControllerTest {
       assertSame(existing, a, "the original variable assembly must not be replaced");
       assertEquals(XSchema.DOUBLE, ((VariableAssembly) a).getVariable().getTypeNode().getType(),
                    "the original variable's type must be unchanged");
+   }
+
+   /**
+    * L2-Group7 regressions: add_variable previously accepted a name the Composer's own
+    * Variable dialog would refuse ({@code doesNotStartWithNumber}/{@code variableSpecialCharacters}
+    * are Angular-only, no Java match anywhere), a name colliding case-insensitively with an
+    * existing variable ({@code Worksheet.getAssembly} is case-sensitive, unlike the dialog's own
+    * {@code FormValidators.exists(..., {ignoreCase:true})}), an unrecognized {@code type}
+    * (silently leaving the variable with no type node at all), and a {@code defaultValue} that
+    * doesn't parse under the declared type (silently storing the raw, unparsed string).
+    */
+   @ParameterizedTest
+   @CsvSource({
+      "1BadName, start with a digit",
+      "'Bad*Name', contains characters",
+   })
+   void editRejectsAddVariableWithInvalidName(String badName, String expectedFragment)
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-AVN"), any())).thenReturn(session("TOK-AVN"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-AVN", addVariableRequest(badName, "string"), agent));
+      assertTrue(ex.getMessage().contains(expectedFragment), ex.getMessage());
+      assertNull(ws.getAssembly(badName));
+   }
+
+   @Test
+   void editRejectsAddVariableWithCaseInsensitiveDuplicateName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      AssetVariable existingVar = new AssetVariable("TestVar");
+      existingVar.setTypeNode(XSchema.createPrimitiveType(XSchema.STRING));
+      DefaultVariableAssembly existing = new DefaultVariableAssembly(ws, "TestVar");
+      existing.setVariable(existingVar);
+      ws.addAssembly(existing);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-AVCI"), any())).thenReturn(session("TOK-AVCI"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-AVCI", addVariableRequest("testvar", "string"), agent));
+      assertTrue(ex.getMessage().contains("already exists"), ex.getMessage());
+      assertNull(ws.getAssembly("testvar"),
+         "a second, differently-cased variable must not have been created");
+   }
+
+   @Test
+   void editRejectsAddVariableWithUnrecognizedType() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-AVT"), any())).thenReturn(session("TOK-AVT"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-AVT", addVariableRequest("TypeTest", "totally_bogus_type"), agent));
+      assertTrue(ex.getMessage().contains("totally_bogus_type"), ex.getMessage());
+      assertNull(ws.getAssembly("TypeTest"),
+         "an invalid type must reject the whole call, not create a typeless variable");
+   }
+
+   @Test
+   void editRejectsAddVariableWithUnparsableDefaultValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-AVD2"), any())).thenReturn(session("TOK-AVD2"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-AVD2",
+            addVariableRequest("IntTest", "integer", "not_a_number"), agent));
+      assertTrue(ex.getMessage().contains("not_a_number"), ex.getMessage());
+      assertNull(ws.getAssembly("IntTest"),
+         "an unparsable default value must reject the whole call");
    }
 
    /**
@@ -1339,6 +1476,288 @@ class WorksheetAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // set_variable_values (L2-Group8)
+   // ---------------------------------------------------------------------------
+
+   /** Builds a {@code set_variable_values} EditRequest that routes to setVariableValues(). */
+   private static EditRequest setVariableValuesRequest(Map<String, String> variableValues) {
+      return new EditRequest(
+         "set_variable_values", null, null, null, null, null, null, null, null, null,
+         null, null, null, false,
+         null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null,
+         null, null, null, variableValues,
+         null, null,
+         null, null,
+         null, null, null,
+         null, null,
+         null, null, null, null, null, null, null
+      );
+   }
+
+   private static DefaultVariableAssembly boundedChoiceVariable(
+      Worksheet ws, String name, String type, Object[] choiceValues, int displayStyle)
+   {
+      AssetVariable var = new AssetVariable(name);
+      var.setTypeNode(XSchema.createPrimitiveType(type));
+      var.setChoices(choiceValues);
+      var.setValues(choiceValues);
+      var.setDisplayStyle(displayStyle);
+      DefaultVariableAssembly assembly = new DefaultVariableAssembly(ws, name);
+      assembly.setVariable(var);
+      ws.addAssembly(assembly);
+      return assembly;
+   }
+
+   @Test
+   void setVariableValuesRejectsUnknownVariableName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SVV1"), any())).thenReturn(session("TOK-SVV1"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      // L2-Group8: a typo'd/nonexistent variable name previously returned {ok:true} and did
+      // nothing -- the canonical CLAUDE.md tool-misuse shape (silent no-op on a natural mistake).
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit(
+         "TOK-SVV1", setVariableValuesRequest(Map.of("TotallyNonexistentVar", "x")), agent));
+      assertTrue(ex.getMessage().contains("TotallyNonexistentVar"), ex.getMessage());
+   }
+
+   @Test
+   void setVariableValuesCoercesDeclaredType() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      variableAssemblyForValues(ws, "NumVar", XSchema.INTEGER);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SVV2"), any())).thenReturn(session("TOK-SVV2"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      // L2-Group8: previously put every value into the VariableTable as a raw string, with no
+      // type conversion at all -- VariableInputDialogService.initVariableInfos converts every
+      // submitted string through this same CoreTool.getData(type, val, true) call first.
+      ctrl.edit("TOK-SVV2", setVariableValuesRequest(Map.of("NumVar", "42")), agent);
+
+      ArgumentCaptor<VariableTable> captor = ArgumentCaptor.forClass(VariableTable.class);
+      verify(box).refreshVariableTable(captor.capture());
+      assertEquals(42, captor.getValue().get("NumVar"),
+         "the declared-integer variable's value must be a typed Integer, not the raw string");
+   }
+
+   @Test
+   void setVariableValuesRejectsValueNotInBoundedChoiceList() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      boundedChoiceVariable(ws, "ChoiceVar", XSchema.STRING,
+         new Object[] {"East", "West"}, UserVariable.LIST);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SVV3"), any())).thenReturn(session("TOK-SVV3"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      // L2-Group8: a bounded-picker variable (combobox/list/radio/checkboxes) can only ever be
+      // given one of its declared values through the native "Enter Parameters" prompt -- the
+      // widget itself cannot render anything else.
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit(
+         "TOK-SVV3", setVariableValuesRequest(Map.of("ChoiceVar", "NotInList")), agent));
+      assertTrue(ex.getMessage().contains("NotInList"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("ChoiceVar"), ex.getMessage());
+   }
+
+   @Test
+   void setVariableValuesAllowsAnyValueForFreeTextVariable() throws Exception {
+      // A free-text variable (displayStyle NONE) has no such restriction natively either -- a
+      // backend guard must not make this tool *more* restrictive than the UI it is compared
+      // against, even though the variable happens to carry a (non-enforced) choices list.
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      boundedChoiceVariable(ws, "FreeVar", XSchema.STRING,
+         new Object[] {"East", "West"}, UserVariable.NONE);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SVV4"), any())).thenReturn(session("TOK-SVV4"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.edit("TOK-SVV4", setVariableValuesRequest(Map.of("FreeVar", "AnythingGoes")), agent);
+
+      ArgumentCaptor<VariableTable> captor = ArgumentCaptor.forClass(VariableTable.class);
+      verify(box).refreshVariableTable(captor.capture());
+      assertEquals("AnythingGoes", captor.getValue().get("FreeVar"));
+   }
+
+   private static DefaultVariableAssembly variableAssemblyForValues(
+      Worksheet ws, String name, String type)
+   {
+      AssetVariable var = new AssetVariable(name);
+      var.setTypeNode(XSchema.createPrimitiveType(type));
+      DefaultVariableAssembly assembly = new DefaultVariableAssembly(ws, name);
+      assembly.setVariable(var);
+      ws.addAssembly(assembly);
+      return assembly;
+   }
+
+   // ---------------------------------------------------------------------------
+   // setProperties (L2-Group9)
+   // ---------------------------------------------------------------------------
+
+   @ParameterizedTest
+   @CsvSource({
+      "'Bad/Alias', does not allow",
+      "'Bad<Alias>', does not allow",
+      "'_LeadingUnderscore', letter or digit",
+      // Review finding on PR #4920: Character.isLetterOrDigit is Unicode-aware and would accept
+      // a Cyrillic/Greek/Hangul/etc. leading character, which the Angular validator this method
+      // mirrors (assetNameStartWithCharDigit) never allowed -- only ASCII letters/digits, Latin-1
+      // Supplement + Latin Extended-A, and CJK Unified Ideographs.
+      "'Пример', letter or digit",
+   })
+   void setPropertiesRejectsInvalidAlias(String badAlias, String expectedFragment)
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SP1"), any())).thenReturn(session("TOK-SP1"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      // L2-Group9: assetEntryBannedCharacters/assetNameStartWithCharDigit are Angular-only --
+      // not even WorksheetPropertyDialogService.process() re-validated before this fix.
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.setProperties(
+         "TOK-SP1", new WorksheetAgentController.WorksheetPropertiesRequest(badAlias, null),
+         agent));
+      assertTrue(ex.getMessage().toLowerCase().contains(expectedFragment.toLowerCase()),
+         ex.getMessage());
+      assertNull(ws.getWorksheetInfo().getAlias(),
+         "a rejected alias must not have been applied");
+   }
+
+   @Test
+   void setPropertiesAcceptsValidAlias() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SP2"), any())).thenReturn(session("TOK-SP2"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.setProperties("TOK-SP2",
+         new WorksheetAgentController.WorksheetPropertiesRequest("Good Alias 1", null), agent);
+
+      assertEquals("Good Alias 1", ws.getWorksheetInfo().getAlias());
+   }
+
+   /**
+    * Review finding on PR #4920: the fixed start-character check must still accept everything
+    * the Angular validator (assetNameStartWithCharDigit) allows -- CJK Unified Ideographs and
+    * the Latin-1 Supplement/Latin Extended-A block -- not just plain ASCII.
+    */
+   @ParameterizedTest
+   @CsvSource({
+      "'报表别名'",
+      "'Ā_LatinExtendedA'",
+   })
+   void setPropertiesAcceptsNonAsciiAliasWithinAllowedRanges(String goodAlias) throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SP3"), any())).thenReturn(session("TOK-SP3"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.setProperties("TOK-SP3",
+         new WorksheetAgentController.WorksheetPropertiesRequest(goodAlias, null), agent);
+
+      assertEquals(goodAlias, ws.getWorksheetInfo().getAlias());
+   }
+
+   // ---------------------------------------------------------------------------
    // importCsv / importExcel
    // ---------------------------------------------------------------------------
 
@@ -1578,6 +1997,123 @@ class WorksheetAgentControllerTest {
          "detectType=true must still detect a numeric column when every value shares one format");
    }
 
+   // ---------------------------------------------------------------------------
+   // stringColumns / stringColumnIndexes (L2-Group6 flagship finding)
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void importCsvStringColumnsPreservesLeadingZerosWithoutBreakingOtherNumericColumn()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-SC1");
+
+      // The audit's exact reproduction: a zero-padded ZIP code alongside a genuinely-numeric
+      // column. detectType=true alone would strip ZIP's leading zeros; detectType=false alone
+      // would turn AMOUNT into a string too. stringColumns lets ZIP opt out without touching
+      // AMOUNT.
+      ctrl.importCsv("TOK-SC1", new WorksheetAgentController.ImportCsvRequest(
+            "ZipTest", "ZIP,AMOUNT\n00501,10.50\n00544,20.75\n10001,30.00",
+            null, null, null, true, null, null, null, null, null,
+            List.of("ZIP"), null),
+         TestPrincipals.user("alice", "host-org"));
+
+      EmbeddedTableAssembly t = importedTable(ws, "ZipTest");
+      ColumnSelection cols = t.getColumnSelection(false);
+      assertEquals(XSchema.STRING, ((ColumnRef) cols.getAttribute("ZIP")).getDataType(),
+         "ZIP must stay a string column");
+      assertNotEquals(XSchema.STRING, ((ColumnRef) cols.getAttribute("AMOUNT")).getDataType(),
+         "AMOUNT must still be detected as numeric -- the whole point of a per-column override");
+      assertEquals("00501", String.valueOf(t.getEmbeddedData().getObject(1, 0)),
+         "the leading zeros must survive");
+   }
+
+   @Test
+   void importCsvStringColumnIndexesResolvesSameColumnAsStringColumns() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-SC2");
+      String csv = "ZIP,AMOUNT\n00501,10.50";
+
+      ctrl.importCsv("TOK-SC2", new WorksheetAgentController.ImportCsvRequest(
+            "ByName", csv, null, null, null, true, null, null, null, null, null,
+            List.of("ZIP"), null),
+         TestPrincipals.user("alice", "host-org"));
+      ctrl.importCsv("TOK-SC2", new WorksheetAgentController.ImportCsvRequest(
+            "ByIndex", csv, null, null, null, true, null, null, null, null, null,
+            null, List.of(0)),
+         TestPrincipals.user("alice", "host-org"));
+
+      assertEquals("00501",
+         String.valueOf(importedTable(ws, "ByName").getEmbeddedData().getObject(1, 0)));
+      assertEquals("00501",
+         String.valueOf(importedTable(ws, "ByIndex").getEmbeddedData().getObject(1, 0)),
+         "stringColumnIndexes must resolve to the same result as the equivalent stringColumns");
+   }
+
+   @Test
+   void importCsvStringColumnsRejectsUnknownColumnName() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-SC3");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.importCsv("TOK-SC3", new WorksheetAgentController.ImportCsvRequest(
+               "X", "ZIP,AMOUNT\n00501,10.50", null, null, null, null, null, null, null, null,
+               null, List.of("NoSuchColumn"), null),
+            TestPrincipals.user("alice", "host-org")));
+
+      assertEquals(400, ex.getStatusCode().value());
+      assertTrue(ex.getReason().contains("NoSuchColumn"), ex.getReason());
+      assertTrue(ex.getReason().contains("ZIP") && ex.getReason().contains("AMOUNT"),
+         "the refusal should name the file's actual columns: " + ex.getReason());
+   }
+
+   @Test
+   void importCsvStringColumnIndexesRejectsOutOfRangeIndex() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-SC4");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.importCsv("TOK-SC4", new WorksheetAgentController.ImportCsvRequest(
+               "X", "ZIP,AMOUNT\n00501,10.50", null, null, null, null, null, null, null, null,
+               null, null, List.of(5)),
+            TestPrincipals.user("alice", "host-org")));
+
+      assertEquals(400, ex.getStatusCode().value());
+      assertTrue(ex.getReason().contains("5"), ex.getReason());
+   }
+
+   @Test
+   void importCsvStringColumnsRejectedWithUnpivot() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-SC5");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.importCsv("TOK-SC5", new WorksheetAgentController.ImportCsvRequest(
+               "X", "id,q1,q2\n1,10,20", null, null, null, null, null, null, true, null,
+               null, List.of("q1"), null),
+            TestPrincipals.user("alice", "host-org")));
+
+      assertEquals(400, ex.getStatusCode().value());
+      assertTrue(ex.getReason().contains("unpivot"), ex.getReason());
+   }
+
+   @Test
+   void importCsvFileHonoursStringColumns() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-SC6");
+
+      ctrl.importCsvFile("TOK-SC6",
+         new MockMultipartFile("file", "d.csv", "text/csv",
+                               "ZIP,AMOUNT\n00501,10.50".getBytes()),
+         "ZipFile", null, null, null, true, null, null, null, null, null,
+         List.of("ZIP"), null,
+         TestPrincipals.user("alice", "host-org"));
+
+      assertEquals("00501",
+         String.valueOf(importedTable(ws, "ZipFile").getEmbeddedData().getObject(1, 0)),
+         "the multipart route must plumb stringColumns through the same way the JSON route does");
+   }
+
    @Test
    void importCsvFirstRowAsHeaderFalseGeneratesColumnNamesAndKeepsLineOne() throws Exception {
       Worksheet ws = new Worksheet();
@@ -1648,6 +2184,7 @@ class WorksheetAgentControllerTest {
          () -> ctrl.importCsvFile("TOK-ENC",
             new MockMultipartFile("file", "d.csv", "text/csv", "a,b\n1,2".getBytes()),
             "Bad", "NOT-A-CHARSET", null, null, null, null, null, null, null, null,
+            null, null,
             TestPrincipals.user("alice", "host-org")));
 
       assertEquals(400, ex.getStatusCode().value());
@@ -1669,6 +2206,7 @@ class WorksheetAgentControllerTest {
          () -> ctrl.importCsvFile("TOK-BADENC",
             new MockMultipartFile("file", "d.csv", "text/csv", "a,b\n1,2".getBytes()),
             "Bad", "not a charset", null, null, null, null, null, null, null, null,
+            null, null,
             TestPrincipals.user("alice", "host-org")));
 
       assertEquals(400, ex.getStatusCode().value());
@@ -1743,6 +2281,7 @@ class WorksheetAgentControllerTest {
       ctrl.importCsvFile("TOK-GBK",
          new MockMultipartFile("file", "d.csv", "text/csv", utf16),
          "Encoded", "UTF-16LE", null, null, null, null, null, null, null, null,
+         null, null,
          TestPrincipals.user("alice", "host-org"));
 
       ColumnSelection cs = importedTable(ws, "Encoded").getColumnSelection(false);
@@ -1792,7 +2331,7 @@ class WorksheetAgentControllerTest {
          mock(WorksheetService.class));
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-         () -> ctrl.importExcel("TOK", null, "XLSX", null, null, null,
+         () -> ctrl.importExcel("TOK", null, "XLSX", null, null, null, null, null,
                                 TestPrincipals.user("alice", "host-org")));
       assertEquals(400, ex.getStatusCode().value());
    }
@@ -1807,7 +2346,7 @@ class WorksheetAgentControllerTest {
       MockMultipartFile file = excelFile(new byte[]{1, 2, 3, 4});
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-         () -> ctrl.importExcel("TOK", file, "PDF", null, null, null,
+         () -> ctrl.importExcel("TOK", file, "PDF", null, null, null, null, null,
                                 TestPrincipals.user("alice", "host-org")));
       assertEquals(400, ex.getStatusCode().value());
    }
@@ -1825,7 +2364,7 @@ class WorksheetAgentControllerTest {
          sreeEnv.when(() -> SreeEnv.getProperty("excel.import.max")).thenReturn("5");
 
          ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-            () -> ctrl.importExcel("TOK", file, "XLSX", null, null, null,
+            () -> ctrl.importExcel("TOK", file, "XLSX", null, null, null, null, null,
                                    TestPrincipals.user("alice", "host-org")));
          assertEquals(400, ex.getStatusCode().value());
       }
@@ -3347,6 +3886,107 @@ class WorksheetAgentControllerTest {
       assertEquals(Boolean.TRUE, result.get("ok"));
       assertNull(result.get("warning"));
       verify(ws, never()).getRuntimeSheets(any());
+   }
+
+   // ---------------------------------------------------------------------------
+   // save -- L2-Group10: duplicate-name/overwrite confirmation, control-char sanitization
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void saveRejectsDuplicateNameWithoutConfirmation() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry oldEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(oldEntry);
+      when(rws.getWorksheet()).thenReturn(new Worksheet());
+      when(rws.getCurrent()).thenReturn(1);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-SAVE-DUP1"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-dup1"));
+
+      WorksheetService ws = mock(WorksheetService.class);
+      when(ws.getRuntimeSheets(eq(agent))).thenReturn(new RuntimeSheet[0]);
+      when(ws.isDuplicatedEntry(any(), any())).thenReturn(true);
+
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
+
+      // L2-Group10: SaveWorksheetDialogService.process0()'s Save-As dialog refuses (pending
+      // confirmation) when isDuplicatedEntry() reports the target already exists -- this agent
+      // path previously called setWorksheet unconditionally, silently overwriting whatever
+      // "Orders WS Copy" already held.
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.save("TOK-SAVE-DUP1",
+         new WorksheetAgentController.SaveRequest("Orders WS Copy", null), agent));
+      assertTrue(ex.getMessage().contains("already exists"), ex.getMessage());
+      verify(ws, never()).setWorksheet(any(), any(), any(), anyBoolean(), anyBoolean());
+   }
+
+   @Test
+   void saveOverwritesDuplicateNameWhenConfirmed() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry oldEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(oldEntry);
+      when(rws.getWorksheet()).thenReturn(new Worksheet());
+      when(rws.getCurrent()).thenReturn(1);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-SAVE-DUP2"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-dup2"));
+
+      WorksheetService ws = mock(WorksheetService.class);
+      when(ws.getRuntimeSheets(eq(agent))).thenReturn(new RuntimeSheet[0]);
+      when(ws.isDuplicatedEntry(any(), any())).thenReturn(true);
+
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
+
+      Map<String, Object> result = ctrl.save("TOK-SAVE-DUP2",
+         new WorksheetAgentController.SaveRequest("Orders WS Copy", null, true), agent);
+
+      assertEquals(Boolean.TRUE, result.get("ok"));
+      verify(ws).setWorksheet(any(), any(), any(), anyBoolean(), anyBoolean());
+   }
+
+   @Test
+   void saveSanitizesControlCharactersInName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.WORKSHEET, "__TEMPORARY__/ws-1", null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(tempEntry);
+      when(rws.getWorksheet()).thenReturn(new Worksheet());
+      when(rws.getCurrent()).thenReturn(0);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-SAVE-CTRL"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-ctrl"));
+
+      WorksheetService ws = mock(WorksheetService.class);
+
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
+
+      // L2-Group10: SaveWorksheetDialogService.process()/process0() both strip control
+      // characters via SUtil.removeControlChars(name) before using it -- this agent path
+      // previously only trimmed surrounding whitespace, letting an embedded control character
+      // (here, a literal tab) straight into the saved asset's name.
+      ctrl.save("TOK-SAVE-CTRL",
+         new WorksheetAgentController.SaveRequest("L2\tCtrlTab", null), agent);
+
+      ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(ws).setWorksheet(any(), entryCaptor.capture(), any(), anyBoolean(), anyBoolean());
+      assertEquals("L2CtrlTab", entryCaptor.getValue().getName(),
+         "the control character must be stripped from the saved name");
    }
 
    // ---------------------------------------------------------------------------

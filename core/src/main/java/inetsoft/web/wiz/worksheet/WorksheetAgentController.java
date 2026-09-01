@@ -25,6 +25,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -41,6 +42,7 @@ import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.tabular.PropertyMeta;
@@ -57,11 +59,15 @@ import inetsoft.uql.util.filereader.DateParseInfo;
 import inetsoft.uql.util.filereader.ExcelFileInfo;
 import inetsoft.uql.util.filereader.ExcelFileReader;
 import inetsoft.uql.util.filereader.ExcelFileSupport;
+import inetsoft.uql.util.filereader.TextUtil;
 import inetsoft.util.Catalog;
+import inetsoft.util.CoreTool;
 import inetsoft.util.FileSystemService;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.WorksheetControllerService;
+import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
+import inetsoft.web.composer.ws.command.WSCollectVariablesCommand;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.composer.ws.service.SaveWorksheetService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
@@ -923,10 +929,21 @@ public class WorksheetAgentController {
     * @param name  optional name/path to save the worksheet as (e.g. {@code "agent_ws_1"} or
     *              {@code "My Folder/agent_ws_1"}).  Required when the worksheet is untitled
     *              (i.e. has not been saved before).  When omitted the worksheet is saved in-place.
-    * @param scope optional scope — {@code "global"} (default) for the shared repository,
-    *              {@code "user"} for the user's private folder.
+    * @param scope     optional scope — {@code "global"} (default) for the shared repository,
+    *                  {@code "user"} for the user's private folder.
+    * @param confirmed L2-Group10: {@code true} to proceed when {@code name} collides with an
+    *                  asset that already exists (mirrors
+    *                  {@code SaveWorksheetDialogService.process(..., boolean confirmed)}'s
+    *                  Save-As "already exists, overwrite?" confirmation). {@code null}/
+    *                  {@code false} (the default) refuses the save instead of silently
+    *                  overwriting the existing asset.
     */
-   public record SaveRequest(String name, String scope) {}
+   public record SaveRequest(String name, String scope, Boolean confirmed) {
+      /** Compatibility constructor for callers built before {@code confirmed} was added. */
+      public SaveRequest(String name, String scope) {
+         this(name, scope, null);
+      }
+   }
 
    /**
     * Persist the current in-memory worksheet state back to the asset repository.
@@ -957,7 +974,11 @@ public class WorksheetAgentController {
       AssetEntry oldEntry = rws.getEntry();
       AssetEntry entry = oldEntry;
 
-      String name = body.name() != null ? body.name().trim() : null;
+      // L2-Group10: SaveWorksheetDialogService.process()/process0() both strip control
+      // characters via SUtil.removeControlChars(name) before using it -- this agent path only
+      // trimmed surrounding whitespace, so an embedded control character (e.g. a literal tab)
+      // passed straight through into the saved asset's name.
+      String name = body.name() != null ? SUtil.removeControlChars(body.name().trim()) : null;
 
       if(entry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
          if(name == null || name.isEmpty()) {
@@ -985,6 +1006,26 @@ public class WorksheetAgentController {
          IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
          entry = new AssetEntry(assetScope, AssetEntry.Type.WORKSHEET, name,
                                 owner, uname.orgID);
+
+         // L2-Group10: SaveWorksheetDialogService.process0() refuses (pending confirmation)
+         // when the target entry already exists in the repository -- this agent path never
+         // called the equivalent check, so a second save_worksheet({name:"X"}) silently
+         // overwrote whatever "X" already held with no signal anything collided.
+         try {
+            if(worksheetService.isDuplicatedEntry(worksheetService.getAssetRepository(), entry)
+               && !Boolean.TRUE.equals(body.confirmed()))
+            {
+               throw new PairingException(
+                  "'" + name + "' already exists. Pass confirmed:true to overwrite it, or " +
+                  "choose a different name.");
+            }
+         }
+         catch(PairingException e) {
+            throw e;
+         }
+         catch(Exception e) {
+            throw new PairingException("Failed to check for a duplicate name: " + e.getMessage(), e);
+         }
       }
 
       if(!(user instanceof XPrincipal xp)) {
@@ -1111,14 +1152,29 @@ public class WorksheetAgentController {
    public record ImportCsvRequest(String name, String csv, String encoding, String delimiter,
                                   Boolean delimiterTab, Boolean detectType,
                                   Boolean firstRowAsHeader, Boolean removeQuotes,
-                                  Boolean unpivot, Integer headerCols, String replaceTable)
+                                  Boolean unpivot, Integer headerCols, String replaceTable,
+                                  List<String> stringColumns, List<Integer> stringColumnIndexes)
    {
       /**
        * The common case: text plus an optional name, every setting left to its default. Spelling
-       * out nine nulls at each call site would bury which ones a caller actually meant to set.
+       * out eleven nulls at each call site would bury which ones a caller actually meant to set.
        */
       public ImportCsvRequest(String name, String csv) {
-         this(name, csv, null, null, null, null, null, null, null, null, null);
+         this(name, csv, null, null, null, null, null, null, null, null, null, null, null);
+      }
+
+      /**
+       * Compatibility constructor for callers built before {@code stringColumns}/
+       * {@code stringColumnIndexes} were added (L2-Group6) -- defaults both to {@code null}
+       * (no per-column override), leaving every existing caller's behavior unchanged.
+       */
+      public ImportCsvRequest(String name, String csv, String encoding, String delimiter,
+                              Boolean delimiterTab, Boolean detectType,
+                              Boolean firstRowAsHeader, Boolean removeQuotes,
+                              Boolean unpivot, Integer headerCols, String replaceTable)
+      {
+         this(name, csv, encoding, delimiter, delimiterTab, detectType, firstRowAsHeader,
+              removeQuotes, unpivot, headerCols, replaceTable, null, null);
       }
    }
    public record ImportCsvResponse(String tableName, int rows, int columns) {}
@@ -1262,7 +1318,8 @@ public class WorksheetAgentController {
       byte[] bytes = body.csv().getBytes(StandardCharsets.UTF_8);
       checkImportFileSize(bytes.length, "CSV", true);
 
-      return importCsvBytes(sessionToken, user, body.name(), body.replaceTable(), bytes, settings);
+      return importCsvBytes(sessionToken, user, body.name(), body.replaceTable(), bytes, settings,
+                            body.stringColumns(), body.stringColumnIndexes());
    }
 
    /**
@@ -1288,6 +1345,9 @@ public class WorksheetAgentController {
                                           @RequestParam(required = false) Boolean unpivot,
                                           @RequestParam(required = false) Integer headerCols,
                                           @RequestParam(required = false) String replaceTable,
+                                          @RequestParam(required = false) List<String> stringColumns,
+                                          @RequestParam(required = false)
+                                          List<Integer> stringColumnIndexes,
                                           Principal user) throws Exception
    {
       requireEnabled();
@@ -1302,7 +1362,8 @@ public class WorksheetAgentController {
       CsvSettings settings = csvSettings(encoding, delimiter, delimiterTab, detectType,
                                          firstRowAsHeader, removeQuotes, unpivot, headerCols);
 
-      return importCsvBytes(sessionToken, user, name, replaceTable, file.getBytes(), settings);
+      return importCsvBytes(sessionToken, user, name, replaceTable, file.getBytes(), settings,
+                            stringColumns, stringColumnIndexes);
    }
 
    /**
@@ -1321,10 +1382,27 @@ public class WorksheetAgentController {
     * snapshot, so turning this into a snapshot would quietly remove the only workaround there is.
     */
    private ImportCsvResponse importCsvBytes(String sessionToken, Principal user, String name,
-                                            String replaceTable, byte[] bytes, CsvSettings settings)
+                                            String replaceTable, byte[] bytes, CsvSettings settings,
+                                            List<String> stringColumns,
+                                            List<Integer> stringColumnIndexes)
       throws Exception
    {
       requireNotBothNameAndReplaceTarget(name, replaceTable);
+
+      boolean wantsStringColumns = (stringColumns != null && !stringColumns.isEmpty())
+         || (stringColumnIndexes != null && !stringColumnIndexes.isEmpty());
+
+      // L2-Group6: unpivot reshapes the columns entirely (multiple original columns melt into new
+      // key/value columns), so "keep this original column as text" has no well-defined post-
+      // reshape target. Refuse loudly rather than silently applying to the wrong (or a
+      // nonexistent) post-unpivot column.
+      if(wantsStringColumns && settings.unpivot()) {
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "stringColumns/stringColumnIndexes cannot be combined with unpivot: column " +
+            "positions change shape after unpivoting, so there is no well-defined column to " +
+            "keep as text.");
+      }
 
       // The product's cache directory rather than java.io.tmpdir: the bytes are the caller's data,
       // and the system temp dir is shared with whatever else runs on the host, at whatever
@@ -1340,6 +1418,27 @@ public class WorksheetAgentController {
       try {
          Files.write(temp.toPath(), bytes);
 
+         // L2-Group6 (flagship finding): the only lever this method had was the file-wide
+         // 'detectType' switch -- forcing one uniformly-numeric-looking column (e.g. a
+         // zero-padded ZIP code) to stay text meant either losing its leading zeros
+         // (detectType:true) or turning every OTHER column into a string too (detectType:false).
+         // 'stringColumns'/'stringColumnIndexes' mirror CSVInfo/DateParseInfo.ignoreTypeColumns,
+         // the same per-column override the native Composer's own Import CSV dialog applies
+         // (there: only ever populated from the server's own mixed-type detection; here, the
+         // caller can name the column proactively instead of waiting for that round trip).
+         List<Integer> ignoreColumns = wantsStringColumns
+            ? resolveStringColumns(temp, settings.encoding(), settings.delimiter(),
+                                   settings.firstRowAsHeader(), settings.removeQuotes(),
+                                   Util.getOrganizationMaxColumn(), stringColumns,
+                                   stringColumnIndexes)
+            : List.of();
+
+         DateParseInfo parseInfo = new DateParseInfo();
+
+         if(!ignoreColumns.isEmpty()) {
+            parseInfo.setIgnoreTypeColumns(ignoreColumns);
+         }
+
          List<String> types = new ArrayList<>();
          // oldTypes carries the column types of a table being re-imported over. A fresh import has
          // none -- but the loader reads and writes through this map, so it must be an empty mutable
@@ -1349,7 +1448,7 @@ public class WorksheetAgentController {
             temp, settings.encoding(), settings.removeQuotes(), settings.delimiter(),
             settings.firstRowAsHeader(), settings.unpivot(), oldTypes, types,
             settings.detectType(), null, CSV_TYPE_SCAN_ROWS, 0,
-            Util.getOrganizationMaxColumn(), new DateParseInfo());
+            Util.getOrganizationMaxColumn(), parseInfo);
 
          if(loaded == null || loaded.getRowCount() < 2) {
             if(loaded != null) {
@@ -1396,6 +1495,99 @@ public class WorksheetAgentController {
    }
 
    /**
+    * L2-Group6: resolves {@code stringColumns} (header names) and {@code stringColumnIndexes}
+    * (0-based) against the file's actual header row into one combined, deduplicated, validated
+    * list of 0-based column indexes ready for {@link DateParseInfo#setIgnoreTypeColumns}.
+    *
+    * <p>Peeks only at line 1 of the file -- via the same {@link TextUtil#readCSVLine}/
+    * {@link TextUtil#split}/{@link CSVLoader#getHeaders} calls {@link CSVLoader#readCSV} itself
+    * uses internally to build the exact same header array a few lines later -- rather than
+    * running a full second parse, so this stays cheap even for a large file.
+    *
+    * @throws ResponseStatusException (400) naming the file's actual headers/column count when a
+    *                                 requested name is unresolvable or an index is out of range
+    */
+   private static List<Integer> resolveStringColumns(
+      File temp, String encoding, String delimiter, boolean firstRowAsHeader,
+      boolean removeQuotes, int colLimit, List<String> stringColumns,
+      List<Integer> stringColumnIndexes)
+      throws Exception
+   {
+      String[] headers;
+
+      try(BufferedReader reader = new BufferedReader(
+         new InputStreamReader(new FileInputStream(temp), encoding)))
+      {
+         String line = TextUtil.readCSVLine(reader);
+
+         if(line == null) {
+            throw new ResponseStatusException(
+               HttpStatus.BAD_REQUEST,
+               "Cannot resolve stringColumns/stringColumnIndexes: the file has no header row.");
+         }
+
+         // Mirrors CSVLoader's own private splitLine(String, String), which is exactly this call.
+         String[] fields = TextUtil.split(line, delimiter, false, false, true);
+         Object[] headerObjs = CSVLoader.getHeaders(fields, firstRowAsHeader, colLimit, removeQuotes);
+         headers = new String[headerObjs.length];
+
+         for(int i = 0; i < headerObjs.length; i++) {
+            headers[i] = String.valueOf(headerObjs[i]);
+         }
+      }
+
+      return matchStringColumns(headers, stringColumns, stringColumnIndexes);
+   }
+
+   /**
+    * L2-Group6: shared name/index-matching logic behind {@link #resolveStringColumns} (CSV,
+    * which has to peek the file to get {@code headers} first) and {@link #importExcel} (which
+    * already has {@code headers} in hand from its own {@code importHeader} call, for free).
+    */
+   private static List<Integer> matchStringColumns(
+      String[] headers, List<String> stringColumns, List<Integer> stringColumnIndexes)
+   {
+      Set<Integer> resolved = new LinkedHashSet<>();
+
+      if(stringColumnIndexes != null) {
+         for(Integer idx : stringColumnIndexes) {
+            if(idx == null || idx < 0 || idx >= headers.length) {
+               throw new ResponseStatusException(
+                  HttpStatus.BAD_REQUEST,
+                  "stringColumnIndexes: " + idx + " is out of range -- this file has " +
+                  headers.length + " column(s) (valid indexes: 0-" + (headers.length - 1) + ").");
+            }
+
+            resolved.add(idx);
+         }
+      }
+
+      if(stringColumns != null) {
+         for(String name : stringColumns) {
+            int idx = -1;
+
+            for(int i = 0; i < headers.length; i++) {
+               if(headers[i].equalsIgnoreCase(name)) {
+                  idx = i;
+                  break;
+               }
+            }
+
+            if(idx < 0) {
+               throw new ResponseStatusException(
+                  HttpStatus.BAD_REQUEST,
+                  "stringColumns: no column named '" + name + "' -- this file's columns are: " +
+                  String.join(", ", headers));
+            }
+
+            resolved.add(idx);
+         }
+      }
+
+      return new ArrayList<>(resolved);
+   }
+
+   /**
     * A caller meaning to create a new table has no use for {@code replaceTable}, and a caller
     * meaning to replace one has no use for {@code name} -- the replaced table keeps its existing
     * name. Refused up front rather than silently picking one, the same way csv/filePath
@@ -1419,16 +1611,28 @@ public class WorksheetAgentController {
    /**
     * Import an Excel file (.xls/.xlsx) as a new embedded table assembly in the worksheet.
     *
-    * <p>Unlike {@link #importCsv}, column types are taken directly from the workbook's own
-    * cell types (via {@link ExcelFileReader}, the same POI-backed reader the Composer's
-    * "Import Data" dialog uses) rather than inferred from text, so numbers, dates, and
-    * booleans round-trip correctly.</p>
+    * <p>Unlike {@link #importCsv}, column types start from the workbook's own cell types (via
+    * {@link ExcelFileReader}, the same POI-backed reader the Composer's "Import Data" dialog
+    * uses) rather than inferred from text, so numbers, dates, and booleans round-trip correctly
+    * in the common case. That is only true when a column's cells are unambiguous, though --
+    * {@link ExcelFileReader}/{@link inetsoft.uql.util.filereader.ExcelLoader} still runs its own
+    * per-column type inference on top of the raw cell types (mixed-content columns, numeric-
+    * looking text), and can be overridden the same way CSV's can, via {@code stringColumns}/
+    * {@code stringColumnIndexes} below.</p>
     *
     * @param sessionToken the token obtained at join time
     * @param file         the uploaded workbook
     * @param fileType     either {@code "XLS"} or {@code "XLSX"}
     * @param sheet        sheet name to import (optional; defaults to the first sheet)
     * @param name         table name (optional; defaults to a generated name)
+    * @param stringColumns       L2-Group6: header names to force to STRING type instead of
+    *                            letting the reader auto-detect them (e.g. a numeric-looking
+    *                            account/ZIP code column that must keep leading zeros). Mirrors
+    *                            {@code CSVInfo}/{@code DateParseInfo.ignoreTypeColumns}, the same
+    *                            per-column override the native Composer's own Import dialog
+    *                            applies.
+    * @param stringColumnIndexes same as {@code stringColumns}, keyed by 0-based column index
+    *                            instead of header name; the two may be combined
     * @param user         the authenticated agent principal
     */
    @PostMapping(value = "/api/wiz/v1/agent/worksheet/{sessionToken}/import-excel",
@@ -1439,6 +1643,9 @@ public class WorksheetAgentController {
                                         @RequestParam(required = false) String sheet,
                                         @RequestParam(required = false) String name,
                                         @RequestParam(required = false) String replaceTable,
+                                        @RequestParam(required = false) List<String> stringColumns,
+                                        @RequestParam(required = false)
+                                        List<Integer> stringColumnIndexes,
                                         Principal user) throws Exception
    {
       requireEnabled();
@@ -1519,6 +1726,39 @@ public class WorksheetAgentController {
          types[c] = col.getType();
       }
 
+      // L2-Group6 (flagship finding): mirrors importCsvBytes -- ExcelLoader already has the same
+      // per-column ignoreColumnType(...) mechanism CSV's DateParseInfo.ignoreTypeColumns drives
+      // (see ExcelLoader.ignoreColumnType/setDateParseInfo), it was just never reachable from
+      // this method. headers[] is already known here (unlike the CSV route, which has to peek
+      // the file first), so name resolution is free; only when a column is actually being
+      // protected do we pay for a second importHeader() call to refresh 'types' before 'read()'
+      // runs -- ignoreColumnType only takes effect during parsing, so refreshing 'types' after
+      // the fact cannot un-promote a value already read as a number.
+      List<Integer> ignoreColumns = (stringColumns != null && !stringColumns.isEmpty())
+         || (stringColumnIndexes != null && !stringColumnIndexes.isEmpty())
+         ? matchStringColumns(headers, stringColumns, stringColumnIndexes)
+         : List.of();
+
+      DateParseInfo parseInfo = null;
+
+      if(!ignoreColumns.isEmpty()) {
+         parseInfo = new DateParseInfo();
+         parseInfo.setIgnoreTypeColumns(ignoreColumns);
+
+         try {
+            meta = reader.importHeader(
+               new ByteArrayInputStream(bytes), "UTF-8", output, 0, colLimit, parseInfo);
+         }
+         catch(Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                              "Failed to read Excel file: " + e.getMessage());
+         }
+
+         for(int c = 0; c < ncols; c++) {
+            types[c] = ((XTypeNode) meta.getChild(c)).getType();
+         }
+      }
+
       List<Object[]> dataRows = new ArrayList<>();
       dataRows.add(headers);
 
@@ -1529,8 +1769,11 @@ public class WorksheetAgentController {
       XTableNode excelData = null;
 
       try {
-         excelData = reader.read(new ByteArrayInputStream(bytes), "UTF-8", null, output,
-                                 rowLimit, ncols, true, null, false);
+         excelData = parseInfo == null
+            ? reader.read(new ByteArrayInputStream(bytes), "UTF-8", null, output,
+                          rowLimit, ncols, true, null, false)
+            : reader.read(new ByteArrayInputStream(bytes), "UTF-8", null, output,
+                          rowLimit, ncols, true, null, false, parseInfo);
 
          while(excelData.next()) {
             Object[] row = new Object[ncols];
@@ -1920,6 +2163,8 @@ public class WorksheetAgentController {
             editor.setPostConditions(req.table(), req.conditions());
          case "set_ranking" ->
             editor.setRanking(req.table(), req.ranking());
+         case "set_rankings" ->
+            editor.setRankings(req.table(), req.rankings());
          case "add_rotate" ->
             editor.addRotate(req.name(), req.source());
          case "add_unpivot" ->
@@ -2036,11 +2281,68 @@ public class WorksheetAgentController {
             throw new PairingException(PairingException.Kind.INTERNAL, "No query sandbox available.");
          }
 
+         Worksheet ws = rws.getWorksheet();
          inetsoft.uql.VariableTable vtable = new inetsoft.uql.VariableTable();
 
          if(req.variableValues() != null) {
             for(Map.Entry<String, String> entry : req.variableValues().entrySet()) {
-               vtable.put(entry.getKey(), entry.getValue());
+               String vname = entry.getKey();
+               Assembly assembly = ws.getAssembly(vname);
+
+               // L2-Group8: mirror VariableInputDialogService.initVariableInfos, which can
+               // only ever be invoked for a variable the worksheet actually declares (its
+               // VariableInfo list is generated from the worksheet's own variables). This
+               // agent endpoint takes a free-form map, so an unknown/misspelled key must be
+               // rejected loudly instead of silently doing nothing (CLAUDE.md tool-misuse
+               // guidance: a typo'd variable name must not report {ok:true}).
+               if(!(assembly instanceof DefaultVariableAssembly va) || va.getVariable() == null) {
+                  throw new PairingException(
+                     "Unknown variable: '" + vname + "'. set_variable_values can only set " +
+                     "values for variables that already exist in this worksheet " +
+                     "(use add_variable to create one first).");
+               }
+
+               AssetVariable declared = va.getVariable();
+               String rawValue = entry.getValue();
+               String declaredType = declared.getTypeNode() != null
+                  ? declared.getTypeNode().getType() : null;
+               // L2-Group8: VariableInputDialogService.initVariableInfos converts every
+               // submitted string through this same CoreTool.getData(type, val, true) call
+               // before it ever reaches the VariableTable -- the agent path previously put
+               // the raw string in unconditionally, so a declared-integer variable stored
+               // "abc" verbatim instead of matching the native path's own conversion.
+               Object value = rawValue == null ? null
+                  : CoreTool.getData(declaredType, rawValue, true);
+
+               // L2-Group8: a bounded-picker variable (combobox/list/radio/checkboxes) can
+               // only ever be given one of its declared values through the native "Enter
+               // Parameters" prompt -- the widget itself cannot render anything else. A
+               // free-text variable (displayStyle NONE) has no such restriction natively
+               // either, so it is deliberately left unchecked here to avoid making this tool
+               // *more* restrictive than the UI it is compared against. Variables whose
+               // choices come from a live query source (no stored 'values' array) are also
+               // left unchecked -- there is nothing to validate against without re-running
+               // that query.
+               if(value != null && declared.getDisplayStyle() != UserVariable.NONE
+                  && declared.getValues() != null && declared.getValues().length > 0)
+               {
+                  boolean found = false;
+
+                  for(Object candidate : declared.getValues()) {
+                     if(java.util.Objects.equals(candidate, value)) {
+                        found = true;
+                        break;
+                     }
+                  }
+
+                  if(!found) {
+                     throw new PairingException(
+                        "'" + rawValue + "' is not one of the declared choices for " +
+                        "variable '" + vname + "'.");
+                  }
+               }
+
+               vtable.put(vname, value);
             }
          }
 
@@ -2675,20 +2977,52 @@ public class WorksheetAgentController {
     * @param choices the variable's enumerated "Values" picker (embedded list or query
     *               source), or {@code null} to leave the variable free-form
     */
+   /**
+    * The character set {@code variable-assembly-dialog.component.ts}'s
+    * {@code variableSpecialCharacters} validator allows in a variable name: word characters,
+    * fullwidth/CJK ranges, and {@code @ $ & + - } and space.
+    */
+   private static final java.util.regex.Pattern VARIABLE_NAME_CHARS =
+      java.util.regex.Pattern.compile("^[\\w\\uFF00-\\uFFEF\\u4e00-\\u9fa5@$&+\\- ]*$");
+
+   /**
+    * L2-Group7: {@code doesNotStartWithNumber}/{@code variableSpecialCharacters} are
+    * Angular-only today (no Java match on either the native or agent path) -- reproducing them
+    * here so a non-UI caller can no longer create a variable name the Composer's own dialog
+    * would refuse.
+    */
+   private static void requireValidVariableName(String name) throws PairingException {
+      if(!VARIABLE_NAME_CHARS.matcher(name).matches()) {
+         throw new PairingException(
+            "Variable name '" + name + "' contains characters the Composer's own Variable " +
+            "dialog does not allow. Use letters, digits, spaces, underscore, or @ $ & + - only.");
+      }
+
+      if(name.matches("^\\d.*$")) {
+         throw new PairingException(
+            "Variable name '" + name + "' cannot start with a digit.");
+      }
+   }
+
    private void createVariable(Worksheet ws, String name, String type, String label,
                                String defaultValue,
                                WorksheetMutationSupport.VariableChoicesSpec choices)
       throws PairingException
    {
-      if(ws.getAssembly(name) != null) {
+      requireValidVariableName(name);
+
+      if(ws.containsAssemblyIgnoreCase(name)) {
          // Fail loud: Worksheet.addAssembly() silently replaces an existing assembly
          // of the same name (or, for a same-name assembly of a different type, silently
          // no-ops). Either way a second add_variable call would destroy or discard state
          // without warning. edit_variable is the explicit path for changing an existing
-         // variable's type/label/default value.
+         // variable's type/label/default value. L2-Group7: matches
+         // variable-assembly-dialog.component.ts's FormValidators.exists(..., {ignoreCase:
+         // true}) -- names collide case-insensitively, not just on an exact match.
          throw new PairingException(
-            "An assembly named '" + name + "' already exists in this worksheet. " +
-            "Use edit_variable to change its type, label, or default value instead.");
+            "An assembly named '" + name + "' already exists in this worksheet " +
+            "(variable names are case-insensitive). Use edit_variable to change its type, " +
+            "label, or default value instead.");
       }
 
       // Same unescaped-CDATA write path as WorksheetEditService.Editor.placeAssembly/
@@ -2704,7 +3038,19 @@ public class WorksheetAgentController {
       }
 
       if(type != null) {
-         var.setTypeNode(XSchema.createPrimitiveType(type));
+         // L2-Group7: XSchema.createPrimitiveType returns null, with no exception and no log,
+         // for a type string the Composer's own (closed, 12-value) Type dropdown could never
+         // submit. Left unchecked, the variable silently ends up with no type node at all.
+         XTypeNode typeNode = XSchema.createPrimitiveType(type);
+
+         if(typeNode == null) {
+            throw new PairingException(
+               "Unrecognized variable type: '" + type + "'. Valid types are: string, " +
+               "integer, double, float, character, byte, short, long, date, time, " +
+               "timeInstant, boolean.");
+         }
+
+         var.setTypeNode(typeNode);
       }
 
       if(defaultValue != null) {
@@ -2724,9 +3070,14 @@ public class WorksheetAgentController {
                valueNode.parse0(defaultValue);
             }
             catch(Exception e) {
-               // Fall back to storing the raw string value if parsing fails
-               // (e.g. non-numeric string for an integer variable).
-               valueNode.setValue(defaultValue);
+               // L2-Group7: previously fell back to storing the raw, unparsed string (e.g.
+               // "not_a_number" on a declared-integer variable) instead of failing loud --
+               // the variable ended up with a default value inconsistent with its own
+               // declared type, silently.
+               throw new PairingException(
+                  "Default value '" + defaultValue + "' is not a valid " +
+                  (effectiveType != null ? effectiveType : "string") +
+                  " value for variable '" + name + "'.");
             }
 
             var.setValueNode(valueNode);
@@ -2824,6 +3175,18 @@ public class WorksheetAgentController {
          WorksheetInfo winfo = rws.getWorksheet().getWorksheetInfo();
 
          if(body.alias() != null) {
+            // L2-Group9: assetEntryBannedCharacters/assetNameStartWithCharDigit are Angular-
+            // only -- not even WorksheetPropertyDialogService.process() re-validates today.
+            // Calling the same static guard from both places closes the gap for the native
+            // path and this agent path in one change, instead of a wiz-only reimplementation.
+            try {
+               inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService
+                  .requireValidAlias(body.alias());
+            }
+            catch(inetsoft.util.MessageException e) {
+               throw new PairingException(e.getMessage());
+            }
+
             winfo.setAlias(body.alias());
          }
 
@@ -2885,9 +3248,16 @@ public class WorksheetAgentController {
    /**
     * Response from creating a SQL query table.
     *
-    * @param tableName the assembly name of the newly created table
+    * @param tableName            the assembly name of the newly created table
+    * @param undeclaredVariables  {@code $(name)} references found in the SQL text that the
+    *                             worksheet has no matching variable for yet (L2 parity finding:
+    *                             the native SQL Query dialog surfaces these via
+    *                             {@code refreshVariables}' collect-variables prompt; this agent
+    *                             path has no dialog to prompt, so it reports them here instead).
+    *                             Empty when the SQL has none, or when every referenced name is
+    *                             already a worksheet variable.
     */
-   public record SqlQueryResponse(String tableName) {}
+   public record SqlQueryResponse(String tableName, List<String> undeclaredVariables) {}
 
    /**
     * Create a new SQL query table assembly in the worksheet.
@@ -3031,8 +3401,34 @@ public class WorksheetAgentController {
          assembly.setColumnSelection(columns);
          ws.addAssembly(assembly);
 
-         return new SqlQueryResponse(tableName);
+         return new SqlQueryResponse(tableName, detectUndeclaredVariables(rws));
       });
+   }
+
+   /**
+    * Detects {@code $(name)} references in the worksheet's SQL-bound tables that have no
+    * matching declared variable yet, using the same detection the native SQL Query dialog's
+    * {@code refreshVariables} call performs (it additionally pops a collect-variables dialog for
+    * a human to fill in; there is no dialog here, so the caller gets the names back instead).
+    * L2 parity finding: {@code addSqlQuery}/{@code editSqlQuery} previously never called this at
+    * all, so a `$(var)` typo or an intentionally-undeclared variable silently filtered nothing
+    * with no error or signal of any kind.
+    */
+   private List<String> detectUndeclaredVariables(RuntimeWorksheet rws) {
+      WSCollectVariablesCommand command = WorksheetEventUtil.refreshVariables(
+         rws, worksheetService, false);
+
+      if(command == null) {
+         return List.of();
+      }
+
+      List<String> names = new ArrayList<>();
+
+      for(VariableAssemblyModelInfo info : command.varInfos()) {
+         names.add(info.getName());
+      }
+
+      return names;
    }
 
    // ---------------------------------------------------------------------------
