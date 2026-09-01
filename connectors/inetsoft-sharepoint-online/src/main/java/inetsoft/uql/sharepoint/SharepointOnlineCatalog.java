@@ -23,6 +23,7 @@ import inetsoft.uql.tabular.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Assembles {@link SharepointOnlineRuntime}'s {@link TabularCatalogProvider} answers out of the
@@ -117,6 +118,7 @@ final class SharepointOnlineCatalog {
 
       return new TabularDatasetSchema(datasetId,
          Arrays.stream(columns).map(n -> new TabularColumn(n.getName(), n.getType())).toList(),
-         List.of());       // keyColumns — no system key column surfaces through getListColumns
+         List.of(),        // keyColumns — no system key column surfaces through getListColumns
+         Map.of("site", parsed.site(), "list", parsed.list()));
    }
 }
