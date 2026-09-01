@@ -39,10 +39,10 @@ import static org.mockito.Mockito.*;
 /**
  * Covers charter assertions A1-A4 against {@link CassandraCatalog}, driven entirely off mocked
  * driver interfaces ({@code CqlSession}/{@code Metadata}/{@code KeyspaceMetadata}/
- * {@code TableMetadata}/{@code ColumnMetadata} are all interfaces in driver 4.x — see
- * docs/teams/2026-09-01-tabular-catalog-cassandra/04-build.md — so no {@code MockedStatic} seam is
- * needed the way SharePoint's Graph SDK required). {@code CqlIdentifier} is a real (final) value
- * type throughout, never mocked.
+ * {@code TableMetadata}/{@code ColumnMetadata} are all interfaces in driver 4.x (confirmed against
+ * the driver jar directly, not assumed), so no {@code MockedStatic} seam is needed the way
+ * SharePoint's Graph SDK required. {@code CqlIdentifier} is a real (final) value type throughout,
+ * never mocked.
  */
 @Tag("connector")
 class CassandraCatalogTest {
@@ -158,10 +158,11 @@ class CassandraCatalogTest {
    @Test
    void describeDataset_columnTypesComeFromCassandraTableGetType_notANewSwitch() throws Exception {
       // UUID is one of the eight Class<?> values CoreTool.getDataType has no dedicated branch
-      // for, so it falls to STRING (see docs/teams/2026-09-01-tabular-catalog-cassandra/04-build.md
-      // §"known coarsening"). If this ever produced anything other than STRING, either
-      // CassandraTable.getType(DataType) stopped being the thing that ran, or a second, competing
-      // mapping was added here in violation of A3.
+      // for, so it falls to STRING — a known, accepted coarsening (annotated collection/UUID/
+      // blob/inet/tuple/UDT columns all read as "string"), not a bug this test should catch. If
+      // this ever produced anything other than STRING, either CassandraTable.getType(DataType)
+      // stopped being the thing that ran, or a second, competing mapping was added here in
+      // violation of A3.
       TableMetadata t = table("t", List.of(
          column("id", ProtocolConstants.DataType.BIGINT),
          column("token", ProtocolConstants.DataType.UUID)), Map.of());

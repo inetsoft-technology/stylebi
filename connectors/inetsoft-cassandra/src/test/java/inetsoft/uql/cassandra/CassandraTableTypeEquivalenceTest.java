@@ -39,13 +39,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * The equivalence test charter §6's C1 amendment requires as the price of letting
- * {@link CassandraTable}'s {@code DataType -> Class<?>} switch be extracted into
- * {@code CassandraTable.getType(DataType)} instead of staying frozen verbatim inside
- * {@code getType(int)}. C1 used to protect this mapping by forbidding any edit to the file; now
- * that an edit is allowed (in exactly the one shape docs/teams/2026-09-01-tabular-catalog-cassandra
- * permits — extract-and-delegate, no changed branch), this test is the replacement protection: it
- * pins the pre-extraction behavior for every protocol code the switch names.
+ * The price of letting {@link CassandraTable}'s {@code DataType -> Class<?>} switch be extracted
+ * into {@code CassandraTable.getType(DataType)} instead of staying frozen verbatim inside
+ * {@code getType(int)}. This mapping used to be protected by forbidding any edit to the file at
+ * all; the edit made here is allowed only in one shape — extract-and-delegate, case labels and
+ * return values unchanged — and this test is the replacement protection for the guarantee that
+ * shape gives up: it pins the pre-extraction behavior for every protocol code the switch names.
  *
  * <p>Deliberately asserts through the public instance method {@link CassandraTable#getType(int)}
  * — the one {@code CassandraRuntime.runQuery} actually calls — rather than against the package-
