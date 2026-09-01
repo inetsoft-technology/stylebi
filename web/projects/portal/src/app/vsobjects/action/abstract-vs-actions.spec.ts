@@ -23,6 +23,7 @@ import { VSCalendarModel } from "../model/calendar/vs-calendar-model";
 import { VSChartModel } from "../model/vs-chart-model";
 import { VSCrosstabModel } from "../model/vs-crosstab-model";
 import { VSRangeSliderModel } from "../model/vs-range-slider-model";
+import { VSSelectionContainerModel } from "../model/vs-selection-container-model";
 import { VSSelectionListModel } from "../model/vs-selection-list-model";
 import { VSSelectionTreeModel } from "../model/vs-selection-tree-model";
 import { VSTableModel } from "../model/vs-table-model";
@@ -33,6 +34,7 @@ import { CalendarActions } from "./calendar-actions";
 import { ChartActions } from "./chart-actions";
 import { CrosstabActions } from "./crosstab-actions";
 import { RangeSliderActions } from "./range-slider-actions";
+import { SelectionContainerActions } from "./selection-container-actions";
 import { SelectionListActions } from "./selection-list-actions";
 import { SelectionTreeActions } from "./selection-tree-actions";
 import { TableActions } from "./table-actions";
@@ -168,6 +170,22 @@ describe("AbstractVSActions", () => {
       (<any> model).titleVisible = true;
       (<any> model).titleFormat = {height: laneHeight};
       return new RangeSliderActions(model, composerContext, false, null, null, popService,
+         miniToolbarService);
+   }
+
+   // Slice 4. Same constructor order as TableActions and the selection family — popService
+   // positional 6th, miniToolbarService 7th.
+   function selectionContainerActionsFor(width: number, height: number, vizModern: boolean,
+                                         laneHeight: number = 30): SelectionContainerActions
+   {
+      const model: VSSelectionContainerModel =
+         TestUtils.createMockVSSelectionContainerModel("SelectionContainer1");
+      model.objectFormat.width = width;
+      model.objectFormat.height = height;
+      model.vizModern = vizModern;
+      (<any> model).titleVisible = true;
+      (<any> model).titleFormat = {height: laneHeight};
+      return new SelectionContainerActions(model, composerContext, false, null, null, popService,
          miniToolbarService);
    }
 
@@ -702,6 +720,10 @@ describe("AbstractVSActions", () => {
          expect((crosstabActionsFor(400, 200, false) as any).kebabOnly).toBe(false);
          expect((calcTableActionsFor(400, 200, false) as any).kebabOnly).toBe(false);
       });
+
+      it("is kebab-only for the selection container, as for the rest of its family", () => {
+         expect((selectionContainerActionsFor(400, 200, false) as any).kebabOnly).toBe(true);
+      });
    });
 
    // Rendered-control counts, not allowedActionsNum(): that returns *slots*, one of which
@@ -952,6 +974,35 @@ describe("AbstractVSActions", () => {
 
          expect(actions.allowedActionsNum()).toBe(0);
          expect(visibleIds(actions.showingActions)).toContain("more actions");
+      });
+   });
+
+   // Slice 4. The container's lane is full width rather than titleRatio-split, and its children are
+   // excluded from a strip of their own by isMiniToolbarVisible, so anchoring it needs no geometry
+   // beyond what the six earlier types already established.
+   describe("slice 4: the selection container", () => {
+      const ids = (groups: any[]) =>
+         groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+
+      it("allows no action buttons at any width, leaving the kebab as the whole strip", () => {
+         document.body.classList.add("viz-density-compact");
+         expect(selectionContainerActionsFor(2000, 400, true).allowedActionsNum()).toBe(0);
+      });
+
+      it("draws the kebab at the compact lane", () => {
+         document.body.classList.add("viz-density-compact");
+         expect(ids(selectionContainerActionsFor(2000, 400, true, 26).showingActions))
+            .toContain("more actions");
+      });
+
+      it("draws no chrome at all when the title is hidden", () => {
+         document.body.classList.add("viz-density-compact");
+         expect(ids(selectionContainerActionsFor(2000, 400, true, 0).showingActions)).toEqual([]);
+      });
+
+      it("keeps its uncapped floating toolbar when the gate is off", () => {
+         expect(selectionContainerActionsFor(2000, 400, false).allowedActionsNum())
+            .toBeGreaterThan(4);
       });
    });
 });

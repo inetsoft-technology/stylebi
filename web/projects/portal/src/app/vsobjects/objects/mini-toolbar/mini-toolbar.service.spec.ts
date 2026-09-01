@@ -37,12 +37,12 @@ describe("isAnchoredAssemblyType", () => {
       expect(isAnchoredAssemblyType("vstable")).toBe(true);
    });
 
-   it("does not anchor the types whose rollout slices have not landed", () => {
+   it("anchors the selection container, whose slice has landed", () => {
+      expect(isAnchoredAssemblyType("VSSelectionContainer")).toBe(true);
+   });
+
+   it("does not anchor the calendar, whose rollout slice has not landed", () => {
       expect(isAnchoredAssemblyType("VSCalendar")).toBe(false);
-      // The container is its own slice: four toolbar actions rather than nine, a vs-title lane in
-      // normal flow rather than a ratio-split header, and it governs whether its children get a
-      // strip at all.
-      expect(isAnchoredAssemblyType("VSSelectionContainer")).toBe(false);
    });
 
    it("never anchors the range slider, which is excluded from the rollout permanently", () => {

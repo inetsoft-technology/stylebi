@@ -47,9 +47,13 @@ const ANCHORED_ASSEMBLY_TYPES: ReadonlySet<string> = new Set<string>([
    "vscrosstab",
    "vscalctable",
    // Slice 3, the selection family — anchored but not capped: AbstractVSActions.kebabOnly makes the
-   // kebab the whole strip at any width. The container is deliberately absent; it is its own slice.
+   // kebab the whole strip at any width.
    "vsselectionlist",
-   "vsselectiontree"
+   "vsselectiontree",
+   // Slice 4, the container. Kebab-only like the rest of its family, so its header is no denser
+   // than its children's. Its lane is full width, not titleRatio-split, and isMiniToolbarVisible
+   // already keeps its children from drawing strips of their own.
+   "vsselectioncontainer"
 ]);
 
 /**

@@ -741,6 +741,42 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
 
       expect(comp.isToolbarAnchored(obj)).toBe(false);
    });
+
+   it("keeps a maximised selection container anchored, unlike the list and tree", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      // The container rewrites objectFormat to true coordinates in max mode, so the lane origin the
+      // anchored geometry assumes exists. The list and tree put padding constants there instead,
+      // which is the whole reason isMaxModeSelection excludes those two and not this.
+      const obj: any = TestUtils.withTitleLane(makeVSObject({
+         objectType: "VSSelectionContainer",
+         vizModern: true,
+         objectFormat: makeObjectFormat({ top: 0, left: 0, width: 800, height: 600 }),
+      }));
+      obj.maxMode = true;
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.isToolbarAnchored(obj)).toBe(true);
+   });
+
+   it("still exempts a maximised selection list, whose objectFormat holds padding constants", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = TestUtils.withTitleLane(makeVSObject({
+         objectType: "VSSelectionList",
+         vizModern: true,
+         objectFormat: makeObjectFormat({ top: 30, left: 20, width: 800, height: 600 }),
+      }));
+      obj.maxMode = true;
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.isToolbarAnchored(obj)).toBe(false);
+      expect(comp.isKebabResident(obj)).toBe(true);
+   });
 });
 
 describe("Group 12 — isKebabResident: anchoring is a lane-height affordance", () => {

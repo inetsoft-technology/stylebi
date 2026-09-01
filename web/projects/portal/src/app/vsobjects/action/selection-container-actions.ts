@@ -36,6 +36,11 @@ export class SelectionContainerActions extends AbstractVSActions<VSSelectionCont
             dataTipService, popService, miniToolbarService);
    }
 
+   // Case 2: the kebab is the whole strip at any width.
+   protected get kebabOnly(): boolean {
+      return true;
+   }
+
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
       groups.push(new AssemblyActionGroup([
          {
