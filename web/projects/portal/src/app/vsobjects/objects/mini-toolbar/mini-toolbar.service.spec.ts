@@ -63,7 +63,7 @@ describe("isAnchoredResident", () => {
    });
 
    it("is false for a type outside the anchored set, however tall its lane", () => {
-      expect(isAnchoredResident("VSCalendar", true, 30)).toBe(false);
+      expect(isAnchoredResident("VSRangeSlider", true, 30)).toBe(false);
    });
 
    it("is false at the dense lane, which cannot hold the strip", () => {
@@ -114,7 +114,7 @@ describe("isAnchoredChromeSuppressed", () => {
    });
 
    it("is false for a type outside the anchored set, so its toolbar is untouched", () => {
-      expect(isAnchoredChromeSuppressed("VSCalendar", true, 20)).toBe(false);
+      expect(isAnchoredChromeSuppressed("VSRangeSlider", true, 20)).toBe(false);
    });
 });
 

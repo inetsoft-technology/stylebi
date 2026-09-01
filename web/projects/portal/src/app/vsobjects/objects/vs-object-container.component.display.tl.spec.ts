@@ -507,7 +507,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
          vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
       });
       comp.containerRef = scrollless;
-      const obj: any = anchoredChart({ objectType: "VSCalendar", maxMode: true });
+      const obj: any = anchoredChart({ objectType: "VSRangeSlider", maxMode: true });
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(false);
