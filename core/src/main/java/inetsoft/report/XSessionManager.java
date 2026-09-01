@@ -96,26 +96,14 @@ public class XSessionManager {
     */
    @PostConstruct
    public void initAfterCreate() throws RemoteException {
-      String prop = SreeEnv.getProperty("query.cache.limit");
+      // registering applies query.cache.limit and query.cache.timeout, and keeps the
+      // cache in sync when they are changed later
+      QueryCacheSettings.register(dataCache);
 
-      if(prop != null) {
-         dataCache.setLimit(Integer.parseInt(prop));
-      }
-
-      prop = SreeEnv.getProperty("query.cache.timeout");
-
-      if(prop != null) {
-         dataCache.setTimeout(Long.parseLong(prop));
-      }
-
-      prop = SreeEnv.getProperty("query.cache.data");
+      String prop = SreeEnv.getProperty("query.cache.data");
 
       if(prop == null) {
-         setCacheData(true);
          dataCache.setTimeout(30000);
-      }
-      else {
-         setCacheData(prop.equalsIgnoreCase("true"));
       }
 
       dataSourceRegistry.addRefreshedListener(refreshedListener);
@@ -648,7 +636,7 @@ public class XSessionManager {
                                            XQuery query, Principal user)
          throws Exception
    {
-      boolean useCache = this.useCache;
+      boolean useCache = isCacheData();
       final Object cachedData = qvars.get(CACHED_DATA);
 
       // try fetching cached data option from variable table
@@ -741,6 +729,24 @@ public class XSessionManager {
     */
    public void setCacheData(boolean useCache) {
       this.useCache = useCache;
+   }
+
+   /**
+    * Check if query results should be cached. The query.cache.data property is read on
+    * every call so that a change to it takes effect without a restart. An explicit call
+    * to setCacheData() overrides the property.
+    *
+    * @return true to cache query results.
+    */
+   private boolean isCacheData() {
+      Boolean override = this.useCache;
+
+      if(override != null) {
+         return override;
+      }
+
+      String prop = SreeEnv.getProperty("query.cache.data");
+      return prop == null || prop.equalsIgnoreCase("true");
    }
 
    /**
@@ -928,7 +934,7 @@ public class XSessionManager {
    private Object session;
    private final Map<ReportSheet, String> executemap = new ConcurrentHashMap<>();
    private final DataCache<String, CEntry> dataCache = new DataCache<>();
-   private boolean useCache = false;
+   private volatile Boolean useCache = null; // explicit setCacheData() override
    private final XSessionService xSessionService;
    private final DataSourceRegistry dataSourceRegistry;
    private static final Set<QueryExecutionListener> queryExecutionListeners = new HashSet<>();

@@ -80,7 +80,14 @@ public class LogbackInitializer implements LogInitializer {
 
       Logger rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME);
       rootLogger.setLevel(Level.ERROR);
-      boolean useFluentd = "fluentd".equals(SreeEnv.getProperty("log.provider"));
+      // isFluentdEnabled(), not a bare comparison against log.provider: the forwarder is
+      // enterprise-only, so on a community build the selection cannot take effect and the
+      // reflective load below would only throw. Reporting the failure is handled after the
+      // appenders are attached -- see the end of this method.
+      boolean useFluentd = LogbackUtil.isFluentdEnabled();
+      boolean fluentdUnavailable =
+         !useFluentd && LogbackUtil.FLUENTD_PROVIDER.equals(SreeEnv.getProperty("log.provider"));
+      Exception fluentdFailure = null;
       AsyncAppender appender = null;
 
       if(useFluentd) {
@@ -89,6 +96,9 @@ public class LogbackInitializer implements LogInitializer {
             appender.addFilter(new PerformanceLogFilter<>(false));
          }
          catch(Exception e) {
+            fluentdFailure = e;
+            // keep the stderr print: it is the only report available if anything below fails
+            // before the appenders are attached
             System.err.println("Failed to create Fluentd appender: " + e);
          }
       }
@@ -119,6 +129,51 @@ public class LogbackInitializer implements LogInitializer {
 
       if(console) {
          rootLogger.addAppender(createConsoleAppender(context));
+      }
+
+      reportFluentdFallback(fluentdUnavailable, fluentdFailure, logFilePath);
+   }
+
+   /**
+    * Reports that log forwarding was requested but is not happening.
+    *
+    * Called at the end of {@link #initialize} on purpose: only once every appender is attached to
+    * the root logger can a log record reach the log file. The stderr print in {@code initialize}
+    * happens while logging is still being initialised, so on its own it lands nowhere an operator
+    * looks -- not in the log file, and not in Enterprise Manager.
+    *
+    * ERROR, not WARN, for two reasons. {@code initialize} has just called {@code context.reset()}
+    * and set the root level to ERROR, and the per-logger levels from {@code log.detail.level} and
+    * {@code log.level.*} are only applied afterwards (see {@code PropertiesEngine.initLogging}) --
+    * so anything below ERROR is dropped here on every call. And the condition is an error: the
+    * operator configured a log pipeline that is receiving nothing.
+    *
+    * {@code initialize} re-runs on every {@code SreeEnv.reloadLoggingFramework()}, which
+    * {@code PropertiesEngine.initLogging} triggers once per {@code log.*} property at startup, so
+    * the report is emitted only when the state changes rather than once per reload.
+    */
+   private void reportFluentdFallback(boolean unavailable, Exception failure, Path logFilePath) {
+      if(!unavailable && failure == null) {
+         fluentdFallbackReported = false;
+         return;
+      }
+
+      if(fluentdFallbackReported) {
+         return;
+      }
+
+      fluentdFallbackReported = true;
+
+      if(unavailable) {
+         LoggerFactory.getLogger(LogbackInitializer.class).error(
+            "log.provider is set to \"{}\", but log forwarding is only available in the " +
+            "enterprise edition. Log records are being written to {} instead.",
+            LogbackUtil.FLUENTD_PROVIDER, logFilePath);
+      }
+      else {
+         LoggerFactory.getLogger(LogbackInitializer.class).error(
+            "Failed to create the Fluentd appender. Log records are being written to {} instead.",
+            logFilePath, failure);
       }
    }
 
@@ -310,6 +365,8 @@ public class LogbackInitializer implements LogInitializer {
       appender.start();
       return appender;
    }
+
+   private static volatile boolean fluentdFallbackReported;
 
    static final String SREE_LOG = "SREE_LOG";
    static final String ASYNC_SREE_LOG = "ASYNC_SREE_LOG";

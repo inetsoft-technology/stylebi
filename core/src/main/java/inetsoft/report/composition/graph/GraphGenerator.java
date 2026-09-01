@@ -2735,6 +2735,9 @@ public abstract class GraphGenerator {
       spec.setGridBetween(fake);
       boolean width = inverted && inner && x || !(inverted && inner) && !x;
       spec.setAxisSize(width ? xdesc.getAxisWidth() : xdesc.getAxisHeight());
+      // reserves space for the outermost axis label so it fits without being moved; the only
+      // reader is RectCoord.getAxisMargin. this is not PlotDescriptor.isInPlot ("Keep Elements
+      // in Plot") despite the name. (76291)
       spec.setInPlot("true".equals(SreeEnv.getProperty("graph.axis.inplot")));
 
       if(scale instanceof TimeScale) {
@@ -3169,7 +3172,10 @@ public abstract class GraphGenerator {
 
       alls = createElement0(chartType, names, xname, false, alls);
 
-      // set geometry max count
+      // set geometry max count. resolved once instead of per element: it only depends on
+      // chartType, and a misconfigured graph.*.maxcount warns on each call.
+      int mcount = GraphTypes.getGeomMaxCount(chartType);
+
       for(int i = 0; i < alls.size(); i++) {
          GraphElement elem = (GraphElement) alls.get(i);
 
@@ -3177,7 +3183,6 @@ public abstract class GraphGenerator {
             continue;
          }
 
-         int mcount = GraphTypes.getGeomMaxCount(chartType);
          elem.setHint(GraphElement.HINT_MAX_COUNT, mcount);
       }
    }

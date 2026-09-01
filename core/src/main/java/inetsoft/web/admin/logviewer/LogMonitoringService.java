@@ -24,6 +24,7 @@ import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Tool;
 import inetsoft.util.log.LogManager;
+import inetsoft.util.log.logback.LogbackUtil;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.servlet.http.HttpServletResponse;
@@ -316,7 +317,10 @@ public class LogMonitoringService implements MessageListener {
    }
 
    public LogViewLinks getLinks(Principal principal) {
-      boolean fluentdLogging = "fluentd".equals(SreeEnv.getProperty("log.provider"));
+      // isFluentdEnabled(), not a bare comparison: reporting fluentdLogging=true on a build that
+      // cannot forward makes this page hide the local log file that the records are actually
+      // being written to.
+      boolean fluentdLogging = LogbackUtil.isFluentdEnabled();
       String logViewUrl = null;
 
       if(fluentdLogging) {

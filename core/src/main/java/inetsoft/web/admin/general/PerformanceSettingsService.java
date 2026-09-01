@@ -19,6 +19,7 @@ package inetsoft.web.admin.general;
 
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.QueryCacheSettings;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.general.model.PerformanceSettingsModel;
 import inetsoft.web.viewsheet.AuditUser;
@@ -41,8 +42,8 @@ public class PerformanceSettingsService {
          .maxQueryPreviewRowCount(Integer.parseInt(SreeEnv.getProperty("query.preview.maxrow")))
          .maxTableRowCount(Integer.parseInt(SreeEnv.getProperty("table.output.maxrow", "0")))
          .dataSetCaching(Boolean.valueOf(SreeEnv.getProperty("query.cache.data")))
-         .dataCacheSize(Long.parseLong(SreeEnv.getProperty("query.cache.limit")))
-         .dataCacheTimeout(Long.parseLong(SreeEnv.getProperty("query.cache.timeout")))
+         .dataCacheSize(QueryCacheSettings.getLimit())
+         .dataCacheTimeout(QueryCacheSettings.getTimeout())
          .build();
    }
 
@@ -65,8 +66,8 @@ public class PerformanceSettingsService {
       flushAssetDataCache(oPreviewMaxRow, model.maxQueryPreviewRowCount());
 
       SreeEnv.setProperty("query.cache.data", model.dataSetCaching() + "");
-      SreeEnv.setProperty("query.cache.limit", model.dataCacheSize() + "");
-      SreeEnv.setProperty("query.cache.timeout", model.dataCacheTimeout() + "");
+      SreeEnv.setProperty(QueryCacheSettings.LIMIT_PROPERTY, model.dataCacheSize() + "");
+      SreeEnv.setProperty(QueryCacheSettings.TIMEOUT_PROPERTY, model.dataCacheTimeout() + "");
       SreeEnv.save();
    }
 

@@ -19,7 +19,6 @@ package inetsoft.report.internal.license;
 
 import com.google.common.base.Suppliers;
 import inetsoft.sree.ApplicationPropertiesChangedEvent;
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.MessageEvent;
 import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.IdentityID;
@@ -35,17 +34,6 @@ import java.util.function.Supplier;
  * {@code LicenseManager} manages the installed license keys and provides information about them.
  */
 public class LicenseManager implements AutoCloseable, MessageListener {
-   public enum LicenseComponent {
-      FORM("Form");
-
-      private final String webExtName;
-
-      LicenseComponent(String webExtName) {
-         this.webExtName = webExtName;
-      }
-
-   }
-
    /**
     * Creates a new instance of {@code LicenseManager}.
     */
@@ -90,24 +78,6 @@ public class LicenseManager implements AutoCloseable, MessageListener {
          }
 
          return getInstance().isAffinitySet();
-      }
-      catch(Exception ignore) {
-         return false;
-      }
-   }
-
-   /**
-    * Utility to check if a component is available.
-    *
-    * @param component component string.
-    */
-   public static boolean isComponentAvailable(LicenseComponent component) {
-      try {
-         if(Objects.requireNonNull(component) == LicenseComponent.FORM) {
-            return !"false".equals(SreeEnv.getProperty("vs.form.enabled"));
-         }
-
-         return true;
       }
       catch(Exception ignore) {
          return false;

@@ -28,6 +28,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.util.log.logback.LogbackUtil;
 import inetsoft.web.admin.authz.ComponentAuthorizationService;
 import inetsoft.web.admin.authz.ViewComponent;
 
@@ -777,7 +778,10 @@ public class ActionPermissionService {
    }
 
    public static boolean isOrgAdminAction(ResourceType type, String resource) {
-      boolean isFluentDLogging = "fluentd".equals(SreeEnv.getProperty("log.provider"));
+      // isFluentdEnabled(), not a bare comparison, for consistency with the other readers of
+      // log.provider. Organizations are enterprise-only, so this branch is unreachable on a
+      // community build either way.
+      boolean isFluentDLogging = LogbackUtil.isFluentdEnabled();
       boolean canOrgAdminAccess = Boolean.parseBoolean(SreeEnv.getProperty("log.fluentd.orgAdminAccess"));
 
       if(isFluentDLogging && canOrgAdminAccess) {

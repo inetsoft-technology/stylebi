@@ -35,18 +35,23 @@
       [attr.width]="model.objectFormat.width"
       [attr.height]="model.objectFormat.height">
       <defs>
-        <filter [attr.id]="ovalFilterId">
-          <feGaussianBlur in="SourceAlpha" stdDeviation="3" ></feGaussianBlur>
-          <feOffset dx="2" dy="4"></feOffset>
+        <filter [attr.id]="ovalFilterId" filterUnits="userSpaceOnUse"
+          [attr.x]="-shadowMargin" [attr.y]="-shadowMargin"
+          [attr.width]="model.objectFormat.width + shadowMargin * 2"
+          [attr.height]="model.objectFormat.height + shadowMargin * 2">
+          <feGaussianBlur in="SourceAlpha" [attr.stdDeviation]="shadowStdDeviation"></feGaussianBlur>
+          <feOffset [attr.dx]="shadowOffsetX" [attr.dy]="shadowOffsetY" result="offsetBlur"></feOffset>
+          <feFlood [attr.flood-color]="shadowColor" [attr.flood-opacity]="shadowOpacity"></feFlood>
+          <feComposite in2="offsetBlur" operator="in"></feComposite>
           <feMerge>
             <feMergeNode></feMergeNode>
             <feMergeNode in="SourceGraphic"></feMergeNode>
           </feMerge>
         </filter>
         <mask [attr.id]="ovalMaskId">
-          <rect x="-16" y="-16"
-            [attr.width]="model.objectFormat.width + 32"
-            [attr.height]="model.objectFormat.height + 32"
+          <rect [attr.x]="-shadowMargin" [attr.y]="-shadowMargin"
+            [attr.width]="model.objectFormat.width + shadowMargin * 2"
+            [attr.height]="model.objectFormat.height + shadowMargin * 2"
             fill="white">
           </rect>
           <ellipse fill="black"
@@ -89,7 +94,6 @@
         <ellipse
           [attr.filter]="'url(#' + ovalFilterId + ')'"
           [attr.mask]="'url(#' + ovalMaskId + ')'"
-          [attr.opacity]="model.objectFormat.alpha"
           [attr.cx]="model.objectFormat.width / 2"
           [attr.cy]="model.objectFormat.height / 2"
           [attr.rx]="model.objectFormat.width / 2"

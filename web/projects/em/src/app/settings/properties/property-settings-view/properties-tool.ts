@@ -32,7 +32,7 @@ export namespace PropertiesTool {
       "dashboard.tabs.top", "db.caseSensitive",
       "empty.crosstab.convert", "enable.changePassword", "excel.vs.export.grid.show",
       "font.preload", "format.auto.downgrade", "fs.desktop", "graph.axis.inplot",
-      "graph.script.action.support", "html.close.button", "html.image.scale",
+      "graph.script.action.support",
       "htmlpresenter.fitline", "hyperlink.indicator", "image.antialias",
       "image.filtered", "image.png.alpha", "mail.ssl", "log.output.stderr",
       "mail.smtp.auth", "map.selection.enabled", "mv.detail.data",

@@ -17,7 +17,7 @@
  */
 package inetsoft.web.admin.authz;
 
-import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.report.internal.license.LicenseComponent;
 
 import java.util.List;
 import java.util.Map;
@@ -34,7 +34,7 @@ import org.immutables.value.Value;
 public interface ViewComponent {
    String name();
    String label();
-   List<LicenseManager.LicenseComponent> requiredLicenses();
+   List<LicenseComponent> requiredLicenses();
    Map<String, ViewComponent> children();
 
    @Value.Default

@@ -209,8 +209,9 @@ class SecurityHeaderFilterTest {
    // ── X-Robots-Tag ───────────────────────────────────────────────────────────
 
    @Test
-   void doFilter_robotsTagDefault_setsNoindexNofollow() throws Exception {
-      stubProperty("security.robotsTag", "noindex, nofollow");
+   void doFilter_robotsTagUnset_setsNoindexNofollow() throws Exception {
+      // Nothing stored: the one-arg lookup returns null and doFilter applies its own default.
+      stubStoredProperty("security.robotsTag", null);
       MockHttpServletRequest request = request("/portal/dashboard");
       MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -220,15 +221,42 @@ class SecurityHeaderFilterTest {
    }
 
    @Test
+   void doFilter_robotsTagCustomValue_setsThatValue() throws Exception {
+      stubStoredProperty("security.robotsTag", "noarchive");
+      MockHttpServletRequest request = request("/portal/dashboard");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      filter.doFilter(request, response, chain);
+
+      assertEquals("noarchive", response.getHeader("X-Robots-Tag"));
+   }
+
+   @Test
    void doFilter_robotsTagExplicitlyEmpty_headerOmitted() throws Exception {
       // Documented escape hatch for publicly-indexable dashboards.
-      stubProperty("security.robotsTag", "");
+      stubStoredProperty("security.robotsTag", "");
       MockHttpServletRequest request = request("/portal/dashboard");
       MockHttpServletResponse response = new MockHttpServletResponse();
 
       filter.doFilter(request, response, chain);
 
       assertNull(response.getHeader("X-Robots-Tag"));
+   }
+
+   @Test
+   void doFilter_robotsTagNeverResolvesThroughDefaultingOverload() throws Exception {
+      // Guards the fix: SreeEnv.getProperty(name, def) routes through
+      // DefaultProperties.getProperty(key, defaultValue), which converts a stored "" back into
+      // the default. If security.robotsTag ever regains a constructor default it would take that
+      // path again and the empty-string opt-out above would silently stop working -- while
+      // still passing, if the test stubbed both overloads to the same value.
+      stubStoredProperty("security.robotsTag", "");
+      MockHttpServletRequest request = request("/portal/dashboard");
+
+      filter.doFilter(request, new MockHttpServletResponse(), chain);
+
+      sreeEnvMock.verify(
+         () -> SreeEnv.getProperty(eq("security.robotsTag"), anyString()), never());
    }
 
    // ── helpers ────────────────────────────────────────────────────────────────
@@ -261,5 +289,18 @@ class SecurityHeaderFilterTest {
    private void stubProperty(String key, String value) {
       sreeEnvMock.when(() -> SreeEnv.getProperty(eq(key))).thenReturn(value);
       sreeEnvMock.when(() -> SreeEnv.getProperty(eq(key), anyString())).thenReturn(value);
+   }
+
+   /**
+    * Stubs only the one-arg {@code SreeEnv.getProperty} overload, which is the single accessor a
+    * {@code SreeEnv.Value} built without a constructor default uses. Deliberately leaves the
+    * two-arg overload unstubbed: stubbing it to return the value directly would paper over
+    * {@code DefaultProperties.getProperty(key, defaultValue)}, which converts a stored empty
+    * string back into the supplied default. That conversion is exactly what made
+    * {@code security.robotsTag}'s documented empty-string opt-out unreachable in production while
+    * a both-overloads stub kept the test green.
+    */
+   private void stubStoredProperty(String key, String value) {
+      sreeEnvMock.when(() -> SreeEnv.getProperty(eq(key))).thenReturn(value);
    }
 }

@@ -18,12 +18,13 @@
 import { Component, Input } from "@angular/core";
 import { LinePropPane } from "./line-prop-pane.component";
 import { FillPropPane } from "./fill-prop-pane.component";
+import { ShadowPropPane } from "./shadow-prop-pane.component";
 import { OvalPropertyPaneModel } from "../../data/vs/oval-property-pane-model";
 
 @Component({
     selector: "oval-property-pane",
     templateUrl: "oval-property-pane.component.html",
-    imports: [LinePropPane, FillPropPane]
+    imports: [LinePropPane, FillPropPane, ShadowPropPane]
 })
 export class OvalPropertyPane {
    @Input() model: OvalPropertyPaneModel;

@@ -28,6 +28,7 @@ import inetsoft.report.internal.Common;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.report.io.viewsheet.AbstractVSExporter;
 import inetsoft.report.io.viewsheet.ExportUtil;
+import inetsoft.report.io.viewsheet.ShapeShadowUtil;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -241,7 +242,10 @@ public class HTMLVSExporter extends AbstractVSExporter {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
       if(info != null) {
-         Rectangle2D bounds = helper.getBounds(info);
+         // a shape's shadow can fall outside the assembly's own bounds; a no-op
+         // for everything else
+         Rectangle2D bounds = ShapeShadowUtil.expandForShadow(
+            helper.getBounds(info), info, helper.getScale());
          BufferedImage img = getImage(assembly);
          boolean ignoreBackground = assembly instanceof ShapeVSAssembly ||
             assembly instanceof GaugeVSAssembly || assembly instanceof TabVSAssembly;

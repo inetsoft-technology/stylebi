@@ -138,12 +138,10 @@ public class LoginController {
                       LicenseManager.isEnterprise());
       model.addObject("isNotTenantServer", isNotTenantServer(request));
 
-      boolean googleSignInEnabled = SreeEnv.getBooleanProperty("security.googleSignIn.enabled");
-
-      if(googleSignInEnabled) {
-         model.addObject("gClientId", getGoogleClientId());
+      if(GoogleSignInSupport.isEnabled()) {
+         model.addObject("gClientId", GoogleSignInSupport.getClientId());
          model.addObject("gLoginUri", linkUri + "login/googleSSO");
-         model.addObject("gScopes", getGoogleScopes());
+         model.addObject("gScopes", GoogleSignInSupport.getScopes());
 
          try {
             String encodedUrl = requestedUrl == null ? null :
@@ -226,15 +224,6 @@ public class LoginController {
          .map(Cookie::getValue).findFirst().orElse(null);
 
       return orgId != null ? orgId : SUtil.getLoginOrganization(request);
-   }
-
-   private String getGoogleClientId() {
-      return Tool.getClientSecretRealValue(
-         SreeEnv.getProperty("styleBI.google.openid.client.id"), "client_id");
-   }
-
-   private String getGoogleScopes() {
-      return SreeEnv.getProperty("styleBI.google.openid.scopes", "openid email profile");
    }
 
    private boolean isEnterpriseManagerRequest(String requestedUrl) {

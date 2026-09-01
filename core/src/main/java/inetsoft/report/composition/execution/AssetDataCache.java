@@ -734,17 +734,9 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    {
       this.dataSourceRegistry = dataSourceRegistry;
       this.distributedTableCacheStoreProvider = distributedTableCacheStoreProvider;
-      String prop = SreeEnv.getProperty("query.cache.limit", "100");
-
-      if(prop != null) {
-         setLimit(Integer.parseInt(prop));
-      }
-
-      prop = SreeEnv.getProperty("query.cache.timeout", "600000");
-
-      if(prop != null) {
-         setTimeout(Long.parseLong(prop));
-      }
+      // registering applies query.cache.limit and query.cache.timeout, and keeps this
+      // cache in sync when they are changed later
+      QueryCacheSettings.register(this);
 
       // default 6 threads per cpu for viewsheet might execute many queries
       pool = new ThreadPool(
@@ -849,7 +841,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          data = null;
       }
 
-      if(data != null && (!"true".equals(SreeEnv.getProperty("mv.debug")))) {
+      if(data != null) {
          final String tableName = table == null ? "null" : table.getAbsoluteName();
          LOG.debug("Using cached result set: {} rows: {}", tableName, data.getRowCount());
       }

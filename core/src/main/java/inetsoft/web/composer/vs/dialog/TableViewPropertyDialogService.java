@@ -22,7 +22,6 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.viewsheet.*;
@@ -116,8 +115,7 @@ public class TableViewPropertyDialogService {
       sizePositionPaneModel.setContainer(tableAssembly.getContainer() != null);
 
       boolean embeddedSource = this.vsObjectPropertyService.isEmbeddedEnabled(rvs, tableAssemblyInfo);
-      tableAdvancedPaneModel.setFormVisible(embeddedSource &&
-                                               LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM));
+      tableAdvancedPaneModel.setFormVisible(embeddedSource && FormUtil.isFormEnabled());
       tableAdvancedPaneModel.setForm(tableAssemblyInfo.getFormValue());
       tableAdvancedPaneModel.setInsert(tableAssemblyInfo.getInsertValue());
       tableAdvancedPaneModel.setDel(tableAssemblyInfo.getDelValue());

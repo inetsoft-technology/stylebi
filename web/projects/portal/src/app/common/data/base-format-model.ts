@@ -46,6 +46,18 @@ export interface GradientColor {
    colors: ColorStop[];
 }
 
+/**
+ * Drop shadow settings for a shape assembly (rectangle/oval). Mirrors the
+ * java inetsoft.uql.viewsheet.ShapeShadow.
+ */
+export interface ShapeShadow {
+   color: string;
+   alpha: number;
+   direction: string;
+   distance: number;
+   blur: number;
+}
+
 export interface ColorStop {
    color: string;
    offset: number;

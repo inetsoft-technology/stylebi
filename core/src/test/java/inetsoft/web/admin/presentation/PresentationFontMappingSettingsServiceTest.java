@@ -34,6 +34,10 @@ package inetsoft.web.admin.presentation;
  * [G1] A well-formed list parses into one model per entry, split at the first colon.
  * [G2] An entry with no colon is skipped instead of throwing.
  * [G3] Null or empty property yields an empty list.
+ * [G4] resetSettings() resets the property rather than storing an empty string. Every other
+ *      resetSettings() on the Presentation page goes through SreeEnv.resetProperty(); storing
+ *      "" left a value behind that the one-argument and two-argument accessors read
+ *      differently, so it was neither the shipped default nor absent.
  */
 
 import inetsoft.sree.SreeEnv;
@@ -99,5 +103,14 @@ class PresentationFontMappingSettingsServiceTest {
    void nullOrEmptyPropertyYieldsEmptyList() {
       assertTrue(parse(null).isEmpty());
       assertTrue(parse("").isEmpty());
+   }
+
+   @Test
+   void resetSettingsResetsPropertyInsteadOfStoringEmptyString() {
+      assertDoesNotThrow(() -> service.resetSettings());
+
+      sreeEnvStatic.verify(() -> SreeEnv.resetProperty("pdf.font.mapping", false));
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty(eq("pdf.font.mapping"), anyString()), never());
+      sreeEnvStatic.verify(SreeEnv::save);
    }
 }

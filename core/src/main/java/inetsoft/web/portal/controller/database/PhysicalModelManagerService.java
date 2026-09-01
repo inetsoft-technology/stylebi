@@ -110,6 +110,13 @@ public class PhysicalModelManagerService {
       // for table location of portal <--- studio
       graphService.shrinkColumnHeight(runtimeXPartition);
 
+      // RuntimePartitionService.openModel() cached runtimeXPartition before the shrink
+      // above was applied, and the cache stores a serialized copy -- so without saving
+      // again here, every other reader of this runtime id (e.g. the graph-model fetch
+      // the client issues right after opening the view) would see the un-shrunk,
+      // Studio-scale positions instead of the compact Portal ones.
+      this.runtimePartitionService.saveRuntimePartition(runtimeXPartition);
+
       return physicalModelService.createModel(dataModel, runtimeXPartition);
    }
 
@@ -169,6 +176,11 @@ public class PhysicalModelManagerService {
 
       // for table location of portal <--- studio
       graphService.shrinkColumnHeight(rp);
+
+      // see the identical comment in openModel(): the cache entry for rp was written
+      // before this shrink, and stores a serialized copy, so it must be re-saved here
+      // or other readers of this runtime id will see the un-shrunk positions.
+      this.runtimePartitionService.saveRuntimePartition(rp);
 
       return physicalModelService.createModel(dataModel, rp);
    }

@@ -51,6 +51,20 @@ public class RectanglePropertyPaneModel implements Serializable {
       this.fillPropPaneModel = fillPropPaneModel;
    }
 
+   public ShadowPropPaneModel getShadowPropPaneModel() {
+      if(shadowPropPaneModel == null) {
+         shadowPropPaneModel = new ShadowPropPaneModel();
+      }
+
+      return shadowPropPaneModel;
+   }
+
+   public void setShadowPropPaneModel(
+      ShadowPropPaneModel shadowPropPaneModel)
+   {
+      this.shadowPropPaneModel = shadowPropPaneModel;
+   }
+
    public int getRadius() {
       return radius;
    }
@@ -65,10 +79,12 @@ public class RectanglePropertyPaneModel implements Serializable {
          "radius=" + radius +
          ", linePropPaneModel=" + linePropPaneModel +
          ", fillPropPaneModel=" + fillPropPaneModel +
+         ", shadowPropPaneModel=" + shadowPropPaneModel +
          '}';
    }
 
    private int radius;
    private LinePropPaneModel linePropPaneModel;
    private FillPropPaneModel fillPropPaneModel;
+   private ShadowPropPaneModel shadowPropPaneModel;
 }

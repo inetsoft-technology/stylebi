@@ -597,19 +597,6 @@ public abstract class AssetQuery extends PreAssetQuery {
 
       // runtime?
       if((mode & AssetQuerySandbox.RUNTIME_MODE) != 0) {
-         // try query max time
-         prop = SreeEnv.getProperty("query.max.time");
-
-         if(prop != null) {
-            try {
-               return Integer.parseInt(prop);
-            }
-            catch(Exception ex) {
-               LOG.warn("Invalid value for the query timeout (query.max.time): " +
-                  prop, ex);
-            }
-         }
-
          // 20 minutes for runtime
          return 1200;
       }

@@ -346,7 +346,11 @@ public class VSLifecycleService {
          try {
             limit = Integer.parseInt(prop);
          }
-         catch(Exception ignore) {
+         catch(NumberFormatException ex) {
+            // leaving this silent made a typo indistinguishable from never having configured a
+            // quota: limit stays negative, the check below returns, and no limit is applied
+            LOG.warn("Invalid viewsheet.user.instance.limit value \"{}\", no viewsheet quota " +
+                        "is being applied", prop);
          }
       }
 
@@ -360,11 +364,15 @@ public class VSLifecycleService {
          .sorted()
          .toList();
 
-      // a viewsheet is being opened, so we want limit - 1 instances left
-      while(list.size() >= limit) {
-         Iterator<OpenViewsheet> iterator = list.iterator();
-         OpenViewsheet sheet = iterator.next();
-         iterator.remove();
+      // a viewsheet is being opened, so we want limit - 1 instances left. The list is sorted
+      // oldest-first and is immutable, so close a prefix of it by index rather than draining it
+      // through an iterator -- Iterator.remove() on the result of Stream.toList() throws
+      // UnsupportedOperationException, which used to be unreachable only because the swallowed
+      // parse above left limit negative on every misconfigured server.
+      int excess = list.size() - limit + 1;
+
+      for(int i = 0; i < excess; i++) {
+         OpenViewsheet sheet = list.get(i);
 
          LOG.debug("Closing viewsheet {} due to quota for {}", sheet.getId(), user);
 

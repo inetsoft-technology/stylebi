@@ -29,6 +29,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.config.InetsoftConfig;
+import inetsoft.util.log.logback.LogbackUtil;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.admin.schedule.model.CheckMailInfo;
@@ -73,7 +74,9 @@ public class SchedulerConfigurationService {
 
       return ScheduleConfigurationModel.builder()
          .concurrency(Integer.parseInt(SreeEnv.getProperty("schedule.concurrency")))
-         .logFile("fluentd".equals(SreeEnv.getProperty("log.provider")) ?
+         // isFluentdEnabled(), not a bare comparison: a build that cannot forward is still
+         // writing to the scheduler log file, so the field must not be blanked out.
+         .logFile(LogbackUtil.isFluentdEnabled() ?
                      null : SreeEnv.getProperty("schedule.log.file"))
          .rmiPort(Integer.parseInt(SreeEnv.getProperty("scheduler.rmi.port")))
          .classpath(SreeEnv.computePropertyIfAbsent(

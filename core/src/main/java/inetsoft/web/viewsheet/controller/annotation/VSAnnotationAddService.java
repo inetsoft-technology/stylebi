@@ -194,10 +194,9 @@ public class VSAnnotationAddService {
       // Set annotation properties
       annotation.setPixelOffset(annotationPosition);
       ainfo.setScaledPosition(new Point(x, y));
-      boolean isViewsheet = assemblyType == AnnotationVSAssemblyInfo.VIEWSHEET;
       Point point = annotationService.getAdjustedPoint(event, rvs, psize, assemblyType);
       annotationRectangle.setPixelOffset(point);
-      src = new Point2D.Double(isViewsheet ? x : point.x, point.y);
+      src = new Point2D.Double(point.x, point.y);
       dst = new Point2D.Double();
       tx.transform(src, dst);
       rinfo.setScaledPosition(new Point((int) Math.floor(dst.getX()),

@@ -497,6 +497,18 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
 
          IdentityID identityID = IdentityID.getIdentityIDFromKey(name);
          identityID.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
+
+         // The owner is carried verbatim in the JAR and only has its org remapped above. If
+         // that user does not exist here (renamed, deleted, or never present in this org),
+         // importing the block would create bookmarks no one can reach. Skip just this owner
+         // -- other users' bookmarks in the same <AllBookmarks> block must still import.
+         if(!bookmarkOwnerExists(identityID)) {
+            LOG.warn("Skipping imported bookmarks for viewsheet '{}': user '{}' does not " +
+               "exist in organization '{}'", entry.getPath(), identityID.getName(),
+               identityID.getOrgID());
+            continue;
+         }
+
          XPrincipal principal = new XPrincipal(identityID);
          VSBookmark existing = engine.getVSBookmark(entry, principal);
 
@@ -827,6 +839,60 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
          {
             dependencies.add(newList.get(i));
          }
+      }
+   }
+
+   /**
+    * Check whether the owner of an imported {@code <AllBookmarks>} block actually exists in
+    * the target organization.
+    *
+    * <p>Bookmark owners are carried verbatim in the deployment JAR and only have their org ID
+    * remapped on import. If the named user does not exist on the target server -- because it
+    * was renamed, deleted, or never existed in this organization -- writing the bookmark would
+    * create an entry no one can ever reach. Callers skip those blocks instead.
+    *
+    * <p>This mirrors the owner validation that {@code DeployService.validateUsers()} applies
+    * to user-scoped asset owners, including its anonymous exemption. Unlike that method this
+    * is not fatal: a bookmark is auxiliary data and must never abort an otherwise valid
+    * import, so every failure path here fails open. It also omits that method's
+    * unregistered-user exemption -- an unregistered user is a {@code sreeUserData} file with
+    * no security identity, which is the orphan case itself.
+    *
+    * @param owner the org-corrected owner of the bookmark block.
+    *
+    * @return {@code true} if the bookmarks should be imported.
+    */
+   public static boolean bookmarkOwnerExists(IdentityID owner) {
+      if(owner == null || Tool.isEmptyString(owner.name)) {
+         return true;
+      }
+
+      if(XPrincipal.ANONYMOUS.equals(owner.name) || "_NULL_".equals(owner.name)) {
+         return true;
+      }
+
+      try {
+         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+
+         // A virtual provider only recognizes admin/system/anonymous, so its getUser() cannot
+         // prove that any other name is absent. Test isVirtual() rather than
+         // isSecurityEnabled(): getSecurityProvider() also falls back to the virtual provider
+         // when security IS enabled but no real provider has been initialized, and
+         // AuthenticationChain.isVirtual() likewise reports true for a chain with no real
+         // providers. Trusting it there would drop every non-admin owner's bookmarks.
+         if(provider == null || provider.isVirtual()) {
+            return true;
+         }
+
+         return provider.getUser(owner) != null;
+      }
+      catch(Exception e) {
+         // Both SecurityEngine.getSecurity() (Spring bean lookup) and an external provider's
+         // getUser() (LDAP/SSO connection) can throw. parseContent0 declares throws Exception,
+         // so letting one escape would fail the whole viewsheet import over auxiliary data.
+         LOG.warn("Failed to check whether bookmark owner '{}' exists; importing its " +
+            "bookmarks anyway", owner.getName(), e);
+         return true;
       }
    }
 

@@ -17,9 +17,9 @@
  */
 package inetsoft.sree.web;
 
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.security.*;
+import inetsoft.uql.viewsheet.internal.FormUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -83,7 +83,7 @@ public class WebService {
          resources.add(new Resource(ResourceType.WORKSHEET, "*"));
          resources.add(new Resource(ResourceType.VIEWSHEET, "*"));
       }
-      else if("Form".equals(module) && !LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM)) {
+      else if("Form".equals(module) && !FormUtil.isFormEnabled()) {
          return false;
       }
 

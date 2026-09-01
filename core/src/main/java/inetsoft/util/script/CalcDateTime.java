@@ -760,6 +760,10 @@ public class CalcDateTime {
       int option = ((Number) optionobj).intValue();
       double interval = ((Number) intervalobj).doubleValue();
       Calendar cal = CoreTool.calendar.get();
+      // CoreTool.calendar is a shared ThreadLocal never synced to week.start by its own
+      // initialValue() -- must set it before any WEEK_OF_YEAR read, not just before the
+      // WEEK_DATE_GROUP case further below (that was too late: weeks below already needs it).
+      cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
       cal.clear();
       cal.setTime(d);
       int year, month, weeks, day, hour, minute, second, millisecond;
