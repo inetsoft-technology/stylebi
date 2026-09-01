@@ -47,6 +47,48 @@ public class SwapXYBindingProcessor extends ChangeChartProcessor {
       this.desc = desc;
    }
 
+   /**
+    * Refuses a swap that {@link #swapChartXYFields()} would otherwise silently corrupt.
+    *
+    * <p>That method's own {@code y}-to-{@code x} loop {@code continue}s past a measure whose
+    * chart type does not {@link GraphTypes#supportsInvertedChart}, which drops the field from
+    * the binding entirely rather than moving it -- a genuine data-loss shape (live-confirmed
+    * 2026-09-01, L3-Group2 G2-1/G2-2: swapping axes on a {@code mekko} chart silently deleted a
+    * bound measure, returning {@code ok:true} with no warning). The native Composer's own
+    * {@code chart-editor-toolbar.component.ts} ({@code isSwapVisible()}) hides the swap button
+    * for exactly the chart-type family this would corrupt, so a human cannot reach this state —
+    * but {@link inetsoft.web.binding.controller.SwapXYBindingService#swapXYBinding} is a shared
+    * {@code @ClusterProxy} service reachable by any caller that skips the button, the wiz agent
+    * path included. This is a map-only no-op: {@link #swapMapXYFields()} preserves every field
+    * unconditionally (it partitions by measure/dimension, never drops one), so only the
+    * {@code cinfo instanceof MapInfo} branch of {@link #process()} is exempt.
+    *
+    * @throws IllegalStateException naming the field that would be dropped, before anything is
+    *                               mutated — call this before {@link #process()}, not after.
+    */
+   public void requireInvertible() {
+      if(cinfo instanceof MapInfo) {
+         return;
+      }
+
+      boolean multi = cinfo.isMultiStyles();
+
+      for(ChartRef ref : cinfo.getYFields()) {
+         if(!ref.isMeasure()) {
+            continue;
+         }
+
+         ChartAggregateRef agg = (ChartAggregateRef) ref;
+         int type = !multi ? cinfo.getChartType() : agg.getChartType();
+
+         if(!GraphTypes.supportsInvertedChart(type)) {
+            throw new IllegalStateException(
+               "This chart type does not support swapping axes -- '" + ref.getName() +
+               "' would be discarded moving from the y shelf to x, instead of swapped.");
+         }
+      }
+   }
+
    public void process() {
       String tip = cinfo instanceof VSChartInfo ? ((VSChartInfo) cinfo).getToolTipValue()
          : cinfo.getToolTip();
