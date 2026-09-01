@@ -49,6 +49,7 @@
       <div class="default-border vs-check-box__default-border"
         [style.margin-top]="model.titleVisible ? null : 0"
         [style.height]="model.titleVisible ? null : '100%'"
+        [style.border-radius.px]="model.objectFormat.roundCorner"
       ></div>
     }
     @if (model.titleVisible) {
@@ -71,6 +72,7 @@
     <div #listBody class="checkbox-body">
       @for (entry of model.labels; track entry; let i = $index) {
         <div class="checkbox d-flex compound-cell" #checkbox
+          [class.vs-check-box__modern-body]="model.vizModern"
           [safeFont]="model.detailFormat.font"
           [style.background]="getCellFormat(i).background"
           [style.color]="getCellFormat(i).foreground"
