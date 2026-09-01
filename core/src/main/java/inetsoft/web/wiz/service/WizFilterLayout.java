@@ -54,6 +54,9 @@ public final class WizFilterLayout {
     * even though placement internally sorts by preferred height descending (shelf-packing: tallest
     * items anchor each shelf).
     *
+    * <p>Equivalent to {@link #pack(Point, Dimension, List, List)} with an empty occupied list — no
+    * already-placed controls to pack around (a single-call sequence, or the first call ever).
+    *
     * @param chartOffset  the chart assembly's own pixel offset (packed controls' x is relative to
     *                     {@code chartOffset.x}, so the filter zone aligns under the chart).
     * @param chartSize    the chart assembly's own pixel size (controls are packed starting at
@@ -65,6 +68,25 @@ public final class WizFilterLayout {
     * @return one {@link Rectangle} per input entry, same order as {@code orderedTypes}.
     */
    public static List<Rectangle> pack(Point chartOffset, Dimension chartSize, List<Integer> orderedTypes) {
+      return pack(chartOffset, chartSize, orderedTypes, List.of());
+   }
+
+   /**
+    * Same as {@link #pack(Point, Dimension, List)}, but packs the new controls AROUND rectangles
+    * already occupied by controls a previous {@code add_visualization_filters} call placed (06-
+    * review-r1.md Important finding: without this, every call restarted at
+    * {@code chartOffset.y + chartSize.height + GAP} regardless of what was already there, so a
+    * second call with different fields landed directly on top of the first call's controls).
+    * Never repositions anything in {@code occupied} — those rectangles are read-only input, purely
+    * to avoid new placements overlapping them.
+    *
+    * @param occupied  pixel rectangles already occupied by live, still-present filter controls (in
+    *                  the SAME coordinate space as the returned rectangles — i.e. already offset by
+    *                  the chart's own pixel offset). Empty when there is nothing to pack around.
+    */
+   public static List<Rectangle> pack(
+      Point chartOffset, Dimension chartSize, List<Integer> orderedTypes, List<Rectangle> occupied)
+   {
       int n = orderedTypes.size();
       // A chart width of 0/negative (never expected in practice) would otherwise divide-by-zero
       // below when clamping; 1px is not a meaningful "minimum layout width" the way the design's
@@ -101,10 +123,44 @@ public final class WizFilterLayout {
 
       Arrays.sort(order, Comparator.comparingInt((Integer i) -> sizes[i].height).reversed());
 
-      Rectangle[] result = new Rectangle[n];
+      // Seed the shelf cursor from whatever is already occupied, instead of always starting fresh
+      // at the chart's own bottom edge. Rows are derived from `occupied` by grouping rectangles
+      // whose y-ranges overlap (this mirrors how this same method laid them out originally, one
+      // call at a time) -- the LAST such row (greatest y) is where a new item can still append, at
+      // its rightmost occupied edge; anything short of that starts a fresh row below it.
       int x = 0;
       int y = chartOffset.y + chartSize.height + GAP;
       int shelfHeight = 0;
+
+      if(!occupied.isEmpty()) {
+         List<Rectangle> sorted = new ArrayList<>(occupied);
+         sorted.sort(Comparator.comparingInt(r -> r.y));
+
+         int rowTop = sorted.get(0).y;
+         int rowBottom = sorted.get(0).y + sorted.get(0).height;
+         int rowRight = sorted.get(0).x + sorted.get(0).width;
+
+         for(int i = 1; i < sorted.size(); i++) {
+            Rectangle r = sorted.get(i);
+
+            if(r.y < rowBottom) {
+               // Same shelf row as the running group (y-ranges overlap).
+               rowBottom = Math.max(rowBottom, r.y + r.height);
+               rowRight = Math.max(rowRight, r.x + r.width);
+            }
+            else {
+               rowTop = r.y;
+               rowBottom = r.y + r.height;
+               rowRight = r.x + r.width;
+            }
+         }
+
+         x = rowRight - chartOffset.x + GAP;
+         y = rowTop;
+         shelfHeight = rowBottom - rowTop;
+      }
+
+      Rectangle[] result = new Rectangle[n];
 
       for(int idx : order) {
          Dimension size = sizes[idx];

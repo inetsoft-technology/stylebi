@@ -116,4 +116,80 @@ class WizFilterLayoutTest {
       assertThrows(IllegalArgumentException.class, () -> WizFilterLayout.pack(
          new Point(0, 0), new Dimension(400, 240), List.of(AbstractSheet.SELECTION_TREE_ASSET)));
    }
+
+   // ── packing around already-placed controls (06-review-r1.md Important finding) ─────────────
+
+   @Test
+   void withNoOccupiedRectanglesMatchesTheThreeArgOverloadExactly() {
+      Point offset = new Point(0, 0);
+      Dimension chartSize = new Dimension(400, 240);
+      List<Integer> types = List.of(AbstractSheet.SELECTION_LIST_ASSET, AbstractSheet.CALENDAR_ASSET);
+
+      List<Rectangle> viaThreeArg = WizFilterLayout.pack(offset, chartSize, types);
+      List<Rectangle> viaFourArg = WizFilterLayout.pack(offset, chartSize, types, List.of());
+
+      assertEquals(viaThreeArg, viaFourArg);
+   }
+
+   @Test
+   void aSecondCallWithDifferentFieldsPacksBesideTheFirstCallsControlNotOnTopOfIt() {
+      // Call 1: one SelectionList, placed at its usual spot.
+      List<Rectangle> first = WizFilterLayout.pack(
+         new Point(0, 0), new Dimension(400, 240), List.of(AbstractSheet.SELECTION_LIST_ASSET));
+      Rectangle regionControl = first.get(0);
+      assertEquals(new Rectangle(0, 250, 100, 120), regionControl);
+
+      // Call 2 (separate, later call): two NEW fields, REGION's control still live and occupying
+      // its rectangle. Must not overlap it.
+      List<Rectangle> second = WizFilterLayout.pack(
+         new Point(0, 0), new Dimension(400, 240),
+         List.of(AbstractSheet.TIME_SLIDER_ASSET, AbstractSheet.SELECTION_LIST_ASSET),
+         List.of(regionControl));
+
+      for(Rectangle r : second) {
+         assertFalse(r.intersects(regionControl), "new control " + r + " must not overlap " + regionControl);
+      }
+   }
+
+   @Test
+   void newControlsAppendToTheSameShelfRowWhenThereIsRoom() {
+      // A 100-wide SelectionList already sits at the start of shelf 1 in a 400-wide chart -- plenty
+      // of room left on that row (400 - 100 - GAP = 290) for another SelectionList (100 wide).
+      Rectangle existing = new Rectangle(0, 250, 100, 120);
+
+      List<Rectangle> rects = WizFilterLayout.pack(
+         new Point(0, 0), new Dimension(400, 240),
+         List.of(AbstractSheet.SELECTION_LIST_ASSET), List.of(existing));
+
+      assertEquals(new Rectangle(110, 250, 100, 120), rects.get(0), "appends beside, same shelf row");
+   }
+
+   @Test
+   void newControlsWrapToANewShelfWhenTheExistingRowHasNoRoomLeft() {
+      // Existing control already occupies the row almost edge-to-edge for a 400-wide chart -- not
+      // enough room left for another 100-wide SelectionList (400 - 350 - GAP = 40 < 100).
+      Rectangle existing = new Rectangle(0, 250, 350, 120);
+
+      List<Rectangle> rects = WizFilterLayout.pack(
+         new Point(0, 0), new Dimension(400, 240),
+         List.of(AbstractSheet.SELECTION_LIST_ASSET), List.of(existing));
+
+      assertEquals(new Rectangle(0, 380, 100, 120), rects.get(0), "wraps to a new shelf row below");
+   }
+
+   @Test
+   void neverRepositionsAnythingInOccupied() {
+      // pack() only returns rectangles for orderedTypes -- occupied is read-only input. Assert this
+      // by confirming the returned rectangles are disjoint from occupied across a few shapes/sizes,
+      // i.e. nothing in the return value silently echoes back a moved copy of `existing`.
+      Rectangle existing = new Rectangle(50, 260, 200, 220);
+      List<Rectangle> rects = WizFilterLayout.pack(
+         new Point(0, 0), new Dimension(400, 240),
+         List.of(AbstractSheet.SELECTION_LIST_ASSET, AbstractSheet.TIME_SLIDER_ASSET), List.of(existing));
+
+      for(Rectangle r : rects) {
+         assertNotEquals(existing, r);
+         assertFalse(r.intersects(existing));
+      }
+   }
 }
