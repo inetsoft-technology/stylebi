@@ -111,6 +111,14 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
             VSObjectChromeDefaults.cardBackgroundCss(ctx));
       }
 
+      // the card inset. Seeded rather than resolved at read time so it travels in an exported
+      // asset. isUserPadding is the author's opinion, and setCSSDefaults installs a CSS padding
+      // just before this hook runs, so both are left alone
+      if(!isUserPadding() && !isCssPaddingDefined()) {
+         setPadding(ctx.modern ? VSObjectChromeDefaults.modernChartPadding()
+                       : VSObjectChromeDefaults.legacyChartPadding());
+      }
+
       // the title lane's rule and its text colour. No background write on either branch: this
       // type's own title composite has never carried one, so the modern lane is unfilled by
       // construction and the legacy branch has nothing to restore
@@ -156,6 +164,47 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       // seedPalette is total across the mark, so no ctx.modern check is needed here
       seedColorPalette(ctx);
+   }
+
+   /**
+    * Whether a format.css class set this chart's padding. setCSSDefaults writes it before the seed
+    * runs, and there is no tier to record it in, so the dictionary is asked directly.
+    */
+   private boolean isCssPaddingDefined() {
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat == null) {
+         return false;
+      }
+
+      return CSSDictionary.getDictionary()
+         .isPaddingDefined(objFormat.getCSSFormat().getCSSParam());
+   }
+
+   /**
+    * Reset the card inset to whatever "follow the default" means right now. The padding pane's
+    * checkbox needs only this write - the full seedChromeDefaults hook also re-runs the card
+    * background, the title lane and the colour palette, none of which that checkbox asked for.
+    *
+    * A format.css class still wins: it already installed its own padding through setCSSDefaults,
+    * and this re-reads it live rather than trusting whatever the field currently holds, which is
+    * what keeps the checkbox sane after an author had overridden that CSS padding and is now
+    * asking to give it back. Absent a CSS padding, this writes the same mark-appropriate inset the
+    * hook's own branch would.
+    */
+   public void resetCardInset(VizContext ctx) {
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null && CSSDictionary.getDictionary()
+            .isPaddingDefined(objFormat.getCSSFormat().getCSSParam()))
+      {
+         setPadding(CSSDictionary.getDictionary()
+                       .getPadding(objFormat.getCSSFormat().getCSSParam()));
+         return;
+      }
+
+      setPadding(ctx.modern ? VSObjectChromeDefaults.modernChartPadding()
+                    : VSObjectChromeDefaults.legacyChartPadding());
    }
 
    /**
@@ -2862,17 +2911,6 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
     */
    public void setUserSmoothLines(boolean userSmoothLines) {
       this.userSmoothLines = userSmoothLines;
-   }
-
-   /**
-    * The card inset, resolved against the assembly's mark. Overridden rather than resolved at each
-    * read site so the exporters, the report converter, the annotation placement and the browser
-    * model all follow untouched. Persistence is unaffected: VSAssemblyInfo's writeAttributes,
-    * parseAttributes, clone and copyViewInfo all use the field, not this getter.
-    */
-   @Override
-   public Insets getPadding() {
-      return VSObjectChromeDefaults.chartPadding(this, super.getPadding());
    }
 
    @Override

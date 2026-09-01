@@ -219,15 +219,6 @@ public class FormatPainterService {
       if(dataPath != null && dataPath.getType() == TableDataPath.TITLE) {
          VSTitleChromeDefaults.applyModernDefaultsInPlace(format, ctx, info);
       }
-      else if(assembly instanceof TextVSAssembly) {
-         VSOutputChromeDefaults.applyModernDefaultsInPlace(format, ctx);
-      }
-      // a selection cell's foreground default is a fixed near-black, substituted for the dark
-      // neutral at every render; without it here the picker would show the stored near-black while
-      // the canvas, the viewer and the export all draw light text
-      else if(info instanceof SelectionBaseVSAssemblyInfo && isPlainSelectionCell(dataPath)) {
-         VSObjectChromeDefaults.applyDarkForegroundInPlace(format, ctx);
-      }
 
       if(assembly instanceof Viewsheet) {
          format.getCSSFormat().setCSSType(CSSConstants.VIEWSHEET);
@@ -925,23 +916,6 @@ public class FormatPainterService {
          fmt.setAlignment(format.getAlign().toAlign());
          fmt.setFormat(new XFormatInfo(format.getFormat(), format.getFormatSpec()));
       }
-   }
-
-   /**
-    * The plain selection detail cell, and not one of its measure sub-paths. Measure Text, Measure
-    * Bar and Measure Bar(-) all carry TableDataPath.DETAIL as their type too, distinguished only by
-    * a single path element — and for the two bars the foreground IS the bar colour (the categorical
-    * palette, and a soft red for the negative bar), so substituting the dark text neutral there
-    * would show the picker a light grey while the canvas draws the real colour: the same mismatch
-    * this substitution exists to remove.
-    *
-    * Tested on an empty path rather than by naming the three, so a further measure path cannot slip
-    * through — isMeasureTextBar below already misses Measure Bar(-).
-    */
-   // package-private for the regression test that pins the measure-path exclusion
-   static boolean isPlainSelectionCell(TableDataPath path) {
-      return path != null && path.getType() == TableDataPath.DETAIL &&
-         (path.getPath() == null || path.getPath().length == 0);
    }
 
    private boolean isMeasureTextBar(TableDataPath path) {

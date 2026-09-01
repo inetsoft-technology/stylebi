@@ -23,7 +23,6 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.BorderColors;
-import inetsoft.uql.viewsheet.VSCompositeFormat;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -163,44 +162,6 @@ class VSObjectChromeDefaultsTest {
          info.initDefaultFormat();
          assertEquals(0x1C1B1F, rgb(info.getFormat().getDefaultFormat().getBackground()),
                       "new viewsheet under dark seeds the dark page");
-      });
-   }
-
-   @Test
-   void textForegroundCssNullWhenNotDark() {
-      withGate("true", () -> assertNull(VSObjectChromeDefaults.textForegroundCss(VizContext.ofGate())));
-   }
-
-   @Test
-   void textForegroundCssDark() {
-      withDark(() -> assertEquals("#e6e0e9", VSObjectChromeDefaults.textForegroundCss(VizContext.ofGate())));
-   }
-
-   @Test
-   void applyDarkForegroundSubstitutesBareDefault() {
-      withDark(() -> {
-         VSCompositeFormat fmt = new VSCompositeFormat();
-         VSCompositeFormat out = VSObjectChromeDefaults.applyDarkForeground(fmt, VizContext.ofGate());
-         assertNotSame(fmt, out, "returns a clone, never mutates the source");
-         assertEquals(0xE6E0E9, rgb(out.getForeground()));
-      });
-   }
-
-   @Test
-   void applyDarkForegroundPreservesUserForeground() {
-      withDark(() -> {
-         VSCompositeFormat fmt = new VSCompositeFormat();
-         fmt.getUserDefinedFormat().setForegroundValue("0x123456");
-         assertSame(fmt, VSObjectChromeDefaults.applyDarkForeground(fmt, VizContext.ofGate()),
-                    "a user foreground is left untouched in dark");
-      });
-   }
-
-   @Test
-   void applyDarkForegroundNoOpInLightModern() {
-      withGate("true", () -> {
-         VSCompositeFormat fmt = new VSCompositeFormat();
-         assertSame(fmt, VSObjectChromeDefaults.applyDarkForeground(fmt, VizContext.ofGate()));
       });
    }
 

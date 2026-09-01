@@ -20,6 +20,8 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.DynamicValue;
+import inetsoft.uql.viewsheet.VSCompositeFormat;
+import inetsoft.uql.viewsheet.VSFormat;
 import inetsoft.util.DataComparer;
 import inetsoft.util.Tool;
 import inetsoft.util.css.CSSConstants;
@@ -44,6 +46,25 @@ public class SliderVSAssemblyInfo extends NumericRangeVSAssemblyInfo {
       super();
 
       setPixelSize(new Dimension(2 * AssetUtil.defw, 3 * AssetUtil.defh));
+   }
+
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      super.seedChromeDefaults(ctx);
+
+      // the tick and value labels take the object foreground, whose default is absent and paints
+      // black — unreadable on a dark card. Seeded so the painter, the browser model and every
+      // export read one value. Both branches write, and the legacy one writes nothing at all
+      // because a gate-off creation writes no foreground here
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         VSFormat def = objFormat.getDefaultFormat();
+         def.setForegroundValue(ctx.dark ? VSObjectChromeDefaults.darkForegroundValue() : null);
+         // getForeground() falls back to the fg field when the value yields nothing, so the legacy
+         // branch has to null both or a runtime foreground survives the clear
+         def.setForeground(null);
+      }
    }
 
    /**

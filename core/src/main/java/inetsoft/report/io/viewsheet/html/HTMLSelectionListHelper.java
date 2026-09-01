@@ -177,11 +177,7 @@ public class HTMLSelectionListHelper extends VSSelectionListHelper{
       SelectionValue svalue, double valueWidth, double ratio)
    {
       String cellHeight = info.getEffectiveCellHeight() + "";
-      // the cell foreground default is a fixed near-black, so a dark-marked list would emit dark
-      // text on its dark surface here too. Same substitution the browser model and the PDF/SVG
-      // helpers make, so all three renderers agree.
-      VSCompositeFormat format = VSObjectChromeDefaults.applyDarkForeground(
-         svalue.getFormat(), VizContext.of(info));
+      VSCompositeFormat format = svalue.getFormat();
       Insets padding = info.getCellPadding();
 
       if(format.isWrapping()) {

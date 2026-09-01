@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.report.StyleConstants;
+import inetsoft.report.TableDataPath;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -28,6 +29,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -36,6 +38,9 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Color;
 import java.awt.Insets;
+import java.io.PrintWriter;
+import java.io.StringReader;
+import java.io.StringWriter;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -129,6 +134,13 @@ class SeedChromeDefaultsTest {
       return (CurrentSelectionVSAssemblyInfo) container.getVSAssemblyInfo();
    }
 
+   private SliderVSAssemblyInfo newSlider() {
+      Viewsheet vs = new Viewsheet();
+      SliderVSAssembly slider = new SliderVSAssembly(vs, "Slider1");
+      slider.getVSAssemblyInfo().initDefaultFormat();
+      return (SliderVSAssemblyInfo) slider.getVSAssemblyInfo();
+   }
+
    // ---- object border colour and card radius -------------------------------------------------
 
    @Test
@@ -155,10 +167,6 @@ class SeedChromeDefaultsTest {
    void aTextAssemblyIsNotACornerSeedTargetEvenUnderTheGate() {
       gateOn();
       VSFormat fmt = objectDefault(newText());
-      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR,
-                   fmt.getBorderColorsValue().topColor,
-                   "TextVSAssemblyInfo overrides setDefaultFormat entirely and never consults " +
-                   "VizContext, so the border colour stays legacy even under the gate");
       assertEquals(0, fmt.getRoundCornerValue(),
                    "the entire base method is bypassed for Text, so isCornerSeedTarget() is " +
                    "never even reached");
@@ -524,7 +532,7 @@ class SeedChromeDefaultsTest {
       assertTrue(info.getChartDescriptor().getLegendsDescriptor().isRoundCorners(),
                  "round legend corners are unconditional and must stay in setDefaultFormat");
       assertEquals(10, info.getPadding().top,
-                   "chart padding is unconditional and must stay in setDefaultFormat");
+                   "the inset is a gate-dependent seed now, and the legacy branch writes 10");
    }
 
    // ---- the hook, called a second time on an assembly that already exists ---------------------
@@ -600,18 +608,23 @@ class SeedChromeDefaultsTest {
    }
 
    @Test
-   void theHookDoesNothingForATypeThatInstallsItsOwnFormat() {
-      // Text builds its own object format and hardcodes the legacy border, so the base seeds never
-      // reached it at creation and the hook must not reach it later either
+   void theHookSeedsATextAssemblysOwnValuesAndNoneOfTheBases() {
+      // Text builds its own object format, so the base seeds must not reach it — but its own
+      // override does write the value emphasis, which is what the seed conversion moved here
       gateOn();
       TextVSAssemblyInfo info = newText();
-      Color before = objectDefault(info).getBorderColorsValue().topColor;
+      VizContext ctx = VizContext.ofGate();
 
-      info.seedChromeDefaults(VizContext.ofGate());
+      info.seedChromeDefaults(ctx);
 
-      assertEquals(before, objectDefault(info).getBorderColorsValue().topColor);
-      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR,
-                   objectDefault(info).getBorderColorsValue().topColor);
+      assertEquals(VSOutputChromeDefaults.valueBorderColor(ctx),
+                   objectDefault(info).getBorderColorsValue().topColor,
+                   "the type's own emphasis is seeded");
+      assertEquals(0, objectDefault(info).getRoundCornerValue(),
+                   "documents that a seeded text assembly has no card radius - true, but not a " +
+                   "guard: isCornerSeedTarget() already excludes Text, so this holds whether or " +
+                   "not the bypass fired. theHookDoesNothingForATabEvenUnderTheGate is where the " +
+                   "bypass is actually observable, against a type with a radius of its own");
    }
 
    // ---- the per-type hook overrides, now that the seeds live there ---------------------------
@@ -631,8 +644,9 @@ class SeedChromeDefaultsTest {
       PlotDescriptor plot = info.getChartDescriptor().getPlotDescriptor();
       assertEquals(0.3, plot.getBarCornerRadius(), 0.0001, "the plot seeds are reachable");
       assertTrue(plot.isSmoothLines());
-      assertEquals(new Insets(3, 3, 3, 3), info.getPadding(),
-                   "padding is not a gate-dependent seed and must not be re-applied");
+      assertEquals(new Insets(12, 12, 12, 12), info.getPadding(),
+                   "an unflagged padding is not an author opinion, so Modernize seeds over it; " +
+                   "anAuthorsInsetSurvivesModernize covers the flagged case");
    }
 
    @Test
@@ -798,6 +812,134 @@ class SeedChromeDefaultsTest {
 
       assertEquals(Color.RED, frame.getColor("Business"),
                    "an author's own per-value color is not collateral damage");
+   }
+
+   // ---- the card inset, seeded rather than resolved ------------------------------------------
+
+   @Test
+   void aModernChartSeedsTheCardInset() {
+      gateOn();
+      assertEquals(new Insets(12, 12, 12, 12), newChart().getPadding(),
+                   "the card inset is stored at creation, not resolved at read time");
+   }
+
+   @Test
+   void aLegacyChartSeedsTheLegacyInset() {
+      gateOff();
+      assertEquals(new Insets(10, 10, 10, 10), newChart().getPadding());
+   }
+
+   @Test
+   void revertingAChartRestoresTheLegacyInset() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      assertEquals(new Insets(12, 12, 12, 12), info.getPadding());
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(new Insets(10, 10, 10, 10), info.getPadding(),
+                   "the legacy branch writes the inset back; nothing else would");
+   }
+
+   @Test
+   void aModernChartsInsetTravelsInTheAsset() {
+      // THE defect this conversion closes, and the only assertion here that fails before it:
+      // writeAttributes serializes the padding FIELD, not getPadding(), so a resolved-only value
+      // is absent from an exported asset and an older build renders the card mixed
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      StringWriter buf = new StringWriter();
+      PrintWriter writer = new PrintWriter(buf);
+
+      info.writeXML(writer);
+      writer.flush();
+
+      assertTrue(buf.toString().contains("paddingTop=\"12\""),
+                 "the card inset has to be in the serialized asset, not only in the getter");
+   }
+
+   @Test
+   void anAuthorsInsetSurvivesModernize() {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      info.setUserPadding(true);
+      info.setPadding(new Insets(3, 3, 3, 3));
+
+      gateOn();
+      info.seedChromeDefaults(VizContext.ofGate());
+
+      assertEquals(new Insets(3, 3, 3, 3), info.getPadding(),
+                   "isUserPadding is the authorship record and the seed must not overwrite it");
+   }
+
+   // ---- the userPadding flag and the inset, across persistence --------------------------------
+   // isUserPadding() parsing is unchanged by this conversion, and now matters more than before:
+   // the seed's skip is gated entirely on that flag.
+
+   @Test
+   void theFlagSurvivesARoundTrip() throws Exception {
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.initDefaultFormat();
+      info.setUserPadding(true);
+
+      ChartVSAssemblyInfo restored = roundTrip(info);
+
+      assertTrue(restored.isUserPadding());
+   }
+
+   @Test
+   void anAbsentFlagAttributeMeansNoOpinion() {
+      // content saved before the flag existed: parse must not invent an author
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+
+      assertFalse(info.isUserPadding());
+   }
+
+   @Test
+   void contentSavedBeforeTheFlagExistedCarriesNoOpinion() throws Exception {
+      // the attribute is absent, so the flag must parse as false rather than inventing an author.
+      // Nothing re-seeds on a plain parse, so the inset the seed wrote at creation comes back
+      // unchanged - a plain parse has no resolution step left to substitute 12 in its place
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.initDefaultFormat();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+
+      String xml = writeXml(info).replaceAll(" userPadding=\"[a-z]*\"", "");
+      ChartVSAssemblyInfo restored = new ChartVSAssemblyInfo();
+      restored.parseXML(Tool.parseXML(new StringReader(xml)).getDocumentElement());
+
+      assertFalse(restored.isUserPadding());
+      assertEquals(new Insets(10, 10, 10, 10), restored.getPadding());
+   }
+
+   @Test
+   void aModernChartsInsetSurvivesTheRoundTrip() throws Exception {
+      // the round-trip counterpart to aModernChartsInsetTravelsInTheAsset: the seed already wrote
+      // 12 into the field at creation, so a plain parse needs no resolution step to show it
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+
+      ChartVSAssemblyInfo restored = roundTrip(info);
+
+      assertEquals(new Insets(12, 12, 12, 12), restored.getPadding(),
+                   "the asset itself carries the seeded inset, not a resolved-away legacy one");
+      assertFalse(restored.isUserPadding(),
+                  "a seeded value must never come back flagged as the author's");
+   }
+
+   private static String writeXml(ChartVSAssemblyInfo info) {
+      StringWriter buf = new StringWriter();
+      PrintWriter writer = new PrintWriter(buf);
+      info.writeXML(writer);
+      writer.flush();
+      return buf.toString();
+   }
+
+   private static ChartVSAssemblyInfo roundTrip(ChartVSAssemblyInfo info) throws Exception {
+      ChartVSAssemblyInfo restored = new ChartVSAssemblyInfo();
+      restored.parseXML(Tool.parseXML(new StringReader(writeXml(info))).getDocumentElement());
+      return restored;
    }
 
    // ---- creation seeds from the assembly's own mark, not the org gate -------------------------
@@ -990,5 +1132,293 @@ class SeedChromeDefaultsTest {
       assertEquals(expectedBg, reverted.getBackgroundValue(),
                    "Revert must match a container that was never modernized");
       assertEquals(expectedBorders, reverted.getBordersValue());
+   }
+
+   // ---- the selection cell's foreground, seeded rather than substituted -----------------------
+
+   private static VSFormat cellDefault(VSAssemblyInfo info) {
+      return info.getFormatInfo()
+         .getFormat(new TableDataPath(-1, TableDataPath.DETAIL)).getDefaultFormat();
+   }
+
+   private static VSFormat groupHeaderDefault(VSAssemblyInfo info) {
+      return info.getFormatInfo()
+         .getFormat(new TableDataPath(0, TableDataPath.GROUP_HEADER)).getDefaultFormat();
+   }
+
+   @Test
+   void aDarkSelectionListSeedsTheLightCellForeground() {
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertEquals(VSObjectChromeDefaults.darkForegroundValue(),
+                   cellDefault(newSelectionList()).getForegroundValue(),
+                   "the light neutral is stored, not substituted at every render");
+   }
+
+   @Test
+   void aLightSelectionListSeedsTheLegacyCellForeground() {
+      gateOn();
+      assertEquals(VSObjectChromeDefaults.legacyCellForegroundValue(),
+                   cellDefault(newSelectionList()).getForegroundValue(),
+                   "only dark moves the cell ink; light modern keeps the near-black");
+   }
+
+   @Test
+   void aDarkSelectionTreeSeedsTheLightCellForeground() {
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertEquals(VSObjectChromeDefaults.darkForegroundValue(),
+                   cellDefault(newSelectionTree()).getForegroundValue(),
+                   "one seed on the shared base covers list and tree both");
+   }
+
+   @Test
+   void revertingADarkSelectionListRestoresTheLegacyCellForeground() {
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      SelectionListVSAssemblyInfo info = newSelectionList();
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(VSObjectChromeDefaults.legacyCellForegroundValue(),
+                   cellDefault(info).getForegroundValue());
+   }
+
+   // A tree's non-leaf rows render through GROUP_HEADER composites, cloned from DETAIL by the
+   // tree's own setDefaultFormat - which runs after creation's first seed, so a fresh tree looks
+   // correct by accident. Modernize and Revert call the hook directly on an assembly that already
+   // exists, and the base hook only ever wrote DETAIL, stranding every non-leaf row.
+
+   @Test
+   void modernizingAnUnmarkedDarkSelectionTreeSeedsTheLightGroupHeaderForeground() {
+      gateOff();
+      SelectionTreeVSAssemblyInfo info = newSelectionTree();
+      assertEquals(VSObjectChromeDefaults.legacyCellForegroundValue(),
+                   groupHeaderDefault(info).getForegroundValue());
+
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      info.seedChromeDefaults(VizContext.ofGate());
+
+      assertEquals(VSObjectChromeDefaults.darkForegroundValue(),
+                   groupHeaderDefault(info).getForegroundValue(),
+                   "a non-leaf row must move to the light ink along with the leaf row");
+   }
+
+   @Test
+   void revertingADarkSelectionTreeRestoresTheLegacyGroupHeaderForeground() {
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      SelectionTreeVSAssemblyInfo info = newSelectionTree();
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(VSObjectChromeDefaults.legacyCellForegroundValue(),
+                   groupHeaderDefault(info).getForegroundValue(),
+                   "a non-leaf row must revert along with the leaf row");
+   }
+
+   @Test
+   void aMeasureBarKeepsItsOwnForegroundWhenTheCellIsSeeded() {
+      // the bar's foreground IS the bar colour; the seed must not reach it. Structural now: the
+      // measure composites are separate paths, which is why the old predicate could be deleted
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      SelectionListVSAssemblyInfo info = newSelectionList();
+      VSCompositeFormat bar = info.getFormatInfo().getFormat(info.getMeasureBarPath(0));
+
+      assertNotEquals(VSObjectChromeDefaults.darkForegroundValue(),
+                      bar.getDefaultFormat().getForegroundValue());
+   }
+
+   @Test
+   void modernizingAnUnmarkedDarkSelectionListSeedsTheLightForeground() {
+      gateOff();
+      SelectionListVSAssemblyInfo info = newSelectionList();
+      assertEquals(VSObjectChromeDefaults.legacyCellForegroundValue(),
+                   cellDefault(info).getForegroundValue());
+
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      info.seedChromeDefaults(VizContext.ofGate());
+
+      assertEquals(VSObjectChromeDefaults.darkForegroundValue(),
+                   cellDefault(info).getForegroundValue());
+   }
+
+   @Test
+   void anAuthorsCellForegroundOutranksTheSeed() {
+      // the read-time resolver tested the USER and CSS tiers explicitly and skipped. The seed
+      // writes the DEFAULT tier only, so the same property now rests on tier precedence — which is
+      // why it needs asserting here rather than being assumed
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      SelectionListVSAssemblyInfo info = newSelectionList();
+      VSCompositeFormat cell = info.getFormatInfo()
+         .getFormat(new TableDataPath(-1, TableDataPath.DETAIL));
+      cell.getUserDefinedFormat().setForegroundValue("0x123456");
+
+      info.seedChromeDefaults(VizContext.of(info));
+
+      assertEquals("0x123456", cell.getUserDefinedFormat().getForegroundValue(),
+                   "the seed never touches the USER tier");
+      assertEquals(new Color(0x123456), cell.getForeground(),
+                   "and the composite still resolves the author's colour");
+   }
+
+   // ---- the slider's object foreground -------------------------------------------------------
+
+   @Test
+   void aDarkSliderSeedsTheLightForeground() {
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertEquals(VSObjectChromeDefaults.darkForegroundValue(),
+                   objectDefault(newSlider()).getForegroundValue());
+   }
+
+   @Test
+   void aLightSliderSeedsNoForegroundAtAll() {
+      gateOn();
+      VSFormat fmt = objectDefault(newSlider());
+      assertNull(fmt.getForegroundValue(),
+                 "the base setDefaultFormat writes no foreground, so light modern writes none " +
+                 "either and the asset stays byte-identical to a legacy one");
+      assertNull(fmt.getForeground(), "the fg field is nulled too, or a runtime value survives");
+   }
+
+   @Test
+   void modernizingAnUnmarkedDarkSliderSeedsTheLightForeground() {
+      gateOff();
+      SliderVSAssemblyInfo info = newSlider();
+      assertNull(objectDefault(info).getForegroundValue());
+
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      info.seedChromeDefaults(VizContext.ofGate());
+
+      assertEquals(VSObjectChromeDefaults.darkForegroundValue(),
+                   objectDefault(info).getForegroundValue());
+   }
+
+   @Test
+   void anAuthorsSliderForegroundOutranksTheSeed() {
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      SliderVSAssemblyInfo info = newSlider();
+      info.getFormat().getUserDefinedFormat().setForegroundValue("0x123456");
+
+      info.seedChromeDefaults(VizContext.of(info));
+
+      assertEquals(new Color(0x123456), info.getFormat().getForeground(),
+                   "the seed writes the DEFAULT tier, so the author's colour still resolves");
+   }
+
+   @Test
+   void revertingADarkSliderClearsTheSeededForeground() {
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      SliderVSAssemblyInfo info = newSlider();
+      assertEquals(VSObjectChromeDefaults.darkForegroundValue(),
+                   objectDefault(info).getForegroundValue());
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertNull(objectDefault(info).getForegroundValue());
+      assertNull(objectDefault(info).getForeground());
+   }
+
+   // ---- the text assembly's value emphasis ---------------------------------------------------
+
+   @Test
+   void aModernTextAssemblySeedsTheValueEmphasis() {
+      gateOn();
+      VizContext ctx = VizContext.ofGate();
+      VSFormat fmt = objectDefault(newText());
+      assertEquals(VSOutputChromeDefaults.valueForegroundValue(ctx), fmt.getForegroundValue());
+      assertEquals(VSOutputChromeDefaults.valueBorderColor(ctx),
+                   fmt.getBorderColorsValue().topColor);
+   }
+
+   @Test
+   void aLegacyTextAssemblySeedsTheLegacyEmphasis() {
+      gateOff();
+      VizContext ctx = VizContext.ofGate();
+      VSFormat fmt = objectDefault(newText());
+      assertEquals(VSOutputChromeDefaults.valueForegroundValue(ctx), fmt.getForegroundValue());
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, fmt.getBorderColorsValue().topColor);
+   }
+
+   @Test
+   void revertingATextAssemblyRestoresTheLegacyEmphasis() {
+      gateOn();
+      TextVSAssemblyInfo info = newText();
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      VSFormat fmt = objectDefault(info);
+      assertEquals(VSOutputChromeDefaults.valueForegroundValue(VizContext.of((VizMark) null)),
+                   fmt.getForegroundValue());
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, fmt.getBorderColorsValue().topColor);
+   }
+
+   @Test
+   void aTextAssemblyWithNoBorderGainsNoBorderColour() {
+      // setDefaultFormat(false) writes no border colours, and the seed must not invent one on
+      // either branch: an unmarked asset has to stay bit-for-bit unchanged, and a marked one
+      // created with border == false must not gain a colour it never had either
+      gateOn();
+      TextVSAssemblyInfo legacy = new TextVSAssemblyInfo();
+      legacy.setDefaultFormat(false);
+      assertNull(objectDefault(legacy).getBorderColorsValue(),
+                 "unmarked: new TextVSAssemblyInfo() has no vizMark, so this only ever proved " +
+                 "the legacy branch without a mark set first");
+
+      TextVSAssemblyInfo modern = new TextVSAssemblyInfo();
+      modern.setVizMark(VizMark.MODERN_LIGHT);
+      modern.setDefaultFormat(false);
+      assertNull(objectDefault(modern).getBorderColorsValue(),
+                 "marked: the modern branch must honour the same guard");
+   }
+
+   @Test
+   void anAuthorsTextForegroundOutranksTheSeed() {
+      gateOn();
+      TextVSAssemblyInfo info = newText();
+      info.getFormat().getUserDefinedFormat().setForegroundValue("0x123456");
+
+      info.seedChromeDefaults(VizContext.ofGate());
+
+      assertEquals(new Color(0x123456), info.getFormat().getForeground());
+   }
+
+   @Test
+   void aRestoredStateReseedsAStaleValue() {
+      // VizModernizeUtil.reseedAfterRestore delegates to the same hook, so one test covers the
+      // mechanism for all four conversions rather than four near-identical ones. What it pins is
+      // that a bookmark's stale DEFAULT tier is re-resolved rather than trusted
+      gateOn();
+      TextVSAssemblyInfo info = newText();
+      info.getFormat().getDefaultFormat().setForegroundValue("0x2b2b2b");
+
+      VizModernizeUtil.reseedAfterRestore(info);
+
+      assertEquals(VSOutputChromeDefaults.valueForegroundValue(VizContext.of(info)),
+                   objectDefault(info).getForegroundValue(),
+                   "restore re-resolves the seed against the live mark");
+   }
+
+   @Test
+   void aTextAssemblyStillTakesNoCardRadiusUnderTheGate() {
+      // documents that a fresh text assembly has no card radius - true, but not a guard:
+      // isCornerSeedTarget() already excludes Text, so the radius resolves to 0 whether or not
+      // the override's super call actually returns at bypassesBaseChrome.
+      // theHookDoesNothingForATabEvenUnderTheGate is where the bypass is actually observable,
+      // against a type (Tab) whose own non-zero radius the base would otherwise clobber
+      gateOn();
+      assertEquals(0, objectDefault(newText()).getRoundCornerValue());
    }
 }

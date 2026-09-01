@@ -41,11 +41,19 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class PaddingFollowDefaultTest {
-   @Test
-   void readSendsTheResolvedInsetAndTheFlag() {
+   /** A chart marked and seeded the way creation or Modernize leaves one. */
+   private static ChartVSAssemblyInfo markedChart() {
       ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
       info.initDefaultFormat();
       info.setVizMark(VizMark.MODERN_LIGHT);
+      // seedChromeDefaults is package-protected; this is the same call Modernize makes
+      VizModernizeUtil.reseedAfterRestore(info);
+      return info;
+   }
+
+   @Test
+   void readSendsTheResolvedInsetAndTheFlag() {
+      ChartVSAssemblyInfo info = markedChart();
 
       PaddingPaneModel model = read(info);
 
@@ -68,9 +76,7 @@ class PaddingFollowDefaultTest {
    void anUnchangedApplyDoesNotStampTheResolvedValue() {
       // the defect this guards: the pane was shown 12, the author changed nothing, and Apply must
       // not turn that 12 into a stored author value
-      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
-      info.initDefaultFormat();
-      info.setVizMark(VizMark.MODERN_LIGHT);
+      ChartVSAssemblyInfo info = markedChart();
 
       apply(read(info), info);
 
@@ -81,9 +87,7 @@ class PaddingFollowDefaultTest {
 
    @Test
    void clearingTheCheckboxPinsWhatThePaneShows() {
-      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
-      info.initDefaultFormat();
-      info.setVizMark(VizMark.MODERN_LIGHT);
+      ChartVSAssemblyInfo info = markedChart();
 
       PaddingPaneModel model = read(info);
       model.setFollowsDefault(false);
@@ -98,10 +102,8 @@ class PaddingFollowDefaultTest {
    }
 
    @Test
-   void tickingTheCheckboxRestoresTheLegacyStoredInsetAndResolvesAgain() {
-      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
-      info.initDefaultFormat();
-      info.setVizMark(VizMark.MODERN_LIGHT);
+   void tickingTheCheckboxReseedsTheCardInset() {
+      ChartVSAssemblyInfo info = markedChart();
       info.setUserPadding(true);
       info.setPadding(new Insets(4, 4, 4, 4));
 
@@ -139,6 +141,7 @@ class PaddingFollowDefaultTest {
       ChartVSAssemblyInfo live = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
       live.initDefaultFormat();
       live.setVizMark(VizMark.MODERN_LIGHT);
+      VizModernizeUtil.reseedAfterRestore(live);
 
       ChartVSAssemblyInfo edited = (ChartVSAssemblyInfo) Tool.clone(live);
       PaddingPaneModel model = read(edited);
@@ -183,7 +186,7 @@ class PaddingFollowDefaultTest {
       }
       else if(followsDefault) {
          info.setUserPadding(false);
-         info.setPadding(VSObjectChromeDefaults.legacyChartPadding());
+         info.resetCardInset(VizContext.of(info));
       }
       else {
          info.setUserPadding(true);

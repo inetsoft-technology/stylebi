@@ -702,6 +702,38 @@ public class SelectionTreeVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
    }
 
    /**
+    * Seed the non-leaf rows' foreground alongside the leaf row's. setDefaultFormat clones the
+    * DETAIL composite this hook seeds into five GROUP_HEADER composites (one per non-leaf level),
+    * but it does that after super's setDefaultFormat has already run the hook once - so creation
+    * gets every level for free and only Modernize, Revert and reseedAfterRestore, which call this
+    * hook directly, ever saw just DETAIL move. Written only where a level's composite already
+    * exists, matching the hook's never-install contract, which also limits this to a tree with
+    * that many levels and to trees rather than lists (a list never installs GROUP_HEADER paths).
+    */
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      super.seedChromeDefaults(ctx);
+
+      VSCompositeFormat cellFormat =
+         getFormatInfo().getFormat(new TableDataPath(-1, TableDataPath.DETAIL));
+
+      if(cellFormat == null) {
+         return;
+      }
+
+      String fg = cellFormat.getDefaultFormat().getForegroundValue();
+
+      for(int i = 0; i < 5; i++) {
+         VSCompositeFormat groupFormat =
+            getFormatInfo().getFormat(new TableDataPath(i, TableDataPath.GROUP_HEADER));
+
+         if(groupFormat != null) {
+            groupFormat.getDefaultFormat().setForegroundValue(fg);
+         }
+      }
+   }
+
+   /**
     * Get the object css default type.
     */
    @Override
