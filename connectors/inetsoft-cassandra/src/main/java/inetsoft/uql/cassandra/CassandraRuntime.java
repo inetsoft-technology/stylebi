@@ -98,6 +98,8 @@ public class CassandraRuntime extends TabularRuntime implements TabularCatalogPr
       CassandraDataSource ds = (CassandraDataSource) dataSource;
       requireKeyspace(ds);
 
+      // A4: no catch around session establishment. A connection or permission failure here must
+      // propagate as an exception, not be absorbed into an empty catalog — do not add one.
       try(CqlSession session = getSession(ds)) {
          return CassandraCatalog.listDatasets(session);
       }
@@ -110,6 +112,8 @@ public class CassandraRuntime extends TabularRuntime implements TabularCatalogPr
       CassandraDataSource ds = (CassandraDataSource) dataSource;
       requireKeyspace(ds);
 
+      // A4: no catch around session establishment. A connection or permission failure here must
+      // propagate as an exception, not be absorbed into an empty schema — do not add one.
       try(CqlSession session = getSession(ds)) {
          return CassandraCatalog.describeDataset(session, datasetId);
       }
