@@ -275,8 +275,12 @@ public class SelectionRuntimeService {
    /**
     * Resolves and type-checks before any endpoint is touched, because the endpoints answer a bad
     * name with silence, an NPE or a CCE depending on which one you call.
+    *
+    * <p>Public (reuse seam): {@code SelectionBindingService} type-checks the same four assembly
+    * classes before it can bind a column to any of them, so it shares this rather than keeping a
+    * second copy that could drift.
     */
-   private static SelectionVSAssembly requireSelection(RuntimeViewsheet rvs, String assemblyName) {
+   public static SelectionVSAssembly requireSelection(RuntimeViewsheet rvs, String assemblyName) {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
