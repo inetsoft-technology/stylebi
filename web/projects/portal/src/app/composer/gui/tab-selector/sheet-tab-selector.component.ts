@@ -148,4 +148,14 @@ export class SheetTabSelectorComponent {
          return (<LibraryAsset> tab.asset).isModified;
       }
    }
+
+   isAgentConnected(tab: ComposerTabModel): boolean {
+      return (tab.type === "viewsheet" || tab.type === "worksheet") &&
+         !!(<Sheet> tab.asset).agentConnected;
+   }
+
+   agentIndicatorTooltip(tab: ComposerTabModel): string {
+      const owner = (<Sheet> tab.asset).agentOwnerIdentity;
+      return owner ? `_#(js:AI agent connected)  (${owner})` : "_#(js:AI agent connected)";
+   }
 }

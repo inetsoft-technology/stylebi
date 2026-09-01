@@ -65,7 +65,7 @@ public class BindingAgentController {
                                  ChartAestheticAgentService aestheticService,
                                  TableBindingService tableService,
                                  CalcTableService calcService,
-                                 SelectionBindingService selectionService)
+                                 SheetAgentBroadcastService broadcast)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -77,7 +77,7 @@ public class BindingAgentController {
       this.aestheticService = aestheticService;
       this.tableService = tableService;
       this.calcService = calcService;
-      this.selectionService = selectionService;
+      this.broadcast = broadcast;
    }
 
    public record JoinRequest(String code) {}
@@ -88,16 +88,21 @@ public class BindingAgentController {
     *                      how one open viewsheet came to hold several unrelated sessions.
     * @param editorContext the script/formula location this session is scoped to, or {@code null}
     *                      for a whole-sheet ("Connect to Claude" toolbar) session
+    * @param sheetLabel    best-effort human-readable label for the sheet (e.g. its Composer tab
+    *                      title), sourced from {@code AssetEntry.toView()} — {@code null} if it
+    *                      could not be resolved
     */
    public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
-                              String sheetType, EditorContext editorContext) {}
+                              String sheetType, EditorContext editorContext, String sheetLabel) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/join")
    public JoinResponse join(@RequestBody JoinRequest body, Principal user) throws PairingException {
       requireEnabled();
-      JoinSession session = joinService.join(body.code(), user);
+      SheetJoinService.JoinOutcome outcome = joinService.join(body.code(), user);
+      JoinSession session = outcome.session();
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
-                              session.sheetType().name().toLowerCase(), session.editorContext());
+                              session.sheetType().name().toLowerCase(), session.editorContext(),
+                              outcome.sheetLabel());
    }
 
    @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/fields")
@@ -416,23 +421,6 @@ public class BindingAgentController {
                              Boolean.TRUE.equals(request.force()));
    }
 
-   public record SelectionSourceRequest(String assembly, String table, List<String> columns,
-                                        List<String> additionalTables, String measure,
-                                        Boolean force) {}
-
-   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/selection/source")
-   public Map<String, Object> setSelectionSource(
-      @PathVariable String sessionToken, @RequestBody SelectionSourceRequest request,
-      @RequestParam(required = false, defaultValue = "") String linkUri, Principal user)
-      throws Exception
-   {
-      requireEnabled();
-      return selectionService.setSource(sessionToken, user, request.assembly(), request.table(),
-                                        request.columns(), request.additionalTables(),
-                                        request.measure(), Boolean.TRUE.equals(request.force()),
-                                        linkUri);
-   }
-
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/add")
    public void addTableField(@PathVariable String sessionToken,
                              @RequestBody TableFieldRequest request,
@@ -659,6 +647,14 @@ public class BindingAgentController {
 
       if(session != null) {
          sessionService.close(sessionToken);
+
+         try {
+            broadcast.sendAgentInactive(session);
+         }
+         catch(Exception ex) {
+            LOG.warn("Session closed, but notifying the tab bar failed (runtimeId={})",
+                     session.runtimeId(), ex);
+         }
       }
    }
 
@@ -773,5 +769,5 @@ public class BindingAgentController {
    private final ChartAestheticAgentService aestheticService;
    private final TableBindingService tableService;
    private final CalcTableService calcService;
-   private final SelectionBindingService selectionService;
+   private final SheetAgentBroadcastService broadcast;
 }

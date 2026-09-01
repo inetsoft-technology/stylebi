@@ -134,6 +134,7 @@ import { CloseSheetCommand } from "../../ws/socket/close-sheet-command";
 import { ExpiredSheetCommand } from "../../ws/socket/expired-sheet/expired-sheet-command";
 import { OpenSheetEventValidator } from "../../ws/socket/open-ws/open-sheet-event-validator";
 import { SaveSheetCommand } from "../../ws/socket/save-sheet-command";
+import { SetAgentActiveCommand } from "../../ws/socket/set-agent-active-command";
 import { TouchAssetEvent } from "../../ws/socket/touch-asset-event";
 import { ChangeCurrentLayoutCommand } from "../command/change-current-layout-command";
 import { PopulateVSObjectTreeCommand } from "../command/populate-vs-object-tree-command";
@@ -997,6 +998,15 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       if(this.vs.gettingStarted) {
          this.onOpenVSOnPortal.emit(this.vs.id);
       }
+   }
+
+   /**
+    * Used to update the tab bar's "agent connected" indicator for this viewsheet's runtime.
+    * @param {SetAgentActiveCommand} command
+    */
+   private processSetAgentActiveCommand(command: SetAgentActiveCommand) {
+      this.vs.agentConnected = command.active;
+      this.vs.agentOwnerIdentity = command.active ? command.ownerIdentity : undefined;
    }
 
    /**

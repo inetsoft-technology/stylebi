@@ -156,12 +156,18 @@ public class AggregateInfo implements AssetObject, ContentObject {
     * @return <tt>true</tt> if successful, <tt>false</tt> otherwise.
     */
    public boolean addGroup(GroupRef ref, Boolean delSame) {
-      if(delSame) {
-         //noinspection SuspiciousMethodCalls
-         if(aggregates.contains(ref)) {
-            return false;
-         }
+      // A column cannot be both a group-by key and an aggregate measure at once -- this used
+      // to be checked only when delSame was true, so a caller passing delSame=false (needed to
+      // allow a legitimate same-list duplicate, e.g. multiple date-grouping levels on one
+      // column) silently lost this unrelated cross-list protection too. The two concerns are
+      // independent: delSame governs same-list dedup/replace-in-place, this governs the
+      // group-vs-aggregate collision, so it now runs unconditionally.
+      //noinspection SuspiciousMethodCalls
+      if(aggregates.contains(ref)) {
+         return false;
+      }
 
+      if(delSame) {
          int index = groups.indexOf(ref);
 
          if(index >= 0) {
@@ -584,12 +590,15 @@ public class AggregateInfo implements AssetObject, ContentObject {
     * @return <tt>true</tt> if successful, <tt>false</tt> otherwise.
     */
    public boolean addAggregate(AggregateRef ref, Boolean delSame) {
-      if(delSame) {
-         //noinspection SuspiciousMethodCalls
-         if(groups.contains(ref)) {
-            return false;
-         }
+      // See the matching comment in addGroup(GroupRef, Boolean): this cross-list check is
+      // independent of delSame's same-list dedup/replace-in-place role, so it now runs
+      // unconditionally instead of only when delSame is true.
+      //noinspection SuspiciousMethodCalls
+      if(groups.contains(ref)) {
+         return false;
+      }
 
+      if(delSame) {
          int index = aggregates.indexOf(ref);
 
          if(index >= 0) {

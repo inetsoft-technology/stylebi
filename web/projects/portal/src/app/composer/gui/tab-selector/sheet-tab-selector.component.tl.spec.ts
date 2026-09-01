@@ -305,3 +305,56 @@ describe("SheetTabSelectorComponent — getLabel", () => {
       expect(comp.getLabel(tab)).toBe("");
    });
 });
+
+describe("SheetTabSelectorComponent — isAgentConnected / agentIndicatorTooltip", () => {
+   // CC1: a sheet that has never had an agent session paired must show no indicator --
+   // default/absent state (Sheet.agentConnected defaults to false), not merely "false".
+   it("should be false when agentConnected was never set on the tab's asset", async () => {
+      const { fixture } = await renderComponent();
+      const comp = fixture.componentInstance;
+      const tab = makeViewsheetTab(false);
+      expect(comp.isAgentConnected(tab)).toBe(false);
+   });
+
+   // C1/C4: works for both worksheet and viewsheet tabs.
+   it("should be true for a viewsheet tab once agentConnected is set", async () => {
+      const { fixture } = await renderComponent();
+      const comp = fixture.componentInstance;
+      const tab = makeViewsheetTab(false);
+      (tab.asset as any).agentConnected = true;
+      expect(comp.isAgentConnected(tab)).toBe(true);
+   });
+
+   it("should be true for a worksheet tab once agentConnected is set", async () => {
+      const { fixture } = await renderComponent();
+      const comp = fixture.componentInstance;
+      const tab = makeWorksheetTab();
+      (tab.asset as any).agentConnected = true;
+      expect(comp.isAgentConnected(tab)).toBe(true);
+   });
+
+   it("should be false for a script/tableStyle tab even if agentConnected is somehow set", async () => {
+      const { fixture } = await renderComponent();
+      const comp = fixture.componentInstance;
+      const tab = makeScriptTab();
+      (tab.asset as any).agentConnected = true;
+      expect(comp.isAgentConnected(tab)).toBe(false);
+   });
+
+   it("should return a generic tooltip when no owner identity is present", async () => {
+      const { fixture } = await renderComponent();
+      const comp = fixture.componentInstance;
+      const tab = makeViewsheetTab(false);
+      (tab.asset as any).agentConnected = true;
+      expect(comp.agentIndicatorTooltip(tab)).toBe("_#(js:AI agent connected)");
+   });
+
+   it("should include the owner identity in the tooltip when present", async () => {
+      const { fixture } = await renderComponent();
+      const comp = fixture.componentInstance;
+      const tab = makeViewsheetTab(false);
+      (tab.asset as any).agentConnected = true;
+      (tab.asset as any).agentOwnerIdentity = "alice";
+      expect(comp.agentIndicatorTooltip(tab)).toBe("_#(js:AI agent connected)  (alice)");
+   });
+});

@@ -115,4 +115,68 @@ class AggregateInfoTest {
 
       assertEquals("OTHER", aggregate.getDataRef().getEntity());
    }
+
+   /**
+    * Regression for the L2 worksheet-filters parity audit's Group 2 finding #10: a column
+    * cannot be both a group-by key and an aggregate measure at once (this is the rule
+    * {@code AggregatePane.verify()} enforces client-side in the Composer's own "Group and
+    * Aggregate" dialog, with no Java-side equivalent on either the native dialog's backend
+    * path or the {@code inetsoft.web.wiz.worksheet} agent path -- both explicitly passed
+    * {@code delSame=false} to {@link AggregateInfo#addAggregate}, which bypassed the model's
+    * own {@code delSame=true} branch where this cross-list check used to live). Moved the
+    * check out of the {@code delSame} conditional so it runs unconditionally, since it is
+    * independent of {@code delSame}'s separate same-list dedup/replace-in-place role.
+    */
+   @Test
+   void addAggregateRejectsColumnAlreadyUsedAsGroup() {
+      AttributeRef attr = new AttributeRef("SO", "customer_id");
+      GroupRef group = new GroupRef(attr);
+      AggregateRef aggregate = new AggregateRef(new AttributeRef("SO", "customer_id"),
+                                                AggregateFormula.COUNT_ALL);
+
+      AggregateInfo info = new AggregateInfo();
+      info.addGroup(group);
+
+      assertFalse(info.addAggregate(aggregate, false),
+         "adding an aggregate on the same column as an existing group must be rejected, " +
+         "even with delSame=false");
+      assertEquals(0, info.getAggregateCount());
+   }
+
+   /** Symmetric case: adding a group on a column already used as an aggregate. */
+   @Test
+   void addGroupRejectsColumnAlreadyUsedAsAggregate() {
+      AttributeRef attr = new AttributeRef("SO", "customer_id");
+      AggregateRef aggregate = new AggregateRef(attr, AggregateFormula.COUNT_ALL);
+      GroupRef group = new GroupRef(new AttributeRef("SO", "customer_id"));
+
+      AggregateInfo info = new AggregateInfo();
+      info.addAggregate(aggregate);
+
+      assertFalse(info.addGroup(group, false),
+         "adding a group on the same column as an existing aggregate must be rejected, " +
+         "even with delSame=false");
+      assertEquals(0, info.getGroupCount());
+   }
+
+   /**
+    * The cross-list guard must not regress the legitimate same-list case this same
+    * {@code delSame=false} call shape exists to support: two different aggregate formulas
+    * on ONE column (e.g. {@code Sum(Amount)} and {@code Average(Amount)}), which is how
+    * {@code WorksheetMutationSupport#applyAggregateInfo}'s "second aggregate on the same
+    * column" path (and the native dialog's identical pattern) adds a secondary aggregate.
+    */
+   @Test
+   void addAggregateStillAllowsTwoFormulasOnSameColumn() {
+      AttributeRef attr1 = new AttributeRef("SO", "amount");
+      AttributeRef attr2 = new AttributeRef("SO", "amount");
+      AggregateRef sum = new AggregateRef(attr1, AggregateFormula.SUM);
+      AggregateRef avg = new AggregateRef(attr2, AggregateFormula.AVG);
+
+      AggregateInfo info = new AggregateInfo();
+
+      assertTrue(info.addAggregate(sum, false));
+      assertTrue(info.addAggregate(avg, false));
+      assertEquals(2, info.getAggregateCount());
+   }
 }

@@ -37,6 +37,8 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.script.ScriptImageService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
 import java.util.Base64;
@@ -53,6 +55,8 @@ import java.util.Map;
  */
 @RestController
 public class ViewsheetAssemblyAgentController {
+   private static final Logger LOG = LoggerFactory.getLogger(ViewsheetAssemblyAgentController.class);
+
    @Autowired
    public ViewsheetAssemblyAgentController(SheetAgentFeature feature,
                                    SheetJoinService joinService,
@@ -121,16 +125,22 @@ public class ViewsheetAssemblyAgentController {
     *                      how one open viewsheet came to hold several unrelated sessions.
     * @param editorContext the script/formula location this session is scoped to, or {@code null}
     *                      for a whole-sheet ("Connect to Claude" toolbar) session
+    * @param sheetLabel    best-effort human-readable label for the sheet (e.g. its Composer tab
+    *                      title), sourced from {@code AssetEntry.toView()} — {@code null} if it
+    *                      could not be resolved (or, for {@link #openBaseWorksheet}, not resolved
+    *                      at all — that path does not go through {@link SheetJoinService#join})
     */
    public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
-                              String sheetType, EditorContext editorContext) {}
+                              String sheetType, EditorContext editorContext, String sheetLabel) {}
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/join")
    public JoinResponse join(@RequestBody JoinRequest body, Principal user) throws PairingException {
       requireEnabled();
-      JoinSession session = joinService.join(body.code(), user);
+      SheetJoinService.JoinOutcome outcome = joinService.join(body.code(), user);
+      JoinSession session = outcome.session();
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
-                              session.sheetType().name().toLowerCase(), session.editorContext());
+                              session.sheetType().name().toLowerCase(), session.editorContext(),
+                              outcome.sheetLabel());
    }
 
    /** {@code force} closes a worksheet session already held for this identity instead of
@@ -154,7 +164,7 @@ public class ViewsheetAssemblyAgentController {
       boolean force = body != null && Boolean.TRUE.equals(body.force());
       JoinSession session = openService.openBaseWorksheet(sessionToken, user, force);
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
-                              session.sheetType().name().toLowerCase(), session.editorContext());
+                              session.sheetType().name().toLowerCase(), session.editorContext(), null);
    }
 
    /**
@@ -1402,6 +1412,14 @@ public class ViewsheetAssemblyAgentController {
       if(session != null) {
          sessionService.close(sessionToken);
          layoutSessionService.disposeAll(sessionToken);
+
+         try {
+            broadcast.sendAgentInactive(session);
+         }
+         catch(Exception ex) {
+            LOG.warn("Session closed, but notifying the tab bar failed (runtimeId={})",
+                     session.runtimeId(), ex);
+         }
       }
    }
 

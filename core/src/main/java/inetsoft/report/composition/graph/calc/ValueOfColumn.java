@@ -621,6 +621,7 @@ public class ValueOfColumn extends AbstractColumn {
    private Date getPreQuarterSameWeek(Date date) {
       long weekIndexOfQuarter = getWeekIndexOfQuarter(date);
       Calendar calendar = jcalendars.get();
+      calendar.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
       calendar.setTime(date);
       calendar.add(Calendar.MONTH, -3);
       Date firstWeekOfQuarter = DateComparisonUtil.getQuarterFirstWeek(calendar.getTime(),
@@ -641,6 +642,7 @@ public class ValueOfColumn extends AbstractColumn {
 
    private Date getPreMonthSameWeek(Date date) {
       Calendar calendar = jcalendars.get();
+      calendar.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
       calendar.setTime(date);
       int weekOfMonth = calendar.get(Calendar.WEEK_OF_MONTH);
       calendar.set(Calendar.DATE, 1);
@@ -676,6 +678,11 @@ public class ValueOfColumn extends AbstractColumn {
          }
 
          Calendar jcalendar = jcalendars.get();
+         // jcalendars is a static ThreadLocal, so a pooled thread's Calendar is
+         // constructed once (with the JVM default locale's first day of week) and
+         // reused for the lifetime of the thread across unrelated requests -- it must
+         // be re-synced to the live week.start setting on every use, not just once.
+         jcalendar.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
          int minimalDaysInFirstWeek = jcalendar.getMinimalDaysInFirstWeek();
          jcalendar.setMinimalDaysInFirstWeek(7);
 

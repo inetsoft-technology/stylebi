@@ -17,12 +17,16 @@
  */
 package inetsoft.web.wiz.pairing;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.function.LongSupplier;
@@ -30,6 +34,8 @@ import java.util.function.Predicate;
 
 @Service
 public class SheetSessionService {
+   private static final Logger LOG = LoggerFactory.getLogger(SheetSessionService.class);
+
    public static final long TTL_MILLIS = 30 * 60_000L;
    private static final String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -66,10 +72,23 @@ public class SheetSessionService {
     */
    private final SheetPairingService pairing;
 
+   /**
+    * Notifies the Composer tab bar of session-ended events from {@link #evictExpired},
+    * {@link #socketClosed}, and {@link #detach(String, EditorContext)} -- see those methods'
+    * javadoc. {@code null} on every back-compat/test constructor below (guarded at each call
+    * site): those fixtures do not exercise this feature, so they simply never broadcast, which
+    * is correct -- not a degraded production path.
+    */
+   private final SheetAgentBroadcastService broadcast;
+
    /** Production constructor -- Spring injects the real, runtime-validating SheetPairingService. */
    @Autowired
-   public SheetSessionService(SheetPairingService pairing) {
-      this(System::currentTimeMillis, pairing);
+   public SheetSessionService(SheetPairingService pairing, SheetAgentBroadcastService broadcast) {
+      this.clock = System::currentTimeMillis;
+      this.pairing = pairing;
+      this.broadcast = broadcast;
+      this.sessions = new ConcurrentHashMap<>();
+      this.focusStacks = new ConcurrentHashMap<>();
    }
 
    /**
@@ -87,6 +106,17 @@ public class SheetSessionService {
    SheetSessionService(LongSupplier clock, SheetPairingService pairing) {
       this.clock = clock;
       this.pairing = pairing;
+      this.broadcast = null;
+      this.sessions = new ConcurrentHashMap<>();
+      this.focusStacks = new ConcurrentHashMap<>();
+   }
+
+   /** Test-only constructor: exercises the {@link #broadcast} call sites without needing the
+    *  full production constructor's {@link SheetPairingService} wiring. */
+   SheetSessionService(LongSupplier clock, SheetAgentBroadcastService broadcast) {
+      this.clock = clock;
+      this.pairing = new SheetPairingService();
+      this.broadcast = broadcast;
       this.sessions = new ConcurrentHashMap<>();
       this.focusStacks = new ConcurrentHashMap<>();
    }
@@ -96,6 +126,7 @@ public class SheetSessionService {
    SheetSessionService(LongSupplier clock, SheetSessionService source) {
       this.clock = clock;
       this.pairing = source.pairing;
+      this.broadcast = source.broadcast;
       this.sessions = source.sessions;
       this.focusStacks = source.focusStacks;
    }
@@ -169,8 +200,9 @@ public class SheetSessionService {
     */
    public void socketClosed(String socketSessionId) {
       if(socketSessionId == null) return;
-      removeSessionsIf(
+      List<JoinSession> ended = removeSessionsIf(
          s -> s.editorContext() != null && socketSessionId.equals(s.socketSessionId()));
+      notifyAgentInactive(ended);
    }
 
    /**
@@ -185,8 +217,9 @@ public class SheetSessionService {
     */
    public void detach(String socketSessionId, EditorContext editorContext) {
       if(socketSessionId == null || editorContext == null) return;
-      removeSessionsIf(
+      List<JoinSession> ended = removeSessionsIf(
          s -> editorContext.equals(s.editorContext()) && socketSessionId.equals(s.socketSessionId()));
+      notifyAgentInactive(ended);
    }
 
    /**
@@ -386,27 +419,61 @@ public class SheetSessionService {
    @Scheduled(fixedDelay = 10 * 60_000)
    void evictExpired() {
       long now = clock.getAsLong();
-      removeSessionsIf(s -> s.isExpired(now));
+      List<JoinSession> ended = removeSessionsIf(s -> s.isExpired(now));
+      notifyAgentInactive(ended);
    }
 
    /**
     * Removes every session matching {@code predicate} from {@link #sessions}, and its
-    * {@link #focusStacks} entry alongside it. Every removal path in this class (explicit
-    * {@link #close}, socket-close/detach cleanup, and scheduled {@link #evictExpired}) must go
-    * through this rather than calling {@code sessions.values().removeIf(...)} directly --
-    * {@code sessionToken}s are never reused, so a {@code focusStacks} entry left behind after
-    * its owning session is gone is a permanent leak for the remaining life of the process, not
-    * a harmless stale value some later {@code retarget} will overwrite.
+    * {@link #focusStacks} entry alongside it, returning whatever was removed so callers can
+    * broadcast over it. Every removal path in this class (explicit {@link #close},
+    * socket-close/detach cleanup, and scheduled {@link #evictExpired}) must go through this
+    * rather than calling {@code sessions.values().removeIf(...)} directly -- {@code sessionToken}s
+    * are never reused, so a {@code focusStacks} entry left behind after its owning session is gone
+    * is a permanent leak for the remaining life of the process, not a harmless stale value some
+    * later {@code retarget} will overwrite.
+    *
+    * <p>{@link #close(String)} deliberately does NOT go through this helper -- it is called only
+    * by the four REST controllers' {@code detach} endpoints, which already broadcast
+    * {@code sendAgentInactive} explicitly at the controller layer (where the acting principal and
+    * any error handling the endpoint wants live). If this helper also broadcast, every one of
+    * those calls would double-broadcast for the exact same session.
     */
-   private void removeSessionsIf(Predicate<JoinSession> predicate) {
+   private List<JoinSession> removeSessionsIf(Predicate<JoinSession> predicate) {
+      List<JoinSession> removed = new ArrayList<>();
       sessions.values().removeIf(s -> {
          if(predicate.test(s)) {
             focusStacks.remove(s.sessionToken());
+            removed.add(s);
             return true;
          }
 
          return false;
       });
+      return removed;
+   }
+
+   /**
+    * Best-effort tab-bar notification for every session {@link #removeSessionsIf} just removed.
+    * A {@code null} {@link #broadcast} (every back-compat/test constructor) means this is simply
+    * a no-op -- those fixtures never exercise this feature. Never throws: a failed notification
+    * must never turn a real cleanup into a failure, mirroring {@code SheetJoinService.join}'s
+    * treatment of {@code sendPairingJoined}/{@code sendAgentActive}.
+    */
+   private void notifyAgentInactive(List<JoinSession> ended) {
+      if(broadcast == null) {
+         return;
+      }
+
+      for(JoinSession s : ended) {
+         try {
+            broadcast.sendAgentInactive(s);
+         }
+         catch(Exception ex) {
+            LOG.warn("Session ended, but notifying the tab bar failed (runtimeId={})",
+                     s.runtimeId(), ex);
+         }
+      }
    }
 
    private String newToken() {

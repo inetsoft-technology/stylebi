@@ -72,7 +72,8 @@ class ViewsheetAssemblyAgentControllerTest {
 
       SheetJoinService joinService = mock(SheetJoinService.class);
       Principal agent = principal();
-      when(joinService.join(eq("ABCD2345"), eq(agent))).thenReturn(session);
+      when(joinService.join(eq("ABCD2345"), eq(agent)))
+         .thenReturn(new SheetJoinService.JoinOutcome(session, null));
 
       ViewsheetAssemblyAgentController controller = controllerWithJoinService(feature, joinService);
 
@@ -226,6 +227,39 @@ class ViewsheetAssemblyAgentControllerTest {
       controller.detach("someone-elses-token", principal());
 
       verify(layoutSessionService, never()).disposeAll(anyString());
+   }
+
+   /** C2(a): detach must also notify the tab bar the agent is no longer attached. */
+   @Test
+   void detachNotifiesTabBar() {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+      JoinSession session = mock(JoinSession.class);
+      when(sessionService.resolve(anyString(), anyString())).thenReturn(session);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(feature, sessionService, broadcast);
+
+      controller.detach("my-token", principal());
+
+      verify(broadcast).sendAgentInactive(session);
+   }
+
+   /** A refused detach must not notify the tab bar -- there is no ended session to report. */
+   @Test
+   void detachRefusalDoesNotNotifyTabBar() {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+      when(sessionService.resolve(anyString(), anyString())).thenReturn(null);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(feature, sessionService, broadcast);
+
+      controller.detach("someone-elses-token", principal());
+
+      verify(broadcast, never()).sendAgentInactive(any());
    }
 
    /**
@@ -505,6 +539,39 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
                                           layoutSessionService,
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class));
+   }
+
+   /** Overload that exposes {@code broadcast} -- for the detach tab-bar-notification test. */
+   private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
+                                                          SheetSessionService sessionService,
+                                                          SheetAgentBroadcastService broadcast)
+   {
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
+                                          sessionService, mock(ViewsheetSessionService.class),
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          broadcast,
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class),
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
