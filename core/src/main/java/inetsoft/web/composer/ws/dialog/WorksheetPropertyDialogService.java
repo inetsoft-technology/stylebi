@@ -23,6 +23,7 @@ import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.ws.WorksheetOptionPaneModel;
 import inetsoft.web.composer.model.ws.WorksheetPropertyDialogModel;
@@ -79,11 +80,46 @@ public class WorksheetPropertyDialogService extends WorksheetControllerService {
     *
     * @return true if property was updated, false otherwise.
     */
+   /**
+    * The banned-character set {@code worksheet-option-pane.component.ts}'s
+    * {@code assetEntryBannedCharacters} validator rejects for an alias.
+    */
+   private static final java.util.regex.Pattern ALIAS_BANNED_CHARS =
+      java.util.regex.Pattern.compile("[\\\\/\"<%^~]");
+
+   /**
+    * L2-Group9: {@code assetEntryBannedCharacters}/{@code assetNameStartWithCharDigit} are
+    * Angular-only today -- not even this dialog's own backend re-validates before writing the
+    * alias, so a non-UI caller (a raw socket payload, or the wiz agent path's
+    * {@code WorksheetAgentController#setProperties}) can set an alias the Composer's own
+    * Worksheet Properties dialog would refuse. Banned characters are asset-path/XML-significant
+    * (a corrupted alias can affect anything reading {@code entry.getAlias()} elsewhere in the
+    * product), so this is a data-integrity guard, not a cosmetic one. Public so both this
+    * dialog and the wiz agent path gain it from one change instead of two drifting copies.
+    */
+   public static void requireValidAlias(String alias) throws MessageException {
+      if(alias == null || alias.isEmpty()) {
+         return;
+      }
+
+      if(ALIAS_BANNED_CHARS.matcher(alias).find()) {
+         throw new MessageException(
+            "Alias '" + alias + "' contains characters the Composer's own Worksheet " +
+            "Properties dialog does not allow: \\ / \" < % ^ ~");
+      }
+
+      if(!Character.isLetterOrDigit(alias.charAt(0))) {
+         throw new MessageException(
+            "Alias '" + alias + "' must start with a letter or digit.");
+      }
+   }
+
    private boolean process(
       RuntimeWorksheet rws, WorksheetPropertyDialogModel model,
       Principal user, CommandDispatcher commandDispatcher) throws Exception
    {
       boolean reportSource = model.getWorksheetOptionPaneModel().getDataSource();
+      requireValidAlias(model.getWorksheetOptionPaneModel().getAlias());
       WorksheetInfo winfo = new WorksheetInfo();
       winfo.setAlias(model.getWorksheetOptionPaneModel().getAlias());
       winfo.setDescription(model.getWorksheetOptionPaneModel().getDescription());

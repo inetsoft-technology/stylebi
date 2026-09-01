@@ -1232,7 +1232,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void setRankingOnAggregatedTableResolvesAggregateRef() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "employee", "total");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -1260,7 +1260,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void setRankingOnAggregatedTableByDimensionResolvesGroupRef() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "employee", "total");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -1284,7 +1284,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void setRankingWithOfResolvesGroupRankedByAggregateRef() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "employee", "total");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -1315,7 +1315,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void setRankingOnUngroupedTableResolvesRawColumn() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "employee", "total");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -1336,7 +1336,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void setRankingFallsBackToPrivateSelectionWhenColumnMissingFromPublic() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "employee", "total");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -1365,8 +1365,8 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void setRankingOnAggregatedTableByUnrelatedColumnResolvesRawColumn() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t =
-         TestWorksheets.tableWithColumns(ws, "T", "employee", "total", "orderNumber");
+      TableAssembly t =
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "employee", "total", "orderNumber");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -1398,7 +1398,7 @@ class WorksheetEditServiceMutatorsTest {
       // condition values support $(name). RankingCondition.setN(Object) already
       // supported it -- the gap was purely in how RankingSpec carried the value.
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "employee", "total");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -1419,7 +1419,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void setRankingAcceptsNumericStringForN() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "employee", "total");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -1436,7 +1436,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void setRankingRejectsInvalidN() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "employee", "total");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -4013,5 +4013,413 @@ class WorksheetEditServiceMutatorsTest {
       svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", null, "x"));
 
       assertEquals(XCondition.EQUAL_TO, firstCondition(t).getOperation());
+   }
+
+   // =========================================================================
+   // L2 parity audit regression tests (2026-08-31 StyleBI-side fix batch)
+   // =========================================================================
+
+   @Test
+   void setConditionsRejectsUnresolvableField() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+            new WorksheetMutationSupport.ConditionNode(
+               new WorksheetMutationSupport.ConditionSpec(
+                  "NoSuchColumn", "=", List.of("x"), false, null),
+               null, 0)))));
+
+      assertTrue(ex.getMessage().contains("NoSuchColumn"));
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty());
+   }
+
+   @Test
+   void setRankingRejectsUnresolvableField() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("NoSuchColumn", 3, "TOP_N", false))));
+
+      assertTrue(ex.getMessage().contains("NoSuchColumn"));
+   }
+
+   @Test
+   void setRankingRejectsEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("a", 3, "TOP_N", false))));
+
+      assertTrue(ex.getMessage().toLowerCase().contains("snapshot"));
+   }
+
+   @Test
+   void setRankingRejectsUnrecognizedOperation() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("a", 3, "BOGUS_N", false))));
+
+      assertTrue(ex.getMessage().contains("BOGUS_N"));
+   }
+
+   @Test
+   void setRankingOfRejectsBooleanAggregate() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "employee", "isPaid");
+      ColumnRef boolCol = (ColumnRef) t.getColumnSelection(false).getAttribute("isPaid");
+      boolCol.setDataType(XSchema.BOOLEAN);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> {
+            ed.setGroupAggregate("T", groups("employee"),
+               List.of(new WorksheetMutationSupport.AggregateSpec("isPaid", "MAX", null)));
+            ed.setRanking("T",
+               new WorksheetMutationSupport.RankingSpec("employee", 3, "TOP_N", false, "isPaid"));
+         }));
+
+      assertTrue(ex.getMessage().contains("isPaid"));
+   }
+
+   @Test
+   void setRankingsEstablishesMultipleIndependentRankings() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "customer", "employee");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setRankings("T", List.of(
+         new WorksheetMutationSupport.RankingSpec("customer", 3, "TOP_N", false),
+         new WorksheetMutationSupport.RankingSpec("employee", 2, "BOTTOM_N", false))));
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      assertEquals(3, cl.getSize(), "two rankings joined by one AND junction");
+      assertEquals("customer", cl.getConditionItem(0).getAttribute().getAttribute());
+      assertEquals("employee", cl.getConditionItem(2).getAttribute().getAttribute());
+   }
+
+   @Test
+   void setConditionsFieldValueSpecComparesToAnotherColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("a", ">", null, false, null,
+               List.of(new WorksheetMutationSupport.ConditionValueSpec("field", "b", null, null))),
+            null, 0))));
+
+      Condition c = firstCondition(t);
+      assertTrue(c.getValue(0) instanceof DataRef,
+         "a 'field' valueSpec must resolve to a DataRef, got: " + c.getValue(0));
+      assertEquals("b", ((DataRef) c.getValue(0)).getAttribute());
+   }
+
+   @Test
+   void setConditionsExpressionValueSpecBuildsExpressionValue() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("a", ">", null, false, null,
+               List.of(new WorksheetMutationSupport.ConditionValueSpec(
+                  "expression", null, "field['b']*2", "js"))),
+            null, 0))));
+
+      Condition c = firstCondition(t);
+      assertTrue(c.getValue(0) instanceof ExpressionValue,
+         "an 'expression' valueSpec must build an ExpressionValue, got: " + c.getValue(0));
+      ExpressionValue expr = (ExpressionValue) c.getValue(0);
+      assertEquals("field['b']*2", expr.getExpression());
+      assertEquals(ExpressionValue.JAVASCRIPT, expr.getType());
+   }
+
+   @Test
+   void setConditionsChoiceQueryAppliesToVariableValue() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("a", "=", List.of("$(myVar)"), false,
+               null, null, "T]:[a"),
+            null, 0))));
+
+      Condition c = firstCondition(t);
+      assertTrue(c.getValue(0) instanceof UserVariable,
+         "a $(name) value must still resolve to a UserVariable, got: " + c.getValue(0));
+      assertEquals("T]:[a", ((UserVariable) c.getValue(0)).getChoiceQuery());
+   }
+
+   @Test
+   void setGroupAggregateRejectsSameColumnAsGroupAndAggregate() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "customer");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", groups("customer"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("customer", "COUNT", null)))));
+
+      assertTrue(ex.getMessage().contains("customer"));
+   }
+
+   @Test
+   void setGroupAggregateAppliesTimeSeriesAndClearsConflictingSort() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "orderDate");
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         // First call creates the DateRangeRef-wrapped "Year(orderDate)" group column --
+         // matching AggregateDialogService.java:455-467, the conflicting-sort check looks
+         // for a sort on THAT wrapped column, not the raw source column, so the sort has to
+         // be set on it, simulating a second edit that finds an already-time-series group
+         // with a sort a prior call (or the native dialog) placed on the bucketed column.
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "YEAR", true)),
+            List.of());
+         String wrappedName = t.getAggregateInfo().getGroup(0).getDataRef().getName();
+         ed.setSort("T", wrappedName, "ASC");
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "YEAR", true)),
+            List.of());
+      });
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertTrue(ai.getGroup(0).isTimeSeries());
+      assertTrue(t.getSortInfo() == null || t.getSortInfo().getSorts().length == 0,
+         "a time-series group must clear a pre-existing sort on the bucketed date column");
+   }
+
+   @Test
+   void setGroupAggregateAppliesSecondaryColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "amount", "weight");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", groups(),
+         List.of(new WorksheetMutationSupport.AggregateSpec(
+            "amount", "WEIGHTED AVG", null, null, "weight", null))));
+
+      AggregateInfo ai = t.getAggregateInfo();
+      AggregateRef ar = ai.getAggregate(0);
+      assertNotNull(ar.getSecondaryColumn());
+      assertEquals("weight", ar.getSecondaryColumn().getAttribute());
+   }
+
+   @Test
+   void setGroupAggregateAppliesPercentageOfGrandTotal() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "customer", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", groups("customer"),
+         List.of(new WorksheetMutationSupport.AggregateSpec(
+            "amount", "SUM", null, null, null, "grand_total"))));
+
+      AggregateInfo ai = t.getAggregateInfo();
+      AggregateRef ar = ai.getAggregate(0);
+      assertTrue(ar.isPercentage());
+      assertEquals(inetsoft.uql.XConstants.PERCENTAGE_OF_GRANDTOTAL, ar.getPercentageOption());
+   }
+
+   @Test
+   void setSortDirectionOnlyChangePreservesPriority() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.setSort("T", "a", "ASC");
+         ed.setSort("T", "b", "ASC");
+         ed.setSort("T", "a", "DESC"); // direction-only change on the FIRST column
+      });
+
+      inetsoft.uql.asset.SortRef[] sorts = t.getSortInfo().getSorts();
+      assertEquals(2, sorts.length);
+      assertEquals("a", sorts[0].getAttribute(),
+         "a direction-only change must not move the column to last priority");
+      assertEquals(XConstants.SORT_DESC, sorts[0].getOrder());
+      assertEquals("b", sorts[1].getAttribute());
+   }
+
+   @Test
+   void setSortRejectsUnresolvableField() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setSort("T", "NoSuchColumn", "ASC")));
+
+      assertTrue(ex.getMessage().contains("NoSuchColumn"));
+   }
+
+   @Test
+   void editCellRejectsUnparsableValueAndKeepsPriorValue() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, "T");
+      t.setEmbeddedData(new XEmbeddedTable(
+         new String[] { XSchema.STRING }, new Object[][] { { "n" }, { "42" } }));
+      ((ColumnRef) t.getColumnSelection(false).getAttribute("n")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editCell("T", 0, 0, "not-a-number")));
+
+      assertNotNull(ex.getMessage(), "must be a clean PairingException, not a raw parse exception");
+      assertEquals("42", t.getEmbeddedData().getObject(1, 0),
+         "a rejected parse must leave the prior cell value untouched");
+   }
+
+   @Test
+   void editCellRejectsValueOverMaxCellSize() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, "T");
+      t.setEmbeddedData(new XEmbeddedTable(
+         new String[] { XSchema.STRING }, new Object[][] { { "s" }, { "orig" } }));
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      String tooLong = "x".repeat(inetsoft.report.internal.Util.getOrganizationMaxCellSize() + 1);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editCell("T", 0, 0, tooLong)));
+
+      assertTrue(ex.getMessage().contains("character"));
+      assertEquals("orig", t.getEmbeddedData().getObject(1, 0));
+   }
+
+   // =========================================================================
+   // L2-Group7 — editVariable type/default-value validation, deleteVariable
+   // dependency block
+   // =========================================================================
+
+   @Test
+   void editVariableRejectsUnrecognizedType() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // L2-Group7: XSchema.createPrimitiveType returns null, with no exception and no log, for
+      // a type string the Composer's own (closed, 12-value) Type dropdown could never submit --
+      // editVariable previously stored that null type node without complaint.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editVariable("region", "varchar", null, null, null)));
+      assertTrue(ex.getMessage().contains("varchar"), ex.getMessage());
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertEquals(XSchema.STRING, updated.getTypeNode().getType(),
+         "a rejected type change must not leave the variable's type altered");
+   }
+
+   @Test
+   void editVariableRejectsUnparsableDefaultValue() throws Exception {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly assembly = variableAssembly(ws, "topN", XSchema.INTEGER);
+      // setTypeNode (inside variableAssembly's setup) auto-creates a placeholder value node
+      // whenever none exists yet, so the baseline here is that placeholder, not null -- capture
+      // it by reference to prove the rejected call didn't replace it with a new one, matching
+      // editVariableRejectsInvalidChoicesWithoutApplyingLabelTypeOrDefaultValue's pattern above.
+      Object originalValueNode = assembly.getVariable().getValueNode();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // L2-Group7: previously fell back to storing the raw, unparsed string ("not_a_number")
+      // as the declared-integer variable's default value instead of failing loud.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("topN", null, null, "not_a_number", null)));
+      assertTrue(ex.getMessage().contains("not_a_number"), ex.getMessage());
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("topN")).getVariable();
+      assertSame(originalValueNode, updated.getValueNode(),
+         "a rejected default value must not leave a partial value node applied");
+   }
+
+   @Test
+   void deleteVariableRejectsWhenReferencedByACondition() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "minTotal", XSchema.DOUBLE);
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", ">", "$(minTotal)"));
+
+      // L2-Group7: mirrors WSRemoveAssembliesService.removeAssemblies, which refuses to delete
+      // an assembly AssetEventUtil.hasDependent() reports as still referenced instead of
+      // deleting it and leaving a dangling $(minTotal) reference behind.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.deleteVariable("minTotal")));
+      assertTrue(ex.getMessage().contains("minTotal"), ex.getMessage());
+      assertNotNull(ws.getAssembly("minTotal"), "a referenced variable must not be deleted");
+      assertFalse(t.getPreConditionList().isEmpty(),
+         "the referencing condition must be left untouched");
+   }
+
+   @Test
+   void deleteVariableSucceedsWhenNotReferenced() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "unused", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.deleteVariable("unused"));
+
+      assertNull(ws.getAssembly("unused"));
    }
 }

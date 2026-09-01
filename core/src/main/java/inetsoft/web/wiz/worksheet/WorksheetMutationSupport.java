@@ -76,10 +76,28 @@ public final class WorksheetMutationSupport {
     *                {@code "NthSmallest"}, {@code "NthMostFrequent"}, {@code "PthPercentile"});
     *                {@code null} (or a formula that doesn't take one, per
     *                {@link AggregateFormula#hasN}) is ignored
+    * @param secondaryColumn the "With"/"By" second column a two-column formula reads (e.g.
+    *                {@code First}, {@code Last}, {@code Correlation}, {@code Covariance},
+    *                {@code WeightedAverage} — see {@code aggregate-formula.ts}'s own list of
+    *                which formulas need one). Applied uniformly, with no formula-specific
+    *                branching, matching {@code AggregateDialogService.java:311-319}; {@code null}
+    *                leaves the aggregate single-column
+    * @param percentageOf {@code "group"} (the UI's "Sub Total", {@link
+    *                XConstants#PERCENTAGE_OF_GROUP}), {@code "grand_total"} ({@link
+    *                XConstants#PERCENTAGE_OF_GRANDTOTAL}), or {@code "none"} (case-insensitive);
+    *                {@code null} leaves the aggregate's existing percentage setting untouched.
+    *                Changes the value the worksheet query itself returns (wrapped in a {@code
+    *                PercentageFormula}), not merely chart-rendering presentation — see
+    *                {@code aggregate-pane.component.html:120-133}
     */
-   public record AggregateSpec(String field, String formula, String alias, Integer n) {
+   public record AggregateSpec(String field, String formula, String alias, Integer n,
+                               String secondaryColumn, String percentageOf) {
+      public AggregateSpec(String field, String formula, String alias, Integer n) {
+         this(field, formula, alias, n, null, null);
+      }
+
       public AggregateSpec(String field, String formula, String alias) {
-         this(field, formula, alias, null);
+         this(field, formula, alias, null, null, null);
       }
    }
 
@@ -97,14 +115,29 @@ public final class WorksheetMutationSupport {
     *                  option strings accepted by {@code add_date_range_column}'s
     *                  {@code dateOption} (e.g. {@code "YEAR"}, {@code "QUARTER"},
     *                  {@code "MONTH"}); {@code null} for a plain (non-date-bucketed) group
+    * @param timeSeries mirrors the Composer's own "As time series" checkbox
+    *                  ({@code GroupRef.timeSeries} -- {@code aggregate-pane.component.html:134-144}):
+    *                  when {@code true}, the query engine fills in empty periods between the
+    *                  first and last observed date bucket instead of only emitting buckets that
+    *                  have data, matching {@code AggregateDialogService.java:455-467}'s own
+    *                  handling, including clearing a pre-existing sort on this column ({@link
+    *                  #applyAggregateInfo} does the same). {@code null}/{@code false} leaves the
+    *                  group's existing time-series flag alone/unset.
     */
    @JsonDeserialize(using = GroupSpec.Deserializer.class)
-   public record GroupSpec(String field, String dateLevel) {
+   public record GroupSpec(String field, String dateLevel, Boolean timeSeries) {
       public GroupSpec(String field) {
-         this(field, null);
+         this(field, null, null);
       }
 
-      /** Accepts either a plain JSON string (column name) or a {@code {field, dateLevel}} object. */
+      public GroupSpec(String field, String dateLevel) {
+         this(field, dateLevel, null);
+      }
+
+      /**
+       * Accepts either a plain JSON string (column name) or a
+       * {@code {field, dateLevel, timeSeries}} object.
+       */
       static final class Deserializer extends JsonDeserializer<GroupSpec> {
          @Override
          public GroupSpec deserialize(JsonParser p, DeserializationContext ctxt) throws java.io.IOException {
@@ -126,7 +159,9 @@ public final class WorksheetMutationSupport {
             // ungrouped date column.
             String dateLevel = node.hasNonNull("dateLevel") ? node.get("dateLevel").asText() :
                node.hasNonNull("dateOption") ? node.get("dateOption").asText() : null;
-            return new GroupSpec(field, dateLevel);
+            Boolean timeSeries = node.hasNonNull("timeSeries") ?
+               node.get("timeSeries").asBoolean() : null;
+            return new GroupSpec(field, dateLevel, timeSeries);
          }
       }
    }
@@ -640,6 +675,18 @@ public final class WorksheetMutationSupport {
             gr.setDateGroup(dgroup);
          }
 
+         if(Boolean.TRUE.equals(spec.timeSeries())) {
+            // Matches AggregateDialogService.java:455-467: a time-series group implies gap
+            // filling in engine-determined date order, which a manual sort on the same
+            // column would conflict with -- the native dialog clears it for exactly this
+            // reason when (re)applying a time-series group.
+            gr.setTimeSeries(true);
+
+            if(t.getSortInfo() != null && t.getSortInfo().getSort(gr.getDataRef()) != null) {
+               t.getSortInfo().removeSort(gr.getDataRef());
+            }
+         }
+
          ainfo.addGroup(gr);
          activeGroupColumns.add(gr.getDataRef());
       }
@@ -708,11 +755,29 @@ public final class WorksheetMutationSupport {
                "'. Available columns: " + availableColumns.keySet());
          }
 
+         ColumnRef secondaryColRef = null;
+
+         if(spec.secondaryColumn() != null && !spec.secondaryColumn().isBlank()) {
+            secondaryColRef = availableColumns.get(spec.secondaryColumn());
+
+            if(secondaryColRef == null) {
+               throw new inetsoft.web.wiz.pairing.PairingException(
+                  "Column not found for aggregate's secondary column: '" +
+                  spec.secondaryColumn() + "'. Available columns: " + availableColumns.keySet());
+            }
+         }
+
          AggregateRef ar = new AggregateRef(colRef, formula);
 
          if(spec.n() != null && formula.hasN()) {
             ar.setN(spec.n());
          }
+
+         if(secondaryColRef != null) {
+            ar.setSecondaryColumn(secondaryColRef);
+         }
+
+         applyPercentageOption(ar, spec.percentageOf());
 
          if(ainfo.containsAggregate(ar)) {
             // Second aggregate on the same column: clone the ref before aliasing.
@@ -734,6 +799,12 @@ public final class WorksheetMutationSupport {
                secondary.setN(spec.n());
             }
 
+            if(secondaryColRef != null) {
+               secondary.setSecondaryColumn(secondaryColRef);
+            }
+
+            applyPercentageOption(secondary, spec.percentageOf());
+
             ainfo.addSecondaryAggregate(secondary);
          }
          else {
@@ -744,7 +815,19 @@ public final class WorksheetMutationSupport {
                appliedAliases.add(spec.alias());
             }
 
-            ainfo.addAggregate(ar, false);
+            if(!ainfo.addAggregate(ar, false)) {
+               // AggregateInfo.addAggregate returns false when the same column is already a
+               // group-by key -- a column cannot be both at once (matching the Composer's own
+               // "Group and Aggregate" dialog's AggregatePane.verify(), which blocks this in
+               // the UI before it can even be submitted). Fail loud instead of silently
+               // dropping the aggregate, which previously left both a GroupRef and an
+               // AggregateRef for the same column on the table and produced ungrouped,
+               // unaggregated raw rows with no error.
+               throw new inetsoft.web.wiz.pairing.PairingException(
+                  "Column '" + spec.field() + "' is used as both a group and an aggregate. " +
+                  "A column cannot be grouped by and aggregated at the same time -- remove it " +
+                  "from one of groups or aggregates.");
+            }
          }
       }
 
@@ -789,14 +872,25 @@ public final class WorksheetMutationSupport {
 
             cs2.addAttribute(exprCol);
 
-            // Create a new primary aggregate on the expression column.
-            AggregateRef newAgg = new AggregateRef(exprCol, sref.getFormula());
+            // Create a new primary aggregate on the expression column. Carries over the
+            // secondary column and percentage settings applied to `sref` above -- without
+            // this, a second aggregate on the same column (the "third-aggregate" path) would
+            // silently lose a "With"/percentage setting the first aggregate on that column
+            // kept.
+            AggregateRef newAgg = new AggregateRef(exprCol, sref.getSecondaryColumn(),
+                                                   sref.getFormula());
 
             if(sref.getFormula() != null && sref.getFormula().hasN()) {
                newAgg.setN(sref.getN());
             }
 
-            ainfo.addAggregate(newAgg, false);
+            newAgg.setPercentageOption(sref.getPercentageOption());
+
+            if(!ainfo.addAggregate(newAgg, false)) {
+               throw new inetsoft.web.wiz.pairing.PairingException(
+                  "Column '" + exprCol.getAttribute() + "' is used as both a group and an " +
+                  "aggregate. A column cannot be grouped by and aggregated at the same time.");
+            }
          }
 
          ainfo.removeSecondaryAggregates();
@@ -812,6 +906,28 @@ public final class WorksheetMutationSupport {
       ainfo.setCrosstab(crosstab);
       t.setAggregateInfo(ainfo);
       t.setAggregate(!ainfo.isEmpty());
+   }
+
+   /**
+    * Applies an {@link AggregateSpec#percentageOf} token to an {@link AggregateRef}, matching
+    * the Composer's own "Grand Total"/"Sub Total"/(blank) percentage dropdown
+    * (`aggregate-pane.component.ts:73-74`). {@code null} leaves the aggregate's existing
+    * percentage setting untouched, so a caller updating an unrelated field on an already-
+    * percentage-of aggregate doesn't need to restate it.
+    */
+   private static void applyPercentageOption(AggregateRef ref, String percentageOf) {
+      if(percentageOf == null) {
+         return;
+      }
+
+      ref.setPercentageOption(switch(percentageOf.toLowerCase()) {
+         case "none" -> XConstants.PERCENTAGE_NONE;
+         case "group", "sub_total", "subtotal" -> XConstants.PERCENTAGE_OF_GROUP;
+         case "grand_total", "grandtotal" -> XConstants.PERCENTAGE_OF_GRANDTOTAL;
+         default -> throw new IllegalArgumentException(
+            "'" + percentageOf + "' is not a percentage-of option. Accepted: none, group, " +
+            "grand_total.");
+      });
    }
 
    /**
@@ -1292,8 +1408,13 @@ public final class WorksheetMutationSupport {
    /**
     * Sets (or replaces) the sort direction on the named column.
     *
-    * <p>If a {@link SortRef} for {@code field} already exists it is removed first
-    * so that only one sort entry per column is present.</p>
+    * <p>If a {@link SortRef} for {@code field} already exists, its direction is updated
+    * <b>in place</b> rather than removed and re-added, preserving this column's existing sort
+    * priority (position among the other sorted columns) -- matching the native sort editor
+    * ({@code sort-column-editor.component.ts:154-157}), which mutates {@code sortRefs[index]
+    * .order} directly and never reorders the row on a direction-only change. A remove-then-
+    * re-add sequence would always move the column to last priority instead, a semantic
+    * divergence from the native dialog that has nothing to do with the direction requested.</p>
     *
     * @param t         the table assembly to mutate
     * @param field     the column name to sort on
@@ -1305,20 +1426,27 @@ public final class WorksheetMutationSupport {
       if(si == null) {
          si = new SortInfo();
       }
-      else {
-         // Remove any existing sort entry for this field so we don't get duplicates.
-         for(SortRef existing : si.getSorts()) {
-            if(field.equals(existing.getName()) || field.equals(existing.getAttribute())) {
-               si.removeSort(existing);
-               break;
-            }
+
+      int order = "DESC".equalsIgnoreCase(direction) ? XConstants.SORT_DESC : XConstants.SORT_ASC;
+      SortRef existing = null;
+
+      for(SortRef sr : si.getSorts()) {
+         if(field.equals(sr.getName()) || field.equals(sr.getAttribute())) {
+            existing = sr;
+            break;
          }
       }
 
-      DataRef ref = resolveField(t, field);
-      SortRef sr = new SortRef(ref);
-      sr.setOrder("DESC".equalsIgnoreCase(direction) ? XConstants.SORT_DESC : XConstants.SORT_ASC);
-      si.addSort(sr);
+      if(existing != null) {
+         existing.setOrder(order);
+      }
+      else {
+         DataRef ref = resolveField(t, field);
+         SortRef sr = new SortRef(ref);
+         sr.setOrder(order);
+         si.addSort(sr);
+      }
+
       t.setSortInfo(si);
    }
 
@@ -1339,10 +1467,119 @@ public final class WorksheetMutationSupport {
     *                  column's declared type in the table's column selection; falls back to
     *                  {@code "string"} if the column is unknown.  Agents should set this
     *                  explicitly for numeric or date fields to avoid lexicographic comparisons.
+    * @param choiceQuery a {@code "table]:[column"} browse-source marker applied to any
+    *                  {@code $(name)} variable reference among {@code values}, matching the
+    *                  native condition dialog's "Use list" checkbox
+    *                  ({@code ConditionUtil.java:239-242}'s {@code setChoiceQuery}). Without
+    *                  this, a variable reference is still stored correctly, but the Composer's
+    *                  own condition dialog would render it without the pre-fetched browse list a
+    *                  human checking "Use list" would have attached. {@code null} leaves the
+    *                  variable's choice source unset.
     */
    public record ConditionSpec(String field, String operation,
                                List<String> values, boolean negated,
-                               String type) {}
+                               String type, List<ConditionValueSpec> valueSpecs,
+                               String choiceQuery) {
+      /**
+       * Compact form for callers that only need FIELD/EXPRESSION-typed values, with no
+       * variable choice-list marker.
+       */
+      public ConditionSpec(String field, String operation, List<String> values,
+                           boolean negated, String type, List<ConditionValueSpec> valueSpecs)
+      {
+         this(field, operation, values, negated, type, valueSpecs, null);
+      }
+
+      /**
+       * Compact form for callers that only need literal/variable values, matching
+       * {@link RankingSpec}'s own trailing-optional-field pattern -- most conditions have no
+       * FIELD/EXPRESSION-typed value or choice-list marker, and this keeps every existing
+       * caller unchanged.
+       */
+      public ConditionSpec(String field, String operation, List<String> values,
+                           boolean negated, String type)
+      {
+         this(field, operation, values, negated, type, null, null);
+      }
+   }
+
+   /**
+    * Describes one condition value that is neither a literal nor a {@code $(name)} variable
+    * reference -- a comparison against another column (FIELD) or a computed expression
+    * (EXPRESSION), matching the native condition dialog's own value-type discriminator
+    * ({@code ConditionValueModel.getType()}, see
+    * {@code pre-post-condition-item-pane-provider.ts:90-128} for which operators offer which
+    * types, and {@code ConditionUtil.fromModelToConditionList}
+    * (`core/src/main/java/inetsoft/web/composer/model/condition/ConditionUtil.java:212-223`) for
+    * how each is converted -- this mirrors that conversion exactly, so a value built here is
+    * indistinguishable to the query engine from one built by the native dialog).
+    *
+    * <p>A {@link ConditionSpec} may combine {@code values} (literals/variables) and
+    * {@code valueSpecs} (field/expression) in the same condition -- {@code values} entries are
+    * appended first, then {@code valueSpecs} entries -- for a mixed multi-value condition (e.g.
+    * a {@code ONE_OF} list combining a literal with a computed expression), the same way the
+    * native dialog's multi-value editor allows.
+    *
+    * <p>SUBQUERY is intentionally not covered here: it requires resolving a whole second
+    * {@link TableAssembly} as the subquery source, a materially larger mechanism than a single
+    * value conversion -- left for separate work.
+    *
+    * @param valueType      {@code "field"} or {@code "expression"} (case-insensitive)
+    * @param field          the column name to compare against; required when {@code valueType}
+    *                       is {@code "field"}, resolved the same way {@code ConditionSpec.field}
+    *                       itself is (private selection for pre-aggregate conditions, or
+    *                       {@link AggregateInfo}-then-public-selection for post-aggregate)
+    * @param expression     the expression body; required when {@code valueType} is
+    *                       {@code "expression"}
+    * @param expressionType {@code "sql"} or {@code "js"}/{@code "javascript"} (case-insensitive);
+    *                       defaults to {@code "sql"} when {@code null}, matching
+    *                       {@link ExpressionValue}'s own SQL/JavaScript duality
+    */
+   public record ConditionValueSpec(String valueType, String field, String expression,
+                                    String expressionType) {}
+
+   /**
+    * Converts one {@link ConditionValueSpec} into the object the engine stores, mirroring
+    * {@code ConditionUtil.fromModelToConditionList}'s FIELD/EXPRESSION branches.
+    *
+    * @param t    the table the value is resolved against (FIELD only)
+    * @param post {@code true} to resolve a FIELD value the same way post-aggregate condition
+    *             fields are resolved (see {@link #resolveField})
+    */
+   private static Object conditionValue(TableAssembly t, boolean post, ConditionValueSpec spec) {
+      if(spec == null || spec.valueType() == null || spec.valueType().isBlank()) {
+         throw new IllegalArgumentException(
+            "A condition valueSpec needs a 'valueType' of 'field' or 'expression'.");
+      }
+
+      return switch(spec.valueType().toLowerCase()) {
+         case "field" -> {
+            if(spec.field() == null || spec.field().isBlank()) {
+               throw new IllegalArgumentException(
+                  "A 'field' valueSpec needs a non-blank 'field' naming the column to compare " +
+                  "against.");
+            }
+
+            yield resolveField(t, spec.field(), post);
+         }
+         case "expression" -> {
+            if(spec.expression() == null || spec.expression().isBlank()) {
+               throw new IllegalArgumentException(
+                  "An 'expression' valueSpec needs a non-blank 'expression'.");
+            }
+
+            ExpressionValue expr = new ExpressionValue();
+            expr.setExpression(spec.expression());
+            expr.setType("js".equalsIgnoreCase(spec.expressionType()) ||
+                          "javascript".equalsIgnoreCase(spec.expressionType())
+                          ? ExpressionValue.JAVASCRIPT : ExpressionValue.SQL);
+            yield expr;
+         }
+         default -> throw new IllegalArgumentException(
+            "'" + spec.valueType() + "' is not a condition value type. Accepted: field, " +
+            "expression.");
+      };
+   }
 
    /**
     * Describes a junction (AND/OR) between conditions in a condition tree.
@@ -1427,7 +1664,21 @@ public final class WorksheetMutationSupport {
                      // routes every value through convertType, whose UserVariable branch
                      // (Condition:2129-2149) sets the type node from the condition's own type, so
                      // the variable was typed from the column either way.
-                     c.addValue(conditionValue(dtype, v));
+                     Object value = conditionValue(dtype, v);
+
+                     if(value instanceof UserVariable uv &&
+                        spec.choiceQuery() != null && !spec.choiceQuery().isBlank())
+                     {
+                        uv.setChoiceQuery(spec.choiceQuery());
+                     }
+
+                     c.addValue(value);
+                  }
+               }
+
+               if(spec.valueSpecs() != null) {
+                  for(ConditionValueSpec vs : spec.valueSpecs()) {
+                     c.addValue(conditionValue(t, post, vs));
                   }
                }
 
@@ -1478,7 +1729,34 @@ public final class WorksheetMutationSupport {
    }
 
    /**
-    * Sets a ranking condition on the table.
+    * Maps a ranking operation token to its {@link XCondition} constant.
+    *
+    * <p>An absent operation still means {@code TOP_N} -- the dropdown's own default -- but a
+    * <i>supplied</i> value that is neither spelling is refused instead of silently collapsing to
+    * {@code TOP_N}, matching {@link #parseOperation}'s "absent defaults, supplied-and-unknown
+    * throws" rule. Before this, anything that was not literally {@code "BOTTOM_N"} (any case, a
+    * typo, {@code null} handled separately above) became {@code TOP_N} with no error -- a ranking
+    * requested as "bottom 10" would silently return the top 10 instead, with {@code ok:true} and
+    * no signal anything was wrong.
+    */
+   private static int parseRankingOperation(String operation) {
+      if(operation == null || operation.isBlank()) {
+         return XCondition.TOP_N;
+      }
+
+      return switch(operation.toUpperCase()) {
+         case "TOP_N" -> XCondition.TOP_N;
+         case "BOTTOM_N" -> XCondition.BOTTOM_N;
+         default -> throw new IllegalArgumentException(
+            "'" + operation + "' is not a ranking operation. Accepted: TOP_N, BOTTOM_N. Omit " +
+            "the operation entirely to mean TOP_N.");
+      };
+   }
+
+   /**
+    * Sets a ranking condition on the table, replacing any existing ranking with this single
+    * one. See {@link #setRankings} to establish more than one independent ranking in a single
+    * call instead of the second replacing the first.
     */
    public static void setRanking(TableAssembly t, RankingSpec spec) {
       if(spec == null) {
@@ -1486,8 +1764,51 @@ public final class WorksheetMutationSupport {
          return;
       }
 
-      int op = "BOTTOM_N".equalsIgnoreCase(spec.operation())
-         ? XCondition.BOTTOM_N : XCondition.TOP_N;
+      ConditionList cl = new ConditionList();
+      cl.append(buildRankingConditionItem(t, spec));
+      t.setRankingConditionList(cl);
+   }
+
+   /**
+    * Sets the table's whole ranking condition list from {@code specs}, in order — the plural
+    * counterpart to {@link #setRanking}, for establishing more than one independent ranked
+    * field (e.g. top 3 customers by revenue AND top 3 employees by order count) in a single
+    * call. {@code null} or empty clears all ranking, matching {@code setRanking(t, null)}.
+    */
+   public static void setRankings(TableAssembly t, List<RankingSpec> specs) {
+      if(specs == null || specs.isEmpty()) {
+         t.setRankingConditionList(new ConditionList());
+         return;
+      }
+
+      ConditionList cl = new ConditionList();
+      boolean first = true;
+
+      for(RankingSpec spec : specs) {
+         // ConditionList's internal representation alternates condition/junction/condition/...
+         // (ConditionList.isConditionItem checks slot parity) -- the same shape
+         // AssemblyConditionDialogService's own ranking-model converter produces via the
+         // shared fromModelToConditionList, so an AND junction between each ranking keeps
+         // this a well-formed list the native dialog can read back, not just a StyleBI-Wiz-
+         // only convention.
+         if(!first) {
+            cl.append(new JunctionOperator(JunctionOperator.AND, 0));
+         }
+
+         cl.append(buildRankingConditionItem(t, spec));
+         first = false;
+      }
+
+      t.setRankingConditionList(cl);
+   }
+
+   /**
+    * Builds the single {@link ConditionItem} one {@link RankingSpec} contributes to a ranking
+    * condition list — shared by {@link #setRanking} (a one-item list) and {@link #setRankings}
+    * (an N-item list), so the per-item resolution/validation logic is written exactly once.
+    */
+   private static ConditionItem buildRankingConditionItem(TableAssembly t, RankingSpec spec) {
+      int op = parseRankingOperation(spec.operation());
 
       // The RankingCondition itself always runs after aggregation (see
       // AssetQuery.getRankingTableLens), so prefer AggregateInfo — matching either an
@@ -1518,12 +1839,24 @@ public final class WorksheetMutationSupport {
          // aggregates first so it resolves to the AggregateRef, not the private column
          // selection's raw base column of the same name (see resolveField's post-aggregate
          // lookup note above).
-         rc.setDataRef(resolveField(t, spec.of(), true));
+         DataRef ofRef = resolveField(t, spec.of(), true);
+
+         // Matches the Composer's own Top N/Bottom N editor (top-n-editor.component.ts),
+         // which excludes boolean-typed aggregates from the "Of" dropdown entirely -- a
+         // boolean has no meaningful ranking order beyond true/false, so a boolean "of"
+         // silently produces a degenerate two-bucket rank rather than the numeric ranking
+         // the operation implies.
+         if(XSchema.BOOLEAN.equals(ofRef.getDataType())) {
+            throw new IllegalArgumentException(
+               "'" + spec.of() + "' is a boolean column and cannot be used as ranking's " +
+               "'of' aggregate -- matching the Composer's own Top N/Bottom N editor, which " +
+               "excludes boolean-typed aggregates from the \"Of\" picker.");
+         }
+
+         rc.setDataRef(ofRef);
       }
 
-      ConditionList cl = new ConditionList();
-      cl.append(new ConditionItem(ref, rc, 0));
-      t.setRankingConditionList(cl);
+      return new ConditionItem(ref, rc, 0);
    }
 
    /**
@@ -1884,6 +2217,61 @@ public final class WorksheetMutationSupport {
       }
 
       return new AttributeRef(null, field);
+   }
+
+   /**
+    * Returns {@code true} if {@code field} resolves to a real column, alias, aggregate ref, or
+    * group ref on {@code t} -- i.e. {@link #resolveField} would return something other than its
+    * unresolvable {@code new AttributeRef(null, field)} fallback.
+    *
+    * <p>Mirrors the native UI's closed field picker: a human editing the same condition/sort can
+    * only ever submit a name this returns {@code true} for, because the dropdown is populated
+    * from exactly the same {@link ColumnSelection}/{@link AggregateInfo} sources this checks.
+    * A caller driving the agent path with a free-text field name has no such structural limit,
+    * so this is the guard that gives it one.
+    *
+    * @param post {@code true} to also match against {@link AggregateInfo} (post-aggregate/HAVING
+    *             conditions and ranking), {@code false} to check the private column selection only
+    */
+   static boolean fieldExists(TableAssembly t, String field, boolean post) {
+      if(field == null || field.isBlank()) {
+         return false;
+      }
+
+      if(post && resolveAggregateOrGroupField(t, field) != null) {
+         return true;
+      }
+
+      ColumnSelection cs = t.getColumnSelection(post);
+
+      if(cs == null) {
+         return false;
+      }
+
+      if(cs.getAttribute(field) != null) {
+         return true;
+      }
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         DataRef ref = cs.getAttribute(i);
+
+         if(ref instanceof ColumnRef cr && field.equals(cr.getAlias())) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Same existence check as {@link #fieldExists}, but for a ranking condition's own field
+    * resolution order in {@link #setRanking}: an {@link AggregateInfo} match (aggregate or
+    * group-by dimension) first, then the table's PRIVATE column selection -- never the public
+    * one, so ranking on a non-aggregated table still recognizes columns hidden via
+    * {@code set_column_visibility}.
+    */
+   static boolean rankingFieldExists(TableAssembly t, String field) {
+      return resolveAggregateOrGroupField(t, field) != null || fieldExists(t, field, false);
    }
 
    /**

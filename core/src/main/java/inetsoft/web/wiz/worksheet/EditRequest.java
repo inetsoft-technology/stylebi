@@ -62,7 +62,11 @@ import java.util.Map;
  *   <li>{@code add_mirror} — {@code name}, {@code source}</li>
  *   <li>{@code set_conditions} — {@code table}, {@code conditions} (condition tree)</li>
  *   <li>{@code set_post_conditions} — {@code table}, {@code conditions} (condition tree, post-aggregate/HAVING)</li>
- *   <li>{@code set_ranking} — {@code table}, {@code ranking}</li>
+ *   <li>{@code set_ranking} — {@code table}, {@code ranking} (replaces the whole ranking list
+ *       with this one entry)</li>
+ *   <li>{@code set_rankings} — {@code table}, {@code rankings} (list; replaces the whole
+ *       ranking list with these entries, in order — for more than one independent ranked
+ *       field in a single call)</li>
  *   <li>{@code add_rotate} — {@code name}, {@code source}</li>
  *   <li>{@code add_unpivot} — {@code name}, {@code source}, {@code headerColumns}</li>
  *   <li>{@code add_date_range_column} — {@code table}, {@code column}, {@code dateOption}</li>
@@ -356,8 +360,54 @@ public record EditRequest(
     * unchanged, matching {@code distinct}/{@code mergeable}. Distinct from {@code visible}, which
     * is a per-column flag for set_column_visibility.
     */
-   Boolean visibleInViewsheet
+   Boolean visibleInViewsheet,
+   /**
+    * Multiple ranking conditions for {@code set_rankings} (plural) — {@code set_ranking}
+    * (singular, {@code ranking} above) still replaces the table's whole ranking list with a
+    * single entry, unchanged, for every existing caller. {@code set_rankings} replaces it with
+    * as many entries as given, in order, so more than one independent ranked field can be
+    * established in a single call instead of the second overwriting the first. {@code null} or
+    * absent is equivalent to an empty list (clears all ranking).
+    */
+   List<WorksheetMutationSupport.RankingSpec> rankings
 ) {
+   /**
+    * Compatibility constructor for callers built before {@code rankings} was added —
+    * defaults it to {@code null}.
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, String> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables,
+      String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
+      List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups, Boolean crosstab,
+      List<String> labels, WorksheetMutationSupport.VariableChoicesSpec choices,
+      List<WorksheetMutationSupport.JoinPathSpec> joinPaths, Boolean mergeable,
+      Boolean visibleInViewsheet)
+   {
+      this(op, table, column, name, type, newName, field, operation, values, direction, groups,
+           aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType,
+           visible, tables, source, concatType, conditions, ranking, headerColumns, dateOption,
+           boundaries, datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row, col,
+           value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
+           groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
+           sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
+           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, joinPaths,
+           mergeable, visibleInViewsheet, null);
+   }
+
    /**
     * Compatibility constructor for callers built before {@code visibleInViewsheet} was added —
     * defaults it to {@code null}.
@@ -391,7 +441,7 @@ public record EditRequest(
            groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
            sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
            lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, joinPaths,
-           mergeable, null);
+           mergeable, null, null);
    }
 
    /**

@@ -30,6 +30,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.TableAssemblyInfo;
+import inetsoft.report.internal.Util;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.uql.erm.AttributeRef;
@@ -633,7 +634,9 @@ public class WorksheetEditService {
        * @throws PairingException if no {@link TableAssembly} with {@code table} exists
        */
       public void setSort(String table, String field, String direction) throws PairingException {
-         WorksheetMutationSupport.setSort(requireTable(table), field, direction);
+         TableAssembly t = requireTable(table);
+         requireColumn(t, field, false);
+         WorksheetMutationSupport.setSort(t, field, direction);
       }
 
       // -----------------------------------------------------------------------
@@ -890,6 +893,7 @@ public class WorksheetEditService {
       {
          TableAssembly t = requireTable(table);
          requireFilterable(t);
+         requireConditionFields(t, nodes, false);
          WorksheetMutationSupport.setConditions(t, nodes, false);
       }
 
@@ -905,6 +909,7 @@ public class WorksheetEditService {
       {
          TableAssembly t = requireTable(table);
          requireFilterable(t);
+         requireConditionFields(t, nodes, true);
          WorksheetMutationSupport.setConditions(t, nodes, true);
       }
 
@@ -914,7 +919,37 @@ public class WorksheetEditService {
       public void setRanking(String table, WorksheetMutationSupport.RankingSpec spec)
          throws PairingException
       {
-         WorksheetMutationSupport.setRanking(requireTable(table), spec);
+         TableAssembly t = requireTable(table);
+         requireFilterable(t);
+
+         if(spec != null) {
+            requireRankingField(t, spec.field());
+         }
+
+         WorksheetMutationSupport.setRanking(t, spec);
+      }
+
+      /**
+       * Sets the table's whole ranking condition list from {@code specs}, in order — the
+       * plural counterpart to {@link #setRanking}, letting a caller establish more than one
+       * independent ranked field in a single call instead of the second call replacing the
+       * first (see {@link WorksheetMutationSupport#setRankings}).
+       */
+      public void setRankings(String table, List<WorksheetMutationSupport.RankingSpec> specs)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+         requireFilterable(t);
+
+         if(specs != null) {
+            for(WorksheetMutationSupport.RankingSpec spec : specs) {
+               if(spec != null) {
+                  requireRankingField(t, spec.field());
+               }
+            }
+         }
+
+         WorksheetMutationSupport.setRankings(t, specs);
       }
 
       // -----------------------------------------------------------------------
@@ -1828,8 +1863,35 @@ public class WorksheetEditService {
             throw new PairingException("Column not found in data: " + attr.getName());
          }
 
+         // Matches WSEditTableDataService.java:101-108's cell-size cap. That native path
+         // truncates and warns via a MessageCommand -- a channel only a connected UI client
+         // can see. An agent caller has no equivalent channel, so a silent truncation would
+         // land as a plausible-but-wrong value with no signal anything was cut, which is a
+         // worse surprise for an agent than for a human watching the grid. Refusing instead
+         // also matches this method's own neighboring guards (column/row bounds above), which
+         // all fail loud rather than silently coercing the input.
+         if(value != null && value.length() > Util.getOrganizationMaxCellSize()) {
+            throw new PairingException(
+               "Value is " + value.length() + " characters, exceeding the " +
+               Util.getOrganizationMaxCellSize() + "-character limit for a cell in this " +
+               "organization. Shorten the value.");
+         }
+
          String dtype = attr instanceof ColumnRef ? ((ColumnRef) attr).getDataType() : null;
-         Object parsed = value != null ? AssetUtil.parse(dtype, value) : null;
+         Object parsed;
+
+         try {
+            parsed = value != null ? AssetUtil.parse(dtype, value) : null;
+         }
+         catch(Exception e) {
+            // Matches WSEditTableDataService.java:129-141's shape: a value that doesn't parse
+            // as the column's type is refused, and the prior cell value is left untouched --
+            // it is not applied here either, since this catch runs before data.setObject.
+            // Previously this exception propagated uncaught instead of as a clean rejection.
+            throw new PairingException(
+               Catalog.getCatalog().getString("common.dataFormatErrorParam", value));
+         }
+
          data.setObject(dataRow, dataCol, parsed);
       }
 
@@ -2488,7 +2550,10 @@ public class WorksheetEditService {
          }
 
          if(type != null) {
-            var.setTypeNode(XSchema.createPrimitiveType(type));
+            // L2-Group7: XSchema.createPrimitiveType returns null, with no exception and no
+            // log, for a type string the Composer's own (closed, 12-value) Type dropdown could
+            // never submit. Left unchecked, the variable silently ends up with no type node.
+            var.setTypeNode(requireValidType(type));
          }
 
          if(defaultValue != null) {
@@ -2505,7 +2570,13 @@ public class WorksheetEditService {
                   valueNode.parse0(defaultValue);
                }
                catch(Exception e) {
-                  valueNode.setValue(defaultValue);
+                  // L2-Group7: previously fell back to storing the raw, unparsed string
+                  // instead of failing loud -- the variable ended up with a default value
+                  // inconsistent with its own declared type, silently.
+                  throw new PairingException(
+                     "Default value '" + defaultValue + "' is not a valid " +
+                     (effectiveType != null ? effectiveType : "string") +
+                     " value for variable '" + name + "'.");
                }
 
                var.setValueNode(valueNode);
@@ -2552,6 +2623,19 @@ public class WorksheetEditService {
 
          if(!(a instanceof DefaultVariableAssembly)) {
             throw new PairingException("Variable assembly not found: " + name);
+         }
+
+         // L2-Group7: mirrors WSRemoveAssembliesService.removeAssemblies, which refuses to
+         // delete an assembly AssetEventUtil.hasDependent() reports as still referenced (e.g.
+         // a condition using $(name)) instead of deleting it and leaving a dangling reference
+         // behind. That guard lives entirely in the UI's own delete service today --
+         // Worksheet.removeAssembly(String) itself has no such check -- so this agent path
+         // never saw it.
+         if(AssetEventUtil.hasDependent(a, ws, java.util.Collections.singleton(name))) {
+            throw new PairingException(
+               "Variable '" + name + "' is still referenced by another assembly in this " +
+               "worksheet (e.g. a condition using $(" + name + ")). Remove those references " +
+               "before deleting it.");
          }
 
          ws.removeAssembly(name);
@@ -2737,6 +2821,73 @@ public class WorksheetEditService {
 
          if(cs.getAttribute(column) == null) {
             throw new PairingException("Column not found: " + column);
+         }
+      }
+
+      /**
+       * L2-Group7: {@code XSchema.createPrimitiveType(type)} returns {@code null}, with no
+       * exception and no log, for a type string the Composer's own (closed, 12-value) Type
+       * dropdown could never submit -- {@code editVariable} previously stored that {@code null}
+       * type node without complaint.
+       */
+      private inetsoft.uql.schema.XTypeNode requireValidType(String type) throws PairingException {
+         inetsoft.uql.schema.XTypeNode typeNode = XSchema.createPrimitiveType(type);
+
+         if(typeNode == null) {
+            throw new PairingException(
+               "Unrecognized variable type: '" + type + "'. Valid types are: string, " +
+               "integer, double, float, character, byte, short, long, date, time, " +
+               "timeInstant, boolean.");
+         }
+
+         return typeNode;
+      }
+
+      /**
+       * Same guard as {@link #requireColumn(TableAssembly, String)}, but also matching
+       * {@link inetsoft.uql.erm.AggregateInfo} aggregate/group refs when {@code post} is
+       * {@code true} -- the field-existence check {@code add_filter} already had via the
+       * plain overload above, extended to post-aggregate (HAVING) conditions and ranking,
+       * which resolve against a different, wider set of names.
+       */
+      private void requireColumn(TableAssembly t, String column, boolean post)
+         throws PairingException
+      {
+         if(!WorksheetMutationSupport.fieldExists(t, column, post)) {
+            throw new PairingException("Column not found: " + column);
+         }
+      }
+
+      /**
+       * Validates every condition node's field against the table before any of them are
+       * applied, matching the native condition dialog's closed field picker: a human cannot
+       * submit an unresolvable column, so neither should this path silently fall back to
+       * {@code resolveField}'s {@code new AttributeRef(null, field)} placeholder.
+       */
+      private void requireConditionFields(TableAssembly t,
+                                          List<WorksheetMutationSupport.ConditionNode> nodes,
+                                          boolean post)
+         throws PairingException
+      {
+         if(nodes == null) {
+            return;
+         }
+
+         for(WorksheetMutationSupport.ConditionNode node : nodes) {
+            if(node.condition() != null) {
+               requireColumn(t, node.condition().field(), post);
+            }
+         }
+      }
+
+      /**
+       * Validates a ranking condition's field, matching {@link #requireColumn(TableAssembly,
+       * String, boolean)} but using ranking's own resolution order (see
+       * {@link WorksheetMutationSupport#rankingFieldExists}).
+       */
+      private void requireRankingField(TableAssembly t, String field) throws PairingException {
+         if(!WorksheetMutationSupport.rankingFieldExists(t, field)) {
+            throw new PairingException("Column not found: " + field);
          }
       }
 
