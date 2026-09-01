@@ -175,6 +175,14 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
       const slackBelowTrack = contentHeight - this.verticalCenter - TRACK_HALF - LABEL_HEIGHT;
       this.effectiveGap = Math.max(MIN_GAP, Math.min(MAX_GAP, slackBelowTrack / 2));
 
+      // The invariant that keeps LABEL_BOTTOM_OFFSET's nominal 7px --slider-gap assumption safe:
+      // whenever the contentHeight - LABEL_BOTTOM_OFFSET branch above is what binds verticalCenter
+      // (i.e. verticalCenter == contentHeight - LABEL_BOTTOM_OFFSET), the contentHeight terms
+      // cancel out of slackBelowTrack, leaving a constant 27 - TRACK_HALF - LABEL_HEIGHT = 7px of
+      // slack regardless of the component's actual height - so effectiveGap is always exactly 3.5
+      // in that case, comfortably under the 7px LABEL_BOTTOM_OFFSET was derived from. The clamp is
+      // conservative; if either constant changes, re-verify this still holds rather than assuming it.
+
       // calculate the tick size
       this.tickSize = GuiTool.measureText("|", this.getFont());
    }
