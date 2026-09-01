@@ -268,6 +268,12 @@ public class TabularCatalogService {
       }
 
       for(Map.Entry<String, String> e : params.entrySet()) {
+         // Key and value are NOT symmetric here. A blank key is never legitimate -- a bean property
+         // name cannot be blank -- so isBlank() is right for it. A blank VALUE can be entirely
+         // legitimate: a connector may report an optional property whose empty value means "unset"
+         // (e.g. OData's own Select/Filter/Expand). This method cannot tell an identity param from
+         // an optional one -- it does not know the connector's property semantics -- so rejecting a
+         // blank value here would reject a correct connector, not just a broken one.
          if(e.getKey() == null || e.getKey().isBlank() || e.getValue() == null) {
             throw new Exception("Data source '" + dsName + "' target '" + target +
                "' returned a params entry with a blank key or null value.");
