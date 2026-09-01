@@ -434,9 +434,11 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
    }
 
    /**
-    * Seed the modern-gated round corner. This type bypasses the base chrome hook (see
-    * VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own — form-input modernization,
-    * tracked as its own follow-on project from the card-corner work.
+    * Seed the modern-gated round corner and object border. This type bypasses the base chrome
+    * hook (see VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own, matching what the base
+    * hook does for Slider and the other card-style assemblies — otherwise the object border stays
+    * the legacy grey while the title picks up the modern warm-neutral background, and the two
+    * surfaces read as mismatched.
     */
    @Override
    protected void seedChromeDefaults(VizContext ctx) {
@@ -450,6 +452,11 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
       if(objFormat != null) {
          objFormat.getDefaultFormat().setRoundCornerValue(
             ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 0);
+
+         Color borderColor = ctx.modern
+            ? VSObjectChromeDefaults.objectBorderColor(ctx) : DEFAULT_BORDER_COLOR;
+         BorderColors bcolors = new BorderColors(borderColor, borderColor, borderColor, borderColor);
+         objFormat.getDefaultFormat().setBorderColorsValue(bcolors);
       }
    }
 
