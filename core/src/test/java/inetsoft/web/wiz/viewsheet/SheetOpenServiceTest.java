@@ -69,6 +69,12 @@ class SheetOpenServiceTest {
    /** Populated by {@code serviceWithBase} so a refusal test can assert NO session was minted. */
    private SheetSessionService sheetSessions;
 
+   /** Populated by {@code serviceWithBase} -- createViewsheet tests stub/verify against this. */
+   private inetsoft.analytic.composition.ViewsheetService viewsheetService;
+
+   /** Populated by {@code serviceWithBase} -- createViewsheet's "default to acting worksheet" tests. */
+   private inetsoft.web.wiz.pairing.SheetRuntimeAccess runtimeAccess;
+
    /**
     * The principal that owns the paired viewsheet runtime — i.e. the user's browser session.
     * Deliberately a different object from {@link #principal()}, the agent: the two are the same
@@ -323,7 +329,9 @@ class SheetOpenServiceTest {
 
       SheetOpenService service = new SheetOpenService(
          viewsheetSessions, realSessions, realWorksheetService, securityProvider,
-         mock(SheetAgentBroadcastService.class));
+         mock(SheetAgentBroadcastService.class),
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(inetsoft.web.wiz.pairing.SheetRuntimeAccess.class));
 
       JoinSession opened = service.openBaseWorksheet("tok-vs", principal(), true);
 
@@ -336,6 +344,182 @@ class SheetOpenServiceTest {
       JoinSession stillFound = realSessions.findOpen(OWNER, SheetType.WORKSHEET);
       assertNotNull(stillFound);
       assertEquals("ws-runtime-new", stillFound.runtimeId());
+   }
+
+   // ── createViewsheet ──────────────────────────────────────────────────────
+   // create_viewsheet: closes the create half of PVA-007/bug 76332 that PR #4900 explicitly
+   // deferred. Mints a new viewsheet runtime and pairs the caller to it directly, by reusing the
+   // ACTING session's (worksheet or viewsheet) already-live browser socket -- the same
+   // no-new-pairing-code mechanism openBaseWorksheet already uses, in reverse.
+
+   @Test
+   void createViewsheetDefaultsToActingWorksheetWhenNoDataSourceGiven() throws Exception {
+      AssetEntry wsEntry = new AssetEntry(
+         inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+         "Sample Queries/customers", null);
+      SheetOpenService service = createViewsheetService(SheetType.WORKSHEET, wsEntry, true);
+
+      JoinSession created = service.createViewsheet("tok-acting", principal(), null);
+
+      assertEquals(SheetType.VIEWSHEET, created.sheetType());
+      assertEquals("vs-runtime-new", created.runtimeId());
+      verify(viewsheetService).openTemporaryViewsheet(isNull(), eq(wsEntry),
+         any(Principal.class), isNull());
+      ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
+      OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
+      assertTrue(sent.viewsheet());
+      assertEquals("vs-runtime-new", sent.runtimeId());
+   }
+
+   @Test
+   void createViewsheetAcceptsExplicitDataSourceFromAViewsheetSession() throws Exception {
+      AssetEntry lmEntry = new AssetEntry(
+         inetsoft.uql.asset.AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
+         "MyDataSource/MyModel", null);
+      // acting session is a VIEWSHEET session -- proves the explicit-dataSource path does not
+      // require the acting session to be a worksheet, unlike the defaulting path.
+      SheetOpenService service = createViewsheetService(SheetType.VIEWSHEET, null, true);
+
+      JoinSession created = service.createViewsheet("tok-acting", principal(), lmEntry);
+
+      assertEquals(SheetType.VIEWSHEET, created.sheetType());
+      verify(viewsheetService).openTemporaryViewsheet(isNull(), eq(lmEntry),
+         any(Principal.class), isNull());
+      verify(runtimeAccess, never()).getSheetForPairing(any(), any(), any());
+   }
+
+   @Test
+   void createViewsheetRefusesWhenActingSessionIsUnresolvable() {
+      SheetOpenService service = createViewsheetService(SheetType.WORKSHEET, null, true);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.createViewsheet("not-a-real-token", principal(), null));
+
+      assertTrue(thrown.getMessage().toLowerCase().contains("invalid or expired"),
+                thrown.getMessage());
+   }
+
+   @Test
+   void createViewsheetRefusesWhenActingSessionHasNoSocket() {
+      AssetEntry wsEntry = new AssetEntry(
+         inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+         "Sample Queries/customers", null);
+      SheetOpenService service = createViewsheetService(SheetType.WORKSHEET, wsEntry, true, null);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.createViewsheet("tok-acting", principal(), null));
+
+      assertTrue(thrown.getMessage().toLowerCase().contains("browser connection"),
+                thrown.getMessage());
+   }
+
+   @Test
+   void createViewsheetRefusesWhenNoDataSourceAndActingSessionIsNotWorksheet() {
+      SheetOpenService service = createViewsheetService(SheetType.VIEWSHEET, null, true);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.createViewsheet("tok-acting", principal(), null));
+
+      assertTrue(thrown.getMessage().contains("nothing to default to"), thrown.getMessage());
+   }
+
+   @Test
+   void createViewsheetRefusesWhenActingWorksheetIsUnsaved() {
+      // getEntry() returning null is exactly what an untitled (never-saved) worksheet's own
+      // runtime carries -- there is no repository path yet to build a viewsheet from.
+      SheetOpenService service = createViewsheetService(SheetType.WORKSHEET, null, true);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.createViewsheet("tok-acting", principal(), null));
+
+      assertTrue(thrown.getMessage().contains("has not been saved"), thrown.getMessage());
+   }
+
+   @Test
+   void createViewsheetRefusesWhenTheAgentLacksViewsheetPermission() {
+      AssetEntry lmEntry = new AssetEntry(
+         inetsoft.uql.asset.AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
+         "MyDataSource/MyModel", null);
+      SheetOpenService service = createViewsheetService(SheetType.VIEWSHEET, null, false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.createViewsheet("tok-acting", principal(), lmEntry));
+
+      assertTrue(thrown.getMessage().toLowerCase().contains("permission"), thrown.getMessage());
+   }
+
+   /**
+    * Purpose-built harness for {@code createViewsheet} -- {@code openBaseWorksheet}'s own
+    * {@code serviceWithBase} is tailored to that method's very different fixture shape
+    * (viewsheet-session-specific mocks) and is not a good fit here.
+    *
+    * @param actingType     the acting session's own sheet type
+    * @param actingWsEntry  the acting session's own worksheet AssetEntry, as
+    *                       {@code RuntimeSheet.getEntry()} would return it -- only consulted when
+    *                       {@code actingType} is {@code WORKSHEET}; {@code null} simulates an
+    *                       unsaved (untitled) worksheet
+    * @param hasPermission  whether the agent has {@code ResourceType.VIEWSHEET} ACCESS
+    */
+   private SheetOpenService createViewsheetService(SheetType actingType, AssetEntry actingWsEntry,
+                                                    boolean hasPermission)
+   {
+      return createViewsheetService(actingType, actingWsEntry, hasPermission, "sock-1");
+   }
+
+   private SheetOpenService createViewsheetService(SheetType actingType, AssetEntry actingWsEntry,
+                                                    boolean hasPermission, String socketSessionId)
+   {
+      JoinSession actingSession = new JoinSession(
+         "tok-acting", "acting-runtime-1", OWNER, actingType, 0L,
+         SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         socketSessionId, SOCKET_USER, null);
+
+      SheetSessionService sheetSessions = mock(SheetSessionService.class);
+      this.sheetSessions = sheetSessions;
+      when(sheetSessions.resolve(eq("tok-acting"), eq(OWNER))).thenReturn(actingSession);
+
+      JoinSession newVsSession = new JoinSession(
+         "tok-vs-new", "vs-runtime-new", OWNER, SheetType.VIEWSHEET, 0L,
+         SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         socketSessionId, SOCKET_USER, null);
+      when(sheetSessions.open(eq("vs-runtime-new"), eq(OWNER), eq(SheetType.VIEWSHEET),
+                              eq(socketSessionId), eq(SOCKET_USER), isNull()))
+         .thenReturn(newVsSession);
+
+      runtimeAccess = mock(inetsoft.web.wiz.pairing.SheetRuntimeAccess.class);
+
+      if(actingType == SheetType.WORKSHEET) {
+         inetsoft.report.composition.RuntimeSheet actingWs =
+            mock(inetsoft.report.composition.RuntimeSheet.class);
+         when(actingWs.getEntry()).thenReturn(actingWsEntry);
+         when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq("acting-runtime-1"),
+                                               any(Principal.class)))
+            .thenReturn(actingWsEntry == null ? null : actingWs);
+      }
+
+      viewsheetService = mock(inetsoft.analytic.composition.ViewsheetService.class);
+
+      try {
+         when(viewsheetService.openTemporaryViewsheet(isNull(), any(AssetEntry.class),
+                                                       any(Principal.class), isNull()))
+            .thenReturn("vs-runtime-new");
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      SecurityProvider securityProvider = mock(SecurityProvider.class);
+      when(securityProvider.checkPermission(any(Principal.class), eq(ResourceType.VIEWSHEET),
+                                            eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(hasPermission);
+
+      broadcast = mock(SheetAgentBroadcastService.class);
+      worksheetService = mock(WorksheetService.class);
+
+      return new SheetOpenService(mock(ViewsheetSessionService.class), sheetSessions,
+                                  worksheetService, securityProvider, broadcast, viewsheetService,
+                                  runtimeAccess);
    }
 
    // ── harness ───────────────────────────────────────────────────────────────
@@ -434,8 +618,11 @@ class SheetOpenServiceTest {
          broadcast = broadcastService == null
             ? mock(SheetAgentBroadcastService.class) : broadcastService;
 
+         viewsheetService = mock(inetsoft.analytic.composition.ViewsheetService.class);
+         runtimeAccess = mock(inetsoft.web.wiz.pairing.SheetRuntimeAccess.class);
+
          return new SheetOpenService(viewsheetSessions, sheetSessions, worksheetService,
-                                      securityProvider, broadcast);
+                                      securityProvider, broadcast, viewsheetService, runtimeAccess);
       }
       catch(Exception e) {
          throw new IllegalStateException(e);
