@@ -107,6 +107,33 @@ describe("SelectionContainerActions", () => {
       expect(toolbarActions2).toMatchSnapshot();
    });
 
+   // A title-hidden container has a zero-height lane, which draws neither the anchored strip nor
+   // the kebab, so the right-click menu is the only surface its toolbar actions have. menuActions
+   // is a separate list from toolbarActions and in the viewer it held nothing but the dismissal.
+   it("carries the toolbar actions into the menu in the viewer", () => {
+      const ids = (groups: any[]) =>
+         groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+      const visibleIds = (groups: any[]) =>
+         groups.reduce((acc, g) =>
+            acc.concat(g.actions.filter(a => a.visible()).map(a => a.id())), [] as string[]);
+      const actions = new SelectionContainerActions(createModel(),
+                                                    ViewerContextProviderFactory(false));
+
+      // The ids match the toolbar twins, which is what lets the kebab's flattened list dedupe.
+      expect(ids(actions.menuActions)).toEqual(expect.arrayContaining([
+         "selection-container open-max-mode",
+         "selection-container close-max-mode",
+         "selection-container unselect-all",
+         "selection-container addfilter"
+      ]));
+      // The viewer is the context the defect showed in: properties and show-format-pane are
+      // composer-only, so before this the whole menu was invisible there.
+      expect(visibleIds(actions.menuActions)).toEqual(expect.arrayContaining([
+         "selection-container unselect-all",
+         "selection-container addfilter"
+      ]));
+   });
+
    //Bug #19986 should not display menu action when as data tip component
    it("should not display menu action when as data tip component", () => {
       const dataTipService: any = { isDataTip: vi.fn() };

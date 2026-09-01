@@ -55,6 +55,75 @@ export class CalendarActions extends AbstractVSActions<VSCalendarModel> {
       ]));
       groups.push(this.createDefaultEditMenuActions());
       groups.push(this.createDefaultOrderMenuActions());
+
+      // The calendar's six actions were toolbar-only, so right-click could not reach any of them.
+      // With the title hidden the anchored lane is zero and neither the strip nor the kebab draws,
+      // which leaves the menu as the only surface. Predicates are copied verbatim from
+      // createToolbarActions; the menu renders labels only, so no icon. Appended last so the
+      // positional assertions in calendar-actions.spec.ts do not shift.
+      groups.push(new AssemblyActionGroup([
+         {
+            id: () => "calendar toggle-year",
+            label: () => this.model.yearView ? "_#(js:Switch To Month View)"
+               : "_#(js:Switch To Year View)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => (!this.model.dropdownCalendar || this.model.calendarsShown)
+              && (this.isActionVisibleInViewer("Switch To Month View") &&
+                  this.isActionVisibleInViewer("Switch To Year View"))
+         },
+         {
+            id: () => "calendar toggle-double-calendar",
+            label: () => this.model.doubleCalendar ? "_#(js:Switch To Simple View)"
+               : (this.model.comparisonVisible || this.model.period) ? "_#(js:Switch To Range)"
+               : "_#(js:Switch To Range)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => (!this.model.dropdownCalendar || this.model.calendarsShown)
+               && (this.isActionVisibleInViewer("Switch To Simple View") &&
+                   this.isActionVisibleInViewer("Switch To Range") &&
+                   this.isActionVisibleInViewer("Switch To Single Calendar") &&
+                   this.isActionVisibleInViewer("Switch To Double Calendar"))
+         },
+         {
+            id: () => "calendar clear",
+            label: () => "_#(js:Clear Calendar)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.isActionVisibleInViewer("Clear Calendar")
+         },
+         {
+            id: () => "calendar toggle-range-comparison",
+            label: () => this.model.period ? "_#(js:Switch To Date Range Mode)"
+               : "_#(js:Switch To Comparison Mode)",
+            icon: () => null,
+            enabled: () => (this.model.comparisonVisible || this.model.period),
+            visible: () => this.model.doubleCalendar
+                           && (!this.model.dropdownCalendar || this.model.calendarsShown) &&
+               (this.isActionVisibleInViewer("Switch To Date Range Mode") &&
+                   this.isActionVisibleInViewer("Switch To Comparison Mode")) &&
+               (this.model.comparisonVisible || this.model.period)
+         },
+         {
+            id: () => "calendar multi-select",
+            label: () => this.model.multiSelect ? "_#(js:Change to Single-select)"
+               : "_#(js:Change to Multi-select)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.mobileDevice && !this.model.singleSelection &&
+               this.isActionVisibleInViewer("Change to Single-select") &&
+               this.isActionVisibleInViewer("Change to Multi-select")
+         },
+         {
+            id: () => "calendar apply",
+            label: () => "_#(js:Apply)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => (this.model.doubleCalendar || !this.model.submitOnChange)
+                           && this.isActionVisibleInViewer("Apply")
+         }
+      ]));
+
       return super.createMenuActions(groups);
    }
 

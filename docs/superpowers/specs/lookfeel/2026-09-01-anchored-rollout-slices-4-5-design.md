@@ -29,14 +29,17 @@ Two edits.
 
 **Kebab-only, per Case 2**, which names the container explicitly: *"selection list, selection tree and selection container show a single kebab in the header, always."* Case 4's later note reopened the question by saying the fit test *"returns for the container, whose slice has not been written"* — that note is about geometry, not treatment, and the geometry answers itself here: the container's lane is full width (`vs-selection-container.component.html:42` binds `[titleWidth]="model.objectFormat.width"`), not the `titleRatio` split the list and tree take, so nothing in it fails a fit test. The treatment decision stands on its own grounds: a container and its child lists sit adjacent in one visual stack, and a denser header on the parent than on its children reads as an inconsistency rather than as a hierarchy. Its four toolbar actions — `open-max-mode`, `close-max-mode`, `unselect-all`, `addfilter` (`selection-container-actions.ts:62-91`) — are set-and-leave rather than study-and-iterate, which is the distinction Case 2 draws between a filter and a chart.
 
-**Nothing else is needed, because four preconditions already hold.** Each was checked rather than assumed:
+**Four preconditions already hold; a fifth does not, and this design missed it.** Each was checked rather than assumed:
 
-| Precondition | Where it is already satisfied |
+| Precondition | Where it stands |
 |---|---|
 | A lane tall enough to hold the 24px strip | `VSCompositeModel:44` (Java) sizes `titleFormat` from `assemblyInfo.getTitleHeight()`, and `CurrentSelectionVSAssemblyInfo:244-245` routes that through `VSDensityDefaults.titleHeight`. At the `compact` default shipped in `c7790bbf0` a marked container resolves **26px**, over `ANCHORED_LANE_MIN` |
 | Children must not each draw their own strip | `isMiniToolbarVisible` returns false for `containerType === "VSSelectionContainer"` (`vs-object-container.component.ts:277`). Case 3's double-strip problem is inherited, not re-solved |
 | Max mode must not break the lane origin | `VSSelectionContainerModel.setMaxModeLayout:116-124` sets `objectFormat` left and top to **0** — true coordinates, as chart and table do. The container therefore needs **no** entry in `isMaxModeSelection` (`vs-object-container.component.ts:506`), whose exclusion exists only because `VSSelectionBaseModel` puts `TOP_PADDING`/`LEFT_PADDING` constants there instead |
 | A full-width lane for the pill to right-align into | `getAnchoredToolbarWidth` subtracts `paddingLeft`/`paddingRight`, both absent on this model, so the box is the whole lane and `margin-left: auto` does the alignment |
+| The type's toolbar actions must also be reachable from the right-click menu | **Not satisfied.** Every earlier slice paid this cost and this table did not count it: the chart duplicates show-data and the max-mode pair into `createMenuActions` (`chart-actions.ts:339-372`), the table family adds show-details and export, the selection list and tree add the max-mode pair. `SelectionContainerActions.createMenuActions` held only `properties` and `show-format-pane`, both `visible: () => this.composer`, so in the viewer its menu was empty but for the dismissal. `CalendarActions` was in the same state |
+
+**Anchoring a type without that fifth precondition strands its toolbar actions whenever the lane is 0.** The lane-0 rung removes the strip and the kebab together, so `getMoreActions()` has no surface either, and right-click opens `menuActions` — a different list from `toolbarActions`. The four geometric rows above decide where the strip draws; only this row decides whether the actions survive the rung that draws no strip at all. It is a precondition of anchoring any type, not a property of the container.
 
 **The `<mini-menu>` inside `current-selection.component.html:26` is not this strip and is not touched.** It belongs to an *outer selection* row — one child filter's collapsed title bar inside the container's body — and binds `CurrentSelectionActions.toolbarActions` (`current-selection.component.ts:115-116`), a different action class. The container's own title lane, `vs-selection-container.component.html:37-55`, holds only `<vs-title>` and is where the anchored strip lands.
 
@@ -91,15 +94,16 @@ The calendar's `allowedActionsNum()` arithmetic needs no new test: it is the tab
 1. **Container, compact, modern** — kebab alone, right-aligned in the 26px lane, no action buttons at any width.
 2. **Container with populated children** — exactly one strip in the stack; no child list draws its own.
 3. **Container, max mode** — strip stays in the lane, does not jump to the viewport corner.
-4. **Container, title hidden** — no strip, no kebab; right-click still reaches the full menu.
+4. **Container, title hidden** — no strip, no kebab. Right-click reaches Show Enlarged, Unselect All and Add Filter, the container's own toolbar actions, because `createMenuActions` now carries them. It offered only Hide MiniToolbar before that.
 5. **Calendar, compact, modern** — up to three action buttons plus the kebab in the 26px lane; kebab opens the overflow.
 6. **Calendar, author-set 36px lane** — same, in the taller lane.
 7. **Dropdown calendar** — the inline `<mini-menu>` only; no second strip.
-8. **Calendar, title hidden** — no chrome; right-click reaches the menu.
+8. **Calendar, title hidden** — no chrome. Right-click reaches the calendar's six toolbar actions, because `createMenuActions` now carries them. It offered only Hide MiniToolbar before that.
 9. **Both types, dark** — glyph tone resolves against the dark card, as the six shipped types do.
 10. **A text or gauge assembly in a modern org** — floating toolbar unchanged. This is the section 3 regression check.
 11. **Composer on a touch device, container focused** — the mobile toolbar renders; it does not come back empty.
 12. **Adhoc range slider, modern** — floating toolbar unchanged.
+13. **Non-dropdown calendar inside a bottom-tab container** — the strip still sits inside the lane. `vs-calendar.component.ts:186-190` renders such a calendar at `objectFormat.top - borderExcess`, an offset `getToolbarTop` does not know about, so with a 1px box border the strip loses the 1px of slack a 26px lane gives it. A check to run, not a code change.
 
 ---
 
@@ -116,14 +120,23 @@ The calendar's `allowedActionsNum()` arithmetic needs no new test: it is the tab
 
 ## What the implementation found
 
-Recorded after the branch shipped as five commits: the test-control migration (`4434877ca`), slice 4
-(`f36469d2f`) and its follow-up (`8b92878fd`), slice 5 (`09b29620e`), and the comment retarget
-(`aab93d919`).
+Recorded after the branch shipped as six commits: the test-control migration (`4434877ca`), slice 4
+(`f36469d2f`) and its follow-up (`8b92878fd`), slice 5 (`09b29620e`), the comment retarget
+(`aab93d919`), and the fix the manual browser pass produced, cited by subject as
+*"keep a suppressed assembly's actions reachable, and flatten its kebab"* — it is the branch tip and
+was amended after these lines were written, so a hash here would be the one thing on the page that
+could not be right.
 
 **Eleven existing tests used the calendar as their "type outside the anchored set" control** — six in `abstract-vs-actions.spec.ts`, three in `mini-toolbar.service.spec.ts`, two in `vs-object-container.component.display.tl.spec.ts`. Slice 5 destroys that role. The successor is the adhoc range slider: it is the one `hasMiniToolbar()` type that stays outside the set permanently, and unlike a text or gauge assembly it has toolbar actions to assert on — neither `TextActions` nor `GaugeActions` defines `createToolbarActions`, so their `showingActions` is empty and an assertion on it proves nothing. Measured before the migration: at 2000×400, modern, lane 20, the range slider yields four actions and `allowedActionsNum()` 50.
 
 **The migration was sequenced first, as its own commit, while the calendar was still outside the set.** That is what made it provably behaviour-neutral — the suite stayed green across it. Folded into the slice, it would have produced eleven simultaneous failures with two unrelated causes.
 
 **Two of the migrated tests had to change width, and the reason generalises.** The plan assumed the range slider would overflow its toolbar at the same 120px the calendar did. It does not: the calendar exposes about six visible toolbar actions, the range slider exactly one. `openMaxModeVisible` requires both `!composer` and `!adhocFilter` (`range-slider-actions.ts:166-168`), and the fixture sets `adhocFilter` under a composer context, so the max-mode pair is invisible and only `unselect` survives. At 120px, `floor(120/40) = 3` slots held everything, nothing reached the kebab, and both `not.toContain("menu actions")` assertions would have passed **vacuously**. Recalibrated to 60px — one slot — so the overflow the tests are about actually happens. **When a control type changes, re-derive the fixture width from that type's count of *visible* actions rather than carrying the old one over.**
+
+**Manual checks 4 and 8 caught a real regression, and they were wrong as written.** Both asserted that a title-hidden container or calendar would still reach the full menu by right-click. It did not: the browser pass found only Hide MiniToolbar there, with Show Enlarged, Unselect All and Add Filter unreachable by any route. The cause is the missing fifth precondition recorded in section 1 — this branch anchored two types without duplicating their toolbar actions into `createMenuActions`, so the lane-0 rung left them with no surface. Fixed by appending that group to both action classes, following `chart-actions.ts:339-372`: same ids as the toolbar twins so `flattenedMoreActions()` dedupes, `icon: () => null`, predicates copied verbatim, appended last. The checks above are rewritten to state what must now be true.
+
+**A second symptom of the same cause: the degenerate kebab.** A calendar with a visible title drew three action buttons plus a kebab whose only row was "More", opening onto a lone Hide MiniToolbar — a menu whose sole content is a submenu. `getMoreActions()` flattened only at `allowedActionsNum() === 0`, and the calendar gets four slots, so it kept the nested wrapper with nothing beside it. The flatten condition now also fires when the "menu actions" wrapper is the only thing in the overflow, read off that list rather than from a second copy of the overflow arithmetic.
+
+**That state is not calendar-specific, and the fix is therefore family-wide.** The anchored budget is `min(3, realActions) + 1`, so on any anchored type with three or fewer visible real actions the wrapper is the *only* thing that overflows — the table family's normal state, and the chart's in a viewer. Five tests in `abstract-vs-actions.spec.ts` asserted `getMoreActions()` was exactly `["menu actions"]` there, one of them named for the nesting decision. They are re-pointed: the kebab now inlines the menu wherever the wrapper overflows alone, and the nesting decision stays pinned on the one shape where it still applies, a real toolbar action overflowing beside the wrapper.
 
 **One test comment claimed more than a browser test can measure.** Slice 4's two max-mode tests were written as though they pinned the server-side geometry that makes the container safe to anchor — it rewrites `objectFormat` to true coordinates where the list and tree carry padding constants. `isMaxModeSelection` (`vs-object-container.component.ts:506-510`) never reads `objectFormat`; it tests `objectType` and `maxMode` only, so the fixtures' differing coordinates are inert. What the tests do pin — and it is worth pinning — is that the exclusion list was not widened to include the container. The comments were corrected in `8b92878fd` to say that, keeping the server-side asymmetry as the stated reason rather than the measured thing.

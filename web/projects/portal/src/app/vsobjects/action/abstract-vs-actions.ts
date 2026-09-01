@@ -145,7 +145,7 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
 
    /**
     * Whether this assembly type's anchored strip is the kebab alone — no action buttons, at any
-    * width. Permanent, unlike the resident/anchored predicate above: it survives the rollout.
+    * width. A permanent property of the type, not a rollout stage.
     */
    protected get kebabOnly(): boolean {
       return false;
@@ -299,9 +299,27 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       ToolbarActionsHandler.copyActions(actions, this.more);
 
       // Where an action button can still render, the kebab keeps the trailing "menu actions"
-      // wrapper and the full menu sits one level below it, as on a pointer strip.
-      return this.resident && this.allowedActionsNum() === 0 ? this.flattenedMoreActions()
-         : this.more;
+      // wrapper and the full menu sits one level below it, as on a pointer strip — but only where
+      // overflowed toolbar actions sit beside it. Holding the wrapper alone, the kebab opens onto
+      // a single row whose only job is to open another menu, so the menu is inlined instead. The
+      // anchored budget is min(3, realActions) + 1, so on any type with three or fewer real
+      // actions the wrapper is the only thing that overflows. Read off the overflow list itself
+      // rather than re-deriving the overflow arithmetic here.
+      return this.resident && (this.allowedActionsNum() === 0 || this.wrapperIsSoleOverflow())
+         ? this.flattenedMoreActions() : this.more;
+   }
+
+   /**
+    * Whether the overflow holds the trailing "menu actions" wrapper and nothing else. Asked of the
+    * list getMoreActions() has just built, so it cannot disagree with it.
+    */
+   private wrapperIsSoleOverflow(): boolean {
+      const overflowed = this.more.reduce(
+         (all, group) => all.concat(group.actions.filter(action => action.visible())),
+         [] as AssemblyAction[]);
+
+      return overflowed.length > 0 &&
+         overflowed.every(action => action.id() === "menu actions");
    }
 
    /**
@@ -320,7 +338,15 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
     * places or neither.
     */
    private flattenedMoreActions(): AssemblyActionGroup[] {
-      const seen = new Set<string>();
+      // Seeded with what the strip is already rendering, so the kebab does not repeat buttons
+      // sitting an inch from it. The menu carries copies of the toolbar actions by design — that is
+      // what keeps them reachable once a lane too short for the strip suppresses it — but a copy
+      // whose original is on screen is noise. Where no action button renders at all (touch, and the
+      // kebab-only band) showing holds none, nothing is excluded, and the kebab stays the whole
+      // inventory.
+      const seen = new Set<string>(
+         this.showing.reduce(
+            (ids, group) => ids.concat(group.actions.map(action => action.id())), [] as string[]));
 
       return [...this.more, ...this.menuActions]
          .map(group => new AssemblyActionGroup(group.actions.filter(action => {

@@ -32,6 +32,14 @@ export class CurrentSelectionActions extends SelectionContainerActions {
             dataTipService, popService);
    }
 
+   // This row shares the container's model but not its chrome: createToolbarActions below replaces
+   // the container's toolbar rather than extending it, and the viewer's template binds no
+   // onAssemblyActionEvent on <current-selection>, so a container action offered here would render
+   // and then do nothing when clicked.
+   protected get carriesContainerActions(): boolean {
+      return false;
+   }
+
    protected createToolbarActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
       groups.push(new AssemblyActionGroup([
          {

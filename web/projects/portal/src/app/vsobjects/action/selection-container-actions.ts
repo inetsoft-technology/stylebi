@@ -60,7 +60,56 @@ export class SelectionContainerActions extends AbstractVSActions<VSSelectionCont
       ]));
       groups.push(this.createDefaultEditMenuActions());
       groups.push(this.createDefaultOrderMenuActions());
+
+      // The container's four actions were toolbar-only, so right-click could not reach any of them.
+      // With the title hidden the anchored lane is zero and neither the strip nor the kebab draws,
+      // which leaves the menu as the only surface. Predicates are copied verbatim from
+      // createToolbarActions; the menu renders labels only, so no icon. Appended last so the
+      // positional assertions in selection-container-actions.spec.ts do not shift.
+      if(this.carriesContainerActions) {
+         groups.push(new AssemblyActionGroup([
+         {
+            id: () => "selection-container open-max-mode",
+            label: () => "_#(js:Show Enlarged)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.openMaxModeVisible
+         },
+         {
+            id: () => "selection-container close-max-mode",
+            label: () => "_#(js:Show Actual Size)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.closeMaxModeVisible
+         },
+         {
+            id: () => "selection-container unselect-all",
+            label: () => "_#(js:Unselect All)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.isActionVisibleInViewer("Unselect All", "Clear All Selections")
+         },
+         {
+            id: () => "selection-container addfilter",
+            label: () => "_#(js:Add Filter)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.isActionVisibleInViewer("Add Filter") &&
+               !this.model.inEmbeddedViewsheet && this.model.supportRemoveChild
+         }
+         ]));
+      }
+
       return super.createMenuActions(groups);
+   }
+
+   /**
+    * Whether this class's menu carries the container's own toolbar actions. False for the
+    * outer-selection row, which shares the container's model but has neither its toolbar nor a
+    * route for its events — see CurrentSelectionActions.
+    */
+   protected get carriesContainerActions(): boolean {
+      return true;
    }
 
    protected createToolbarActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
