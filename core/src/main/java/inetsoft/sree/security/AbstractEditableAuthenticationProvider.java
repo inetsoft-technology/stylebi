@@ -222,6 +222,12 @@ public abstract class AbstractEditableAuthenticationProvider
       String dir = "portal/" + newOrgID;
       Map<String, String> cssEntries = manager.getCssEntries();
       String viewsheet = cssEntries != null ? cssEntries.get(fromOrgId) : null;
+      // Batch every branding change behind a single save(). Each save() drops and
+      // re-adds the manager's data space change listener, and the notification for
+      // the write is delivered asynchronously, so one save() per entry used to open
+      // several windows in which a late self-notification could reload the file over
+      // the entry the next step had just added.
+      boolean brandingChanged = false;
 
       if(viewsheet != null) {
          String[] viewsheetFile = viewsheet.split("/");
@@ -237,7 +243,7 @@ public abstract class AbstractEditableAuthenticationProvider
          }
 
          manager.addCSSEntry(newOrgID, newOrgID + "/" + cssName);
-         manager.save();
+         brandingChanged = true;
       }
 
       Map<String, String> logoEntries = manager.getLogoEntries();
@@ -256,7 +262,7 @@ public abstract class AbstractEditableAuthenticationProvider
          }
 
          manager.addLogoEntry(newOrgID, dir + "/" + logoName);
-         manager.save();
+         brandingChanged = true;
       }
 
       Map<String, String> faviconEntries = manager.getFaviconEntries();
@@ -275,13 +281,17 @@ public abstract class AbstractEditableAuthenticationProvider
          }
 
          manager.addFaviconEntry(newOrgID, dir + "/" + faviconName);
-         manager.save();
+         brandingChanged = true;
       }
 
       PortalWelcomePage welcomePage = manager.getWelcomePage(fromOrgId);
 
       if(welcomePage != null) {
          manager.setWelcomePage(newOrgID, (PortalWelcomePage) welcomePage.clone());
+         brandingChanged = true;
+      }
+
+      if(brandingChanged) {
          manager.save();
       }
 

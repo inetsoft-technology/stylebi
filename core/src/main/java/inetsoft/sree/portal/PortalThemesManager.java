@@ -35,6 +35,8 @@ import javax.xml.xpath.*;
 import java.awt.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -71,6 +73,30 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
          lock.lock();
 
          try {
+            // The data space delivers change notifications asynchronously (on the
+            // BlobStorageEvent thread), so the listener de-registration that
+            // saveUnderLock() does around its own write cannot suppress the
+            // notification for that write -- it routinely arrives after the write
+            // has committed and the listener has been re-registered. Reloading then
+            // would discard any in-memory change made since (or resurrect one that
+            // was removed), because parseXML() replaces the cssEntries/logoEntries/
+            // faviconEntries/welcomePageEntries maps wholesale from the file.
+            //
+            // Decide by content rather than by the event's timestamp: the timestamp is
+            // stamped by whichever node wrote the blob, so with even a few milliseconds
+            // of clock skew a remote write can carry an older timestamp than our own
+            // last write and would be skipped, losing that node's change. If the file
+            // already holds exactly what this instance last wrote or loaded, there is
+            // nothing to reload no matter who wrote it or when.
+            String digest = fileDigest(dataSpace, getThemesFile());
+
+            if(digest != null && digest.equals(syncedDigest)) {
+               return;
+            }
+
+            // set before loading: loadThemes() may itself call save() (the missing-file
+            // fallback), and that save must have the last word on syncedDigest
+            syncedDigest = digest;
             reset();
             loadThemes();
          }
@@ -570,20 +596,30 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       try {
          dmgr.removeChangeListener(space, null, name, changeListener);
 
+         // build the document in memory so that the exact bytes written can be
+         // digested for the changeListener's self-write fence
+         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+         PrintWriter writer =
+            new PrintWriter(new OutputStreamWriter(buffer, StandardCharsets.UTF_8));
+
+         writer.println("<?xml version=\"1.0\"?>");
+         writer.println("<PortalThemes>");
+         writer.println("<Version>" + FileVersions.PORTAL_THEMES + "</Version>");
+         writeXML(writer);
+         writer.println("</PortalThemes>");
+         writer.flush();
+
+         byte[] content = buffer.toByteArray();
+
          try(DataSpace.Transaction tx = space.beginTransaction();
              OutputStream out = tx.newStream(null, name))
          {
-
-            PrintWriter writer = new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
-
-            writer.println("<?xml version=\"1.0\"?>");
-            writer.println("<PortalThemes>");
-            writer.println("<Version>" + FileVersions.PORTAL_THEMES + "</Version>");
-            writeXML(writer);
-            writer.println("</PortalThemes>");
-            writer.flush();
-
+            out.write(content);
             tx.commit();
+            // Record what we just wrote while the distributed lock is still held and
+            // before the listener is re-registered below, so the notification for this
+            // write is recognized as our own no matter when it is delivered.
+            syncedDigest = digest(content);
          }
       }
       catch(Throwable ex) {
@@ -1048,6 +1084,31 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    private final DataChangeListener changeListener;
 
    /**
+    * Digest of the current content of the themes file, or null when it cannot be read
+    * (missing file, read error) -- null never matches, so the caller reloads.
+    */
+   private String fileDigest(DataSpace space, String name) {
+      try(InputStream in = space.getInputStream(null, name)) {
+         return in == null ? null : digest(in.readAllBytes());
+      }
+      catch(IOException ex) {
+         LOG.debug("Failed to read portal themes file for comparison: " + name, ex);
+         return null;
+      }
+   }
+
+   private String digest(byte[] content) {
+      try {
+         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
+      }
+      catch(NoSuchAlgorithmException ex) {
+         // cannot happen, SHA-256 is required of every JRE; fail safe by never matching
+         LOG.debug("SHA-256 unavailable, portal themes self-write detection disabled", ex);
+         return null;
+      }
+   }
+
+   /**
     * Reset variables before reload.
     */
    private void reset() {
@@ -1089,6 +1150,15 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    private List<PortalTab> portalTabs = new ArrayList<>();
    private String copyright;
    private volatile String themesFile;
+   /**
+    * Digest of the themes file content this instance's in-memory configuration
+    * corresponds to -- what saveUnderLock() last wrote, or what changeListener last
+    * loaded. A change notification for a file that still digests to this describes a
+    * write this instance already knows about, so reloading would only clobber
+    * in-memory changes made since. Written and read under DISTRIBUTED_LOCK_NAME.
+    * Null means "unknown", which fails safe: the reload goes ahead.
+    */
+   private volatile String syncedDigest;
    private final DataChangeListenerManager dmgr = new DataChangeListenerManager();
 
    private static final Logger LOG = LoggerFactory.getLogger(PortalThemesManager.class);
