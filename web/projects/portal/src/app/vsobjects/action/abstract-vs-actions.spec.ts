@@ -293,7 +293,10 @@ describe("AbstractVSActions", () => {
 
          expect(ids(actions.showingActions)).toEqual(
             ["chart show-data", "chart open-max-mode", "chart properties-toolbar", "more actions"]);
-         expect(ids(actions.getMoreActions())).toEqual(["menu actions"]);
+         // The wrapper is the only thing that overflows, so the kebab carries the menu itself
+         // rather than a lone row opening onto it.
+         expect(ids(actions.getMoreActions())).not.toContain("menu actions");
+         expect(ids(actions.getMoreActions())).toContain("vs-assembly hide-mini-toolbar");
       });
 
       it("still overflows the wrapper into a non-empty kebab when fewer than three real actions are available", () => {
@@ -315,7 +318,9 @@ describe("AbstractVSActions", () => {
          // special-casing chart.
          expect(ids(actions.showingActions)).toEqual(
             ["chart show-data", "chart open-max-mode", "more actions"]);
-         expect(ids(actions.getMoreActions())).toEqual(["menu actions"]);
+         // The wrapper still leaves the strip; the kebab it lands in carries the menu inline.
+         expect(ids(actions.getMoreActions())).not.toContain("menu actions");
+         expect(ids(actions.getMoreActions())).toContain("vs-assembly hide-mini-toolbar");
       });
 
       it("gives up action buttons before the kebab when width binds below the cap", () => {
@@ -521,15 +526,17 @@ describe("AbstractVSActions", () => {
             .forEach(id => expect(more).toContain(id));
       });
 
-      it("does not add the entry for a type outside the anchored set on touch", () => {
+      it("overflows into the kebab for a type outside the anchored set on touch", () => {
          document.body.classList.add("viz-density-compact");
          onTouch();
          // 60px: the range slider has only one real toolbar action, so it takes a narrower
          // width than the calendar's did to force an overflow at all.
          const more = ids(rangeSliderActionsFor(60, 400, true).getMoreActions());
 
+         // Only the overflow itself is asserted here. The wrapper's own visible() carries
+         // !mobileDevice, so on touch it is filtered out before any overflow arithmetic runs and a
+         // negative assertion on it could not fail. The pointer twin below is where it measures.
          expect(more).toContain("range-slider unselect");
-         expect(more).not.toContain("menu actions");
       });
 
       it("keeps the entry for a type outside the anchored set on a pointer device", () => {
@@ -610,10 +617,17 @@ describe("AbstractVSActions", () => {
          expect(more).toContain("table properties");
       });
 
-      it("keeps the menu nested behind the wrapper while action buttons still render", () => {
+      // The anchored budget is min(3, realActions) + 1, so on a table the wrapper is the only
+      // thing that ever overflows and the kebab would otherwise open onto a single "More" row.
+      // The nesting decision still holds where real actions overflow beside the wrapper, which is
+      // pinned on the chart in "a kebab holding nothing but the menu wrapper" below.
+      it("flattens the kebab where the wrapper is the only thing that overflows", () => {
          document.body.classList.add("viz-density-compact");
+         const more = ids(tableActionsFor(2000, 400, true).getMoreActions());
 
-         expect(ids(tableActionsFor(2000, 400, true).getMoreActions())).toEqual(["menu actions"]);
+         expect(more).not.toContain("menu actions");
+         expect(more).toContain("table properties");
+         expect(new Set(more).size).toBe(more.length);
       });
 
       it("removes all chrome from a table below the 32px floor", () => {
@@ -658,8 +672,10 @@ describe("AbstractVSActions", () => {
 
          expect(ids(actions.showingActions)).toEqual(
             ["table open-max-mode", "table export", "more actions"]);
-         // The defect: this used to be empty because the wrapper never overflowed.
-         expect(ids(actions.getMoreActions())).toEqual(["menu actions"]);
+         // The defect: this used to be empty because the wrapper never overflowed. It overflows
+         // alone, so the kebab carries the menu inline rather than a lone row opening onto it.
+         expect(ids(actions.getMoreActions())).not.toContain("menu actions");
+         expect(ids(actions.getMoreActions())).toContain("table properties");
       });
 
       it("shows three real actions plus a non-empty kebab with a cell selected", () => {
@@ -672,7 +688,8 @@ describe("AbstractVSActions", () => {
 
          expect(ids(actions.showingActions)).toEqual(
             ["table open-max-mode", "table export", "table show-details", "more actions"]);
-         expect(ids(actions.getMoreActions())).toEqual(["menu actions"]);
+         expect(ids(actions.getMoreActions())).not.toContain("menu actions");
+         expect(ids(actions.getMoreActions())).toContain("table properties");
       });
 
       it("still overflows the chart's wrapper unchanged (3 real actions, budget 4)", () => {
@@ -706,8 +723,8 @@ describe("AbstractVSActions", () => {
    });
 
    // kebabOnly is a permanent property of the selection family, not a rollout stage — which is why
-   // it is a capability on the actions class rather than a second entry in the TEMPORARY type set.
-   // Asserting it on all six anchored types is what stops a later slice widening it by accident.
+   // it is a capability on the actions class rather than a second entry in the anchored type set.
+   // Asserting it on all eight anchored types is what stops a later slice widening it by accident.
    describe("kebabOnly capability", () => {
       it("is set on the selection family", () => {
          expect((selectionListActionsFor(400, 200, false) as any).kebabOnly).toBe(true);
@@ -1034,13 +1051,67 @@ describe("AbstractVSActions", () => {
             .toBeGreaterThan(0);
       });
 
-      it("draws no chrome at all when the title is hidden", () => {
+      it("draws no chrome at all in a zero-height lane", () => {
          document.body.classList.add("viz-density-compact");
          expect(ids(calendarActionsFor(2000, 400, true, 0).showingActions)).toEqual([]);
       });
 
       it("keeps its uncapped floating toolbar when the gate is off", () => {
          expect(calendarActionsFor(2000, 400, false).allowedActionsNum()).toBeGreaterThan(4);
+      });
+   });
+
+   // Nesting the menu one level below the kebab is the recorded choice wherever the kebab also
+   // holds overflowed toolbar actions. It degenerates where the wrapper is the only thing in the
+   // kebab: a menu whose single row opens another menu. The calendar reaches exactly that state —
+   // four slots, three real actions, so only the wrapper overflows.
+   describe("a kebab holding nothing but the menu wrapper", () => {
+      const ids = (groups: any[]) =>
+         groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+
+      it("flattens the menu into the kebab", () => {
+         document.body.classList.add("viz-density-compact");
+         const actions = calendarActionsFor(2000, 400, true, 26);
+
+         // Not the allowedActionsNum() === 0 route — the calendar has a budget, and action
+         // buttons render beside this kebab.
+         expect(actions.allowedActionsNum()).toBe(4);
+
+         const more = ids(actions.getMoreActions());
+
+         expect(more).not.toContain("menu actions");
+         expect(more).toContain("vs-assembly hide-mini-toolbar");
+         expect(more).toContain("calendar apply");
+      });
+
+      it("keeps the nested wrapper where real actions overflow beside it", () => {
+         document.body.classList.add("viz-density-compact");
+
+         expect(ids(actionsFor(2000, 400, true).getMoreActions()))
+            .toEqual(["chart properties-toolbar", "menu actions"]);
+      });
+
+      // The menu carries copies of the toolbar actions so they survive a lane too short to draw the
+      // strip. Flattened, those copies would otherwise list the very buttons rendered beside the
+      // kebab.
+      it("omits what the strip is already rendering", () => {
+         document.body.classList.add("viz-density-compact");
+         const actions = calendarActionsFor(2000, 400, true, 26);
+         const onStrip = ids(actions.showingActions).filter(id => id !== "more actions");
+         const inKebab = ids(actions.getMoreActions());
+
+         expect(onStrip.length).toBeGreaterThan(0);
+         onStrip.forEach(id => expect(inKebab).not.toContain(id));
+      });
+
+      // The other half of the same rule: where no action button renders, nothing is excluded and the
+      // kebab is still the whole inventory.
+      it("keeps every action where the strip renders no buttons", () => {
+         document.body.classList.add("viz-density-compact");
+         const actions = selectionContainerActionsFor(2000, 400, true, 26);
+
+         expect(ids(actions.showingActions).filter(id => id !== "more actions")).toEqual([]);
+         expect(ids(actions.getMoreActions())).toContain("selection-container unselect-all");
       });
    });
 });

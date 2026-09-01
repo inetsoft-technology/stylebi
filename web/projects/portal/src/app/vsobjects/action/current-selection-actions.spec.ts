@@ -104,6 +104,21 @@ describe("CurrentSelection", () => {
       expect(toolbarActions2).toMatchSnapshot();
    });
 
+   // The row shares the container's model, so it inherits the container's menu unless it opts out.
+   // The container carries its toolbar actions there so they survive a lane too short to draw the
+   // strip; this row has no such lane, and the viewer binds no onAssemblyActionEvent on it, so an
+   // inherited action would render and then do nothing.
+   it("does not offer the container's own toolbar actions", () => {
+      const actions = new CurrentSelectionActions(createModel(), ViewerContextProviderFactory(false));
+      const ids = actions.menuActions.reduce(
+         (acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+
+      expect(ids).not.toContain("selection-container unselect-all");
+      expect(ids).not.toContain("selection-container addfilter");
+      expect(ids).not.toContain("selection-container open-max-mode");
+      expect(ids).not.toContain("selection-container close-max-mode");
+   });
+
    //Bug #19986 should not display menu action when as data tip component
    it("should not display menu action when as data tip component", () => {
       const dataTipService: any = { isDataTip: vi.fn() };
