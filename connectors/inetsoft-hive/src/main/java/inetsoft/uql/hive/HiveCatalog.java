@@ -1,0 +1,147 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.uql.hive;
+
+import inetsoft.uql.jdbc.util.HiveSQLTypes;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.tabular.*;
+
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.util.*;
+
+/**
+ * Assembles HiveRuntime's TabularCatalogProvider answers from standard java.sql.DatabaseMetaData
+ * calls. Mirrors CassandraCatalog's role: package-private, static methods, no state of its own.
+ *
+ * Unlike Cassandra's driver types, Connection/DatabaseMetaData/ResultSet are JDK interfaces, not
+ * hive-jdbc's own -- every method used here is mockable without the hive-jdbc driver jar on the
+ * test classpath at all (only HiveRuntime's own getConnection/getDriver need the real driver to
+ * compile, unchanged from before this SPI existed).
+ *
+ * Every DatabaseMetaData row is additionally filtered by an exact match on TABLE_SCHEM/TABLE_NAME
+ * against what the caller asked for, rather than trusting the driver's catalog/schemaPattern/
+ * tableNamePattern arguments to have been matched as literal equality: JDBC allows these to be
+ * treated as LIKE patterns, and dbName/datasetId are not guaranteed free of underscore/percent.
+ * Without this, a LIKE-pattern reading of the schema argument could leak tables from a second,
+ * unintended database into listDatasets -- which would silently violate the "does not cross
+ * databases" guarantee.
+ */
+final class HiveCatalog {
+   private HiveCatalog() {
+   }
+
+   private static final String[] TABLE_TYPES = {"TABLE", "VIEW"};
+
+   static TabularCatalog listDatasets(Connection conn, String dbName) throws Exception {
+      DatabaseMetaData meta = conn.getMetaData();
+      List<TabularDatasetRef> datasets = new ArrayList<>();
+
+      try(ResultSet rs = meta.getTables(null, dbName, "%", TABLE_TYPES)) {
+         while(rs.next()) {
+            if(!dbName.equalsIgnoreCase(rs.getString("TABLE_SCHEM"))) {
+               continue;
+            }
+
+            datasets.add(new TabularDatasetRef(rs.getString("TABLE_NAME")));
+         }
+      }
+
+      // Hive exposes no driver-readable table-to-table reference/foreign-key construct -- same
+      // "nothing to honestly report" position CassandraCatalog takes.
+      return new TabularCatalog(datasets, List.of());
+   }
+
+   static TabularDatasetSchema describeDataset(Connection conn, String dbName, String datasetId)
+      throws Exception
+   {
+      DatabaseMetaData meta = conn.getMetaData();
+      List<TabularColumn> columns = describeColumns(meta, dbName, datasetId);
+
+      if(columns.isEmpty()) {
+         // getColumns() reports zero rows for an unknown table rather than throwing -- translate
+         // that into the explicit throw TabularCatalogProvider#describeDataset requires for an
+         // unknown dataset.
+         throw new Exception("Table '" + datasetId + "' not found in database '" + dbName + "'.");
+      }
+
+      List<String> keyColumns = primaryKeyColumnNames(meta, dbName, datasetId);
+      String query = "SELECT * FROM `" + datasetId + "`";
+
+      return new TabularDatasetSchema(datasetId, columns, keyColumns,
+         Map.of("queryString", query));
+   }
+
+   private static List<TabularColumn> describeColumns(DatabaseMetaData meta, String dbName,
+                                                        String datasetId) throws Exception
+   {
+      HiveSQLTypes sqlTypes = new HiveSQLTypes();
+      // Explicitly sorted by ORDINAL_POSITION rather than trusted from the driver's own row
+      // order -- JDBC's spec promises getColumns() is ordered by
+      // TABLE_CAT, TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION, but that promise is not re-verified
+      // here for this driver.
+      TreeMap<Integer, TabularColumn> byPosition = new TreeMap<>();
+
+      try(ResultSet rs = meta.getColumns(null, dbName, datasetId, "%")) {
+         while(rs.next()) {
+            if(!dbName.equalsIgnoreCase(rs.getString("TABLE_SCHEM")) ||
+               !datasetId.equals(rs.getString("TABLE_NAME")))
+            {
+               continue;
+            }
+
+            String type = sqlTypes.convertToXType(rs.getInt("DATA_TYPE"));
+            byPosition.put(rs.getInt("ORDINAL_POSITION"),
+               new TabularColumn(rs.getString("COLUMN_NAME"), type != null ? type : XSchema.STRING));
+         }
+      }
+
+      return new ArrayList<>(byPosition.values());
+   }
+
+   private static List<String> primaryKeyColumnNames(DatabaseMetaData meta, String dbName,
+                                                       String datasetId)
+   {
+      TreeMap<Short, String> byKeySeq = new TreeMap<>();
+
+      try(ResultSet rs = meta.getPrimaryKeys(null, dbName, datasetId)) {
+         while(rs.next()) {
+            if(!dbName.equalsIgnoreCase(rs.getString("TABLE_SCHEM")) ||
+               !datasetId.equals(rs.getString("TABLE_NAME")))
+            {
+               continue;
+            }
+
+            byKeySeq.put(rs.getShort("KEY_SEQ"), rs.getString("COLUMN_NAME"));
+         }
+      }
+      catch(Exception ex) {
+         // Hive does not enforce primary keys, and hive-jdbc versions/deployments vary in their
+         // support for getPrimaryKeys -- this failure could be either a JDK-standard
+         // SQLFeatureNotSupportedException or a plain SQLException a HiveServer2 deployment wraps
+         // an unsupported-method response in, so a broad catch is used deliberately rather than a
+         // narrow SQLFeatureNotSupportedException one. Treated as "this table declares no primary
+         // key" rather than propagated -- unlike getTables/getColumns, whose failures are almost
+         // always a real connection/permission problem and must propagate.
+         return List.of();
+      }
+
+      return new ArrayList<>(byKeySeq.values());
+   }
+}
