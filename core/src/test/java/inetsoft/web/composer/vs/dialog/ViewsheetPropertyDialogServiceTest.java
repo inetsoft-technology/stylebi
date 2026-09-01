@@ -209,6 +209,41 @@ public class ViewsheetPropertyDialogServiceTest {
       assertEquals(7, result.revision());
    }
 
+   /**
+    * The reported bug: a print layout whose {@code PrintInfo} was never given a size (e.g.
+    * persisted before {@link PrintInfo}'s no-arg constructor started defaulting one, or built via
+    * the multi-arg constructor with a null {@code size}) must not 500 the read that every
+    * {@code set_print_layout} call starts with -- it must read back with a sensible default
+    * instead.
+    */
+   @Test
+   public void readSideToleratesAPrintLayoutWithNoStoredSize() throws Exception {
+      ViewsheetPropertyDialogService readService = new ViewsheetPropertyDialogService(
+         coreLifecycleService, viewsheetService, layoutService, viewsheetSettingsService,
+         vsAssemblyInfoHandler, securityEngine, null, deviceRegistry);
+
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getViewsheetInfo()).thenReturn(new ViewsheetInfo());
+      when(viewsheet.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[0]);
+
+      PrintInfo persistedInfo = new PrintInfo("Letter", null, 1f, 1f, 1f, 1f, "inches");
+      PrintLayout persistedLayout = new PrintLayout();
+      persistedLayout.setPrintInfo(persistedInfo);
+      LayoutInfo layoutInfo = new LayoutInfo();
+      layoutInfo.setPrintLayout(persistedLayout);
+      when(viewsheet.getLayoutInfo()).thenReturn(layoutInfo);
+      when(viewsheetService.getAssetRepository()).thenReturn(assetRepository);
+      when(deviceRegistry.getDevices()).thenReturn(new DeviceInfo[0]);
+
+      // Must not throw -- this is the reported set_print_layout 500.
+      ViewsheetPropertyDialogModel result = readService.getViewsheetInfo("Viewsheet1", null);
+
+      assertEquals("Letter", result.screensPane().getPrintLayout().getPaperSize());
+      assertEquals(8.5, result.screensPane().getPrintLayout().getCustomWidth(), 1e-9);
+      assertEquals(11.0, result.screensPane().getPrintLayout().getCustomHeight(), 1e-9);
+   }
+
    @Mock ViewsheetService viewsheetService;
    @Mock ViewsheetSettingsService viewsheetSettingsService;
    @Mock CoreLifecycleService coreLifecycleService;
