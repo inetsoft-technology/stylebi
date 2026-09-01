@@ -470,56 +470,55 @@ class SheetOpenServiceTest {
    private SheetOpenService createViewsheetService(SheetType actingType, AssetEntry actingWsEntry,
                                                     boolean hasPermission, String socketSessionId)
    {
-      JoinSession actingSession = new JoinSession(
-         "tok-acting", "acting-runtime-1", OWNER, actingType, 0L,
-         SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
-         socketSessionId, SOCKET_USER, null);
-
-      SheetSessionService sheetSessions = mock(SheetSessionService.class);
-      this.sheetSessions = sheetSessions;
-      when(sheetSessions.resolve(eq("tok-acting"), eq(OWNER))).thenReturn(actingSession);
-
-      JoinSession newVsSession = new JoinSession(
-         "tok-vs-new", "vs-runtime-new", OWNER, SheetType.VIEWSHEET, 0L,
-         SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
-         socketSessionId, SOCKET_USER, null);
-      when(sheetSessions.open(eq("vs-runtime-new"), eq(OWNER), eq(SheetType.VIEWSHEET),
-                              eq(socketSessionId), eq(SOCKET_USER), isNull()))
-         .thenReturn(newVsSession);
-
-      runtimeAccess = mock(inetsoft.web.wiz.pairing.SheetRuntimeAccess.class);
-
-      if(actingType == SheetType.WORKSHEET) {
-         inetsoft.report.composition.RuntimeSheet actingWs =
-            mock(inetsoft.report.composition.RuntimeSheet.class);
-         when(actingWs.getEntry()).thenReturn(actingWsEntry);
-         when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq("acting-runtime-1"),
-                                               any(Principal.class)))
-            .thenReturn(actingWsEntry == null ? null : actingWs);
-      }
-
-      viewsheetService = mock(inetsoft.analytic.composition.ViewsheetService.class);
-
       try {
+         JoinSession actingSession = new JoinSession(
+            "tok-acting", "acting-runtime-1", OWNER, actingType, 0L,
+            SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+            socketSessionId, SOCKET_USER, null);
+
+         SheetSessionService sheetSessions = mock(SheetSessionService.class);
+         this.sheetSessions = sheetSessions;
+         when(sheetSessions.resolve(eq("tok-acting"), eq(OWNER))).thenReturn(actingSession);
+
+         JoinSession newVsSession = new JoinSession(
+            "tok-vs-new", "vs-runtime-new", OWNER, SheetType.VIEWSHEET, 0L,
+            SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+            socketSessionId, SOCKET_USER, null);
+         when(sheetSessions.open(eq("vs-runtime-new"), eq(OWNER), eq(SheetType.VIEWSHEET),
+                                 eq(socketSessionId), eq(SOCKET_USER), isNull()))
+            .thenReturn(newVsSession);
+
+         runtimeAccess = mock(inetsoft.web.wiz.pairing.SheetRuntimeAccess.class);
+
+         if(actingType == SheetType.WORKSHEET) {
+            inetsoft.report.composition.RuntimeSheet actingWs =
+               mock(inetsoft.report.composition.RuntimeSheet.class);
+            when(actingWs.getEntry()).thenReturn(actingWsEntry);
+            when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq("acting-runtime-1"),
+                                                  any(Principal.class)))
+               .thenReturn(actingWsEntry == null ? null : actingWs);
+         }
+
+         viewsheetService = mock(inetsoft.analytic.composition.ViewsheetService.class);
          when(viewsheetService.openTemporaryViewsheet(isNull(), any(AssetEntry.class),
                                                        any(Principal.class), isNull()))
             .thenReturn("vs-runtime-new");
+
+         SecurityProvider securityProvider = mock(SecurityProvider.class);
+         when(securityProvider.checkPermission(any(Principal.class), eq(ResourceType.VIEWSHEET),
+                                               eq("*"), eq(ResourceAction.ACCESS)))
+            .thenReturn(hasPermission);
+
+         broadcast = mock(SheetAgentBroadcastService.class);
+         worksheetService = mock(WorksheetService.class);
+
+         return new SheetOpenService(mock(ViewsheetSessionService.class), sheetSessions,
+                                     worksheetService, securityProvider, broadcast,
+                                     viewsheetService, runtimeAccess);
       }
       catch(Exception e) {
          throw new IllegalStateException(e);
       }
-
-      SecurityProvider securityProvider = mock(SecurityProvider.class);
-      when(securityProvider.checkPermission(any(Principal.class), eq(ResourceType.VIEWSHEET),
-                                            eq("*"), eq(ResourceAction.ACCESS)))
-         .thenReturn(hasPermission);
-
-      broadcast = mock(SheetAgentBroadcastService.class);
-      worksheetService = mock(WorksheetService.class);
-
-      return new SheetOpenService(mock(ViewsheetSessionService.class), sheetSessions,
-                                  worksheetService, securityProvider, broadcast, viewsheetService,
-                                  runtimeAccess);
    }
 
    // ── harness ───────────────────────────────────────────────────────────────
