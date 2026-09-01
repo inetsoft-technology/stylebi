@@ -22,6 +22,11 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 /**
  * Tests for SheetSessionService.
@@ -561,5 +566,94 @@ class SheetSessionServiceTest {
       assertThrows(PairingException.class,
                   () -> PaneScopeService.requireWholeSheetSession(afterResolved),
                   "a fresh resolve() after retarget must reflect the new pane-scoped target");
+   }
+
+   // ---- C2(b)/(c): tab-bar "agent inactive" broadcast on evictExpired/socketClosed/detach -----
+
+   @Test
+   void evictExpiredNotifiesTheTabBarForEverySessionItRemoves() {
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      SheetSessionService svc = new SheetSessionService(() -> FIXED_NOW, broadcast);
+      JoinSession session = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                     "owner", null);
+
+      SheetSessionService afterTtl = new SheetSessionService(
+         () -> FIXED_NOW + SheetSessionService.TTL_MILLIS + 1, svc);
+      afterTtl.evictExpired();
+
+      verify(broadcast).sendAgentInactive(
+         org.mockito.ArgumentMatchers.argThat(s -> s.sessionToken().equals(session.sessionToken())));
+   }
+
+   @Test
+   void socketClosedNotifiesTheTabBarForThePaneSessionItEnds() {
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      SheetSessionService svc = new SheetSessionService(() -> FIXED_NOW, broadcast);
+      EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+      JoinSession pane = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", ctx);
+
+      svc.socketClosed("sock-1");
+
+      verify(broadcast).sendAgentInactive(
+         org.mockito.ArgumentMatchers.argThat(s -> s.sessionToken().equals(pane.sessionToken())));
+   }
+
+   @Test
+   void socketClosedOnAWholeSheetSessionDoesNotNotifyTheTabBar() {
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      SheetSessionService svc = new SheetSessionService(() -> FIXED_NOW, broadcast);
+      svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", null);
+
+      svc.socketClosed("sock-1");
+
+      verify(broadcast, never()).sendAgentInactive(any());
+   }
+
+   @Test
+   void detachNotifiesTheTabBarForTheSessionItEnds() {
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      SheetSessionService svc = new SheetSessionService(() -> FIXED_NOW, broadcast);
+      EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+      JoinSession pane = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", ctx);
+
+      svc.detach("sock-1", ctx);
+
+      verify(broadcast).sendAgentInactive(
+         org.mockito.ArgumentMatchers.argThat(s -> s.sessionToken().equals(pane.sessionToken())));
+   }
+
+   /**
+    * Every existing test in this suite above already exercises evictExpired/socketClosed/detach
+    * with no {@code broadcast} at all (the {@code serviceAt}/{@code LongSupplier}-only
+    * constructors leave it {@code null}) and none of them throws -- this test makes that
+    * null-safety explicit and named, rather than leaving it merely implied by the rest of the
+    * suite passing.
+    */
+   @Test
+   void sessionEndingMethodsToleratesAMissingBroadcastWithoutThrowing() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+      svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", ctx);
+
+      assertDoesNotThrow(() -> svc.detach("sock-1", ctx));
+      assertDoesNotThrow(() -> svc.socketClosed("sock-1"));
+      assertDoesNotThrow(svc::evictExpired);
+   }
+
+   /**
+    * A broken broadcast must not turn a real cleanup into a failure -- mirrors
+    * {@code SheetJoinService}'s "notifyFailureDoesNotFailTheJoin" contract on the ending side.
+    */
+   @Test
+   void aThrowingBroadcastDoesNotPreventTheSessionFromBeingRemoved() {
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      doThrow(new RuntimeException("socket gone")).when(broadcast).sendAgentInactive(any());
+      SheetSessionService svc = new SheetSessionService(() -> FIXED_NOW, broadcast);
+      EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+      JoinSession pane = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", ctx);
+
+      assertDoesNotThrow(() -> svc.detach("sock-1", ctx));
+      assertNull(svc.resolve(pane.sessionToken(), "owner~;~org"),
+                "the session must still be removed even though notifying the tab bar failed");
    }
 }

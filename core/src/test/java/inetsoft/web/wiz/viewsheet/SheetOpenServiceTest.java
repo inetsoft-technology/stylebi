@@ -230,6 +230,40 @@ class SheetOpenServiceTest {
    }
 
    /**
+    * I-1 (agent-sheet-visibility review round 1): {@code open_base_worksheet} mints a genuine new
+    * {@link JoinSession} an agent then holds, exactly the situation the Composer tab-bar "agent
+    * connected" indicator exists to surface -- but the happy path used to return without ever
+    * calling {@code sendAgentActive}, so the icon never appeared for a worksheet opened this way.
+    * Mirrors {@code SheetJoinServiceTest.notifiesTabBarOnJoin}.
+    */
+   @Test
+   void notifiesTheTabBarThatAnAgentIsNowAttachedToTheNewWorksheet() throws Exception {
+      SheetOpenService service = serviceWithBase(worksheetEntry(), true, null);
+
+      JoinSession opened = service.openBaseWorksheet("tok-vs", principal());
+
+      ArgumentCaptor<JoinSession> sent = ArgumentCaptor.forClass(JoinSession.class);
+      verify(broadcast).sendAgentActive(sent.capture());
+      assertEquals(opened.runtimeId(), sent.getValue().runtimeId());
+   }
+
+   /**
+    * A broken tab-bar notification must not fail the open -- best-effort, independent try/catch,
+    * mirroring {@code SheetJoinServiceTest.tabBarNotifyFailureDoesNotFailTheJoin}.
+    */
+   @Test
+   void tabBarNotifyFailureDoesNotFailTheOpen() throws Exception {
+      SheetAgentBroadcastService flaky = mock(SheetAgentBroadcastService.class);
+      doThrow(new RuntimeException("socket gone")).when(flaky).sendAgentActive(any());
+      SheetOpenService service = serviceWithBase(worksheetEntry(), true, null, "sock-1", flaky);
+
+      JoinSession opened = service.openBaseWorksheet("tok-vs", principal());
+
+      assertNotNull(opened);
+      assertEquals("ws-runtime-1", opened.runtimeId());
+   }
+
+   /**
     * Which STOMP destination the command lands on -- the assertion whose absence let this ship
     * broken.
     *

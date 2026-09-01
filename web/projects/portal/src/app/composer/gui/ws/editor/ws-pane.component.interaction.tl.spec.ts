@@ -314,6 +314,36 @@ describe("WSPaneComponent — processSetWorksheetInfoCommand", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Group 7b: processSetAgentActiveCommand [Risk 2]
+// ---------------------------------------------------------------------------
+
+describe("WSPaneComponent — processSetAgentActiveCommand", () => {
+
+   // 🔁 Regression-sensitive: the tab bar's agent indicator (SheetTabSelectorComponent)
+   //    reads worksheet.agentConnected/agentOwnerIdentity directly off this Sheet instance.
+   it("should set worksheet.agentConnected and agentOwnerIdentity when active", async () => {
+      const { comp } = await renderComponent();
+      comp.worksheet.agentConnected = false;
+
+      dispatchCommand("SetAgentActiveCommand", { active: true, ownerIdentity: "alice" });
+
+      expect(comp.worksheet.agentConnected).toBe(true);
+      expect(comp.worksheet.agentOwnerIdentity).toBe("alice");
+   });
+
+   it("should clear both fields when inactive, even if an ownerIdentity is present", async () => {
+      const { comp } = await renderComponent();
+      comp.worksheet.agentConnected = true;
+      comp.worksheet.agentOwnerIdentity = "alice";
+
+      dispatchCommand("SetAgentActiveCommand", { active: false, ownerIdentity: "alice" });
+
+      expect(comp.worksheet.agentConnected).toBe(false);
+      expect(comp.worksheet.agentOwnerIdentity).toBeUndefined();
+   });
+});
+
+// ---------------------------------------------------------------------------
 // Group 8: processForceNotCloseWorksheetCommand [Risk 2]
 // ---------------------------------------------------------------------------
 

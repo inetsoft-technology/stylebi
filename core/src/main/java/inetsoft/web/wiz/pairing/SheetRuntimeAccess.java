@@ -168,12 +168,30 @@ public class SheetRuntimeAccess {
     * matches() check (see {@link #getSheetForPairing}).
     */
    public Principal getRuntimeOwner(SheetType sheetType, String runtimeId) {
-      RuntimeSheet rs = switch (sheetType) {
+      RuntimeSheet rs = getRuntimeSheetDirect(sheetType, runtimeId);
+      return rs == null ? null : rs.getUser();
+   }
+
+   /**
+    * Return the runtime with the given id on this node, or null if it is not in this node's
+    * cache (expired / never opened / hosted on another node) or is not of the expected
+    * {@code sheetType}. Side-effect free: does not touch/audit the runtime and does not grant
+    * the {@link #PAIRED_AGENT} ownership bypass — unlike {@link #getSheetForPairing}, which is
+    * throw-on-not-found and audits/bypasses because its callers are about to read or write
+    * through the runtime.
+    *
+    * <p>Exists so a caller that only wants to know "is this runtime here right now" (as
+    * {@link #getRuntimeOwner} already does) can share that exact tolerant lookup with another
+    * best-effort use (e.g. {@code SheetJoinService.resolveSheetLabel}) instead of falling back to
+    * {@link #getSheetForPairing}'s fatal semantics for what is supposed to be the same runtime —
+    * two different answers to the identical question is itself a defect, not a feature of having
+    * two methods.
+    */
+   public RuntimeSheet getRuntimeSheetDirect(SheetType sheetType, String runtimeId) {
+      return switch (sheetType) {
          case WORKSHEET -> worksheetAccessor.getSheetDirect(runtimeId);
          case VIEWSHEET -> viewsheetAccessor.getSheetDirect(runtimeId);
       };
-
-      return rs == null ? null : rs.getUser();
    }
 
    private RuntimeWorksheet getWorksheetForPairing(String runtimeId, Principal agentUser)

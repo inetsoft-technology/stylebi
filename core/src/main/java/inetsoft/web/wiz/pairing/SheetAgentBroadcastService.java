@@ -29,6 +29,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.ws.assembly.WSAssemblyModel;
 import inetsoft.web.composer.ws.assembly.WSAssemblyModelFactory;
 import inetsoft.web.composer.ws.command.RefreshWorksheetCommand;
+import inetsoft.web.composer.ws.command.SetAgentActiveCommand;
 import inetsoft.web.composer.ws.command.SetWorksheetInfoCommand;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
@@ -281,6 +282,47 @@ public class SheetAgentBroadcastService {
    public void sendFocusChanged(JoinSession session) {
       sendPairingNotice(session, new PairingJoinedNotice(session.runtimeId(), session.sheetType(),
                                                           session.editorContext(), true));
+   }
+
+   /**
+    * Tells the browser tab for this runtime that an agent session is now attached to it, so the
+    * Composer tab bar can show a connected indicator. Unlike {@link #sendPairingJoined} (addressed
+    * to the one toolbar/pane instance that minted the code), this rides the per-sheet
+    * {@code COMMANDS_TOPIC} -- the same channel {@link #broadcastSave} uses -- because the tab bar
+    * is a single composer-main-level component keyed by runtimeId, not one of the several
+    * {@code ConnectToClaudeComponent} instances that can be alive for one sheet.
+    *
+    * <p>Best-effort: callers must not let a failure here block whatever cleanup or join success
+    * triggered it, mirroring {@link #sendPairingJoined}'s contract.
+    */
+   public void sendAgentActive(JoinSession session) {
+      String sessionId = session.socketSessionId();
+
+      if(sessionId == null) {
+         return;
+      }
+
+      SetAgentActiveCommand command = SetAgentActiveCommand.builder()
+         .active(true)
+         .ownerIdentity(session.ownerIdentity())
+         .build();
+
+      sendToBrowser(session.socketUserName(), sessionId, session.runtimeId(), command);
+   }
+
+   /** Tells the browser tab for this runtime that no agent session is attached to it any more. */
+   public void sendAgentInactive(JoinSession session) {
+      String sessionId = session.socketSessionId();
+
+      if(sessionId == null) {
+         return;
+      }
+
+      SetAgentActiveCommand command = SetAgentActiveCommand.builder()
+         .active(false)
+         .build();
+
+      sendToBrowser(session.socketUserName(), sessionId, session.runtimeId(), command);
    }
 
    private void sendPairingNotice(JoinSession session, PairingJoinedNotice notice) {

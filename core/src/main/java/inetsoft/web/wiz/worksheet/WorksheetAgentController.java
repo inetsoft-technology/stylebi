@@ -166,9 +166,11 @@ public class WorksheetAgentController {
    public JoinResponse join(@RequestBody JoinRequest body, Principal user) throws PairingException {
       String code = body.code();
       requireEnabled();
-      JoinSession session = joinService.join(code, user);
+      SheetJoinService.JoinOutcome outcome = joinService.join(code, user);
+      JoinSession session = outcome.session();
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
-                              session.sheetType().name().toLowerCase(), session.editorContext());
+                              session.sheetType().name().toLowerCase(), session.editorContext(),
+                              outcome.sheetLabel());
    }
 
    /**
@@ -2025,6 +2027,14 @@ public class WorksheetAgentController {
 
       if(s != null) {
          sessionService.close(sessionToken);
+
+         try {
+            broadcast.sendAgentInactive(s);
+         }
+         catch(Exception ex) {
+            LOG.warn("Session closed, but notifying the tab bar failed (runtimeId={})",
+                     s.runtimeId(), ex);
+         }
       }
    }
 
@@ -3449,9 +3459,12 @@ public class WorksheetAgentController {
     *                      how one open viewsheet came to hold several unrelated sessions.
     * @param editorContext the script/formula location this session is scoped to, or {@code null}
     *                      for a whole-sheet ("Connect to Claude" toolbar) session
+    * @param sheetLabel    best-effort human-readable label for the sheet (e.g. its Composer tab
+    *                      title), sourced from {@code AssetEntry.toView()} — {@code null} if it
+    *                      could not be resolved
     */
    public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
-                              String sheetType, EditorContext editorContext) {}
+                              String sheetType, EditorContext editorContext, String sheetLabel) {}
 
    // ---------------------------------------------------------------------------
    // Exception handling

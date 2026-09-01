@@ -28,8 +28,11 @@ import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -81,7 +84,8 @@ class ViewsheetAgentControllerTest {
 
       SheetJoinService joinService = mock(SheetJoinService.class);
       Principal agent = principal();
-      when(joinService.join(eq("CODE"), eq(agent))).thenReturn(session);
+      when(joinService.join(eq("CODE"), eq(agent)))
+         .thenReturn(new SheetJoinService.JoinOutcome(session, "Sales Analysis"));
 
       ViewsheetAgentController controller = controllerWith(feature, joinService);
 
@@ -89,6 +93,7 @@ class ViewsheetAgentControllerTest {
 
       assertEquals("TOK-1", resp.sessionToken());
       assertEquals(ctx, resp.editorContext());
+      assertEquals("Sales Analysis", resp.sheetLabel());
    }
 
    @Test
@@ -102,7 +107,8 @@ class ViewsheetAgentControllerTest {
 
       SheetJoinService joinService = mock(SheetJoinService.class);
       Principal agent = principal();
-      when(joinService.join(eq("CODE"), eq(agent))).thenReturn(session);
+      when(joinService.join(eq("CODE"), eq(agent)))
+         .thenReturn(new SheetJoinService.JoinOutcome(session, null));
 
       ViewsheetAgentController controller = controllerWith(feature, joinService);
 
@@ -120,6 +126,50 @@ class ViewsheetAgentControllerTest {
          mock(ScriptContextService.class), mock(ScriptApiService.class),
          mock(ScriptImageService.class), mock(ViewsheetService.class),
          mock(SheetAgentBroadcastService.class));
+   }
+
+   /** Overload that exposes {@code sessionService}/{@code broadcast} -- for the detach test. */
+   private static ViewsheetAgentController controllerWith(SheetAgentFeature feature,
+                                                          SheetSessionService sessionService,
+                                                          SheetAgentBroadcastService broadcast)
+   {
+      return new ViewsheetAgentController(feature, mock(SheetJoinService.class),
+         sessionService, mock(ScriptEditService.class),
+         mock(ScriptReadService.class), mock(ScriptExecuteService.class),
+         mock(ScriptContextService.class), mock(ScriptApiService.class),
+         mock(ScriptImageService.class), mock(ViewsheetService.class),
+         broadcast);
+   }
+
+   /** C2(a): detach must notify the tab bar the agent is no longer attached. */
+   @Test
+   void detachNotifiesTabBar() {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+      JoinSession session = mock(JoinSession.class);
+      when(sessionService.resolve(anyString(), anyString())).thenReturn(session);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      ViewsheetAgentController controller = controllerWith(feature, sessionService, broadcast);
+
+      controller.detach("my-token", principal());
+
+      verify(broadcast).sendAgentInactive(session);
+   }
+
+   /** An unresolved (foreign/expired) token must not notify the tab bar. */
+   @Test
+   void detachRefusalDoesNotNotifyTabBar() {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+      when(sessionService.resolve(anyString(), anyString())).thenReturn(null);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      ViewsheetAgentController controller = controllerWith(feature, sessionService, broadcast);
+
+      controller.detach("someone-elses-token", principal());
+
+      verify(broadcast, never()).sendAgentInactive(any());
    }
 
    private static Principal principal() {

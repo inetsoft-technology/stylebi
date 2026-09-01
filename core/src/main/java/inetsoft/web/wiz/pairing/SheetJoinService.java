@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.pairing;
 
+import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.util.Tool;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -69,13 +70,26 @@ public class SheetJoinService {
    }
 
    /**
+    * The result of a successful {@link #join}: the reusable session, plus a best-effort
+    * human-readable label for the sheet it joined (sourced from {@code AssetEntry.toView()}),
+    * for display alongside the raw {@code runtimeId}.
+    *
+    * <p>Kept as a join-time-only wrapper rather than a field on {@link JoinSession} itself:
+    * {@code JoinSession} is reconstructed at 8+ call sites across this file ({@code resolve()},
+    * {@code retarget()}, {@code withEditorContext}/{@code withFollowFocusEnabled}), and a rarely-
+    * changing display string would either need threading through every one of them or go stale
+    * forever after a rename. {@code sheetLabel} is computed once, at join, and never refreshed.
+    */
+   public record JoinOutcome(JoinSession session, String sheetLabel) {}
+
+   /**
     * Validate flag + code + same-logical-user, consume it, open and return a reusable JoinSession.
     *
     * @param code      the single-use pairing code the agent presents
     * @param agentUser the agent's authenticated principal
     * @throws PairingException if the flag is off, code is invalid/expired, or user doesn't match
     */
-   public JoinSession join(String code, Principal agentUser) throws PairingException {
+   public JoinOutcome join(String code, Principal agentUser) throws PairingException {
       String throttleKey = throttleKey(agentUser);
       long now = System.currentTimeMillis();
       assertNotLockedOut(throttleKey, now);
@@ -115,7 +129,12 @@ public class SheetJoinService {
       // A null owner (runtime not in this node's cache / no user) is not treated as a mismatch:
       // getSheetDirect is node-local, so the runtime — and thus any data access — only exists on
       // its hosting node, where this lookup returns the real owner and the check bites.
-      Principal runtimeOwner = runtimeAccess.getRuntimeOwner(grant.sheetType(), grant.runtimeId());
+      //
+      // Resolved once and reused below for resolveSheetLabel, rather than re-resolved via the
+      // throwing getSheetForPairing: this same runtimeId/sheetType pair must get one consistent
+      // answer to "is it here right now", not a tolerant one here and a fatal one later.
+      RuntimeSheet runtimeSheet = runtimeAccess.getRuntimeSheetDirect(grant.sheetType(), grant.runtimeId());
+      Principal runtimeOwner = runtimeSheet == null ? null : runtimeSheet.getUser();
 
       if(runtimeOwner != null && !PairingUtil.sameLogicalUser(runtimeOwner, agentUser)) {
          recordFailedAttempt(throttleKey, now);
@@ -144,9 +163,45 @@ public class SheetJoinService {
                   grant.runtimeId(), ex);
       }
 
+      // Tells the Composer tab bar an agent is now attached to this runtime. Kept as its own
+      // independent best-effort try/catch (not merged with the notice above) so a failure in one
+      // is logged distinctly and never suppresses the other.
+      try {
+         broadcast.sendAgentActive(session);
+      }
+      catch(Exception ex) {
+         LOG.warn("Pairing joined, but notifying the tab bar failed (runtimeId={})",
+                  grant.runtimeId(), ex);
+      }
+
+      String sheetLabel = resolveSheetLabel(runtimeSheet, grant.runtimeId());
+
       LOG.info("Sheet agent pairing join granted (runtimeId={}, sheetType={}, agent={})",
                grant.runtimeId(), grant.sheetType(), agentUser.getName());
-      return session;
+      return new JoinOutcome(session, sheetLabel);
+   }
+
+   /**
+    * Best-effort resolution of a human-readable label for the joined sheet, sourced from
+    * {@code AssetEntry.toView()}. Never throws: a label failure must never turn a successful join
+    * into a failed one, mirroring {@link #join}'s treatment of {@code sendPairingJoined}.
+    *
+    * <p>Takes the {@code RuntimeSheet} already resolved by {@code join()}'s step 3b (via the
+    * null-tolerant {@link SheetRuntimeAccess#getRuntimeSheetDirect}) rather than re-resolving it
+    * through the throwing {@link SheetRuntimeAccess#getSheetForPairing} — that second, independent
+    * lookup used to answer "is this runtime here" differently (fatal-on-not-found) than step 3b's
+    * ownership check does (tolerant-of-not-found) for what is the same runtime, moments apart,
+    * silently losing the label whenever the two disagreed.
+    */
+   private String resolveSheetLabel(RuntimeSheet runtimeSheet, String runtimeId) {
+      try {
+         return runtimeSheet == null ? null : runtimeSheet.getEntry().toView();
+      }
+      catch(Exception ex) {
+         LOG.warn("Pairing joined, but resolving the sheet label failed (runtimeId={})",
+                  runtimeId, ex);
+         return null;
+      }
    }
 
    // -------------------------------------------------------------------------

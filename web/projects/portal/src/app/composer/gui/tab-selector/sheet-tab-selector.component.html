@@ -34,6 +34,10 @@
         @if (isModified(_tab)) {
           <span class="sheet-tab-modified-indicator">*</span>
         }
+        @if (isAgentConnected(_tab)) {
+          <span class="sheet-tab-agent-indicator icon-size-small ai-icon"
+                [title]="agentIndicatorTooltip(_tab)"></span>
+        }
         <span class="close-icon" (click)="$event.stopPropagation(); closeTab(_tab)"></span>
       </a>
     </li>

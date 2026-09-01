@@ -30,6 +30,8 @@ import inetsoft.web.wiz.script.model.ScriptContext;
 import inetsoft.web.wiz.script.model.ScriptExecResult;
 import inetsoft.web.wiz.script.model.ScriptInfo;
 import inetsoft.web.wiz.script.model.ScriptTargetsResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -52,6 +54,7 @@ import java.util.Map;
  */
 @RestController
 public class ViewsheetAgentController {
+   private static final Logger LOG = LoggerFactory.getLogger(ViewsheetAgentController.class);
 
    @Autowired
    public ViewsheetAgentController(SheetAgentFeature feature,
@@ -92,9 +95,11 @@ public class ViewsheetAgentController {
    @PostMapping("/api/wiz/v1/agent/script/join")
    public JoinResponse join(@RequestParam String code, Principal user) throws PairingException {
       requireEnabled();
-      JoinSession session = joinService.join(code, user);
+      SheetJoinService.JoinOutcome outcome = joinService.join(code, user);
+      JoinSession session = outcome.session();
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
-                              session.sheetType().name().toLowerCase(), session.editorContext());
+                              session.sheetType().name().toLowerCase(), session.editorContext(),
+                              outcome.sheetLabel());
    }
 
    /**
@@ -104,9 +109,12 @@ public class ViewsheetAgentController {
     *                      how one open viewsheet came to hold several unrelated sessions.
     * @param editorContext the script/formula location this session is scoped to, or {@code null}
     *                      for a whole-sheet ("Connect to Claude" toolbar) session
+    * @param sheetLabel    best-effort human-readable label for the sheet (e.g. its Composer tab
+    *                      title), sourced from {@code AssetEntry.toView()} — {@code null} if it
+    *                      could not be resolved
     */
    public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
-                              String sheetType, EditorContext editorContext) {}
+                              String sheetType, EditorContext editorContext, String sheetLabel) {}
 
    /**
     * @param editorContext the session's CURRENT scope -- {@code null} for whole-sheet -- read
@@ -405,6 +413,14 @@ public class ViewsheetAgentController {
 
       if(s != null) {
          sessionService.close(sessionToken);
+
+         try {
+            broadcast.sendAgentInactive(s);
+         }
+         catch(Exception ex) {
+            LOG.warn("Session closed, but notifying the tab bar failed (runtimeId={})",
+                     s.runtimeId(), ex);
+         }
       }
    }
 
