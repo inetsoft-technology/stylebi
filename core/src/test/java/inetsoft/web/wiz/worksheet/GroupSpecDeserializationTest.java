@@ -88,6 +88,19 @@ class GroupSpecDeserializationTest {
    }
 
    @Test
+   void deserializesObjectGroupWithNamedGroup() throws Exception {
+      EditRequest req = mapper.readValue(
+         "{\"op\": \"set_group_aggregate\", \"table\": \"T\", " +
+         "\"groups\": [{\"field\": \"State\", \"namedGroup\": \"Northeast\"}]}",
+         EditRequest.class);
+
+      assertEquals(1, req.groups().size());
+      assertEquals("State", req.groups().get(0).field());
+      assertNull(req.groups().get(0).dateLevel());
+      assertEquals("Northeast", req.groups().get(0).namedGroup());
+   }
+
+   @Test
    void rejectsNonStringNonObjectGroupEntry() {
       // A group entry that is neither a string nor an object (e.g. a bare number or null
       // in the array) must fail loud at the deserializer, not silently become

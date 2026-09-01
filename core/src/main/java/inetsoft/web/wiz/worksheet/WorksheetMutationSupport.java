@@ -97,14 +97,25 @@ public final class WorksheetMutationSupport {
     *                  option strings accepted by {@code add_date_range_column}'s
     *                  {@code dateOption} (e.g. {@code "YEAR"}, {@code "QUARTER"},
     *                  {@code "MONTH"}); {@code null} for a plain (non-date-bucketed) group
+    * @param namedGroup optional name of a predefined named group (created via
+    *                  {@code add_named_group}) to apply to this group-by column instead of
+    *                  grouping by exact value; {@code null} for a plain group. Mutually
+    *                  exclusive with {@code dateLevel} on the same entry.
     */
    @JsonDeserialize(using = GroupSpec.Deserializer.class)
-   public record GroupSpec(String field, String dateLevel) {
+   public record GroupSpec(String field, String dateLevel, String namedGroup) {
       public GroupSpec(String field) {
-         this(field, null);
+         this(field, null, null);
       }
 
-      /** Accepts either a plain JSON string (column name) or a {@code {field, dateLevel}} object. */
+      public GroupSpec(String field, String dateLevel) {
+         this(field, dateLevel, null);
+      }
+
+      /**
+       * Accepts either a plain JSON string (column name) or a
+       * {@code {field, dateLevel, namedGroup}} object.
+       */
       static final class Deserializer extends JsonDeserializer<GroupSpec> {
          @Override
          public GroupSpec deserialize(JsonParser p, DeserializationContext ctxt) throws java.io.IOException {
@@ -126,7 +137,8 @@ public final class WorksheetMutationSupport {
             // ungrouped date column.
             String dateLevel = node.hasNonNull("dateLevel") ? node.get("dateLevel").asText() :
                node.hasNonNull("dateOption") ? node.get("dateOption").asText() : null;
-            return new GroupSpec(field, dateLevel);
+            String namedGroup = node.hasNonNull("namedGroup") ? node.get("namedGroup").asText() : null;
+            return new GroupSpec(field, dateLevel, namedGroup);
          }
       }
    }
@@ -574,6 +586,13 @@ public final class WorksheetMutationSupport {
                availableColumns.keySet());
          }
 
+         if(spec.namedGroup() != null && spec.dateLevel() != null) {
+            throw new inetsoft.web.wiz.pairing.PairingException(
+               "Group for column '" + spec.field() + "' cannot combine namedGroup ('" +
+               spec.namedGroup() + "') with dateLevel ('" + spec.dateLevel() +
+               "') -- they are mutually exclusive.");
+         }
+
          GroupRef gr;
 
          if(spec.dateLevel() == null) {
@@ -638,6 +657,24 @@ public final class WorksheetMutationSupport {
 
             gr = new GroupRef(dateColumn);
             gr.setDateGroup(dgroup);
+         }
+
+         if(spec.namedGroup() != null) {
+            // GroupRef.update() itself fails silently (returns false, leaves
+            // getNamedGroupInfo() == null) on an unknown assembly name or a type
+            // mismatch -- resolve and validate up front so an unresolvable name is a
+            // loud PairingException here rather than a silently ungrouped column.
+            Assembly namedGroupAssembly = t.getWorksheet() == null ? null :
+               t.getWorksheet().getAssembly(spec.namedGroup());
+
+            if(!(namedGroupAssembly instanceof NamedGroupAssembly)) {
+               throw new inetsoft.web.wiz.pairing.PairingException(
+                  "Named group not found: '" + spec.namedGroup() +
+                  "'. Create it first with add_named_group.");
+            }
+
+            gr.setNamedGroupAssembly(spec.namedGroup());
+            gr.update(t.getWorksheet());
          }
 
          ainfo.addGroup(gr);
