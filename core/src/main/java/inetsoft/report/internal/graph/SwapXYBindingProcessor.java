@@ -82,7 +82,7 @@ public class SwapXYBindingProcessor extends ChangeChartProcessor {
          int type = !multi ? cinfo.getChartType() : agg.getChartType();
 
          if(!GraphTypes.supportsInvertedChart(type)) {
-            throw new IllegalStateException(
+            throw new IllegalArgumentException(
                "This chart type does not support swapping axes -- '" + ref.getName() +
                "' would be discarded moving from the y shelf to x, instead of swapped.");
          }

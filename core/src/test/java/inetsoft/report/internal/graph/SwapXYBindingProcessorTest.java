@@ -47,7 +47,7 @@ class SwapXYBindingProcessorTest {
 
       SwapXYBindingProcessor processor = new SwapXYBindingProcessor(info, null);
 
-      assertThrows(IllegalStateException.class, processor::requireInvertible);
+      assertThrows(IllegalArgumentException.class, processor::requireInvertible);
    }
 
    @Test
