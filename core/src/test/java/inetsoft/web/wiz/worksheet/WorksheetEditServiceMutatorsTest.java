@@ -282,6 +282,44 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals(5, ai.getAggregate(0).getN());
    }
 
+   /**
+    * L2 Group 2 findings 13/14 root-cause narrowing: live testing showed {@code secondaryColumn}/
+    * {@code percentageOf} have no effect on {@code preview_worksheet_data}'s actual output despite
+    * looking structurally correct in {@link WorksheetMutationSupport#applyAggregateInfo}. This test
+    * rules out the wiz-agent mutation path itself (and, transitively, Jackson record
+    * deserialization of {@link WorksheetMutationSupport.AggregateSpec}, which a standalone
+    * {@code ObjectMapper} repro also confirmed picks the canonical 6-arg constructor correctly):
+    * the {@link AggregateRef} added to the {@link TableAssembly}'s {@link AggregateInfo} carries
+    * both fields correctly immediately after {@code setGroupAggregate} returns, through the exact
+    * code path the live MCP tool call uses. The still-undiagnosed part of the defect is therefore
+    * downstream, in the query-execution layer ({@code AssetQuery}'s summary-building loops, e.g.
+    * {@code AssetQuery.java:1994-2104} and {@code :2717-2790}, both of which iterate an
+    * {@code AggregateRef[] aggregates} array whose ultimate source was not traced this pass) — not
+    * in any code this lane's audit or fixes touch.
+    */
+   @Test
+   void setGroupAggregateAppliesSecondaryColumnAndPercentageToTheAggregateInfo() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val", "val2");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            groups("cat"),
+            List.of(new WorksheetMutationSupport.AggregateSpec(
+               "val", "First", "first_val", null, "val2", "grand_total")))
+      );
+
+      AggregateInfo ai = t.getAggregateInfo();
+      inetsoft.uql.asset.AggregateRef ar = ai.getAggregate(0);
+      assertNotNull(ar.getSecondaryColumn(), "secondaryColumn should survive setGroupAggregate");
+      assertEquals("val2", ar.getSecondaryColumn().getName());
+      assertTrue(ar.isPercentage());
+      assertEquals(inetsoft.uql.XConstants.PERCENTAGE_OF_GRANDTOTAL, ar.getPercentageOption());
+   }
+
    // N must be ignored (not throw, not corrupt the ref) for a formula that doesn't use it.
    @Test
    void setGroupAggregateIgnoresNForNonParametrizedFormula() throws Exception {
