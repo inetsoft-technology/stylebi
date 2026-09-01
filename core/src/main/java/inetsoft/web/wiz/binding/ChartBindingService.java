@@ -94,7 +94,8 @@ public class ChartBindingService {
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
          ChartBindingMutator.setShelf(
-            model, shelf, fields, rvs, chart.getSourceInfo(), refModelService);
+            model, shelf, fields, rvs, chart.getSourceInfo(), refModelService,
+            chart.getVSChartInfo());
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);
@@ -240,7 +241,8 @@ public class ChartBindingService {
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
          ChartBindingMutator.setSingleShelf(
-            model, shelf, field, rvs, chart.getSourceInfo(), refModelService);
+            model, shelf, field, rvs, chart.getSourceInfo(), refModelService,
+            chart.getVSChartInfo());
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);

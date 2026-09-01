@@ -17,11 +17,14 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.sree.SreeEnv;
+import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.wiz.binding.model.FieldRef;
-import org.junit.jupiter.api.Tag;
+import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -29,7 +32,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@Tag("core")
+@WizAgentTestSupport
 class ChartBindingMutatorTest {
    @Test
    void setsTheXShelfFromFieldRefs() {
@@ -229,5 +232,113 @@ class ChartBindingMutatorTest {
          () -> ChartBindingMutator.setSort(model, "y", "Sales", null,
             new DimensionSortRanking.Sort("asc", null, null)));
       assertTrue(thrown.getMessage().contains("Sales"));
+   }
+
+   // ── org column-count limit (L3-Group1 finding G1-1) ───────────────────────
+   //
+   // VSChartDndService.addColumns refuses a drag-drop add that would push a chart's total
+   // bound-field count past Util.getOrganizationMaxColumn() -- the agent path had no equivalent
+   // check at all, live-confirmed 2026-09-01 by binding 286 fields to one chart's x shelf in a
+   // single call with zero rejection. These exercise the new check via the chartInfo-carrying
+   // overloads only -- the no-chartInfo overloads every other test in this class uses are
+   // untouched (chartInfo == null skips the check by design, matching a caller with no live
+   // chart to total against).
+
+   @Test
+   void refusesAShelfWriteThatWouldExceedTheOrgColumnLimit() throws Exception {
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "2");
+         VSChartInfo chartInfo = new VSChartInfo();
+         chartInfo.addYField(new VSChartAggregateRef());
+         chartInfo.addYField(new VSChartAggregateRef());
+         ChartBindingModel model = new ChartBindingModel();
+
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> ChartBindingMutator.setShelf(
+               model, "x", List.of(new FieldRef("Region", "dimension", null, null, null)),
+               null, null, null, chartInfo));
+
+         assertTrue(thrown.getMessage().toLowerCase().contains("column")
+                    || thrown.getMessage().contains("2"), thrown.getMessage());
+         assertTrue(model.getXFields().isEmpty(),
+                    "the refused write must not have mutated the model");
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
+   }
+
+   @Test
+   void allowsAShelfWriteWithinTheOrgColumnLimit() throws Exception {
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "2");
+         VSChartInfo chartInfo = new VSChartInfo();
+         chartInfo.addYField(new VSChartAggregateRef());
+         ChartBindingModel model = new ChartBindingModel();
+
+         ChartBindingMutator.setShelf(
+            model, "x", List.of(new FieldRef("Region", "dimension", null, null, null)),
+            null, null, null, chartInfo);
+
+         assertEquals(1, model.getXFields().size());
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
+   }
+
+   @Test
+   void replacingAShelfDoesNotDoubleCountItsOwnPriorFields() throws Exception {
+      // The check must subtract the shelf's OWN current size before adding the new size --
+      // otherwise re-setting a shelf to the same field count it already has would look like
+      // growth and eventually refuse a no-op write.
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "1");
+         VSChartInfo chartInfo = new VSChartInfo();
+         chartInfo.addXField(new VSChartAggregateRef());
+         ChartBindingModel model = new ChartBindingModel();
+         model.getXFields().add(new ChartDimensionRefModel());
+
+         ChartBindingMutator.setShelf(
+            model, "x", List.of(new FieldRef("Region", "dimension", null, null, null)),
+            null, null, null, chartInfo);
+
+         assertEquals(1, model.getXFields().size());
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
+   }
+
+   @Test
+   void refusesASingleShelfWriteThatWouldExceedTheOrgColumnLimit() throws Exception {
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "1");
+         VSChartInfo chartInfo = new VSChartInfo();
+         chartInfo.addYField(new VSChartAggregateRef());
+         ChartBindingModel model = new ChartBindingModel();
+
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> ChartBindingMutator.setSingleShelf(
+               model, "close", new FieldRef("Price", "measure", "Sum", null, null),
+               null, null, null, chartInfo));
+
+         assertTrue(thrown.getMessage().toLowerCase().contains("column")
+                    || thrown.getMessage().contains("1"), thrown.getMessage());
+         assertNull(ChartBindingMutator.readSingleShelf(model, "close"));
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
    }
 }
