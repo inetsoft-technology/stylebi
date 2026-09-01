@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
+import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.TitledVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -26,6 +27,7 @@ import inetsoft.web.composer.vs.event.CopyVSObjectsEvent;
 import inetsoft.web.composer.vs.objects.controller.ClipboardControllerService;
 import inetsoft.web.composer.vs.objects.controller.ComposerGroupService;
 import inetsoft.web.composer.vs.objects.controller.ComposerObjectService;
+import inetsoft.web.composer.vs.objects.controller.GroupingService;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.event.*;
 import inetsoft.report.composition.RuntimeViewsheet;
@@ -62,6 +64,7 @@ public class ViewsheetEditService {
                                VSObjectPropertyService propertyService,
                                ViewsheetReadService reader,
                                ComposerGroupService groups,
+                               GroupingService grouping,
                                VSRefreshService refreshService)
    {
       this.sessions = sessions;
@@ -70,14 +73,15 @@ public class ViewsheetEditService {
       this.propertyService = propertyService;
       this.reader = reader;
       this.groups = groups;
+      this.grouping = grouping;
       this.refreshService = refreshService;
    }
 
    /** Ops this service understands, named in the error when an unknown one arrives. */
    static final List<String> OPS = List.of(
       "move", "resize", "resize_title", "add", "remove", "rename", "copy", "cut", "paste",
-      "set_z_index", "set_lock", "set_title", "group", "ungroup", "move_from_container",
-      "align", "distribute", "refresh", "refresh_viewsheet");
+      "set_z_index", "set_lock", "set_title", "group", "group_as_tab", "ungroup",
+      "move_from_container", "align", "distribute", "refresh", "refresh_viewsheet");
 
    public void apply(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
@@ -97,6 +101,7 @@ public class ViewsheetEditService {
       case "set_lock" -> setLock(sessionToken, user, request);
       case "set_title" -> setTitle(sessionToken, user, request);
       case "group" -> group(sessionToken, user, request, linkUri);
+      case "group_as_tab" -> groupAsTab(sessionToken, user, request, linkUri);
       case "ungroup" -> ungroup(sessionToken, user, request, linkUri);
       case "move_from_container" -> moveFromContainer(sessionToken, user, request, linkUri);
       case "align", "distribute" -> arrange(sessionToken, user, request, linkUri, op);
@@ -441,6 +446,47 @@ public class ViewsheetEditService {
                                 linkUri, user, dispatcher));
    }
 
+   /**
+    * Creates a Tab combining the given assemblies -- the container the native Composer's
+    * "combine components into a tabbed view" gesture produces. {@code group}'s
+    * {@code ComposerGroupService} is architecturally incapable of producing one (it only ever
+    * builds a {@code GroupContainer}); {@link GroupingService#groupComponents} is pairwise, so
+    * the first two names form the tab and each subsequent name is folded into that same tab by
+    * calling it again against the first assembly, which by then already resolves to a member of
+    * the tab.
+    */
+   private void groupAsTab(String sessionToken, Principal user, EditRequest request,
+                           String linkUri) throws Exception
+   {
+      List<String> names = request.assemblies();
+
+      if(names == null || names.size() < 2) {
+         throw new IllegalArgumentException(
+            "Edit op 'group_as_tab' requires 'assemblies' with at least two assembly names.");
+      }
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         Viewsheet vs = rvs.getViewsheet();
+         VSAssembly first = requireVSAssembly(rvs, vs, names.get(0));
+
+         for(int i = 1; i < names.size(); i++) {
+            VSAssembly next = requireVSAssembly(rvs, vs, names.get(i));
+            grouping.groupComponents(rvs, first, next, false, linkUri, dispatcher);
+         }
+      });
+   }
+
+   private VSAssembly requireVSAssembly(RuntimeViewsheet rvs, Viewsheet vs, String name) {
+      requireExisting(rvs, name);
+      VSAssembly assembly = vs == null ? null : (VSAssembly) vs.getAssembly(name);
+
+      if(assembly == null) {
+         throw new IllegalArgumentException("Unknown assembly '" + name + "'.");
+      }
+
+      return assembly;
+   }
+
    private void ungroup(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
    {
@@ -448,6 +494,22 @@ public class ViewsheetEditService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
+
+         Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+         VSAssembly assembly = vs == null ? null : (VSAssembly) vs.getAssembly(request.assembly());
+
+         // group_as_tab produces a TabVSAssembly, not a GroupContainerVSAssembly --
+         // ComposerGroupService.ungroup only unwraps the latter and silently no-ops on
+         // anything else, which would otherwise make this op accept a Tab name and do nothing.
+         if(assembly instanceof TabVSAssembly) {
+            throw new IllegalArgumentException(
+               "'" + request.assembly() + "' is a Tab, not a Group -- edit(op:'ungroup') only " +
+               "reverses the GroupContainer that group creates; it does not undo a Tab created " +
+               "by group_as_tab. To take an assembly out of the tab, use " +
+               "edit(op:'move_from_container') on it instead -- the tab is removed " +
+               "automatically once only one assembly remains in it.");
+         }
+
          groups.ungroup(runtimeId, request.assembly(), linkUri, user, dispatcher);
       });
    }
@@ -761,5 +823,6 @@ public class ViewsheetEditService {
    private final VSObjectPropertyService propertyService;
    private final ViewsheetReadService reader;
    private final ComposerGroupService groups;
+   private final GroupingService grouping;
    private final VSRefreshService refreshService;
 }
