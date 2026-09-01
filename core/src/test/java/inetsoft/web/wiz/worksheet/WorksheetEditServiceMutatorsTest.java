@@ -746,6 +746,61 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void setGroupAggregateFailsLoudOnNamedGroupColumnMismatch() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "region", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("Northeast", List.of("NY", "NJ")));
+      svc.apply("TOK", agent, ed ->
+         ed.addNamedGroup("NortheastGroup", "T", "state", null, mappings, true));
+
+      // NortheastGroup is COLUMN_ATTACHED to "state", not "region". GroupRef.update()
+      // matches only by attribute name (GroupRef.java:443-450) and on a mismatch
+      // silently returns true while leaving getNamedGroupInfo() null, degrading to plain
+      // group-by-region with no error -- the exact PWA-006 symptom via a different
+      // trigger (mismatched field/namedGroup pairing instead of a nonexistent name).
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T",
+               List.of(new WorksheetMutationSupport.GroupSpec("region", null, "NortheastGroup")),
+               List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)))));
+      assertTrue(ex.getMessage().contains("NortheastGroup"));
+      assertTrue(ex.getMessage().contains("region"));
+   }
+
+   @Test
+   void setGroupAggregateFailsLoudOnNamedGroupDataTypeMismatch() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // table/column omitted -> a standalone, DATA_TYPE_ATTACHED named group (see
+      // WorksheetEditService.Editor#addNamedGroup) scoped to INTEGER columns, while
+      // "state" (from TestWorksheets.tableWithColumns) defaults to STRING. GroupRef.update()
+      // checks AssetUtil.isCompatible(dtype, ref.getDataType()) and on a mismatch silently
+      // returns true while leaving getNamedGroupInfo() null, same silent degrade as the
+      // COLUMN_ATTACHED mismatch above.
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("Big", List.of("100")));
+      svc.apply("TOK", agent, ed ->
+         ed.addNamedGroup("BigNumbers", null, null, XSchema.INTEGER, mappings, true));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T",
+               List.of(new WorksheetMutationSupport.GroupSpec("state", null, "BigNumbers")),
+               List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)))));
+      assertTrue(ex.getMessage().contains("BigNumbers"));
+      assertTrue(ex.getMessage().contains("state"));
+   }
+
+   @Test
    void setGroupAggregateTreatsNullGroupsAsEmpty() throws Exception {
       // WorksheetAgentController defaults a missing "aggregates" key to List.of() but
       // passes a missing "groups" key through as null unchanged; a null groups list

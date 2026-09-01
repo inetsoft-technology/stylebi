@@ -660,10 +660,13 @@ public final class WorksheetMutationSupport {
          }
 
          if(spec.namedGroup() != null) {
-            // GroupRef.update() itself fails silently (returns false, leaves
-            // getNamedGroupInfo() == null) on an unknown assembly name or a type
+            // GroupRef.update() itself fails silently (returns true, but leaves
+            // getNamedGroupInfo() == null) on an unknown assembly name, a
+            // DATA_TYPE_ATTACHED type mismatch, or a COLUMN_ATTACHED attribute-name
             // mismatch -- resolve and validate up front so an unresolvable name is a
-            // loud PairingException here rather than a silently ungrouped column.
+            // loud PairingException here rather than a silently ungrouped column, and
+            // re-check after update() below for the two mismatch cases it can't catch
+            // ahead of time.
             Assembly namedGroupAssembly = t.getWorksheet() == null ? null :
                t.getWorksheet().getAssembly(spec.namedGroup());
 
@@ -675,6 +678,12 @@ public final class WorksheetMutationSupport {
 
             gr.setNamedGroupAssembly(spec.namedGroup());
             gr.update(t.getWorksheet());
+
+            if(gr.getNamedGroupInfo() == null) {
+               throw new inetsoft.web.wiz.pairing.PairingException(
+                  "Named group '" + spec.namedGroup() + "' does not apply to column '" +
+                  spec.field() + "' (attached column or data type does not match).");
+            }
          }
 
          ainfo.addGroup(gr);
