@@ -2432,7 +2432,14 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
       else if(contextLevel == XConstants.MONTH_DATE_GROUP) {
          VSDimensionRef intervalRef = ref.clone();
 
-         if((intervalLevel & WEEK) == WEEK) {
+         // Only build the WeekOfMonth disambiguator when the interval is actually being
+         // grouped at week granularity. SAME_WEEK/WEEK_TO_DATE always carry the WEEK bit
+         // in their interval level regardless of the chosen granularity, so gating on
+         // intervalLevel alone (as before) fired this for e.g. granularity == DAY as well,
+         // manufacturing a spurious WeekOfMonth(Date) temp group/GROUP BY column alongside
+         // a per-weekday axis that has no use for a month-boundary week disambiguator
+         // (see Bug #76388).
+         if((intervalLevel & WEEK) == WEEK && granularity == WEEK) {
             intervalRef.setDataRef(createCalcRefForNonSupportPartLevel(
                XConstants.WEEK_DATE_GROUP, XConstants.MONTH_DATE_GROUP, intervalRef, source,
                vs));
