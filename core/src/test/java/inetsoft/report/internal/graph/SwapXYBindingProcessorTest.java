@@ -87,4 +87,81 @@ class SwapXYBindingProcessorTest {
 
       assertDoesNotThrow(processor::requireInvertible);
    }
+
+   /**
+    * L3-Group2 G2-2 (the geo/all-measure half of the same finding, re-examined): recorded as
+    * "blocked, unverified" because the connected live environment had no geo-typed column to
+    * construct a real {@code VSMapInfo} chart against. The claim itself: "a map needs a dimension
+    * somewhere on x/y to draw from, and swapping two all-measure shelves cannot introduce one" --
+    * i.e. a map with zero dimensions on x/y (all-measure) stays zero-dimension after a swap. That
+    * claim is true but not a *new* problem the swap causes: dimension *count* is conserved by
+    * {@code swapMapXYFields()} (proven below and in the mixed-binding test above) -- it only moves
+    * dimensions between x and y, never creates or destroys one. A zero-dimension map is invalid
+    * before the swap and stays invalid after it, exactly as bad either way; the swap itself is a
+    * safe no-op in this case (no exception, no further corruption), not a data-loss vector like
+    * G2-1's mekko case. Whether a human or the agent can even construct a zero-dimension map chart
+    * in the first place is a binding-construction question, not a swap-axes one, and is out of
+    * this finding's scope.
+    */
+   @Test
+   void swapMapXYFieldsIsASafeNoOpWhenBothShelvesAreAllMeasure() {
+      VSMapInfo info = new VSMapInfo();
+      VSChartAggregateRef xMeasure = new VSChartAggregateRef();
+      xMeasure.setColumnValue("population");
+      VSChartAggregateRef yMeasure = new VSChartAggregateRef();
+      yMeasure.setColumnValue("sales");
+      info.addXField(xMeasure);
+      info.addYField(yMeasure);
+
+      SwapXYBindingProcessor processor = new SwapXYBindingProcessor(info, null);
+
+      assertDoesNotThrow(processor::process);
+      assertEquals(1, info.getXFields().length);
+      assertEquals(1, info.getYFields().length);
+      assertTrue(java.util.Arrays.asList(info.getXFields()).contains(xMeasure));
+      assertTrue(java.util.Arrays.asList(info.getYFields()).contains(yMeasure));
+   }
+
+   /**
+    * The other half of G2-2's re-examination: proves the general claim (dimension swap, measure
+    * passthrough, nothing dropped) with fields on both shelves, matching the original finding's
+    * "x/y fields with measures" scenario -- REFUTED, not a gap: no live-session or plugin-side
+    * change needed.
+    */
+   @Test
+   void swapMapXYFieldsPreservesEveryFieldForAMixedDimensionAndMeasureBinding() {
+      VSMapInfo info = new VSMapInfo();
+      VSChartDimensionRef xDim = new VSChartDimensionRef();
+      xDim.setGroupColumnValue("state");
+      VSChartAggregateRef xMeasure = new VSChartAggregateRef();
+      xMeasure.setColumnValue("population");
+      VSChartDimensionRef yDim = new VSChartDimensionRef();
+      yDim.setGroupColumnValue("county");
+      VSChartAggregateRef yMeasure = new VSChartAggregateRef();
+      yMeasure.setColumnValue("sales");
+
+      info.addXField(xDim);
+      info.addXField(xMeasure);
+      info.addYField(yDim);
+      info.addYField(yMeasure);
+
+      SwapXYBindingProcessor processor = new SwapXYBindingProcessor(info, null);
+      processor.process();
+
+      // Every original field is still present somewhere -- none discarded.
+      java.util.List<inetsoft.uql.viewsheet.graph.ChartRef> after = new java.util.ArrayList<>();
+      after.addAll(java.util.Arrays.asList(info.getXFields()));
+      after.addAll(java.util.Arrays.asList(info.getYFields()));
+      assertEquals(4, after.size(), "no field should be dropped by a map axis swap");
+      assertTrue(after.contains(xDim));
+      assertTrue(after.contains(xMeasure));
+      assertTrue(after.contains(yDim));
+      assertTrue(after.contains(yMeasure));
+
+      // Dimensions swap shelves; measures stay put -- the map-specific swap semantic.
+      assertTrue(java.util.Arrays.asList(info.getXFields()).contains(yDim));
+      assertTrue(java.util.Arrays.asList(info.getYFields()).contains(xDim));
+      assertTrue(java.util.Arrays.asList(info.getXFields()).contains(xMeasure));
+      assertTrue(java.util.Arrays.asList(info.getYFields()).contains(yMeasure));
+   }
 }
