@@ -436,6 +436,38 @@ class SheetOpenServiceTest {
       assertTrue(thrown.getMessage().contains("has not been saved"), thrown.getMessage());
    }
 
+   /**
+    * Mirrors {@link #refusesAPaneScopedSessionRatherThanMintingAWholeSheetOne} for the reverse
+    * direction: {@code createViewsheet} used to resolve its acting session through the generic,
+    * pane-scope-blind {@link SheetSessionService#resolve} and then mint a brand-new whole-sheet
+    * (editorContext = null) viewsheet session from it -- laundering a single-expression grant
+    * into unscoped whole-sheet write authority on a runtime the pane's grant never named.
+    *
+    * <p>The three {@code never()} assertions are the substance: refusing with a message while
+    * still opening the runtime, or still minting the session, would leave the hole open.
+    */
+   @Test
+   void createViewsheetRefusesAPaneScopedActingSessionRatherThanMintingAWholeSheetOne()
+      throws Exception
+   {
+      SheetOpenService service = createViewsheetService(
+         SheetType.WORKSHEET, null, true, "sock-1",
+         new inetsoft.web.wiz.pairing.EditorContext("assemblyMain", "Chart1", null, null));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.createViewsheet("tok-acting", principal(), null));
+
+      assertTrue(thrown.getMessage().contains("scoped to one script location"),
+                thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("create_viewsheet"), thrown.getMessage());
+
+      verify(viewsheetService, never()).openTemporaryViewsheet(
+         any(), any(AssetEntry.class), any(Principal.class), any());
+      verify(sheetSessions, never()).open(anyString(), anyString(), any(SheetType.class),
+                                          any(), any(), any());
+      verify(broadcast, never()).sendToComposer(anyString(), any());
+   }
+
    @Test
    void createViewsheetRefusesWhenTheAgentLacksViewsheetPermission() {
       AssetEntry lmEntry = new AssetEntry(
@@ -470,11 +502,24 @@ class SheetOpenServiceTest {
    private SheetOpenService createViewsheetService(SheetType actingType, AssetEntry actingWsEntry,
                                                     boolean hasPermission, String socketSessionId)
    {
+      return createViewsheetService(actingType, actingWsEntry, hasPermission, socketSessionId,
+                                    null);
+   }
+
+   /**
+    * @param editorContext the acting session's own scope -- {@code null} for the ordinary
+    *                      whole-sheet session every other test here uses, non-null for the
+    *                      pane-scoped session {@code createViewsheet} must refuse.
+    */
+   private SheetOpenService createViewsheetService(SheetType actingType, AssetEntry actingWsEntry,
+                                                    boolean hasPermission, String socketSessionId,
+                                                    inetsoft.web.wiz.pairing.EditorContext editorContext)
+   {
       try {
          JoinSession actingSession = new JoinSession(
             "tok-acting", "acting-runtime-1", OWNER, actingType, 0L,
             SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
-            socketSessionId, SOCKET_USER, null);
+            socketSessionId, SOCKET_USER, editorContext);
 
          SheetSessionService sheetSessions = mock(SheetSessionService.class);
          this.sheetSessions = sheetSessions;

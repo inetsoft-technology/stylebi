@@ -229,6 +229,19 @@ public class SheetOpenService {
             "pairing code and run connect_sheet again.");
       }
 
+      // Same class of bug openBaseWorksheet guards against (see its own guard and comment
+      // above): a pane-scoped session is a write handle for ONE script location, and minting a
+      // new whole-sheet (editorContext = null) session from it -- as the code below does --
+      // would launder that narrow grant into unscoped whole-sheet authority on a runtime the
+      // pane's grant never named. Must come before the runtime is touched or any grant is minted.
+      if(actingSession.editorContext() != null) {
+         throw new IllegalArgumentException(
+            "This session is scoped to one script location, not to the whole sheet, so it cannot " +
+            "create a new viewsheet: doing so would turn a single-expression grant into a whole-sheet " +
+            "write handle. Ask the user to re-pair from the sheet toolbar ('Connect to Claude') and " +
+            "call create_viewsheet from that session.");
+      }
+
       if(actingSession.socketSessionId() == null) {
          throw new IllegalArgumentException(
             "The connected session has no active browser connection to create a viewsheet in; " +
