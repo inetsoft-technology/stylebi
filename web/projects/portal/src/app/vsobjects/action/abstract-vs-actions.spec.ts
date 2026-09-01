@@ -22,6 +22,7 @@ import { VSCalcTableModel } from "../model/vs-calctable-model";
 import { VSCalendarModel } from "../model/calendar/vs-calendar-model";
 import { VSChartModel } from "../model/vs-chart-model";
 import { VSCrosstabModel } from "../model/vs-crosstab-model";
+import { VSRangeSliderModel } from "../model/vs-range-slider-model";
 import { VSSelectionListModel } from "../model/vs-selection-list-model";
 import { VSSelectionTreeModel } from "../model/vs-selection-tree-model";
 import { VSTableModel } from "../model/vs-table-model";
@@ -31,6 +32,7 @@ import { CalcTableActions } from "./calc-table-actions";
 import { CalendarActions } from "./calendar-actions";
 import { ChartActions } from "./chart-actions";
 import { CrosstabActions } from "./crosstab-actions";
+import { RangeSliderActions } from "./range-slider-actions";
 import { SelectionListActions } from "./selection-list-actions";
 import { SelectionTreeActions } from "./selection-tree-actions";
 import { TableActions } from "./table-actions";
@@ -151,6 +153,24 @@ describe("AbstractVSActions", () => {
          miniToolbarService);
    }
 
+   // The type that stays outside the anchored set once slices 4 and 5 land, and therefore the
+   // control for every "a non-anchored type is untouched" assertion. Case 4 excludes it
+   // permanently: it declares no titleVisible, so it has no lane to anchor into. adhocFilter is
+   // set because that is the only shape in which it gets a mini-toolbar at all.
+   function rangeSliderActionsFor(width: number, height: number, vizModern: boolean,
+                                  laneHeight: number = 30): RangeSliderActions
+   {
+      const model: VSRangeSliderModel = TestUtils.createMockVSRangeSliderModel("RangeSlider1");
+      model.objectFormat.width = width;
+      model.objectFormat.height = height;
+      model.vizModern = vizModern;
+      (<any> model).adhocFilter = true;
+      (<any> model).titleVisible = true;
+      (<any> model).titleFormat = {height: laneHeight};
+      return new RangeSliderActions(model, composerContext, false, null, null, popService,
+         miniToolbarService);
+   }
+
    it("keeps the dismissal off the toolbar under the gate", () => {
       document.body.classList.add("viz-density-compact");
       const ids = actionsFor(400, 200, true).toolbarActions
@@ -215,9 +235,9 @@ describe("AbstractVSActions", () => {
          expect(actionsFor(60, 200, true).allowedActionsNum()).toBeLessThan(4);
       });
 
-      it("does not cap a non-chart assembly even under the gate", () => {
+      it("does not cap a type outside the anchored set even under the gate", () => {
          document.body.classList.add("viz-density-compact");
-         expect(calendarActionsFor(2000, 400, true).allowedActionsNum()).toBeGreaterThan(4);
+         expect(rangeSliderActionsFor(2000, 400, true).allowedActionsNum()).toBeGreaterThan(4);
       });
    });
 
@@ -343,9 +363,9 @@ describe("AbstractVSActions", () => {
          expect(ids).toEqual(["more actions"]);
       });
 
-      it("does not cap or gate-remove chrome for a non-chart assembly under the gate", () => {
+      it("does not cap or gate-remove chrome for a type outside the anchored set", () => {
          document.body.classList.add("viz-density-compact");
-         const ids = calendarActionsFor(2000, 400, true).showingActions
+         const ids = rangeSliderActionsFor(2000, 400, true).showingActions
             .reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
          expect(ids).not.toContain("more actions");
@@ -425,11 +445,11 @@ describe("AbstractVSActions", () => {
          expect(ids(actions.getMoreActions())).toEqual(["chart properties-toolbar", "menu actions"]);
       });
 
-      it("does not zero a non-chart assembly on touch, even under the gate", () => {
+      it("does not zero a type outside the anchored set on touch, even under the gate", () => {
          document.body.classList.add("viz-density-compact");
          onTouch();
 
-         expect(calendarActionsFor(2000, 400, true).allowedActionsNum()).toBeGreaterThan(4);
+         expect(rangeSliderActionsFor(2000, 400, true).allowedActionsNum()).toBeGreaterThan(4);
       });
 
       it("does not zero a chart on touch when the gate is off", () => {
@@ -483,22 +503,22 @@ describe("AbstractVSActions", () => {
             .forEach(id => expect(more).toContain(id));
       });
 
-      it("does not add the entry for a non-chart assembly on touch under the gate", () => {
+      it("does not add the entry for a type outside the anchored set on touch", () => {
          document.body.classList.add("viz-density-compact");
          onTouch();
-         // 120px so the calendar's toolbar overflows and the kebab has a list at all — at 2000px
-         // nothing overflows and an absent entry would prove nothing.
-         const more = ids(calendarActionsFor(120, 400, true).getMoreActions());
+         // 60px: the range slider has only one real toolbar action, so it takes a narrower
+         // width than the calendar's did to force an overflow at all.
+         const more = ids(rangeSliderActionsFor(60, 400, true).getMoreActions());
 
-         expect(more).toEqual(["calendar clear", "calendar multi-select"]);
+         expect(more).toContain("range-slider unselect");
          expect(more).not.toContain("menu actions");
       });
 
-      it("keeps the entry for a non-chart assembly on a pointer device under the gate", () => {
+      it("keeps the entry for a type outside the anchored set on a pointer device", () => {
          document.body.classList.add("viz-density-compact");
 
-         expect(ids(calendarActionsFor(120, 400, true).getMoreActions()))
-            .toEqual(["calendar clear", "menu actions"]);
+         expect(ids(rangeSliderActionsFor(60, 400, true).getMoreActions()))
+            .toContain("menu actions");
       });
 
       it("does not add the entry for a chart on touch when the gate is off", () => {
@@ -770,11 +790,12 @@ describe("AbstractVSActions", () => {
          expect(ids(selectionListActionsFor(800, 200, true, 20).showingActions)).toEqual([]);
       });
 
-      it("leaves a non-anchored type alone at the dense lane", () => {
-         // Calendar is outside ANCHORED_ASSEMBLY_TYPES, so the lane rule does not reach it. Guards
-         // against the suppression being written as !isAnchoredResident, which would catch every
-         // non-anchored type and strip toolbars that ship today.
-         expect(ids(calendarActionsFor(2000, 400, true, 20).showingActions).length).toBeGreaterThan(0);
+      it("leaves a type outside the anchored set alone at the dense lane", () => {
+         // The range slider is outside ANCHORED_ASSEMBLY_TYPES, so the lane rule does not reach it.
+         // Guards against the suppression being written as !isAnchoredResident, which would catch
+         // every non-anchored type and strip toolbars that ship today.
+         expect(ids(rangeSliderActionsFor(2000, 400, true, 20).showingActions).length)
+            .toBeGreaterThan(0);
       });
 
       it("leaves an anchored type alone when the gate is off", () => {
