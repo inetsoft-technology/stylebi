@@ -23,6 +23,7 @@ import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.Test;
 
 import java.security.Principal;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -45,30 +46,28 @@ class RenderWaitSupportTest {
    }
 
    /**
-    * Bug #76350 follow-on (item A) refute round: {@code RenderWaitSupport} runs its work on a
-    * plain JDK virtual thread ({@code Executors.newVirtualThreadPerTaskExecutor()}), not a
+    * Bug #76350 follow-on (item A) originally found: {@code RenderWaitSupport} runs its work on
+    * a plain JDK virtual thread ({@code Executors.newVirtualThreadPerTaskExecutor()}), not a
     * {@link inetsoft.util.GroupedThread}. {@code ThreadContext.getContextPrincipal()} checks
     * {@code GroupedThread} first and only falls back to a plain, non-inheritable
     * {@code ThreadLocal<Principal>} otherwise — a value set on the calling thread before
-    * {@code awaitOrRetry} is invoked is NOT visible inside the wrapped {@code Callable}, even
+    * {@code awaitOrRetry} is invoked was NOT visible inside the wrapped {@code Callable}, even
     * though the callable runs synchronously (from the caller's point of view) within the same
     * method call.
     *
-    * <p>This is not new to item A's fix — {@code ViewsheetEditService.ensureTableDataReady}
-    * (bug #76331) already crosses this exact same executor boundary in production, and its own
-    * test suite ({@code ViewsheetEditServiceTest}, {@code ScriptImageServiceTest},
-    * {@code ViewsheetAssemblyAgentControllerTest}) does not exercise a join-backed table, so it
-    * never actually observes this gap either way (confirmed by reading those tests directly: all
-    * three simulate "slow" by stubbing a mocked sandbox/service method with
-    * {@code Thread.sleep}, never by running a real {@code JoinQuery}). This test pins the
-    * mechanism itself down directly — with real {@code ThreadContext}, no mocks — so item A's own
-    * fix (which calls this same {@code awaitOrRetry} entry point, not a new one) is confirmed not
-    * to introduce a NEW instance of the problem, even though it does not fix the pre-existing one
-    * either; that is a larger, cross-cutting gap in {@code RenderWaitSupport} itself, out of
-    * scope for this item.</p>
+    * <p>This was not new to item A's fix — {@code ViewsheetEditService.ensureTableDataReady}
+    * (bug #76331) already crosses this exact same executor boundary in production. It was later
+    * confirmed (PSM-004, reopened) that this gap actually causes a production-visible
+    * failure: {@code GraphTypeUtil.checkChartStylePermission} reads
+    * {@code ThreadContext.getContextPrincipal()} and denies every chart style when it is null,
+    * permanently caching a bogus {@code -1} chart type onto the shared, live
+    * {@code ChartInfo}/{@code ChartAggregateRef} object. {@code RenderWaitSupport.awaitOrRetry}
+    * now captures the calling thread's principal (and locale) and re-installs them inside the
+    * wrapped {@code Callable}, clearing them afterward, so this test now pins the fixed
+    * behavior: the principal set on the calling thread IS visible inside the callable.</p>
     */
    @Test
-   void principalSetOnTheCallingThreadIsNotVisibleInsideTheWrappedCallable() throws Exception {
+   void principalSetOnTheCallingThreadIsVisibleInsideTheWrappedCallable() throws Exception {
       Principal principal = TestPrincipals.user("alice", "host-org");
       ThreadContext.setPrincipal(principal);
 
@@ -80,13 +79,60 @@ class RenderWaitSupportTest {
             return null;
          }, 2_000, 2);
 
-         assertNotEquals(principal, seenInsideCallable.get(),
-            "documents a real, pre-existing gap (not introduced by item A): a plain " +
-            "ThreadLocal principal set on the calling thread does not propagate onto " +
-            "RenderWaitSupport's virtual-thread executor. If this assertion ever starts " +
-            "failing, RenderWaitSupport has started propagating context correctly -- update " +
-            "this test's expectation, and reconsider whether the pre-existing gap noted in " +
-            "bug #76331's fix and this item's write-up still applies.");
+         assertEquals(principal, seenInsideCallable.get(),
+            "RenderWaitSupport.awaitOrRetry should propagate the calling thread's principal " +
+            "onto the virtual thread it runs work on (PSM-004, reopened); if this " +
+            "fails, the principal-propagation fix has regressed.");
+      }
+      finally {
+         ThreadContext.setPrincipal(null);
+      }
+   }
+
+   /**
+    * Companion to the principal-propagation test above: the fix captures
+    * {@code ThreadContext.getLocale()} the same way and for the same reason, so it should
+    * propagate identically.
+    */
+   @Test
+   void localeSetOnTheCallingThreadIsVisibleInsideTheWrappedCallable() throws Exception {
+      Locale locale = Locale.GERMANY;
+      ThreadContext.setLocale(locale);
+
+      try {
+         AtomicReference<Locale> seenInsideCallable = new AtomicReference<>();
+
+         RenderWaitSupport.awaitOrRetry(() -> {
+            seenInsideCallable.set(ThreadContext.getLocale());
+            return null;
+         }, 2_000, 2);
+
+         assertEquals(locale, seenInsideCallable.get(),
+            "RenderWaitSupport.awaitOrRetry should propagate the calling thread's locale onto " +
+            "the virtual thread it runs work on, the same as the principal.");
+      }
+      finally {
+         ThreadContext.setLocale(null);
+      }
+   }
+
+   /**
+    * The fix wraps {@code work} in its own try/finally to clear the propagated principal/locale
+    * off the virtual thread afterward -- this guards that the wrapping does not interfere with
+    * {@code awaitOrRetry}'s existing exception-unwrapping behavior (the {@code ExecutionException}
+    * cause should still surface as-is).
+    */
+   @Test
+   void exceptionFromWorkStillPropagatesThroughTheContextPropagatingWrapper() {
+      ThreadContext.setPrincipal(TestPrincipals.user("bob", "host-org"));
+
+      try {
+         IllegalStateException thrown = assertThrows(IllegalStateException.class,
+            () -> RenderWaitSupport.awaitOrRetry(() -> {
+               throw new IllegalStateException("boom");
+            }, 2_000, 2));
+
+         assertEquals("boom", thrown.getMessage());
       }
       finally {
          ThreadContext.setPrincipal(null);

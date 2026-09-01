@@ -17,6 +17,10 @@
  */
 package inetsoft.web.wiz.service;
 
+import inetsoft.util.ThreadContext;
+
+import java.security.Principal;
+import java.util.Locale;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -45,7 +49,26 @@ public final class RenderWaitSupport {
    public static <T> T awaitOrRetry(Callable<T> work, long timeoutMs, int retryAfterSeconds)
       throws Exception
    {
-      Future<T> future = EXECUTOR.submit(work);
+      // work runs on a fresh virtual thread (see EXECUTOR below), not the calling thread, so the
+      // caller's ThreadContext principal/locale must be captured here and re-installed inside the
+      // callable -- otherwise any permission/entitlement check work performs sees no principal at
+      // all, regardless of who the real caller is.
+      Principal principal = ThreadContext.getContextPrincipal();
+      Locale locale = ThreadContext.getLocale();
+      Callable<T> contextPropagatingWork = () -> {
+         ThreadContext.setContextPrincipal(principal);
+         ThreadContext.setLocale(locale);
+
+         try {
+            return work.call();
+         }
+         finally {
+            ThreadContext.setContextPrincipal(null);
+            ThreadContext.setLocale(null);
+         }
+      };
+
+      Future<T> future = EXECUTOR.submit(contextPropagatingWork);
 
       try {
          return future.get(timeoutMs, TimeUnit.MILLISECONDS);
