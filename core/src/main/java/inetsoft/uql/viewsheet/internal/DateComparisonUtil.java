@@ -642,8 +642,17 @@ public class DateComparisonUtil {
 
          // Compute which part cells have data from the most recent (current) year.
          // Orphaned cells — those with only comparison-year data — should be excluded
-         // from the x-axis scale so they don't produce spurious labels.
-         final Set<Object> validParts = computeValidParts(data, periodCol, partCol, startDate);
+         // from the x-axis scale so they don't produce spurious labels. Skip this in facet
+         // mode: there, "part" identifies the facet itself (e.g. DayOfWeek), and the
+         // heuristic's sort-order-based "hasn't chronologically reached this part yet" test
+         // is meaningless for a facet dimension — a facet with no row in the most recent
+         // period isn't a future bucket, it's a facet whose most recent period happens to be
+         // absent (see Bug #76388: DayOfWeek facets 5-7 have real data for every period
+         // except the last, and excluding them entirely from every period is wrong; the
+         // per-facet sub-chart already correctly shows only the periods that actually have
+         // data for it once this exclusion doesn't run first).
+         final Set<Object> validParts = info.isFacet() ? Collections.emptySet() :
+            computeValidParts(data, periodCol, partCol, startDate);
 
          for(Scale scale : egraph.getCoordinate().getScales()) {
             String[] fields = scale.getFields();
