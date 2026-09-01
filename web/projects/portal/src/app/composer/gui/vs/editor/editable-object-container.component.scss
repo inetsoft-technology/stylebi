@@ -124,12 +124,12 @@
 }
 
 .txt-primary .object  {
-  border: 2px dotted;
+  outline: 2px dotted;
 }
 
 .drop-target {
   &:not(.object-editor) {
-    border: 2px dotted;
+    outline: 2px dotted;
   }
 }
 
@@ -164,7 +164,7 @@
 }
 
 .search-result {
-  border: 2px solid !important;
+  outline: 2px solid !important;
 }
 
 .search-no-match {
