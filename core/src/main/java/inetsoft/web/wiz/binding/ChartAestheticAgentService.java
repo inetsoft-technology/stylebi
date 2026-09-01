@@ -316,8 +316,22 @@ public class ChartAestheticAgentService {
     * set_chart_type}'s own {@code multi} redistributes an existing chart-level field into each
     * measure correctly, the same transition a human toggling the Composer's own checkbox
     * triggers. Only writing a field while multi-style is already on has no such handling, so
-    * this refuses exactly that state rather than attempting a fix at the render layer whose
-    * root cause remains open (see the L3 parity report's own note on G2-5).
+    * this refuses exactly that state rather than attempting a fix at the render layer.
+    *
+    * <p><b>This guard is not a workaround for a gap the native UI also has</b> — it is the exact
+    * state the Composer's own Aesthetic Pane cannot construct. Every field editor there
+    * ({@code color-field-mc.component.ts} et al.) reads/writes through an {@code @Input() aggr}
+    * ({@code ChartAggregateRef}) when one is supplied, falling back to the chart-level
+    * {@code bindingModel} field only when it is not ({@code if(this.aggr) this.aggr.colorField =
+    * ref; else this.bindingModel[...] = ref;}); {@code aesthetic-pane.component.ts}'s own
+    * {@code currAggregate} getter returns {@code null} whenever {@code !this.multiStyles}
+    * and a real per-measure ref whenever it is {@code true} — so a human can never reach the
+    * chart-level write path while multi-style is on. The corrupting state this guard refuses is
+    * therefore reachable only by a caller (this tool included, before this fix) that bypasses the
+    * button the way {@link SwapXYBindingProcessor#requireInvertible} documents for the G2-1/G2-2
+    * swap-axes case. The render-layer defect this exposes is consequently real but UI-unreachable
+    * — a standalone StyleBI engine issue, not a wiz/native parity gap, and out of this lane's
+    * scope to fix.
     */
    private void requireNotMultiAesthetic(String sessionToken, Principal user, String assemblyName)
       throws Exception
