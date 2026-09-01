@@ -211,7 +211,7 @@ class VizModernizeUtilTest {
    }
 
    @Test
-   void modernizeLeavesATitleTheHookDoesNotOwnAlone() {
+   void modernizeTakesTheSelectionListTitleRuleColour() {
       Viewsheet vs = legacySheet();
       SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "SelA");
       vs.addAssembly(list);
@@ -223,11 +223,12 @@ class VizModernizeUtilTest {
       gateOn();
       VizModernizeUtil.modernize(vs);
 
-      assertEquals(new Color(0xc0c0c0),
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(VizContext.ofGate()),
                    list.getVSAssemblyInfo().getFormatInfo()
                       .getFormat(VSAssemblyInfo.TITLEPATH).getDefaultFormat()
                       .getBorderColorsValue().bottomColor,
-                   "a selection list installs its own title composite; the hook does not own it");
+                   "a selection list installs its own title composite, but the hook re-runs " +
+                   "against it, so modernize reaches it through the public entry point too");
    }
 
    @Test

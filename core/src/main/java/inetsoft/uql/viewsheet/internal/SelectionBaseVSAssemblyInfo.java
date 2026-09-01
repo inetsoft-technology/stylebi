@@ -894,9 +894,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       format.getDefaultFormat().setBordersValue(
          new Insets(GraphConstants.NONE, GraphConstants.NONE,
                     GraphConstants.THIN_LINE, GraphConstants.NONE));
-      format.getDefaultFormat().setBorderColorsValue(
-         new BorderColors(new Color(0xc0c0c0), new Color(0xc0c0c0),
-                          new Color(0xc0c0c0), new Color(0xc0c0c0)));
+      format.getDefaultFormat().setBorderColorsValue(legacyTitleRuleColors());
       format.getDefaultFormat().setAlignmentValue(StyleConstants.H_LEFT | StyleConstants.V_CENTER);
       getFormatInfo().setFormat(datapath, format);
       font = getDefaultFont(Font.PLAIN, 11);
@@ -923,6 +921,32 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
          format.getDefaultFormat().setFontValue(font);
          format.getCSSFormat().setCSSType("MeasureNBar");
          getFormatInfo().setFormat(path, format);
+      }
+
+      // super seeded the title composite this method just replaced; re-run against the real one.
+      // The hook is a set of unconditional writes, so running it twice changes nothing else
+      seedChromeDefaults(VizContext.of(this));
+   }
+
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      super.seedChromeDefaults(ctx);
+
+      // the title lane: this type installs its own title composite, which has never carried a
+      // fill, so only the rule's colour and the text colour move. Both branches write, because
+      // the legacy one is what Revert relies on to restore a never-modernized list
+      VSCompositeFormat titleFormat = getFormatInfo().getFormat(TITLEPATH);
+
+      if(titleFormat != null) {
+         VSFormat def = titleFormat.getDefaultFormat();
+         def.setBordersValue(VSTitleChromeDefaults.titleRuleBorders());
+         def.setBorderColorsValue(ctx.modern
+            ? VSTitleChromeDefaults.titleRuleColors(ctx) : legacyTitleRuleColors());
+         def.setForegroundValue(
+            ctx.modern ? VSTitleChromeDefaults.titleForegroundValue(ctx) : null);
+         // getForeground() falls back to the fg field when fgval yields nothing, so the legacy
+         // branch has to null both or a runtime foreground survives the clear
+         def.setForeground(null);
       }
    }
 
@@ -1037,6 +1061,13 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
    }
 
    private static final Color SOFT_RED = new Color(0xFF4040);
+
+   // the title rule this type has always drawn; the seed's legacy branch restores it.
+   // Fresh every call - BorderColors is mutable and the caller installs it on a format.
+   private static BorderColors legacyTitleRuleColors() {
+      return new BorderColors(new Color(0xc0c0c0), new Color(0xc0c0c0),
+                              new Color(0xc0c0c0), new Color(0xc0c0c0));
+   }
 
    // view
    private DynamicValue2 showTypeValue = new DynamicValue2("0", XSchema.INTEGER);

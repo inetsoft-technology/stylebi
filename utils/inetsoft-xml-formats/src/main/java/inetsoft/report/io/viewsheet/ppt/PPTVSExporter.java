@@ -731,7 +731,7 @@ public class PPTVSExporter extends AbstractVSExporter {
             }
 
             format.getUserDefinedFormat().setBackground(
-               ExportUtil.getBackGroundColor(format, info.getFormat(), VizContext.of(info)));
+               ExportUtil.getBackGroundColor(format, info.getFormat(), VizContext.of(info), info));
 
             if(info.isTitleVisible()) {
                CurrentSelectionVSAssemblyInfo cinfo = (CurrentSelectionVSAssemblyInfo)
