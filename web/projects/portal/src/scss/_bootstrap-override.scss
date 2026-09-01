@@ -1317,6 +1317,7 @@ custom-select.date-value-editor__nav-select--year {
   &:focus {
     border-color: var(--inet-viz-active-border);
     box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
   }
 }
 

@@ -82,6 +82,10 @@ implements OnInit, OnChanges, OnDestroy
    private holdRepeatTimer: any = null;
    private holdAccelTimer: any = null;
    private holdRepeatInterval: number = 60;
+   // set once doRepeat() actually applies a step, so the trailing native click event that
+   // always follows a mouseup (even after a held press) doesn't apply one extra step on top
+   // of what the hold already stepped.
+   private heldRepeated: boolean = false;
 
    @Input()
    set updateOnChange(value: boolean) {
@@ -169,6 +173,11 @@ implements OnInit, OnChanges, OnDestroy
    }
 
    onIncrementClick(): void {
+      if(this.heldRepeated) {
+         this.heldRepeated = false;
+         return;
+      }
+
       if(!this.isIncrementDisabled) {
          this.stepValue(this.model.increment);
          this.focusInputIfEditable();
@@ -176,6 +185,11 @@ implements OnInit, OnChanges, OnDestroy
    }
 
    onDecrementClick(): void {
+      if(this.heldRepeated) {
+         this.heldRepeated = false;
+         return;
+      }
+
       if(!this.isDecrementDisabled) {
          this.stepValue(-this.model.increment);
          this.focusInputIfEditable();
@@ -194,6 +208,7 @@ implements OnInit, OnChanges, OnDestroy
    startHold(direction: 1 | -1): void {
       this.cancelHold();
       this.holdRepeatInterval = 60;
+      this.heldRepeated = false;
 
       this.holdInitTimer = setTimeout(() => {
          this.holdInitTimer = null;
@@ -204,6 +219,7 @@ implements OnInit, OnChanges, OnDestroy
                return;
             }
 
+            this.heldRepeated = true;
             this.stepValue(direction * this.model.increment);
             this.holdRepeatTimer = setTimeout(doRepeat, this.holdRepeatInterval);
          };

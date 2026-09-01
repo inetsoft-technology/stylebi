@@ -63,7 +63,7 @@
               [attr.aria-label]="model.absoluteName + ' _#(ComboBox)'"
               [ngModel]="model.selectedLabel" (ngModelChange)="onChange($event)"
               [style.text-align-last]="model.objectFormat.hAlign"
-              [style.background-color]="getTriggerBackground()">
+              [style.background-color]="getTriggerBackground(false)">
               @for (entry of model.labels; track entry) {
                 <option [value]="entry">{{entry}}</option>
               }

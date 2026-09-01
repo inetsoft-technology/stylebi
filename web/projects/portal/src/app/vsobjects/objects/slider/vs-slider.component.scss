@@ -20,27 +20,31 @@
 // All --slider-* custom properties can be overridden on :root or any ancestor
 // element to adapt the slider to a custom M3 color scheme.
 //
-// Reference sizes (standard variant per M3 Expressive spec):
+// Reference sizes (standard variant per M3 Expressive spec) — legacy :host values below;
+// the modern geometry (gate-scoped in :host-context(.viz-modern) further down) is noted alongside:
 //   track-height:            16dp   → using 12px  (acceptable deviation — fits compact layouts)
 //   handle-width (pressed):   4dp   → using 2px   (acceptable deviation — more subtle squish)
 //   handle-width (resting):  12dp   → using 4px   (acceptable deviation — less obtrusive)
-//   handle-height:           44dp   → using 18px  (intentional product decision — pill only slightly
-//                                                   taller than the track, not the full M3 grab target)
+//   handle-height:           44dp   → using 33px  (acceptable deviation — fits compact layouts);
+//                                     modern uses 18px (intentional product decision — pill only
+//                                     slightly taller than the track, not the full M3 grab target)
 //   handle-gap:               6dp   (matches spec)
-//   track-overhang:           4dp   → using 16px  (intentional product decision — leaves room for tick
-//                                                   labels to clear an enabled border on the left/right)
-//   state-layer-size:        48dp   → using 24px  (acceptable deviation — proportional to handle-height)
+//   track-overhang:           4dp   → using 12px  (intentional product decision — more visual
+//                                     breathing room); modern uses 16px (leaves room for tick
+//                                     labels to clear an enabled border on the left/right)
+//   state-layer-size:        48dp   → using 44px  (acceptable deviation — proportional to
+//                                     handle-height); modern uses 24px (same rationale)
 :host {
   // ── Geometry ──────────────────────────────────────────────────────────────
   --slider-track-height: 12px;
   --slider-handle-pressed-width: 2px;   // pressed / dragging pill width
   --slider-handle-resting-width: 4px;   // resting pill width — squishes on drag
-  --slider-handle-height: 18px;  // note. HANDLE_CLEARANCE in vs-slider.component.ts = this / 2 (rounded up)
+  --slider-handle-height: 33px;  // note. HANDLE_CLEARANCE in vs-slider.component.ts = this / 2 (rounded up)
   --slider-handle-gap: 6px;             // gap between pill and track edge, per side
-  --slider-track-overhang: 16px;        // visual extension past first/last tick; also clears tick labels from an enabled border
-  --slider-track-edge-gap: 4px;         // shortens the track's rounded overhang caps so they stop short of an enabled border instead of touching it
-  --slider-gap: 7px;                    // spacing between track bottom and tick labels. note. contributes to LABEL_BOTTOM_OFFSET in vs-slider.component.ts. Kept tighter than the old 16px so the freed space becomes a real bottom margin between the tick labels and an enabled border, instead of clearance the labels never used.
-  --slider-state-layer-size: 24px;
+  --slider-track-overhang: 12px;        // visual extension past first/last tick
+  --slider-track-edge-gap: 0px;         // legacy caps touch the overhang edge directly (no shortening)
+  --slider-gap: 16px;                    // spacing between track bottom and tick labels. note. contributes to LABEL_BOTTOM_OFFSET in vs-slider.component.ts
+  --slider-state-layer-size: 44px;
 
   // ── Track colors ──────────────────────────────────────────────────────────
   --slider-active-track-color: #9e9e9e;
@@ -68,18 +72,25 @@
   --slider-tick-color: rgba(0, 0, 0, 0.38);
 }
 
-// Modern visualization neutrals — gate-scoped; legacy :host values above stay
-// unchanged so gate-off is byte-identical. Passive chrome, warm-neutral only
+// Modern visualization neutrals and geometry — gate-scoped; legacy :host values above stay
+// unchanged so gate-off is byte-identical. Colors are passive chrome, warm-neutral only
 // (no selection accent — active track and handle deliberately stay off
 // --inet-primary-color; a slider's filled track is positional feedback for a
-// continuous value, not a discrete selection state). Geometry, shadows, and
-// state opacities are not repointed.
+// continuous value, not a discrete selection state). Shadows and state opacities are not
+// repointed.
 :host-context(.viz-modern) {
   --slider-inactive-track-color: var(--inet-default-border-color);
   --slider-active-track-color: #C8C2B7;
   --slider-handle-color: var(--inet-text-muted-color);
   --slider-tick-color: var(--inet-text-muted-color);
   --slider-label-bg: var(--inet-text-muted-color);
+
+  // ── Geometry ──────────────────────────────────────────────────────────────
+  --slider-handle-height: 18px;  // note. HANDLE_CLEARANCE in vs-slider.component.ts = this / 2 (rounded up)
+  --slider-track-overhang: 16px;        // visual extension past first/last tick; also clears tick labels from an enabled border
+  --slider-track-edge-gap: 4px;         // shortens the track's rounded overhang caps so they stop short of an enabled border instead of touching it
+  --slider-gap: 7px;                    // spacing between track bottom and tick labels. note. contributes to LABEL_BOTTOM_OFFSET in vs-slider.component.ts. Kept tighter than the legacy 16px so the freed space becomes a real bottom margin between the tick labels and an enabled border, instead of clearance the labels never used.
+  --slider-state-layer-size: 24px;
 }
 
 // Dark visualization neutrals — must follow the .viz-modern block so its equal-specificity

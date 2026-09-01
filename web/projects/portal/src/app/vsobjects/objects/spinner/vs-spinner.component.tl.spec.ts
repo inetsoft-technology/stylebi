@@ -44,6 +44,8 @@
  *   Group 16 [Risk 2] — isIncrementDisabled/isDecrementDisabled: enabled/bounds matrix
  *   Group 17 [Risk 2] — enableEditing(): vizModern gate, viewer guard, focus restore
  *   Group 18 [Risk 2] — isInputDisabled(): vizModern/viewer/selected/editing gate matrix
+ *   Group 20 [Risk 2] — held click does not double-step on release: a held press's trailing
+ *                        native click must not re-apply a step doRepeat() already made
  *   Group 1 [Risk 1] — selected setter: labelSelected clear guard, editing reset
  *   Group 3 [Risk 1] — ngOnInit: validate() + ovalue capture
  *   Group 5 [Risk 1] — ngOnDestroy: subscription cleanup
@@ -784,6 +786,49 @@ describe("VSSpinner — onIncrementClick / onDecrementClick", () => {
 
       expect(comp.model.value).toBe(20); // stepping itself is still unaffected by the gate
       expect(focusSpy).not.toHaveBeenCalled();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 20: held click does not double-step on release [Risk 2]
+// ---------------------------------------------------------------------------
+
+describe("VSSpinner — held click does not double-step on release", () => {
+   beforeEach(() => vi.useFakeTimers());
+   afterEach(() => vi.useRealTimers());
+
+   it("should not apply an extra step from the trailing click after a hold repeated", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 0, increment: 20, max: 1000 }) });
+
+      comp.startHold(1);
+      vi.advanceTimersByTime(300); // step 1 -> 20
+      vi.advanceTimersByTime(60); // step 2 -> 40
+      comp.cancelHold(); // mouseup
+      comp.onIncrementClick(); // trailing native click the browser fires on release
+
+      expect(comp.model.value).toBe(40);
+   });
+
+   it("should still apply a single step for a quick click that never triggered a hold repeat", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 0, increment: 20, max: 1000 }) });
+
+      comp.startHold(1);
+      comp.cancelHold(); // mouseup before the 300ms initial delay elapses
+      comp.onIncrementClick(); // trailing click
+
+      expect(comp.model.value).toBe(20);
+   });
+
+   it("should reset the held-repeated flag so a later, separate click still steps", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 0, increment: 20, max: 1000 }) });
+
+      comp.startHold(1);
+      vi.advanceTimersByTime(300); // step 1 -> 20
+      comp.cancelHold();
+      comp.onIncrementClick(); // consumes the flag; no extra step -> still 20
+      comp.onIncrementClick(); // a genuinely separate, unheld click
+
+      expect(comp.model.value).toBe(40);
    });
 });
 

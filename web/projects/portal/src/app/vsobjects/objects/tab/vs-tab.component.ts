@@ -72,6 +72,9 @@ export class VSTab extends NavigationComponent<VSTabModel> implements OnChanges,
    maxBorderWidths: MaxBorderWidths;
    tabHovered = new Set<number>();
    hoverBorder: Border;
+   // width of the modern selected-tab indicator drawn by getTabIndicatorBorder(); shared so
+   // ngOnChanges' maxBorderWidths reservation and getMargin()'s per-tab compensation agree.
+   private static readonly TAB_INDICATOR_WIDTH = 2;
 
    get autoSize(): boolean {
       const _model = this.model as any;
@@ -102,7 +105,10 @@ export class VSTab extends NavigationComponent<VSTabModel> implements OnChanges,
          const top = Math.max(1, Tool.getMarginSize(this.model.objectFormat.border.top),
             Tool.getMarginSize(this.model.activeFormat.border.top));
          const bottom = Math.max(1, Tool.getMarginSize(this.model.objectFormat.border.bottom),
-            Tool.getMarginSize(this.model.activeFormat.border.bottom));
+            Tool.getMarginSize(this.model.activeFormat.border.bottom),
+            // the modern selected-tab indicator can render a bottom border wider than either
+            // format's own, so reserve room for it too or getMargin() would go negative for it
+            this.model.vizModern ? VSTab.TAB_INDICATOR_WIDTH : 0);
          this.maxBorderWidths = {left: left, right: right, top: top, bottom: bottom};
 
          this.initHoverBorder();
@@ -294,7 +300,7 @@ export class VSTab extends NavigationComponent<VSTabModel> implements OnChanges,
       if(this.model.vizModern && !this.tabHovered.has(tabID) && this.isTabSelected(tabID) &&
          Tool.getBorderStyle(bottom) == "none")
       {
-         return "2px solid var(--inet-nav-tabs-selected-border-color)";
+         return VSTab.TAB_INDICATOR_WIDTH + "px solid var(--inet-nav-tabs-selected-border-color)";
       }
 
       return bottom;
@@ -318,7 +324,12 @@ export class VSTab extends NavigationComponent<VSTabModel> implements OnChanges,
          return this.maxBorderWidths.top - Tool.getMarginSize(border.top);
       }
       else {
-         return this.maxBorderWidths.bottom - Tool.getMarginSize(border.bottom);
+         // use the indicator-aware bottom (not the raw border) so a selected tab's indicator
+         // is counted toward the reserved space same as any other border would be — otherwise
+         // getMargin() assumes the underlying "none" border's zero width, and the indicator's
+         // real thickness reintroduces the text-centering asymmetry this margin exists to avoid.
+         return this.maxBorderWidths.bottom -
+            Tool.getMarginSize(this.getTabIndicatorBorder(tabID));
       }
    }
 
