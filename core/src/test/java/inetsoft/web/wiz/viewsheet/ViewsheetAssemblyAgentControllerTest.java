@@ -1119,6 +1119,218 @@ class ViewsheetAssemblyAgentControllerTest {
             new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest("  ", null), agent));
    }
 
+   /** Still behaves exactly as before when type is omitted -- backward compatible default. */
+   @Test
+   void attachBaseWorksheetDefaultsToWorksheetTypeWhenOmitted() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      controller.attachBaseWorksheet("tok",
+         new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+            "Sample Queries/customers", null),
+         agent);
+
+      ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(vs).setBaseEntry(entryCaptor.capture());
+      assertEquals(AssetEntry.Type.WORKSHEET, entryCaptor.getValue().getType());
+   }
+
+   @Test
+   void attachBaseWorksheetAcceptsLogicalModelType() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      AssetRepository rep = mock(AssetRepository.class);
+      // A non-empty getEntries() result IS the permission+existence probe for logicalModel --
+      // no getSheet() call applies (a logical model is not an AbstractSheet).
+      when(rep.getEntries(any(), eq(agent), eq(inetsoft.sree.security.ResourceAction.READ)))
+         .thenReturn(new AssetEntry[] {
+            new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
+                           "MyDataSource/MyModel/Orders", null)
+         });
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rvs.getID()).thenReturn("rt-vs-lm");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      controller.attachBaseWorksheet("tok",
+         new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+            "MyDataSource/MyModel", null, "logicalModel", null, null),
+         agent);
+
+      ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      InOrder order = inOrder(vs);
+      order.verify(vs).setBaseEntry(entryCaptor.capture());
+      order.verify(vs).reloadBaseWorksheet(eq(rep), eq(agent));
+
+      assertEquals(AssetEntry.Type.LOGIC_MODEL, entryCaptor.getValue().getType());
+      assertEquals("MyDataSource/MyModel", entryCaptor.getValue().getPath());
+   }
+
+   /** Flat case: the datasource's own root getEntries() call returns the matching table directly. */
+   @Test
+   void attachBaseWorksheetAcceptsPhysicalTableTypeFlat() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+
+      AssetEntry tableEntry = new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.PHYSICAL_TABLE, "Examples/Orders", null);
+      tableEntry.setProperty("source", "Orders");
+
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getEntries(any(), eq(agent), eq(inetsoft.sree.security.ResourceAction.READ)))
+         .thenReturn(new AssetEntry[] { tableEntry });
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rvs.getID()).thenReturn("rt-vs-pt");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      controller.attachBaseWorksheet("tok",
+         new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+            null, null, "physicalTable", "Examples", "Orders"),
+         agent);
+
+      ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(vs).setBaseEntry(entryCaptor.capture());
+      assertSame(tableEntry, entryCaptor.getValue(),
+         "must attach the REAL repository-returned entry, never a hand-constructed one");
+   }
+
+   /** Nested case: the root returns a folder first; the resolver must recurse into it. */
+   @Test
+   void attachBaseWorksheetAcceptsPhysicalTableTypeNested() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+
+      AssetEntry schemaFolder = new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.PHYSICAL_FOLDER, "Examples/dbo", null);
+      AssetEntry tableEntry = new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.PHYSICAL_TABLE, "Examples/dbo/Orders", null);
+      tableEntry.setProperty("source", "dbo.Orders");
+
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getEntries(any(), eq(agent), eq(inetsoft.sree.security.ResourceAction.READ)))
+         .thenAnswer(inv -> {
+            AssetEntry folder = inv.getArgument(0);
+
+            if(folder.getPath().equals("Examples")) {
+               return new AssetEntry[] { schemaFolder };
+            }
+            if(folder.getPath().equals("Examples/dbo")) {
+               return new AssetEntry[] { tableEntry };
+            }
+            return new AssetEntry[0];
+         });
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rvs.getID()).thenReturn("rt-vs-pt-nested");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      controller.attachBaseWorksheet("tok",
+         new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+            null, null, "physicalTable", "Examples", "Orders"),
+         agent);
+
+      ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(vs).setBaseEntry(entryCaptor.capture());
+      assertSame(tableEntry, entryCaptor.getValue());
+   }
+
+   @Test
+   void attachBaseWorksheetRefusesPhysicalTableMissingTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(mock(AssetRepository.class));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.attachBaseWorksheet("tok",
+            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+               null, null, "physicalTable", "Examples", null),
+            agent));
+      assertTrue(ex.getMessage().contains("table"));
+   }
+
+   @Test
+   void attachBaseWorksheetRefusesUnknownType() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(mock(AssetRepository.class));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.attachBaseWorksheet("tok",
+            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+               "x", null, "query", null, null),
+            agent));
+      assertTrue(ex.getMessage().contains("worksheet"));
+   }
+
    // ---------------------------------------------------------------------------
    // Task 6 (layout implementation plan) -- wiring assertions for the eight new
    // layout endpoints. Each test only checks that the right service is called with the

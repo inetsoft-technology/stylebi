@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.model.LayoutModel;
@@ -987,12 +988,207 @@ public class ViewsheetAssemblyAgentController {
    /**
     * Request body for the attach-base-worksheet endpoint.
     *
-    * @param path  path of an existing worksheet asset to attach as this viewsheet's base
-    *              (e.g. {@code "Sample Queries/customers"} or {@code "My Folder/agent_ws_1"}).
-    * @param scope optional scope to resolve {@code path} in — {@code "global"} (default) for the
-    *              shared repository, {@code "user"} for the caller's private folder.
+    * @param path       path of an existing worksheet or logical-model asset to attach as this
+    *                   viewsheet's base (e.g. {@code "Sample Queries/customers"} for a worksheet,
+    *                   {@code "MyDataSource/MyModel"} for a logical model). Not used for
+    *                   {@code type:"physicalTable"} -- use {@code datasource}/{@code table}
+    *                   instead.
+    * @param scope      optional scope to resolve {@code path} in — {@code "global"} (default) for
+    *                   the shared repository, {@code "user"} for the caller's private folder.
+    *                   Ignored for {@code type:"physicalTable"}.
+    * @param type       {@code "worksheet"} (the default, for backward compatibility with every
+    *                   caller that predates this field), {@code "logicalModel"}, or
+    *                   {@code "physicalTable"}. {@code "query"} is a deprecated source type and is
+    *                   not supported here.
+    * @param datasource data source name. Required when {@code type} is {@code "physicalTable"}.
+    * @param table      physical table name within {@code datasource}. Required when {@code type}
+    *                   is {@code "physicalTable"}.
     */
-   public record AttachBaseWorksheetRequest(String path, String scope) {}
+   public record AttachBaseWorksheetRequest(String path, String scope, String type,
+                                            String datasource, String table) {
+      /** Backward-compatible 2-arg form: every pre-existing caller implies type:"worksheet". */
+      public AttachBaseWorksheetRequest(String path, String scope) {
+         this(path, scope, null, null, null);
+      }
+   }
+
+   /**
+    * Resolves a caller-named data source into a permission-checked {@link AssetEntry}, for
+    * whichever of the three source types the agent surface supports: {@code worksheet} (the
+    * default), {@code logicalModel}, or {@code physicalTable}. {@code query}
+    * ({@code AssetEntry.Type.QUERY}) is deliberately not supported — it is a deprecated source
+    * type. Shared by {@link #attachBaseWorksheet} and {@code create_viewsheet} — do not duplicate
+    * this resolution logic elsewhere.
+    *
+    * @throws PairingException naming the specific missing/invalid field or resolution failure —
+    *                          never a generic message.
+    */
+   private AssetEntry resolveDataSourceEntry(String type, String path, String scope,
+                                             String datasource, String table,
+                                             XPrincipal xp, AssetRepository rep)
+      throws Exception
+   {
+      String effectiveType = type == null || type.isBlank() ? "worksheet" : type;
+      IdentityID uname = IdentityID.getIdentityIDFromKey(xp.getName());
+
+      if("worksheet".equals(effectiveType)) {
+         if(path == null || path.isBlank()) {
+            throw new PairingException(
+               "Provide a 'path' naming the worksheet asset to attach " +
+               "(e.g. \"Sample Queries/customers\").");
+         }
+
+         int assetScope = "user".equalsIgnoreCase(scope)
+            ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
+         IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
+         AssetEntry entry = new AssetEntry(assetScope, AssetEntry.Type.WORKSHEET, path.trim(),
+                                           owner, uname.orgID);
+
+         // permission=true so this actually enforces read access, unlike the superficially
+         // similar getSheet(entry, null, false, ...) probe used elsewhere in this codebase for
+         // freshness checks (e.g. ComposerViewsheetService.checkWorksheetChanged) -- that call
+         // deliberately skips the permission check, which would be wrong here: this is a
+         // caller-supplied path naming an arbitrary asset, and only checking existence would let
+         // an agent confirm a worksheet's presence/absence without being able to read it.
+         Object resolved;
+
+         try {
+            resolved = rep.getSheet(entry, xp, true, AssetContent.ALL, false);
+         }
+         catch(Exception e) {
+            throw new PairingException(
+               "no worksheet named '" + path + "' was found, or you lack permission to read it", e);
+         }
+
+         if(resolved == null) {
+            throw new PairingException(
+               "no worksheet named '" + path + "' was found, or you lack permission to read it");
+         }
+
+         return entry;
+      }
+      else if("logicalModel".equals(effectiveType)) {
+         if(path == null || path.isBlank()) {
+            throw new PairingException(
+               "Provide a 'path' naming the logical model, e.g. \"MyDataSource/MyModel\".");
+         }
+
+         AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
+                                           path.trim(), null, uname.orgID);
+
+         // Unlike a worksheet/viewsheet, a logical model is not an AbstractSheet -- rep.getSheet()
+         // does not apply. rep.getEntries(entry, user, ResourceAction.READ) IS the permission +
+         // existence probe here: it is READ-gated by the ResourceAction argument, and an empty/
+         // null result means either the model does not exist, has no fields, or the caller cannot
+         // read it -- all three collapse to the same refusal, matching the worksheet branch's own
+         // "not found or no permission" phrasing rather than distinguishing them.
+         AssetEntry[] probe;
+
+         try {
+            probe = rep.getEntries(entry, xp, ResourceAction.READ);
+         }
+         catch(Exception e) {
+            throw new PairingException(
+               "no logical model named '" + path + "' was found, or you lack permission to read it", e);
+         }
+
+         if(probe == null || probe.length == 0) {
+            throw new PairingException(
+               "no logical model named '" + path + "' was found, or you lack permission to read it");
+         }
+
+         return entry;
+      }
+      else if("physicalTable".equals(effectiveType)) {
+         if(datasource == null || datasource.isBlank()) {
+            throw new PairingException(
+               "type:\"physicalTable\" requires 'datasource' naming the data source.");
+         }
+
+         if(table == null || table.isBlank()) {
+            throw new PairingException(
+               "type:\"physicalTable\" requires 'table' naming the physical table.");
+         }
+
+         return resolvePhysicalTableEntry(datasource.trim(), table.trim(), xp, rep);
+      }
+      else {
+         throw new PairingException(
+            "Unknown type \"" + type + "\" -- must be \"worksheet\", \"logicalModel\", or " +
+            "\"physicalTable\" (\"query\" is a deprecated source type and is not supported here).");
+      }
+   }
+
+   /**
+    * Resolves a physical table by (datasource, table) name to its own {@link AssetEntry}, by
+    * BROWSING the datasource's tree via {@link AssetRepository#getEntries} rather than
+    * hand-constructing a {@code PHYSICAL_TABLE} entry's {@code SourceInfo} properties
+    * (prefix/source/type/catalog/schema/...) — those are populated by the repository's own
+    * JDBC-metadata walk (see {@code AbstractAssetEngine.createPhysicalEntry}) and are not safe to
+    * reproduce by hand: a hand-built entry with the wrong properties would look accepted and
+    * silently render nothing, the same failure class as PWA-006/PWA-007.
+    *
+    * @throws PairingException if no table named {@code table} is found under {@code datasource},
+    *                          or the caller lacks permission to read it
+    */
+   private AssetEntry resolvePhysicalTableEntry(String datasource, String table, XPrincipal xp,
+                                                AssetRepository rep) throws Exception
+   {
+      AssetEntry root = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE,
+                                       datasource, null);
+      AssetEntry found = findPhysicalTableEntry(root, table, xp, rep, 0);
+
+      if(found == null) {
+         throw new PairingException(
+            "no physical table named '" + table + "' was found in data source '" + datasource +
+            "', or you lack permission to read it");
+      }
+
+      return found;
+   }
+
+   /**
+    * Recursively walks a physical-table datasource tree (tables may be nested under
+    * catalog/schema folders of arbitrary depth) looking for a leaf table entry matching
+    * {@code table} by name. {@code depth} bounds the walk against a structurally malformed tree
+    * (e.g. a folder reporting itself as its own child) rather than looping forever — a real
+    * datasource tree is never this deep.
+    */
+   private AssetEntry findPhysicalTableEntry(AssetEntry folder, String table, XPrincipal xp,
+                                             AssetRepository rep, int depth) throws Exception
+   {
+      if(depth > 10) {
+         throw new PairingException(
+            "physical table lookup for '" + table + "' did not terminate within a reasonable " +
+            "folder depth");
+      }
+
+      AssetEntry[] children = rep.getEntries(folder, xp, ResourceAction.READ);
+
+      if(children == null) {
+         return null;
+      }
+
+      for(AssetEntry child : children) {
+         if(child.isPhysicalTable() &&
+            (table.equals(child.getName()) || table.equals(child.getProperty("source"))))
+         {
+            return child;
+         }
+      }
+
+      for(AssetEntry child : children) {
+         if(child.isFolder() && !child.isPhysicalTable()) {
+            AssetEntry found = findPhysicalTableEntry(child, table, xp, rep, depth + 1);
+
+            if(found != null) {
+               return found;
+            }
+         }
+      }
+
+      return null;
+   }
 
    /**
     * {@code attach_base_worksheet}. Attaches an existing, named worksheet asset as this paired
@@ -1028,47 +1224,24 @@ public class ViewsheetAssemblyAgentController {
             "open_base_worksheet to inspect the current one.");
       }
 
-      String path = body != null && body.path() != null ? body.path().trim() : null;
-
-      if(path == null || path.isEmpty()) {
-         throw new PairingException("Provide a 'path' naming the worksheet asset to attach " +
-                                    "(e.g. \"Sample Queries/customers\").");
-      }
-
       if(!(user instanceof XPrincipal xp)) {
          throw new PairingException("Cannot attach base worksheet: agent principal is not an " +
                                     "XPrincipal (" + user.getClass().getName() + ")");
       }
 
-      IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
-      int assetScope = body.scope() != null && "user".equalsIgnoreCase(body.scope())
-         ? AssetRepository.USER_SCOPE
-         : AssetRepository.GLOBAL_SCOPE;
-      IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
-      AssetEntry entry = new AssetEntry(assetScope, AssetEntry.Type.WORKSHEET, path,
-                                        owner, uname.orgID);
-
       AssetRepository rep = rvs.getAssetRepository();
-
-      // permission=true so this actually enforces read access, unlike the superficially similar
-      // getSheet(entry, null, false, ...) probe used elsewhere in this codebase for freshness
-      // checks (e.g. ComposerViewsheetService.checkWorksheetChanged) -- that call deliberately
-      // skips the permission check, which would be wrong here: this is a caller-supplied path
-      // naming an arbitrary asset, and only checking existence would let an agent confirm a
-      // worksheet's presence/absence without being able to read it.
-      Object resolved;
+      AssetEntry entry;
 
       try {
-         resolved = rep.getSheet(entry, xp, true, AssetContent.ALL, false);
+         entry = resolveDataSourceEntry(body == null ? null : body.type(),
+            body == null ? null : body.path(), body == null ? null : body.scope(),
+            body == null ? null : body.datasource(), body == null ? null : body.table(), xp, rep);
+      }
+      catch(PairingException e) {
+         throw e;
       }
       catch(Exception e) {
-         throw new PairingException(
-            "no worksheet named '" + path + "' was found, or you lack permission to read it", e);
-      }
-
-      if(resolved == null) {
-         throw new PairingException(
-            "no worksheet named '" + path + "' was found, or you lack permission to read it");
+         throw new PairingException("Failed to attach base worksheet: " + e.getMessage(), e);
       }
 
       try {
