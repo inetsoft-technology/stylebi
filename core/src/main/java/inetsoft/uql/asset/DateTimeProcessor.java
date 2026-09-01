@@ -303,6 +303,15 @@ class DateTimeProcessor {
       return (javaDay - 1) == 0 ? 7 : (javaDay - 1);
    }
 
+   /**
+    * The first day of week (Tool.getFirstDayOfWeek()) this processor was constructed with.
+    * Used by DateRangeRef to detect a stale cached (ThreadLocal) instance after a week.start
+    * change.
+    */
+   int getFirstDay() {
+      return firstDay;
+   }
+
    private long time;
    private int year, month, day, weekday, hour, minute;
    private ZonedDateTime dateTime = ZonedDateTime.now();

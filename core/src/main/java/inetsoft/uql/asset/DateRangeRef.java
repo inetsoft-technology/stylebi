@@ -1409,14 +1409,19 @@ public final class DateRangeRef extends ExpressionRef implements AssetObject,
    };
 
    private static DateTimeProcessor getDateTimeProcessor() {
-      int firstDayOfWeek = Tool.getFirstDayOfWeek();
+      DateTimeProcessor processor = calendars.get();
 
-      if(firstDayOfWeek != DateRangeRef.firstDayOfWeek) {
+      // calendars is a ThreadLocal, so staleness must be tracked per cached instance, not
+      // via a shared static "last known" value -- a single shared flag lets whichever
+      // pooled thread happens to notice the week.start change first mask the change from
+      // every other thread, leaving their own stale per-thread instance uninvalidated
+      // forever.
+      if(processor.getFirstDay() != Tool.getFirstDayOfWeek()) {
          calendars.remove();
-         DateRangeRef.firstDayOfWeek = firstDayOfWeek;
+         processor = calendars.get();
       }
 
-      return calendars.get();
+      return processor;
    }
 
    private static ThreadLocal<DateTimeProcessor> calendars = new ThreadLocal() {
@@ -1435,5 +1440,4 @@ public final class DateRangeRef extends ExpressionRef implements AssetObject,
    private boolean strictDataType = false;
    private Integer forceDcToDateWeekOfMonth;
    private transient String dbversion;
-   private static int firstDayOfWeek = Integer.MIN_VALUE;
 }

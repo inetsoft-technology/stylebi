@@ -401,6 +401,7 @@ public class DateComparisonFormat extends Format {
       Calendar cal = new GregorianCalendar();
       cal.setTime(date);
       cal.setMinimalDaysInFirstWeek(7);
+      cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
 
       // week-of-year is MMW (month and week-of-month)
       if(datePart == Calendar.WEEK_OF_YEAR) {
