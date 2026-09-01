@@ -25,12 +25,14 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.AbstractTableAssembly;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -49,17 +51,21 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Dimension;
 import java.awt.Point;
+import java.awt.Rectangle;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -85,6 +91,7 @@ class WizVsServiceAddFiltersTest {
    private WizVsService service;
    private Viewsheet vs;
    private ChartVSAssembly chart;
+   private AbstractTableAssembly table;
    private Principal user;
 
    @BeforeEach
@@ -113,7 +120,7 @@ class WizVsServiceAddFiltersTest {
       AssetEntry wsEntry = mock(AssetEntry.class);
       when(vs.getBaseEntry()).thenReturn(wsEntry);
 
-      AbstractTableAssembly table = mock(AbstractTableAssembly.class);
+      table = mock(AbstractTableAssembly.class);
       Worksheet ws = mock(Worksheet.class);
       when(ws.getAssembly(anyString())).thenReturn(table);
       when(engine.getSheet(eq(wsEntry), eq(user), eq(false), any(AssetContent.class))).thenReturn(ws);
@@ -213,5 +220,96 @@ class WizVsServiceAddFiltersTest {
 
       assertEquals(1, resp.getApplied().size());
       verify(vs, never()).removeAssembly("SelectionListGone");
+   }
+
+   // ── server-side dedupe when the caller gives no existingAssemblyName hint (06-review-r1.md
+   // CRITICAL finding, item 2 of the fix -- the guarantee must not depend on wiz-services' own
+   // tracked field->assemblyName state being accurate) ──────────────────────────────────────────
+
+   @Test
+   void noSessionHintButAMatchingLiveControlReusesItInsteadOfDuplicating() throws Exception {
+      SelectionListVSAssembly liveControl = mock(SelectionListVSAssembly.class);
+      when(liveControl.getName()).thenReturn("SelectionList1");
+      when(liveControl.getTableNames()).thenReturn(List.of("SALES_FULL"));
+      when(liveControl.getDataRefs()).thenReturn(new DataRef[] { new ColumnRef(new AttributeRef(null, "REGION")) });
+      when(liveControl.getPixelOffset()).thenReturn(new Point(0, 250));
+      when(liveControl.getPixelSize()).thenReturn(new Dimension(100, 120));
+      when(vs.getAssemblies()).thenReturn(new Assembly[] { liveControl });
+
+      AddFiltersResponse resp = service.addFilters(request("REGION"), user); // no existingAssemblyName
+
+      assertEquals(1, resp.getApplied().size());
+      assertEquals("SelectionList1", resp.getApplied().get(0).getAssemblyName());
+      verify(vs, never()).removeAssembly(anyString());
+      // The reused mock is reconfigured in place (title/table/position) -- not replaced.
+      verify(liveControl).setTableNames(List.of("SALES_FULL"));
+   }
+
+   @Test
+   void noSessionHintAndNoMatchingLiveControlStillCreatesAFreshOne() throws Exception {
+      // A live control exists, but bound to a DIFFERENT field (CITY, not requested) -- must not be
+      // mistaken for a match, and must not be disturbed.
+      SelectionListVSAssembly unrelated = mock(SelectionListVSAssembly.class);
+      when(unrelated.getName()).thenReturn("SelectionList0");
+      when(unrelated.getTableNames()).thenReturn(List.of("SALES_FULL"));
+      when(unrelated.getDataRefs()).thenReturn(new DataRef[] { new ColumnRef(new AttributeRef(null, "CITY")) });
+      when(unrelated.getPixelOffset()).thenReturn(new Point(0, 250));
+      when(unrelated.getPixelSize()).thenReturn(new Dimension(100, 120));
+      when(vs.getAssemblies()).thenReturn(new Assembly[] { unrelated });
+
+      AddFiltersResponse resp = service.addFilters(request("REGION"), user);
+
+      assertEquals(1, resp.getApplied().size());
+      assertNotEquals("SelectionList0", resp.getApplied().get(0).getAssemblyName());
+      verify(vs, never()).removeAssembly(anyString());
+      verify(vs, atLeastOnce()).addAssembly(any(SelectionListVSAssembly.class));
+      verify(unrelated, never()).setTableNames(any());
+   }
+
+   // ── packing around already-placed controls across separate calls (06-review-r1.md Important
+   // finding, item 3 of the fix) ────────────────────────────────────────────────────────────────
+
+   @Test
+   void aSecondSeparateCallWithDifferentFieldsDoesNotOverlapAnEarlierCallsControl() throws Exception {
+      AddFiltersResponse first = service.addFilters(request("REGION"), user);
+      assertEquals(1, first.getApplied().size());
+
+      var firstCaptor = forClass(VSAssembly.class);
+      verify(vs, atLeastOnce()).addAssembly(firstCaptor.capture());
+      VSAssembly regionControl = firstCaptor.getValue();
+      assertEquals(new Point(0, 250), regionControl.getPixelOffset());
+      assertEquals(new Dimension(100, 120), regionControl.getPixelSize());
+
+      // Call 2 is a SEPARATE, later call for a different field -- REGION's control is still live
+      // (present in vs.getAssemblies()) but the session tracks no existingAssemblyName for either
+      // field (simulating the exact staleness 06-review-r1.md's Critical finding described).
+      ColumnSelection extendedCols = new ColumnSelection();
+      extendedCols.addAttribute(new ColumnRef(new AttributeRef(null, "REGION")));
+      extendedCols.addAttribute(new ColumnRef(new AttributeRef(null, "CITY")));
+      when(table.getColumnSelection(false)).thenReturn(extendedCols);
+      when(vs.getAssemblies()).thenReturn(new Assembly[] { regionControl });
+      // A real Viewsheet's own by-name lookup would already reflect REGION's control (it's really
+      // there) -- stub that explicitly too, so AssetUtil.getNextName's own by-name probe (a separate
+      // path from getAssemblies()) doesn't hand out the same name again for CITY's control.
+      when(vs.getAssembly(regionControl.getName())).thenReturn(regionControl);
+      clearInvocations(vs); // keep stubbing, drop call-1's recorded invocations
+
+      AddFiltersResponse second = service.addFilters(request("CITY"), user);
+      assertEquals(1, second.getApplied().size());
+
+      var secondCaptor = forClass(VSAssembly.class);
+      verify(vs, atLeastOnce()).addAssembly(secondCaptor.capture());
+      VSAssembly cityControl = secondCaptor.getValue();
+
+      assertNotEquals(regionControl.getName(), cityControl.getName(), "a NEW control, not the reused REGION one");
+      assertFalse(
+         new Rectangle(cityControl.getPixelOffset(), cityControl.getPixelSize())
+            .intersects(new Rectangle(regionControl.getPixelOffset(), regionControl.getPixelSize())),
+         "call 2's control must not land on top of call 1's still-live control");
+      // REGION's control was never moved -- pack() only ever returns rectangles for THIS call's
+      // requested fields, and nothing in addFilters calls setPixelOffset/setPixelSize on anything
+      // outside `resolvable` for this call.
+      assertEquals(new Point(0, 250), regionControl.getPixelOffset());
+      assertEquals(new Dimension(100, 120), regionControl.getPixelSize());
    }
 }

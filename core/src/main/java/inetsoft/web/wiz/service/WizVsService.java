@@ -466,10 +466,15 @@ public class WizVsService {
     * <p>Never touches {@code conditionModel}/{@code highlightModel} — this only adds sibling
     * assemblies to the viewsheet, independent of both.
     *
-    * <p>Upsert-in-place (reusing an existing field's control instead of creating a duplicate) is
-    * the caller's (wiz-services') responsibility, via its own tracked field-&gt;assemblyName state:
-    * a repeat call for an already-attached field removes the old control's assembly first via
-    * {@link #removeFilter}, so this method itself only ever creates.
+    * <p>Upsert-by-field (assertion A3/C2) does NOT depend on the caller's (wiz-services') own
+    * tracked field-&gt;assemblyName state being accurate — that state is only ever a mirror, and
+    * 06-review-r1.md's CRITICAL finding showed it can silently go stale (a sibling tool call, or a
+    * reopened saved visualization whose response shape carries no filter information at all). So:
+    * when {@code existingAssemblyName} IS supplied, it's used as a hint (fast path, and honors
+    * relabeling the exact control the caller means even before a repositioning pass); when it is
+    * ABSENT, this method searches the LIVE viewsheet itself for a filter-control assembly already
+    * bound to the same (table, field) and reuses that one instead of creating a duplicate. Session
+    * state is an optimization, never the correctness mechanism.
     */
    public AddFiltersResponse addFilters(AddFiltersRequest request, Principal user) throws Exception {
       if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
@@ -509,9 +514,62 @@ public class WizVsService {
          resolvedTypes.add(resolveAddType(spec.getControlType()));
       }
 
+      // Every live filter-control assembly already sitting below the chart (06-review-r1.md
+      // Important finding's chosen fix shape: derive occupancy from the viewsheet itself, not from
+      // a second session-tracked list). Used both to resolve a same-field reuse below (when the
+      // caller gave no existingAssemblyName hint) and to pack new controls around whatever isn't
+      // being reused/replaced this call.
+      List<VSAssembly> existingControls = findExistingFilterControls(vs, chart);
+
+      // Upsert-by-field resolution happens BEFORE packing, since packing needs to know which
+      // already-placed controls are staying put (and therefore must be packed around) versus being
+      // reused/replaced by THIS call (and therefore get a fresh position from pack() itself, same as
+      // a newly-created control would).
+      AbstractSelectionVSAssembly[] resolvedControls = new AbstractSelectionVSAssembly[resolvable.size()];
+      Set<String> claimed = new HashSet<>();
+
+      for(int i = 0; i < resolvable.size(); i++) {
+         FilterFieldSpec spec = resolvable.get(i);
+         DataRef col = resolvedColumns.get(i);
+         int type = resolvedTypes.get(i);
+         String existingName = spec.getExistingAssemblyName();
+         VSAssembly existing = null;
+
+         // Upsert-by-field (decision 1 / assertion A3/C2): reuse an existing control in place
+         // (same assemblyName) instead of creating a duplicate. A stale name (no longer on the
+         // viewsheet) or a type change (e.g. a repeat call with a different explicit controlType
+         // override) falls back to removing the old one and creating fresh.
+         if(!Tool.isEmptyString(existingName)) {
+            existing = vs.getAssembly(existingName);
+         }
+         else {
+            // No session hint -- fall back to the live viewsheet itself as the source of truth
+            // (see the method doc comment above). Only ever matches a control not already claimed
+            // by an earlier field in THIS SAME call, so two requested fields can never both resolve
+            // to the same pre-existing control.
+            existing = findControlForField(existingControls, tableName, col, claimed);
+         }
+
+         if(existing != null && matchesControlType(existing, type)) {
+            resolvedControls[i] = (AbstractSelectionVSAssembly) existing;
+            claimed.add(existing.getName());
+         }
+         else if(existing != null) {
+            vs.removeAssembly(existing.getName());
+            claimed.add(existing.getName());
+         }
+      }
+
       // Packed grid (design doc section 2.4), computed from the chart's own LIVE geometry -- free
-      // here, since `chart` is already in hand. Skipped fields do not consume a shelf slot.
-      List<Rectangle> rects = WizFilterLayout.pack(chart.getPixelOffset(), chart.getPixelSize(), resolvedTypes);
+      // here, since `chart` is already in hand. Skipped fields do not consume a shelf slot. Pack
+      // AROUND already-placed controls that are staying where they are (not claimed above, not
+      // this call's own chart) -- never repositions them (06-review-r1.md Important finding).
+      List<Rectangle> occupied = existingControls.stream()
+         .filter(a -> !claimed.contains(a.getName()))
+         .map(a -> new Rectangle(a.getPixelOffset(), a.getPixelSize()))
+         .collect(Collectors.toList());
+      List<Rectangle> rects = WizFilterLayout.pack(
+         chart.getPixelOffset(), chart.getPixelSize(), resolvedTypes, occupied);
 
       List<AppliedFilter> applied = new ArrayList<>();
 
@@ -519,25 +577,7 @@ public class WizVsService {
          FilterFieldSpec spec = resolvable.get(i);
          DataRef col = resolvedColumns.get(i);
          int type = resolvedTypes.get(i);
-
-         // Upsert-by-field (decision 1 / assertion A3): when wiz-services already tracks an
-         // assembly for this field AND it is still present AND still the same control type,
-         // reuse it in place (same assemblyName) instead of creating a duplicate. A stale name (no
-         // longer on the viewsheet) or a type change (e.g. a repeat call with a different explicit
-         // controlType override) falls back to removing the old one and creating fresh.
-         AbstractSelectionVSAssembly control = null;
-         String existingName = spec.getExistingAssemblyName();
-
-         if(!Tool.isEmptyString(existingName)) {
-            VSAssembly existing = vs.getAssembly(existingName);
-
-            if(existing != null && matchesControlType(existing, type)) {
-               control = (AbstractSelectionVSAssembly) existing;
-            }
-            else if(existing != null) {
-               vs.removeAssembly(existingName);
-            }
-         }
+         AbstractSelectionVSAssembly control = resolvedControls[i];
 
          if(control == null) {
             VSAssembly created = VSEventUtil.createVSAssembly(rvs, type);
@@ -590,6 +630,66 @@ public class WizVsService {
       }
 
       return new AddFiltersResponse(rvs.getID(), applied, skipped);
+   }
+
+   /**
+    * Every live selection/slider/calendar-type assembly positioned below the chart's bottom edge
+    * (06-review-r1.md Important finding's occupancy rule) -- this feature's own previously-placed
+    * controls AND any selection assembly a human placed in Composer alike, since there is no tag
+    * distinguishing the two (see the P6 fix-round builder log for why that's the deliberately
+    * conservative choice: pack around and refuse to blindly reuse anything not positively known to
+    * be this feature's own would need a tagging convention nothing here invents unilaterally).
+    */
+   private static List<VSAssembly> findExistingFilterControls(Viewsheet vs, ChartVSAssembly chart) {
+      Assembly[] all = vs.getAssemblies();
+
+      if(all == null) {
+         return List.of();
+      }
+
+      Point chartOffset = chart.getPixelOffset();
+      Dimension chartSize = chart.getPixelSize();
+      int chartBottom = chartOffset.y + chartSize.height;
+      List<VSAssembly> result = new ArrayList<>();
+
+      for(Assembly a : all) {
+         if(a instanceof AbstractSelectionVSAssembly sel) {
+            Point offset = sel.getPixelOffset();
+
+            if(offset != null && offset.y >= chartBottom) {
+               result.add(sel);
+            }
+         }
+      }
+
+      return result;
+   }
+
+   /**
+    * The first not-yet-{@code claimed} control among {@code candidates} already bound to
+    * {@code tableName} and {@code col} -- the live-viewsheet fallback for upsert-by-field when the
+    * caller supplied no {@code existingAssemblyName} hint (06-review-r1.md CRITICAL finding).
+    */
+   private static VSAssembly findControlForField(
+      List<VSAssembly> candidates, String tableName, DataRef col, Set<String> claimed)
+   {
+      for(VSAssembly a : candidates) {
+         if(claimed.contains(a.getName()) || !(a instanceof AbstractSelectionVSAssembly sel)) {
+            continue;
+         }
+
+         if(!sel.getTableNames().contains(tableName)) {
+            continue;
+         }
+
+         for(DataRef ref : sel.getDataRefs()) {
+            if(ref != null && Tool.equals(ref.getAttribute(), col.getAttribute())) {
+               return a;
+            }
+         }
+      }
+
+      return null;
    }
 
    /**
