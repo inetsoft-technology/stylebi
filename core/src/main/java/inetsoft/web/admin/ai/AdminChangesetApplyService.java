@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai;
 
+import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -259,9 +260,19 @@ public class AdminChangesetApplyService {
     * The credential stand-in for {@link ApplyOutcome}: reports whether a value is present without
     * reproducing it. Matches {@code AdminChangePlanService}'s wording for a masked currentValue, so
     * a caller sees the same vocabulary at preview and at apply.
+    *
+    * <p>Empty passes through as itself, not as {@code (set)}. A blank string is not a credential
+    * anyone holds, so reporting one as present would be a false answer with the same shape as the
+    * one this whole component exists to avoid. Unreachable through the plan path -
+    * {@code AdminChangePlanService} refuses an empty value for a credential and
+    * {@code SreeEnv.setPassword} guards on {@code Tool.isEmptyString} - but the comment at the
+    * masking site names {@code INETSOFTENV_*} promotion and the raw EM properties page as writers
+    * that reach the store past every one of those guards, and either can leave {@code ""} behind.
+    * {@code null} likewise stays {@code null}, so "no prior credential" remains distinguishable
+    * from one that was replaced.
     */
    private static String setMarker(String value) {
-      return value == null ? null : "(set)";
+      return Tool.isEmptyString(value) ? value : "(set)";
    }
 
    private static String messageOf(Exception e) {

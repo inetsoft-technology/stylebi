@@ -442,6 +442,17 @@ public class AdminPropertyCatalog {
     * them at rest instead would let the write survive, at the price of changing a shipped feature
     * and migrating values already stored in the clear; that is a separate change.
     *
+    * <p><b>The other door to the same two values.</b> This list governs the property path only.
+    * The same two properties are also reachable as {@code share.slackUrl}/{@code googleChatUrl}
+    * through {@code AdminPresentationController}'s sub-model surface, in this same package and
+    * with the same caller behind it - and "show me the sharing settings" is the likelier route
+    * there. That surface withholds and refuses them through
+    * {@code PresentationSubModel.SHARE.secretFields()}, which is what makes the sentence above
+    * ("must use Enterprise Manager") a statement about admin-chat rather than about one endpoint.
+    * The claim is load-bearing: {@code AdminPropertiesController} hands it to an agent as
+    * instruction text, and telling an agent a value is unsettable when a sibling verb still sets
+    * it is the same class of false answer this class is otherwise built to avoid.
+    *
     * <p>Not a prefix. {@code share.googlechat.enabled} and the rest of {@code share.*} stay
     * readable - an operator needs to know whether sharing is on, and only the URL is the
     * credential. {@code mapbox.token} was considered and left out: like {@code google.maps.key} in

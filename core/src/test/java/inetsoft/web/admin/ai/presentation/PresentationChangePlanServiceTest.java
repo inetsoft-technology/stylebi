@@ -31,6 +31,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.security.Principal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -39,7 +40,7 @@ import static org.mockito.Mockito.lenient;
 /**
  * 01-spec.md section 0/2 (16-entry catalog, dead-field exclusion), section 4 (risk/scope split),
  * section 5 (partial-{@code spec} merge, {@code viewsheetToolbar}/{@code portalIntegration.tabs}
- * whole-list treatment), section 9 (webMap secret masking/refusal), section 11 (global-only refusal,
+ * whole-list treatment), section 9 (webMap/share secret masking/refusal), section 11 (global-only refusal,
  * verb/scope/subModel validation); 03-reconcile.md Addition 1 (lookAndFeel file name sanitization)
  * and Addition 2 (portalIntegration.tabs whole-list enforcement).
  */
@@ -130,8 +131,10 @@ class PresentationChangePlanServiceTest {
          return PresentationFontMappingSettingsModel.builder().fontMappings(List.of()).build();
       case SHARE:
          return PresentationShareSettingsModel.builder()
-            .emailEnabled(true).facebookEnabled(false).googleChatEnabled(false)
-            .linkedinEnabled(false).slackEnabled(false).twitterEnabled(false).linkEnabled(true)
+            .emailEnabled(true).facebookEnabled(false).googleChatEnabled(true)
+            .linkedinEnabled(false).slackEnabled(true).twitterEnabled(false).linkEnabled(true)
+            .slackUrl("https://hooks.slack.example/services/T0/B0/secret-slack-token")
+            .googleChatUrl("https://chat.googleapis.com/v1/spaces/S0?key=secret-chat-key")
             .openGraphTitle("").openGraphDescription("").openGraphSiteName("").openGraphImageUrl("")
             .build();
       case COMPOSER_MESSAGE:
@@ -432,5 +435,101 @@ class PresentationChangePlanServiceTest {
       assertFalse(current.contains("secret-token"), current);
       assertFalse(current.contains("secret-key"), current);
       assertTrue(current.contains("********"), current);
+   }
+
+   // ---------------------------------------------------------------- section 9: share webhook URLs
+
+   // The two share.* webhook URLs are secrets by possession: the token is in the path, so anything
+   // holding the URL can post into that channel. AdminPropertyCatalog.CONFIRMED_SECRET stopped the
+   // properties path returning them (Redmine #76170), but this area reached the same two values
+   // through PresentationSubModel.SHARE and masked only webMap - so "show me the sharing settings"
+   // still handed both to a caller that relays its responses to a model provider off-host, and an
+   // update spec carrying slackUrl was still applied. These four tests pin both halves.
+
+   @Test
+   void shareSlackUrlCannotBeSetThroughSpec() throws Exception {
+      stub(PresentationSubModel.SHARE, currentFor(PresentationSubModel.SHARE));
+      PresentationChangePlanRequest req = request("t",
+         change("share", "organization",
+                obj().put("slackUrl", "https://hooks.slack.example/services/T1/B1/attacker")));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, PRINCIPAL));
+      assertTrue(ex.getMessage().contains("slackUrl"), ex.getMessage());
+   }
+
+   @Test
+   void shareGoogleChatUrlCannotBeSetThroughSpec() throws Exception {
+      stub(PresentationSubModel.SHARE, currentFor(PresentationSubModel.SHARE));
+      PresentationChangePlanRequest req = request("t",
+         change("share", "organization",
+                obj().put("googleChatUrl", "https://chat.googleapis.com/v1/spaces/S1?key=attacker")));
+
+      assertThrows(IllegalArgumentException.class, () -> service.resolve(req, PRINCIPAL));
+   }
+
+   @Test
+   void shareWebhookUrlsAreMaskedInThePlanProjection() throws Exception {
+      stub(PresentationSubModel.SHARE, currentFor(PresentationSubModel.SHARE));
+      PresentationChangePlanRequest req =
+         request("t", change("share", "organization", specFor(PresentationSubModel.SHARE)));
+
+      var plan = service.resolve(req, PRINCIPAL);
+      String current = plan.changes().get(0).currentValue();
+      String proposed = plan.changes().get(0).proposedValue();
+
+      for(String value : new String[] { current, proposed }) {
+         assertFalse(value.contains("secret-slack-token"), value);
+         assertFalse(value.contains("secret-chat-key"), value);
+         assertTrue(value.contains("********"), value);
+      }
+
+      // The non-secret share.* fields beside them stay readable - masking must not cost the agent
+      // the settings it legitimately needs to answer about.
+      assertTrue(current.contains("emailEnabled"), current);
+   }
+
+   @Test
+   void shareChangeStillWritesTheRealWebhookUrlsNotTheMask() throws Exception {
+      // The mask is a projection for display only. resolveEntries merges the spec into the
+      // UNMASKED current node, so the model that would be written keeps the real URLs - without
+      // this, an ordinary "turn off email sharing" update would round-trip "********" into the
+      // store and silently break both integrations.
+      stub(PresentationSubModel.SHARE, currentFor(PresentationSubModel.SHARE));
+      PresentationChangePlanRequest req =
+         request("t", change("share", "organization", obj().put("emailEnabled", false)));
+
+      var entries = service.resolveEntries(req, PRINCIPAL);
+      PresentationShareSettingsModel proposed =
+         (PresentationShareSettingsModel) entries.get(0).proposedModel();
+
+      assertEquals("https://hooks.slack.example/services/T0/B0/secret-slack-token",
+                   proposed.slackUrl());
+      assertEquals("https://chat.googleapis.com/v1/spaces/S0?key=secret-chat-key",
+                   proposed.googleChatUrl());
+      assertFalse(proposed.emailEnabled());
+   }
+
+   // ---------------------------------------------------------------- secretFields is per sub-model
+
+   @Test
+   void onlyTheTwoSubModelsWithCredentialsDeclareSecretFields() {
+      // Pinned as a property OF the enum rather than through a call site. Every projection and the
+      // write guard now ask the sub-model, so this list IS the area's secret classification; a name
+      // added to a model without being added here is masked nowhere, which is the shape of the bug
+      // that made share's URLs readable in the first place.
+      for(PresentationSubModel subModel : PresentationSubModel.values()) {
+         Set<String> secrets = subModel.secretFields();
+
+         switch(subModel) {
+         case WEB_MAP -> assertEquals(Set.of("mapboxToken", "googleKey"), secrets);
+         case SHARE -> assertEquals(Set.of("slackUrl", "googleChatUrl"), secrets);
+         default -> assertTrue(secrets.isEmpty(), subModel.key() + " " + secrets);
+         }
+
+         // A declared secret must be a field the sub-model actually has, or it masks nothing.
+         assertTrue(subModel.fieldNames().containsAll(secrets),
+                    subModel.key() + " declares a secret field it does not have: " + secrets);
+      }
    }
 }

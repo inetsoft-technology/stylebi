@@ -18,7 +18,6 @@
 package inetsoft.web.admin.ai;
 
 import java.lang.reflect.Field;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -299,20 +298,25 @@ class AdminPropertyCatalogTest {
       // return still fires - so the test would have gone green on precisely the contradiction it
       // claims to catch. Reading the sets is the only way to assert a property OF the sets.
       //
-      // COMPOSITE_SECRET_PROPERTIES sits in the same union, so the early return shadows it
-      // identically - both hand-verified positive sets are checked here.
+      // COMPOSITE_SECRET_PROPERTIES and ENCRYPTED_CREDENTIALS sit in the same union, so the early
+      // return shadows them identically - every positive set is checked here, not just the two
+      // this bug happened to touch. ENCRYPTED_CREDENTIALS matters most of the three: a name in it
+      // AND in CONFIRMED_NOT_SECRET is read back in the clear with no diagnostic at all, which is
+      // exactly the failure this test was written to catch.
       Set<String> notSecret = nameSet("CONFIRMED_NOT_SECRET");
 
       assertFalse(notSecret.isEmpty(),
                   "CONFIRMED_NOT_SECRET is empty - the checks below would be vacuous");
 
-      for(String field : List.of("CONFIRMED_SECRET", "COMPOSITE_SECRET_PROPERTIES")) {
+      for(String field :
+          List.of("CONFIRMED_SECRET", "COMPOSITE_SECRET_PROPERTIES", "ENCRYPTED_CREDENTIALS"))
+      {
          Set<String> secret = nameSet(field);
          assertFalse(secret.isEmpty(), field + " is empty - the check below would be vacuous");
 
          Set<String> both = new HashSet<>(secret);
          both.retainAll(notSecret);
-         assertTrue(Collections.disjoint(secret, notSecret),
+         assertTrue(both.isEmpty(),
                     "a name cannot be both a verified secret and a verified non-secret; " +
                     "CONFIRMED_NOT_SECRET wins silently because isSecret returns early on it: " +
                     field + " " + both);
