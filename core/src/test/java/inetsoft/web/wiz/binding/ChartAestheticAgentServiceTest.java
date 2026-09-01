@@ -292,6 +292,47 @@ class ChartAestheticAgentServiceTest {
       assertTrue(((String) options.get("nodeChannelsNote")).contains("relation charts"));
    }
 
+   // ── multi-style corruption guard (L3-Group2 finding G2-5) ─────────────────────────────────
+   //
+   // Live-confirmed 2026-09-01: writing a field while a chart is already multi-style corrupts
+   // its runtime graph so get_viewsheet_image fails, and unlike every other guard in this class
+   // the corruption survives undoing both the field write and the multi-style toggle that
+   // preceded it. The docstring already told a caller to bind the field first, then turn multi-
+   // style on -- this makes the unsafe order (multi-style already on, then bind) fail loud
+   // instead of silently corrupting the chart.
+
+   @Test
+   void refusesSettingAFieldWhileTheChartIsAlreadyMultiStyle() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(multiStyleChartAssembly()), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.setField("tok", principal(), "Chart1", "color",
+                                new FieldRef("Region", "dimension", null, null, null), null, ""));
+      assertTrue(thrown.getMessage().toLowerCase().contains("multi-style"), thrown.getMessage());
+   }
+
+   @Test
+   void allowsSettingAFieldWhenTheChartIsNotMultiStyle() throws Exception {
+      ChangeChartAestheticService aesthetics = mock(ChangeChartAestheticService.class);
+
+      harness(new ChartBindingModel(), aesthetics)
+         .setField("tok", principal(), "Chart1", "color",
+                  new FieldRef("Region", "dimension", null, null, null), null, "");
+
+      assertEquals("Region", captureEvent(aesthetics).getModel().getColorField().getFullName());
+   }
+
+   private static ChartVSAssembly multiStyleChartAssembly() {
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiAesthetic()).thenReturn(true);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      return chart;
+   }
+
    private static ChartVSAssembly relationChartAssembly() {
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.getChartType()).thenReturn(GraphTypes.CHART_NETWORK);

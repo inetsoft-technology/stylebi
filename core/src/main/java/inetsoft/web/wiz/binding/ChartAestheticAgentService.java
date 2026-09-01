@@ -86,6 +86,7 @@ public class ChartAestheticAgentService {
       boolean colorShapeSupported = isColorShapeSupported(sessionToken, user, assemblyName);
       String name = AestheticChannels.requireFieldChannel(
          channel, relationChart, sizeSupported, colorShapeSupported);
+      requireNotMultiAesthetic(sessionToken, user, assemblyName);
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
@@ -295,6 +296,43 @@ public class ChartAestheticAgentService {
    private static boolean isColorShapeSupported(ChartVSAssembly chart) {
       VSChartInfo info = chart.getVSChartInfo();
       return info == null || !GraphTypes.isContour(info.getChartType());
+   }
+
+   /**
+    * Refuses a field write while the chart is already multi-style, instead of corrupting it.
+    *
+    * <p>{@code ChartAestheticMutator.setField} writes to the chart-level field slot
+    * unconditionally — it has no equivalent of the per-measure {@code aggr.setShapeField(...)}
+    * path {@code VSFrameVisitor}'s rendering strategies read from once
+    * {@code info.isMultiAesthetic()} is true ({@code frameField}'s own comment on this class
+    * documents that split). Writing there while already multi-style does not merely go
+    * unrendered the way an unsupported channel does — it leaves the chart's runtime graph
+    * unable to render *at all*, and unlike every other guard in this class, undoing the write
+    * (or the {@code set_chart_type(multi:true)} that preceded it) does not recover it: the
+    * corruption is in cached render state {@code undo} does not roll back, confirmed live
+    * 2026-09-01 by reverting both edits and finding {@code get_viewsheet_image} still failing.
+    *
+    * <p>The safe order — bind the field, then turn multi-style on — already works: {@code
+    * set_chart_type}'s own {@code multi} redistributes an existing chart-level field into each
+    * measure correctly, the same transition a human toggling the Composer's own checkbox
+    * triggers. Only writing a field while multi-style is already on has no such handling, so
+    * this refuses exactly that state rather than attempting a fix at the render layer whose
+    * root cause remains open (see the L3 parity report's own note on G2-5).
+    */
+   private void requireNotMultiAesthetic(String sessionToken, Principal user, String assemblyName)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      ChartVSAssembly chart = requireChart(rvs, assemblyName);
+      VSChartInfo info = chart.getVSChartInfo();
+
+      if(info != null && info.isMultiAesthetic()) {
+         throw new IllegalArgumentException(
+            "This chart is multi-style, and binding a field here while multi-style is already " +
+            "on corrupts the chart's rendering with no way to undo it. Turn multi-style off " +
+            "(set_chart_type with multi:false), bind the field, then turn multi-style back on " +
+            "— that order redistributes the field into each measure correctly.");
+      }
    }
 
    private void apply(String sessionToken, Principal user, String assemblyName, String channel,
