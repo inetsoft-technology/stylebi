@@ -446,6 +446,38 @@ describe("VSPane — processSaveSheetCommand", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Group 5b: processSetAgentActiveCommand [Risk 2]
+// ---------------------------------------------------------------------------
+
+describe("VSPane — processSetAgentActiveCommand", () => {
+
+   // Regression-sensitive: SheetTabSelectorComponent reads vs.agentConnected/
+   // vs.agentOwnerIdentity directly off this Sheet instance for the tab-bar indicator.
+   it("should set vs.agentConnected and vs.agentOwnerIdentity when active", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      comp.vs.agentConnected = false;
+
+      mocks.dispatchCommand("SetAgentActiveCommand", { active: true, ownerIdentity: "alice" });
+
+      expect(comp.vs.agentConnected).toBe(true);
+      expect(comp.vs.agentOwnerIdentity).toBe("alice");
+   });
+
+   it("should clear both fields when inactive, even if an ownerIdentity is present", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      comp.vs.agentConnected = true;
+      comp.vs.agentOwnerIdentity = "alice";
+
+      mocks.dispatchCommand("SetAgentActiveCommand", { active: false, ownerIdentity: "alice" });
+
+      expect(comp.vs.agentConnected).toBe(false);
+      expect(comp.vs.agentOwnerIdentity).toBeUndefined();
+   });
+});
+
+// ---------------------------------------------------------------------------
 // Group 6: processUpdateUndoStateCommand [Risk 3]
 // ---------------------------------------------------------------------------
 

@@ -97,6 +97,7 @@ import { OpenWorksheetCommand } from "../socket/open-ws/open-ws-command";
 import { OpenWorksheetEvent } from "../socket/open-ws/open-ws-event";
 import { RefreshWorksheetCommand } from "../socket/refresh-worksheet-command";
 import { SaveSheetCommand } from "../socket/save-sheet-command";
+import { SetAgentActiveCommand } from "../socket/set-agent-active-command";
 import { SetVPMPrincipalCommand } from "../socket/set-vpm-principal-command";
 import { SetWorksheetInfoCommand } from "../socket/set-worksheet-info-command";
 import { TouchAssetEvent } from "../socket/touch-asset-event";
@@ -1198,6 +1199,11 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
 
    private processSetWorksheetInfoCommand(command: SetWorksheetInfoCommand): void {
       this.worksheet.label = command.label;
+   }
+
+   private processSetAgentActiveCommand(command: SetAgentActiveCommand): void {
+      this.worksheet.agentConnected = command.active;
+      this.worksheet.agentOwnerIdentity = command.active ? command.ownerIdentity : undefined;
    }
 
    private processForceNotCloseWorksheetCommand(command: ForceNotCloseWorksheetCommand): void {

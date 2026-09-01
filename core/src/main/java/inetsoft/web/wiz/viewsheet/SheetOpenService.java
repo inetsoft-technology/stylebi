@@ -29,6 +29,8 @@ import inetsoft.web.wiz.pairing.JoinSession;
 import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.SheetSessionService;
 import inetsoft.web.wiz.pairing.SheetType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -51,6 +53,8 @@ import java.security.Principal;
  */
 @Service
 public class SheetOpenService {
+   private static final Logger LOG = LoggerFactory.getLogger(SheetOpenService.class);
+
    @Autowired
    public SheetOpenService(ViewsheetSessionService viewsheetSessions,
                             SheetSessionService sheetSessions,
@@ -176,6 +180,17 @@ public class SheetOpenService {
                                                   SheetType.WORKSHEET,
                                                   vsSession.socketSessionId(),
                                                   vsSession.socketUserName(), null);
+
+      // Tells the Composer tab bar an agent is now attached to this runtime. Best-effort, kept
+      // in its own try/catch, mirroring SheetJoinService.join's treatment of sendAgentActive: a
+      // failed notification must never block the open that already succeeded.
+      try {
+         broadcast.sendAgentActive(wsSession);
+      }
+      catch(Exception ex) {
+         LOG.warn("Base worksheet opened, but notifying the tab bar failed (runtimeId={})",
+                  runtimeId, ex);
+      }
 
       OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
          .assetId(baseEntry.toIdentifier())

@@ -286,7 +286,8 @@ class WorksheetAgentControllerTest {
       JoinSession s = session("TOK-1");
 
       SheetJoinService joinSvc = mock(SheetJoinService.class);
-      when(joinSvc.join(eq("CODE"), eq(agent))).thenReturn(s);
+      when(joinSvc.join(eq("CODE"), eq(agent)))
+         .thenReturn(new SheetJoinService.JoinOutcome(s, "Sales Analysis"));
 
       WorksheetAgentController ctrl = controller(featureOn(), joinSvc,
          mock(SheetSessionService.class), mock(WorksheetReadService.class),
@@ -297,6 +298,7 @@ class WorksheetAgentControllerTest {
       assertEquals("TOK-1", resp.sessionToken());
       assertEquals("Worksheet/ws-1", resp.runtimeId());
       assertEquals("alice~;~host-org", resp.ownerIdentity());
+      assertEquals("Sales Analysis", resp.sheetLabel());
    }
 
    /**
@@ -313,7 +315,8 @@ class WorksheetAgentControllerTest {
          null, null, ctx);
 
       SheetJoinService joinSvc = mock(SheetJoinService.class);
-      when(joinSvc.join(eq("CODE"), eq(agent))).thenReturn(s);
+      when(joinSvc.join(eq("CODE"), eq(agent)))
+         .thenReturn(new SheetJoinService.JoinOutcome(s, null));
 
       WorksheetAgentController ctrl = controller(featureOn(), joinSvc,
          mock(SheetSessionService.class), mock(WorksheetReadService.class),
@@ -2476,6 +2479,32 @@ class WorksheetAgentControllerTest {
       ctrl.detach("TOK-D", agent);
 
       verify(sessions).close("TOK-D");
+   }
+
+   /** C2(a): detach must also notify the tab bar the agent is no longer attached. */
+   @Test
+   void detachNotifiesTabBar() {
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = session("TOK-D");
+      when(sessions.resolve(eq("TOK-D"), any())).thenReturn(s);
+
+      WorksheetAgentController ctrl = new WorksheetAgentController(featureOff(),
+         mock(SheetJoinService.class), sessions,
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class),
+         mock(WorksheetService.class), mock(WorksheetPreviewService.class), broadcast,
+         mock(inetsoft.uql.XRepository.class), mock(inetsoft.uql.asset.AssetRepository.class),
+         mock(inetsoft.web.wiz.service.MetadataApiService.class),
+         mock(inetsoft.web.portal.controller.database.QueryManagerService.class),
+         mock(inetsoft.web.composer.ws.LayoutGraphService.class),
+         mock(inetsoft.web.portal.controller.database.DataSourceService.class),
+         mock(inetsoft.sree.security.SecurityEngine.class),
+         mock(inetsoft.uql.asset.sync.RenameTransformHandler.class));
+
+      ctrl.detach("TOK-D", agent);
+
+      verify(broadcast).sendAgentInactive(s);
    }
 
    // ---------------------------------------------------------------------------

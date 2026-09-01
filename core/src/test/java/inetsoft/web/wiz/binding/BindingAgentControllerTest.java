@@ -29,6 +29,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import inetsoft.web.wiz.binding.model.ChartTypeState;
@@ -74,7 +75,8 @@ class BindingAgentControllerTest {
 
       SheetJoinService joinService = mock(SheetJoinService.class);
       Principal agent = principal();
-      when(joinService.join(eq("ABCD2345"), eq(agent))).thenReturn(session);
+      when(joinService.join(eq("ABCD2345"), eq(agent)))
+         .thenReturn(new SheetJoinService.JoinOutcome(session, null));
 
       BindingAgentController controller = controllerWith(feature, joinService,
          mock(ViewsheetSessionService.class), mock(BindableFieldsService.class));
@@ -118,7 +120,7 @@ class BindingAgentControllerTest {
                                         mock(ChartAestheticAgentService.class),
                                         mock(TableBindingService.class),
                                         mock(CalcTableService.class),
-                                        mock(SelectionBindingService.class));
+                                        mock(SheetAgentBroadcastService.class));
    }
 
    private static BindingAgentController controllerWith(SheetAgentFeature feature,
@@ -133,7 +135,7 @@ class BindingAgentControllerTest {
                                         mock(ChartAestheticAgentService.class),
                                         mock(TableBindingService.class),
                                         mock(CalcTableService.class),
-                                        mock(SelectionBindingService.class));
+                                        mock(SheetAgentBroadcastService.class));
    }
 
    private static Principal principal() {
@@ -270,7 +272,7 @@ class BindingAgentControllerTest {
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), chartService, mock(ChartAestheticAgentService.class),
          mock(TableBindingService.class), mock(CalcTableService.class),
-         mock(SelectionBindingService.class));
+         mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.ShelfRequest request = new BindingAgentController.ShelfRequest(
          "Chart1", "x", List.of(new FieldRef("Region", "dimension", null, null, null)), "Sales");
@@ -298,7 +300,7 @@ class BindingAgentControllerTest {
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), chartService, mock(ChartAestheticAgentService.class),
          mock(TableBindingService.class), mock(CalcTableService.class),
-         mock(SelectionBindingService.class));
+         mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.SingleShelfRequest request = new BindingAgentController.SingleShelfRequest(
          "Chart1", "close", new FieldRef("Price", "measure", "Sum", null, null), "Sales");
@@ -325,7 +327,7 @@ class BindingAgentControllerTest {
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), mock(ChartBindingService.class), aestheticService,
          mock(TableBindingService.class), mock(CalcTableService.class),
-         mock(SelectionBindingService.class));
+         mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.AestheticFieldRequest request =
          new BindingAgentController.AestheticFieldRequest(
@@ -389,7 +391,7 @@ class BindingAgentControllerTest {
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), mock(ChartBindingService.class),
          mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
-         mock(SelectionBindingService.class));
+         mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.TableShelfRequest request =
          new BindingAgentController.TableShelfRequest(
@@ -400,5 +402,48 @@ class BindingAgentControllerTest {
 
       assertTrue(thrown.getMessage().contains("Crosstab1"), thrown.getMessage());
       assertTrue(thrown.getMessage().contains("set_table_source"), thrown.getMessage());
+   }
+
+   // ---------------------------------------------------------------------------
+   // detach -- C2(a): must notify the tab bar the agent is no longer attached
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void detachNotifiesTabBar() {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+      JoinSession session = mock(JoinSession.class);
+      when(sessionService.resolve(anyString(), anyString())).thenReturn(session);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), sessionService,
+         mock(ViewsheetSessionService.class), mock(BindableFieldsService.class),
+         mock(BindingReadService.class), mock(ChartBindingService.class),
+         mock(ChartAestheticAgentService.class), mock(TableBindingService.class),
+         mock(CalcTableService.class), broadcast);
+
+      controller.detach("my-token", principal());
+
+      verify(broadcast).sendAgentInactive(session);
+   }
+
+   @Test
+   void detachRefusalDoesNotNotifyTabBar() {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+      when(sessionService.resolve(anyString(), anyString())).thenReturn(null);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), sessionService,
+         mock(ViewsheetSessionService.class), mock(BindableFieldsService.class),
+         mock(BindingReadService.class), mock(ChartBindingService.class),
+         mock(ChartAestheticAgentService.class), mock(TableBindingService.class),
+         mock(CalcTableService.class), broadcast);
+
+      controller.detach("someone-elses-token", principal());
+
+      verify(broadcast, never()).sendAgentInactive(any());
    }
 }

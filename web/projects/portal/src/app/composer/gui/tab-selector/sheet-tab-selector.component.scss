@@ -37,3 +37,16 @@ span.close-button:hover {
   vertical-align: top;
   white-space: nowrap;
 }
+
+// No existing icon-font glyph for "AI agent" in the ineticons set this component's other
+// tab icons (.viewsheet-icon/.worksheet-icon/etc.) draw from -- defined here as a plain
+// CSS glyph instead of adding a new icon-font entry, sized like those via .icon-size-small.
+.sheet-tab-agent-indicator {
+  display: inline-block;
+  margin-left: 4px;
+  vertical-align: top;
+}
+
+.ai-icon:before {
+  content: "\2726";
+}

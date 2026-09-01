@@ -18,7 +18,9 @@
 package inetsoft.web.wiz.pairing;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +35,7 @@ import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -55,6 +58,20 @@ import static org.mockito.Mockito.when;
  * [notifiesBrowser] a successful join pushes a PairingJoinedNotice to the minting browser
  * [toolbarNotice]   a whole-sheet grant notifies with a null editorContext
  * [notifyFailure]   a throwing broadcast does not fail the join
+ * [notifiesTabBar]  a successful join also pushes a SetAgentActiveCommand via sendAgentActive
+ * [tabBarNotifyFailure] a throwing sendAgentActive does not fail the join or suppress
+ *                   sendPairingJoined
+ * [labelResolved]   resolveSheetLabel returns the real AssetEntry.toView() label when the
+ *                   runtime is found -- the happy path no earlier test covered, since every
+ *                   other test leaves runtimeAccess.getRuntimeSheetDirect unstubbed (Mockito
+ *                   default null), which is why the missing sheetLabel field went unnoticed
+ * [labelNotFound]   resolveSheetLabel degrades to null (not a thrown exception) when the
+ *                   runtime cannot be found via SheetRuntimeAccess.getRuntimeSheetDirect --
+ *                   the same tolerant lookup the step-3b ownership check already uses, so a
+ *                   join can succeed (null owner is not a mismatch) while the label is simply
+ *                   absent, never fatal
+ * [labelDegrades]   resolveSheetLabel degrades to null (not a thrown exception) when reading
+ *                   the found runtime's label itself throws (e.g. AssetEntry.toView())
  */
 @Tag("core")
 @ExtendWith(MockitoExtension.class)
@@ -93,7 +110,7 @@ class SheetJoinServiceTest {
       String code = pairing.mint("Worksheet/foo-7", ALICE_KEY, "sock-1", null, SheetType.WORKSHEET, null);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
-      JoinSession session = svc.join(code, alice);
+      JoinSession session = svc.join(code, alice).session();
 
       assertNotNull(session);
       assertEquals("Worksheet/foo-7", session.runtimeId());
@@ -162,7 +179,7 @@ class SheetJoinServiceTest {
       String code = pairing.mint("Viewsheet/bar-1", ALICE_KEY, "sock-5", null, SheetType.VIEWSHEET, null);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
-      JoinSession session = svc.join(code, alice);
+      JoinSession session = svc.join(code, alice).session();
 
       assertNotNull(session);
       assertEquals("Viewsheet/bar-1", session.runtimeId());
@@ -226,7 +243,7 @@ class SheetJoinServiceTest {
       // falls back to "user:" + agent name) and must be unaffected by alice's lockout.
       String bobCode = pairing.mint("Worksheet/lockout-2b", BOB_KEY, "sock-lockout-2b", null,
                                      SheetType.WORKSHEET, null);
-      JoinSession session = svc.join(bobCode, bob);
+      JoinSession session = svc.join(bobCode, bob).session();
 
       assertNotNull(session);
    }
@@ -246,7 +263,7 @@ class SheetJoinServiceTest {
 
       String code = pairing.mint("Worksheet/reset-1", ALICE_KEY, "sock-reset-1", null,
                                   SheetType.WORKSHEET, null);
-      JoinSession session = svc.join(code, alice);
+      JoinSession session = svc.join(code, alice).session();
       assertNotNull(session);
 
       // 5 more failures post-success. If the earlier 5 failures had carried over instead of
@@ -258,7 +275,7 @@ class SheetJoinServiceTest {
 
       String code2 = pairing.mint("Worksheet/reset-2", ALICE_KEY, "sock-reset-2", null,
                                    SheetType.WORKSHEET, null);
-      JoinSession session2 = svc.join(code2, alice);
+      JoinSession session2 = svc.join(code2, alice).session();
 
       assertNotNull(session2);
    }
@@ -277,8 +294,10 @@ class SheetJoinServiceTest {
       // Attacker (alice) mints a code for carol's runtime — grant.ownerIdentity == ALICE_KEY.
       String code = pairing.mint("Worksheet/victim-1", ALICE_KEY, "sock-idor", null,
                                  SheetType.WORKSHEET, null);
-      when(runtimeAccess.getRuntimeOwner(SheetType.WORKSHEET, "Worksheet/victim-1"))
-         .thenReturn(TestPrincipals.user("carol", "host-org"));
+      RuntimeWorksheet victimRuntime = mock(RuntimeWorksheet.class);
+      when(victimRuntime.getUser()).thenReturn(TestPrincipals.user("carol", "host-org"));
+      when(runtimeAccess.getRuntimeSheetDirect(SheetType.WORKSHEET, "Worksheet/victim-1"))
+         .thenReturn(victimRuntime);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
       PairingException ex = assertThrows(PairingException.class, () -> svc.join(code, alice));
@@ -300,11 +319,13 @@ class SheetJoinServiceTest {
       String code = pairing.mint("Worksheet/mine-1", ALICE_KEY, "sock-mine", null,
                                  SheetType.WORKSHEET, null);
       // A distinct Principal object with the same logical identity (name+org) as the agent.
-      when(runtimeAccess.getRuntimeOwner(SheetType.WORKSHEET, "Worksheet/mine-1"))
-         .thenReturn(TestPrincipals.user("alice", "host-org"));
+      RuntimeWorksheet mineRuntime = mock(RuntimeWorksheet.class);
+      when(mineRuntime.getUser()).thenReturn(TestPrincipals.user("alice", "host-org"));
+      when(runtimeAccess.getRuntimeSheetDirect(SheetType.WORKSHEET, "Worksheet/mine-1"))
+         .thenReturn(mineRuntime);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
-      JoinSession session = svc.join(code, alice);
+      JoinSession session = svc.join(code, alice).session();
 
       assertNotNull(session);
       assertEquals("Worksheet/mine-1", session.runtimeId());
@@ -341,7 +362,7 @@ class SheetJoinServiceTest {
                                            SheetType.VIEWSHEET, ctx);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
-      JoinSession session = paneScopedSvc.join(code, alice);
+      JoinSession session = paneScopedSvc.join(code, alice).session();
 
       assertEquals(ctx, session.editorContext());
    }
@@ -413,9 +434,125 @@ class SheetJoinServiceTest {
                                  SheetType.VIEWSHEET, null);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
-      JoinSession session = svc.join(code, alice);
+      JoinSession session = svc.join(code, alice).session();
 
       assertNotNull(session);
       assertEquals("vs-9", session.runtimeId());
+   }
+
+   // ---------------------------------------------------------------------------
+   // notifiesTabBarOnJoin
+   //
+   // C1/C4: a successful join must also push a SetAgentActiveCommand to the tab bar, independent
+   // of the pairing-domain sendPairingJoined notice above.
+   // ---------------------------------------------------------------------------
+   @Test
+   void notifiesTabBarOnJoin() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      String code = pairing.mint("Worksheet/foo-11", ALICE_KEY, "sock-1", "alice-dest",
+                                 SheetType.WORKSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      svc.join(code, alice);
+
+      ArgumentCaptor<JoinSession> sent = ArgumentCaptor.forClass(JoinSession.class);
+      verify(broadcast).sendAgentActive(sent.capture());
+      assertEquals("Worksheet/foo-11", sent.getValue().runtimeId());
+   }
+
+   // ---------------------------------------------------------------------------
+   // tabBarNotifyFailureDoesNotFailTheJoin
+   //
+   // A broken tab-bar notification must not fail the join, and must not suppress the separate
+   // sendPairingJoined notice (independent best-effort try/catch blocks).
+   // ---------------------------------------------------------------------------
+   @Test
+   void tabBarNotifyFailureDoesNotFailTheJoin() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      doThrow(new RuntimeException("socket gone")).when(broadcast).sendAgentActive(any());
+      String code = pairing.mint("Worksheet/foo-12", ALICE_KEY, "sock-1", "alice-dest",
+                                 SheetType.WORKSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      JoinSession session = svc.join(code, alice).session();
+
+      assertNotNull(session);
+      verify(broadcast).sendPairingJoined(any());
+   }
+
+   // ---------------------------------------------------------------------------
+   // resolveSheetLabelReturnsRealLabelWhenRuntimeIsFound
+   //
+   // The happy path: SheetRuntimeAccess.getRuntimeSheetDirect finds the runtime (the same
+   // tolerant lookup step 3b's ownership check uses), so resolveSheetLabel must read the real
+   // AssetEntry.toView() label off it -- not the (unreachable in production) null default every
+   // other test in this file gets for free from an unstubbed mock.
+   // ---------------------------------------------------------------------------
+   @Test
+   void resolveSheetLabelReturnsRealLabelWhenRuntimeIsFound() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.toView()).thenReturn("Sales Analysis");
+      when(rws.getEntry()).thenReturn(entry);
+      when(runtimeAccess.getRuntimeSheetDirect(SheetType.WORKSHEET, "Worksheet/foo-14"))
+         .thenReturn(rws);
+      String code = pairing.mint("Worksheet/foo-14", ALICE_KEY, "sock-1", "alice-dest",
+                                 SheetType.WORKSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      SheetJoinService.JoinOutcome outcome = svc.join(code, alice);
+
+      assertNotNull(outcome.session());
+      assertEquals("Sales Analysis", outcome.sheetLabel());
+   }
+
+   // ---------------------------------------------------------------------------
+   // sheetLabelIsNullWhenRuntimeIsNotFound
+   //
+   // getRuntimeSheetDirect returning null (runtime not in this node's cache) must degrade the
+   // label to null without throwing -- and, since step 3b's ownership check tolerates the same
+   // null (see runtimeOwnedBySameUserIsAllowed's sibling default-mock behavior), the join itself
+   // still succeeds. This is the case that used to reach the throwing getSheetForPairing and get
+   // silently swallowed by resolveSheetLabel's catch block.
+   // ---------------------------------------------------------------------------
+   @Test
+   void sheetLabelIsNullWhenRuntimeIsNotFound() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      when(runtimeAccess.getRuntimeSheetDirect(SheetType.WORKSHEET, "Worksheet/foo-15"))
+         .thenReturn(null);
+      String code = pairing.mint("Worksheet/foo-15", ALICE_KEY, "sock-1", "alice-dest",
+                                 SheetType.WORKSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      SheetJoinService.JoinOutcome outcome = svc.join(code, alice);
+
+      assertNotNull(outcome.session());
+      assertNull(outcome.sheetLabel());
+   }
+
+   // ---------------------------------------------------------------------------
+   // sheetLabelDegradesToNullWhenResolutionFails
+   //
+   // A4/label-resolution counterpart: resolveSheetLabel must never turn a successful join into a
+   // failed one, even when reading the found runtime's label itself throws.
+   // ---------------------------------------------------------------------------
+   @Test
+   void sheetLabelDegradesToNullWhenResolutionFails() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.toView()).thenThrow(new RuntimeException("toView failed"));
+      when(rws.getEntry()).thenReturn(entry);
+      when(runtimeAccess.getRuntimeSheetDirect(SheetType.WORKSHEET, "Worksheet/foo-13"))
+         .thenReturn(rws);
+      String code = pairing.mint("Worksheet/foo-13", ALICE_KEY, "sock-1", "alice-dest",
+                                 SheetType.WORKSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      SheetJoinService.JoinOutcome outcome = svc.join(code, alice);
+
+      assertNotNull(outcome.session());
+      assertNull(outcome.sheetLabel());
    }
 }

@@ -41,6 +41,14 @@ export abstract class Sheet {
    public annotationChanged: boolean = false;
    public closeOnServer: boolean = true;
    public closedOnServer: boolean = false;
+   /**
+    * Whether an AI agent session is currently paired to this sheet's runtime -- driven by
+    * SetAgentActiveCommand, pushed server-side on join/detach/expiry/socket-close. Absent (false)
+    * until the first such command arrives; never set optimistically client-side.
+    */
+   public agentConnected: boolean = false;
+   /** Present only when agentConnected -- the joined agent's owner identity, if the server sent one. */
+   public agentOwnerIdentity: string | undefined;
    public messageLevels: string[];
    private _loading: boolean;
    public gettingStarted: boolean = false;
