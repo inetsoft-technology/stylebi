@@ -83,7 +83,9 @@ public class ChartAestheticAgentService {
       // it — so it costs a resolve, not a mutate.
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
       boolean sizeSupported = isSizeSupported(sessionToken, user, assemblyName);
-      String name = AestheticChannels.requireFieldChannel(channel, relationChart, sizeSupported);
+      boolean colorShapeSupported = isColorShapeSupported(sessionToken, user, assemblyName);
+      String name = AestheticChannels.requireFieldChannel(
+         channel, relationChart, sizeSupported, colorShapeSupported);
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
@@ -106,7 +108,9 @@ public class ChartAestheticAgentService {
    {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
       boolean sizeSupported = isSizeSupported(sessionToken, user, assemblyName);
-      String name = AestheticChannels.requireFieldChannel(channel, relationChart, sizeSupported);
+      boolean colorShapeSupported = isColorShapeSupported(sessionToken, user, assemblyName);
+      String name = AestheticChannels.requireFieldChannel(
+         channel, relationChart, sizeSupported, colorShapeSupported);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
             (chart, model) -> ChartAestheticMutator.clearField(model, name, relationChart));
@@ -149,7 +153,8 @@ public class ChartAestheticAgentService {
       ChartVSAssembly chart = requireChart(rvs, assemblyName);
       return ChartAestheticMutator.describe((ChartBindingModel) binding.createModel(chart),
                                             isRelationChart(chart),
-                                            perMeasureFrameChannels(chart));
+                                            perMeasureFrameChannels(chart),
+                                            isSizeSupported(chart), isColorShapeSupported(chart));
    }
 
    /**
@@ -277,6 +282,19 @@ public class ChartAestheticAgentService {
    private static boolean isSizeSupported(ChartVSAssembly chart) {
       VSChartInfo info = chart.getVSChartInfo();
       return info == null || GraphTypes.supportsSize(info.getChartType());
+   }
+
+   private boolean isColorShapeSupported(String sessionToken, Principal user, String assemblyName)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      return isColorShapeSupported(requireChart(rvs, assemblyName));
+   }
+
+   /** No chart type yet (unbound chart) means no type is forbidding color/shape. */
+   private static boolean isColorShapeSupported(ChartVSAssembly chart) {
+      VSChartInfo info = chart.getVSChartInfo();
+      return info == null || !GraphTypes.isContour(info.getChartType());
    }
 
    private void apply(String sessionToken, Principal user, String assemblyName, String channel,
