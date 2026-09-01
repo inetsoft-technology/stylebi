@@ -33,6 +33,7 @@ import inetsoft.web.composer.vs.objects.event.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.web.viewsheet.controller.VSRefreshService;
+import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.RenderWaitSupport;
@@ -517,9 +518,10 @@ public class ViewsheetEditService {
    /**
     * PVA-010: forces the named assembly to re-execute its query and re-render, picking up a
     * worksheet-side change (e.g. a ranking/aggregate edit) made after the chart was already
-    * bound — the same mechanism {@code VSRefreshService.refreshVsAssemblyView} already performs
-    * for the Composer's own UI refresh (its own {@code TableDataVSAssembly} reload included), just
-    * not previously reachable from any composer-chat tool.
+    * bound — the same mechanism {@code VSRefreshService.refreshVsAssembly} (reached via
+    * {@code /vs/refresh/assembly}) already performs for the Composer's own UI when the binding
+    * pane changes an assembly's binding, including resetting the sandbox and re-executing the
+    * assembly's query, not merely re-rendering it.
     */
    private void refresh(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
@@ -528,8 +530,11 @@ public class ViewsheetEditService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
-         refreshService.refreshVsAssemblyView(runtimeId, request.assembly(), dispatcher, linkUri,
-                                              user);
+         RefreshVSAssemblyEvent event = RefreshVSAssemblyEvent.builder()
+            .vsRuntimeId(runtimeId)
+            .assemblyName(request.assembly())
+            .build();
+         refreshService.refreshVsAssembly(runtimeId, event, dispatcher, linkUri, user);
       });
    }
 

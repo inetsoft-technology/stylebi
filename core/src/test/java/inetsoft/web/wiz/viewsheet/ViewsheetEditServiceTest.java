@@ -30,6 +30,7 @@ import inetsoft.web.composer.vs.objects.event.MoveVSObjectEvent;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.web.viewsheet.controller.VSRefreshService;
+import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
@@ -158,9 +159,11 @@ class ViewsheetEditServiceTest {
     * Regression for Bug PVA-010: a worksheet-side change made after a chart is already bound
     * (e.g. a ranking/aggregate edit) does not propagate to the chart's render, and nothing under
     * {@code plugin/composer/src/tools} could force a requery scoped to one assembly --
-    * {@code refresh_data} is worksheet-scoped only. {@code edit op:"refresh"} wraps the same
-    * mechanism {@code VSRefreshService.refreshVsAssemblyView} already performs for the
-    * Composer's own UI refresh.
+    * {@code refresh_data} is worksheet-scoped only. {@code edit op:"refresh"} must reach
+    * {@code VSRefreshService.refreshVsAssembly} (the requery path the Composer UI itself uses
+    * when a binding-pane change touches an assembly), not the render-only
+    * {@code refreshVsAssemblyView} sibling, which never resets the sandbox or re-executes the
+    * query.
     */
    @Test
    void refreshDelegatesToVSRefreshServiceForTheNamedAssembly() throws Exception {
@@ -170,8 +173,12 @@ class ViewsheetEditServiceTest {
 
       service.apply("tok", principal(), request("refresh", "Chart1"), "linkUri1");
 
-      verify(refreshService).refreshVsAssemblyView(eq("rt1"), eq("Chart1"), any(),
-                                                    eq("linkUri1"), any(Principal.class));
+      ArgumentCaptor<RefreshVSAssemblyEvent> captor =
+         ArgumentCaptor.forClass(RefreshVSAssemblyEvent.class);
+      verify(refreshService).refreshVsAssembly(eq("rt1"), captor.capture(), any(),
+                                               eq("linkUri1"), any(Principal.class));
+      assertEquals("Chart1", captor.getValue().getAssemblyName());
+      verify(refreshService, never()).refreshVsAssemblyView(any(), any(), any(), any(), any());
    }
 
    @Test
@@ -188,7 +195,7 @@ class ViewsheetEditServiceTest {
    /**
     * Regression for bug PSM-004 (fix C): no agent-API endpoint reached the sheet-level
     * {@code /vs/refresh} the Composer UI's own Refresh toolbar button uses -- {@code edit
-    * op:"refresh"} only ever reaches the per-assembly {@code refreshVsAssemblyView}. Asserts
+    * op:"refresh"} only ever reaches the per-assembly {@code refreshVsAssembly}. Asserts
     * {@code refresh_viewsheet} calls the whole-sheet {@code refreshViewsheet} instead, and that
     * it needs no {@code assembly} (a sibling of {@code refresh}, not a synonym).
     */
@@ -203,7 +210,7 @@ class ViewsheetEditServiceTest {
       ArgumentCaptor<VSRefreshEvent> captor = ArgumentCaptor.forClass(VSRefreshEvent.class);
       verify(refreshService).refreshViewsheet(eq("rt1"), captor.capture(), any(Principal.class),
                                               any(), eq("linkUri1"));
-      verify(refreshService, never()).refreshVsAssemblyView(any(), any(), any(), any(), any());
+      verify(refreshService, never()).refreshVsAssembly(any(), any(), any(), any(), any());
       assertFalse(captor.getValue().confirmed());
    }
 
