@@ -1354,11 +1354,13 @@ now only because P4 supplied the read path — the same reason L' became startab
 
 ## Ready now
 
-Nothing below is blocked.
+Nothing below is blocked, with one exception kept in place rather than moved: **§10.1 is blocked on a
+decision**, recorded in its own row. It stays here because it was never blocked on sequencing and its
+note is where the reasoning lives; do not read the heading as clearing it.
 
 | Item | Source | Note |
 |---|---|---|
-| **§10.1 — resting visibility by pointer capability** (touch draws the kebab at rest; a pointer device leaves the lane empty until hover or focus, then fades the kebab in by opacity while the action groups leave layout) | `Chart Card Spec v3.dc.html` §10.1 and §02 | **S, browser-only, added 2026-08-25 while scoping L″.** Today `isAnchoredResident` decides resting from **density** (`mini-toolbar.service.ts:74`), which conflates two orthogonal questions: *does the lane hold the strip* (geometry — L″ answers this) and *is it drawn at rest* (pointer capability — this item). L″ deliberately leaves the resting semantics alone so the two do not tangle, which means after L″ the predicate still derives resting from geometry rather than from the pointer. The kebab must hide by `opacity`, never `display: none` or `visibility: hidden`, so a transparent button keeps its tab order and accessible name — that is what preserves the keyboard route. The three action groups use `display` instead, deliberately: the pill is `width: fit-content` right-aligned by an auto margin, so transparent-but-in-layout buttons would leave a wide empty pill at rest. Modifies already-shipped slice-3 behaviour; see `github.md`'s in-project decision |
+| **§10.1 — resting visibility by pointer capability** (touch draws the kebab at rest; a pointer device leaves the lane empty until hover or focus, then fades the kebab in by opacity while the action groups leave layout) | `Chart Card Spec v3.dc.html` §10.1 and §02 | **S, browser-only, added 2026-08-25 while scoping L″.** Today `isAnchoredResident` decides resting from **density** (`mini-toolbar.service.ts:74`), which conflates two orthogonal questions: *does the lane hold the strip* (geometry — L″ answers this) and *is it drawn at rest* (pointer capability — this item). L″ deliberately leaves the resting semantics alone so the two do not tangle, which means after L″ the predicate still derives resting from geometry rather than from the pointer. The kebab must hide by `opacity`, never `display: none` or `visibility: hidden`, so a transparent button keeps its tab order and accessible name — that is what preserves the keyboard route. The three action groups use `display` instead, deliberately: the pill is `width: fit-content` right-aligned by an auto margin, so transparent-but-in-layout buttons would leave a wide empty pill at rest. Modifies already-shipped slice-3 behaviour; see `github.md`'s in-project decision. **BLOCKED ON A DECISION, not on sequencing.** `github.md`'s 2026-08-12 entry: the pointer query would leave every kebab-only family with no chrome at all at rest on a desktop, which is not what `kebabOnly` was approved for. Three of the eight anchored types are kebab-only now that the container has joined them, so the question is larger than when it was written. Needs its own design |
 | **Chart interior dark palette** | `Chart card dark values - ticket.md` item 3 | New, unowned, and the most valuable thing in that ticket. `GDefaults` has no dark branch; nothing to reconcile against, so it is design work |
 | Affordance sweep | Widget spec §08 step 1 | Live-view only, no export risk |
 | Selection list interior | Widget spec §08 step 2 | The one widget the initiative has not touched |
@@ -1373,13 +1375,16 @@ Nothing below is blocked.
 
 This section read "after the density gating commits" until 2026-08-13. It has.
 
-**Rollout slices 4 and 5** — the container and the calendar. `ANCHORED_ASSEMBLY_TYPES`
-(`mini-toolbar.service.ts:41-53`, re-checked at `ef42a6c65`) carries six types; the container is
-deliberately excluded as its own slice, and the calendar is expected to take the table treatment
-unmodified.
+**Rollout slices 4 and 5 have SHIPPED** — the container and the calendar. `ANCHORED_ASSEMBLY_TYPES`
+is no longer a rollout boundary; it is the permanent anchored set, and it differs from
+`hasMiniToolbar()` by exactly one entry, the adhoc range slider.
 
-Read `github.md`'s new in-project decision to scope the resting kebab by pointer capability first — it
-modifies already-shipped slice-3 behaviour.
+**Its promised deletion is unsafe and must not be carried out.** The comment used to say the last
+slice would delete the predicate, leaving the `.viz-modern` gate as the only condition. Do that and
+`isAnchoredChromeSuppressed` becomes true for every laneless assembly under the gate — they all
+resolve to a zero lane — and the composer's mobile toolbar, which renders `showingActions` for
+whatever assembly is focused, goes blank for text, gauge, image and spinner. The reasoning is now in
+the code as well as here.
 
 **Not this — L'' waits for L'.** The geometric suppression that replaces the density test is decided but
 must not land until the lane row does, or the strip vanishes from every assembly carrying the default
@@ -1483,6 +1488,11 @@ this file for no benefit. Cite by subject and re-resolve.
 | **`viewsheet.modernVisualization` defaults to true**, with `viewsheet.density=compact`. Two lines in `defaults.properties`; no read site changed. Compact rather than dense because dense's 20px lane cannot hold the 24px anchored strip and L″ draws no chrome below that — dense would have shipped the modern look with no toolbar on charts, tables, crosstabs, calc tables and both selection types. **Unset no longer means legacy** | `c7790bbf0` |
 | **The title lane becomes unfilled — chart and the three table types.** A `#D9D5CC` bottom rule replaces the `#F1EFEA` filled band, seeded at creation so it travels in an exported asset and resolves on bookmark restore. Both branches write, because the legacy one is the Revert contract. The chart needed the hook re-invoked after it installs its own title composite. Design: [2026-08-28-title-lane-unfilled-design.md](./2026-08-28-title-lane-unfilled-design.md) | `f499c0ffa`, `bee8d4169` |
 | **The title lane becomes unfilled — the selection family**: selection list, tree, container and range slider. For the first three this is only a colour change; their lane was already unfilled with a bottom-only rule, and they looked filled solely because the read-time substitution repainted them. The container is structurally the table's case. `isSeededTitle` widens to seven types; the browser and all four export call sites convert, one of them (`PPTVSExporter`) in another Maven module. Full `core` suite 5222/0. **Also fixes a pre-existing bookmark-restore defect**: a container's children are re-created from the state blob and never pass through `parseState`, so they kept the bookmark's mark and came back modern over a reverted container. Their marks are now captured before removal and handed back with a re-seed, mirroring the annotation branch in the same method. **Leaves a recommended hoist** — see [the design](./2026-08-31-selection-family-title-lane-design.md) §9 | *"draw the selection family's title lane unfilled"* |
+| **Rollout slice 4 — the selection container**, kebab-only like the rest of its family | `f36469d2f` |
+| Slice 4 follow-up — corrected what the max-mode test claims to pin | `8b92878fd` |
+| A preparatory test refactor — moved the suite's "outside the anchored set" control from the calendar to the adhoc range slider | `4434877ca` |
+| **Rollout slice 5 — the calendar**, the table treatment unmodified; the last slice | `09b29620e` |
+| **The anchored set made permanent** — the four TEMPORARY markers rewritten, and the promised deletion of the type test recorded as unsafe: it would empty every laneless assembly's toolbar under the gate | `aab93d919` |
 
 **Why P2 landed as two commits.** `6db87680c` is a two-line guard in `AbstractVSAssembly`'s stamp plus its
 regression test: a mocked `Viewsheet` returns null from `getVSAssemblyInfo()`, which threw and was the sole
@@ -1509,6 +1519,15 @@ item — the tone resolver, the background chain, the binding, the CSS seam and 
 replaced — and none of the five has a commit yet. Five rows would each read "no commit yet" for no benefit;
 one row carries all five subjects, in the order they are meant to land. Re-derive this row into per-commit
 hashes once they exist, the same way the M-phases were, rather than leaving the subjects behind as prose.
+
+**Why the calendar's test-control migration and slice 4's follow-up each have their own row.** `4434877ca`
+ran ahead of `09b29620e` specifically so the suite stayed green while the calendar still played its old role —
+folding it into the slice would have hidden a self-contained, independently-verifiable change inside a bigger
+one. `8b92878fd` is the same kind of correction at a smaller scale: it fixes what a slice 4 test claims to
+pin rather than adding behaviour. Full account of the migration in
+[the design doc](./2026-09-01-anchored-rollout-slices-4-5-design.md#what-the-implementation-found)'s closing
+section. The design and plan documents themselves are not listed here, for the reason the docs-only-commits
+note above already gives.
 
 ## Still undecided
 
