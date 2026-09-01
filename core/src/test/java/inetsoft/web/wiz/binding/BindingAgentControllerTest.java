@@ -391,7 +391,7 @@ class BindingAgentControllerTest {
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), mock(ChartBindingService.class),
          mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
-         mock(SelectionBindingService.class));
+         mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.TableShelfRequest request =
          new BindingAgentController.TableShelfRequest(
