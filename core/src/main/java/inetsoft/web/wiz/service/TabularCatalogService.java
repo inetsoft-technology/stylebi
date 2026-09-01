@@ -174,6 +174,7 @@ public class TabularCatalogService {
       validateDatasetIdEchoed(dsName, target, schema);
       validateColumnNames(dsName, target, schema.columns());
       validateKeyColumns(dsName, target, schema);
+      validateParams(dsName, target, schema.params());
 
       return toDataset(dsName, xrepository.getDataSource(dsName).getType(), schema, objectMapper);
    }
@@ -253,6 +254,29 @@ public class TabularCatalogService {
             throw new Exception("Data source '" + dsName + "' target '" + target +
                "' declared key column '" + keyColumn + "', which is not one of its own reported " +
                "columns.");
+         }
+      }
+   }
+
+   private static void validateParams(String dsName, String target, Map<String, String> params)
+      throws Exception
+   {
+      if(params == null) {
+         return;   // Same "defensive but not enforced" treatment as validateKeyColumns: the
+                    // compatibility constructor already guarantees non-null, this only guards
+                    // against a third party calling the 4-arg constructor directly with null.
+      }
+
+      for(Map.Entry<String, String> e : params.entrySet()) {
+         // Key and value are NOT symmetric here. A blank key is never legitimate -- a bean property
+         // name cannot be blank -- so isBlank() is right for it. A blank VALUE can be entirely
+         // legitimate: a connector may report an optional property whose empty value means "unset"
+         // (e.g. OData's own Select/Filter/Expand). This method cannot tell an identity param from
+         // an optional one -- it does not know the connector's property semantics -- so rejecting a
+         // blank value here would reject a correct connector, not just a broken one.
+         if(e.getKey() == null || e.getKey().isBlank() || e.getValue() == null) {
+            throw new Exception("Data source '" + dsName + "' target '" + target +
+               "' returned a params entry with a blank key or null value.");
          }
       }
    }
@@ -340,7 +364,7 @@ public class TabularCatalogService {
          null : schema.keyColumns());
       dataset.setFields(fields);
       dataset.setCustomExtensions(
-         List.of(buildDatasetExtension(dsName, datasourceSubtype, objectMapper)));
+         List.of(buildDatasetExtension(dsName, datasourceSubtype, schema.params(), objectMapper)));
       return dataset;
    }
 
@@ -364,8 +388,17 @@ public class TabularCatalogService {
     * {@code datasourceType}) that this is not a SQL table — see charter assertion B7. The literal
     * {@code "tabular"} must match wiz's {@code TABULAR_DATASOURCE_TYPE} exactly; there is no shared
     * constant between the two repositories.
+    *
+    * {@code params}, when non-empty, is the connector's own query-bean property names mapped to
+    * the string values that identify (METADATA targets) or help re-read (FILE targets — see wiz's
+    * {@code parseOptions}) this dataset — see {@link TabularDatasetSchema#params()}. An empty map
+    * (the compatibility constructor's default, or a connector that has not opted in) omits the
+    * {@code "params"} key entirely rather than writing it out empty or null, so wiz's reader can't
+    * tell "no params" apart from "not implemented yet" — which is exactly the point: both mean the
+    * same thing to a consumer that only wants to know whether it has something to bind with.
     */
    private static OsiCustomExtension buildDatasetExtension(String dsName, String datasourceSubtype,
+                                                            Map<String, String> params,
                                                             ObjectMapper objectMapper)
    {
       try {
@@ -374,6 +407,10 @@ public class TabularCatalogService {
          extData.put("path", dsName);
          extData.put("datasourceType", "tabular");
          extData.put("datasourceSubtype", datasourceSubtype);
+
+         if(params != null && !params.isEmpty()) {
+            extData.put("params", params);
+         }
 
          OsiCustomExtension ext = new OsiCustomExtension();
          ext.setVendorName("COMMON");

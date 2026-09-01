@@ -40,13 +40,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Confirms charter assertion #5 (this run's `docs/teams/2026-08-28-onedrive-tabular-target/`):
- * {@code create_worksheet_table} builds a real OneDrive-backed table through the already-generic
- * {@code TabularQueryContractSupport.applyQueryContract} -- OneDrive needs no StyleBI-side change
- * for this, because {@code OneDriveQuery.path} is a plain {@code String} property, so
- * {@code applyQueryContract} routes it through its ordinary bean-property-write branch rather than
- * the {@code java.io.File}-typed one. Lives beside {@code OneDriveRuntimeTests} rather than in
- * core's own {@code TabularQueryContractSupportTest} (which tests the mechanism itself against its
+ * Confirms that {@code create_worksheet_table} builds a real OneDrive-backed table through the
+ * already-generic {@code TabularQueryContractSupport.applyQueryContract} -- OneDrive needs no
+ * StyleBI-side change for this, because {@code OneDriveQuery.path} is a plain {@code String}
+ * property, so {@code applyQueryContract} routes it through its ordinary bean-property-write
+ * branch rather than the {@code java.io.File}-typed one. Lives beside
+ * {@code OneDriveRuntimeTests} rather than in core's own
+ * {@code TabularQueryContractSupportTest} (which tests the mechanism itself against its
  * own fake fixtures) because this test's whole point is that OneDrive's REAL property names round-
  * trip through it -- something only a real (non-mock) {@code OneDriveQuery} can prove.
  */

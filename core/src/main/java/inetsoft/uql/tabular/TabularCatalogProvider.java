@@ -30,8 +30,8 @@ package inetsoft.uql.tabular;
  * {@code TabularQuerySchema} / a {@code @PropertyEditor(tagsMethod=...)} enumeration: those exist to
  * tell an LLM how to FILL a query's parameters, they carry budgets set for a tool call
  * (a 200-candidate cap, a 5s timeout), and for OData the tags path reaches the service document
- * (names only), not $metadata. See
- * docs/teams/2026-08-28-tabular-metadata-annotation-entry/09-design-defect-schema-builder-misuse.md.
+ * (names only), not $metadata — routing this SPI through that path would silently truncate or
+ * under-describe a catalog that this interface's own contract requires to be complete.
  *
  * An implementation answers from the connector's OWN native metadata endpoint, and every
  * connector-specific representation (an EDMX Document, a table dictionary row, ...) stays inside

@@ -106,4 +106,29 @@ class PrintInfoSizeUnitsTest {
       assertEquals(1, PrintInfo.getUnitRatio("inches"), 1e-12);
       assertEquals(1, PrintInfo.getUnitRatio(null), 1e-12, "an unknown unit must not scale");
    }
+
+   /**
+    * getSize() used to dereference {@code size} unconditionally, so a PrintInfo that was
+    * never given one -- the no-arg constructor's own prior state, and anything persisted
+    * before this default existed -- NPE'd on every read. A getter must not throw on an
+    * object's own never-populated field; a sensible default (Letter, matching the rest of the
+    * codebase's fallback paper size) is what every other caller building a PrintInfo already
+    * assumes when nothing more specific was requested.
+    */
+   @Test
+   void getSizeOnAFreshlyConstructedPrintInfoDoesNotThrowAndReturnsALetterDefault() {
+      PrintInfo info = new PrintInfo();
+
+      assertEquals(8.5, info.getSize().getWidth(), 1e-9);
+      assertEquals(11, info.getSize().getHeight(), 1e-9);
+   }
+
+   /** Explicitly nulling size (the multi-arg constructor, or setSize(null)) must be equally safe. */
+   @Test
+   void getSizeFallsBackToTheDefaultWhenSizeIsExplicitlyNulledOut() {
+      PrintInfo info = new PrintInfo("Letter", null, 1f, 1f, 1f, 1f, "inches");
+
+      assertEquals(8.5, info.getSize().getWidth(), 1e-9);
+      assertEquals(11, info.getSize().getHeight(), 1e-9);
+   }
 }

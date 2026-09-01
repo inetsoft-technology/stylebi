@@ -55,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -178,6 +179,44 @@ class ChangeChartTypeServiceTest {
          c -> c instanceof MessageCommand m && m.getType() == MessageCommand.Type.ERROR));
    }
 
+   /**
+    * PVA-015 regression. The map-retype branch used to re-derive its runtime id from the
+    * message-scoped {@code RuntimeViewsheetRef} via {@code VSBindingTreeController.getBinding}
+    * instead of reusing the {@code id} {@code changeChartType} was already given as its own
+    * {@code @ClusterProxyKey} parameter. That re-derived id came back null whenever the call ran
+    * through the cluster proxy's "not local" routing path on a session's first clustered write,
+    * which crashed downstream with an Ignite affinity-key NPE. Calling
+    * {@code VSBindingTreeControllerServiceProxy} directly with the known id removes that
+    * dependency: this harness's {@code RuntimeViewsheetRef} is {@code null}, so a regression that
+    * reintroduces the old lookup would NPE here instead of merely being unasserted.
+    */
+   @Test
+   void aMapRetypeRefreshesTheBindingTreeWithTheKnownRuntimeId() throws Exception {
+      Harness harness = new Harness(plainBarChart());
+
+      harness.retypeTo(GraphTypes.CHART_MAP);
+
+      verify(harness.vsBindingTreeService)
+         .getBinding(eq("rid"), any(), any(), eq(harness.dispatcher));
+   }
+
+   /**
+    * PVA-015 regression, second call site. {@code handleMulti}'s multi-style toggle made the
+    * identical mistake via {@code ChangeSeparateStatusController.changeSeparateStatus}, reached
+    * whenever a retype also flips {@code isMulti()} -- not map-specific. Same fix, same shape of
+    * proof: the call must use the id {@code changeChartType} already has, not one re-derived from
+    * the (here {@code null}) {@code RuntimeViewsheetRef}.
+    */
+   @Test
+   void aMultiStyleToggleUsesTheKnownRuntimeId() throws Exception {
+      Harness harness = new Harness(plainBarChart());
+
+      harness.retypeToWithMulti(GraphTypes.CHART_BAR, true);
+
+      verify(harness.changeSeparateStatusService)
+         .changeSeparateStatus(eq("rid"), any(), any(), eq(harness.dispatcher), anyString());
+   }
+
    /** Bar, with a measure on color: the pie migration has nowhere to move it to. */
    private static ChartVSAssembly measureOnColorBarChart() {
       VSChartInfo info = new DefaultVSChartInfo();
@@ -249,8 +288,8 @@ class ChangeChartTypeServiceTest {
          service = new ChangeChartTypeService(
             mock(VSBindingService.class), null, mock(CoreLifecycleService.class),
             mock(ChartRefModelFactoryService.class),
-            mock(ChangeSeparateStatusController.class), mock(VSAssemblyInfoHandler.class),
-            mock(VSChartHandler.class), mock(VSBindingTreeController.class), viewsheetService);
+            changeSeparateStatusService, mock(VSAssemblyInfoHandler.class),
+            mock(VSChartHandler.class), vsBindingTreeService, viewsheetService);
       }
 
       /**
@@ -273,11 +312,30 @@ class ChangeChartTypeServiceTest {
          }
       }
 
+      /** Same-type retype with a multi-style flip, to reach {@code handleMulti} in isolation. */
+      private void retypeToWithMulti(int type, boolean multi) throws Exception {
+         ChangeChartTypeEvent event = new ChangeChartTypeEvent();
+         event.setName(chart.getAbsoluteName());
+         event.setType(type);
+         event.setMulti(multi);
+
+         try(MockedStatic<GraphTypeUtil> types =
+                mockStatic(GraphTypeUtil.class, CALLS_REAL_METHODS))
+         {
+            types.when(() -> GraphTypeUtil.checkChartStylePermission(anyInt())).thenReturn(true);
+            service.changeChartType("rid", event, mock(Principal.class), dispatcher, "");
+         }
+      }
+
       private final ChartVSAssembly chart;
       private final RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       private final ViewsheetSandbox box = mock(ViewsheetSandbox.class);
       private final ViewsheetService viewsheetService = mock(ViewsheetService.class);
       private final CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+      private final VSBindingTreeControllerServiceProxy vsBindingTreeService =
+         mock(VSBindingTreeControllerServiceProxy.class);
+      private final ChangeSeparateStatusServiceProxy changeSeparateStatusService =
+         mock(ChangeSeparateStatusServiceProxy.class);
       private final ChangeChartTypeService service;
    }
 }

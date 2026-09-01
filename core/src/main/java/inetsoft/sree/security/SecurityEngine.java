@@ -237,6 +237,22 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
       provider = CompositeSecurityProvider.create(authcChain, authzChain);
       authcChain.addAuthenticationChangeListener(authzChain);
       authcChain.addAuthenticationChangeListener(this::fireAuthenticationChange);
+
+      // getSecurityProvider()/getAuthenticationChain()/getAuthorizationChain() only ever return
+      // the "provider" field built above when isSecurityEnabled() is true (see
+      // getSecurityProvider()) -- without this, a caller that builds a chain here and
+      // immediately reads it back (e.g. AuthenticationProviderService/AuthorizationProviderService
+      // bootstrapping the first provider into an empty chain) would still see an empty Optional,
+      // because "security.enabled" was never flipped. Mirrors what enableSecurity() already does
+      // for its own newly-built-chain path.
+      if(!isSecurityEnabled()) {
+         try {
+            setSecurityEnabled(true);
+         }
+         catch(IOException e) {
+            LOG.error("Failed to persist security.enabled after initializing a new provider chain", e);
+         }
+      }
    }
 
    private void setSecurityEnabled(boolean enabled) throws IOException {

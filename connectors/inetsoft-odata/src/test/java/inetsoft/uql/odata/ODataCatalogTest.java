@@ -29,6 +29,7 @@ import org.w3c.dom.NodeList;
 
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -74,6 +75,18 @@ class ODataCatalogTest {
       assertEquals(new TabularColumn("Price", XSchema.DOUBLE), columns.get(2));
 
       assertEquals(List.of("ID"), products.keyColumns());
+   }
+
+   @Test
+   void describeYieldsParamsKeyedByEntityQueryProperty() throws Exception {
+      // Charter D2: the params key must be the ODataQuery bean property name ("entity", from
+      // getEntity()/setEntity()), not the @Property(label="Entity") display text and not some
+      // other name like "entitySet". If the implementation drifted to either of those, or forgot
+      // to populate params at all, this fails on the exact Map equality below.
+      ODataCatalogSnapshot snapshot = ODataCatalog.parse(schemaNode("catalog.metadata.xml"));
+
+      TabularDatasetSchema products = snapshot.schemasByEntitySet().get("Products");
+      assertEquals(Map.of("entity", "Products"), products.params());
    }
 
    @Test

@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
 import javax.net.ssl.SSLContext;
 import java.net.InetSocketAddress;
 
-public class CassandraRuntime extends TabularRuntime {
+public class CassandraRuntime extends TabularRuntime implements TabularCatalogProvider {
    public XTableNode runQuery(TabularQuery query, VariableTable params) {
       CassandraQuery query0 = (CassandraQuery) query;
       CassandraDataSource ds = (CassandraDataSource) query.getDataSource();
@@ -91,6 +91,45 @@ public class CassandraRuntime extends TabularRuntime {
       return getCluster(ds)
          .withKeyspace(ds.getKeyspace())
          .build();
+   }
+
+   @Override
+   public TabularCatalog listDatasets(TabularDataSource<?> dataSource) throws Exception {
+      CassandraDataSource ds = (CassandraDataSource) dataSource;
+      requireKeyspace(ds);
+
+      // A4: no catch around session establishment. A connection or permission failure here must
+      // propagate as an exception, not be absorbed into an empty catalog — do not add one.
+      try(CqlSession session = getSession(ds)) {
+         return CassandraCatalog.listDatasets(session);
+      }
+   }
+
+   @Override
+   public TabularDatasetSchema describeDataset(TabularDataSource<?> dataSource, String datasetId)
+      throws Exception
+   {
+      CassandraDataSource ds = (CassandraDataSource) dataSource;
+      requireKeyspace(ds);
+
+      // A4: no catch around session establishment. A connection or permission failure here must
+      // propagate as an exception, not be absorbed into an empty schema — do not add one.
+      try(CqlSession session = getSession(ds)) {
+         return CassandraCatalog.describeDataset(session, datasetId);
+      }
+   }
+
+   /**
+    * A4: an unconfigured keyspace must throw, not silently enumerate nothing (and must not be
+    * confused with "the keyspace exists but has no tables", which is a different, legal, empty
+    * result). Checked before {@link #getSession} is even called, so a blank/null keyspace never
+    * reaches the driver at all.
+    */
+   private static void requireKeyspace(CassandraDataSource ds) throws Exception {
+      if(ds.getKeyspace() == null || ds.getKeyspace().isBlank()) {
+         throw new Exception("Data source '" + ds.getName() +
+            "' has no keyspace configured; cannot enumerate its tables.");
+      }
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(CassandraRuntime.class.getName());

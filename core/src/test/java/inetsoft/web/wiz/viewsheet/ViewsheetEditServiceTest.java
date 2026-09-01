@@ -22,6 +22,7 @@ import inetsoft.web.composer.vs.objects.controller.ClipboardControllerService;
 import inetsoft.web.composer.vs.objects.controller.ComposerObjectService;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.ComposerGroupService;
+import inetsoft.web.composer.vs.objects.controller.GroupingService;
 import inetsoft.web.composer.vs.objects.event.AddNewVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.ChangeVSObjectLayerEvent;
 import inetsoft.web.composer.vs.objects.event.LockVSObjectEvent;
@@ -32,6 +33,7 @@ import inetsoft.web.viewsheet.controller.VSRefreshService;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
+import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -594,6 +596,71 @@ class ViewsheetEditServiceTest {
       verify(groups).ungroup(eq("rt1"), eq("Group1"), anyString(), any(Principal.class), any());
    }
 
+   /**
+    * PVA-013: ungroup on a Tab (created by group_as_tab) must fail loud rather than silently
+    * doing nothing. {@code ComposerGroupService.ungroup} only unwraps a GroupContainerVSAssembly
+    * and returns null on anything else, so without this guard the op would report success while
+    * leaving the tab untouched.
+    */
+   @Test
+   void ungroupOnATabFailsLoudInsteadOfSilentlyDoingNothing() {
+      ComposerGroupService groups = mock(ComposerGroupService.class);
+      RuntimeViewsheet rvs = runtimeWith("Tab1", mock(TabVSAssembly.class));
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(new AssemblyNode(
+         "Tab1", "Tab", 0, 0, 200, 200, 0, null, true)), mock(ComposerObjectService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request("ungroup", "Tab1"), ""));
+
+      assertTrue(thrown.getMessage().contains("Tab1"));
+      assertTrue(thrown.getMessage().contains("Tab"));
+   }
+
+   @Test
+   void groupAsTabRejectsFewerThanTwoAssemblies() {
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), arrange("group_as_tab", List.of("A"), null), ""));
+      assertTrue(thrown.getMessage().contains("two"));
+   }
+
+   /**
+    * The first two names form the tab; each additional name is folded into that same tab by
+    * calling GroupingService again against the first assembly, which by then is already a member
+    * of the tab -- see GroupingService.groupComponents's "target/targetContainer is already a
+    * Tab" branch.
+    */
+   @Test
+   void groupAsTabCallsGroupingComponentsOnceForFirstPairAndOncePerAdditionalName()
+      throws Exception
+   {
+      GroupingService grouping = mock(GroupingService.class);
+      VSAssembly a = mock(ChartVSAssembly.class);
+      VSAssembly b = mock(ChartVSAssembly.class);
+      VSAssembly c = mock(ChartVSAssembly.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("A")).thenReturn(a);
+      when(vs.getAssembly("B")).thenReturn(b);
+      when(vs.getAssembly("C")).thenReturn(c);
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("A", "Chart", 0, 0, 100, 100, 0, null, true),
+         new AssemblyNode("B", "Chart", 100, 0, 100, 100, 0, null, true),
+         new AssemblyNode("C", "Chart", 200, 0, 100, 100, 0, null, true));
+      ViewsheetEditService service = serviceWithRuntimeAndGrouping(rvs, reader, grouping);
+
+      service.apply("tok", principal(),
+                    arrange("group_as_tab", List.of("A", "B", "C"), null), "");
+
+      verify(grouping).groupComponents(eq(rvs), eq(a), eq(b), eq(false), anyString(), any());
+      verify(grouping).groupComponents(eq(rvs), eq(a), eq(c), eq(false), anyString(), any());
+      verifyNoMoreInteractions(grouping);
+   }
+
    private static MoveVSObjectEvent[] capturedMoves(ComposerObjectService objects)
       throws Exception
    {
@@ -902,7 +969,8 @@ class ViewsheetEditServiceTest {
       return new ViewsheetEditService(sessions, mock(ComposerObjectService.class),
                                       mock(ClipboardControllerService.class),
                                       mock(VSObjectPropertyService.class), reader,
-                                      mock(ComposerGroupService.class), refreshService);
+                                      mock(ComposerGroupService.class),
+                                      mock(GroupingService.class), refreshService);
    }
 
    /** Runs the mutation against a supplied runtime, for the guards that inspect the assembly. */
@@ -940,6 +1008,7 @@ class ViewsheetEditServiceTest {
       return new ViewsheetEditService(sessions, objects, mock(ClipboardControllerService.class),
                                       propertyService, reader,
                                       mock(ComposerGroupService.class),
+                                      mock(GroupingService.class),
                                       mock(VSRefreshService.class));
    }
 
@@ -947,6 +1016,40 @@ class ViewsheetEditServiceTest {
                                                    ClipboardControllerService clipboard,
                                                    ViewsheetReadService reader,
                                                    ComposerGroupService groups)
+   {
+      return serviceWith(objects, clipboard, reader, groups, mock(GroupingService.class));
+   }
+
+   /** Runs the mutation against a supplied runtime, for group_as_tab's GroupingService calls. */
+   private static ViewsheetEditService serviceWithRuntimeAndGrouping(RuntimeViewsheet rvs,
+                                                                     ViewsheetReadService reader,
+                                                                     GroupingService grouping)
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+
+      try {
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+            mutation.run(rvs, "rt1", null);
+            return null;
+         }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return new ViewsheetEditService(sessions, mock(ComposerObjectService.class),
+                                      mock(ClipboardControllerService.class),
+                                      mock(VSObjectPropertyService.class), reader,
+                                      mock(ComposerGroupService.class), grouping,
+                                      mock(VSRefreshService.class));
+   }
+
+   private static ViewsheetEditService serviceWith(ComposerObjectService objects,
+                                                   ClipboardControllerService clipboard,
+                                                   ViewsheetReadService reader,
+                                                   ComposerGroupService groups,
+                                                   GroupingService grouping)
    {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
 
@@ -963,6 +1066,6 @@ class ViewsheetEditServiceTest {
 
       return new ViewsheetEditService(sessions, objects, clipboard,
                                      mock(VSObjectPropertyService.class), reader, groups,
-                                     mock(VSRefreshService.class));
+                                     grouping, mock(VSRefreshService.class));
    }
 }
