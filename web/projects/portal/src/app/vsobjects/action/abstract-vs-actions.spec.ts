@@ -995,7 +995,7 @@ describe("AbstractVSActions", () => {
             .toContain("more actions");
       });
 
-      it("draws no chrome at all when the title is hidden", () => {
+      it("draws no chrome at all in a zero-height lane", () => {
          document.body.classList.add("viz-density-compact");
          expect(ids(selectionContainerActionsFor(2000, 400, true, 0).showingActions)).toEqual([]);
       });

@@ -747,9 +747,11 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
          vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
       });
       comp.containerRef = scrollless;
-      // The container rewrites objectFormat to true coordinates in max mode, so the lane origin the
-      // anchored geometry assumes exists. The list and tree put padding constants there instead,
-      // which is the whole reason isMaxModeSelection excludes those two and not this.
+      // Pins isMaxModeSelection's exclusion list: list and tree stay excluded, the container does
+      // not join them. That check reads objectType and maxMode only, never objectFormat, so the
+      // coordinates below are incidental. The server rewrites a maximised container's objectFormat
+      // to true coordinates and puts padding constants in list/tree's instead — the reason for the
+      // exclusion, not something a browser test can measure.
       const obj: any = TestUtils.withTitleLane(makeVSObject({
          objectType: "VSSelectionContainer",
          vizModern: true,
@@ -761,7 +763,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       expect(comp.isToolbarAnchored(obj)).toBe(true);
    });
 
-   it("still exempts a maximised selection list, whose objectFormat holds padding constants", () => {
+   it("still exempts a maximised selection list, unlike the container", () => {
       const { comp } = makeComponent({
          vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
       });
