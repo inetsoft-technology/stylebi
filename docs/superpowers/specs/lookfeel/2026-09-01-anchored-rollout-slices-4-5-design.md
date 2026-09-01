@@ -1,7 +1,7 @@
 # Anchored Rollout Slices 4 and 5 — Design
 
 **Date:** 2026-09-01
-**Verified against:** community `viz-updates` @ `f96191e8c`, which is `HEAD`. Every file and line citation below was read at that commit.
+**Verified against:** community `viz-updates` @ `02e9fdbed`. The commit originally cited here, `f96191e8c`, was amended to this hash by a parallel session shortly after this design was written and is no longer reachable; every file and line citation below was checked against `02e9fdbed` instead. This design's own implementation then landed on top of it.
 **Follows:** slices 1–3 — `5c7e106f2` (chart), `39239784b` (table family), `65e249e91` (selection list and tree) — and `408ea004c`, L″, which replaced the density-keyed strip test with a lane measurement.
 **Roadmap entry:** "Unblocked by `380705bc1`" in [chart-card-roadmap.md](./chart-card-roadmap.md) — rollout slices 4 and 5, the container and the calendar.
 **Source:** [Anchoring beyond charts - discussion.md](./chart-card-design3/Anchoring%20beyond%20charts%20-%20discussion.md), Cases 2, 3 and 4.
@@ -111,3 +111,19 @@ The calendar's `allowedActionsNum()` arithmetic needs no new test: it is the tab
 
 - **§10.1, resting visibility by pointer capability.** Blocked on what a kebab-only family does at rest on a desktop. Three of the eight anchored types are now kebab-only, so the question is larger after this design than before it.
 - **Case 4, the range slider drawing no chrome.** One line away — adding `"vsrangeslider"` to the set — and deliberately not taken here.
+
+---
+
+## What the implementation found
+
+Recorded after the branch shipped as five commits: the test-control migration (`4434877ca`), slice 4
+(`f36469d2f`) and its follow-up (`8b92878fd`), slice 5 (`09b29620e`), and the comment retarget
+(`aab93d919`).
+
+**Eleven existing tests used the calendar as their "type outside the anchored set" control** — six in `abstract-vs-actions.spec.ts`, three in `mini-toolbar.service.spec.ts`, two in `vs-object-container.component.display.tl.spec.ts`. Slice 5 destroys that role. The successor is the adhoc range slider: it is the one `hasMiniToolbar()` type that stays outside the set permanently, and unlike a text or gauge assembly it has toolbar actions to assert on — neither `TextActions` nor `GaugeActions` defines `createToolbarActions`, so their `showingActions` is empty and an assertion on it proves nothing. Measured before the migration: at 2000×400, modern, lane 20, the range slider yields four actions and `allowedActionsNum()` 50.
+
+**The migration was sequenced first, as its own commit, while the calendar was still outside the set.** That is what made it provably behaviour-neutral — the suite stayed green across it. Folded into the slice, it would have produced eleven simultaneous failures with two unrelated causes.
+
+**Two of the migrated tests had to change width, and the reason generalises.** The plan assumed the range slider would overflow its toolbar at the same 120px the calendar did. It does not: the calendar exposes about six visible toolbar actions, the range slider exactly one. `openMaxModeVisible` requires both `!composer` and `!adhocFilter` (`range-slider-actions.ts:166-168`), and the fixture sets `adhocFilter` under a composer context, so the max-mode pair is invisible and only `unselect` survives. At 120px, `floor(120/40) = 3` slots held everything, nothing reached the kebab, and both `not.toContain("menu actions")` assertions would have passed **vacuously**. Recalibrated to 60px — one slot — so the overflow the tests are about actually happens. **When a control type changes, re-derive the fixture width from that type's count of *visible* actions rather than carrying the old one over.**
+
+**One test comment claimed more than a browser test can measure.** Slice 4's two max-mode tests were written as though they pinned the server-side geometry that makes the container safe to anchor — it rewrites `objectFormat` to true coordinates where the list and tree carry padding constants. `isMaxModeSelection` (`vs-object-container.component.ts:506-510`) never reads `objectFormat`; it tests `objectType` and `maxMode` only, so the fixtures' differing coordinates are inert. What the tests do pin — and it is worth pinning — is that the exclusion list was not widened to include the container. The comments were corrected in `8b92878fd` to say that, keeping the server-side asymmetry as the stated reason rather than the measured thing.
