@@ -18,8 +18,6 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.uql.viewsheet.BorderColors;
-import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -100,93 +98,30 @@ class VSOutputChromeDefaultsTest {
       assertEquals(0x49454F, rgb(VSOutputChromeDefaults.valueBorderColor(ctx)));
    }
 
+   // the string supplier a seed writes directly must agree with the Color accessor it is derived
+   // from, for both the modern and the legacy branch
+   @Test
+   void valueForegroundValueMatchesTheModernColor() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      VizContext ctx = VizContext.ofGate();
+      assertEquals("0x" + Integer.toHexString(rgb(VSOutputChromeDefaults.valueForeground(ctx))),
+                   VSOutputChromeDefaults.valueForegroundValue(ctx));
+   }
+
+   @Test
+   void valueForegroundValueIsTheLegacyNearBlackOffTheGate() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+      VizContext ctx = VizContext.ofGate();
+      assertEquals("0x2b2b2b", VSOutputChromeDefaults.valueForegroundValue(ctx));
+   }
+
    // pins the modern KPI value palette; a change here is an export-visible change
    @Test
    void valuePaletteValues() {
       VizContext ctx = VizContext.ofGate();
       assertEquals(0x35342F, rgb(VSOutputChromeDefaults.valueForeground(ctx)), "primary value foreground");
       assertEquals(0xD9D5CC, rgb(VSOutputChromeDefaults.valueBorderColor(ctx)), "value/output border");
-   }
-
-   // a bare default value format (like TextVSAssemblyInfo.setDefaultFormat: default-tier fg 0x2b2b2b,
-   // border 0xDADADA) resolves to the modern neutrals after applyModernDefaults; the source is untouched
-   @Test
-   void gateOnModernizesBareValueDefault() {
-      withProperty("viewsheet.modernVisualization", "true", () -> {
-         VSCompositeFormat fmt = bareValueDefault();
-         VSCompositeFormat modern = VSOutputChromeDefaults.applyModernDefaults(fmt, VizContext.ofGate());
-
-         assertNotSame(fmt, modern, "a modern clone is returned");
-         assertEquals(0x35342F, rgb(modern.getForeground()), "foreground resolves modern");
-         assertEquals(0xD9D5CC, rgb(modern.getBorderColors().topColor), "border resolves modern");
-         // original untouched (no serialization / mutation)
-         assertEquals(0x2B2B2B, rgb(fmt.getForeground()), "source foreground not mutated");
-      });
-   }
-
-   // a user-set foreground / border (USER tier) still wins over the modern default
-   @Test
-   void gateOnPreservesUserValue() {
-      withProperty("viewsheet.modernVisualization", "true", () -> {
-         VSCompositeFormat fmt = bareValueDefault();
-         fmt.getUserDefinedFormat().setForegroundValue("0x123456");
-         fmt.getUserDefinedFormat().setBorderColorsValue(
-            new BorderColors(new Color(0x654321), new Color(0x654321),
-                             new Color(0x654321), new Color(0x654321)));
-
-         VSCompositeFormat modern = VSOutputChromeDefaults.applyModernDefaults(fmt, VizContext.ofGate());
-         assertEquals(0x123456, rgb(modern.getForeground()), "user foreground still wins");
-         assertEquals(0x654321, rgb(modern.getBorderColors().topColor), "user border still wins");
-      });
-   }
-
-   @Test
-   void gateOffValueNoop() {
-      withProperty("viewsheet.modernVisualization", "false", () -> {
-         VSCompositeFormat fmt = bareValueDefault();
-         assertSame(fmt, VSOutputChromeDefaults.applyModernDefaults(fmt, VizContext.ofGate()), "gate off returns original");
-         assertEquals(0x2B2B2B, rgb(fmt.getForeground()), "foreground unchanged");
-      });
-   }
-
-   // dark mode: applyModernDefaults writes the dark neutrals onto the DEFAULT tier
-   @Test
-   void gateOnModernizesBareValueDefaultDark() {
-      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-      SreeEnv.setProperty("viewsheet.darkMode", "true");
-      VSCompositeFormat fmt = bareValueDefault();
-      VSCompositeFormat modern = VSOutputChromeDefaults.applyModernDefaults(fmt, VizContext.ofGate());
-
-      assertNotSame(fmt, modern, "a modern clone is returned");
-      assertEquals(0xE6E0E9, rgb(modern.getForeground()), "foreground resolves dark");
-      assertEquals(0x49454F, rgb(modern.getBorderColors().topColor), "border resolves dark");
-      // original untouched (no serialization / mutation)
-      assertEquals(0x2B2B2B, rgb(fmt.getForeground()), "source foreground not mutated");
-   }
-
-   // dark mode: a user-set foreground / border (USER tier) still wins over the dark default
-   @Test
-   void gateOnPreservesUserValueDark() {
-      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-      SreeEnv.setProperty("viewsheet.darkMode", "true");
-      VSCompositeFormat fmt = bareValueDefault();
-      fmt.getUserDefinedFormat().setForegroundValue("0x123456");
-      fmt.getUserDefinedFormat().setBorderColorsValue(
-         new BorderColors(new Color(0x654321), new Color(0x654321),
-                          new Color(0x654321), new Color(0x654321)));
-
-      VSCompositeFormat modern = VSOutputChromeDefaults.applyModernDefaults(fmt, VizContext.ofGate());
-      assertEquals(0x123456, rgb(modern.getForeground()), "user foreground still wins in dark");
-      assertEquals(0x654321, rgb(modern.getBorderColors().topColor), "user border still wins in dark");
-   }
-
-   private static VSCompositeFormat bareValueDefault() {
-      VSCompositeFormat fmt = new VSCompositeFormat();
-      fmt.getDefaultFormat().setForegroundValue("0x2b2b2b");
-      fmt.getDefaultFormat().setBorderColorsValue(
-         new BorderColors(new Color(0xDADADA), new Color(0xDADADA),
-                          new Color(0xDADADA), new Color(0xDADADA)));
-      return fmt;
    }
 
    private static void withProperty(String name, String value, Runnable body) {

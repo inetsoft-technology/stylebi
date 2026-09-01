@@ -253,13 +253,8 @@ public class ExcelSelectionListHelper extends ExporterHelper {
          VSCompositeFormat vsformat = value == null ? null : value.getFormat();
          VSCompositeFormat format = (vsformat == null) ? new VSCompositeFormat() : vsformat;
 
-         // Excel deliberately keeps the legacy ink. A spreadsheet has no page to paint, and a
-         // selection list never seeds a dark card background the way a chart or table does, so the
-         // cells here are unfilled white -- the light neutral every other renderer uses would be
-         // invisible on them. PPT passes the assembly context instead, because it does paint the
-         // viewsheet background onto the slide.
-         format = VSSelectionListHelper.getValueFormat(value, format, hasSelected,
-                                                      VizContext.of((VizMark) null));
+         format = applyDarkOptOut(format, VizContext.of(info).dark);
+         format = VSSelectionListHelper.getValueFormat(value, format, hasSelected);
 
          int xinc = spancols[ci];
          short columnStart = (short) ci;
@@ -418,6 +413,28 @@ public class ExcelSelectionListHelper extends ExporterHelper {
       }
 
       return idx;
+   }
+
+   /**
+    * Substitute the legacy near-black selection-cell foreground back onto a clone of a dark-marked
+    * value's format. A spreadsheet has no page to paint and a selection list/tree seeds no dark
+    * card background, so its cells are unfilled white and the seeded light neutral
+    * (SelectionBaseVSAssemblyInfo.seedChromeDefaults) would be invisible on them. PPT does not do
+    * this: a slide takes the viewsheet background. Shared with ExcelSelectionTreeHelper, which
+    * substitutes for the same reason onto the same shape of format.
+    *
+    * Takes the resolved flag rather than a VizContext or assembly info: VizContext.of(..) reads the
+    * live density property, which needs a bootstrapped server, so a caller-resolved boolean is what
+    * keeps this method itself a plain, dependency-free unit.
+    */
+   static VSCompositeFormat applyDarkOptOut(VSCompositeFormat format, boolean dark) {
+      if(dark) {
+         format = format == null ? new VSCompositeFormat() : (VSCompositeFormat) format.clone();
+         format.getDefaultFormat().setForegroundValue(
+            VSObjectChromeDefaults.legacyCellForegroundValue());
+      }
+
+      return format;
    }
 
    static VSCompositeFormat prepareParentBorders(VSCompositeFormat paformat, VSAssembly assembly) {

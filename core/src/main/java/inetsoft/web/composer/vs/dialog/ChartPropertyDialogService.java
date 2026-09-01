@@ -403,8 +403,12 @@ public class ChartPropertyDialogService {
          }
       }
       else if(paddingFollowsDefault) {
+         // clear the opinion and let the default decide, the same shape Revert uses. Storing the
+         // legacy inset here would pin 10 now that the value is seeded rather than resolved.
+         // resetCardInset touches only the inset - seedChromeDefaults would also re-run the card
+         // background, the title lane and the colour palette, which this checkbox never asked for
          assemblyInfo.setUserPadding(false);
-         assemblyInfo.setPadding(VSObjectChromeDefaults.legacyChartPadding());
+         assemblyInfo.resetCardInset(VizContext.of(assemblyInfo));
       }
       else {
          assemblyInfo.setUserPadding(true);

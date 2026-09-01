@@ -23,8 +23,6 @@ import inetsoft.report.io.viewsheet.VSSelectionListHelper;
 import inetsoft.report.io.viewsheet.excel.ExcelVSUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VizContext;
-import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.util.Tool;
 import org.apache.poi.xslf.usermodel.XSLFSlide;
 
@@ -144,8 +142,7 @@ public class PPTSelectionListHelper extends VSSelectionListHelper {
 
          // the slide takes the viewsheet background, which is seeded dark, so the cells follow the
          // assembly like the PDF and SVG helpers do
-         format = VSSelectionListHelper.getValueFormat(value, format, hasSelected,
-                                                      VizContext.of(info));
+         format = VSSelectionListHelper.getValueFormat(value, format, hasSelected);
 
          if(i < values.size() - 1 && i >= boundsList.size() - 2) {
             // last cell but still got more elements

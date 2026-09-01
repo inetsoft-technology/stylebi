@@ -188,9 +188,26 @@ class VizModernizeUtilTest {
    }
 
    @Test
-   void modernizeLeavesATypeThatInstallsItsOwnFormatAlone() {
-      // Text builds its own object format and hardcodes the legacy border, so it never took the base
-      // chrome at creation and must not take it from Modernize either
+   void modernizeTakesTextsOwnEmphasis() {
+      // Text builds its own object format, so it never took the base chrome at creation; it now
+      // carries its own seeded value emphasis instead (TextVSAssemblyInfo.seedChromeDefaults), the
+      // same way a selection list carries its own seeded title rule
+      // (modernizeTakesTheSelectionListTitleRuleColour below) - the public entry point reaches a
+      // type's own seed, just never the base's.
+      //
+      // Unlike the selection-list case, nothing observable here can prove the base body was
+      // actually skipped (bypassesBaseChrome), rather than run and happening to agree:
+      //  - isCornerSeedTarget() (VSAssemblyInfo:1299) already excludes TextVSAssemblyInfo, so the
+      //    base would compute round corner 0 for it whether or not the bypass guard fired: the
+      //    guard has no radius to clobber, unlike Tab, whose own non-zero radius (4) is what makes
+      //    theHookDoesNothingForATabEvenUnderTheGate (SeedChromeDefaultsTest) able to tell.
+      //  - VSObjectChromeDefaults.objectBorderColor (the base's border) and
+      //    VSOutputChromeDefaults.valueBorderColor (this override's border) resolve to the same
+      //    0xD9D5CC neutral in light mode and the same 0x49454F in dark, so the base writing its
+      //    border would be indistinguishable from this override writing its own.
+      // So this test only pins the real, meaningful behaviour change - modernize seeds Text's own
+      // emphasis - and does not claim to guard the bypass; that is covered observably by
+      // theHookDoesNothingForATabEvenUnderTheGate instead.
       Viewsheet vs = legacySheet();
       TextVSAssembly text = new TextVSAssembly(vs, "TextA");
       vs.addAssembly(text);
@@ -198,16 +215,21 @@ class VizModernizeUtilTest {
       // Text's own object format never installs a border to begin with
       text.getVSAssemblyInfo().initDefaultFormat();
       text.getVSAssemblyInfo().setVizMark(null);
-      Color before = text.getVSAssemblyInfo().getFormat().getDefaultFormat()
-         .getBorderColorsValue().topColor;
 
       gateOn();
+      VizContext ctx = VizContext.ofGate();
       VizModernizeUtil.modernize(vs);
 
       assertEquals(VizMark.MODERN_LIGHT, text.getVSAssemblyInfo().getVizMark(),
                    "it is still stamped - the mark records provenance for every assembly");
-      assertEquals(before, text.getVSAssemblyInfo().getFormat().getDefaultFormat()
-         .getBorderColorsValue().topColor, "but its chrome is untouched");
+      assertEquals(VSOutputChromeDefaults.valueBorderColor(ctx),
+                   text.getVSAssemblyInfo().getFormat().getDefaultFormat()
+                      .getBorderColorsValue().topColor,
+                   "its own value emphasis is seeded by modernize");
+      assertEquals(0, text.getVSAssemblyInfo().getFormat().getDefaultFormat().getRoundCornerValue(),
+                   "documents that a modernized text assembly has no card radius - true, but not a "
+                   + "guard: isCornerSeedTarget() already excludes Text, so this holds whether or "
+                   + "not the bypass fired");
    }
 
    @Test

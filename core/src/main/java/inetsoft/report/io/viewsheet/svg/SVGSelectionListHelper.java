@@ -22,7 +22,6 @@ import inetsoft.report.TableDataPath;
 import inetsoft.report.io.viewsheet.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 
 import java.awt.*;
@@ -155,8 +154,7 @@ public class SVGSelectionListHelper extends VSSelectionListHelper {
          VSCompositeFormat format = (vsformat == null) ?
             new VSCompositeFormat() : vsformat.clone();
 
-         format = VSSelectionListHelper.getValueFormat(value, format, hasSelected,
-                                                     VizContext.of(info));
+         format = VSSelectionListHelper.getValueFormat(value, format, hasSelected);
 
          if(i >= boundsList.size() - 2 && i < values.size() - 1) {
             // last cell but still got more elements

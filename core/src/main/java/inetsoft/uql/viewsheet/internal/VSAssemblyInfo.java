@@ -1245,6 +1245,11 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
     *
     * Only gate-dependent values belong here. Unconditional creation defaults stay in
     * setDefaultFormat, or Modernize would reset an author's padding, table style and fonts.
+    *
+    * Called once at creation, and again by Modernize, Revert and reseedAfterRestore - all in this
+    * package, which is why this is protected rather than public. A caller that needs only one
+    * value back (the padding pane's "follow default" checkbox) gets a narrower seam of its own
+    * instead of the whole hook - see ChartVSAssemblyInfo.resetCardInset.
     */
    protected void seedChromeDefaults(VizContext ctx) {
       if(bypassesBaseChrome()) {

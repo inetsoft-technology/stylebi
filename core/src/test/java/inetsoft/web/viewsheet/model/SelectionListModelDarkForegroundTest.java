@@ -18,8 +18,6 @@
 package inetsoft.web.viewsheet.model;
 
 import inetsoft.report.TableDataPath;
-import inetsoft.uql.viewsheet.internal.VizContext;
-import inetsoft.uql.viewsheet.internal.VSObjectChromeDefaults;
 import inetsoft.uql.viewsheet.SelectionValue;
 import inetsoft.report.io.viewsheet.VSSelectionListHelper;
 import inetsoft.test.BaseTestConfiguration;
@@ -42,10 +40,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * A selection cell's foreground default is a fixed near-black written in setDefaultFormat, an
- * unconditional creation default that seedChromeDefaults deliberately never sees. The browser binds
- * that colour as an inline style, so on a dark-marked assembly the cell text rendered near-black on
- * the dark surface and no stylesheet could reach it. These pin the substitution at the model
- * boundary, which is where it has to happen.
+ * unconditional creation default that seedChromeDefaults now overwrites for a dark-marked assembly
+ * (SelectionBaseVSAssemblyInfo.seedChromeDefaults), so the light neutral is in the stored DEFAULT
+ * tier before the model ever sees it, not substituted onto a clone at read time. These pin that the
+ * model still surfaces the seeded value unchanged, and that the export chokepoint agrees with it.
  *
  * The list is passed as null and the cell format interned directly through the package-private
  * getFormatIndex: constructing a real SelectionList needs the XSwapper bean, and none of that is
@@ -142,7 +140,7 @@ class SelectionListModelDarkForegroundTest {
                   "an author colour must not be replaced; got " + fg);
    }
 
-   /** The source format is never mutated, so nothing here can reach the saved asset. */
+   /** getFormats() reads the format map; it must not write back into the assembly's stored format. */
    @Test
    void theStoredFormatIsNotMutated() {
       SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
@@ -152,19 +150,16 @@ class SelectionListModelDarkForegroundTest {
       VSCompositeFormat stored = detailFormat(info);
       foregroundFor(info, stored);
 
-      assertEquals("0x2b2b2b", stored.getDefaultFormat().getForegroundValue(),
-                   "the substitution must happen on a clone");
+      assertEquals("0xe6e0e9", stored.getDefaultFormat().getForegroundValue(),
+                   "the seeded value, untouched by reading the model");
    }
 
    /**
-    * Export parity. The browser was fixed first and that was not enough: the export painter and the
-    * composer's format picker read the same near-black default through their own paths, so a PDF and
-    * the format pane both disagreed with the screen. All of them route the substitution through
-    * applyDarkForeground, so this pins the shared helper the export chokepoint calls rather than
-    * standing up four exporters.
+    * Export parity. The light neutral is now in the stored DEFAULT tier from creation, so the export
+    * helper and the model above see the same value without either one substituting it.
     */
    @Test
-   void theExportChokepointSubstitutesTheSameInk() {
+   void theExportChokepointSeesTheSameInk() {
       SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
       info.setVizMark(VizMark.MODERN_DARK);
       info.initDefaultFormat();
@@ -172,7 +167,7 @@ class SelectionListModelDarkForegroundTest {
       SelectionValue value = new SelectionValue("Business", "Business");
       value.setSelected(true);
       VSCompositeFormat out = VSSelectionListHelper.getValueFormat(
-         value, detailFormat(info), false, VizContext.of(info));
+         value, detailFormat(info), false);
 
       assertEquals(0xE6E0E9, out.getForeground().getRGB() & 0xFFFFFF,
                   "the export cell ink must equal the browser cell ink");
@@ -189,7 +184,7 @@ class SelectionListModelDarkForegroundTest {
          SelectionValue value = new SelectionValue("Business", "Business");
          value.setSelected(true);
          VSCompositeFormat out = VSSelectionListHelper.getValueFormat(
-            value, detailFormat(info), false, VizContext.of(info));
+            value, detailFormat(info), false);
 
          assertEquals(0x2B2B2B, out.getForeground().getRGB() & 0xFFFFFF,
                      "mark " + mark + " must keep the legacy ink");
@@ -197,9 +192,9 @@ class SelectionListModelDarkForegroundTest {
    }
 
    /**
-    * The dimming an excluded or unselected value gets writes the USER tier, and the dark substitution
-    * yields to it. Order matters: substituting after the dimming would repaint a dimmed value as
-    * ordinary text and lose the "not in this selection" signal.
+    * The dimming an excluded or unselected value gets writes the USER tier, which outranks the
+    * DEFAULT tier the seed wrote. Order does not matter here the way it used to for a read-time
+    * substitution: tier precedence alone keeps a dimmed value from showing the dark default.
     */
    @Test
    void dimmingStillWinsOverTheDarkDefault() {
@@ -210,7 +205,7 @@ class SelectionListModelDarkForegroundTest {
       SelectionValue excluded = new SelectionValue("Business", "Business");
       excluded.setState(SelectionValue.STATE_EXCLUDED);
       VSCompositeFormat out = VSSelectionListHelper.getValueFormat(
-         excluded, detailFormat(info), false, VizContext.of(info));
+         excluded, detailFormat(info), false);
 
       assertEquals(0x888888, out.getForeground().getRGB() & 0xFFFFFF,
                   "an excluded value keeps its dimmed grey in dark");
@@ -226,23 +221,9 @@ class SelectionListModelDarkForegroundTest {
       VSCompositeFormat stored = detailFormat(info);
       SelectionValue value = new SelectionValue("Business", "Business");
       value.setSelected(true);
-      VSSelectionListHelper.getValueFormat(value, stored, false, VizContext.of(info));
+      VSSelectionListHelper.getValueFormat(value, stored, false);
 
-      assertEquals("0x2b2b2b", stored.getDefaultFormat().getForegroundValue(),
-                   "the export helper must work on a clone");
-   }
-
-   /** The in-place variant the composer picker uses lands the same ink. */
-   @Test
-   void theInPlaceVariantMatchesTheCloningOne() {
-      SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
-      info.setVizMark(VizMark.MODERN_DARK);
-      info.initDefaultFormat();
-
-      VSCompositeFormat picker = detailFormat(info).clone();
-      VSObjectChromeDefaults.applyDarkForegroundInPlace(picker, VizContext.of(info));
-
-      assertEquals(0xE6E0E9, picker.getForeground().getRGB() & 0xFFFFFF,
-                  "the composer picker must show the ink the canvas draws");
+      assertEquals("0xe6e0e9", stored.getDefaultFormat().getForegroundValue(),
+                   "the seeded value, untouched by the export helper");
    }
 }

@@ -948,6 +948,18 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
          // branch has to null both or a runtime foreground survives the clear
          def.setForeground(null);
       }
+
+      // the detail cell's foreground. Seeded rather than substituted at every render so it travels
+      // in an exported asset. setDefaultFormat's unconditional near-black stays where it is and
+      // this overwrites it; the measure-bar composites are separate paths and are not reached
+      VSCompositeFormat cellFormat =
+         getFormatInfo().getFormat(new TableDataPath(-1, TableDataPath.DETAIL));
+
+      if(cellFormat != null) {
+         cellFormat.getDefaultFormat().setForegroundValue(
+            ctx.dark ? VSObjectChromeDefaults.darkForegroundValue()
+               : VSObjectChromeDefaults.legacyCellForegroundValue());
+      }
    }
 
    /**

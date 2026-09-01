@@ -184,8 +184,7 @@ public class VSSelectionTreeHelper extends VSSelectionListHelper {
          VSCompositeFormat format = sv.getFormat();
 
          // set to gray if the parent itself is not selected
-         format = VSSelectionListHelper.getValueFormat(sv, format, hasSelected,
-                                                       VizContext.of(info));
+         format = VSSelectionListHelper.getValueFormat(sv, format, hasSelected);
 
          // using == should be more convience
          if(sv == MORE_VALUE) {

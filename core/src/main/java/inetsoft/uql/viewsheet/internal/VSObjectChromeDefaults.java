@@ -17,8 +17,6 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
-import inetsoft.uql.viewsheet.VSCompositeFormat;
-
 import java.awt.Color;
 import java.awt.Insets;
 
@@ -61,28 +59,6 @@ public final class VSObjectChromeDefaults {
    }
 
    /**
-    * The card inset for one chart: the modern 12px card inset when the assembly is marked, its
-    * author has not set a padding, and the stored padding is still the creation default; otherwise
-    * the stored padding unchanged. The stored value is a parameter so a composer dialog can pass its
-    * design-time value and still get the substitution.
-    *
-    * Read-time only. Nothing seeds this, so clearing the mark restores the legacy inset with no
-    * reverser and no migration, and the value stays out of the bookmark (it lives in
-    * writeAttributes, which writeState does not reach).
-    */
-   public static Insets chartPadding(ChartVSAssemblyInfo info, Insets stored) {
-      if(info == null || info.getVizMark() == null || info.isUserPadding() ||
-         !LEGACY_CHART_PADDING.equals(stored))
-      {
-         return stored;
-      }
-
-      // a fresh object every call: Insets is mutable and the stored one belongs to the assembly
-      return new Insets(MODERN_CARD_INSET, MODERN_CARD_INSET, MODERN_CARD_INSET,
-                        MODERN_CARD_INSET);
-   }
-
-   /**
     * The chart's creation-default inset, which is what the card-inset resolver treats as "no
     * opinion" and what a dialog stores when its author hands the padding back to the default. A
     * fresh object every call: Insets is mutable and the constant must not escape by reference.
@@ -93,59 +69,29 @@ public final class VSObjectChromeDefaults {
    }
 
    /**
-    * Dark-mode light text color as a CSS hex string, or null when not in dark mode. For object text
-    * whose default is a fixed dark color (black) and would be dark-on-dark otherwise; callers apply it
-    * only when the user/CSS has not set a foreground. Must be applied server-side so exports match.
+    * The modern card inset, seeded at creation. A fresh object every call: Insets is mutable and the
+    * constant must not escape by reference.
     */
-   public static String textForegroundCss(VizContext ctx) {
-      return ctx.dark ? String.format("#%06x", TEXT_FG_DARK.getRGB() & 0xFFFFFF) : null;
+   public static Insets modernChartPadding() {
+      return new Insets(MODERN_CARD_INSET, MODERN_CARD_INSET, MODERN_CARD_INSET,
+                        MODERN_CARD_INSET);
    }
 
    /**
-    * Return the given object format with a light text foreground substituted on the DEFAULT tier of a
-    * clone in dark mode, or the original unchanged (not dark, or already user/CSS customized). Lets a
-    * bare-default object text (fixed black) stay legible on the dark canvas; a user or format.css color
-    * still wins. Never mutates the source. Applied at both live model build and the export painter.
+    * The dark-mode light text value. Public because the selection-cell and slider seeds write it
+    * into a stored DEFAULT tier at creation rather than substituting it at read time.
     */
-   public static VSCompositeFormat applyDarkForeground(VSCompositeFormat fmt, VizContext ctx) {
-      if(!ctx.dark || fmt == null) {
-         return fmt;
-      }
-
-      if(fmt.getUserDefinedFormat().isForegroundValueDefined() ||
-         fmt.getCSSFormat().isForegroundValueDefined())
-      {
-         return fmt;
-      }
-
-      VSCompositeFormat clone = fmt.clone();
-      clone.getDefaultFormat().setForegroundValue(darkForegroundValue());
-      return clone;
-   }
-
-   /**
-    * The same substitution as applyDarkForeground, applied directly rather than to a clone. For a
-    * caller that already holds a copy nothing else can see — the composer's format picker, which
-    * clones before it hands the format to the panel — where returning a second object would leave
-    * the caller holding the wrong one. Never call this with a format reached from an assembly's
-    * FormatInfo: that one is the stored format, and mutating it would persist the substitution.
-    */
-   public static void applyDarkForegroundInPlace(VSCompositeFormat fmt, VizContext ctx) {
-      if(!ctx.dark || fmt == null) {
-         return;
-      }
-
-      if(fmt.getUserDefinedFormat().isForegroundValueDefined() ||
-         fmt.getCSSFormat().isForegroundValueDefined())
-      {
-         return;
-      }
-
-      fmt.getDefaultFormat().setForegroundValue(darkForegroundValue());
-   }
-
-   private static String darkForegroundValue() {
+   public static String darkForegroundValue() {
       return String.format("0x%06x", TEXT_FG_DARK.getRGB() & 0xFFFFFF);
+   }
+
+   /**
+    * The cell foreground a gate-off creation writes, and what the legacy branch of the seed
+    * restores. Excel's list and tree exporters substitute it back over a seeded dark value: their
+    * cells are unfilled white, so the light neutral would be invisible there.
+    */
+   public static String legacyCellForegroundValue() {
+      return String.format("0x%06x", LEGACY_CELL_FG.getRGB() & 0xFFFFFF);
    }
 
    // modern warm-neutral object chrome (light mode)
@@ -159,6 +105,8 @@ public final class VSObjectChromeDefaults {
    private static final Color CARD_BG_DARK = new Color(0x252428);
    // dark object text = strong light neutral (matches table body / calendar text)
    private static final Color TEXT_FG_DARK = new Color(0xE6E0E9);
+   // the selection cell's creation default, and Excel's deliberate exception
+   private static final Color LEGACY_CELL_FG = new Color(0x2b2b2b);
 
    // modern object-card corner radius, px; = --inet-radius-xl, the DOM scale's top step
    private static final int CARD_CORNER_RADIUS = 6;

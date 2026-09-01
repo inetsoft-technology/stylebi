@@ -25,7 +25,6 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizContext;
-import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.util.Tool;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.*;
@@ -226,11 +225,8 @@ public class ExcelSelectionTreeHelper extends VSSelectionTreeHelper {
             RichTextString hrText = PoiExcelVSUtil.createRichTextString(book,
                                                                         Tool.convertHTMLSymbol(sb.toString()));
             format = sv.getFormat();
-
-            // set to gray if the parent itself is not selected
-            // legacy ink on purpose: see ExcelSelectionListHelper for why Excel differs
-            format = VSSelectionListHelper.getValueFormat(sv, format, hasSelected,
-                                                         VizContext.of((VizMark) null));
+            format = ExcelSelectionListHelper.applyDarkOptOut(format, VizContext.of(info).dark);
+            format = VSSelectionListHelper.getValueFormat(sv, format, hasSelected);
 
             if(i == (dispList.size() - 1) && STR_MORE.equals(sv.getLabel())) {
                format = lastLineFormat;

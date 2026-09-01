@@ -17,10 +17,6 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
-import inetsoft.uql.viewsheet.BorderColors;
-import inetsoft.uql.viewsheet.VSCompositeFormat;
-import inetsoft.uql.viewsheet.VSFormat;
-
 import java.awt.Color;
 
 /**
@@ -33,11 +29,11 @@ import java.awt.Color;
  *    (byte-identical) and the modern warm-neutral for a modern one. The neutrals equal the live-view
  *    CSS (vs-slider.component.scss)
  *    so the exported slider and the live slider agree.
- *  - KPI text/output value defaults — foreground and border. applyModernDefaults substitutes the modern
- *    neutral on the DEFAULT tier of a clone at read time (live model build, export text draw), only when
- *    neither the user (USER tier) nor a format.css class (CSS tier) has set the value, so a user format
- *    and a customer format.css class both still win; a HighlightGroup emphasis, applied above on a
- *    higher tier, also still wins. Weight/size are intentionally not changed. Mirrors VSTitleChromeDefaults.
+ *  - KPI text/output value defaults — foreground and border. These are seeded onto the DEFAULT tier
+ *    at creation time (TextVSAssemblyInfo.seedChromeDefaults), not resolved at read time, so a user
+ *    format (USER tier) or a format.css class (CSS tier) still outranks the seed by ordinary tier
+ *    precedence; a HighlightGroup emphasis, applied above on a higher tier, also still wins.
+ *    Weight/size are intentionally not changed. Mirrors VSTitleChromeDefaults.
  */
 public final class VSOutputChromeDefaults {
    private VSOutputChromeDefaults() {
@@ -82,65 +78,14 @@ public final class VSOutputChromeDefaults {
    }
 
    /**
-    * Return an output value format with the modern value emphasis (foreground + border) substituted on
-    * the DEFAULT tier of a clone, or the original unchanged (legacy context, or already customized).
-    * Weight and size are intentionally not changed. A user (USER tier) or format.css (CSS tier) foreground/border
-    * still wins; the source format is never mutated or serialized. Mirrors VSTitleChromeDefaults.
+    * The value emphasis foreground as a stored-format hex string: valueForeground(ctx) for a
+    * modern context, the legacy near-black otherwise - exactly the ternary
+    * TextVSAssemblyInfo.seedChromeDefaults writes. A single supplier so the seed and its test call
+    * the same code rather than each formatting the color separately, which is what let the two
+    * drift apart before.
     */
-   public static VSCompositeFormat applyModernDefaults(VSCompositeFormat fmt, VizContext ctx) {
-      if(!ctx.modern || fmt == null) {
-         return fmt;
-      }
-
-      boolean fg = !isForegroundCustomized(fmt);
-      boolean border = !isBorderCustomized(fmt);
-
-      if(!fg && !border) {
-         return fmt;
-      }
-
-      VSCompositeFormat clone = fmt.clone();
-      applyTo(clone.getDefaultFormat(), fg, border, ctx);
-      return clone;
-   }
-
-   /**
-    * In-place variant for the export copy (the viewsheet / format is already cloned upstream): mutate the
-    * DEFAULT tier directly. No-op for a legacy context, or when the value is already user /
-    * format.css customized; never touches a persisted format.
-    */
-   public static void applyModernDefaultsInPlace(VSCompositeFormat fmt, VizContext ctx) {
-      if(!ctx.modern || fmt == null) {
-         return;
-      }
-
-      applyTo(fmt.getDefaultFormat(), !isForegroundCustomized(fmt), !isBorderCustomized(fmt), ctx);
-   }
-
-   private static void applyTo(VSFormat def, boolean fg, boolean border, VizContext ctx) {
-      boolean dark = ctx.dark;
-      Color fgColor = dark ? VALUE_FG_DARK : VALUE_FG;
-      Color borderColor = dark ? VALUE_BORDER_DARK : VALUE_BORDER;
-
-      if(fg) {
-         def.setForegroundValue(toValue(fgColor));
-      }
-
-      if(border) {
-         def.setBorderColorsValue(new BorderColors(borderColor, borderColor, borderColor, borderColor));
-      }
-   }
-
-   // a value counts as customized (and is preserved) only when the user picker (USER tier) or a
-   // format.css class (CSS tier) sets it; a bare default is modernized.
-   private static boolean isForegroundCustomized(VSCompositeFormat f) {
-      return f.getUserDefinedFormat().isForegroundValueDefined() ||
-         f.getCSSFormat().isForegroundValueDefined();
-   }
-
-   private static boolean isBorderCustomized(VSCompositeFormat f) {
-      return f.getUserDefinedFormat().isBorderColorsValueDefined() ||
-         f.getCSSFormat().isBorderColorsValueDefined();
+   public static String valueForegroundValue(VizContext ctx) {
+      return ctx.modern ? toValue(valueForeground(ctx)) : LEGACY_VALUE_FG_VALUE;
    }
 
    private static String toValue(Color c) {
@@ -163,6 +108,10 @@ public final class VSOutputChromeDefaults {
    // value foreground = VSChartChromeDefaults.TITLE (strong text); border = VSTitleChromeDefaults border
    private static final Color VALUE_FG = new Color(0x35342F);
    private static final Color VALUE_BORDER = new Color(0xD9D5CC);
+
+   // the legacy value foreground: the near-black TextVSAssemblyInfo's setDefaultFormat has always
+   // written, kept as the exact string rather than round-tripped through a Color
+   private static final String LEGACY_VALUE_FG_VALUE = "0x2b2b2b";
 
    // dark KPI/slider chrome; neutrals track the shared dark structure palette
    private static final Color SLIDER_INACTIVE_DARK = new Color(0x3A383D);

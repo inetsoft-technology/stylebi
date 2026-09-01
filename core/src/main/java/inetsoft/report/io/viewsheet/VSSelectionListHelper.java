@@ -308,15 +308,8 @@ public class VSSelectionListHelper extends ExporterHelper {
     */
    public static VSCompositeFormat getValueFormat(SelectionValue value,
                                                   VSCompositeFormat format,
-                                                  boolean hasSelected,
-                                                  VizContext ctx)
+                                                  boolean hasSelected)
    {
-      // the cell foreground default is a fixed near-black from setDefaultFormat, so a dark-marked
-      // list would draw dark text on its dark surface here exactly as it did in the browser. Done
-      // before the dimming below, not after: dimming writes the USER tier, which this yields to, so
-      // an excluded or unselected value keeps its grey either way.
-      format = VSObjectChromeDefaults.applyDarkForeground(format, ctx);
-
       if(value != null) {
          if(value.isExcluded() || !value.isSelected()) {
             format = (format == null)

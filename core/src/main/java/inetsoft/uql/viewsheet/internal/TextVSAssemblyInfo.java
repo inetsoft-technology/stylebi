@@ -89,6 +89,33 @@ public class TextVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
 
       setFormat(format);
       setCSSDefaults();
+      // this type is on bypassesBaseChrome, so the base never seeded it and never called the hook
+      // for it; invoke it here so a fresh text assembly carries its own gate-dependent values
+      seedChromeDefaults(VizContext.of(this));
+   }
+
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      // returns at bypassesBaseChrome, which is correct: the base's object border and card radius
+      // are not this type's, and its own setDefaultFormat owns them
+      super.seedChromeDefaults(ctx);
+
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat == null) {
+         return;
+      }
+
+      VSFormat def = objFormat.getDefaultFormat();
+      def.setForegroundValue(VSOutputChromeDefaults.valueForegroundValue(ctx));
+
+      // only when creation wrote one: setDefaultFormat(false) writes no border colours, and
+      // inventing one here would change the stored asset for an unmarked assembly
+      if(def.getBorderColorsValue() != null) {
+         Color border = ctx.modern ? VSOutputChromeDefaults.valueBorderColor(ctx)
+            : DEFAULT_BORDER_COLOR;
+         def.setBorderColorsValue(new BorderColors(border, border, border, border));
+      }
    }
 
    /**
