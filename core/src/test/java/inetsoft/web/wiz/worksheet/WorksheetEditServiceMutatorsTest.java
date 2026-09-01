@@ -179,6 +179,33 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals(1, t.getPreConditionList().getConditionList().getSize());
    }
 
+   /**
+    * L2 repair-review Finding D: {@code requireColumn(TableAssembly, String)} used to check
+    * only {@code cs.getAttribute(column) == null}, which does not see a column matched purely
+    * via {@link ColumnRef#getAlias()} when the alias is not "applied"
+    * ({@code aalias == false}, per {@link ColumnRef#getName()}). {@link WorksheetMutationSupport
+    * #resolveField} (used by the actual filter-creation call one line below) already resolves
+    * such a column via its own alias-fallback loop, so before the fix this column was
+    * resolvable by {@code addFilter} but rejected by its own guard before ever reaching that
+    * resolution -- a false-negative "Column not found" for a column that plainly exists.
+    */
+   @Test
+   void addFilterAcceptsAColumnMatchedOnlyByItsUnappliedAlias() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ColumnRef aliased = (ColumnRef) t.getColumnSelection(false).getAttribute("a");
+      aliased.setAlias("aliasA");
+      aliased.setApplyingAlias(false);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "aliasA", "=", "hello"));
+
+      assertNotNull(t.getPreConditionList());
+      assertFalse(t.getPreConditionList().isEmpty());
+   }
+
    @Test
    void addFilterRejectsEmbeddedTable() throws Exception {
       Worksheet ws = new Worksheet();

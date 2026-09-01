@@ -2816,12 +2816,19 @@ public class WorksheetEditService {
          return t;
       }
 
+      /**
+       * L2 repair-review Finding D: this used to be its own, narrower check
+       * ({@code cs.getAttribute(column) == null}) than {@link #requireColumn(TableAssembly,
+       * String, boolean)} below -- {@link WorksheetMutationSupport#fieldExists} additionally
+       * matches a column by its {@code ColumnRef.getAlias()} even when that alias is not the
+       * ref's current effective name ({@code ColumnRef.getName()}, which only returns the alias
+       * when {@code aalias} is also set) -- a real, if narrow, state a column can be in. The two
+       * checks were meant to be the same check (the commit that added the 3-arg overload
+       * describes it as "the same check add_filter already had"); delegating closes the drift
+       * instead of maintaining two implementations that can diverge further.
+       */
       private void requireColumn(TableAssembly t, String column) throws PairingException {
-         ColumnSelection cs = t.getColumnSelection(false);
-
-         if(cs.getAttribute(column) == null) {
-            throw new PairingException("Column not found: " + column);
-         }
+         requireColumn(t, column, false);
       }
 
       /**
