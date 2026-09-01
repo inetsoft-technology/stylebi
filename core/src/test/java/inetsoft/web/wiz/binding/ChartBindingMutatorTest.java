@@ -320,6 +320,44 @@ class ChartBindingMutatorTest {
    }
 
    @Test
+   void growingAShelfDoesNotDoubleCountItsOwnPriorFieldsAgainstTheLimit() throws Exception {
+      // Unlike replacingAShelfDoesNotDoubleCountItsOwnPriorFields (a net-neutral edit that now
+      // short-circuits through requireColumnLimit's net-growth-only early return before ever
+      // reaching the subtraction below), this drives an actual GROWTH of the shelf
+      // (newShelfCount > oldShelfCount) so the "- oldShelfCount" term in
+      //   chartInfo.getFields().length + geoSize - oldShelfCount + newShelfCount
+      // is the thing standing between pass and fail. chartInfo already carries the shelf's own
+      // 2 prior fields (mirroring the model's 2), so a version of the formula that forgot to
+      // subtract oldShelfCount would double-count them: 2 + 3 = 5 > 3, refused. Correctly
+      // subtracting them gives 2 - 2 + 3 = 3, which is exactly at the limit and must be allowed.
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "3");
+         VSChartInfo chartInfo = new VSChartInfo();
+         chartInfo.addXField(new VSChartAggregateRef());
+         chartInfo.addXField(new VSChartAggregateRef());
+         ChartBindingModel model = new ChartBindingModel();
+         model.getXFields().add(new ChartDimensionRefModel());
+         model.getXFields().add(new ChartDimensionRefModel());
+
+         // Grow x from 2 fields to 3 -- a strict increase -- which must be allowed because the
+         // shelf's own 2 prior fields are subtracted back out before comparing to the limit.
+         ChartBindingMutator.setShelf(
+            model, "x",
+            List.of(new FieldRef("A", "dimension", null, null, null),
+                    new FieldRef("B", "dimension", null, null, null),
+                    new FieldRef("C", "dimension", null, null, null)),
+            null, null, null, chartInfo);
+
+         assertEquals(3, model.getXFields().size());
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
+   }
+
+   @Test
    void refusesASingleShelfWriteThatWouldExceedTheOrgColumnLimit() throws Exception {
       String original = SreeEnv.getProperty("max.col.count");
 
