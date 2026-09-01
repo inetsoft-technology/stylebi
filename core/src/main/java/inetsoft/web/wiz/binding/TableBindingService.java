@@ -74,6 +74,8 @@ public class TableBindingService {
          VSAssembly assembly = vs.getAssembly(assemblyName);
          inetsoft.uql.asset.SourceInfo source = assembly instanceof DataVSAssembly data
             ? data.getSourceInfo() : null;
+         requireSourceForFieldWrite(assemblyName, shelf, source,
+                                    fields == null ? 0 : fields.size());
          TableBindingMutator.setShelf(model, shelf, fields, rvs, source, refModelService);
 
          ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
@@ -218,9 +220,32 @@ public class TableBindingService {
                         FieldRef field, Integer position) throws Exception
    {
       applyWithContext(sessionToken, user, assemblyName,
-         (model, rvs, source) ->
+         (model, rvs, source) -> {
+            requireSourceForFieldWrite(assemblyName, shelf, source, field == null ? 0 : 1);
             TableBindingMutator.addField(model, shelf, field, position, rvs, source,
-                                         refModelService));
+                                         refModelService);
+         });
+   }
+
+   /**
+    * Refuses a non-empty shelf write to an assembly with no source: {@link
+    * TableBindingMutator}'s shelf builders have no source-conditioned branch, so the write would
+    * be applied and reported as success, then render nothing because there is no source to
+    * query. Scoped to callers that add fields to a shelf ({@link #setShelf}/{@link #addField});
+    * {@link #removeField}/{@link #moveField} must not call this — a sourceless assembly can never
+    * have anything on its shelves to remove or move in the first place, once this guard is in
+    * place on the calls that put fields there.
+    */
+   private static void requireSourceForFieldWrite(String assemblyName, String shelf,
+                                                   inetsoft.uql.asset.SourceInfo source,
+                                                   int fieldCount)
+   {
+      if(source == null && fieldCount > 0) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' has no source table yet, so binding " + fieldCount +
+            " field(s) to its '" + shelf + "' shelf would render nothing -- shelves with no " +
+            "source have nothing to query. Call set_table_source first.");
+      }
    }
 
    public void removeField(String sessionToken, Principal user, String assemblyName,
