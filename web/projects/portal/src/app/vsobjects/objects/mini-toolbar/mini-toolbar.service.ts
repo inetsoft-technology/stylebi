@@ -53,7 +53,12 @@ const ANCHORED_ASSEMBLY_TYPES: ReadonlySet<string> = new Set<string>([
    // Slice 4, the container. Kebab-only like the rest of its family, so its header is no denser
    // than its children's. Its lane is full width, not titleRatio-split, and isMiniToolbarVisible
    // already keeps its children from drawing strips of their own.
-   "vsselectioncontainer"
+   "vsselectioncontainer",
+   // Slice 5, the calendar. The table treatment unmodified: six toolbar actions is the largest set
+   // in the rollout, so a strip that surfaces three of them earns its space. Its dropdown variant
+   // mounts an inline mini-menu instead and is excluded by isMiniToolbarVisible, so the two never
+   // co-render.
+   "vscalendar"
 ]);
 
 /**

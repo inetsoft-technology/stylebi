@@ -721,6 +721,10 @@ describe("AbstractVSActions", () => {
          expect((calcTableActionsFor(400, 200, false) as any).kebabOnly).toBe(false);
       });
 
+      it("is not kebab-only for the calendar, which takes the table treatment", () => {
+         expect((calendarActionsFor(400, 200, false) as any).kebabOnly).toBe(false);
+      });
+
       it("is kebab-only for the selection container, as for the rest of its family", () => {
          expect((selectionContainerActionsFor(400, 200, false) as any).kebabOnly).toBe(true);
       });
@@ -1003,6 +1007,40 @@ describe("AbstractVSActions", () => {
       it("keeps its uncapped floating toolbar when the gate is off", () => {
          expect(selectionContainerActionsFor(2000, 400, false).allowedActionsNum())
             .toBeGreaterThan(4);
+      });
+   });
+
+   // Slice 5. The calendar takes the table treatment — three action buttons plus the kebab — because
+   // it has the largest toolbar in the rollout at six actions. Its pre-density lane is 36 rather
+   // than the defh 20 every other type carries, so it clears the threshold marked or not.
+   describe("slice 5: the calendar", () => {
+      const ids = (groups: any[]) =>
+         groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+
+      it("caps at three actions plus the kebab under the gate", () => {
+         document.body.classList.add("viz-density-compact");
+         expect(calendarActionsFor(2000, 400, true).allowedActionsNum()).toBe(4);
+      });
+
+      it("draws chrome at the compact lane", () => {
+         document.body.classList.add("viz-density-compact");
+         expect(ids(calendarActionsFor(2000, 400, true, 26).showingActions).length)
+            .toBeGreaterThan(0);
+      });
+
+      it("draws chrome at its taller author-set lane", () => {
+         document.body.classList.add("viz-density-compact");
+         expect(ids(calendarActionsFor(2000, 400, true, 36).showingActions).length)
+            .toBeGreaterThan(0);
+      });
+
+      it("draws no chrome at all when the title is hidden", () => {
+         document.body.classList.add("viz-density-compact");
+         expect(ids(calendarActionsFor(2000, 400, true, 0).showingActions)).toEqual([]);
+      });
+
+      it("keeps its uncapped floating toolbar when the gate is off", () => {
+         expect(calendarActionsFor(2000, 400, false).allowedActionsNum()).toBeGreaterThan(4);
       });
    });
 });

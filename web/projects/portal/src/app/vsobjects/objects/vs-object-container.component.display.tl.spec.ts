@@ -726,12 +726,11 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       expect(args[args.length - 1]).toBe(true);   // maxMode still reaches the clamp
    });
 
-   it("does not anchor a calendar, whose rollout slice has not landed", () => {
+   it("anchors a calendar, whose rollout slice has landed", () => {
       const { comp } = makeComponent({
          vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
       });
       comp.containerRef = scrollless;
-      // Lane tall enough to anchor, so the type guard is the only thing left to exclude it.
       const obj: any = TestUtils.withTitleLane(makeVSObject({
          objectType: "VSCalendar",
          vizModern: true,
@@ -739,7 +738,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       }));
       comp.vsInfo = makeVsInfo([obj]);
 
-      expect(comp.isToolbarAnchored(obj)).toBe(false);
+      expect(comp.isToolbarAnchored(obj)).toBe(true);
    });
 
    it("keeps a maximised selection container anchored, unlike the list and tree", () => {

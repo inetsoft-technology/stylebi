@@ -18,17 +18,19 @@
 import { anchoredLaneHeight, isAnchoredAssemblyType, isAnchoredChromeSuppressed, isAnchoredResident, MiniToolbarService }
    from "./mini-toolbar.service";
 
-// The rollout boundary, asserted explicitly rather than left implied. Each family slice moves types
-// from the second test to the first; the last one deletes the predicate entirely and the gate
-// becomes the only condition.
+// The anchored set, asserted explicitly rather than left implied. It is now permanent rather than a
+// rollout stage: every type with a title lane is in it, and the range slider is the one deliberate
+// exclusion.
 describe("isAnchoredAssemblyType", () => {
-   it("anchors the chart pilot, the table family and the selection family", () => {
+   it("anchors every type with a title lane", () => {
       expect(isAnchoredAssemblyType("VSChart")).toBe(true);
       expect(isAnchoredAssemblyType("VSTable")).toBe(true);
       expect(isAnchoredAssemblyType("VSCrosstab")).toBe(true);
       expect(isAnchoredAssemblyType("VSCalcTable")).toBe(true);
       expect(isAnchoredAssemblyType("VSSelectionList")).toBe(true);
       expect(isAnchoredAssemblyType("VSSelectionTree")).toBe(true);
+      expect(isAnchoredAssemblyType("VSSelectionContainer")).toBe(true);
+      expect(isAnchoredAssemblyType("VSCalendar")).toBe(true);
    });
 
    it("matches case-insensitively, as the Tool.equalsIgnoreCase calls it replaces did", () => {
@@ -37,17 +39,18 @@ describe("isAnchoredAssemblyType", () => {
       expect(isAnchoredAssemblyType("vstable")).toBe(true);
    });
 
-   it("anchors the selection container, whose slice has landed", () => {
-      expect(isAnchoredAssemblyType("VSSelectionContainer")).toBe(true);
-   });
-
-   it("does not anchor the calendar, whose rollout slice has not landed", () => {
-      expect(isAnchoredAssemblyType("VSCalendar")).toBe(false);
-   });
-
    it("never anchors the range slider, which is excluded from the rollout permanently", () => {
       // Case 4: alone among the eight it declares no titleVisible, so it has no lane to anchor into.
       expect(isAnchoredAssemblyType("VSRangeSlider")).toBe(false);
+   });
+
+   // A laneless type must stay out of the set. Deleting the type test outright — which this
+   // predicate's comment used to promise — would make isAnchoredChromeSuppressed true for every one
+   // of these under the gate, emptying the toolbars they ship with today.
+   it("does not anchor a type with no title lane", () => {
+      expect(isAnchoredAssemblyType("VSText")).toBe(false);
+      expect(isAnchoredAssemblyType("VSGauge")).toBe(false);
+      expect(isAnchoredAssemblyType("VSImage")).toBe(false);
    });
 
    it("does not throw on a missing objectType", () => {
@@ -115,6 +118,11 @@ describe("isAnchoredChromeSuppressed", () => {
 
    it("is false for a type outside the anchored set, so its toolbar is untouched", () => {
       expect(isAnchoredChromeSuppressed("VSRangeSlider", true, 20)).toBe(false);
+   });
+
+   it("is false for a laneless type under the gate, whose toolbar must be untouched", () => {
+      expect(isAnchoredChromeSuppressed("VSText", true, 0)).toBe(false);
+      expect(isAnchoredChromeSuppressed("VSGauge", true, 0)).toBe(false);
    });
 });
 
