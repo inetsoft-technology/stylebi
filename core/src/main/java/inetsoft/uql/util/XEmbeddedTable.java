@@ -798,66 +798,80 @@ public class XEmbeddedTable
          throw new RuntimeException(tableNotReady);
       }
 
+      // Recorded so a rejected conversion (force=false, an unparseable value) can put this
+      // column's declared type back to what it was. types[col] is written below BEFORE the
+      // per-row conversion loop that can throw -- previously that write was never undone on the
+      // throw path, so a caller that got "conversion failed" back still found getDataType(col)/
+      // getColType(col) reporting the rejected type, even though not a single value had actually
+      // been converted (swapTable is only reached after the loop completes without throwing).
+      String oldType = types[col];
       types[col] = type;
-      XSwappableTable nDataTable = createTable();
-      copyTable(nDataTable, 0, getHeaderRowCount());
-      // get data from the original table if type changed or has been set back to its original type
-      boolean typeChanged = !Tool.equals(type, Tool.getDataType(xtable.getColType(col))) ||
-         (originalTable != null &&
-            Tool.equals(type, Tool.getDataType(originalTable.getColType(col))));
 
-      // cache the converted data
-      final int maxCacheSize = 10000;
-      Map<Object, Object> convertMap = new LinkedHashMap<Object, Object>() {
-         @Override
-         protected boolean removeEldestEntry(Map.Entry<Object, Object> eldest) {
-            return size() > maxCacheSize;
-         }
-      };
+      try {
+         XSwappableTable nDataTable = createTable();
+         copyTable(nDataTable, 0, getHeaderRowCount());
+         // get data from the original table if type changed or has been set back to its original type
+         boolean typeChanged = !Tool.equals(type, Tool.getDataType(xtable.getColType(col))) ||
+            (originalTable != null &&
+               Tool.equals(type, Tool.getDataType(originalTable.getColType(col))));
 
-      for(int i = getHeaderRowCount(); xtable.moreRows(i); i++) {
-         Object[] arr = new Object[types.length];
-
-         for(int j = 0; j < types.length; j++) {
-            // get the original data instead of the data which
-            // maybe resetted after setting data type(52298).
-            if(typeChanged && j == col && originalTable != null &&
-               i < originalTable.getRowCount() && j < originalTable.getColCount())
-            {
-               arr[j] = originalTable.getObject(i, j);
+         // cache the converted data
+         final int maxCacheSize = 10000;
+         Map<Object, Object> convertMap = new LinkedHashMap<Object, Object>() {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<Object, Object> eldest) {
+               return size() > maxCacheSize;
             }
-            else {
-               arr[j] = xtable.getObject(i, j);
-            }
-         }
+         };
 
-         Object oval = arr[col] ;
+         for(int i = getHeaderRowCount(); xtable.moreRows(i); i++) {
+            Object[] arr = new Object[types.length];
 
-         if(convertMap.containsKey(oval)) {
-            arr[col] = convertMap.get(oval);
-         }
-         else {
-            try {
-               arr[col] = Tool.transform(oval, type, format, true);
-               arr[col] = Tool.getData(type, arr[col]);
-            }
-            catch(Exception ex) {
-               if(force || XSchema.isNumericType(type) && Util.isNotApplicableValue(arr[col])) {
-                  arr[col] = null;
+            for(int j = 0; j < types.length; j++) {
+               // get the original data instead of the data which
+               // maybe resetted after setting data type(52298).
+               if(typeChanged && j == col && originalTable != null &&
+                  i < originalTable.getRowCount() && j < originalTable.getColCount())
+               {
+                  arr[j] = originalTable.getObject(i, j);
                }
                else {
-                  throw ex;
+                  arr[j] = xtable.getObject(i, j);
                }
             }
 
-            convertMap.put(oval, arr[col]);
+            Object oval = arr[col] ;
+
+            if(convertMap.containsKey(oval)) {
+               arr[col] = convertMap.get(oval);
+            }
+            else {
+               try {
+                  arr[col] = Tool.transform(oval, type, format, true);
+                  arr[col] = Tool.getData(type, arr[col]);
+               }
+               catch(Exception ex) {
+                  if(force || XSchema.isNumericType(type) && Util.isNotApplicableValue(arr[col])) {
+                     arr[col] = null;
+                  }
+                  else {
+                     throw ex;
+                  }
+               }
+
+               convertMap.put(oval, arr[col]);
+            }
+
+            nDataTable.addRow(arr);
          }
 
-         nDataTable.addRow(arr);
+         nDataTable.complete();
+         swapTable(nDataTable);
       }
-
-      nDataTable.complete();
-      swapTable(nDataTable);
+      catch(Exception ex) {
+         types[col] = oldType;
+         throw ex;
+      }
    }
 
    /**

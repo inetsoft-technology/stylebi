@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
@@ -297,6 +298,23 @@ public final class PropertyPath {
          throw new IllegalArgumentException(
             "'" + path + "' does not accept '" + value + "'. Valid values: " +
             Arrays.toString(target.getEnumConstants()) + ".");
+      }
+
+      if(target.isArray()) {
+         if(!(value instanceof List<?> list)) {
+            throw new IllegalArgumentException(
+               "'" + path + "' expects a JSON array (" + simpleName(target) + "); '" + value +
+               "' is a single value, not an array.");
+         }
+
+         Class<?> componentType = target.getComponentType();
+         Object array = Array.newInstance(componentType, list.size());
+
+         for(int i = 0; i < list.size(); i++) {
+            Array.set(array, i, coerce(list.get(i), componentType, path + "[" + i + "]"));
+         }
+
+         return array;
       }
 
       throw new IllegalArgumentException(

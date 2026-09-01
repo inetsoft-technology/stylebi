@@ -123,20 +123,40 @@ public final class WorksheetMutationSupport {
     *                  handling, including clearing a pre-existing sort on this column ({@link
     *                  #applyAggregateInfo} does the same). {@code null}/{@code false} leaves the
     *                  group's existing time-series flag alone/unset.
+    * @param namedGroup optional name of a predefined named group (created via
+    *                  {@code add_named_group}) to apply to this group-by column instead of
+    *                  grouping by exact value; {@code null} for a plain group. Mutually
+    *                  exclusive with {@code dateLevel} on the same entry.
     */
    @JsonDeserialize(using = GroupSpec.Deserializer.class)
-   public record GroupSpec(String field, String dateLevel, Boolean timeSeries) {
+   public record GroupSpec(String field, String dateLevel, Boolean timeSeries, String namedGroup) {
       public GroupSpec(String field) {
-         this(field, null, null);
+         this(field, null, null, null);
       }
 
       public GroupSpec(String field, String dateLevel) {
-         this(field, dateLevel, null);
+         this(field, dateLevel, null, null);
+      }
+
+      /**
+       * Compatibility constructor for callers built before {@code namedGroup} was added —
+       * defaults it to {@code null}.
+       */
+      public GroupSpec(String field, String dateLevel, Boolean timeSeries) {
+         this(field, dateLevel, timeSeries, null);
+      }
+
+      /**
+       * Compatibility constructor for callers built before {@code timeSeries} was added —
+       * defaults it to {@code null}.
+       */
+      public GroupSpec(String field, String dateLevel, String namedGroup) {
+         this(field, dateLevel, null, namedGroup);
       }
 
       /**
        * Accepts either a plain JSON string (column name) or a
-       * {@code {field, dateLevel, timeSeries}} object.
+       * {@code {field, dateLevel, timeSeries, namedGroup}} object.
        */
       static final class Deserializer extends JsonDeserializer<GroupSpec> {
          @Override
@@ -161,7 +181,8 @@ public final class WorksheetMutationSupport {
                node.hasNonNull("dateOption") ? node.get("dateOption").asText() : null;
             Boolean timeSeries = node.hasNonNull("timeSeries") ?
                node.get("timeSeries").asBoolean() : null;
-            return new GroupSpec(field, dateLevel, timeSeries);
+            String namedGroup = node.hasNonNull("namedGroup") ? node.get("namedGroup").asText() : null;
+            return new GroupSpec(field, dateLevel, timeSeries, namedGroup);
          }
       }
    }
@@ -609,6 +630,13 @@ public final class WorksheetMutationSupport {
                availableColumns.keySet());
          }
 
+         if(spec.namedGroup() != null && spec.dateLevel() != null) {
+            throw new inetsoft.web.wiz.pairing.PairingException(
+               "Group for column '" + spec.field() + "' cannot combine namedGroup ('" +
+               spec.namedGroup() + "') with dateLevel ('" + spec.dateLevel() +
+               "') -- they are mutually exclusive.");
+         }
+
          GroupRef gr;
 
          if(spec.dateLevel() == null) {
@@ -684,6 +712,33 @@ public final class WorksheetMutationSupport {
 
             if(t.getSortInfo() != null && t.getSortInfo().getSort(gr.getDataRef()) != null) {
                t.getSortInfo().removeSort(gr.getDataRef());
+            }
+         }
+
+         if(spec.namedGroup() != null) {
+            // GroupRef.update() itself fails silently (returns true, but leaves
+            // getNamedGroupInfo() == null) on an unknown assembly name, a
+            // DATA_TYPE_ATTACHED type mismatch, or a COLUMN_ATTACHED attribute-name
+            // mismatch -- resolve and validate up front so an unresolvable name is a
+            // loud PairingException here rather than a silently ungrouped column, and
+            // re-check after update() below for the two mismatch cases it can't catch
+            // ahead of time.
+            Assembly namedGroupAssembly = t.getWorksheet() == null ? null :
+               t.getWorksheet().getAssembly(spec.namedGroup());
+
+            if(!(namedGroupAssembly instanceof NamedGroupAssembly)) {
+               throw new inetsoft.web.wiz.pairing.PairingException(
+                  "Named group not found: '" + spec.namedGroup() +
+                  "'. Create it first with add_named_group.");
+            }
+
+            gr.setNamedGroupAssembly(spec.namedGroup());
+            gr.update(t.getWorksheet());
+
+            if(gr.getNamedGroupInfo() == null) {
+               throw new inetsoft.web.wiz.pairing.PairingException(
+                  "Named group '" + spec.namedGroup() + "' does not apply to column '" +
+                  spec.field() + "' (attached column or data type does not match).");
             }
          }
 

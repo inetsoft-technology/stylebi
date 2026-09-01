@@ -362,6 +362,39 @@ public record EditRequest(
     */
    Boolean visibleInViewsheet,
    /**
+    * For change_column_type: whether to force a conversion that some values cannot survive.
+    *
+    * <p>{@code XEmbeddedTable#setDataType}'s {@code force} flag decides what happens to a value
+    * the target type cannot parse — {@code true} writes {@code null} over it, {@code false}
+    * throws. The Composer asks: it calls with {@code false} first and, on failure, rolls the
+    * column back and puts the choice to the user
+    * ({@code ColumnTypeDialogService#handleChangeTypeParseException}). This op passed a hardcoded
+    * {@code true}, so unconvertible values were discarded with nothing reported.
+    *
+    * <p>Defaults to {@code true} when omitted, preserving that behaviour for callers built
+    * against it; pass {@code false} to be told instead of losing the values.
+    */
+   Boolean confirmed,
+   /**
+    * For set_table_properties on an embedded table: how many data rows it should hold.
+    *
+    * <p>The Composer's table-properties dialog exposes this as "Rows"
+    * ({@code TablePropertyDialogService:113-121}); this op had no way to reach it. Growing the
+    * count appends empty rows, shrinking it drops the ones past the new end. Ignored, rather than
+    * refused, for a table that is not embedded — the dialog omits the control there too.
+    */
+   Integer rowCount,
+   /**
+    * For add_concatenation: whether each adjacent pair's operator de-duplicates. The Composer's
+    * concatenation dialog exposes this per operator and carries it through
+    * {@code WorksheetEventUtil#convertOperator}; this op had no way to set it. Omitted leaves the
+    * engine's default rather than choosing for the caller.
+    *
+    * <p>Named apart from {@code distinct}, which is the table-level "return distinct values"
+    * property on set_table_properties -- a different setting on a different object.
+    */
+   Boolean concatDistinct,
+   /**
     * Multiple ranking conditions for {@code set_rankings} (plural) — {@code set_ranking}
     * (singular, {@code ranking} above) still replaces the table's whole ranking list with a
     * single entry, unchanged, for every existing caller. {@code set_rankings} replaces it with
@@ -372,8 +405,47 @@ public record EditRequest(
    List<WorksheetMutationSupport.RankingSpec> rankings
 ) {
    /**
-    * Compatibility constructor for callers built before {@code rankings} was added —
-    * defaults it to {@code null}.
+    * Compatibility constructor for callers built before {@code rankings} was added, but after
+    * {@code confirmed}/{@code rowCount}/{@code concatDistinct} — defaults {@code rankings} to
+    * {@code null}.
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, String> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables,
+      String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
+      List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups, Boolean crosstab,
+      List<String> labels, WorksheetMutationSupport.VariableChoicesSpec choices,
+      List<WorksheetMutationSupport.JoinPathSpec> joinPaths, Boolean mergeable,
+      Boolean visibleInViewsheet, Boolean confirmed, Integer rowCount, Boolean concatDistinct)
+   {
+      this(op, table, column, name, type, newName, field, operation, values, direction, groups,
+           aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType,
+           visible, tables, source, concatType, conditions, ranking, headerColumns, dateOption,
+           boundaries, datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row, col,
+           value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
+           groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
+           sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
+           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, joinPaths,
+           mergeable, visibleInViewsheet, confirmed, rowCount, concatDistinct, null);
+   }
+
+   /**
+    * Compatibility constructor for callers built before {@code confirmed}/{@code rowCount}/
+    * {@code concatDistinct} were added — defaults all three, and {@code rankings}, to
+    * {@code null}.
     */
    public EditRequest(
       String op, String table, String column, String name, String type, String newName,
@@ -405,7 +477,7 @@ public record EditRequest(
            groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
            sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
            lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, joinPaths,
-           mergeable, visibleInViewsheet, null);
+           mergeable, visibleInViewsheet, null, null, null);
    }
 
    /**
@@ -441,7 +513,7 @@ public record EditRequest(
            groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
            sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
            lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, joinPaths,
-           mergeable, null, null);
+           mergeable, null, null, null, null, null);
    }
 
    /**

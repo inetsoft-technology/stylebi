@@ -719,6 +719,12 @@ public class WorksheetAgentController {
       String attributeName = req.attribute();
       String name = req.name();
 
+      // Same unescaped-CDATA write path as WorksheetEditService.Editor.placeAssembly/
+      // renameTable/addJoin/duplicateAssembly/renameVariable/createVariable -- see
+      // requireStorableName's javadoc. Checked up front, before the permission checks and
+      // datasource/logical-model metadata lookups below, so a doomed name fails fast.
+      WorksheetEditService.Editor.requireStorableName(name, "A named group name");
+
       SourceInfo sinfo;
       DataRef ref;
 
@@ -1868,6 +1874,13 @@ public class WorksheetAgentController {
             ? name
             : AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
 
+         // Unlike add_table's datasource-bound paths (addBoundTable/addLogicalModelTable/
+         // addTabularTable), this name comes from the CSV/Excel import's caller-supplied
+         // 'name' verbatim -- it is never run through AssetUtil.normalizeTable, so it needs
+         // its own check for the same unescaped-CDATA write path. See requireStorableName's
+         // javadoc.
+         WorksheetEditService.Editor.requireStorableName(tableName, "A table name");
+
          EmbeddedTableAssembly assembly = new EmbeddedTableAssembly(ws, tableName);
 
          Assembly[] existing = ws.getAssemblies();
@@ -2136,9 +2149,12 @@ public class WorksheetAgentController {
             editor.setColumnVisibility(req.table(), req.column(),
                                        req.visible() != null && req.visible());
          case "change_column_type" ->
-            editor.changeColumnType(req.table(), req.column(), req.type());
+            // Absent confirmed means force, matching what this op did before the flag existed.
+            editor.changeColumnType(req.table(), req.column(), req.type(),
+                                    req.confirmed() == null || req.confirmed());
          case "add_concatenation" ->
-            editor.addConcatenation(req.name(), req.tables(), req.concatType());
+            editor.addConcatenation(req.name(), req.tables(), req.concatType(),
+                                    req.concatDistinct());
          case "add_mirror" ->
             editor.addMirror(req.name(), req.source());
          case "set_conditions" ->
@@ -2196,7 +2212,7 @@ public class WorksheetAgentController {
             editor.setTableProperties(
                req.table(), req.newName() != null ? req.newName() : req.alias(),
                req.description(), req.maxRows(), req.distinct(), req.mergeable(),
-               req.visibleInViewsheet());
+               req.visibleInViewsheet(), req.rowCount());
          case "add_cross_join" ->
             editor.addCrossJoin(req.name(), req.leftTable(), req.rightTable());
          case "add_merge_join" ->
@@ -3009,6 +3025,12 @@ public class WorksheetAgentController {
             "label, or default value instead.");
       }
 
+      // Same unescaped-CDATA write path as WorksheetEditService.Editor.placeAssembly/
+      // renameTable/addJoin/duplicateAssembly/renameVariable -- see requireStorableName's
+      // javadoc. This path builds its own DefaultVariableAssembly and adds it directly
+      // rather than through Editor, so it needs its own call.
+      WorksheetEditService.Editor.requireStorableName(name, "A variable name");
+
       AssetVariable var = new AssetVariable(name);
 
       if(label != null) {
@@ -3305,6 +3327,11 @@ public class WorksheetAgentController {
          String tableName = body.name() != null && !body.name().isBlank()
             ? body.name()
             : AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
+
+         // Same caller-supplied-name-used-verbatim gap as createEmbeddedTable: this dedicated
+         // /sql-query endpoint's 'name' never goes through AssetUtil.normalizeTable, so it needs
+         // its own check for the unescaped-CDATA write path. See requireStorableName's javadoc.
+         WorksheetEditService.Editor.requireStorableName(tableName, "A table name");
 
          SQLBoundTableAssembly assembly = new SQLBoundTableAssembly(ws, tableName);
 

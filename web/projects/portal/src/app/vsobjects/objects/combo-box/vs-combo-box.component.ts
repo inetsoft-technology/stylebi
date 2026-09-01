@@ -113,11 +113,7 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
       // don't lose user change if the value has not changed
       if(value.calendar && (valueChanged || !value.editable)) {
          if(value.selectedObject) {
-            let dayjsVal = dayjs(value.selectedObject);
-
-            if(value.serverTZ) {
-               dayjsVal = dayjs.tz(value.selectedObject, value.serverTZID);
-            }
+            const dayjsVal = this.parseSelectedObject(value);
 
             if(dayjsVal.isValid()) {
                const timeInstant = dayjsVal.toObject() as TimeInstant;
@@ -128,18 +124,25 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
                   day: timeInstant.date
                };
 
-               this.hours = timeInstant.hours;
-
-               if(this.hours > 12) {
-                  this.hours -= 12;
+               if(value.dataType == XSchema.DATE) {
+                  // a date has no time component
+                  this.hours = this.minutes = this.seconds = 0;
+                  this.meridian = "AM";
                }
-               else if(this.hours < 1) {
-                  this.hours = 12;
-               }
+               else {
+                  this.hours = timeInstant.hours;
 
-               this.minutes = timeInstant.minutes;
-               this.seconds = timeInstant.seconds;
-               this.meridian = timeInstant.hours >= 12 ? "PM" : "AM";
+                  if(this.hours > 12) {
+                     this.hours -= 12;
+                  }
+                  else if(this.hours < 1) {
+                     this.hours = 12;
+                  }
+
+                  this.minutes = timeInstant.minutes;
+                  this.seconds = timeInstant.seconds;
+                  this.meridian = timeInstant.hours >= 12 ? "PM" : "AM";
+               }
             }
 
          }
@@ -185,6 +188,7 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
    @ViewChild("second") secondRef: ElementRef;
    @ViewChild("meridianRef") meridianRef: ElementRef;
    @ViewChild(NgbDatepicker) dp: NgbDatepicker;
+   private static readonly SERVER_DATE_TIME_FORMAT: string = "YYYY-MM-DD HH:mm:ss";
    readonly defaultMinDate: NgbDateStruct = {year: 1900, month: 1, day: 1};
    readonly defaultMaxDate: NgbDateStruct = {year: 2050, month: 12, day: 31};
    minDate: NgbDateStruct = this.defaultMinDate;
@@ -371,7 +375,7 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
       this.hours = 0;
       this.minutes = 0;
       this.seconds = 0;
-      this.meridian == "AM";
+      this.meridian = "AM";
       this.selectedDate = null;
 
       if(this._model.refresh) {
@@ -387,6 +391,19 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
    }
 
    private isValidDate(date: any): boolean {
+      if(this.isDateOnly()) {
+         const minDay: NgbDateStruct = Tool.isEmpty(this.model.minDate)
+            ? this.defaultMinDate : this.getDate(this.model.minDate);
+         const maxDay: NgbDateStruct = Tool.isEmpty(this.model.maxDate)
+            ? this.defaultMaxDate : this.getDate(this.model.maxDate);
+
+         // a date has no time component, so only the day may take part in the comparison.
+         // otherwise a left over time (e.g. from a previously selected value) pushes the
+         // last allowed day past the max, which is the midnight of that same day.
+         return this.toDayNumber(date) >= this.toDayNumber(minDay) &&
+            this.toDayNumber(date) <= this.toDayNumber(maxDay);
+      }
+
       let min: Date = Tool.isEmpty(this.model.minDate)
          ? new Date(this.defaultMinDate.year, this.defaultMinDate.month - 1, this.defaultMinDate.day)
          : this.getTimeInstant(this.model.minDate);
@@ -436,21 +453,33 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
          return;
       }
 
-      let time = this.getDateTime(selectedDate).getTime();
+      // a date is sent as a wall clock date string so that it is parsed in the server
+      // timezone instead of being interpreted as an instant
+      const value = this.isDateOnly()
+         ? dayjs(this.getDateTime(selectedDate)).format(DateTypeFormatter.ISO_8601_DATE_FORMAT)
+         : this.getDateTime(selectedDate).getTime();
 
       if(this._model.refresh) {
-         const event = new VSInputSelectionEvent(this._model.absoluteName, time);
+         const event = new VSInputSelectionEvent(this._model.absoluteName, value);
          this.debounceService.debounce(
             `InputSelectionEvent.${this.model.absoluteName}`,
             (evt, socket) => socket.sendEvent("/events/comboBox/applySelection", evt),
             500, [event, this.socket]);
       }
       else {
-         this.formInputService.addPendingValue(this._model.absoluteName, time);
+         this.formInputService.addPendingValue(this._model.absoluteName, value);
       }
    }
 
    private getDateTime(selectedDate: any): Date {
+      // a date has no time component, so keep it as a plain local date. moving the instant
+      // into the server timezone can push it to the previous day, since the browser and
+      // java.util.Date disagree on historical offsets that are not a whole number of minutes
+      // (e.g. Asia/Shanghai was +08:05:43 before 1901).
+      if(this.isDateOnly()) {
+         return new Date(selectedDate.year, selectedDate.month - 1, selectedDate.day, 0, 0, 0, 0);
+      }
+
       let hours: number = this.hours;
 
       if (this.meridian == "AM" && this.hours == 12) {
@@ -500,8 +529,50 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
    }
 
    getDate(str: string): NgbDateStruct {
+      // min/max are already formatted in the server timezone, so for a date they are read as
+      // a wall clock date. converting them again would move the bound by a day when the
+      // browser and the server are in different timezones.
+      if(this.isDateOnly()) {
+         let val = dayjs(str, VSComboBox.SERVER_DATE_TIME_FORMAT, true);
+
+         if(!val.isValid()) {
+            val = dayjs(str, DateTypeFormatter.ISO_8601_DATE_FORMAT, true);
+         }
+
+         if(val.isValid()) {
+            const instant = val.toObject() as TimeInstant;
+            return {year: instant.years, month: instant.months + 1, day: instant.date};
+         }
+      }
+
       let date: Date = this.getTimeInstant(str);
       return {year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate()};
+   }
+
+   private isDateOnly(): boolean {
+      return !!this._model && this._model.dataType == XSchema.DATE;
+   }
+
+   private toDayNumber(date: NgbDateStruct): number {
+      return date.year * 10000 + date.month * 100 + date.day;
+   }
+
+   /**
+    * Parse the value sent by the server. A date is sent as a wall clock date string and must
+    * not be converted through a timezone. Other date types are sent as epoch millis.
+    */
+   private parseSelectedObject(value: VSComboBoxModel): dayjs.Dayjs {
+      if(value.dataType == XSchema.DATE) {
+         const dateVal = dayjs(value.selectedObject + "",
+                               DateTypeFormatter.ISO_8601_DATE_FORMAT, true);
+
+         if(dateVal.isValid()) {
+            return dateVal;
+         }
+      }
+
+      return value.serverTZ ? dayjs.tz(value.selectedObject, value.serverTZID)
+         : dayjs(value.selectedObject);
    }
 
    getTimeInstant(str: string) {

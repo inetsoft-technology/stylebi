@@ -280,6 +280,20 @@ public class WorksheetEditService {
             try {
                RenderWaitSupport.awaitOrRetry(() -> {
                   WorksheetEventUtil.refreshColumnSelection(rws, name, true);
+                  // Drop conditions left pointing at columns the refresh just removed. An op that
+                  // changes a table's output columns without touching its conditions leaves an
+                  // add_filter or set_ranking referencing a DataRef no longer in the selection --
+                  // edit_unpivot is the clearest case, since changing headerColumns renames every
+                  // melted column. The Composer validates at exactly this point, right after its
+                  // own refreshColumnSelection
+                  // (TableUnpivotDialogService#changeUnpivotTableRowHeaders), and
+                  // WorksheetMutationSupport already does it for the aggregate path. Doing it in
+                  // the shared refresh covers every op rather than requiring each to remember.
+                  //
+                  // After refreshColumnSelection and before loadTableData, deliberately: a stale
+                  // selection would make this delete conditions that are still live, and the
+                  // retry wrapper only re-runs the whole block, so ordering inside it holds.
+                  AssetUtil.validateConditions(ta.getColumnSelection(), ta);
                   WorksheetEventUtil.loadTableData(rws, name, true, true);
                   return null;
                }, remaining, (int) Math.max(1, remaining / 1000));
@@ -763,6 +777,11 @@ public class WorksheetEditService {
             throw new PairingException("Join requires a name.");
          }
 
+         // Unlike the two-table addJoin overload, this path cannot go through placeAssembly (see
+         // the comment below on ws.addAssembly(join)), so the name has to be checked explicitly
+         // here instead of inheriting placeAssembly's requireStorableName call.
+         requireStorableName(name, "An assembly name");
+
          if(joinPaths == null || joinPaths.isEmpty()) {
             throw new PairingException("Multi-table join requires at least one join path.");
          }
@@ -1044,6 +1063,8 @@ public class WorksheetEditService {
          // groups the same base column at some date level.
          dateRef.setAutoCreate(false);
 
+         requireDerivedColumnFits(cs, rangeName, table);
+
          ColumnRef colRef = new ColumnRef(dateRef);
          colRef.setDataType(XSchema.STRING);
          cs.addAttribute(colRef);
@@ -1087,10 +1108,43 @@ public class WorksheetEditService {
          info.setLabels(labels);
          rangeRef.setValueRangeInfo(info);
 
+         requireDerivedColumnFits(cs, column + "_range", table);
+
          ColumnRef colRef = new ColumnRef(rangeRef);
          colRef.setDataType(XSchema.STRING);
          cs.addAttribute(colRef);
          t.setColumnSelection(cs, false);
+      }
+
+      /**
+       * Refuses a derived column that would exceed the organization's column cap or collide with a
+       * name already on the table.
+       *
+       * <p>{@code ValueRangeService#createNewColumn} applies both before creating one, at :193 and
+       * :204, and sends an ERROR command instead of proceeding. This path applied neither. The
+       * collision matters more than it looks: both range columns take their name from the source
+       * column and the option rather than from the caller, so issuing the same
+       * {@code add_date_range_column} twice generated the same name twice, and a second column with
+       * the same identity makes every later lookup by name — set_conditions, set_sort,
+       * set_group_aggregate — ambiguous. {@code addExpressionColumn} already refuses its own
+       * same-name case for exactly that reason.
+       */
+      private static void requireDerivedColumnFits(ColumnSelection cs, String columnName,
+                                                    String table)
+         throws PairingException
+      {
+         if(cs.getAttributeCount() >= inetsoft.report.internal.Util.getOrganizationMaxColumn()) {
+            throw new PairingException(
+               "\"" + table + "\" already has " + cs.getAttributeCount() + " columns, the maximum " +
+               "this organization allows. Remove a column before deriving another.");
+         }
+
+         if(AssetUtil.findColumnConflictingWithAlias(cs, null, columnName, true) != null) {
+            throw new PairingException(
+               "A column named \"" + columnName + "\" already exists on \"" + table + "\". A " +
+               "derived column's name comes from the source column and the option, not from you, " +
+               "so deriving the same one twice collides; use the column that is already there.");
+         }
       }
 
       /**
@@ -1349,12 +1403,59 @@ public class WorksheetEditService {
       public void addConcatenation(String name, List<String> tables, String opType)
          throws PairingException
       {
+         addConcatenation(name, tables, opType, null);
+      }
+
+      /**
+       * @param distinct whether each pair's operator de-duplicates — the Composer's concatenation
+       *                 dialog exposes this per operator, and its write path carries it through
+       *                 {@code WorksheetEventUtil#convertOperator}. {@code null} leaves the
+       *                 engine's default, which is what this op always used before.
+       */
+      public void addConcatenation(String name, List<String> tables, String opType,
+                                   Boolean distinct)
+         throws PairingException
+      {
          if(name == null || name.isBlank()) {
             name = AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
          }
 
+         // Refuse a name already in use. Worksheet#addAssembly replaces a same-named assembly
+         // without complaint, so reusing a name never created a second assembly -- it destroyed
+         // the first and handed every dependent of that name to the replacement. Reproduced
+         // through this op: a concatenation named after one of its own sources became its own
+         // source, ended up with zero columns, and left the concatenation downstream of the
+         // destroyed original reading from an empty table. The op reported a 500 while all of
+         // that stuck.
+         //
+         // This guard is also what makes the absence of a cycle check on this path correct rather
+         // than lucky: a concatenation built under a free name has no dependents yet, so it cannot
+         // close a cycle. That is why ConcatenateTablesService does not check for one on creation
+         // either, and why only addConcatSubtable needs checkCyclicalDependency. Only an explicit
+         // name can collide -- getNextName above is chosen to be free.
+         if(ws.getAssembly(name) != null) {
+            throw new PairingException(
+               "Assembly already exists: " + name + ". Creating a concatenation under an existing " +
+               "name replaces that assembly and silently repoints everything built on it at the " +
+               "replacement; choose another name, or delete the existing assembly first.");
+         }
+
          if(tables == null || tables.size() < 2) {
             throw new PairingException("Concatenation requires at least two tables.");
+         }
+
+         // Refuse a repeated source, as ConcatenateTablesService#checkValidity does with
+         // common.table.unionDuplicate. Checked on the names the caller passed rather than after
+         // resolution, so the message can name the duplicate the caller actually wrote.
+         for(int i = 0; i < tables.size(); i++) {
+            for(int j = i + 1; j < tables.size(); j++) {
+               if(tables.get(i) != null && tables.get(i).equals(tables.get(j))) {
+                  throw new PairingException(
+                     "\"" + tables.get(i) + "\" appears twice in the source list. Concatenating a " +
+                     "table with itself counts its rows twice; list it once, or add a mirror of it " +
+                     "with add_mirror if two independent copies are intended.");
+               }
+            }
          }
 
          int operation = parseConcatType(opType);
@@ -1430,6 +1531,13 @@ public class WorksheetEditService {
             TableAssemblyOperator top = new TableAssemblyOperator();
             TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
             op.setOperation(operation);
+
+            // Only when asked, so omitting it keeps whatever the engine defaults to rather than
+            // this op deciding on the caller's behalf.
+            if(distinct != null) {
+               op.setDistinct(distinct);
+            }
+
             top.addOperator(op);
             operators[i] = top;
          }
@@ -1479,6 +1587,28 @@ public class WorksheetEditService {
             throw new PairingException("Table not found in worksheet: " + table);
          }
 
+         // Refuse to delete a table another assembly is built on. ws.removeAssembly does not clean
+         // the dependent up: its removeMirrors call returns immediately unless the assembly BEING
+         // deleted is itself an outer mirror -- it clears a deleted outer mirror's own imported
+         // assemblies, not the mirrors that depend on the deleted table. So the dependent survived
+         // referencing a name that was gone, every query against it failed with "not found", and no
+         // tool on this surface could repair it.
+         //
+         // Same guard the Composer's own delete uses on its write path, at
+         // WSRemoveAssembliesService#removeAssemblies. It differs there in what it does with the
+         // answer: the UI is deleting a batch, so it skips the offending assembly, warns, and
+         // carries on with the rest. This op deletes one named table per call -- there is no rest
+         // to carry on with, and skipping silently would report success for a deletion that never
+         // happened.
+         if(AssetEventUtil.hasDependent(a, ws, Set.of(table))) {
+            throw new PairingException(
+               "\"" + table + "\" cannot be deleted because other assemblies are built on it. " +
+               "Deleting it would leave them referencing a table that no longer exists, every " +
+               "query against them failing, and nothing able to repair them. Delete the " +
+               "assemblies that depend on it first -- read_worksheet_model reports each table's " +
+               "`sources`, which is what references what.");
+         }
+
          ws.removeAssembly(table);
       }
 
@@ -1498,6 +1628,8 @@ public class WorksheetEditService {
          if(a == null) {
             throw new PairingException("Table not found in worksheet: " + oldName);
          }
+
+         requireStorableName(newName, "A table name");
 
          if(!ws.renameAssembly(oldName, newName, true)) {
             throw new PairingException(
@@ -1548,7 +1680,16 @@ public class WorksheetEditService {
        *              {@code "integer"}, {@code "date"}, {@code "boolean"})
        * @throws PairingException if the table or column is not found
        */
-      public void changeColumnType(String table, String col, String type)
+      public void changeColumnType(String table, String col, String type) throws Exception {
+         changeColumnType(table, col, type, true);
+      }
+
+      /**
+       * @param force what to do with values the target type cannot parse: {@code true} overwrites
+       *              them with {@code null}, {@code false} refuses the conversion and leaves the
+       *              column as it was. See {@link EditRequest#confirmed()}.
+       */
+      public void changeColumnType(String table, String col, String type, boolean force)
          throws Exception
       {
          if(!XSchema.isPrimitiveType(type)) {
@@ -1604,6 +1745,9 @@ public class WorksheetEditService {
          // Also update the matching ref from findAttribute (same approach as
          // ColumnTypeDialogService) to ensure the canonical ref is updated.
          ColumnRef cr2 = (ColumnRef) cs.findAttribute(cr);
+         // Captured before the change so the embedded-data conversion below can put it back if
+         // the values will not parse and the caller did not ask to force it.
+         String oldType = cr2 != null ? cr2.getDataType() : cr.getDataType();
 
          if(cr2 != null) {
             cr2.setDataType(type);
@@ -1622,7 +1766,30 @@ public class WorksheetEditService {
                int index = AssetUtil.findColumn(data, cr2 != null ? cr2 : cr);
 
                if(index >= 0) {
-                  data.setDataType(index, type, null, null, true);
+                  try {
+                     data.setDataType(index, type, null, null, force);
+                  }
+                  catch(Exception ex) {
+                     // force=false means setDataType throws rather than nulling the values it
+                     // cannot parse. Put the column's declared type back before rethrowing:
+                     // it was already changed above, so leaving it would advertise a type the
+                     // data does not have. The Composer does the same in
+                     // ColumnTypeDialogService#handleChangeTypeParseException, which restores the
+                     // old type and then asks the user whether to force it.
+                     if(cr2 != null) {
+                        cr2.setDataType(oldType);
+                     }
+                     else {
+                        cr.setDataType(oldType);
+                     }
+
+                     throw new PairingException(
+                        "\"" + col + "\" has values that cannot be converted to " + type +
+                        ". Nothing was changed. Pass confirmed=true to convert anyway, which " +
+                        "replaces every value that will not parse with null -- that discards " +
+                        "data and cannot be undone by changing the type back.");
+                  }
+
                   embedded.setEmbeddedData(data);
                }
             }
@@ -1984,6 +2151,20 @@ public class WorksheetEditService {
                                       Boolean visibleInViewsheet)
          throws PairingException
       {
+         setTableProperties(table, newName, description, maxRows, distinct, mergeable,
+                            visibleInViewsheet, null);
+      }
+
+      /**
+       * @param rowCount for an embedded table, how many data rows it should hold — the dialog's
+       *                 "Rows" field ({@code TablePropertyDialogService:113-121}). Ignored for a
+       *                 table that is not embedded, as the dialog omits the control there.
+       */
+      public void setTableProperties(String table, String newName, String description,
+                                      Integer maxRows, Boolean distinct, Boolean mergeable,
+                                      Boolean visibleInViewsheet, Integer rowCount)
+         throws PairingException
+      {
          // Resolved before the rename so an unknown table is reported against the name the caller
          // passed, not against a name that does not exist yet.
          requireTable(table);
@@ -2011,6 +2192,17 @@ public class WorksheetEditService {
          }
 
          if(maxRows != null) {
+            // A negative limit is a mistake, not a way to say "unlimited": the Composer's own
+            // control refuses it outright (FormValidators.positiveIntegerInRange,
+            // form-validators.ts:394-400, which admits 0..Integer.MAX_VALUE), while this path
+            // silently folded it into -1 and reported success -- so a caller that sent -100
+            // meaning "a hundred rows, roughly" got no limit at all and no indication of it.
+            if(maxRows < 0) {
+               throw new PairingException(
+                  "maxRows cannot be negative (got " + maxRows + "). Pass a positive row limit, " +
+                  "or 0 for no limit.");
+            }
+
             t.setMaxRows(maxRows <= 0 ? -1 : maxRows);
          }
 
@@ -2024,6 +2216,29 @@ public class WorksheetEditService {
 
          if(visibleInViewsheet != null) {
             t.setVisibleTable(visibleInViewsheet);
+         }
+
+         // Embedded row count. The stored table carries a header row that the dialog's number does
+         // not count, which is why TablePropertyDialogService:113-121 compares against
+         // getRowCount() - 1 and writes back count + 1; getting that offset wrong silently adds or
+         // drops a row. Skipped when the value already matches, matching the dialog, so a
+         // set_table_properties call that only changes the description does not rewrite the data.
+         if(rowCount != null && t instanceof EmbeddedTableAssembly etable) {
+            if(rowCount < 0) {
+               throw new PairingException(
+                  "rowCount cannot be negative (got " + rowCount + ").");
+            }
+
+            XEmbeddedTable data = etable.getEmbeddedData();
+
+            if(data != null) {
+               int existing = Math.max(0, data.getRowCount() - 1);
+
+               if(rowCount != existing) {
+                  data.setRowCount(rowCount + 1);
+                  etable.setEmbeddedData(data);
+               }
+            }
          }
       }
 
@@ -2214,6 +2429,60 @@ public class WorksheetEditService {
 
          TableAssembly newTable = requireTable(tableName);
          TableAssembly[] existing = ctbl.getTableAssemblies();
+
+         // Refuse the concatenation as a source of itself. This is a special case neither check
+         // below catches: ctbl is never a member of `existing` (it IS the concatenation, not one
+         // of its subtables), so the duplicate-source loop can't see it, and
+         // checkCyclicalDependency(ws, ctbl, newTable) can't either when newTable == ctbl --
+         // AssetUtil#getDependedAssemblies0 seeds its visited set with the root and passes
+         // included=false for it, so asking whether ctbl (as `otherAssembly`) already depends on
+         // itself (as `targetAssembly`) finds nothing, because before this attach nothing yet
+         // links ctbl back to itself.
+         if(tableName.equals(concatName)) {
+            throw new PairingException(
+               "\"" + concatName + "\" cannot be a source of itself.");
+         }
+
+         // Refuse a source that is already present. ConcatenateTablesService#checkValidity refuses
+         // it with common.table.unionDuplicate; this path never ported the check, so a repeated
+         // source was accepted and counted its rows twice in the UNION with nothing reporting it.
+         for(TableAssembly sub : existing) {
+            if(tableName.equals(sub.getName())) {
+               throw new PairingException(
+                  "\"" + tableName + "\" is already a source of \"" + concatName +
+                  "\". Concatenating a table with itself counts its rows twice; omit it, or add " +
+                  "a mirror of it with add_mirror if two independent copies are intended.");
+            }
+         }
+
+         // Refuse a cycle BEFORE mutating, and before the column-count check below.
+         // checkCyclicalDependency asks whether newTable already depends on this concatenation --
+         // reachable whenever newTable mirrors it, directly or through a chain -- and it can answer
+         // before the attach, because the dependency that would close the loop is newTable's own
+         // and already exists. The Composer calls this identical helper at
+         // ConcatenateTablesService:445, alongside its duplicate check and separately from its
+         // column compatibility check.
+         //
+         // Ordered ahead of the column-count check deliberately: that check reads
+         // newTable.getColumnSelection(true), and resolving the column selection of an assembly
+         // that mirrors this concatenation walks back into the concatenation itself. Rejecting the
+         // structural error first keeps that read off a graph that is about to become cyclic, and
+         // a cycle is not something the caller can fix by adjusting columns anyway.
+         //
+         // It has to run here rather than be left to the downstream safety net, for two separate
+         // reasons. Worksheet#checkDependencies is reached from
+         // AssetQuerySandbox#refreshColumnSelection only after apply() has already committed the
+         // mutation and taken an undo checkpoint of it -- so by then the cycle is in the asset and
+         // the caller gets a 500 for a change that stuck. And AbstractWSAssembly#checkDependency
+         // cannot see a two-node cycle at all: AssetUtil#getDependedAssemblies0 seeds its visited
+         // set with the root and passes included=false for it, so a loop back to the root is
+         // discarded as already-visited and never reaches the array it matches against.
+         if(WorksheetEventUtil.checkCyclicalDependency(ws, ctbl, newTable)) {
+            throw new PairingException(
+               "Adding \"" + tableName + "\" to \"" + concatName + "\" would create a circular " +
+               "dependency: \"" + tableName + "\" already depends on \"" + concatName +
+               "\". Concatenate the assemblies \"" + tableName + "\" is built from instead.");
+         }
 
          // Validate column count matches existing subtables.
          int colCount = existing[0].getColumnSelection(true).getAttributeCount();
@@ -2466,6 +2735,8 @@ public class WorksheetEditService {
             throw new PairingException("Assembly already exists: " + newName);
          }
 
+         requireStorableName(newName, "An assembly name");
+
          try {
             WSAssembly clone = (WSAssembly) wsa.clone();
             clone.getWSAssemblyInfo().setName(newName);
@@ -2503,6 +2774,15 @@ public class WorksheetEditService {
 
          if(!ws.setPrimaryAssembly(table)) {
             throw new PairingException("Failed to set primary assembly: " + table);
+         }
+
+         // Making a table primary also exposes it to viewsheets, as WSPrimaryService:84 does.
+         // visibleTable defaults to true, so this only matters for a table whose flag was cleared
+         // earlier -- but that table would otherwise stay absent from the viewsheet binding tree
+         // (VSBindingService:2006, BaseTreeModelBuilder:143, VSOutputService:239) while being the
+         // sheet's primary, which is the one assembly a viewsheet binding is most likely to want.
+         if(a instanceof TableAssembly ta) {
+            ((TableAssemblyInfo) ta.getTableInfo()).setVisibleTable(true);
          }
       }
 
@@ -2604,6 +2884,8 @@ public class WorksheetEditService {
          if(!(a instanceof DefaultVariableAssembly)) {
             throw new PairingException("Variable assembly not found: " + oldName);
          }
+
+         requireStorableName(newName, "A variable name");
 
          if(!ws.renameAssembly(oldName, newName, true)) {
             throw new PairingException(
@@ -2710,6 +2992,17 @@ public class WorksheetEditService {
                table.setLiveData(true);
                table.setRuntime(table.isRuntimeSelected());
                table.setEditMode(false);
+               // The aggregate flag follows whether the table actually groups, not which display
+               // mode is selected: TableModeService#setLiveTableMode:353 and
+               // #setDefaultTableMode:334 both compute it this way, while full/detail/edit force
+               // it false (:133, :166, :209) -- which the branches below already match. Leaving it
+               // untouched here let a table switched to "full" earlier keep aggregate=false after
+               // coming back to "live", and isAggregate() is real query state, not presentation:
+               // it selects the public versus private column selection and forms part of the lens
+               // cache key (AssetQuerySandbox:900,1010), drives JoinQuery:261's detailView, and is
+               // persisted with the assembly.
+               ((TableAssemblyInfo) table.getTableInfo()).setAggregate(
+                  table.getAggregateInfo() != null && !table.getAggregateInfo().isEmpty());
             }
             case "full" -> {
                table.setLiveData(false);
@@ -2734,6 +3027,10 @@ public class WorksheetEditService {
                table.setLiveData(table instanceof EmbeddedTableAssembly);
                table.setRuntime(false);
                table.setEditMode(false);
+               // Same rule as the "live" branch above, and the same source:
+               // TableModeService#setDefaultTableMode:334.
+               ((TableAssemblyInfo) table.getTableInfo()).setAggregate(
+                  table.getAggregateInfo() != null && !table.getAggregateInfo().isEmpty());
             }
          }
       }
@@ -2800,10 +3097,44 @@ public class WorksheetEditService {
        * {@link AssetEventUtil#adjustAssemblyPosition}: sets a starting position then
        * shifts the assembly below the lowest existing assembly.
        */
-      private void placeAssembly(WSAssembly assembly) {
+      private void placeAssembly(WSAssembly assembly) throws PairingException {
+         requireStorableName(assembly.getName(), "An assembly name");
          assembly.setPixelOffset(new Point(25, 25));
          AssetEventUtil.adjustAssemblyPosition(assembly, ws);
          ws.addAssembly(assembly);
+      }
+
+      /**
+       * Refuses an assembly name that cannot survive being written to storage.
+       *
+       * <p>{@code AssemblyInfo:254} interpolates the name straight into a CDATA section --
+       * {@code writer.print("<name><![CDATA[" + name + "]]></name>")} -- with no escaping. A name
+       * containing the literal CDATA terminator closes that section early and leaves malformed XML
+       * in indexed storage. The Composer cannot produce one:
+       * {@code FormValidators.nameSpecialCharacters} (form-validators.ts:635-648) refuses it,
+       * among much else, before the dialog can submit. This path has no such front end, and the
+       * save path validates no assembly name at all -- traced from the agent's save endpoint
+       * through {@code AbstractAssetEngine.setSheet} to {@code storage.putXMLSerializable}, where
+       * the only checks are permissions and a name-blind {@code checkValidity}.
+       *
+       * <p>Only the terminator is refused, not the Composer's whole whitelist. That whitelist also
+       * rejects '/' and '"', but those are legal CDATA content and round-trip intact -- confirmed
+       * live -- so enforcing the full rule here would break names that already exist and work
+       * while protecting nothing.
+       *
+       * <p>Package-private (not {@code private}) so {@link WorksheetAgentController} can reuse
+       * the same check for the assembly-creation paths it builds directly against
+       * {@code Worksheet}/{@code RuntimeWorksheet} rather than through this {@code Editor} --
+       * {@code createVariable} and {@code addDatasourceScopedNamedGroup} -- instead of
+       * duplicating the rule.
+       */
+      static void requireStorableName(String name, String what) throws PairingException {
+         if(name != null && name.contains("]]>")) {
+            throw new PairingException(
+               what + " cannot contain \"]]>\". The name is written into a CDATA section " +
+               "verbatim, so that sequence closes the section early and leaves malformed XML in " +
+               "storage, which no later edit can repair. Choose a name without it.");
+         }
       }
 
       private TableAssembly requireTable(String name) throws PairingException {
