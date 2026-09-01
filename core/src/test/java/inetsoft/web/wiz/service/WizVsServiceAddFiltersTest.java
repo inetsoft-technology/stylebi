@@ -33,8 +33,13 @@ import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
+import inetsoft.uql.viewsheet.SingleTimeInfo;
+import inetsoft.uql.viewsheet.TimeInfo;
+import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.model.AddFiltersRequest;
@@ -59,6 +64,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -127,6 +134,12 @@ class WizVsServiceAddFiltersTest {
 
       ColumnSelection cols = new ColumnSelection();
       cols.addAttribute(new ColumnRef(new AttributeRef(null, "REGION")));
+      ColumnRef amountRef = new ColumnRef(new AttributeRef(null, "AMOUNT"));
+      amountRef.setDataType(XSchema.DOUBLE);
+      cols.addAttribute(amountRef);
+      ColumnRef orderDateRef = new ColumnRef(new AttributeRef(null, "ORDER_DATE"));
+      orderDateRef.setDataType(XSchema.DATE);
+      cols.addAttribute(orderDateRef);
       when(table.getColumnSelection(false)).thenReturn(cols);
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
@@ -149,6 +162,17 @@ class WizVsServiceAddFiltersTest {
       }
 
       req.setFields(specs);
+      return req;
+   }
+
+   private static AddFiltersRequest requestOne(String field, String controlType) {
+      AddFiltersRequest req = new AddFiltersRequest();
+      req.setRuntimeId("rt-1");
+      req.setAssemblyName("Chart1");
+      FilterFieldSpec spec = new FilterFieldSpec();
+      spec.setField(field);
+      spec.setControlType(controlType);
+      req.setFields(List.of(spec));
       return req;
    }
 
@@ -311,5 +335,57 @@ class WizVsServiceAddFiltersTest {
       // outside `resolvable` for this call.
       assertEquals(new Point(0, 250), regionControl.getPixelOffset());
       assertEquals(new Dimension(100, 120), regionControl.getPixelSize());
+   }
+
+   // ── column binding (07-fix-r2.md CRITICAL finding: a created control had a table but no
+   // column, so it rendered as an unbound widget with nothing to select) ─────────────────────────
+   // One case per control type, since the binding mechanism genuinely differs by type (direct
+   // setDataRef for SelectionList/Calendar; a SingleTimeInfo with a data-type-dependent range type
+   // for TimeSlider) -- exactly the gap the fix-round-2 brief called out in the existing suite.
+
+   @Test
+   void createsASelectionListControlBoundToTheResolvedColumn() throws Exception {
+      service.addFilters(requestOne("REGION", "selection_list"), user);
+
+      var captor = forClass(VSAssembly.class);
+      verify(vs, atLeastOnce()).addAssembly(captor.capture());
+      SelectionListVSAssembly control = (SelectionListVSAssembly) captor.getValue();
+      assertNotNull(control.getDataRef(), "SelectionList must be bound to a column, not left unbound");
+      assertEquals("REGION", control.getDataRef().getAttribute());
+   }
+
+   @Test
+   void createsACalendarControlBoundToTheResolvedColumn() throws Exception {
+      service.addFilters(requestOne("ORDER_DATE", "calendar"), user);
+
+      var captor = forClass(VSAssembly.class);
+      verify(vs, atLeastOnce()).addAssembly(captor.capture());
+      CalendarVSAssembly control = (CalendarVSAssembly) captor.getValue();
+      assertNotNull(control.getDataRef(), "Calendar must be bound to a column, not left unbound");
+      assertEquals("ORDER_DATE", control.getDataRef().getAttribute());
+   }
+
+   @Test
+   void createsATimeSliderControlBoundToTheResolvedColumnWithMatchingRangeType() throws Exception {
+      service.addFilters(requestOne("ORDER_DATE", "time_slider"), user);
+
+      var dateCaptor = forClass(VSAssembly.class);
+      verify(vs, atLeastOnce()).addAssembly(dateCaptor.capture());
+      TimeSliderVSAssembly dateControl = (TimeSliderVSAssembly) dateCaptor.getValue();
+      SingleTimeInfo dateInfo = (SingleTimeInfo) dateControl.getTimeInfo();
+      assertNotNull(dateInfo.getDataRef(), "TimeSlider must be bound to a column, not left unbound");
+      assertEquals("ORDER_DATE", dateInfo.getDataRef().getAttribute());
+      assertEquals(TimeInfo.MONTH, dateInfo.getRangeType());
+
+      clearInvocations(vs);
+      service.addFilters(requestOne("AMOUNT", "time_slider"), user);
+
+      var amountCaptor = forClass(VSAssembly.class);
+      verify(vs, atLeastOnce()).addAssembly(amountCaptor.capture());
+      TimeSliderVSAssembly amountControl = (TimeSliderVSAssembly) amountCaptor.getValue();
+      SingleTimeInfo amountInfo = (SingleTimeInfo) amountControl.getTimeInfo();
+      assertNotNull(amountInfo.getDataRef(), "TimeSlider must be bound to a column, not left unbound");
+      assertEquals("AMOUNT", amountInfo.getDataRef().getAttribute());
+      assertEquals(TimeInfo.NUMBER, amountInfo.getRangeType());
    }
 }
