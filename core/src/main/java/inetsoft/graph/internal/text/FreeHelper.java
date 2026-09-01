@@ -23,7 +23,12 @@ import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.internal.GTool;
 import inetsoft.graph.visual.VOText;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.awt.geom.*;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Free movement labels.
@@ -35,12 +40,50 @@ public class FreeHelper extends LabelHelper {
       // GTool/GImpl only exposes a read that takes a call-site default, and
       // DefaultProperties.getProperty(key, def) returns that default without consulting the
       // defaults layer, so the graph.textlayout.maxstep line in defaults.properties is not
-      // reachable from here. Keep the two values in sync -- PropertyDefaultsTest pins them.
-      String maxstep = GTool.getProperty("graph.textlayout.maxstep", "1000");
+      // reachable from here. A null default therefore distinguishes a value the operator set
+      // from an unset property, which is what isMaxStepsFromProperty() reports. Keep the
+      // fallback in sync with defaults.properties -- PropertyDefaultsTest pins them.
+      String maxstep = GTool.getProperty("graph.textlayout.maxstep", null);
+      boolean fromProperty = false;
+      int maxval = 1000;
 
       if(maxstep != null) {
-         int maxval = Integer.parseInt(maxstep);
-         max_steps = new int[] {maxval, maxval, maxval, maxval};
+         try {
+            // Properties.load() keeps trailing whitespace and parseInt does not trim it
+            int parsed = Integer.parseInt(maxstep.trim());
+
+            // move() bails as soon as steps[n] > max_steps[n] and steps starts at 0, so a
+            // negative budget stops every free-moving label rather than freeing it. -1 reads
+            // as "unlimited" in other properties, making it a plausible typo with exactly
+            // the opposite of its intended effect.
+            if(parsed < 0) {
+               warnOnce(maxstep, "Negative graph.textlayout.maxstep value \"{}\" would stop " +
+                           "labels from moving at all. Using 1000.");
+            }
+            else {
+               maxval = parsed;
+               fromProperty = true;
+            }
+         }
+         catch(NumberFormatException ex) {
+            // this runs once per label, so throwing would fail the whole chart render
+            warnOnce(maxstep, "Invalid graph.textlayout.maxstep value \"{}\", expected an " +
+                        "integer. Using 1000.");
+         }
+      }
+
+      maxStepsFromProperty = fromProperty;
+      max_steps = new int[] {maxval, maxval, maxval, maxval};
+   }
+
+   /**
+    * Warn at most once for each bad graph.textlayout.maxstep value. The constructor runs
+    * once per label, so warning unconditionally would repeat for every label on a chart and
+    * again on every refresh of it.
+    */
+   private static void warnOnce(String value, String message) {
+      if(loggedBadMaxSteps.add(value)) {
+         LOG.warn(message, value);
       }
    }
 
@@ -49,6 +92,16 @@ public class FreeHelper extends LabelHelper {
     */
    public void setMaxSteps(int[] max) {
       this.max_steps = max;
+   }
+
+   /**
+    * Check if graph.textlayout.maxstep supplied the budget this helper was constructed with.
+    * A caller that narrows the budget per coordinate should bound its own value by that one
+    * rather than replace it, so that the property caps label movement as its name says.
+    * (76291)
+    */
+   public boolean isMaxStepsFromProperty() {
+      return maxStepsFromProperty;
    }
 
    /**
@@ -484,7 +537,11 @@ public class FreeHelper extends LabelHelper {
    private short[] steps = {(short) 0, (short) 0, (short) 0, (short) 0};
    private double[] edgedists = {0,  0,  0,  0};
    private int[] max_steps;
+   private final boolean maxStepsFromProperty;
    private boolean inPlot = true;
    private boolean outside = false;
    private int sameLocDir = 3; // direction (down) to move if two labels fall on exact same point
+
+   private static final Set<String> loggedBadMaxSteps = ConcurrentHashMap.newKeySet();
+   private static final Logger LOG = LoggerFactory.getLogger(FreeHelper.class);
 }
