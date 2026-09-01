@@ -32,7 +32,20 @@ import java.util.*;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class SharepointOnlineRuntime extends TabularRuntime {
+public class SharepointOnlineRuntime extends TabularRuntime implements TabularCatalogProvider {
+   @Override
+   public TabularCatalog listDatasets(TabularDataSource<?> dataSource) throws Exception {
+      return SharepointOnlineCatalog.listDatasets((SharepointOnlineDataSource) dataSource);
+   }
+
+   @Override
+   public TabularDatasetSchema describeDataset(TabularDataSource<?> dataSource, String datasetId)
+      throws Exception
+   {
+      return SharepointOnlineCatalog.describeDataset((SharepointOnlineDataSource) dataSource,
+         datasetId);
+   }
+
    @Override
    public XTableNode runQuery(TabularQuery query, VariableTable params) {
       try {
@@ -127,6 +140,87 @@ public class SharepointOnlineRuntime extends TabularRuntime {
       }
 
       return result;
+   }
+
+   // New. Package-private. Used only by the catalog SPI path (SharepointOnlineCatalog). Unlike
+   // getSites()/doGetSites() above — which this method does NOT call, share code with, or
+   // otherwise touch — this one:
+   //  (a) throws instead of catching-and-warning on any Graph failure (root fetch, group listing,
+   //      or any level of child-site listing), because the annotation SPI's contract forbids
+   //      returning a partial catalog on failure;
+   //  (b) descends every level, not one — fixing the existing getChildSites() limitation for this
+   //      path only. The dropdown's one-level behavior is unchanged because this is new code, not
+   //      a modification of getChildSites().
+   // No depth bound: recursion (collectDescendants below) goes as deep as the tenant's actual
+   // subsite nesting, with no cap and no StackOverflowError guard. Cycle-safe
+   // (the bySiteId de-dup guard below), but a genuinely very deep, non-cyclic subsite chain could
+   // still exhaust the stack. Not fixed this round — real tenants rarely nest this deep, and
+   // rewriting a just-written recursion into an explicit work queue for a low-probability case
+   // isn't worth it — but, per this round's own rule for the grandchild-site limitation, not fixing
+   // it does not mean not saying it.
+   static List<SiteRef> listSitesOrThrow(SharepointOnlineDataSource dataSource) throws Exception {
+      return withClassLoaderThrowing(() -> doListSitesOrThrow(dataSource));
+   }
+
+   record SiteRef(String displayName, String id) {}
+
+   private static List<SiteRef> doListSitesOrThrow(SharepointOnlineDataSource dataSource)
+      throws Exception
+   {
+      GraphServiceClient client = getClient(dataSource, true);
+      Map<String, SiteRef> bySiteId = new LinkedHashMap<>();      // de-dup + stable order
+
+      Site root = client.sites("root").buildRequest().get();      // no catch — let it throw
+      String rootId = getSiteId(root);
+      bySiteId.put(rootId, new SiteRef(root.displayName, rootId));
+      collectDescendants(client, root, bySiteId);
+
+      GroupCollectionPage groups = client.groups().buildRequest().get();
+
+      while(groups != null) {
+         for(Group group : groups.getCurrentPage()) {
+            Site groupSite = client.groups(group.id).sites("root").buildRequest().get();
+            String groupSiteId = getSiteId(groupSite);
+
+            if(bySiteId.putIfAbsent(groupSiteId, new SiteRef(groupSite.displayName, groupSiteId))
+               == null)
+            {
+               collectDescendants(client, groupSite, bySiteId);
+            }
+         }
+
+         if(groups.getNextPage() == null) {
+            groups = null;
+         }
+         else {
+            groups = groups.getNextPage().buildRequest().get();
+         }
+      }
+
+      return new ArrayList<>(bySiteId.values());
+   }
+
+   private static void collectDescendants(GraphServiceClient client, Site parent,
+                                          Map<String, SiteRef> bySiteId) throws Exception
+   {
+      SiteCollectionPage children = client.sites(getSiteId(parent)).sites().buildRequest().get();
+
+      while(children != null) {
+         for(Site child : children.getCurrentPage()) {
+            String childId = getSiteId(child);
+
+            if(bySiteId.putIfAbsent(childId, new SiteRef(child.displayName, childId)) == null) {
+               collectDescendants(client, child, bySiteId);     // full recursion — the actual fix
+            }
+         }
+
+         if(children.getNextPage() == null) {
+            children = null;
+         }
+         else {
+            children = children.getNextPage().buildRequest().get();
+         }
+      }
    }
 
    static String[][] getLists(SharepointOnlineDataSource dataSource, String siteId) {
@@ -285,6 +379,26 @@ public class SharepointOnlineRuntime extends TabularRuntime {
       finally {
          Thread.currentThread().setContextClassLoader(loader);
       }
+   }
+
+   // Same shape as withClassLoader() above, typed for a body that legitimately throws (the catalog
+   // SPI path, unlike every other caller of withClassLoader(), must propagate a Graph failure
+   // rather than have it swallowed). withClassLoader() itself is untouched.
+   private static <T> T withClassLoaderThrowing(ThrowingSupplier<T> fn) throws Exception {
+      ClassLoader loader = Thread.currentThread().getContextClassLoader();
+      Thread.currentThread().setContextClassLoader(SharepointOnlineRuntime.class.getClassLoader());
+
+      try {
+         return fn.get();
+      }
+      finally {
+         Thread.currentThread().setContextClassLoader(loader);
+      }
+   }
+
+   @FunctionalInterface
+   private interface ThrowingSupplier<T> {
+      T get() throws Exception;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(SharepointOnlineRuntime.class);

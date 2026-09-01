@@ -50,6 +50,12 @@ public interface TabularCatalogProvider {
     * truncate silently.
     *
     * @return never {@code null}; may be empty only when the source genuinely holds no datasets.
+    *         Note that an empty result is NOT a way to signal success at annotating nothing:
+    *         {@code TabularCatalogService.listTables}, the sole production caller, rejects an
+    *         empty catalog with a named "no datasets to annotate" error rather than completing the
+    *         annotation run having done no work — the same reasoning wiz's own
+    *         {@code handelAnnotateDatabase} applies to an empty JDBC table list. Returning empty is
+    *         legal from this interface's point of view; it is answered with an error one layer up.
     * @throws Exception if the catalog could not be read. Throwing is REQUIRED over returning an
     *         empty catalog on failure — an empty result is indistinguishable from success and
     *         produces an annotation run that looks complete and is not.
