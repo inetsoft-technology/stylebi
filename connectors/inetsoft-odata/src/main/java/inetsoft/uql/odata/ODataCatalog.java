@@ -155,7 +155,8 @@ final class ODataCatalog {
          }
       }
 
-      return new TabularDatasetSchema(entitySetName, List.copyOf(columns), List.copyOf(keyColumns));
+      return new TabularDatasetSchema(entitySetName, List.copyOf(columns), List.copyOf(keyColumns),
+         Map.of("entity", entitySetName));
    }
 
    /**

@@ -28,8 +28,10 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * Charter assertion B7, isolated from the rest of {@link TabularCatalogServiceTest}: a METADATA
@@ -59,5 +61,38 @@ class TabularCatalogDatasetExtensionTest {
       assertEquals("Rest/Northwind", data.get("dsName").asText());
       assertEquals("Rest/Northwind", data.get("path").asText());
       assertEquals("OData", data.get("datasourceSubtype").asText());
+   }
+
+   /**
+    * Reconcile §2's ruling made explicit: {@code Map.of()} (what the 3-arg compatibility
+    * constructor above produces) and "no params" are the same state. If the implementation wrote
+    * {@code extData.put("params", schema.params())} without the non-empty guard, this fails
+    * because the JSON would carry {@code "params": {}} instead of omitting the key.
+    */
+   @Test
+   void datasetCommonExtensionOmitsParamsKeyWhenSchemaHasNone() throws Exception {
+      TabularDatasetSchema schema = new TabularDatasetSchema("Products",
+         List.of(new TabularColumn("ID", XSchema.LONG)), List.of("ID"));
+
+      OsiDataset dataset =
+         TabularCatalogService.toDataset("Rest/Northwind", "OData", schema, new ObjectMapper());
+
+      OsiCustomExtension ext = dataset.getCustomExtensions().get(0);
+      JsonNode data = new ObjectMapper().readTree(ext.getData());
+      assertFalse(data.has("params"), "params key must be absent, not an empty object");
+   }
+
+   @Test
+   void datasetCommonExtensionCarriesParamsFromSchema() throws Exception {
+      TabularDatasetSchema schema = new TabularDatasetSchema("Products",
+         List.of(new TabularColumn("ID", XSchema.LONG)), List.of("ID"),
+         Map.of("entity", "Products"));
+
+      OsiDataset dataset =
+         TabularCatalogService.toDataset("Rest/Northwind", "OData", schema, new ObjectMapper());
+
+      OsiCustomExtension ext = dataset.getCustomExtensions().get(0);
+      JsonNode data = new ObjectMapper().readTree(ext.getData());
+      assertEquals("Products", data.get("params").get("entity").asText());
    }
 }

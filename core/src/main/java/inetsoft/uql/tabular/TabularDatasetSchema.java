@@ -18,6 +18,7 @@
 package inetsoft.uql.tabular;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * The columns of one dataset.
@@ -27,6 +28,27 @@ import java.util.List;
  *                  rather than returning an empty list — see TabularCatalogProvider.
  * @param keyColumns names, from {@code columns}, that the source declares as this dataset's key;
  *                  empty when the source declares none. Never null.
+ * @param params    binding parameters for this dataset, keyed by the connector's own query bean
+ *                  property names (the same names {@code TabularUtil.getPropertyMap} derives from
+ *                  its getters/setters, not a {@code @Property(label=...)} display string) so a
+ *                  caller with this dataset's parameter contract in hand can match them up without
+ *                  any translation table. Empty when the connector's target identity needs no such
+ *                  parameters (e.g. the dataset id is itself the one property value a query needs)
+ *                  or the connector has not implemented this yet. Never null — use the 3-arg
+ *                  constructor below, which defaults to {@link Map#of()}, rather than passing null.
  */
 public record TabularDatasetSchema(String datasetId, List<TabularColumn> columns,
-                                   List<String> keyColumns) {}
+                                   List<String> keyColumns, Map<String, String> params) {
+   /**
+    * Compatibility constructor for callers written before {@code params} existed — every existing
+    * connector-test construction site and any connector that has not opted into target binding
+    * parameters yet. Defaults to an empty map, which {@code TabularCatalogService} treats
+    * identically to "the connector said nothing": the COMMON extension's {@code params} key is
+    * omitted entirely, not written empty.
+    */
+   public TabularDatasetSchema(String datasetId, List<TabularColumn> columns,
+                               List<String> keyColumns)
+   {
+      this(datasetId, columns, keyColumns, Map.of());
+   }
+}

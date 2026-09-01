@@ -29,6 +29,7 @@ import org.mockito.MockedStatic;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static inetsoft.uql.sharepoint.SharepointGraphTestSupport.*;
@@ -183,6 +184,50 @@ class SharepointOnlineCatalogTest {
          // key (the system ID column doesn't surface through this mapping — see class javadoc).
          assertNotNull(schema.keyColumns());
          assertTrue(schema.keyColumns().isEmpty());
+      }
+   }
+
+   @Test
+   void describeDataset_paramsAreSiteAndListNotTheComposedId() throws Exception {
+      // Charter A1 reverse: dataset.source (the escaped, composed id) must not leak into params.
+      // If the implementation took the lazy route of Map.of("id", datasetId), or used the wrong
+      // key names, this Map equality fails outright.
+      GraphServiceClient client = mock(GraphServiceClient.class);
+      SiteRequestBuilder rootBuilder = siteBuilder(client, "root");
+      stubColumns(rootBuilder, "list-1", List.of(column("Title", c -> c.text = new TextColumn())));
+
+      String datasetId = SharepointDatasetId.compose("root", "list-1");
+
+      try(MockedStatic<GraphServiceClient> mocked = mockClientFactory(client)) {
+         TabularDatasetSchema schema =
+            SharepointOnlineCatalog.describeDataset(fakeDataSource(), datasetId);
+
+         assertEquals(Map.of("site", "root", "list", "list-1"), schema.params());
+      }
+   }
+
+   @Test
+   void describeDataset_paramsCarryUnescapedSiteNotTheEscapedIdFragment() throws Exception {
+      // A site id containing a dot (the common case — see SharepointDatasetId's javadoc on why
+      // real Graph site ids are hostnames) gets percent-escaped inside the composed id. params
+      // must carry the connector's real, UNESCAPED property value ("contoso.sharepoint.com"), not
+      // the escaped fragment ("contoso%2Esharepoint%2Ecom") that SharepointDatasetId uses
+      // internally to satisfy the no-dot id contract. This is the id-encoding-leak check from
+      // charter A1's reverse clause, applied to the specific case that motivated the escaping
+      // scheme in the first place.
+      GraphServiceClient client = mock(GraphServiceClient.class);
+      SiteRequestBuilder siteBuilder = siteBuilder(client, "contoso.sharepoint.com");
+      stubColumns(siteBuilder, "Sales List",
+         List.of(column("Title", c -> c.text = new TextColumn())));
+
+      String datasetId = SharepointDatasetId.compose("contoso.sharepoint.com", "Sales List");
+
+      try(MockedStatic<GraphServiceClient> mocked = mockClientFactory(client)) {
+         TabularDatasetSchema schema =
+            SharepointOnlineCatalog.describeDataset(fakeDataSource(), datasetId);
+
+         assertEquals("contoso.sharepoint.com", schema.params().get("site"));
+         assertEquals("Sales List", schema.params().get("list"));
       }
    }
 }

@@ -401,6 +401,56 @@ class TabularCatalogServiceContractValidationTest {
       assertEquals("Quantity", dataset.getFields().get(0).getName());
    }
 
+   // ----- params: blank key or null value must be rejected -----
+
+   @Test
+   void describeTable_paramsBlankKey_throwsNamedException() throws Exception {
+      TabularDatasetSchema schema = new TabularDatasetSchema("Products",
+         List.of(new TabularColumn("ID", XSchema.LONG)), List.of(),
+         mapWithBadEntry("   ", "Products"));
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(
+         new TabularCatalog(List.of(), List.of()), Map.of("Products", schema));
+      TabularCatalogService service = createService(dsName -> runtime);
+
+      Exception ex = assertThrows(Exception.class,
+         () -> service.describeTable(DS_NAME, "Products"));
+
+      assertFalse(ex instanceof UnsupportedDatasourceException);
+      assertTrue(ex.getMessage().contains(DS_NAME));
+      assertTrue(ex.getMessage().toLowerCase().contains("params"));
+   }
+
+   @Test
+   void describeTable_paramsNullValue_throwsNamedExceptionNotNpe() throws Exception {
+      // Same false-positive concern as describeTable_nullColumnType_throwsNamedExceptionNotNpe:
+      // if validateParams iterated entrySet() without a null check, a null value alone wouldn't
+      // NPE (Map.of can't hold null, so the fixture below has to build the map by hand), but
+      // asserting "not NPE" here pins that the check is an explicit condition, not an accident of
+      // how the fixture happens to construct its map.
+      TabularDatasetSchema schema = new TabularDatasetSchema("Products",
+         List.of(new TabularColumn("ID", XSchema.LONG)), List.of(),
+         mapWithBadEntry("entity", null));
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(
+         new TabularCatalog(List.of(), List.of()), Map.of("Products", schema));
+      TabularCatalogService service = createService(dsName -> runtime);
+
+      Exception ex = assertThrows(Exception.class,
+         () -> service.describeTable(DS_NAME, "Products"));
+
+      assertFalse(ex instanceof NullPointerException);
+      assertFalse(ex instanceof UnsupportedDatasourceException);
+      assertTrue(ex.getMessage().contains(DS_NAME));
+      assertTrue(ex.getMessage().toLowerCase().contains("params"));
+   }
+
+   // Map.of() rejects a null value outright, so a HashMap is built by hand to get one past the
+   // record constructor and into validateParams.
+   private static Map<String, String> mapWithBadEntry(String key, String value) {
+      Map<String, String> params = new java.util.HashMap<>();
+      params.put(key, value);
+      return params;
+   }
+
    @Test
    void describeTable_nullColumnType_throwsNamedExceptionNotNpe() throws Exception {
       // Set.of(...).contains(null) throws NullPointerException — XSCHEMA_TYPE_CONSTANTS is a
