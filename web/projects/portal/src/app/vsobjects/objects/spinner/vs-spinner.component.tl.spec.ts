@@ -33,17 +33,24 @@
  *                       dispatch vs. pendingChange fallback
  *   Group 8 [Risk 3] — changeValue0 (via debounce): ctrlDown deferral, ovalue no-op guard,
  *                       checkFormData confirmedCallback → sendEvent
+ *   Group 14 [Risk 3] — startHold/cancelHold: 300ms initial delay, 60ms repeat interval,
+ *                        1500ms acceleration to 20ms, disabled-bound early stop
  *   Group 2 [Risk 2] — updateOnChange setter: pendingChange flush guard
  *   Group 7 [Risk 2] — onBlur: refresh && updateOnChange dispatch vs. pendingChange fallback
  *                       (no writeBackDirectly bypass, unlike onClick)
  *   Group 9 [Risk 2] — onKeyUp/onKeyDown: ctrlDown tracking + deferred pendingChange2 flush
  *   Group 11 [Risk 2] — getTextVerticalPosition(): font/vAlign/padding branch matrix
- *   Group 1 [Risk 1] — selected setter: labelSelected clear guard
+ *   Group 15 [Risk 2] — onIncrementClick/onDecrementClick: bounds-respecting step + focus
+ *   Group 16 [Risk 2] — isIncrementDisabled/isDecrementDisabled: enabled/bounds matrix
+ *   Group 17 [Risk 2] — enableEditing(): vizModern gate, viewer guard, focus restore
+ *   Group 18 [Risk 2] — isInputDisabled(): vizModern/viewer/selected/editing gate matrix
+ *   Group 1 [Risk 1] — selected setter: labelSelected clear guard, editing reset
  *   Group 3 [Risk 1] — ngOnInit: validate() + ovalue capture
  *   Group 5 [Risk 1] — ngOnDestroy: subscription cleanup
  *   Group 10 [Risk 1] — navigate(): UP/DOWN increment stepping
  *   Group 12 [Risk 1] — selectLabel(): preview guard
  *   Group 13 [Risk 1] — clearLabelSelection(): model-presence guard
+ *   Group 19 [Risk 1] — onMouseDown(): vizModern-gated stopPropagation
  *
  * Confirmed bugs (it.fails): none
  *
@@ -135,6 +142,12 @@ describe("VSSpinner — selected setter", () => {
       const { comp } = createComponent();
       (comp as any)._model = undefined;
       expect(() => comp.selected = false).not.toThrow();
+   });
+
+   it("should clear model.editing when deselected", () => {
+      const { comp } = createComponent({ model: makeModel({ editing: true } as any) });
+      comp.selected = false;
+      expect(comp.model.editing).toBe(false);
    });
 });
 
@@ -613,5 +626,318 @@ describe("VSSpinner — clearLabelSelection", () => {
       const { comp } = createComponent();
       (comp as any)._model = undefined;
       expect(() => comp.clearLabelSelection()).not.toThrow();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 14: startHold / cancelHold (hold-to-repeat) [Risk 3]
+// ---------------------------------------------------------------------------
+
+describe("VSSpinner — startHold / cancelHold", () => {
+   beforeEach(() => vi.useFakeTimers());
+   afterEach(() => vi.useRealTimers());
+
+   it("should NOT step before the initial 300ms delay elapses", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 0, increment: 20 }) });
+      comp.startHold(1);
+      vi.advanceTimersByTime(299);
+      expect(comp.model.value).toBe(0);
+   });
+
+   it("should step once, emit, and mark an unapplied change after the initial delay", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 0, increment: 20 }) });
+      const emitted: string[] = [];
+      comp.spinnerClicked.subscribe(v => emitted.push(v));
+
+      comp.startHold(1);
+      vi.advanceTimersByTime(300);
+
+      expect(comp.model.value).toBe(20);
+      expect(emitted).toEqual([comp.model.absoluteName]);
+      expect((comp as any).unappliedChange).toBe(true);
+   });
+
+   it("should repeat stepping every 60ms after the initial delay", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 0, increment: 20, max: 1000 }) });
+      comp.startHold(1);
+      vi.advanceTimersByTime(300); // step 1 -> 20
+      vi.advanceTimersByTime(60); // step 2 -> 40
+      vi.advanceTimersByTime(60); // step 3 -> 60
+      expect(comp.model.value).toBe(60);
+   });
+
+   it("should decrement on repeat when held in the negative direction", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 100, increment: 20, min: -1000 }) });
+      comp.startHold(-1);
+      vi.advanceTimersByTime(300); // step 1 -> 80
+      vi.advanceTimersByTime(60); // step 2 -> 60
+      expect(comp.model.value).toBe(60);
+   });
+
+   it("should accelerate the repeat interval to 20ms after 1500ms of continuous holding", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 0, increment: 1, max: 100000 }) });
+      comp.startHold(1);
+      vi.advanceTimersByTime(300 + 1500);
+      expect((comp as any).holdRepeatInterval).toBe(20);
+   });
+
+   it("should stop repeating once the increment bound is reached", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 0, increment: 20, max: 40 }) });
+      comp.startHold(1);
+      vi.advanceTimersByTime(300); // step -> 20
+      vi.advanceTimersByTime(60); // step -> 40 (== max, now disabled)
+      vi.advanceTimersByTime(60); // guard should cancel the hold instead of stepping again
+
+      expect(comp.model.value).toBe(40);
+      expect((comp as any).holdRepeatTimer).toBeNull();
+   });
+
+   it("should stop repeating once the decrement bound is reached", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 40, increment: 20, min: 0 }) });
+      comp.startHold(-1);
+      vi.advanceTimersByTime(300); // step -> 20
+      vi.advanceTimersByTime(60); // step -> 0 (== min, now disabled)
+      vi.advanceTimersByTime(60); // guard should cancel the hold instead of stepping again
+
+      expect(comp.model.value).toBe(0);
+      expect((comp as any).holdRepeatTimer).toBeNull();
+   });
+
+   it("should stop all further stepping once cancelHold is called", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 0, increment: 20, max: 1000 }) });
+      comp.startHold(1);
+      vi.advanceTimersByTime(300); // step -> 20
+
+      comp.cancelHold();
+      vi.advanceTimersByTime(500);
+
+      expect(comp.model.value).toBe(20);
+   });
+
+   it("should clear the init timer before it fires when cancelHold is called immediately", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 0, increment: 20 }) });
+      comp.startHold(1);
+      comp.cancelHold();
+      vi.advanceTimersByTime(1000);
+      expect(comp.model.value).toBe(0);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 15: onIncrementClick / onDecrementClick [Risk 2]
+// ---------------------------------------------------------------------------
+
+describe("VSSpinner — onIncrementClick / onDecrementClick", () => {
+   it("should step up by increment, emit, and mark an unapplied change", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 0, increment: 20, max: 100 }) });
+      const emitted: string[] = [];
+      comp.spinnerClicked.subscribe(v => emitted.push(v));
+
+      comp.onIncrementClick();
+
+      expect(comp.model.value).toBe(20);
+      expect(emitted).toEqual([comp.model.absoluteName]);
+      expect((comp as any).unappliedChange).toBe(true);
+   });
+
+   it("should do nothing when isIncrementDisabled is true", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 100, increment: 20, max: 100 }) });
+      comp.onIncrementClick();
+      expect(comp.model.value).toBe(100);
+   });
+
+   it("should step down by increment when not disabled", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 100, increment: 20, min: 0 }) });
+      comp.onDecrementClick();
+      expect(comp.model.value).toBe(80);
+   });
+
+   it("should do nothing when isDecrementDisabled is true", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 0, increment: 20, min: 0 }) });
+      comp.onDecrementClick();
+      expect(comp.model.value).toBe(0);
+   });
+
+   it("should focus the input after stepping when the input is not gated (viewer)", () => {
+      const { comp } = createComponent({
+         viewer: true,
+         model: makeModel({ vizModern: true, value: 0, increment: 20, max: 100 } as any)
+      });
+      const focusSpy = vi.fn();
+      (comp as any).spinnerInputRef = { nativeElement: { focus: focusSpy } };
+
+      comp.onIncrementClick();
+
+      expect(focusSpy).toHaveBeenCalled();
+   });
+
+   it("should NOT focus the input after stepping when it is still select-then-edit gated", () => {
+      const { comp } = createComponent({
+         viewer: false,
+         model: makeModel({ vizModern: true, value: 0, increment: 20, max: 100 } as any)
+      });
+      comp.selected = false; // not yet selected -> isInputDisabled() is true
+      const focusSpy = vi.fn();
+      (comp as any).spinnerInputRef = { nativeElement: { focus: focusSpy } };
+
+      comp.onIncrementClick();
+
+      expect(comp.model.value).toBe(20); // stepping itself is still unaffected by the gate
+      expect(focusSpy).not.toHaveBeenCalled();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 16: isIncrementDisabled / isDecrementDisabled [Risk 2]
+// ---------------------------------------------------------------------------
+
+describe("VSSpinner — isIncrementDisabled / isDecrementDisabled", () => {
+   it("should disable increment when the assembly is not enabled", () => {
+      const { comp } = createComponent({ model: makeModel({ enabled: false, value: 0, max: 100 } as any) });
+      expect(comp.isIncrementDisabled).toBe(true);
+   });
+
+   it("should disable increment when value has reached max", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 100, max: 100 }) });
+      expect(comp.isIncrementDisabled).toBe(true);
+   });
+
+   it("should NOT disable increment when enabled and below max", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 50, max: 100 }) });
+      expect(comp.isIncrementDisabled).toBe(false);
+   });
+
+   it("should disable decrement when the assembly is not enabled", () => {
+      const { comp } = createComponent({ model: makeModel({ enabled: false, value: 0, min: 0 } as any) });
+      expect(comp.isDecrementDisabled).toBe(true);
+   });
+
+   it("should disable decrement when value has reached min", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 0, min: 0 }) });
+      expect(comp.isDecrementDisabled).toBe(true);
+   });
+
+   it("should NOT disable increment when max is unset, regardless of value", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 50, max: null } as any) });
+      expect(comp.isIncrementDisabled).toBe(false);
+   });
+
+   it("should NOT disable decrement when min is unset, regardless of value", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 50, min: null } as any) });
+      expect(comp.isDecrementDisabled).toBe(false);
+   });
+
+   it("should NOT disable decrement when enabled and above min", () => {
+      const { comp } = createComponent({ model: makeModel({ value: 50, min: 0 }) });
+      expect(comp.isDecrementDisabled).toBe(false);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 17: enableEditing() [Risk 2]
+// ---------------------------------------------------------------------------
+
+describe("VSSpinner — enableEditing", () => {
+   it("should NOT set model.editing for a legacy (non-modern) spinner", () => {
+      const { comp } = createComponent({
+         viewer: false,
+         model: makeModel({ vizModern: false } as any)
+      });
+      comp.enableEditing();
+      expect(comp.model.editing).toBeUndefined();
+   });
+
+   it("should set model.editing=true for a modern spinner in the composer", () => {
+      const { comp } = createComponent({
+         viewer: false,
+         model: makeModel({ vizModern: true } as any)
+      });
+      comp.enableEditing();
+      expect(comp.model.editing).toBe(true);
+   });
+
+   it("should set model.editing=false for a modern spinner in the viewer", () => {
+      const { comp } = createComponent({
+         viewer: true,
+         model: makeModel({ vizModern: true } as any)
+      });
+      comp.enableEditing();
+      expect(comp.model.editing).toBe(false);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 18: isInputDisabled() [Risk 2]
+// ---------------------------------------------------------------------------
+
+describe("VSSpinner — isInputDisabled", () => {
+   it("should always be false for a legacy (non-modern) spinner", () => {
+      const { comp } = createComponent({
+         viewer: false,
+         model: makeModel({ vizModern: false } as any)
+      });
+      comp.selected = false;
+      expect(comp.isInputDisabled()).toBe(false);
+   });
+
+   it("should be false in the viewer, regardless of selection/editing state", () => {
+      const { comp } = createComponent({
+         viewer: true,
+         model: makeModel({ vizModern: true } as any)
+      });
+      expect(comp.isInputDisabled()).toBe(false);
+   });
+
+   it("should be true in the composer when not selected", () => {
+      const { comp } = createComponent({
+         viewer: false,
+         model: makeModel({ vizModern: true } as any)
+      });
+      comp.selected = false;
+      expect(comp.isInputDisabled()).toBe(true);
+   });
+
+   it("should be true in the composer when selected but not yet editing", () => {
+      const { comp } = createComponent({
+         viewer: false,
+         model: makeModel({ vizModern: true, editing: false } as any)
+      });
+      comp.selected = true;
+      expect(comp.isInputDisabled()).toBe(true);
+   });
+
+   it("should be false in the composer when selected and editing", () => {
+      const { comp } = createComponent({
+         viewer: false,
+         model: makeModel({ vizModern: true, editing: true } as any)
+      });
+      comp.selected = true;
+      expect(comp.isInputDisabled()).toBe(false);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 19: onMouseDown() [Risk 1]
+// ---------------------------------------------------------------------------
+
+describe("VSSpinner — onMouseDown", () => {
+   it("should stop propagation for a legacy (non-modern) spinner", () => {
+      const { comp } = createComponent({ model: makeModel({ vizModern: false } as any) });
+      const event = new MouseEvent("mousedown");
+      const stopSpy = vi.spyOn(event, "stopPropagation");
+
+      comp.onMouseDown(event);
+
+      expect(stopSpy).toHaveBeenCalled();
+   });
+
+   it("should NOT stop propagation for a modern spinner", () => {
+      const { comp } = createComponent({ model: makeModel({ vizModern: true } as any) });
+      const event = new MouseEvent("mousedown");
+      const stopSpy = vi.spyOn(event, "stopPropagation");
+
+      comp.onMouseDown(event);
+
+      expect(stopSpy).not.toHaveBeenCalled();
    });
 });
