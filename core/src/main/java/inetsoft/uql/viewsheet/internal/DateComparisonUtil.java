@@ -703,11 +703,15 @@ public class DateComparisonUtil {
    }
 
    /**
-    * Find which part cells (x-axis positions) have data from the most recent year.
-    * Cells without current-year data are orphaned and should be excluded from the axis.
-    * Returns the set of valid part cells (those with current-year data), or an empty set
-    * when the data is not in year-bucket layout (per-part real dates, or no repeated period
-    * value). An empty return means "no orphan filtering should be applied."
+    * Find which part cells (x-axis positions) have data from the most recent year, or sort
+    * at or before the last part that year's own rows reach. Cells beyond that point are
+    * orphaned (the most recent, possibly in-progress, period hasn't chronologically reached
+    * them yet) and should be excluded from the axis. Returns the set of valid part cells, or
+    * an empty set when the data is not in year-bucket layout (per-part real dates, or no
+    * repeated period value). An empty return means "no orphan filtering should be applied."
+    * A part is not treated as orphaned merely because the most recent year's own rows have
+    * no match for it -- that is ordinary data sparsity, not an unreached future bucket, and
+    * older periods' real data for it must still render (Bug #76391).
     *
     * DateComparisonFormat.initPartDate() also calls this method directly, to drive the same
     * heuristic at the pre-aggregated partDates level -- but as of Bug #76388, that caller is
@@ -753,12 +757,37 @@ public class DateComparisonUtil {
 
       Set<Object> validParts = new HashSet<>();
       final Date max = maxYearDate;
+      Object maxPart = null;
 
       for(int i = 0; i < data.getRowCount(); i++) {
          Date date = toPeriodDate(data.getData(periodCol, i));
 
          if(max.equals(date)) {
-            validParts.add(data.getData(partCol, i));
+            Object part = data.getData(partCol, i);
+            validParts.add(part);
+
+            if(maxPart == null || Tool.compare(part, maxPart) > 0) {
+               maxPart = part;
+            }
+         }
+      }
+
+      // The most recent period doesn't necessarily carry a row for every part it has
+      // chronologically reached -- ordinary data sparsity (e.g. a week with no matching
+      // records) is not the same as a part the period genuinely hasn't happened yet (the
+      // "future bucket" case this heuristic exists to suppress, Bug #75152/#76389). Treat
+      // any part that sorts at or before the latest part the most recent period's own rows
+      // do reach as valid too, so an older period's real data for it isn't dropped just
+      // because the most recent period happens to have no row there. A part that sorts
+      // strictly after that point is left excluded, preserving the future-bucket
+      // suppression this method was introduced for. (Bug #76391)
+      if(maxPart != null) {
+         for(int i = 0; i < data.getRowCount(); i++) {
+            Object part = data.getData(partCol, i);
+
+            if(Tool.compare(part, maxPart) <= 0) {
+               validParts.add(part);
+            }
          }
       }
 
