@@ -460,8 +460,7 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       return this.dataTipService.getVSObjectId(object.absoluteName);
    }
 
-   // TEMPORARY, like AbstractVSActions.resident: both read the one rollout boundary in
-   // mini-toolbar.service.ts and are deleted together with it when the last family slice lands. See
+   // Delegates to isAnchoredResident, the one anchored-set definition in mini-toolbar.service.ts. See
    // chart-card-design/Anchoring beyond charts - discussion.md.
    // Excluded only for the selection family in max mode (isMaxModeSelection below): those models
    // abandon objectFormat positioning there (see VSSelection.topPosition) and put padding constants
