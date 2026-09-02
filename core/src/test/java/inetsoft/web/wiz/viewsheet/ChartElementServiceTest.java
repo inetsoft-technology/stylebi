@@ -94,6 +94,25 @@ class ChartElementServiceTest {
       assertFalse(captor.getValue().isHide());
    }
 
+   /**
+    * Unlike legends, neither axis event has a real hide-everything mode:
+    * {@code VSChartAxesVisibilityEvent#getColumnName}'s own javadoc documents a null target as
+    * meaning "show all axis", never hide-all, and {@code hideAxis()} falls a null target through
+    * to one arbitrary descriptor. This used to run silently and report
+    * "Hid all axiss on Chart1" while touching no axis label at all — confirmed live 2026-09-02.
+    */
+   @Test
+   void refusesToHideEveryAxisWithNoTarget() {
+      Harness h = harness(mock(ChartVSAssembly.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.setVisibility("tok", principal(), "Chart1", "axis", null, false, ""));
+
+      assertTrue(thrown.getMessage().contains("no 'target'"));
+      verifyNoInteractions(h.axes);
+   }
+
    @Test
    void hidesEveryLegendWhenNoneIsNamed() throws Exception {
       Harness h = harness(mock(ChartVSAssembly.class));
@@ -260,6 +279,24 @@ class ChartElementServiceTest {
       h.service.setVisibility("tok", principal(), "Chart1", "title", null, true, "");
 
       assertFalse(captureTitle(h).isHide(), "hide=false is the event's show-everything case");
+   }
+
+   /**
+    * {@code ChartElementService.titleFields()} maps a no-target hide specifically to
+    * {@code "chart-title"} — there is no branch that hides every title. This used to run silently
+    * and report "Hid all titles on Chart1" while only ever hiding the chart's own title; the x/y
+    * axis titles stayed fully visible — confirmed live 2026-09-02.
+    */
+   @Test
+   void refusesToHideEveryTitleWithNoTarget() {
+      Harness h = harness(mock(ChartVSAssembly.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.setVisibility("tok", principal(), "Chart1", "title", null, false, ""));
+
+      assertTrue(thrown.getMessage().contains("no 'target'"));
+      verifyNoInteractions(h.titles);
    }
 
    /**

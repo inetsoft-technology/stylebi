@@ -120,6 +120,30 @@ public class ChartElementService {
             "hide the ones you do not want.");
       }
 
+      // Unlike legends (VSChartLegendsVisibilityService.showAllLegends genuinely iterates every
+      // legend descriptor), neither the axis nor the title event has a real "hide everything"
+      // mode: VSChartAxesVisibilityEvent#getColumnName's own javadoc documents null as meaning
+      // "show all axis", never hide-all, and hideAxis()/hideChartTitle() both fall through a null
+      // target to one arbitrary/narrow descriptor. A prior version of this method let that
+      // fallthrough run silently: it reported "Hid all axiss on <chart>" while only ever touching
+      // one unrelated descriptor (no axis label ever changed, confirmed live), and reported "Hid
+      // all titles" while only ever touching the chart's own title (axis titles were untouched,
+      // also confirmed live). Refusing here, rather than teaching the event a hide-all mode it was
+      // never designed to have, is the same choice the show-path above already made for "showing
+      // one is not supported" — tell the caller what actually works instead of a false success.
+      if(!visible && target0 == null && !"legend".equals(kind)) {
+         throw new IllegalArgumentException(
+            "Hiding every " + kind + " with no 'target' is not supported — there is no Composer " +
+            "action that hides every " + kind + " at once, so this call cannot honour it. Name " +
+            ("title".equals(kind)
+               ? "the title to hide: 'chart' for the chart's own title, or an axis type (x, x2, " +
+                 "y, y2) for that axis's title."
+               : "the " + kind + " to hide (its column name — call get_binding, but see " +
+                 "list_chart_elements's own axis note for a date/named-group dimension) one at " +
+                 "a time.") +
+            " Hide them one at a time if you need more than one gone.");
+      }
+
       // Resolved before the runtime is mutated, for the same reason as the guard above and by the
       // same route ChartRegionPropertyService takes for its own refusals: sessions.mutate
       // checkpoints and broadcasts in a finally, deliberately, because a composer service can
