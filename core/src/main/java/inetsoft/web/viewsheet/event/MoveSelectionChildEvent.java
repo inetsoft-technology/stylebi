@@ -18,6 +18,8 @@
 package inetsoft.web.viewsheet.event;
 
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import org.immutables.value.Value;
 import org.immutables.serial.Serial;
 
@@ -28,8 +30,12 @@ import org.immutables.serial.Serial;
  */
 @Value.Immutable
 @Serial.Structural
+@JsonDeserialize(as = ImmutableMoveSelectionChildEvent.class)
 public interface MoveSelectionChildEvent {
    int getFromIndex();
    int getToIndex();
+   // Immutables does not strip the "is" prefix, so the property must be named explicitly
+   // to match the payload sent by the client.
+   @JsonProperty("currentSelection")
    boolean isCurrentSelection();
 }
