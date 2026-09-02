@@ -388,4 +388,20 @@ class WizVsServiceAddFiltersTest {
       assertEquals("AMOUNT", amountInfo.getDataRef().getAttribute());
       assertEquals(TimeInfo.NUMBER, amountInfo.getRangeType());
    }
+
+   // ── 07-fix-r5.md: an explicit time_slider override on a column outside the reference gate
+   // (XSchema.isNumericType || XSchema.isDateType) must be reported as a named skip, not silently
+   // bound with a nonsensical MONTH range or substituted with a different control type. ──────────
+
+   @Test
+   void timeSliderOverrideOnAStringColumnIsSkippedNotMisRanged() throws Exception {
+      AddFiltersResponse resp = service.addFilters(requestOne("REGION", "time_slider"), user);
+
+      assertEquals(0, resp.getApplied().size());
+      assertEquals(1, resp.getSkipped().size());
+      assertEquals("REGION", resp.getSkipped().get(0).getField());
+      assertEquals("time_slider is not supported for " + XSchema.STRING + " columns",
+                   resp.getSkipped().get(0).getReason());
+      verify(vs, never()).addAssembly(any(TimeSliderVSAssembly.class));
+   }
 }
