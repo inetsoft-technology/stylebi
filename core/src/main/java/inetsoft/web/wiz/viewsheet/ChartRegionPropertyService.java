@@ -237,10 +237,19 @@ public class ChartRegionPropertyService {
       boolean linear = sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
          String canonical = ChartRegionResolver.canonical(axisTarget);
-         boolean inverted = info.isInvertedGraph();
          boolean secondary = "y2".equals(canonical) || "x2".equals(canonical);
          boolean onYShelf = "y".equals(canonical) || "y2".equals(canonical);
-         ChartRef[] refs = (onYShelf != inverted) ? info.getYFields() : info.getXFields();
+         // Canonical x/x2 always reads getXFields(), canonical y/y2 always reads getYFields() --
+         // the same convention ChartRegionResolver.fromBinding uses one call earlier in this same
+         // class's requireExistingTarget (present.add("x") off getXFields() alone, with no
+         // isInvertedGraph() factor at all for the primary case; for the secondary case, the
+         // inverted-ness of the chart decides which canonical NAME -- x2 or y2 -- a secondary
+         // measure gets, not which shelf backs a given name). A repair-review catch confirmed live
+         // 2026-09-02: an earlier cut XOR'd this with isInvertedGraph(), which resolves every
+         // canonical target to the wrong shelf on any inverted chart (e.g. a Gantt chart, which is
+         // unconditionally inverted) -- reopening the exact corruption this method exists to close,
+         // or wrongly refusing a legitimate write on a real measure axis.
+         ChartRef[] refs = onYShelf ? info.getYFields() : info.getXFields();
          Stream<ChartRef> candidates = Arrays.stream(refs);
 
          // A shelf can carry more than one field of the same axis type (the tool's own

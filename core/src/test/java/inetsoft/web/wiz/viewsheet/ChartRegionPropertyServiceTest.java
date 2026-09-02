@@ -243,6 +243,67 @@ class ChartRegionPropertyServiceTest {
       verifyNoInteractions(h.regions);
    }
 
+   /**
+    * Claude review (stylebi PR #4942): an earlier cut of the shelf lookup XOR'd {@code onYShelf}
+    * with {@code isInvertedGraph()}, which resolves every canonical target to the wrong shelf on
+    * any inverted chart. On an inverted chart the dimension sits on the Y shelf (per
+    * {@code isInvertedGraph()}'s own definition -- a measure on the X shelf, not the Y one) --
+    * canonical 'y' must still refuse a linear-only property, the same as the non-inverted 'x' case
+    * above. Every existing test in this file stubs {@code isInvertedGraph()} false or leaves it
+    * unstubbed (same default), so this branch had zero coverage before.
+    */
+   @Test
+   void refusesLinearOnlyAxisPropertiesOnADimensionAxisWhenTheChartIsInverted() {
+      VSChartAggregateRef measure = mock(VSChartAggregateRef.class);
+      when(measure.isSecondaryY()).thenReturn(false);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getXFields()).thenReturn(new ChartRef[] { measure });
+      when(info.getYFields()).thenReturn(new ChartRef[] { mock(VSChartDimensionRef.class) });
+      when(info.isInvertedGraph()).thenReturn(true);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(chart);
+
+      Harness h = harness(vs);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                             Map.of("minimum", "5"), ""));
+
+      assertTrue(thrown.getMessage().contains("minimum"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** The mirror case: canonical 'x' on that same inverted chart is the real measure axis. */
+   @Test
+   void stillAcceptsLinearOnlyAxisPropertiesOnAMeasureAxisWhenTheChartIsInverted()
+      throws Exception
+   {
+      VSChartAggregateRef measure = mock(VSChartAggregateRef.class);
+      when(measure.isSecondaryY()).thenReturn(false);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getXFields()).thenReturn(new ChartRef[] { measure });
+      when(info.getYFields()).thenReturn(new ChartRef[] { mock(VSChartDimensionRef.class) });
+      when(info.isInvertedGraph()).thenReturn(true);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(chart);
+
+      Harness h = harness(vs);
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null, Map.of("minimum", "5"), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
    /** L4 finding G3-3: the legend Scale tab (logarithmic/reverse/includeZero) had no tool alias. */
    @Test
    void writesLegendScaleProperties() throws Exception {
