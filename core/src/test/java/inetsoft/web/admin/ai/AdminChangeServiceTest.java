@@ -328,17 +328,44 @@ class AdminChangeServiceTest {
    }
 
    @Test void writesASecretNamedPropertyThatIsNotAnAllowListedCredentialVerbatim() {
-      // log.fluentd.security.password matches isSecret but is read with a plain getProperty.
-      // Encrypting it would hand the fluentd client ciphertext as its password. (The plan service
-      // refuses this property outright; this pins the write path regardless of how it is reached.)
-      sreeEnv.when(() -> SreeEnv.getProperty("log.fluentd.security.password", false, false))
+      // license.key matches isSecret on its prefix but every writer in the product stores it with
+      // a plain setProperty. Encrypting it would hand the license check ciphertext where it
+      // expects a key. (The plan service refuses this property outright; this pins the write path
+      // regardless of how it is reached.)
+      //
+      // This test used log.fluentd.security.password until Redmine #76170, on the reasoning that
+      // its reader called getProperty. Redmine #76051 had already made its writer encrypt, so the
+      // property it pinned had moved out from under it - see the test below, which now pins the
+      // opposite behaviour for that name.
+      sreeEnv.when(() -> SreeEnv.getProperty("license.key", false, false))
              .thenReturn(null)
              .thenReturn("literal");
 
-      service.applyChange(req("log.fluentd.security.password", "literal"), principal);
+      service.applyChange(req("license.key", "literal"), principal);
 
-      sreeEnv.verify(() -> SreeEnv.setProperty("log.fluentd.security.password", "literal"));
+      sreeEnv.verify(() -> SreeEnv.setProperty("license.key", "literal"));
       sreeEnv.verify(() -> SreeEnv.setPassword(anyString(), anyString()), never());
+   }
+
+   @Test void encryptsTheFluentdPasswordNowThatItsWriterDoesToo() {
+      // Redmine #76170. Redmine #76051 (dc8877f8a) moved LogSettingService's write of this
+      // property onto the same toPassword helper as log.fluentd.security.sharedkey, which calls
+      // Tool.encryptPassword - so the two adjacent halves of one Logging page are finally written
+      // the same way. Until it was allow-listed, admin-chat refused to set it at all; a write that
+      // got through would have put plaintext where the Logging page stores ciphertext.
+      sreeEnv.when(() -> SreeEnv.getProperty("log.fluentd.security.password", false, false))
+             .thenReturn(null)
+             .thenReturn("ENC(cipher)");
+      sreeEnv.when(() -> SreeEnv.getPassword("log.fluentd.security.password"))
+             .thenReturn("fluentd-pw");
+
+      AdminChangeResult res =
+         service.applyChange(req("log.fluentd.security.password", "fluentd-pw"), principal);
+
+      sreeEnv.verify(() -> SreeEnv.setPassword("log.fluentd.security.password", "fluentd-pw"));
+      sreeEnv.verify(
+         () -> SreeEnv.setProperty(eq("log.fluentd.security.password"), anyString()), never());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
    }
 
    @Test void refusesToWriteACredentialAtApplyTimeWhenCloudSecretsAreOn() {

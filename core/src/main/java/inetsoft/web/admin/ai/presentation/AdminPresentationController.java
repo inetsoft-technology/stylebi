@@ -63,8 +63,11 @@ public class AdminPresentationController {
    /**
     * Reads one sub-model (when {@code subModel} is given) or all 16 (when omitted) -- mirroring
     * {@code getSettings}'s own full-builder response (01-spec.md section 3). {@code scope} is
-    * required, no default. {@code webMap.mapboxToken}/{@code googleKey} are masked
-    * (01-spec.md section 9) regardless of which is requested.
+    * required, no default. Every sub-model's secret-classified fields
+    * ({@link PresentationSubModel#secretFields()}: {@code webMap.mapboxToken}/{@code googleKey} and
+    * {@code share.slackUrl}/{@code googleChatUrl}) are masked (01-spec.md section 9) regardless of
+    * which is requested -- including the no-{@code subModel} form, which is the shortest path an
+    * agent has to all of them at once.
     */
    @Secured(@RequiredPermission(
       resourceType = ResourceType.EM_COMPONENT, resource = "settings/presentation/settings",
@@ -127,8 +130,7 @@ public class AdminPresentationController {
       throws Exception
    {
       JsonNode node = PresentationJson.toNode(access.read(subModel, user, global));
-      return subModel == PresentationSubModel.WEB_MAP
-         ? PresentationJson.maskWebMapSecrets(node) : node;
+      return PresentationJson.maskSecrets(subModel, node);
    }
 
    private static boolean requireScopeParam(String scope) {

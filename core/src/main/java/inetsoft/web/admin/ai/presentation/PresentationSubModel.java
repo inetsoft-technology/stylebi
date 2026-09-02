@@ -120,6 +120,30 @@ public enum PresentationSubModel {
       return fieldNames;
    }
 
+   /** The subset of {@link #fieldNames()} whose values are secret-classified for this area: masked
+    * on every read and plan projection ({@link PresentationJson#maskSecrets}) and refused outright
+    * in a write {@code spec} ({@code PresentationChangePlanService.requireNoSecretFields}). Empty
+    * for the other fourteen sub-models.
+    *
+    * <p>Deliberately a property OF the sub-model rather than a condition at each call site. The
+    * three places that project or validate a value used to spell out {@code == WEB_MAP}
+    * independently, so {@code share}'s two webhook URLs -- withheld on the properties path by
+    * {@code AdminPropertyCatalog.CONFIRMED_SECRET} -- were still returned in full, and still
+    * settable, through this area (Bug #76170). Asking the sub-model makes the next addition one
+    * edit instead of three that can be made one at a time.
+    *
+    * <p>A switch rather than a constructor parameter so that the fourteen sub-models with no
+    * secrets do not each carry an empty set through the constructor; it is evaluated lazily, so it
+    * does not reintroduce the enum-constant/static-field initialization ordering hazard
+    * {@link PresentationJson}'s own javadoc describes. */
+   public Set<String> secretFields() {
+      return switch(this) {
+         case WEB_MAP -> PresentationJson.WEB_MAP_SECRET_FIELDS;
+         case SHARE -> PresentationJson.SHARE_SECRET_FIELDS;
+         default -> Set.of();
+      };
+   }
+
    /** Exact, case-sensitive match against the 16 names (01-spec.md section 11) -- no fuzzy/prefix
     * matching, since a wrong guess here would silently target the wrong sub-model.
     *

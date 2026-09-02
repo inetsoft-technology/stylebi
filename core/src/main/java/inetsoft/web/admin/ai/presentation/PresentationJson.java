@@ -49,8 +49,24 @@ final class PresentationJson {
 
    /** The caller-visible-when-non-blank field name test used for {@code webMap}'s two secret-classified
     * fields (01-spec.md section 9) -- masked on every read/projection, refused outright in a write
-    * {@code spec} (see {@code PresentationChangePlanService.requireNoSecretFields}). */
+    * {@code spec} (see {@code PresentationChangePlanService.requireNoSecretFields}).
+    *
+    * <p>Reached through {@link PresentationSubModel#secretFields()}, never by a
+    * {@code subModel == WEB_MAP} test at the call site: a per-sub-model condition spelled out
+    * separately in each of the three places that need it is what let {@code share}'s two webhook
+    * URLs stay unmasked while this pair was handled (Bug #76170). */
    static final Set<String> WEB_MAP_SECRET_FIELDS = Set.of("mapboxToken", "googleKey");
+
+   /** {@code share.slack.url} / {@code share.googlechat.url} as this area sees them. Both are
+    * incoming-webhook URLs -- the token is in the path, there is no second factor and no request
+    * signature, so anything holding the URL can post into that channel or room. They are secrets by
+    * possession, which is why neither the name shape nor the storage form (both are written with a
+    * bare {@code SreeEnv.setProperty} by {@code ShareSettingsService}) identifies them as one; see
+    * {@code AdminPropertyCatalog.CONFIRMED_SECRET}, which withholds the same two values on the
+    * properties path. Masked and refused here for the identical reason: this area's caller relays
+    * its responses to a model provider off-host. */
+   static final Set<String> SHARE_SECRET_FIELDS = Set.of("slackUrl", "googleChatUrl");
+
    static final String SECRET_MASK = "********";
 
    /** The exact JSON property names Jackson would (de)serialize for {@code modelClass}, i.e. the
@@ -104,14 +120,24 @@ final class PresentationJson {
       return merged;
    }
 
-   /** Masks {@code webMap.mapboxToken}/{@code googleKey} to a fixed placeholder wherever a value is
+   /** Masks {@code subModel}'s secret-classified fields to a fixed placeholder wherever a value is
     * about to be shown to a caller (a GET response, or a plan/audit {@code before}/{@code after}
     * projection) -- never used on the node that is about to be deserialized back into a model and
-    * written, only on display copies (01-spec.md section 9, "refuse to return ... the real value"). */
-   static JsonNode maskWebMapSecrets(JsonNode node) {
+    * written, only on display copies (01-spec.md section 9, "refuse to return ... the real value").
+    *
+    * <p>Takes the sub-model rather than a field set so that every caller that projects a value for
+    * display gets the masking that sub-model declares, without restating which sub-models have
+    * secrets. A sub-model with none returns the node unchanged. */
+   static JsonNode maskSecrets(PresentationSubModel subModel, JsonNode node) {
+      Set<String> fields = subModel.secretFields();
+
+      if(fields.isEmpty()) {
+         return node;
+      }
+
       ObjectNode copy = node.deepCopy();
 
-      for(String field : WEB_MAP_SECRET_FIELDS) {
+      for(String field : fields) {
          JsonNode value = copy.get(field);
 
          if(value != null && value.isTextual() && !value.asText().isEmpty()) {

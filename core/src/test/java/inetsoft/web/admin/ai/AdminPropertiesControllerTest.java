@@ -163,6 +163,65 @@ class AdminPropertiesControllerTest {
    }
 
    @Test
+   void withholdsAWebhookUrlWhoseNameAndWriterBothLookHarmless() {
+      // Redmine #76170. A Slack or Google Chat incoming-webhook URL is a bearer credential - the
+      // token is in the path, and nothing else is required to post into that channel. #76006's
+      // remedy is an allow-list of properties whose WRITER encrypts, so it cannot reach these by
+      // construction: ShareSettingsService writes both with a plain setProperty. The name test
+      // misses them too, so before CONFIRMED_SECRET the full URL was read and returned.
+      //
+      // Stubbing a value matters here for the same reason as the credential test above: without
+      // it a removed mask would pass vacuously on a null.
+      for(String name : new String[] { "share.slack.url", "share.googlechat.url" })
+      {
+         sreeEnv.when(() -> SreeEnv.getProperty(name, false, false))
+            .thenReturn("https://hooks.example.test/services/T0/B0/" + name);
+
+         PropertyView view = controller.get(name, principal);
+
+         assertNull(view.currentValue(), name + ": the webhook URL must not be returned");
+         sreeEnv.verify(() -> SreeEnv.getProperty(name, false, false), never());
+      }
+   }
+
+   @Test
+   void tellsTheCallerAWithheldWebhookUrlExistsAndWhyItIsWithheld() {
+      // The regression masking these introduced, and the reason `confirmed` needed a third term.
+      // Both URLs are declared in defaults.properties, so the defaults chain resolved them through
+      // getProperty and `stored != null` reported them confirmed - until this path stopped reading
+      // them. Falling back to unknown hands the caller guidance saying the name may be a typo and
+      // that an unrecognised name is written verbatim while reporting success; all false here,
+      // because AdminChangePlanService refuses the change outright. Same failure the credential
+      // term was added to stop, on a list verified the same way.
+      PropertyView view = controller.get("share.slack.url", principal);
+
+      assertEquals(PropertyView.EXISTS_CONFIRMED, view.exists());
+      assertNull(view.guidance());
+      assertNull(view.currentValue());
+
+      // And the reason must be the true one. The pattern wording is false twice for these: the
+      // name does not match the pattern (see withholdsABearerCredentialThatNeitherItsNameNorIts-
+      // WriterGivesAway), and the list IS evidence the property exists.
+      assertFalse(view.description().contains("matches admin-chat's secret pattern"),
+                  "a CONFIRMED_SECRET name is not withheld by the name pattern");
+      assertFalse(view.description().contains("nothing about whether the property exists"),
+                  "membership in a hand-verified list is evidence the property exists");
+      assertTrue(view.description().contains("bearer credential"));
+   }
+
+   @Test
+   void leavesTheShareSettingsBesideAWebhookUrlReadable() {
+      // The mask must be the two URLs, not the share.* prefix - an operator needs to know whether
+      // sharing is enabled, and the flag discloses nothing.
+      sreeEnv.when(() -> SreeEnv.getProperty("share.slack.enabled", false, false))
+         .thenReturn("true");
+
+      PropertyView view = controller.get("share.slack.enabled", principal);
+
+      assertEquals("true", view.currentValue());
+   }
+
+   @Test
    void tellsTheCallerAWithheldCredentialExistsAndCanStillBeSet() {
       // Two regressions the mask would otherwise introduce, both of which cost an agent a task it
       // could complete. mail.smtp.pass is uncatalogued, so before #76006 its existence was known
