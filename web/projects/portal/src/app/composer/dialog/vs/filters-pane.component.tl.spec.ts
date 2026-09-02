@@ -53,8 +53,8 @@
  *   instead of destroying/recreating them, which — combined with `@angular/forms`' microtask-
  *   deferred NgForm control add/remove and `FormGroup.registerControl`'s silent no-op on a
  *   `[name]` collision — let a `FormControl` end up aliased across two rows, so a later
- *   `setValue()` wrote into an unrelated row's `<input>` (see bug-76424/02-refute.md for the full
- *   mechanism, verified by executing the real component/framework code). Fixed by
+ *   `setValue()` wrote into an unrelated row's `<input>` (verified by executing the real
+ *   component/framework code). Fixed by
  *   `track filter.column` (`filter.column` is the assembly name, unique per viewsheet — see
  *   `ViewsheetInfo.getFilterColumns()`, backed by a `Map<String,String>` keyset, and
  *   `ViewsheetPropertyDialogService` further filters to only names matching a live assembly).
@@ -384,16 +384,17 @@ describe("FiltersPane — selectSharedFilter + isSharedFilterSelected", () => {
 
 describe("FiltersPane — Shared Filters table DOM regression (Bug #76424)", () => {
    // 🔁 Regression-sensitive: removing a middle Shared Filter row must not leak a stale Filter ID
-   //    value onto a surviving row's rendered <input>. Reproduces the exact scenario from
-   //    bug-76424/02-refute.md (executed, not the reporter's original literal description): with
-   //    sharedFilters [RangeSlider1, RangeSlider2, SelectionList1, SelectionList2], removing
-   //    RangeSlider2 (index 1) used to corrupt the *middle surviving row* (SelectionList1, now at
-   //    index 1) so its <input> displayed the destroyed trailing row's ("SelectionList2") value,
-   //    while the row itself and the last row were otherwise fine. Root cause: `@for (filter of
-   //    model.sharedFilters; track $index; ...)` reused DOM/NgModel instances across the removal
-   //    instead of destroying/recreating them, racing @angular/forms' microtask-deferred
-   //    NgForm.addControl/removeControl against FormGroup.registerControl's silent no-op on a
-   //    `[name]` collision. Fixed by `track filter.column`.
+   //    value onto a surviving row's rendered <input>. Reproduces the exact scenario confirmed by
+   //    executing the real component/framework code (not the reporter's original literal
+   //    description): with sharedFilters [RangeSlider1, RangeSlider2, SelectionList1,
+   //    SelectionList2], removing RangeSlider2 (index 1) used to corrupt the *middle surviving
+   //    row* (SelectionList1, now at index 1) so its <input> displayed the destroyed trailing
+   //    row's ("SelectionList2") value, while that row itself and the last row were otherwise
+   //    fine. Root cause: `@for (filter of model.sharedFilters; track $index; ...)` reused
+   //    DOM/NgModel instances across the removal instead of destroying/recreating them, racing
+   //    @angular/forms' microtask-deferred NgForm.addControl/removeControl against
+   //    FormGroup.registerControl's silent no-op on a `[name]` collision. Fixed by
+   //    `track filter.column`.
    it("should not corrupt a surviving row's Filter ID input when a middle shared filter is removed", async () => {
       const rangeSlider1 = makeFilter("RangeSlider1", "ID_R1");
       const rangeSlider2 = makeFilter("RangeSlider2", "ID_R2");
@@ -411,8 +412,8 @@ describe("FiltersPane — Shared Filters table DOM regression (Bug #76424)", () 
       fixture.detectChanges();
       await fixture.whenStable();
       // NgForm's addControl/removeControl and NgModel's _updateValue are all deferred via
-      // Promise.resolve().then(...) (see 02-refute.md); flush an extra macrotask/microtask turn
-      // and re-stabilize so every deferred write has landed before asserting on the DOM.
+      // Promise.resolve().then(...); flush an extra macrotask/microtask turn and re-stabilize
+      // so every deferred write has landed before asserting on the DOM.
       await new Promise(resolve => setTimeout(resolve));
       fixture.detectChanges();
       await fixture.whenStable();
@@ -425,8 +426,8 @@ describe("FiltersPane — Shared Filters table DOM regression (Bug #76424)", () 
          fixture.nativeElement.querySelectorAll("input.form-control");
       expect(inputs).toHaveLength(3);
       expect(inputs[0].value).toBe("ID_R1");
-      // This is the row that actually corrupts under `track $index` (verified by execution in
-      // 02-refute.md) -- the middle surviving row, NOT the last row as originally reported.
+      // This is the row that actually corrupts under `track $index` (confirmed by executing
+      // the real component) -- the middle surviving row, NOT the last row as originally reported.
       expect(inputs[1].value).toBe("ID_S1");
       expect(inputs[2].value).toBe("ID_S2");
    });
