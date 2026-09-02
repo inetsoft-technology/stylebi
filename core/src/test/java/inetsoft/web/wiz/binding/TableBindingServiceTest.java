@@ -52,6 +52,8 @@ class TableBindingServiceTest {
    void setShelfPostsTheModelItReadRatherThanAFreshOne() throws Exception {
       CrosstabBindingModel existing = new CrosstabBindingModel();
       existing.getName2Labels().put("Region", "Sales Region");
+      existing.setSource(new inetsoft.web.binding.model.SourceInfo());
+      existing.getSource().setSource("ORDERS");
       VSBindingModelService bindings = mock(VSBindingModelService.class);
       CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
       when(assembly.getSourceInfo()).thenReturn(new inetsoft.uql.asset.SourceInfo());
@@ -76,8 +78,11 @@ class TableBindingServiceTest {
       VSBindingModelService bindings = mock(VSBindingModelService.class);
       CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
       when(assembly.getSourceInfo()).thenReturn(new inetsoft.uql.asset.SourceInfo());
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      existing.setSource(new inetsoft.web.binding.model.SourceInfo());
+      existing.getSource().setSource("ORDERS");
 
-      harness(assembly, new CrosstabBindingModel(), bindings)
+      harness(assembly, existing, bindings)
          .setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region")), null);
 
       assertTrue(capture(bindings).isCheckTrap());
@@ -102,6 +107,8 @@ class TableBindingServiceTest {
    @Test
    void addAndRemoveDelegate() throws Exception {
       CrosstabBindingModel existing = new CrosstabBindingModel();
+      existing.setSource(new inetsoft.web.binding.model.SourceInfo());
+      existing.getSource().setSource("ORDERS");
       VSBindingModelService bindings = mock(VSBindingModelService.class);
       CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
       when(assembly.getSourceInfo()).thenReturn(new inetsoft.uql.asset.SourceInfo());
