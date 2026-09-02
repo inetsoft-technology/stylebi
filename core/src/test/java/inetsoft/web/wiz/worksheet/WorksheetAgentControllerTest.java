@@ -136,6 +136,29 @@ class WorksheetAgentControllerTest {
                                           renameTransformHandler);
    }
 
+   /** Like the 6-arg {@code controller}, but lets a {@code dependents} test control the
+    *  {@link AssetRepository} instead of getting an unstubbed mock. */
+   private static WorksheetAgentController controller(SheetAgentFeature feature,
+                                                       SheetJoinService join,
+                                                       SheetSessionService sessions,
+                                                       WorksheetReadService read,
+                                                       WorksheetEditService edit,
+                                                       WorksheetService ws,
+                                                       AssetRepository assetRepository)
+   {
+      return new WorksheetAgentController(feature, join, sessions, read, edit, ws,
+                                          mock(WorksheetPreviewService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(inetsoft.uql.XRepository.class),
+                                          assetRepository,
+                                          mock(inetsoft.web.wiz.service.MetadataApiService.class),
+                                          mock(inetsoft.web.portal.controller.database.QueryManagerService.class),
+                                          mock(inetsoft.web.composer.ws.LayoutGraphService.class),
+                                          mock(inetsoft.web.portal.controller.database.DataSourceService.class),
+                                          mock(inetsoft.sree.security.SecurityEngine.class),
+                                          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class));
+   }
+
    private static SheetAgentFeature featureOn() {
       SheetAgentFeature f = mock(SheetAgentFeature.class);
       when(f.isEnabled()).thenReturn(true);
@@ -368,6 +391,112 @@ class WorksheetAgentControllerTest {
       assertNotNull(model);
       assertFalse(model.tables().isEmpty());
       assertEquals("T", model.tables().get(0).name());
+   }
+
+   // ---------------------------------------------------------------------------
+   // dependents
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void dependentsRejectsFlagOff() {
+      WorksheetAgentController ctrl = controller(featureOff(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class),
+         mock(WorksheetService.class));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.dependents("TOK-DEP-OFF", TestPrincipals.user("alice", "host-org")));
+      assertEquals(403, ex.getStatusCode().value());
+   }
+
+   /** An unsaved worksheet can have no dependents -- nothing can point at an asset that was
+    *  never saved, so this must not attempt the repository lookup at all. */
+   @Test
+   void dependentsReportsUnsavedWorksheetAsHavingNone() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.WORKSHEET, "__TEMPORARY__/ws-1", null);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(tempEntry);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK-DEP-TEMP"), eq(agent))).thenReturn(rws);
+
+      AssetRepository repo = mock(AssetRepository.class);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), repo);
+
+      Map<String, Object> result = ctrl.dependents("TOK-DEP-TEMP", agent);
+
+      assertEquals(Boolean.FALSE, result.get("saved"));
+      assertEquals(List.of(), result.get("dependents"));
+      verifyNoInteractions(repo);
+   }
+
+   @Test
+   void dependentsReportsNoneForASavedWorksheetNothingDependsOn() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(entry);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK-DEP-NONE"), eq(agent))).thenReturn(rws);
+
+      AssetRepository repo = mock(AssetRepository.class);
+      when(repo.getSheetDependencies(eq(entry), eq(agent))).thenReturn(new AssetEntry[0]);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), repo);
+
+      Map<String, Object> result = ctrl.dependents("TOK-DEP-NONE", agent);
+
+      assertEquals(Boolean.TRUE, result.get("saved"));
+      assertEquals("Orders WS", result.get("path"));
+      assertEquals(List.of(), result.get("dependents"));
+      assertTrue(result.get("summary").toString().contains("No saved asset"));
+   }
+
+   /** The actual "who uses this worksheet" case: a saved viewsheet depends on it, and that must
+    *  be named by path and type rather than left for the caller to take on faith. */
+   @Test
+   void dependentsListsDependentAssetsByPathAndType() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(entry);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK-DEP-SOME"), eq(agent))).thenReturn(rws);
+
+      AssetEntry dependentVs = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "Sales Dashboard", null);
+
+      AssetRepository repo = mock(AssetRepository.class);
+      when(repo.getSheetDependencies(eq(entry), eq(agent)))
+         .thenReturn(new AssetEntry[]{ dependentVs });
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), repo);
+
+      Map<String, Object> result = ctrl.dependents("TOK-DEP-SOME", agent);
+
+      assertEquals(Boolean.TRUE, result.get("saved"));
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> dependents = (List<Map<String, Object>>) result.get("dependents");
+      assertEquals(1, dependents.size());
+      assertEquals("Sales Dashboard", dependents.get(0).get("path"));
+      assertEquals("viewsheet", dependents.get(0).get("type"));
+      assertTrue(result.get("summary").toString().contains("Sales Dashboard"));
    }
 
    // ---------------------------------------------------------------------------
