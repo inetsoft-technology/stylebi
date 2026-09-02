@@ -168,8 +168,9 @@ public class CrosstabDcProcessor {
       if(periodDim == null && dcInfo.getPeriods() instanceof StandardPeriods &&
          (!dcInfo.isCompareAll() || !dcInfo.periodLevelSameAsGranularityLevel()))
       {
-         XDimensionRef peroidDim = (XDimensionRef) dateDim.clone();
-         peroidDim.setDateLevel(dcInfo.getPeriodDateLevel());
+         periodDim = (XDimensionRef) dateDim.clone();
+         periodDim.setDateLevel(dcInfo.getPeriodDateLevel());
+         ((VSDimensionRef) periodDim).setDcRange(!dcInfo.isCompareAll());
       }
 
       return periodDim;
