@@ -57,7 +57,7 @@ class TableBindingServiceTest {
       when(assembly.getSourceInfo()).thenReturn(new inetsoft.uql.asset.SourceInfo());
 
       harness(assembly, existing, bindings)
-         .setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region")));
+         .setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region")), null);
 
       ApplyVSAssemblyInfoEvent event = capture(bindings);
       CrosstabBindingModel posted = (CrosstabBindingModel) event.getBinding();
@@ -78,7 +78,7 @@ class TableBindingServiceTest {
       when(assembly.getSourceInfo()).thenReturn(new inetsoft.uql.asset.SourceInfo());
 
       harness(assembly, new CrosstabBindingModel(), bindings)
-         .setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region")));
+         .setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region")), null);
 
       assertTrue(capture(bindings).isCheckTrap());
    }
@@ -107,9 +107,58 @@ class TableBindingServiceTest {
       when(assembly.getSourceInfo()).thenReturn(new inetsoft.uql.asset.SourceInfo());
 
       harness(assembly, existing, bindings)
-         .addField("tok", principal(), "Crosstab1", "rows", dim("Region"), null);
+         .addField("tok", principal(), "Crosstab1", "rows", dim("Region"), null, null);
 
       assertEquals(1, ((CrosstabBindingModel) capture(bindings).getBinding()).getRows().size());
+   }
+
+   // ── bug #76350, PCB-004: set_table_fields/add_table_field reported ok:true and never
+   // established a source on a sourceless crosstab/table, so the assembly rendered empty with no
+   // error -- the identical shape PCB-002 already fixed for charts (ChartBindingService.setShelf
+   // + applySource). BindingAgentControllerTest drives the resolve-then-refuse half through the
+   // controller endpoint; these assert the service actually applies a resolved source.
+   @Test
+   void setShelfEstablishesTheGivenSourceWhenTheModelHasNone() throws Exception {
+      CrosstabBindingModel existing = withTables("ORDERS", "CUSTOMERS");
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(mock(CrosstabVSAssembly.class), existing, bindings)
+         .setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region")), "ORDERS");
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertNotNull(posted.getSource(), "the model must carry a source after the write");
+      assertEquals("ORDERS", posted.getSource().getSource());
+      assertEquals(1, posted.getRows().size(), "the shelf write itself must still land");
+   }
+
+   @Test
+   void setShelfLeavesAnAlreadyBoundSourceAlone() throws Exception {
+      CrosstabBindingModel existing = withTables("ORDERS", "CUSTOMERS");
+      existing.setSource(new inetsoft.web.binding.model.SourceInfo());
+      existing.getSource().setSource("ORDERS");
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(mock(CrosstabVSAssembly.class), existing, bindings)
+         .setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region")), "CUSTOMERS");
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals("ORDERS", posted.getSource().getSource(),
+                   "a bound source is never repointed as a side effect of a shelf write -- " +
+                   "that is set_table_source with force, not this");
+   }
+
+   @Test
+   void addFieldEstablishesTheGivenSourceWhenTheModelHasNone() throws Exception {
+      CrosstabBindingModel existing = withTables("ORDERS", "CUSTOMERS");
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(mock(CrosstabVSAssembly.class), existing, bindings)
+         .addField("tok", principal(), "Crosstab1", "rows", dim("Region"), null, "ORDERS");
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertNotNull(posted.getSource(), "the model must carry a source after the write");
+      assertEquals("ORDERS", posted.getSource().getSource());
+      assertEquals(1, posted.getRows().size(), "the field write itself must still land");
    }
 
    @Test
@@ -141,7 +190,8 @@ class TableBindingServiceTest {
 
       Exception thrown = assertThrows(
          Exception.class,
-         () -> service.setShelf("tok", principal(), "Chart1", "rows", List.of(dim("Region"))));
+         () -> service.setShelf("tok", principal(), "Chart1", "rows", List.of(dim("Region")),
+                                null));
       assertTrue(thrown.getMessage().contains("Chart1"));
       assertTrue(thrown.getMessage().contains("chart"));
    }
@@ -308,7 +358,8 @@ class TableBindingServiceTest {
 
       Exception thrown = assertThrows(
          Exception.class,
-         () -> service.setShelf("tok", principal(), "Calc1", "rows", List.of(dim("Region"))));
+         () -> service.setShelf("tok", principal(), "Calc1", "rows", List.of(dim("Region")),
+                                null));
       assertTrue(thrown.getMessage().contains("cell layout"));
    }
 
@@ -328,7 +379,8 @@ class TableBindingServiceTest {
 
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
-         () -> service.setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region"))));
+         () -> service.setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region")),
+                                null));
       assertTrue(thrown.getMessage().contains("Crosstab1"));
       assertTrue(thrown.getMessage().contains("set_table_source"));
    }
@@ -340,7 +392,7 @@ class TableBindingServiceTest {
       VSBindingModelService bindings = mock(VSBindingModelService.class);
 
       harness(assembly, new CrosstabBindingModel(), bindings)
-         .setShelf("tok", principal(), "Crosstab1", "rows", List.of());
+         .setShelf("tok", principal(), "Crosstab1", "rows", List.of(), null);
 
       assertEquals(0,
          ((CrosstabBindingModel) capture(bindings).getBinding()).getRows().size());
@@ -350,10 +402,13 @@ class TableBindingServiceTest {
    void setShelfProceedsWhenAssemblyHasASource() throws Exception {
       CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
       when(assembly.getSourceInfo()).thenReturn(new inetsoft.uql.asset.SourceInfo());
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      existing.setSource(new inetsoft.web.binding.model.SourceInfo());
+      existing.getSource().setSource("ORDERS");
       VSBindingModelService bindings = mock(VSBindingModelService.class);
 
-      harness(assembly, new CrosstabBindingModel(), bindings)
-         .setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region")));
+      harness(assembly, existing, bindings)
+         .setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region")), null);
 
       assertEquals(1,
          ((CrosstabBindingModel) capture(bindings).getBinding()).getRows().size());
@@ -369,7 +424,8 @@ class TableBindingServiceTest {
 
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
-         () -> service.addField("tok", principal(), "Crosstab1", "rows", dim("Region"), null));
+         () -> service.addField("tok", principal(), "Crosstab1", "rows", dim("Region"), null,
+                                null));
       assertTrue(thrown.getMessage().contains("Crosstab1"));
       assertTrue(thrown.getMessage().contains("set_table_source"));
    }
@@ -378,10 +434,13 @@ class TableBindingServiceTest {
    void addFieldProceedsWhenAssemblyHasASource() throws Exception {
       CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
       when(assembly.getSourceInfo()).thenReturn(new inetsoft.uql.asset.SourceInfo());
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      existing.setSource(new inetsoft.web.binding.model.SourceInfo());
+      existing.getSource().setSource("ORDERS");
       VSBindingModelService bindings = mock(VSBindingModelService.class);
 
-      harness(assembly, new CrosstabBindingModel(), bindings)
-         .addField("tok", principal(), "Crosstab1", "rows", dim("Region"), null);
+      harness(assembly, existing, bindings)
+         .addField("tok", principal(), "Crosstab1", "rows", dim("Region"), null, null);
 
       assertEquals(1,
          ((CrosstabBindingModel) capture(bindings).getBinding()).getRows().size());

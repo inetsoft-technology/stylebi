@@ -65,16 +65,24 @@ public class TableBindingService {
       this.refModelService = refModelService;
    }
 
+   /**
+    * @param sourceTable the table to point the assembly at as part of this write, or {@code null}
+    *                    to leave its source alone. A crosstab/table with no source renders nothing
+    *                    however correctly its shelves are filled in — see {@link #setSource} — and
+    *                    this establishes it the same way {@code ChartBindingService.setShelf} does
+    *                    for a chart, one call rather than two.
+    */
    public void setShelf(String sessionToken, Principal user, String assemblyName, String shelf,
-                        List<FieldRef> fields) throws Exception
+                        List<FieldRef> fields, String sourceTable) throws Exception
    {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
+         applySource(model, sourceTable);
          Viewsheet vs = rvs.getViewsheet();
          VSAssembly assembly = vs.getAssembly(assemblyName);
          inetsoft.uql.asset.SourceInfo source = assembly instanceof DataVSAssembly data
             ? data.getSourceInfo() : null;
-         requireSourceForFieldWrite(assemblyName, shelf, source,
+         requireSourceForFieldWrite(assemblyName, shelf, model.getSource(),
                                     fields == null ? 0 : fields.size());
          TableBindingMutator.setShelf(model, shelf, fields, rvs, source, refModelService);
 
@@ -83,6 +91,20 @@ public class TableBindingService {
          event.setBinding(model);
          bindingModelService.setBinding(runtimeId, event, user, dispatcher);
       });
+   }
+
+   /**
+    * Establishes the source, if one was worked out and the model has none.
+    *
+    * <p>Guarded on the model already being sourceless rather than trusting the caller: a repoint
+    * deletes bound fields, so it stays behind {@code set_table_source}'s explicit {@code force} and
+    * can never happen as a side effect of binding a field. Mirrors
+    * {@code ChartBindingService.applySource}.
+    */
+   static void applySource(BaseTableBindingModel model, String sourceTable) {
+      if(sourceTable != null && model != null && model.getSource() == null) {
+         model.setSource(BindingSources.assetSource(sourceTable));
+      }
    }
 
    /**
@@ -216,12 +238,15 @@ public class TableBindingService {
       }
    }
 
+   /** @param sourceTable see {@link #setShelf}. */
    public void addField(String sessionToken, Principal user, String assemblyName, String shelf,
-                        FieldRef field, Integer position) throws Exception
+                        FieldRef field, Integer position, String sourceTable) throws Exception
    {
       applyWithContext(sessionToken, user, assemblyName,
          (model, rvs, source) -> {
-            requireSourceForFieldWrite(assemblyName, shelf, source, field == null ? 0 : 1);
+            applySource(model, sourceTable);
+            requireSourceForFieldWrite(assemblyName, shelf, model.getSource(),
+                                       field == null ? 0 : 1);
             TableBindingMutator.addField(model, shelf, field, position, rvs, source,
                                          refModelService);
          });
@@ -235,10 +260,15 @@ public class TableBindingService {
     * {@link #removeField}/{@link #moveField} must not call this — a sourceless assembly can never
     * have anything on its shelves to remove or move in the first place, once this guard is in
     * place on the calls that put fields there.
+    *
+    * <p>Checked against the model's own source, taken after {@link #applySource} has had a
+    * chance to establish one from the caller's {@code sourceTable} — that is what {@code
+    * setShelf}/{@code addField} are about to write back, whereas the assembly's own {@code
+    * SourceInfo} (used elsewhere in this method for named-group resolution) does not reflect
+    * this call's mutation until the write is applied at the end of it.
     */
    private static void requireSourceForFieldWrite(String assemblyName, String shelf,
-                                                   inetsoft.uql.asset.SourceInfo source,
-                                                   int fieldCount)
+                                                   SourceInfo source, int fieldCount)
    {
       if(source == null && fieldCount > 0) {
          throw new IllegalArgumentException(
