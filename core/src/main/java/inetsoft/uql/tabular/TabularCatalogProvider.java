@@ -63,7 +63,32 @@ public interface TabularCatalogProvider {
    TabularCatalog listDatasets(TabularDataSource<?> dataSource) throws Exception;
 
    /**
-    * The columns of one dataset.
+    * The columns this connector can report for one dataset.
+    *
+    * A connector that can only infer columns from a bounded scan or a single response — rather
+    * than reading them from declared, source-published metadata — is a legitimate implementer of
+    * this method. Sampled or inferred columns satisfy this contract.
+    *
+    * What such a connector must NOT do is present that list as if it were authoritative. The
+    * imprecision belongs at the DATASET level, not the column level: every column returned by one
+    * {@code describeDataset} call comes from the same scan and therefore shares the same trust
+    * level, so a per-column marker would just repeat one dataset-wide fact on every row. Record it
+    * once, on the dataset.
+    *
+    * That dataset-level "this list may be incomplete" signal is {@link TabularDatasetSchema#columnsMayBeIncomplete()}.
+    * Set it true when this method could only infer columns from a bounded scan rather than read
+    * them from the source's own declared metadata — {@code AerospikeCatalog} is the first
+    * implementer to do so. wiz surfaces a true value as one caveat sentence composed into the
+    * annotation prompt, the same way a truncated-sample-rows caveat is already surfaced today, so
+    * an LLM reading this data does not describe an inferred column list as a complete enumeration.
+    *
+    * Before reaching for sampling, check whether the source already publishes declared metadata —
+    * if it does, read that instead of inferring from samples. This is not hypothetical: a
+    * REST source can carry its column list in the very same response body as the data (e.g. a
+    * `meta.view.columns` field alongside a `data` array); a spreadsheet can declare columns via
+    * its header row and per-column cell-format metadata; a document store can expose a mapping
+    * API describing its fields (e.g. Elasticsearch's `_mapping`). Falling back to sampling when a
+    * declaration exists manufactures uncertainty the source did not actually have.
     *
     * @param datasetId a {@link TabularDatasetRef#id()} previously returned by
     *                  {@link #listDatasets} for this same data source.
