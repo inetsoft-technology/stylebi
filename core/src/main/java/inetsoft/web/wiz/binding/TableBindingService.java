@@ -231,7 +231,9 @@ public class TableBindingService {
 
          for(FieldRef field : bound) {
             if(field.column() != null &&
-               availableColumns.stream().anyMatch(c -> c.equalsIgnoreCase(field.column())))
+               availableColumns.stream().anyMatch(
+                  c -> c.equalsIgnoreCase(field.column()) ||
+                       c.equalsIgnoreCase(unqualified(field.column()))))
             {
                stillResolves.add(field);
             }
@@ -247,9 +249,11 @@ public class TableBindingService {
     * The new source table's column names, matching {@link #resolveTable}'s own lookup. Each
     * column contributes both its raw name and, when it is qualified ({@code "table.attribute"}),
     * the unqualified attribute name too -- {@code ColumnSelection} entries for a joined/merged
-    * worksheet table (the common case a repoint targets) commonly carry the qualified form, but
-    * a bound field's own column name is always the simple one, so matching on the raw form alone
-    * would treat every field as unresolved and silently degrade back to discarding everything.
+    * worksheet table (the common case a repoint targets) commonly carry the qualified form. An
+    * old bound field's column name can independently be qualified or not (see {@link
+    * #unqualified}), so expanding only this side is not sufficient by itself -- but skipping it
+    * would still treat every field as unresolved whenever the new source itself is qualified and
+    * the old field is not, silently degrading back to discarding everything.
     */
    private static List<String> columnsOf(BaseTableBindingModel model, String table) {
       List<String> names = new ArrayList<>();
@@ -264,10 +268,10 @@ public class TableBindingService {
                   }
 
                   names.add(column.getName());
-                  int dot = column.getName().lastIndexOf('.');
+                  String bare = unqualified(column.getName());
 
-                  if(dot >= 0 && dot < column.getName().length() - 1) {
-                     names.add(column.getName().substring(dot + 1));
+                  if(!bare.equals(column.getName())) {
+                     names.add(bare);
                   }
                }
             }
@@ -275,6 +279,19 @@ public class TableBindingService {
       }
 
       return names;
+   }
+
+   /**
+    * The unqualified suffix of a possibly {@code "table.attribute"}-qualified column name, or
+    * the name itself when it carries no qualifier. Applied to both the new source's column list
+    * and an old bound field's column name in {@link #discardBoundFields}, since either side can
+    * independently be qualified or not depending on whether its own source table is a
+    * joined/merged worksheet table -- comparing only one side's unqualified form would still
+    * miss the {qualified old field, unqualified new source} pairing.
+    */
+   private static String unqualified(String name) {
+      int dot = name.lastIndexOf('.');
+      return dot >= 0 && dot < name.length() - 1 ? name.substring(dot + 1) : name;
    }
 
    public void addField(String sessionToken, Principal user, String assemblyName, String shelf,

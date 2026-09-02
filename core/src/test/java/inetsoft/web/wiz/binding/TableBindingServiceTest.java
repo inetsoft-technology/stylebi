@@ -290,6 +290,33 @@ class TableBindingServiceTest {
    }
 
    /**
+    * The regression for the repair-review finding on the fix above: {@link #columnsOf} already
+    * matches a qualified new-source column ({@code "table.attribute"}) against an unqualified
+    * old field, but the reverse direction -- an old bound field whose own column name is
+    * qualified (because ITS source was the joined/merged table) repointed at a new source whose
+    * columns are unqualified -- went unhandled, so the field was discarded even though the same
+    * repoint done by a human in the UI would keep it.
+    */
+   @Test
+   void setSourceKeepsAQualifiedOldFieldThatResolvesUnqualifiedInTheNewSource() throws Exception {
+      CrosstabBindingModel existing = withTablesAndColumns(
+         Map.of("ORDERS", List.of("ORDERS.ORDER_DATE", "ORDERS.REGION"),
+               "ORDERS_V2", List.of("ORDER_DATE")));
+      TableBindingMutator.setShelf(existing, "rows",
+                                   List.of(dim("ORDERS.ORDER_DATE"), dim("ORDERS.REGION")));
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(mock(CrosstabVSAssembly.class), existing, bindings)
+         .setSource("tok", principal(), "Crosstab1", "ORDERS_V2", true);
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals(1, posted.getRows().size(),
+                   "ORDERS.ORDER_DATE resolves against ORDERS_V2's unqualified ORDER_DATE and " +
+                   "must survive; ORDERS.REGION does not and must not");
+      assertEquals("ORDERS.ORDER_DATE", posted.getRows().get(0).getColumnValue());
+   }
+
+   /**
     * force:true against the source the assembly already has is a no-op repoint, not a real
     * source change — nothing to discard, and doing so anyway would destroy a binding the caller
     * never asked to touch.
