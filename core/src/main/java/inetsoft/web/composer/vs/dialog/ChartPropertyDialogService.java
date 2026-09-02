@@ -117,8 +117,7 @@ public class ChartPropertyDialogService {
 
       if(chartLinePaneModel == null && chartDescriptor != null) {
          ChartLinePaneModel linePaneModel =
-            new ChartLinePaneModel(vsChartInfo, chartDescriptor.getPlotDescriptor(),
-                                   VizContext.of(chartAssemblyInfo));
+            new ChartLinePaneModel(vsChartInfo, chartDescriptor.getPlotDescriptor());
 
          if(DateComparisonUtil.appliedDateComparison(chartAssemblyInfo)) {
             linePaneModel.setProjectForwardEnabled(vsChartInfo.canProjectForward(true));
@@ -376,8 +375,7 @@ public class ChartPropertyDialogService {
       SizePositionPaneModel sizePositionPaneModel =
          chartGeneralPaneModel.getSizePositionPaneModel();
       ChartLinePaneModel chartLinePaneModel = value.getChartLinePaneModel();
-      chartLinePaneModel.updateChartLinePaneModel(vsChartInfo, chartDescriptor.getPlotDescriptor(),
-                                                  VizContext.of(assemblyInfo));
+      chartLinePaneModel.updateChartLinePaneModel(vsChartInfo, chartDescriptor.getPlotDescriptor());
       HierarchyPropertyPaneModel hierarchyPropertyPaneModel = value.getHierarchyPropertyPaneModel();
       VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
       TitlePropPaneModel titlePropPaneModel = chartGeneralPaneModel.getTitlePropPaneModel();

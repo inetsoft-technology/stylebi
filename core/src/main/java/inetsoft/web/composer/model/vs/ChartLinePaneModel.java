@@ -20,8 +20,6 @@ package inetsoft.web.composer.model.vs;
 import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
-import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 
 import java.awt.*;
@@ -33,12 +31,12 @@ public class ChartLinePaneModel implements Serializable {
    public ChartLinePaneModel() {
    }
 
-   public ChartLinePaneModel(ChartInfo info, PlotDescriptor plotDesc, VizContext ctx) {
+   public ChartLinePaneModel(ChartInfo info, PlotDescriptor plotDesc) {
       initPlotComVisible(info);
-      getPlotXYGird(info, plotDesc, ctx);
+      getPlotXYGird(info, plotDesc);
       getPlotQuadrantGrid(plotDesc);
       getPlotDiagonalGrid(plotDesc);
-      getPlotFacetGrid(plotDesc, ctx);
+      getPlotFacetGrid(plotDesc);
       getPlotTrendLineGrid(info, plotDesc);
       getPlotComsEnable(info);
 
@@ -52,9 +50,9 @@ public class ChartLinePaneModel implements Serializable {
          info.getChartType() != GraphTypes.CHART_GANTT;
    }
 
-   public void updateChartLinePaneModel(ChartInfo cinfo, PlotDescriptor plotDesc, VizContext ctx) {
+   public void updateChartLinePaneModel(ChartInfo cinfo, PlotDescriptor plotDesc) {
       Color color;
-      updatePlotXYGird(cinfo, plotDesc, ctx);
+      updatePlotXYGird(cinfo, plotDesc);
       updatePlotTrendLineGrid(plotDesc);
 
       plotDesc.setDiagonalStyle(diagonalLineStyle, false);
@@ -67,7 +65,7 @@ public class ChartLinePaneModel implements Serializable {
       plotDesc.setFacetGrid(facetGrid, false);
       color = Tool.getColorFromHexString(facetGridColor);
 
-      if(!Tool.equals(color, VSChartChromeDefaults.resolveGridlineColor(plotDesc.getFacetGridColor(), ctx))) {
+      if(!Tool.equals(color, plotDesc.getFacetGridColor())) {
          plotDesc.setFacetGridColor(color, false);
       }
    }
@@ -140,7 +138,7 @@ public class ChartLinePaneModel implements Serializable {
    /**
     * Sets X and Y Grid. Style and Color.
     */
-   private void updatePlotXYGird(ChartInfo cinfo, PlotDescriptor plotDesc, VizContext ctx) {
+   private void updatePlotXYGird(ChartInfo cinfo, PlotDescriptor plotDesc) {
       Color color = null;
 
       if(cinfo.isInvertedGraph()) {
@@ -148,13 +146,13 @@ public class ChartLinePaneModel implements Serializable {
          plotDesc.setYGridStyle(xGridLineStyle, false);
          color = Tool.getColorFromHexString(yGridLineColor);
 
-         if(!Tool.equals(color, VSChartChromeDefaults.resolveGridlineColor(plotDesc.getXGridColor(), ctx))) {
+         if(!Tool.equals(color, plotDesc.getXGridColor())) {
             plotDesc.setXGridColor(color, false);
          }
 
          color = Tool.getColorFromHexString(xGridLineColor);
 
-         if(!Tool.equals(color, VSChartChromeDefaults.resolveGridlineColor(plotDesc.getYGridColor(), ctx))) {
+         if(!Tool.equals(color, plotDesc.getYGridColor())) {
             plotDesc.setYGridColor(color, false);
          }
       }
@@ -163,13 +161,13 @@ public class ChartLinePaneModel implements Serializable {
          plotDesc.setYGridStyle(yGridLineStyle, false);
          color = Tool.getColorFromHexString(xGridLineColor);
 
-         if(!Tool.equals(color, VSChartChromeDefaults.resolveGridlineColor(plotDesc.getXGridColor(), ctx))) {
+         if(!Tool.equals(color, plotDesc.getXGridColor())) {
             plotDesc.setXGridColor(color, false);
          }
 
          color = Tool.getColorFromHexString(yGridLineColor);
 
-         if(!Tool.equals(color, VSChartChromeDefaults.resolveGridlineColor(plotDesc.getYGridColor(), ctx))) {
+         if(!Tool.equals(color, plotDesc.getYGridColor())) {
             plotDesc.setYGridColor(color, false);
          }
       }
@@ -179,10 +177,9 @@ public class ChartLinePaneModel implements Serializable {
     * Gets the facet grid properties.
     * @plotDesc, descriptor of the plot.
     */
-   private void getPlotFacetGrid(PlotDescriptor plotDesc, VizContext ctx) {
+   private void getPlotFacetGrid(PlotDescriptor plotDesc) {
       if(plotDesc.getFacetGridColor() != null) {
-         facetGridColor = "#" + Tool.colorToHTMLString(
-            VSChartChromeDefaults.resolveGridlineColor(plotDesc.getFacetGridColor(), ctx));
+         facetGridColor = "#" + Tool.colorToHTMLString(plotDesc.getFacetGridColor());
       }
 
       facetGrid = plotDesc.isFacetGrid();
@@ -218,19 +215,17 @@ public class ChartLinePaneModel implements Serializable {
     * @plotDesc, plot descriptor of the current chart.
     * @return, void.
     */
-   private void getPlotXYGird(ChartInfo cinfo, PlotDescriptor plotDesc, VizContext ctx){
+   private void getPlotXYGird(ChartInfo cinfo, PlotDescriptor plotDesc){
       if(cinfo.isInvertedGraph()) {
          xGridLineStyle = plotDesc.getYGridStyle();
          yGridLineStyle = plotDesc.getXGridStyle();
 
          if(plotDesc.getXGridColor() != null) {
-            xGridLineColor = "#"+ Tool.colorToHTMLString(
-               VSChartChromeDefaults.resolveGridlineColor(plotDesc.getYGridColor(), ctx));
+            xGridLineColor = "#"+ Tool.colorToHTMLString(plotDesc.getYGridColor());
          }
 
          if(plotDesc.getYGridColor() != null) {
-            yGridLineColor = "#"+ Tool.colorToHTMLString(
-               VSChartChromeDefaults.resolveGridlineColor(plotDesc.getXGridColor(), ctx));
+            yGridLineColor = "#"+ Tool.colorToHTMLString(plotDesc.getXGridColor());
          }
       }
       else {
@@ -238,13 +233,11 @@ public class ChartLinePaneModel implements Serializable {
          yGridLineStyle = plotDesc.getYGridStyle();
 
          if(plotDesc.getXGridColor() != null) {
-            xGridLineColor = "#" + Tool.colorToHTMLString(
-               VSChartChromeDefaults.resolveGridlineColor(plotDesc.getXGridColor(), ctx));
+            xGridLineColor = "#" + Tool.colorToHTMLString(plotDesc.getXGridColor());
          }
 
          if(plotDesc.getYGridColor() != null) {
-            yGridLineColor = "#" + Tool.colorToHTMLString(
-               VSChartChromeDefaults.resolveGridlineColor(plotDesc.getYGridColor(), ctx));
+            yGridLineColor = "#" + Tool.colorToHTMLString(plotDesc.getYGridColor());
          }
       }
    }
