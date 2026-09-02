@@ -30,6 +30,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -196,17 +197,64 @@ class AerospikeCatalogTest {
       assertEquals("SELECT * FROM \"weird\"\"set\"", schema.params().get("queryString"));
    }
 
-   // ---- describeDataset: getColumns tableNamePattern is a driver regex, not a literal -----------
+   // ---- describeDataset: getColumns tableNamePattern balances correctness against live-query cost -
 
    @Test
-   void describeColumns_regexMetacharacterSetName_passesLiteralPercentNotDatasetId()
+   void describeColumns_regexMetacharacterSetName_passesQuotedPatternNotLiteralPercent()
       throws Exception
    {
       // The real driver (AerospikeDatabaseMetadata.getColumns) compiles tableNamePattern as a Java
-      // regex and matches it with Matcher.matches() -- a mock that only stubs the return value
-      // would happily return rows regardless of what pattern it was handed and could not catch a
-      // regression here, so this test asserts on the argument actually passed instead.
+      // regex and matches it with Matcher.matches(), then runs one live query per match
+      // (getMetadata) -- a mock that only stubs the return value would happily return rows
+      // regardless of what pattern it was handed and could not catch either a correctness
+      // regression (dropping this row) or a cost regression (matching every set in the namespace),
+      // so this test asserts on the argument actually passed instead. Would fail against fix
+      // round 1's unconditional "%": Pattern.quote(setName) != "%".
       String setName = "orders(2024)";
+      Connection conn = connectionWithColumns("test", setName,
+         List.of(row("COLUMN_NAME", "id", "DATA_TYPE", Types.INTEGER, "ORDINAL_POSITION", 1)));
+
+      AerospikeCatalog.describeDataset(conn, "test", setName);
+
+      DatabaseMetaData meta = conn.getMetaData();
+      ArgumentCaptor<String> tableNamePattern = ArgumentCaptor.forClass(String.class);
+      verify(meta).getColumns(any(), any(), tableNamePattern.capture(), any());
+      assertEquals(Pattern.quote(setName), tableNamePattern.getValue());
+   }
+
+   @Test
+   void describeColumns_plainSetName_passesQuotedPatternNotLiteralPercent() throws Exception {
+      // A plain identifier has no regex-metacharacter correctness hazard, but the cost hazard
+      // (getColumns running one live "SELECT ... LIMIT 1" per regex match) still applies to it --
+      // this is the "common case" the round 2 fix restores a single live query for. Would fail
+      // against fix round 1's unconditional "%": Pattern.quote("orders") != "%".
+      Connection conn = connectionWithColumns("test", "orders",
+         List.of(row("COLUMN_NAME", "id", "DATA_TYPE", Types.INTEGER, "ORDINAL_POSITION", 1)));
+
+      AerospikeCatalog.describeDataset(conn, "test", "orders");
+
+      DatabaseMetaData meta = conn.getMetaData();
+      ArgumentCaptor<String> tableNamePattern = ArgumentCaptor.forClass(String.class);
+      verify(meta).getColumns(any(), any(), tableNamePattern.capture(), any());
+      assertEquals(Pattern.quote("orders"), tableNamePattern.getValue());
+   }
+
+   @Test
+   void describeColumns_setNameContainingLiteralPercent_fallsBackToLiteralPercent()
+      throws Exception
+   {
+      // The driver applies tableNamePattern.replace("%", ".*") to the raw string before
+      // Pattern.compile ever sees it, so a "%" character in the resulting string always becomes a
+      // wildcard -- including one Pattern.quote's own \Q...\E wrapper was relying on to be taken
+      // literally (confirmed with a standalone harness against the real driver's exact
+      // replace-then-compile sequence: quoting "orders%2024" and then applying that replace turns
+      // the wrapper itself into "\Qorders.*2024\E", which no longer matches "orders%2024" -- or
+      // any other real set name -- at all). There is no way to escape a literal "%" through this
+      // pre-substitution, so this one datasetId shape deliberately keeps paying fix round 1's
+      // O(n)-live-queries-in-an-n-set-namespace cost, with the exact-match post-filter as the
+      // correctness backstop; that is a documented choice, not an oversight, and this test locks
+      // it down as behavior rather than leaving it to be rediscovered as a "regression" later.
+      String setName = "orders%2024";
       Connection conn = connectionWithColumns("test", setName,
          List.of(row("COLUMN_NAME", "id", "DATA_TYPE", Types.INTEGER, "ORDINAL_POSITION", 1)));
 
@@ -387,10 +435,11 @@ class AerospikeCatalogTest {
 
       ArgumentCaptor<String> columnsCatalog = ArgumentCaptor.forClass(String.class);
       ArgumentCaptor<String> columnsSchema = ArgumentCaptor.forClass(String.class);
-      // tableNamePattern is "%", not "orders" -- see describeColumns_regexMetacharacterSetName_
-      // passesLiteralPercentNotDatasetId above for why. This test only cares about catalog/schema.
-      verify(meta).getColumns(columnsCatalog.capture(), columnsSchema.capture(), eq("%"),
-         any());
+      // tableNamePattern is Pattern.quote("orders"), not the bare literal "orders" -- see
+      // describeColumns_plainSetName_passesQuotedPatternNotLiteralPercent above for why. This test
+      // only cares about catalog/schema.
+      verify(meta).getColumns(columnsCatalog.capture(), columnsSchema.capture(),
+         eq(Pattern.quote("orders")), any());
       assertEquals("test", columnsCatalog.getValue());
       assertNull(columnsSchema.getValue());
 

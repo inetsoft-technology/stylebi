@@ -24,6 +24,7 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * Assembles AerospikeRuntime's TabularCatalogProvider answers from standard java.sql.
@@ -40,8 +41,15 @@ import java.util.*;
  * tableNamePattern arguments to have been matched as literal equality: JDBC allows these to be
  * treated as LIKE patterns, and namespace/datasetId are not guaranteed free of underscore/percent.
  * getColumns goes further than a LIKE-pattern risk: the driver compiles tableNamePattern as a Java
- * regex (see describeColumns below), so a literal "%" is passed there rather than datasetId itself
- * and this exact-match filter is what actually narrows the result, not the pattern argument.
+ * regex, and -- more importantly for cost, not just correctness -- runs one live "SELECT ... LIMIT
+ * 1" against the cluster per regex-matched table (AerospikeDatabaseMetadata.getMetadata), unlike
+ * getTables/getPrimaryKeys, which only filter already-fetched, cached cluster metadata in memory.
+ * Passing "%" there unconditionally matches every set in the namespace and turns one
+ * describeDataset call into one live query per set in the namespace; see describeColumns below for
+ * how the pattern actually passed avoids that in the common case, and the one case (a literal '%'
+ * in datasetId) where it cannot and falls back to the expensive-but-correct "%". This exact-match
+ * filter is retained regardless, as the correctness backstop independent of which pattern was
+ * passed.
  */
 final class AerospikeCatalog {
    private AerospikeCatalog() {
@@ -120,12 +128,15 @@ final class AerospikeCatalog {
       // Confirmed against the driver: AerospikeDatabaseMetadata.getColumns compiles
       // tableNamePattern as a Java regex (only "%" is translated, to ".*"; every other regex
       // metacharacter passes through unescaped) and matches it with Matcher.matches() against each
-      // real table name -- not a SQL LIKE pattern. Passing datasetId itself here would silently
-      // drop the one real row for any set name containing an unescaped regex metacharacter (e.g.
-      // "orders(2024)"), even though the row exists and listDatasets would have reported it. Pass
-      // a literal "%" instead, matching every set in the namespace, and rely on the exact-match
-      // filter below (as listDatasets already does for getTables) to narrow it back down.
-      try(ResultSet rs = meta.getColumns(namespace, null, "%", "%")) {
+      // real table name -- not a SQL LIKE pattern -- and then runs one live query per match
+      // (getMetadata), so the pattern passed here also controls how many live queries this call
+      // makes, not just correctness. columnsTableNamePattern(datasetId) resolves that: it quotes
+      // datasetId so only the one real set matches (restoring a single live query), except for the
+      // one datasetId shape that cannot be quoted through the driver's own "%"->".*" substitution,
+      // where it falls back to the driver-matches-everything "%" from an earlier fix round. Either
+      // way, the exact-match filter below (as listDatasets already does for getTables) is what
+      // actually guarantees only this dataset's columns are returned.
+      try(ResultSet rs = meta.getColumns(namespace, null, columnsTableNamePattern(datasetId), "%")) {
          while(rs.next()) {
             if(!namespace.equalsIgnoreCase(rs.getString("TABLE_CAT")) ||
                !datasetId.equals(rs.getString("TABLE_NAME")))
@@ -140,6 +151,28 @@ final class AerospikeCatalog {
       }
 
       return new ArrayList<>(byPosition.values());
+   }
+
+   // Confirmed against the driver: AerospikeDatabaseMetadata.getColumns/getTables both apply
+   // tableNamePattern.replace("%", ".*") to the raw string *before* Pattern.compile ever sees it --
+   // so any "%" character in the resulting string becomes a wildcard, whatever put it there,
+   // including one Pattern.quote's own \Q...\E wrapper was relying on to be taken literally.
+   // Pattern.quote(datasetId) contains a "%" only when datasetId itself does (none of the
+   // characters \Q...\E adds is "%"), so for every datasetId without a literal "%" the quoted form
+   // survives that substitution unchanged and Matcher.matches() accepts only the exact set name --
+   // restoring the single-live-query cost getColumns had before an earlier fix round widened the
+   // pattern to "%" to fix a different (regex-metacharacter) bug. Verified with a standalone
+   // harness that a datasetId containing a literal "%" cannot be rescued the same way: quoting
+   // "orders%2024" produces "\Qorders%2024\E", and replacing "%" there turns it into
+   // "\Qorders.*2024\E" -- inside the now-corrupted \Q...\E wrapper, ".*" is required as two
+   // literal characters, not a wildcard, so the resulting pattern no longer matches the real set
+   // name "orders%2024" at all (and does not accidentally match some other real set instead; it
+   // matches nothing). There is no way to escape a literal "%" through this driver's own
+   // pre-substitution, so that one case falls back to "%", accepting the O(n)-live-queries-in-an-
+   // n-set-namespace cost this connector's caller (describeColumns) already documents, with the
+   // exact-match filter there as the correctness backstop.
+   private static String columnsTableNamePattern(String datasetId) {
+      return datasetId.contains("%") ? "%" : Pattern.quote(datasetId);
    }
 
    private static List<String> primaryKeyColumnNames(DatabaseMetaData meta, String namespace,
