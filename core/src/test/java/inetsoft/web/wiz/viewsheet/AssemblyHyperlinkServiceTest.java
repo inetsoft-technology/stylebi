@@ -318,6 +318,31 @@ class AssemblyHyperlinkServiceTest {
       assertEquals("constant", capture(h.links).getParamList().get(0).getValueSource());
    }
 
+   /**
+    * A constant entry with no explicit type must still round-trip as constant.
+    * {@code Hyperlink.getParameterType} returns whatever was stored -- including {@code null} --
+    * and {@code HyperlinkDialogService.getHyperlinkDialogModel}'s read path infers
+    * {@code valueSource} purely from whether that comes back null ({@code "field"}) or not
+    * ({@code "constant"}). Leaving {@code type} null for an omitted-type constant entry would
+    * make it read back as {@code "field"}, and this class's own field-name validation would then
+    * refuse it on the very next {@code set_hyperlink} resubmission of that read-back state.
+    */
+   @Test
+   void paramListEntryWithNoExplicitTypeDefaultsToStringSoItRoundTripsAsConstant()
+      throws Exception
+   {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "web", "webLink", "https://example.com",
+                         "paramList", List.of(Map.of("name", "region", "value", "West"))),
+                    "");
+
+      InputParameterDialogModel param = capture(h.links).getParamList().get(0);
+      assertEquals("string", param.getType(),
+                  "a null type is indistinguishable from a never-set one on read");
+   }
+
    @Test
    void paramListWithAFieldValueMustNameARealBindableField() throws Exception {
       HyperlinkDialogModel model = new HyperlinkDialogModel();

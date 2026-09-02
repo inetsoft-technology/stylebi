@@ -22,6 +22,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HyperlinkDialogModel;
 import inetsoft.web.composer.model.vs.InputParameterDialogModel;
@@ -484,7 +485,17 @@ public class AssemblyHyperlinkService {
          param.setName(name);
          param.setValueSource(source);
          param.setValue(value);
-         param.setType("constant".equals(source) ? str(paramMap, "type") : null);
+
+         // A constant entry always needs a type -- Hyperlink.getParameterType(name) returning
+         // null is how HyperlinkDialogService.getHyperlinkDialogModel's read path infers
+         // valueSource "field" (type == null ? "field" : "constant"). Leaving type null here for
+         // an agent that (naturally) omitted it would round-trip a constant param back as a
+         // "field" one on the very next read, and this class's own field-name validation above
+         // would then refuse it on resubmission -- rejecting a param that worked. XSchema.STRING
+         // matches what the real dialog itself defaults to (InputParameterDialog: every
+         // newly-created or "constant"-switched-to param starts as XSchema.STRING).
+         String type = str(paramMap, "type");
+         param.setType("constant".equals(source) ? (type == null ? XSchema.STRING : type) : null);
          params.add(param);
       }
 
