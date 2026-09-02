@@ -358,6 +358,69 @@ class ChartRegionPropertyServiceTest {
       verifyNoInteractions(h.regions);
    }
 
+   /**
+    * Repair-review finding on G3-5/G3-6: neither model ever stores a bare integer string.
+    * {@code AxisPropertyDialogModel.updateAxisPropertyDialogModel} populates
+    * {@code RotationRadioGroupModel} via {@code rotation + ""} on a {@code Float} field, which
+    * yields {@code "90.0"} -- the exact form {@code list_chart_region_properties} would read back
+    * and the exact form the Composer UI's own radio group writes. A round trip through this tool
+    * must not be rejected just because the stored form has a decimal point.
+    */
+   @Test
+   void writesAxisLabelRotationSuppliedInTheModelsOwnDecimalForm() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null, Map.of("rotation", "-45.0"),
+                    "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals("-45",
+                   captor.getValue().getAxisLabelPaneModel().getRotationRadioGroupModel()
+                      .getRotation());
+   }
+
+   /** Same round-trip form on the title side, which has no "auto" branch to fall back on. */
+   @Test
+   void writesTitleRotationSuppliedInTheModelsOwnDecimalForm() throws Exception {
+      Harness h = harness();
+      when(h.regions.getTitleFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                               any(Principal.class)))
+         .thenReturn(titleModel());
+
+      h.service.set("tok", principal(), "Chart1", "title", "y", null, Map.of("rotation", "90.0"),
+                    "");
+
+      ArgumentCaptor<TitleFormatDialogModel> captor =
+         ArgumentCaptor.forClass(TitleFormatDialogModel.class);
+      verify(h.regions).setTitleFormatDialogModel(anyString(), anyString(), anyString(),
+                                                  captor.capture(), anyString(),
+                                                  any(Principal.class), any());
+      assertEquals("90",
+                   captor.getValue().getTitleFormatPaneModel().getRotationRadioGroupModel()
+                      .getRotation());
+   }
+
+   /** A decimal value that isn't one of the five real angles is still refused. */
+   @Test
+   void refusesADecimalRotationOutsideEitherDomain() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                             Map.of("rotation", "90.5"), ""));
+
+      assertTrue(thrown.getMessage().contains("90.5"));
+      verifyNoInteractions(h.regions);
+   }
+
    /** L4 finding G3-4: the legend Alias tab (per-value label overrides) had no tool alias. */
    @Test
    void writesLegendAliases() throws Exception {

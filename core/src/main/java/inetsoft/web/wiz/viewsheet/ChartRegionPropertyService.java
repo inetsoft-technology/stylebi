@@ -273,9 +273,8 @@ public class ChartRegionPropertyService {
       }
    }
 
-   /** The axis label's rotation offers "auto"; the title's does not (it is never presented). */
-   private static final Set<String> AXIS_ROTATIONS = Set.of("auto", "-90", "-45", "0", "45", "90");
-   private static final Set<String> TITLE_ROTATIONS = Set.of("-90", "-45", "0", "45", "90");
+   /** The angles both the axis label and the title actually offer, degrees, "auto" aside. */
+   private static final Set<Integer> ROTATION_DEGREES = Set.of(-90, -45, 0, 45, 90);
 
    /**
     * Validates a {@code rotation} against the domain the target region's model actually accepts,
@@ -290,21 +289,41 @@ public class ChartRegionPropertyService {
     * title's own persist step ({@code TitleFormatDialogModel.updateTitleFormatPaneModel}) does not
     * handle {@code "auto"} at all and calls {@code Float.parseFloat(rotation)} directly on
     * whatever string arrives, which throws an unhelpful raw {@code NumberFormatException} for it.
-    * Checked here, region-aware, before either path is reached — and canonicalized the same way
-    * {@code PropertyPath}'s own {@code CONSTRAINED_STRINGS} check does, so {@code "AUTO"} reaches
-    * the axis model as the lowercase {@code "auto"} the exact-match check requires.
+    * Checked here, region-aware, before either path is reached.
+    *
+    * <p>The numeric side is compared as a float, not as an exact string: the model itself never
+    * stores a bare integer string. {@code AxisPropertyDialogModel.updateAxisPropertyDialogModel}
+    * populates {@code RotationRadioGroupModel} via {@code rotation + ""} and
+    * {@code TitleFormatDialogModel} via {@code Number.toString()} on a {@code Float} field, which
+    * yields {@code "90.0"}, not {@code "90"} — the same form the Composer UI's own radio group
+    * writes ({@code rotation-radio-group.component.ts}). A read-then-write round trip through
+    * {@code list_chart_region_properties} must not be rejected just because the stored form has a
+    * decimal point PropertyPath.CONSTRAINED_STRINGS-style exact matching would have missed.
     */
    private static String canonicalRotation(String region, Object rotation) {
-      String text = rotation == null ? "" : String.valueOf(rotation).trim().toLowerCase();
-      Set<String> allowed = "axis".equals(region) ? AXIS_ROTATIONS : TITLE_ROTATIONS;
+      String text = rotation == null ? "" : String.valueOf(rotation).trim();
 
-      if(!allowed.contains(text)) {
-         throw new IllegalArgumentException(
-            "'rotation' on a chart " + region + " accepts only " + new TreeSet<>(allowed) +
-            "; '" + rotation + "' is not one of them.");
+      if("axis".equals(region) && text.equalsIgnoreCase("auto")) {
+         return "auto";
       }
 
-      return text;
+      try {
+         float parsed = Float.parseFloat(text);
+         int degrees = (int) parsed;
+
+         if(degrees == parsed && ROTATION_DEGREES.contains(degrees)) {
+            return String.valueOf(degrees);
+         }
+      }
+      catch(NumberFormatException ignore) {
+         // falls through to the error below
+      }
+
+      String allowedDescription = "axis".equals(region)
+         ? "[-90, -45, 0, 45, 90, auto]" : "[-90, -45, 0, 45, 90]";
+      throw new IllegalArgumentException(
+         "'rotation' on a chart " + region + " accepts only " + allowedDescription +
+         "; '" + rotation + "' is not one of them.");
    }
 
    /**
