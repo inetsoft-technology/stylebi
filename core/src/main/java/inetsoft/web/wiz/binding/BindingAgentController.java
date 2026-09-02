@@ -65,6 +65,7 @@ public class BindingAgentController {
                                  ChartAestheticAgentService aestheticService,
                                  TableBindingService tableService,
                                  CalcTableService calcService,
+                                 SelectionBindingService selectionService,
                                  SheetAgentBroadcastService broadcast)
    {
       this.feature = feature;
@@ -77,6 +78,7 @@ public class BindingAgentController {
       this.aestheticService = aestheticService;
       this.tableService = tableService;
       this.calcService = calcService;
+      this.selectionService = selectionService;
       this.broadcast = broadcast;
    }
 
@@ -408,6 +410,23 @@ public class BindingAgentController {
       requireBindableColumns(sessionToken, user, request.assembly(), request.fields());
       tableService.setShelf(sessionToken, user, request.assembly(), request.shelf(),
                             request.fields());
+   }
+
+   public record SelectionSourceRequest(String assembly, String table, List<String> columns,
+                                        List<String> additionalTables, String measure,
+                                        Boolean force) {}
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/selection/source")
+   public Map<String, Object> setSelectionSource(
+      @PathVariable String sessionToken, @RequestBody SelectionSourceRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return selectionService.setSource(sessionToken, user, request.assembly(), request.table(),
+                                        request.columns(), request.additionalTables(),
+                                        request.measure(), Boolean.TRUE.equals(request.force()),
+                                        linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/source")
@@ -769,5 +788,6 @@ public class BindingAgentController {
    private final ChartAestheticAgentService aestheticService;
    private final TableBindingService tableService;
    private final CalcTableService calcService;
+   private final SelectionBindingService selectionService;
    private final SheetAgentBroadcastService broadcast;
 }
