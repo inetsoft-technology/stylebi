@@ -59,12 +59,16 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.uql.util.XSessionService;
 import jakarta.servlet.*;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -103,6 +107,47 @@ class AbstractSecurityFilterTest {
       {
          chain.doFilter(request, response);
       }
+   }
+
+   /**
+    * Mimics StyleBIGoogleSSOFilter.getSSODefaultRole()'s override: no isMultiTenant() guard, just
+    * a fixed configured list of role names. Used to exercise createSSOSession()'s integration with
+    * getSSODefaultRoleID() (P1 scenarios 2/3 of the SSO test plan) without depending on
+    * StyleBIGoogleSSOFilter's own package (inetsoft.enterprise.sso) or its JWT/JOSE machinery --
+    * createSSOSession() is declared protected on AbstractSecurityFilter (inetsoft.web.security), so
+    * a real StyleBIGoogleSSOFilter instance could not call it from a test in the enterprise package
+    * anyway; the base-class integration point is what matters here, not the Google subclass itself.
+    */
+   private static final class GoogleLikeFilter extends AbstractSecurityFilter {
+      private final String[] defaultRoles;
+
+      GoogleLikeFilter(SessionLicenseServiceProvider provider, AuthenticationService service,
+                        String[] defaultRoles)
+      {
+         super(provider, service);
+         this.defaultRoles = defaultRoles;
+      }
+
+      @Override
+      protected String[] getSSODefaultRole() {
+         return defaultRoles;
+      }
+
+      @Override
+      public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+         throws IOException, ServletException
+      {
+         chain.doFilter(request, response);
+      }
+   }
+
+   private static HttpServletRequest requestWithSession(HttpSession session) {
+      HttpServletRequest request = mock(HttpServletRequest.class);
+      lenient().when(request.getSession(true)).thenReturn(session);
+      lenient().when(request.getHeader(anyString())).thenReturn(null);
+      lenient().when(request.getRemoteAddr()).thenReturn("127.0.0.1");
+      lenient().when(request.getLocale()).thenReturn(Locale.US);
+      return request;
    }
 
    @BeforeEach
@@ -312,5 +357,65 @@ class AbstractSecurityFilterTest {
       // the admin check is skipped when there is no provider, but the org scoping must not be
       assertEquals(new IdentityID(ROLE, TENANT_ORG),
                    filter.getSSODefaultRoleID(ROLE, principal(TENANT_ORG)));
+   }
+
+   // ── cross-filter integration matrix (SSO test plan P1): createSSOSession() end to end ──────
+   //
+   // getSSODefaultRoleID() above is proven correct in isolation. These two tests prove that
+   // createSSOSession() -- the method that actually merges its result onto the login principal --
+   // wires it up correctly for a filter whose getSSODefaultRole() override has NO isMultiTenant()
+   // guard, which is exactly StyleBIGoogleSSOFilter's shape (see its javadoc for why that absence
+   // is deliberate). This is Bug #76161's original end-to-end scenario, not just the unit-level
+   // guard tested above.
+
+   @Test
+   void multiTenant_googleStyleFilter_administratorPropertyValue_isRejected() throws Exception {
+      stubMultiTenant(true);
+      stubBuiltInRoleStore();
+      GoogleLikeFilter googleFilter = new GoogleLikeFilter(
+         mock(SessionLicenseServiceProvider.class), mock(AuthenticationService.class),
+         new String[] { "Administrator" });
+      HttpSession session = mock(HttpSession.class);
+      HttpServletRequest request = requestWithSession(session);
+
+      SRPrincipal result = googleFilter.createSSOSession(request, principal(TENANT_ORG));
+
+      assertFalse(Arrays.asList(result.getRoles()).contains(new IdentityID("Administrator", null)),
+         "a Google-style filter without the isMultiTenant() guard must still have the " +
+            "\"Administrator\" property value rejected by getSSODefaultRoleID() end to end -- this " +
+            "is Bug #76161's original self-registration-to-server-admin scenario");
+   }
+
+   @Test
+   void multiTenant_googleStyleFilter_selfOrgSignup_getsOrgScopedOrganizationAdministrator()
+      throws Exception
+   {
+      stubMultiTenant(true);
+      // NOTE (found while writing this test, not assumed up front): the built-in
+      // "Organization Administrator" role is seeded GLOBALLY (org-less, IdentityID(name, null)) --
+      // see isAssignableSSODefaultRole()'s first guard -- so it is refused by name for EVERY org,
+      // including the user's own new SELF org; there is no special case for self-signup there.
+      // What the class javadoc's "org-scoped ... is deliberately still allowed" comment (and the
+      // existing multiTenant_orgScopedOrgAdminRole_isAllowed test above) actually describes is an
+      // ORG-SCOPED role -- e.g. one an operator created specifically inside that org, or (as here)
+      // one the security provider resolves as existing only within the org being signed into, not
+      // the global built-in role sharing its name. So the role store below flags the org-admin bit
+      // on the SELF-org-scoped identity, not the null-org one.
+      stubRoleStore(Set.of(),
+         Set.of(new IdentityID("Organization Administrator", Organization.getSelfOrganizationID())));
+      GoogleLikeFilter googleFilter = new GoogleLikeFilter(
+         mock(SessionLicenseServiceProvider.class), mock(AuthenticationService.class),
+         new String[] { "Organization Administrator" });
+      HttpSession session = mock(HttpSession.class);
+      HttpServletRequest request = requestWithSession(session);
+
+      SRPrincipal result = googleFilter.createSSOSession(
+         request, principal(Organization.getSelfOrganizationID()));
+
+      assertTrue(Arrays.asList(result.getRoles()).contains(new IdentityID(
+            "Organization Administrator", Organization.getSelfOrganizationID())),
+         "an org-scoped Organization Administrator role resolved within the user's own SELF org " +
+            "must still be granted end to end -- this must not be collateral damage from the " +
+            "Administrator-name rejection fix");
    }
 }
