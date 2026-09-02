@@ -34,11 +34,17 @@ import java.util.*;
  * OrientJdbcConnection.getCatalog()} returns the connected database's own name and {@code
  * getSchema()} always returns {@code null} -- there is exactly one database per connection, no
  * separate schema concept. {@code getTables}/{@code getColumns}/{@code getPrimaryKeys} never read
- * their {@code catalog}/{@code schemaPattern} arguments (the driver's own {@code TABLE_CAT}/{@code
- * TABLE_SCHEM} output columns are always {@code database.getName()}, independent of what was
- * passed in), so every call below passes {@code conn.getCatalog()} as catalog and {@code null} as
- * schema purely as a self-documenting, forward-compatible convention -- not because today's driver
- * needs it to filter correctly.
+ * their {@code catalog}/{@code schemaPattern} arguments to filter matches, but the three methods
+ * don't treat their own {@code TABLE_CAT}/{@code TABLE_SCHEM} output columns the same way.
+ * {@code getTables} ({@code OrientJdbcDatabaseMetaData.java} lines 733-734) and {@code getColumns}
+ * (via {@code getPropertyAsDocument}, lines 1445-1446) always report both as {@code
+ * database.getName()}, independent of what was passed in. {@code getPrimaryKeys} (lines 886-887)
+ * instead echoes the passed-in {@code catalog} argument verbatim into both columns rather than
+ * substituting {@code database.getName()} -- a difference this class never depends on, since
+ * {@code primaryKeyColumnNames} below only reads {@code PK_NAME}/{@code COLUMN_NAME}/{@code
+ * KEY_SEQ} from that result set. Either way, every call below passes {@code conn.getCatalog()} as
+ * catalog and {@code null} as schema purely as a self-documenting, forward-compatible convention --
+ * not because today's driver needs it to filter correctly.
  *
  * A class name (the "table" in JDBC terms) is matched two different ways by this driver, and both
  * matter here: {@code getTables} does a literal, case-insensitive {@code equals}/{@code
@@ -65,8 +71,12 @@ final class OrientDBCatalog {
       // TABLE_TYPES default (used whenever types == null) is {"TABLE", "SYSTEM TABLE"} -- passing
       // null would therefore ask for MORE, not fewer, rows than passing nothing. "SYSTEM TABLE" is
       // how this driver classifies its own built-in security/bookkeeping classes (OUser, ORole,
-      // OIdentity, ORestricted, OFunction, plus the literal cluster name "internal"), which do not
-      // belong in a data-annotation catalog next to actual user classes.
+      // OIdentity, ORestricted, OFunction) plus one bare literal, "internal" (OMetadataInternal.
+      // SYSTEM_CLUSTER), none of which belong in a data-annotation catalog next to actual user
+      // classes. Because "internal" is matched as a literal string rather than tied to an actual
+      // reserved class, a user-created class literally named "internal" (any case) would also be
+      // classified "SYSTEM TABLE" and silently excluded here -- a driver quirk, not something this
+      // connector introduces or works around.
       try(ResultSet rs = meta.getTables(database, null, "%", new String[]{"TABLE"})) {
          while(rs.next()) {
             // Defensive re-check, not required by the types filter above: if a caller (or a test
