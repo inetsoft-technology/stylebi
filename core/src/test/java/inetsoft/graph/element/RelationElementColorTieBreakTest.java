@@ -216,6 +216,67 @@ class RelationElementColorTieBreakTest {
    }
 
    /**
+    * Reviewer-flagged follow-up: {@code RelationGeometry.getColor()} only takes the root
+    * node "falls through to general Color" branch when {@code !isApplyAestheticsToSource()}.
+    * When that plot option is enabled, a root node's color comes from Node Color directly,
+    * exactly like a leaf -- so the root tie-break field must switch to Node Color too in
+    * that mode, not stay hard-coded to the general Color frame.
+    */
+   @Test
+   void applyAestheticsToSource_rootFollowsNodeColorInsteadOfGeneralColor() {
+      // Same shape as colorAndNodeColorOnDifferentFields_eachNodeTypeUsesItsOwnField, but
+      // with applyAestheticsToSource(true): the root's representative row must now
+      // maximize ColorB (Node Color), not ColorA (general Color).
+      Object[][] rows = {
+         { "Group", "Year", "ColorA", "ColorB" },
+         { "X", 2020, "A2", "B1" },
+         { "X", 2020, "A1", "B2" },
+      };
+
+      DefaultDataSet data = new DefaultDataSet(rows);
+      CategoricalScale groupScale = new CategoricalScale("Group");
+      groupScale.init(data);
+      CategoricalScale yearScale = new CategoricalScale("Year");
+      yearScale.init(data);
+
+      RelationElement element = new RelationElement("Group", "Year");
+      element.setSizeFrame(new StaticSizeFrame());
+      element.setNodeSizeFrame(new StaticSizeFrame());
+      element.setColorFrame(new CategoricalColorFrame("ColorA"));
+      element.setNodeColorFrame(new CategoricalColorFrame("ColorB"));
+      element.setApplyAestheticsToSource(true);
+
+      EGraph egraph = new EGraph();
+      egraph.addElement(element);
+      RectCoord coord = new RectCoord(groupScale, yearScale);
+      egraph.setCoordinate(coord);
+      GGraph ggraph = egraph.createGGraph(coord, data);
+
+      Integer rootSubRowIndex = null;
+
+      for(int i = 0; i < ggraph.getGeometryCount(); i++) {
+         Object geom = ggraph.getGeometry(i);
+
+         if(!(geom instanceof RelationGeometry)) {
+            continue;
+         }
+
+         RelationGeometry rgeom = (RelationGeometry) geom;
+
+         if("Group".equals(rgeom.getVar()) && "X".equals(rgeom.getMxCell().getValue())) {
+            rootSubRowIndex = rgeom.getSubRowIndex();
+         }
+      }
+
+      assertNotNull(rootSubRowIndex, "Root node for Group=X must exist");
+      // With applyAestheticsToSource(true), the root must follow ColorB ("B2", row 1) --
+      // Node Color -- not ColorA, which would pick row 0 instead.
+      assertEquals("B2", data.getData("ColorB", rootSubRowIndex),
+                   "Root node's representative row must maximize the Node Color field " +
+                   "when applyAestheticsToSource is enabled");
+   }
+
+   /**
     * No-op case: when no color field is bound at all (a plain static color), there is
     * nothing to tie-break on, so the pre-fix behavior -- first row in original order wins
     * -- must be preserved exactly. This documents that the fix does not invent a new
