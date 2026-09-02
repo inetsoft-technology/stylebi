@@ -32,7 +32,7 @@ import java.util.Properties;
  * Class that provides OrientDB database connection and query execution utility
  */
 @SuppressWarnings("unused")
-public class OrientDBRuntime extends TabularRuntime {
+public class OrientDBRuntime extends TabularRuntime implements TabularCatalogProvider {
    /**
     * Execute a OrientDB query.
     *
@@ -128,6 +128,26 @@ public class OrientDBRuntime extends TabularRuntime {
       catch (Exception ex){
          LOG.warn("Failed to obtain OrientDB JDBC driver", ex);
          throw ex;
+      }
+   }
+
+   @Override
+   public TabularCatalog listDatasets(TabularDataSource<?> dataSource) throws Exception {
+      OrientDBDataSource ds = (OrientDBDataSource) dataSource;
+
+      try(Connection conn = getConnection(ds)) {
+         return OrientDBCatalog.listDatasets(conn);
+      }
+   }
+
+   @Override
+   public TabularDatasetSchema describeDataset(TabularDataSource<?> dataSource, String datasetId)
+      throws Exception
+   {
+      OrientDBDataSource ds = (OrientDBDataSource) dataSource;
+
+      try(Connection conn = getConnection(ds)) {
+         return OrientDBCatalog.describeDataset(conn, datasetId);
       }
    }
 
