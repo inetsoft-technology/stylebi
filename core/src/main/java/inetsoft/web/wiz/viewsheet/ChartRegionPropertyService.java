@@ -23,6 +23,7 @@ import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.composer.vs.dialog.RegionPropertyDialogService;
 import inetsoft.web.graph.model.dialog.AxisPropertyDialogModel;
 import inetsoft.web.graph.model.dialog.LegendFormatDialogModel;
+import inetsoft.web.graph.model.dialog.ModelAlias;
 import inetsoft.web.graph.model.dialog.TitleFormatDialogModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -123,9 +124,16 @@ public class ChartRegionPropertyService {
          requireLinearAxisForLinearOnlyKeys(sessionToken, user, assembly, key, field, properties);
       }
 
-      if(properties.containsKey("rotation")) {
+      if(properties.containsKey("rotation") || properties.containsKey("aliases")) {
          properties = new LinkedHashMap<>(properties);
-         properties.put("rotation", canonicalRotation(name, properties.get("rotation")));
+
+         if(properties.containsKey("rotation")) {
+            properties.put("rotation", canonicalRotation(name, properties.get("rotation")));
+         }
+
+         if(properties.containsKey("aliases")) {
+            properties.put("aliases", toModelAliases(properties.get("aliases")));
+         }
       }
 
       Object model = readModel(sessionToken, user, assembly, name, key, field);
@@ -286,6 +294,62 @@ public class ChartRegionPropertyService {
       }
 
       return text;
+   }
+
+   /**
+    * Converts the caller's per-value label overrides into the {@code ModelAlias[]} the Alias
+    * tab's own model expects.
+    *
+    * <p>Not handled by {@code PropertyPath}'s generic array coercion: that engine builds an array
+    * of a component type by recursively coercing each JSON element, but a {@code ModelAlias} is a
+    * plain bean with no scalar/enum/array shape {@code PropertyPath.coerce} knows how to
+    * construct from a JSON object, and extending that generic engine to build arbitrary beans
+    * from a {@code Map} would widen every other property this class and its siblings expose, not
+    * just this one. Converting here, before the value ever reaches {@code PropertyPath}, keeps
+    * the change scoped to the one property that needs it: {@code PropertyPath.set} then receives
+    * an already-correct {@code ModelAlias[]} and its own pass-through check
+    * ({@code target.isInstance(value)}) hands it straight to the setter unchanged.
+    *
+    * <p>Each entry needs {@code value} (the real data value the alias replaces) and {@code alias}
+    * (what to show instead); {@code label} is optional and, when omitted, mirrors {@code value} --
+    * on the read side, {@code label} is the value as StyleBI's own {@code GraphUtil.getLegendItems}
+    * / {@code getAxisItems} format it, which for a caller supplying a value fresh rather than
+    * echoing one just read back is not always knowable in advance.
+    */
+   private static ModelAlias[] toModelAliases(Object value) {
+      if(!(value instanceof List<?> list)) {
+         throw new IllegalArgumentException(
+            "'aliases' expects a JSON array of {value, alias} objects; '" + value + "' is not " +
+            "an array.");
+      }
+
+      ModelAlias[] result = new ModelAlias[list.size()];
+
+      for(int i = 0; i < list.size(); i++) {
+         Object entry = list.get(i);
+
+         if(!(entry instanceof Map<?, ?> map)) {
+            throw new IllegalArgumentException(
+               "'aliases[" + i + "]' must be an object with 'value' and 'alias', got '" + entry +
+               "'.");
+         }
+
+         Object rawValue = map.get("value");
+         Object rawAlias = map.get("alias");
+
+         if(rawValue == null || rawAlias == null) {
+            throw new IllegalArgumentException(
+               "'aliases[" + i + "]' needs both 'value' (the data value to replace) and 'alias' " +
+               "(what to show instead); got " + map + ".");
+         }
+
+         String stringValue = String.valueOf(rawValue);
+         Object rawLabel = map.get("label");
+         String label = rawLabel == null ? stringValue : String.valueOf(rawLabel);
+         result[i] = new ModelAlias(label, stringValue, String.valueOf(rawAlias));
+      }
+
+      return result;
    }
 
    /**
@@ -495,6 +559,9 @@ public class ChartRegionPropertyService {
       // Unlike the title's rotation, "auto" is a real, offered value here -- see
       // requireValidRotation for why the two can't share one CONSTRAINED_STRINGS entry.
       aliases.put("rotation", "axisLabelPaneModel.rotationRadioGroupModel.rotation");
+      // The Alias tab (per-value label overrides), shown only for a non-linear axis, had no tool
+      // equivalent (parity audit L4, finding G3-7). See toModelAliases for the payload shape.
+      aliases.put("aliases", "aliasPaneModel.aliasList");
       return aliases;
    }
 
@@ -520,6 +587,10 @@ public class ChartRegionPropertyService {
       aliases.put("logarithmicScale", "legendScalePaneModel.logarithmic");
       aliases.put("reverse", "legendScalePaneModel.reverse");
       aliases.put("includeZero", "legendScalePaneModel.includeZero");
+      // The Alias tab (per-value label overrides), shown only for a dimension-bound legend, had
+      // no tool equivalent (parity audit L4, finding G3-4). See toModelAliases for the payload
+      // shape.
+      aliases.put("aliases", "aliasPaneModel.aliasList");
       return aliases;
    }
 

@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -357,6 +358,83 @@ class ChartRegionPropertyServiceTest {
       verifyNoInteractions(h.regions);
    }
 
+   /** L4 finding G3-4: the legend Alias tab (per-value label overrides) had no tool alias. */
+   @Test
+   void writesLegendAliases() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("aliases", List.of(
+                       Map.of("value", "2022", "alias", "FY22"),
+                       Map.of("value", "2023", "alias", "FY23"))),
+                    "");
+
+      ArgumentCaptor<LegendFormatDialogModel> captor =
+         ArgumentCaptor.forClass(LegendFormatDialogModel.class);
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                   captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      ModelAlias[] written = captor.getValue().getAliasPaneModel().getAliasList();
+      assertEquals(2, written.length);
+      assertEquals("2022", written[0].getValue());
+      assertEquals("FY22", written[0].getAlias());
+      assertEquals("2023", written[1].getValue());
+      assertEquals("FY23", written[1].getAlias());
+   }
+
+   /** L4 finding G3-7: the axis Alias tab (per-value label overrides) had no tool alias. */
+   @Test
+   void writesAxisAliases() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                    Map.of("aliases", List.of(Map.of("value", "West", "alias", "Region West"))),
+                    "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      ModelAlias[] written = captor.getValue().getAliasPaneModel().getAliasList();
+      assertEquals(1, written.length);
+      assertEquals("West", written[0].getValue());
+      assertEquals("Region West", written[0].getAlias());
+      assertEquals("West", written[0].getLabel(), "label defaults to the value when omitted");
+   }
+
+   @Test
+   void refusesAnAliasEntryMissingAlias() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("aliases", List.of(Map.of("value", "2022"))), ""));
+
+      assertTrue(thrown.getMessage().contains("alias"));
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void refusesANonArrayAliasesValue() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("aliases", "not-an-array"), ""));
+
+      assertTrue(thrown.getMessage().contains("array"));
+      verifyNoInteractions(h.regions);
+   }
+
    private static Viewsheet mixedShelfViewsheet(ChartRef[] xFields) {
       VSChartAggregateRef y = mock(VSChartAggregateRef.class);
       when(y.isSecondaryY()).thenReturn(false);
@@ -667,6 +745,7 @@ class ChartRegionPropertyServiceTest {
       AxisLabelPaneModel labelPaneModel = new AxisLabelPaneModel();
       labelPaneModel.setRotationRadioGroupModel(new RotationRadioGroupModel());
       model.setAxisLabelPaneModel(labelPaneModel);
+      model.setAliasPaneModel(new AliasPaneModel());
       return model;
    }
 
@@ -674,6 +753,7 @@ class ChartRegionPropertyServiceTest {
       LegendFormatDialogModel model = new LegendFormatDialogModel();
       model.setLegendFormatGeneralPaneModel(new LegendFormatGeneralPaneModel());
       model.setLegendScalePaneModel(new LegendScalePaneModel());
+      model.setAliasPaneModel(new AliasPaneModel());
       return model;
    }
 
