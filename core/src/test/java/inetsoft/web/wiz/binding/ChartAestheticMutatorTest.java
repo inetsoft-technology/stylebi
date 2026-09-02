@@ -1741,4 +1741,69 @@ class ChartAestheticMutatorTest {
                  "the refusal has to name the way to get the value they want: " +
                  thrown.getMessage());
    }
+
+   // ── acceptsField vs. set_aesthetic_field agreement (L3-Group4 finding G4-4) ───────────────
+   //
+   // get_chart_aesthetics' acceptsField used to answer only "does this channel have a field
+   // slot at all" (AestheticChannels.FIELD_CHANNELS membership), independent of chart type --
+   // disagreeing with set_aesthetic_field's own sizeSupported/colorShapeSupported-gated refusal.
+   // Live-confirmed 2026-09-01: a mekko chart's size channel reported acceptsField:true here,
+   // then set_aesthetic_field refused the identical write.
+
+   @Test
+   void acceptsFieldReportsFalseForSizeWhenTheChartTypeDoesNotSupportIt() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> size = (Map<String, Object>) ChartAestheticMutator.describe(
+         model, false, AestheticChannels.FRAME_CHANNELS, false, true).get("size");
+
+      assertEquals(false, size.get("acceptsField"),
+                   "must agree with set_aesthetic_field's own sizeSupported refusal");
+   }
+
+   @Test
+   void acceptsFieldReportsFalseForColorAndShapeOnAContourChart() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      Map<String, Object> described = ChartAestheticMutator.describe(
+         model, false, AestheticChannels.FRAME_CHANNELS, true, false);
+      @SuppressWarnings("unchecked")
+      Map<String, Object> color = (Map<String, Object>) described.get("color");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> shape = (Map<String, Object>) described.get("shape");
+
+      assertEquals(false, color.get("acceptsField"),
+                   "must agree with set_aesthetic_field's own colorShapeSupported refusal");
+      assertEquals(false, shape.get("acceptsField"),
+                   "must agree with set_aesthetic_field's own colorShapeSupported refusal");
+   }
+
+   @Test
+   void acceptsFieldStaysTrueForTextRegardlessOfSizeOrColorShapeSupport() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> text = (Map<String, Object>) ChartAestheticMutator.describe(
+         model, false, AestheticChannels.FRAME_CHANNELS, false, false).get("text");
+
+      assertEquals(true, text.get("acceptsField"),
+                   "text isn't gated by either sizeSupported or colorShapeSupported");
+   }
+
+   @Test
+   void theThreeArgDescribeDefaultsToUnrestrictedAcceptsField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> size = (Map<String, Object>) ChartAestheticMutator.describe(
+         model, false, AestheticChannels.FRAME_CHANNELS).get("size");
+
+      assertEquals(true, size.get("acceptsField"),
+                   "callers that don't pass chart-type context keep the old, unrestricted answer");
+   }
 }

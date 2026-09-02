@@ -206,11 +206,21 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     * Lighter than update() — skips clearCache() and embedded viewsheet processing.
     */
    public void reloadBaseWorksheet(AssetRepository rep, Principal user) throws Exception {
-      if(wentry == null || !wentry.isWorksheet()) {
+      if(wentry == null) {
          return;
       }
 
-      Worksheet ws = (Worksheet) rep.getSheet(wentry, user, true, AssetContent.ALL);
+      Worksheet ws;
+
+      if(wentry.isWorksheet()) {
+         ws = (Worksheet) rep.getSheet(wentry, user, true, AssetContent.ALL);
+      }
+      else if(isDirectSource()) {
+         ws = getWorksheet(rep, wentry, user);
+      }
+      else {
+         return;
+      }
 
       if(ws != null) {
          ws.getWorksheetInfo().setDesignMaxRows(vinfo.getDesignMaxRows());

@@ -158,9 +158,13 @@ public class SwapXYBindingService {
     */
    private void fixInfo(ChartVSAssemblyInfo info, Viewsheet vs) {
       VSChartInfo cinfo = info.getVSChartInfo();
-      fixFields(cinfo);
       ChartDescriptor desc = info.getChartDescriptor();
-      new SwapXYBindingProcessor(cinfo, desc).process();
+      SwapXYBindingProcessor processor = new SwapXYBindingProcessor(cinfo, desc);
+      // L3-Group2 G2-1/G2-2: checked before fixFields mutates anything, so a chart type that
+      // cannot invert a bound measure refuses the whole swap instead of silently dropping it.
+      processor.requireInvertible();
+      fixFields(cinfo);
+      processor.process();
    }
 
    private void fixFields(VSChartInfo cinfo) {

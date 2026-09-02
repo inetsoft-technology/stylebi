@@ -32,7 +32,7 @@ import java.util.Properties;
  * Class that provides Hive database connection and query execution utility
  */
 @SuppressWarnings("unused")
-public class HiveRuntime extends TabularRuntime {
+public class HiveRuntime extends TabularRuntime implements TabularCatalogProvider {
    /**
     * Execute a Hive query.
     *
@@ -138,6 +138,51 @@ public class HiveRuntime extends TabularRuntime {
          LOG.warn("Failed to obtain Hive JDBC driver", ex);
          throw ex;
       }
+   }
+
+   @Override
+   public TabularCatalog listDatasets(TabularDataSource<?> dataSource) throws Exception {
+      HiveDataSource ds = (HiveDataSource) dataSource;
+      requireDbName(ds);
+
+      try(Connection conn = getConnection(ds)) {
+         return HiveCatalog.listDatasets(conn, normalizedDbName(ds));
+      }
+   }
+
+   @Override
+   public TabularDatasetSchema describeDataset(TabularDataSource<?> dataSource, String datasetId)
+      throws Exception
+   {
+      HiveDataSource ds = (HiveDataSource) dataSource;
+      requireDbName(ds);
+
+      try(Connection conn = getConnection(ds)) {
+         return HiveCatalog.describeDataset(conn, normalizedDbName(ds), datasetId);
+      }
+   }
+
+   /**
+    * A4: an unconfigured database must throw, not silently enumerate nothing. Checked before
+    * {@link #getConnection} is even called -- {@link #constructUrl} would otherwise happily build
+    * a "jdbc:hive2://host:port/" URL from a blank/null database, which some Hive deployments
+    * interpret as an implicit default database rather than a connection failure.
+    */
+   private static void requireDbName(HiveDataSource ds) throws Exception {
+      if(ds.getDbName() == null || ds.getDbName().isBlank()) {
+         throw new Exception("Data source '" + ds.getName() +
+            "' has no database configured; cannot enumerate its tables.");
+      }
+   }
+
+   /**
+    * Hive normalizes identifiers to lowercase internally, so a database name configured with
+    * mixed case (e.g. "MyDB") is matched against the metastore's lowercase form. This is Hive's
+    * well-documented external behavior; whether hive-jdbc 4.0.1 itself additionally normalizes
+    * the schema pattern it is given has not been independently verified against the driver.
+    */
+   private static String normalizedDbName(HiveDataSource ds) {
+      return ds.getDbName().toLowerCase();
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(HiveRuntime.class.getName());
