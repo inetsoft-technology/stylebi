@@ -561,8 +561,16 @@ class ChartElementServiceTest {
       assertEquals(java.util.List.of("x", "y", "chart"), out.get("titleTargets"),
                    "no y2 on the chart means no y2 in the vocabulary - and the chart title, " +
                    "which is not an axis title, stays");
+      assertFalse(out.containsKey("secondaryFields"),
+                  "no secondary measure means the field is omitted entirely, not an empty list");
    }
 
+   /**
+    * Claude review (PR #2092/#4942): this test already built a chart with a secondary-axis
+    * measure but only asserted on 'axes', not on 'secondaryFields' -- the field this PR adds
+    * specifically for this scenario (G1-3: setVisibility's 'secondary' flag has no way to know
+    * which measure is on the secondary axis without this).
+    */
    @Test
    void vocabularyKeepsY2WhenAMeasureActuallyUsesTheSecondaryAxis() throws Exception {
       Harness h = harness(boundChart(true));
@@ -571,6 +579,7 @@ class ChartElementServiceTest {
 
       assertEquals(java.util.List.of("x", "y", "y2"), out.get("axes"),
                    "filtering must not amount to always hiding y2");
+      assertEquals(java.util.List.of("Sum(Revenue)"), out.get("secondaryFields"));
    }
 
    /**
@@ -736,6 +745,7 @@ class ChartElementServiceTest {
       if(secondaryAxis) {
          VSChartAggregateRef secondary = mock(VSChartAggregateRef.class);
          when(secondary.isSecondaryY()).thenReturn(true);
+         when(secondary.getFullName()).thenReturn("Sum(Revenue)");
          y = new ChartRef[] { primary, secondary };
       }
 
