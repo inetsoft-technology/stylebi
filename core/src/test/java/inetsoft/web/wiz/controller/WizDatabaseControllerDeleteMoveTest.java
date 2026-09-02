@@ -35,6 +35,7 @@ import inetsoft.web.portal.data.DatasourcesService;
 import inetsoft.web.portal.data.MoveCommand;
 import inetsoft.web.portal.service.datasource.DataSourceStatusService;
 import inetsoft.web.wiz.model.*;
+import inetsoft.web.wiz.request.WizCheckDependenciesRequest;
 import inetsoft.web.wiz.request.WizDatasourceDeleteRequest;
 import inetsoft.web.wiz.request.WizDatasourceRef;
 import inetsoft.web.wiz.request.WizMoveCheckDuplicateRequest;
@@ -284,10 +285,10 @@ class WizDatabaseControllerDeleteMoveTest {
       doThrow(conflict).when(fixture.datasourcesService).checkDataSourceOuterDependencies("/orders");
       doNothing().when(fixture.datasourcesService).checkDataSourceOuterDependencies("/clean");
 
-      WizDependencyCheckResult result = fixture.controller.checkOuterDependencies(new WizDatasourceRef[]{
-         new WizDatasourceRef("/orders", "orders", false),
-         new WizDatasourceRef("/clean", "clean", false)
-      });
+      WizDependencyCheckResult result = fixture.controller.checkOuterDependencies(
+         new WizCheckDependenciesRequest(List.of(
+            new WizDatasourceRef("/orders", "orders", false),
+            new WizDatasourceRef("/clean", "clean", false))));
 
       assertTrue(result.messagesByPath().containsKey("/orders"));
       assertFalse(result.messagesByPath().containsKey("/clean"));

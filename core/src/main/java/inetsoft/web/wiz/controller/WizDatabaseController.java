@@ -970,16 +970,20 @@ public class WizDatabaseController {
     * shown up front instead of only being discovered from a refused {@code force=false} delete
     * attempt. Calling this first is optional: the delete endpoint enforces the same rule itself.</p>
     *
-    * @param items the data sources and/or folders to check.
+    * @param request the data sources and/or folders to check.
     *
     * @return one message per item that has a conflict, keyed by path. An item with no conflict has
     *         no entry.
     */
    @PostMapping(value = "/datasources/checkOuterDependencies", produces = MediaType.APPLICATION_JSON_VALUE)
-   public WizDependencyCheckResult checkOuterDependencies(@RequestBody WizDatasourceRef[] items) {
+   public WizDependencyCheckResult checkOuterDependencies(
+      @RequestBody WizCheckDependenciesRequest request)
+   {
       Map<String, String> messagesByPath = new LinkedHashMap<>();
+      List<WizDatasourceRef> items = request == null || request.items() == null
+         ? List.of() : request.items();
 
-      for(WizDatasourceRef item : items == null ? new WizDatasourceRef[0] : items) {
+      for(WizDatasourceRef item : items) {
          if(item == null || item.path() == null) {
             continue;
          }
