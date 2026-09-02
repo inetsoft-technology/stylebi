@@ -169,61 +169,82 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
             if(timestamp < now) {
                if(dataSpace.exists(null, configFile)) {
                   ObjectMapper mapper = new ObjectMapper();
-                  ObjectNode root;
+                  ObjectNode root = null;
 
+                  // exists() and getInputStream() are not atomic: the config file can be
+                  // removed or replaced (e.g. by a concurrent rewrite) between the check above
+                  // and opening the stream here. When that happens, getInputStream() returns
+                  // null rather than throwing (see DataSpace.getInputStream()'s
+                  // FileNotFoundException/NoSuchFileException handling) -- Jackson's readTree()
+                  // rejects a null stream outright, so guard against it explicitly instead of
+                  // assuming the two calls observe a consistent file state. (76431)
                   try(InputStream input = dataSpace.getInputStream(null, configFile)) {
-                     root = (ObjectNode) mapper.readTree(input);
-                  }
-
-                  ArrayNode providersArray = (ArrayNode) root.get("providers");
-                  List<T> list = new ArrayList<>();
-                  int failureCount = 0;
-
-                  for(int i = 0; i < providersArray.size(); i++) {
-                     ObjectNode wrapperNode = (ObjectNode) providersArray.get(i);
-                     String name = wrapperNode.get("name").asText();
-                     String providerClass = wrapperNode.get("providerClass").asText();
-                     JsonNode config = wrapperNode.get("configuration");
-
-                     try {
-                        @SuppressWarnings("unchecked")
-                        T provider =
-                           (T) Class.forName(providerClass).getConstructor().newInstance();
-                        provider.readConfiguration(config);
-                        provider.setProviderName(name);
-                        list.add(provider);
-                     }
-                     catch(Exception e) {
-                        failureCount++;
-                        LOG.error(
-                           "Failed to create instance of security provider: {}", providerClass, e);
+                     if(input != null) {
+                        root = (ObjectNode) mapper.readTree(input);
                      }
                   }
 
-                  // If the config file specified providers but ALL of them failed to instantiate,
-                  // retain the existing runtime providers rather than wiping them. This prevents a
-                  // corrupted or temporarily unreadable config (e.g. after a GKE node restart) from
-                  // clearing all security providers and locking out every user.
-                  // Do NOT update timestamp on total failure – allow the next dataChanged() to retry
-                  // when the transient condition clears, without requiring a manual config edit.
-                  if(list.isEmpty() && failureCount > 0) {
-                     LOG.error(
-                        "All {} security provider(s) failed to load from '{}'; retaining " +
-                        "existing providers to prevent loss of security configuration",
-                        failureCount, configFile);
+                  if(root == null) {
+                     // Same treatment as the "all providers failed to load" case below: retain
+                     // the existing runtime providers and don't advance timestamp, so the next
+                     // dataChanged() retries once the transient condition (the file coming back,
+                     // or the concurrent rewrite finishing) clears.
+                     LOG.warn(
+                        "Security provider configuration file '{}' could not be read " +
+                        "(reported present but its content was unavailable, likely a " +
+                        "concurrent rewrite); retaining existing providers", configFile);
                   }
                   else {
-                     if(failureCount > 0) {
-                        LOG.warn(
-                           "{} of {} security provider(s) failed to load from '{}'; " +
-                           "the remaining providers have been applied but security " +
-                           "configuration may be incomplete",
-                           failureCount, list.size() + failureCount, configFile);
+                     ArrayNode providersArray = (ArrayNode) root.get("providers");
+                     List<T> list = new ArrayList<>();
+                     int failureCount = 0;
+
+                     for(int i = 0; i < providersArray.size(); i++) {
+                        ObjectNode wrapperNode = (ObjectNode) providersArray.get(i);
+                        String name = wrapperNode.get("name").asText();
+                        String providerClass = wrapperNode.get("providerClass").asText();
+                        JsonNode config = wrapperNode.get("configuration");
+
+                        try {
+                           @SuppressWarnings("unchecked")
+                           T provider =
+                              (T) Class.forName(providerClass).getConstructor().newInstance();
+                           provider.readConfiguration(config);
+                           provider.setProviderName(name);
+                           list.add(provider);
+                        }
+                        catch(Exception e) {
+                           failureCount++;
+                           LOG.error(
+                              "Failed to create instance of security provider: {}", providerClass, e);
+                        }
                      }
 
-                     timestamp = dataSpace.getLastModified(null, configFile);
-                     clear();
-                     setProviderList(list);
+                     // If the config file specified providers but ALL of them failed to instantiate,
+                     // retain the existing runtime providers rather than wiping them. This prevents a
+                     // corrupted or temporarily unreadable config (e.g. after a GKE node restart) from
+                     // clearing all security providers and locking out every user.
+                     // Do NOT update timestamp on total failure – allow the next dataChanged() to retry
+                     // when the transient condition clears, without requiring a manual config edit.
+                     if(list.isEmpty() && failureCount > 0) {
+                        LOG.error(
+                           "All {} security provider(s) failed to load from '{}'; retaining " +
+                           "existing providers to prevent loss of security configuration",
+                           failureCount, configFile);
+                     }
+                     else {
+                        if(failureCount > 0) {
+                           LOG.warn(
+                              "{} of {} security provider(s) failed to load from '{}'; " +
+                              "the remaining providers have been applied but security " +
+                              "configuration may be incomplete",
+                              failureCount, list.size() + failureCount, configFile);
+                        }
+
+                        timestamp = dataSpace.getLastModified(null, configFile);
+                        clear();
+                        setProviderList(list);
+                     }
                   }
                }
             }
