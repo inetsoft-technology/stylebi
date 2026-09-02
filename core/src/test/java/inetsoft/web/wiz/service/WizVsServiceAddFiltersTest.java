@@ -404,4 +404,32 @@ class WizVsServiceAddFiltersTest {
                    resp.getSkipped().get(0).getReason());
       verify(vs, never()).addAssembly(any(TimeSliderVSAssembly.class));
    }
+
+   // ── case-vzf-017-calendar-gate/01-diagnosis.md: an explicit calendar override on a
+   // non-date column must be reported as a named skip, not silently bound (Calendar has no
+   // legitimate numeric-range use case, unlike TimeSlider, so its gate is isDateType alone). ──────
+
+   @Test
+   void calendarOverrideOnAStringColumnIsSkippedNotMisBound() throws Exception {
+      AddFiltersResponse resp = service.addFilters(requestOne("REGION", "calendar"), user);
+
+      assertEquals(0, resp.getApplied().size());
+      assertEquals(1, resp.getSkipped().size());
+      assertEquals("REGION", resp.getSkipped().get(0).getField());
+      assertEquals("calendar is not supported for " + XSchema.STRING + " columns",
+                   resp.getSkipped().get(0).getReason());
+      verify(vs, never()).addAssembly(any(CalendarVSAssembly.class));
+   }
+
+   @Test
+   void calendarOverrideOnANumericColumnIsSkippedNotMisBound() throws Exception {
+      AddFiltersResponse resp = service.addFilters(requestOne("AMOUNT", "calendar"), user);
+
+      assertEquals(0, resp.getApplied().size());
+      assertEquals(1, resp.getSkipped().size());
+      assertEquals("AMOUNT", resp.getSkipped().get(0).getField());
+      assertEquals("calendar is not supported for " + XSchema.DOUBLE + " columns",
+                   resp.getSkipped().get(0).getReason());
+      verify(vs, never()).addAssembly(any(CalendarVSAssembly.class));
+   }
 }
