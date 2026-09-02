@@ -1130,9 +1130,11 @@ public class CalcTableLens extends DefaultTableLens {
       }
       catch(Exception ex) {
          String rname = getContextName();
+         String suggestion = senv.getSuggestion(ex, "field", tableScope);
          String str = Catalog.getCatalog().getString("JavaScript error") +
-            ": " + ex.getMessage();
-         throw new ScriptException(rname == null ? str : rname + str, ex);
+            ": " + ex.getMessage() +
+            (suggestion != null ? "\nTo fix: " + suggestion : "");
+         throw new ScriptException(rname == null ? str : str + "\n" + rname, ex);
       }
       finally {
          FormulaContext.popTable();

@@ -21,6 +21,8 @@ package inetsoft.report.lens;
 import inetsoft.report.script.formula.CalcRef;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -103,5 +105,40 @@ public class CalcTableLensTest {
 
       Object[] arr = { 1, "a", null };
       Assertions.assertArrayEquals(new Object[]{ 1, "a", null }, (Object[]) CalcTableLens.unwrapCalcRefs(arr));
+   }
+
+   /**
+    * A hand-typed formula cell (content:"formula") referencing a bare, unqualified
+    * column name (e.g. Sum(PAID) instead of Sum(field['PAID'])) is invalid syntax in
+    * the calc-table script scope and always throws a ReferenceError, regardless of
+    * grouping. The rendered cell must lead with that ReferenceError and the
+    * GraalJavaScriptEnv.getSuggestion() fix-it hint, not the generic "Assembly: <name>"
+    * context label, since a cell only has room to render one line.
+    */
+   @Test
+   public void testFormulaErrorSurfacesReferenceErrorAndHintFirst() {
+      DefaultTableLens data = new DefaultTableLens(new Object[][] {
+         { "id" },
+         { 1 }
+      });
+
+      CalcTableVSAssembly assembly = new CalcTableVSAssembly();
+      assembly.setScriptTable(data);
+      assembly.setScriptEnv(new GraalJavaScriptEnv());
+
+      CalcTableLens calc = new CalcTableLens(data);
+      calc.setElement(assembly);
+      calc.setFormula(1, 0, "Sum(PAID)");
+
+      Object value = calc.getValue(1, 0);
+
+      Assertions.assertTrue(value instanceof String, "expected an ERROR string, got: " + value);
+      String message = (String) value;
+      String firstLine = message.split("\n", 2)[0];
+      Assertions.assertTrue(
+         firstLine.contains("ReferenceError") && firstLine.contains("is not defined"),
+         "first line should be the actual JS error, not the Assembly label: " + message);
+      Assertions.assertTrue(message.contains("field['columnName']"),
+         "message should include the getSuggestion() fix-it hint: " + message);
    }
 }
