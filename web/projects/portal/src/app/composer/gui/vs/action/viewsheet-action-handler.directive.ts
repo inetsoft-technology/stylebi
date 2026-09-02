@@ -110,6 +110,9 @@ export class ViewsheetActionHandlerDirective extends AbstractActionHandler imple
          dialog.openToScript = openToScript;
          dialog.scriptTreeModel = loadingScriptTreeModel;
          this.modelService.getModel(scriptUri, params).subscribe(res => dialog.scriptTreeModel = res);
+      },
+      (error: any) => {
+         console.error("Failed to get viewsheet property model: ", error);
       });
    }
 }

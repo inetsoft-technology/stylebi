@@ -642,8 +642,17 @@ public class DateComparisonUtil {
 
          // Compute which part cells have data from the most recent (current) year.
          // Orphaned cells — those with only comparison-year data — should be excluded
-         // from the x-axis scale so they don't produce spurious labels.
-         final Set<Object> validParts = computeValidParts(data, periodCol, partCol, startDate);
+         // from the x-axis scale so they don't produce spurious labels. Skip this in facet
+         // mode: there, "part" identifies the facet itself (e.g. DayOfWeek), and the
+         // heuristic's sort-order-based "hasn't chronologically reached this part yet" test
+         // is meaningless for a facet dimension — a facet with no row in the most recent
+         // period isn't a future bucket, it's a facet whose most recent period happens to be
+         // absent (see Bug #76388: DayOfWeek facets 5-7 have real data for every period
+         // except the last, and excluding them entirely from every period is wrong; the
+         // per-facet sub-chart already correctly shows only the periods that actually have
+         // data for it once this exclusion doesn't run first).
+         final Set<Object> validParts = info.isFacet() ? Collections.emptySet() :
+            computeValidParts(data, periodCol, partCol, startDate);
 
          for(Scale scale : egraph.getCoordinate().getScales()) {
             String[] fields = scale.getFields();
@@ -700,9 +709,14 @@ public class DateComparisonUtil {
     * when the data is not in year-bucket layout (per-part real dates, or no repeated period
     * value). An empty return means "no orphan filtering should be applied."
     *
-    * This method is also used by DateComparisonFormat.initPartDate() to drive the same
-    * heuristic at the pre-aggregated partDates level — both callers rely on this single
-    * implementation so the logic stays in sync.
+    * DateComparisonFormat.initPartDate() also calls this method directly, to drive the same
+    * heuristic at the pre-aggregated partDates level -- but as of Bug #76388, that caller is
+    * NOT gated on facet mode the way applyDateRange() below is. In facet mode this method's
+    * heuristic is wrong for the reason documented at the applyDateRange() call site (a facet
+    * lacking a row in the most recent period isn't a future bucket, it's an ordinary facet
+    * with less data), so initPartDate() can still misclassify facets 5+ as orphaned and blank
+    * their labels even after this fix, independent of Bug #76390's own, separate label-
+    * blanking defect in the same method. Not fixed here -- see PR #4936's discussion.
     */
    static Set<Object> computeValidParts(DataSet data, String periodCol,
                                         String partCol, Date startDate)
