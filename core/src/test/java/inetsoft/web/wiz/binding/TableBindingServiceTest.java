@@ -228,15 +228,20 @@ class TableBindingServiceTest {
    }
 
    /**
-    * The regression for the bug where {@code force:true} skipped the refusal but never actually
-    * discarded anything: setSource left every shelf's old-source field refs in place, and those
-    * stale refs were written straight back onto the live assembly by the factory that follows
-    * this mutation — read back later (e.g. via get_binding) as fields from a source the assembly
-    * no longer has.
+    * The regression for the original bug where {@code force:true} skipped the refusal but never
+    * actually discarded anything: setSource left every shelf's old-source field refs in place,
+    * and those stale refs were written straight back onto the live assembly by the factory that
+    * follows this mutation — read back later (e.g. via get_binding) as fields from a source the
+    * assembly no longer has. This case uses a new source whose columns genuinely do not include
+    * any of the old ones, so every field is correctly discarded either way; the sibling test
+    * {@link #setSourceKeepsFieldsThatStillResolveInTheNewSourceWhenForced} covers the case this
+    * one cannot distinguish -- a column that exists in both sources.
     */
    @Test
-   void setSourceDiscardsEveryShelfWhenForced() throws Exception {
-      CrosstabBindingModel existing = withTables("CUSTOMERS", "ORDERS1");
+   void setSourceDiscardsFieldsThatDoNotResolveInTheNewSourceWhenForced() throws Exception {
+      CrosstabBindingModel existing = withTablesAndColumns(
+         Map.of("CUSTOMERS", List.of("STATE", "RESELLER", "CUSTOMER_ID"),
+               "ORDERS1", List.of("ORDER_ID", "ORDER_DATE")));
       TableBindingMutator.setShelf(existing, "rows", List.of(dim("STATE")));
       TableBindingMutator.setShelf(existing, "cols", List.of(dim("RESELLER")));
       TableBindingMutator.setShelf(existing, "aggregates",
@@ -249,10 +254,39 @@ class TableBindingServiceTest {
 
       CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
       assertEquals("ORDERS1", posted.getSource().getSource());
-      assertTrue(posted.getRows().isEmpty(), "old source's rows field must not survive");
-      assertTrue(posted.getCols().isEmpty(), "old source's cols field must not survive");
+      assertTrue(posted.getRows().isEmpty(),
+                 "STATE does not exist in ORDERS1, so it must not survive");
+      assertTrue(posted.getCols().isEmpty(),
+                 "RESELLER does not exist in ORDERS1, so it must not survive");
       assertTrue(posted.getAggregates().isEmpty(),
-                 "old source's aggregates field must not survive");
+                 "CUSTOMER_ID does not exist in ORDERS1, so it must not survive");
+   }
+
+   /**
+    * The regression for the divergence the parity audit found relative to the UI's own repoint
+    * path: {@code VSAssemblyInfoHandler}'s own comment states the intent plainly ("check the old
+    * binding columns when source changed, if cannot found the columns in the source, just remove
+    * them") -- implying a column that DOES still resolve must be kept, not blanket-discarded.
+    * Repointing to a same-shaped source (e.g. a partitioned/monthly sibling table) must not lose
+    * bindings a human doing the equivalent repoint would keep.
+    */
+   @Test
+   void setSourceKeepsFieldsThatStillResolveInTheNewSourceWhenForced() throws Exception {
+      CrosstabBindingModel existing = withTablesAndColumns(
+         Map.of("ORDERS", List.of("ORDER_ID", "ORDER_DATE", "REGION"),
+               "ORDERS_V2", List.of("ORDER_ID", "ORDER_DATE")));
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("ORDER_DATE"), dim("REGION")));
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(mock(CrosstabVSAssembly.class), existing, bindings)
+         .setSource("tok", principal(), "Crosstab1", "ORDERS_V2", true);
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals("ORDERS_V2", posted.getSource().getSource());
+      assertEquals(1, posted.getRows().size(),
+                   "ORDER_DATE still exists in ORDERS_V2 and must survive; REGION does not and " +
+                   "must not");
+      assertEquals("ORDER_DATE", posted.getRows().get(0).getColumnValue());
    }
 
    /**
@@ -417,6 +451,28 @@ class TableBindingServiceTest {
       for(String name : names) {
          BindingModel.SourceTable table = new BindingModel.SourceTable();
          table.setName(name);
+         tables.add(table);
+      }
+
+      model.setTables(tables);
+      return model;
+   }
+
+   /** Like {@link #withTables}, but each table carries the column names given for it. */
+   private static CrosstabBindingModel withTablesAndColumns(Map<String, List<String>> byTable) {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      List<BindingModel.SourceTable> tables = new ArrayList<>();
+
+      for(Map.Entry<String, List<String>> entry : byTable.entrySet()) {
+         BindingModel.SourceTable table = new BindingModel.SourceTable();
+         table.setName(entry.getKey());
+         List<BindingModel.SourceTableColumn> columns = new ArrayList<>();
+
+         for(String column : entry.getValue()) {
+            columns.add(new BindingModel.SourceTableColumn(column, "string"));
+         }
+
+         table.setColumns(columns);
          tables.add(table);
       }
 

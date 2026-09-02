@@ -193,11 +193,23 @@ public class TableBindingService {
    }
 
    /**
-    * The {@code force:true} counterpart to {@link #requireNoBoundFields}: actually does the
-    * discard that method only refuses to let happen silently. Without this, a repoint left the
-    * old source's field refs sitting on every shelf {@code force} didn't itself touch, and those
-    * stale refs were written straight back onto the live assembly's design headers by the
-    * factory that follows this mutation.
+    * The {@code force:true} counterpart to {@link #requireNoBoundFields}: discards only the
+    * fields that no longer resolve in the new source, matching the selective-discard intent
+    * documented on the UI's own repoint path ({@code VSAssemblyInfoHandler}: "check the old
+    * binding columns when source changed, if cannot found the columns in the source, just
+    * remove them"). A field whose column name also exists in the new source is kept — a
+    * same-shaped repoint (e.g. a partitioned/monthly table swapped for its sibling) should not
+    * discard bindings a human doing the equivalent repoint would keep. Without this at all, a
+    * repoint left the old source's field refs sitting on every shelf {@code force} didn't itself
+    * touch, and those stale refs were written straight back onto the live assembly's design
+    * headers by the factory that follows this mutation — that failure mode (never discarding
+    * anything) is guarded against by shelves whose fields never resolve in the new source still
+    * being fully cleared here, same as before.
+    *
+    * <p>Known limitation: a kept field's {@code namedGroup} binding is not preserved, because
+    * this path has no {@code RuntimeViewsheet}/{@code DataRefModelFactoryService} context to
+    * re-resolve it against (the same limitation {@link TableBindingMutator}'s context-less
+    * {@code setShelf} overload already has everywhere else it is used).
     */
    private static void discardBoundFields(BaseTableBindingModel model, String table) {
       SourceInfo current = model.getSource();
@@ -211,9 +223,44 @@ public class TableBindingService {
          return;
       }
 
+      List<String> availableColumns = columnsOf(model, table);
+
       for(String shelf : TableBindingMutator.shelvesOf(model)) {
-         TableBindingMutator.setShelf(model, shelf, List.of());
+         List<FieldRef> bound = TableBindingMutator.read(model, shelf);
+         List<FieldRef> stillResolves = new ArrayList<>();
+
+         for(FieldRef field : bound) {
+            if(field.column() != null &&
+               availableColumns.stream().anyMatch(c -> c.equalsIgnoreCase(field.column())))
+            {
+               stillResolves.add(field);
+            }
+         }
+
+         if(stillResolves.size() != bound.size()) {
+            TableBindingMutator.setShelf(model, shelf, stillResolves);
+         }
       }
+   }
+
+   /** The new source table's column names, matching {@link #resolveTable}'s own lookup. */
+   private static List<String> columnsOf(BaseTableBindingModel model, String table) {
+      List<String> names = new ArrayList<>();
+      List<BindingModel.SourceTable> tables = model.getTables();
+
+      if(tables != null) {
+         for(BindingModel.SourceTable candidate : tables) {
+            if(table.equalsIgnoreCase(candidate.getName()) && candidate.getColumns() != null) {
+               for(BindingModel.SourceTableColumn column : candidate.getColumns()) {
+                  if(column.getName() != null) {
+                     names.add(column.getName());
+                  }
+               }
+            }
+         }
+      }
+
+      return names;
    }
 
    public void addField(String sessionToken, Principal user, String assemblyName, String shelf,
