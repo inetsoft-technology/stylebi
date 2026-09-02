@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.controller.ModifyCalculateFieldServiceProxy;
 import inetsoft.web.binding.drm.CalculateRefModel;
@@ -288,6 +289,54 @@ class CalcFieldAgentServiceTest {
       assertTrue(event.remove());
       assertEquals("NetTotal", event.refName());
       assertNull(event.calculateRef());
+   }
+
+   /**
+    * A caller editing a field previously created with {@code sql: true}/{@code baseOnDetail:
+    * false} that omits both (a plain rename or expression-only tweak) must NOT have them
+    * silently reset to the create-time defaults ({@code sql: false}/{@code baseOnDetail: true}) --
+    * the omitted fields mean "leave as-is" on edit, not "reset".
+    */
+   @Test
+   void editOmittingSqlAndBaseOnDetailPreservesTheExistingCalcFieldsSettings() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      CalculateRef existing = mock(CalculateRef.class);
+      when(existing.isSQL()).thenReturn(true);
+      when(existing.isBaseOnDetail()).thenReturn(false);
+      when(existing.getDataType()).thenReturn("double");
+      when(vs.getCalcField(eq("ORDERS"), eq("NetTotal"))).thenReturn(existing);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessions, fieldsServiceWithOrdersTable(), proxy);
+      Principal agent = principal();
+
+      // Edit: rename only, sql/baseOnDetail/dataType all omitted (null).
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "NetTotal", "NetAfterDiscount",
+         "field['Total']*0.9", null, null, null, false, false);
+
+      service.modify("tok", agent, req, "");
+
+      ArgumentCaptor<ModifyCalculateFieldEvent> captor =
+         ArgumentCaptor.forClass(ModifyCalculateFieldEvent.class);
+      verify(proxy).modifyCalculateField(eq("rt1"), captor.capture(), eq(agent), any(), eq(""));
+
+      CalculateRefModel calc = captor.getValue().calculateRef();
+      assertNotNull(calc);
+      assertTrue(calc.isSql(), "sql:true must be preserved, not reset to the create default");
+      assertFalse(calc.isBaseOnDetail(),
+         "baseOnDetail:false must be preserved, not reset to the create default");
+      assertEquals("double", calc.getDataType(), "dataType must be preserved when omitted");
    }
 
    @Test

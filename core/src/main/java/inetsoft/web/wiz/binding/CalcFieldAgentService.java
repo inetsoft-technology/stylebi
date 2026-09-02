@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.web.binding.controller.ModifyCalculateFieldServiceProxy;
 import inetsoft.web.binding.drm.CalculateRefModel;
 import inetsoft.web.binding.event.ImmutableModifyCalculateFieldEvent;
@@ -67,12 +68,16 @@ public class CalcFieldAgentService {
     * @param newName     a new name, when renaming an existing calc field; {@code null} to keep
     *                    {@code name}. Ignored when {@code remove} is {@code true}.
     * @param expression  the formula text. Required unless {@code remove} is {@code true}.
-    * @param dataType    the calc field's data type (e.g. {@code "double"}, {@code "string"}), or
-    *                    {@code null} to leave it to the engine to infer.
-    * @param sql         {@code true} for a native-SQL expression, {@code false}/{@code null} for
-    *                    a JavaScript one.
-    * @param baseOnDetail {@code true} (the default when {@code null}) for a per-row (detail)
-    *                    calculation; {@code false} for one computed from an aggregate result.
+    * @param dataType    the calc field's data type (e.g. {@code "double"}, {@code "string"}). On
+    *                    create, {@code null} leaves it to the engine to infer; on edit, {@code
+    *                    null} keeps the existing calc field's current data type.
+    * @param sql         {@code true} for a native-SQL expression, {@code false} for a JavaScript
+    *                    one. On create, {@code null} defaults to {@code false}; on edit, {@code
+    *                    null} keeps the existing calc field's current setting.
+    * @param baseOnDetail {@code true} for a per-row (detail) calculation, {@code false} for one
+    *                    computed from an aggregate result. On create, {@code null} defaults to
+    *                    {@code true}; on edit, {@code null} keeps the existing calc field's
+    *                    current setting.
     * @param remove      {@code true} to remove the named calc field. Fields other than
     *                    {@code table}/{@code name} are ignored.
     * @param create      {@code true} to create a new calc field rather than edit an existing one.
@@ -104,30 +109,42 @@ public class CalcFieldAgentService {
       String newName = req.newName() != null && !req.newName().isBlank()
          ? req.newName() : req.name();
 
-      CalculateRefModel model = null;
-
-      if(!req.remove()) {
-         ExpressionRefModel exprModel = new ExpressionRefModel();
-         exprModel.setName(newName);
-         exprModel.setExp(req.expression());
-         exprModel.setDType(req.dataType());
-
-         model = new CalculateRefModel();
-         model.setDataRefModel(exprModel);
-         model.setBaseOnDetail(req.baseOnDetail() == null || req.baseOnDetail());
-         model.setSql(Boolean.TRUE.equals(req.sql()));
-         model.setDataType(req.dataType());
-      }
-
-      CalculateRefModel finalModel = model;
-
       sessions.mutate(sessionToken, agent, (rvs, runtimeId, dispatcher) -> {
          String tableName = requireBindableTable(runtimeId, req.table(), agent);
+
+         CalculateRefModel model = null;
+
+         if(!req.remove()) {
+            // On edit, an omitted sql/baseOnDetail/dataType means "leave it as it already is",
+            // not "reset to the create-time default" -- so a plain rename or expression-only
+            // tweak doesn't silently flip an existing field's SQL/detail mode.
+            boolean editing = !req.create();
+            CalculateRef existing = editing
+               ? rvs.getViewsheet().getCalcField(tableName, req.name()) : null;
+
+            String dataType = req.dataType() != null ? req.dataType()
+               : existing != null ? existing.getDataType() : null;
+            boolean baseOnDetail = req.baseOnDetail() != null ? req.baseOnDetail()
+               : existing != null ? existing.isBaseOnDetail() : true;
+            boolean sql = req.sql() != null ? req.sql()
+               : existing != null && existing.isSQL();
+
+            ExpressionRefModel exprModel = new ExpressionRefModel();
+            exprModel.setName(newName);
+            exprModel.setExp(req.expression());
+            exprModel.setDType(dataType);
+
+            model = new CalculateRefModel();
+            model.setDataRefModel(exprModel);
+            model.setBaseOnDetail(baseOnDetail);
+            model.setSql(sql);
+            model.setDataType(dataType);
+         }
 
          ImmutableModifyCalculateFieldEvent event = ImmutableModifyCalculateFieldEvent.builder()
             .name(req.assembly())
             .confirmed(true)
-            .calculateRef(finalModel)
+            .calculateRef(model)
             .tableName(tableName)
             .remove(req.remove())
             .create(req.create())
