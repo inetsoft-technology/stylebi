@@ -109,7 +109,18 @@ class RelationElementColorTieBreakTest {
 
    /**
     * Same scenario as above, but the tie-breaking field is bound only as the element's
-    * Node Color (not the general Color) -- the fix must consult both frames.
+    * Node Color (not the general Color) -- the fix must consult both frames, each for its
+    * own node type.
+    * <p>
+    * This checks the <b>leaf/target</b> ("Year") node, not the root -- per
+    * {@code RelationGeometry.getColor()} (read directly: lines 60-95), a leaf node
+    * <i>always</i> resolves its color via {@code getNodeColorFrame()} directly, while a
+    * root node only falls back to it when Node Color's field equals the root's own
+    * dimension; here Node Color is bound to "Quarter" (not "Group"), so a root node
+    * in this exact configuration would actually fall through to {@code super.getColor(0)}
+    * -- i.e. the *general* Color frame (unset/null here), not Node Color at all. Checking
+    * the leaf node is therefore the structurally-correct way to prove this fix's Node
+    * Color tie-break, independent of the general Color tie-break already proven above.
     */
    @Test
    void colorFieldBreaksTie_orderIndependent_nodeColor() {
@@ -124,12 +135,84 @@ class RelationElementColorTieBreakTest {
          { "B", 2017, "2017Q3" },
       };
 
-      String quarterOriginal = winningQuarterForRoot("B", originalOrder, null, new CategoricalColorFrame("Quarter"));
-      String quarterSwapped = winningQuarterForRoot("B", swappedOrder, null, new CategoricalColorFrame("Quarter"));
+      String quarterOriginal = winningQuarterForNode("Year", "2017", originalOrder, null, new CategoricalColorFrame("Quarter"));
+      String quarterSwapped = winningQuarterForNode("Year", "2017", swappedOrder, null, new CategoricalColorFrame("Quarter"));
 
       assertEquals(quarterOriginal, quarterSwapped,
                    "Row order must not affect which row is chosen when only Node Color is bound to the field");
       assertEquals("2017Q3", quarterOriginal);
+   }
+
+   /**
+    * Reviewer-flagged scenario (the reason this test class's helper was generalized to
+    * check either node type): general Color and Node Color bound to two <b>different</b>
+    * fields, with rows tied on [Group, Year] where the "most recent" row differs between
+    * the two fields. The root's representative row must maximize the general Color field
+    * and the leaf's representative row must maximize the Node Color field --
+    * <i>independently</i>, not whichever field a single shared sort-priority order would
+    * have favored for both node types at once.
+    */
+   @Test
+   void colorAndNodeColorOnDifferentFields_eachNodeTypeUsesItsOwnField() {
+      // Row 0 has the larger ColorA (general Color field) but the smaller ColorB
+      // (Node Color field); row 1 is the reverse. If a single shared sort/tie-break
+      // (as in the original, reviewer-flagged implementation) picked one winning row for
+      // both node types, one of the two assertions below would fail.
+      Object[][] rows = {
+         { "Group", "Year", "ColorA", "ColorB" },
+         { "X", 2020, "A2", "B1" },
+         { "X", 2020, "A1", "B2" },
+      };
+
+      DefaultDataSet data = new DefaultDataSet(rows);
+      CategoricalScale groupScale = new CategoricalScale("Group");
+      groupScale.init(data);
+      CategoricalScale yearScale = new CategoricalScale("Year");
+      yearScale.init(data);
+
+      RelationElement element = new RelationElement("Group", "Year");
+      element.setSizeFrame(new StaticSizeFrame());
+      element.setNodeSizeFrame(new StaticSizeFrame());
+      element.setColorFrame(new CategoricalColorFrame("ColorA"));
+      element.setNodeColorFrame(new CategoricalColorFrame("ColorB"));
+
+      EGraph egraph = new EGraph();
+      egraph.addElement(element);
+      RectCoord coord = new RectCoord(groupScale, yearScale);
+      egraph.setCoordinate(coord);
+      GGraph ggraph = egraph.createGGraph(coord, data);
+
+      Integer rootSubRowIndex = null;
+      Integer leafSubRowIndex = null;
+
+      for(int i = 0; i < ggraph.getGeometryCount(); i++) {
+         Object geom = ggraph.getGeometry(i);
+
+         if(!(geom instanceof RelationGeometry)) {
+            continue;
+         }
+
+         RelationGeometry rgeom = (RelationGeometry) geom;
+
+         if("Group".equals(rgeom.getVar()) && "X".equals(rgeom.getMxCell().getValue())) {
+            rootSubRowIndex = rgeom.getSubRowIndex();
+         }
+         else if("Year".equals(rgeom.getVar()) && "2020".equals(String.valueOf(rgeom.getMxCell().getValue()))) {
+            leafSubRowIndex = rgeom.getSubRowIndex();
+         }
+      }
+
+      assertNotNull(rootSubRowIndex, "Root node for Group=X must exist");
+      assertNotNull(leafSubRowIndex, "Leaf node for Year=2020 must exist");
+
+      // Root's representative row must be the one that maximizes ColorA ("A2", row 0) --
+      // driven by the general Color frame, independent of ColorB.
+      assertEquals("A2", data.getData("ColorA", rootSubRowIndex),
+                   "Root node's representative row must maximize the general Color field");
+      // Leaf's representative row must be the one that maximizes ColorB ("B2", row 1) --
+      // driven by the Node Color frame, independent of ColorA.
+      assertEquals("B2", data.getData("ColorB", leafSubRowIndex),
+                   "Leaf node's representative row must maximize the Node Color field");
    }
 
    /**
@@ -213,6 +296,19 @@ class RelationElementColorTieBreakTest {
    private String winningQuarterForRoot(String groupValue, Object[][] rows,
                                         ColorFrame colorFrame, ColorFrame nodeColorFrame)
    {
+      return winningQuarterForNode("Group", groupValue, rows, colorFrame, nodeColorFrame);
+   }
+
+   /**
+    * Same as {@link #winningQuarterForRoot}, but for an arbitrary node dimension/value --
+    * i.e. either the root ("Group") or the leaf ("Year") node. Returns the "Quarter" value
+    * at the representative row chosen for the node identified by {@code varName}/
+    * {@code value} (e.g. {@code ("Year", "2017", ...)} for the leaf node whose Year is
+    * 2017).
+    */
+   private String winningQuarterForNode(String varName, Object value, Object[][] rows,
+                                        ColorFrame colorFrame, ColorFrame nodeColorFrame)
+   {
       DefaultDataSet data = new DefaultDataSet(rows);
 
       CategoricalScale groupScale = new CategoricalScale("Group");
@@ -252,11 +348,11 @@ class RelationElementColorTieBreakTest {
 
          RelationGeometry rgeom = (RelationGeometry) geom;
 
-         if(!"Group".equals(rgeom.getVar())) {
+         if(!varName.equals(rgeom.getVar())) {
             continue;
          }
 
-         if(!groupValue.equals(rgeom.getMxCell().getValue())) {
+         if(!String.valueOf(value).equals(String.valueOf(rgeom.getMxCell().getValue()))) {
             continue;
          }
 
@@ -264,6 +360,6 @@ class RelationElementColorTieBreakTest {
          return (String) data.getData("Quarter", subRowIndex);
       }
 
-      throw new AssertionError("No root node found for Group=" + groupValue);
+      throw new AssertionError("No " + varName + " node found for value=" + value);
    }
 }

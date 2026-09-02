@@ -136,6 +136,28 @@ public class RelationElement extends GraphElement {
       final Object mxroot = mxgraph.getDefaultParent();
       final int maxNodes = Integer.parseInt(SreeEnv.getProperty("graph.max.nodes", "1000"));
 
+      // A node's "representative row" (the row whose value drives its color lookup, see
+      // RelationGeometry.getColor()/getSubRowIndex()) must be resolved independently for
+      // root (source) and leaf (target) nodes, since RelationGeometry.getColor() consults
+      // a *different* frame depending on node type: a root node falls through to the
+      // general Color frame (getColorFrame()), while a leaf node consults the Node Color
+      // frame (getNodeColorFrame()) directly. A single shared tie-break (as previously
+      // implemented) would let one frame's field incorrectly decide the other node type's
+      // representative row whenever the two frames are bound to different fields. (76417)
+      //
+      // Root nodes keep the pre-existing structural precedence -- among all rows sharing a
+      // source (fromDim) value, the one with the earliest target (toDim) value wins -- and
+      // only break ties *within* that earliest-target group using the general Color field.
+      // Leaf nodes have no such secondary structural dimension (toDim alone already fully
+      // identifies a leaf), so all rows sharing a target value are eligible, and are
+      // resolved directly by the Node Color field. In both cases, "most recent" (largest)
+      // tie-break value wins, and a missing/unbound color field falls back to the first
+      // row encountered -- an exact no-op match for the pre-fix behavior.
+      Map<String, Integer> rootRepresentativeRows = findRepresentativeRows(
+         data, sdata, fromDim, toDim, resolveTieField(getColorFrame(), data));
+      Map<String, Integer> leafRepresentativeRows = findRepresentativeRows(
+         data, sdata, toDim, null, resolveTieField(getNodeColorFrame(), data));
+
       // add To nodes
       for(int i = getStartRow(data); i < max; i++) {
          if(!isAccepted(data, i)) {
@@ -144,7 +166,8 @@ public class RelationElement extends GraphElement {
 
          Object to = data.getData(toDim, i);
          final String id = getId(to, i, data, toDim);
-         final int sidx = sdata == null ? i : sdata.getBaseRow(i);
+         final int baseSidx = sdata == null ? i : sdata.getBaseRow(i);
+         final int sidx = leafRepresentativeRows.getOrDefault(id, baseSidx);
          RelationGeometry toNode = nodes.get(id);
 
          if(nodes.containsKey(id)) {
@@ -187,6 +210,9 @@ public class RelationElement extends GraphElement {
             Object to = data.getData(toDim, i);
             final String fromId = getId(from, i, data, fromDim);
             final String toId = getId(to, i, data, toDim);
+            // sidx for the edge itself always reflects the current row (unchanged); only
+            // the root node's own subRowIndex is resolved from the precomputed
+            // representative-row map (see comment above the To-node loop). (76417)
             final int sidx = sdata == null ? i : sdata.getBaseRow(i);
             String edgeId = fromId + "-" + toId;
 
@@ -198,7 +224,8 @@ public class RelationElement extends GraphElement {
                   continue;
                }
 
-               fromNode = createGeometry(fromId, mxgraph, graph, vmodel, from, i, sidx,
+               int nodeSidx = rootRepresentativeRows.getOrDefault(fromId, sidx);
+               fromNode = createGeometry(fromId, mxgraph, graph, vmodel, from, i, nodeSidx,
                                          data, fromDim);
                roots.add(fromNode);
                nodes.put(fromId, fromNode);
@@ -508,58 +535,124 @@ public class RelationElement extends GraphElement {
          sdata.addSortColumn(getTargetDim(), false);
       }
 
-      // A node's "representative row" (whose value drives its color lookup, see
-      // RelationGeometry.getColor()/getSubRowIndex()) is the first row encountered, after
-      // this sort, for that node's id. Since the sort key above is only [sourceDim,
-      // targetDim], rows that tie on both are otherwise ordered arbitrarily (whatever order
-      // the query/dataset happens to hand them in). Break such ties using the field that
-      // actually paints the node (the general Color and/or Node Color aesthetic) so the
-      // chosen representative row -- and thus the rendered color -- is deterministic for a
-      // given dataset, regardless of row order. (76417)
-      addColorTieBreakColumns(sdata, data);
-
       return sdata;
    }
 
    /**
-    * Add the color aesthetic field(s) as additional sort columns on top of [sourceDim,
-    * targetDim], so ties on those two are broken by the color-driving field instead of by
-    * incidental row order. The tie-break is applied in **descending** order, so the most
-    * recent (largest) value of the color field wins a tie -- e.g. among rows tied on the
-    * same [source, target] group but spanning several quarters of the same year, the latest
-    * quarter is picked as the node's representative row/color, matching a report viewer's
-    * expectation that a node summarizing a period should reflect its most recent state.
-    * No-op when a frame has no bound field, when the field is already part of the sort key
-    * (including the source/target dims themselves), or when the field isn't present in the
-    * data being sorted.
+    * Resolve the field a color frame is bound to, or {@code null} if the frame has no
+    * bound field (e.g. a plain {@code StaticColorFrame}) or the field isn't present in
+    * the data being processed (e.g. a brushed/derived dataset missing the column). Used
+    * by {@link #findRepresentativeRows} as the (optional) tie-break field -- a
+    * {@code null} return makes the tie-break step of that method a no-op. (76417)
     */
-   private void addColorTieBreakColumns(SortedDataSet sdata, DataSet data) {
-      Set<String> existing = new HashSet<>(Arrays.asList(getSourceDim(), getTargetDim()));
-
-      for(ColorFrame frame : new ColorFrame[] { getColorFrame(), getNodeColorFrame() }) {
-         if(frame == null) {
-            continue;
-         }
-
-         String field = frame.getField();
-
-         if(field == null || existing.contains(field) || data.indexOfHeader(field) < 0) {
-            continue;
-         }
-
-         sdata.addSortColumn(field, false);
-
-         // addSortColumn()'s boolean is "sortrow" (use DataSetComparator row comparison),
-         // not ascending/descending -- it has no direction parameter. To sort this tie-break
-         // column in descending (most-recent-wins) order, explicitly install a negated
-         // DefaultComparator, the same pattern PointElement.sortData() uses to put the
-         // largest bubble on top.
-         DefaultComparator comp = new DefaultComparator();
-         comp.setNegate(true);
-         sdata.setComparator(field, comp);
-
-         existing.add(field);
+   private String resolveTieField(ColorFrame frame, DataSet data) {
+      if(frame == null) {
+         return null;
       }
+
+      String field = frame.getField();
+      return field == null || data.indexOfHeader(field) < 0 ? null : field;
+   }
+
+   /**
+    * Determine, for each distinct value of {@code groupDim} (identified the same way node
+    * identity is -- via {@link #getId}, to stay consistent with the {@code nodes} map keys
+    * in {@link #createGeometry}), which row is that group's "representative row" -- the
+    * row whose value should drive the node's color lookup (see
+    * {@code RelationGeometry.getColor()}/{@code getSubRowIndex()}).
+    * <p>
+    * This replaces the previous approach of adding the color field(s) as extra descending
+    * sort columns on top of {@code [sourceDim, targetDim]}: that approach applied a single,
+    * shared tie-break to both root and leaf nodes, which is wrong whenever the general
+    * Color frame and the Node Color frame are bound to different fields, since
+    * {@code RelationGeometry.getColor()} consults a different frame depending on node type
+    * (76417 code review finding). Computing independent maps -- one per node type, each
+    * using only its own color-driving field -- fixes that.
+    * <p>
+    * Selection rule, in a single linear scan over {@code data} (the same [sourceDim,
+    * targetDim]-sorted view {@link #createGeometry} already iterates, so the fallback
+    * order below matches this element's pre-existing, already-verified behavior):
+    * <ol>
+    *   <li>The first row seen for a given group id is the initial candidate.</li>
+    *   <li>If {@code rankField} is non-null (used for root nodes, to preserve the existing
+    *       "earliest target dimension wins" structural rule -- a root fans out across many
+    *       target values, and only the earliest-target subgroup is eligible to be its
+    *       representative row), a later row with a strictly smaller {@code rankField}
+    *       value replaces the candidate outright, establishing a new, smaller-rank
+    *       baseline.</li>
+    *   <li>Among rows tied on {@code rankField} (or, when {@code rankField} is null -- used
+    *       for leaf nodes, which have no such secondary structural dimension since
+    *       {@code toDim} alone already fully identifies a leaf -- among *all* rows sharing
+    *       the group id), a later row whose {@code tieField} value compares as "more
+    *       recent" (greater, via {@link DefaultComparator}'s natural ordering) than the
+    *       current candidate's replaces it.</li>
+    *   <li>If {@code tieField} is null (see {@link #resolveTieField}), step 3 never fires,
+    *       so the first row at the winning rank keeps its position -- an exact no-op match
+    *       for the pre-fix, order-dependent selection when there is no color field to
+    *       tie-break on.</li>
+    * </ol>
+    */
+   private Map<String, Integer> findRepresentativeRows(
+      DataSet data, SortedDataSet sdata, String groupDim, String rankField, String tieField)
+   {
+      Map<String, Integer> result = new HashMap<>();
+      Map<String, Object> ranks = new HashMap<>();
+      Map<String, Object> tieValues = new HashMap<>();
+      DefaultComparator comp = new DefaultComparator();
+      int max = getEndRow(data);
+
+      for(int i = getStartRow(data); i < max; i++) {
+         if(!isAccepted(data, i)) {
+            continue;
+         }
+
+         Object groupVal = data.getData(groupDim, i);
+         String id = getId(groupVal, i, data, groupDim);
+         int sidx = sdata == null ? i : sdata.getBaseRow(i);
+
+         if(!result.containsKey(id)) {
+            result.put(id, sidx);
+
+            if(rankField != null) {
+               ranks.put(id, data.getData(rankField, i));
+            }
+
+            if(tieField != null) {
+               tieValues.put(id, data.getData(tieField, i));
+            }
+
+            continue;
+         }
+
+         if(rankField != null) {
+            Object newRank = data.getData(rankField, i);
+            int rc = comp.compare(newRank, ranks.get(id));
+
+            if(rc < 0) {
+               // new smallest rank seen for this group -- replace the candidate outright
+               result.put(id, sidx);
+               ranks.put(id, newRank);
+               tieValues.put(id, tieField != null ? data.getData(tieField, i) : null);
+               continue;
+            }
+            else if(rc > 0) {
+               // not part of the (tied-for-)smallest rank group -- not eligible
+               continue;
+            }
+            // rc == 0: tied on rank, fall through to the tie-break below
+         }
+
+         if(tieField != null) {
+            Object newTie = data.getData(tieField, i);
+
+            if(comp.compare(newTie, tieValues.get(id)) > 0) {
+               result.put(id, sidx);
+               tieValues.put(id, newTie);
+            }
+         }
+      }
+
+      return result;
    }
 
    @Override
