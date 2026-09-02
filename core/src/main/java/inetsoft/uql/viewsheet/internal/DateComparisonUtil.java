@@ -709,9 +709,14 @@ public class DateComparisonUtil {
     * when the data is not in year-bucket layout (per-part real dates, or no repeated period
     * value). An empty return means "no orphan filtering should be applied."
     *
-    * This method is also used by DateComparisonFormat.initPartDate() to drive the same
-    * heuristic at the pre-aggregated partDates level — both callers rely on this single
-    * implementation so the logic stays in sync.
+    * DateComparisonFormat.initPartDate() also calls this method directly, to drive the same
+    * heuristic at the pre-aggregated partDates level -- but as of Bug #76388, that caller is
+    * NOT gated on facet mode the way applyDateRange() below is. In facet mode this method's
+    * heuristic is wrong for the reason documented at the applyDateRange() call site (a facet
+    * lacking a row in the most recent period isn't a future bucket, it's an ordinary facet
+    * with less data), so initPartDate() can still misclassify facets 5+ as orphaned and blank
+    * their labels even after this fix, independent of Bug #76390's own, separate label-
+    * blanking defect in the same method. Not fixed here -- see PR #4936's discussion.
     */
    static Set<Object> computeValidParts(DataSet data, String periodCol,
                                         String partCol, Date startDate)
