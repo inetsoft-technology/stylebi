@@ -222,6 +222,18 @@ public abstract class AbstractEditableAuthenticationProvider
       String dir = "portal/" + newOrgID;
       Map<String, String> cssEntries = manager.getCssEntries();
       String viewsheet = cssEntries != null ? cssEntries.get(fromOrgId) : null;
+      // Copy the branding files first and only then touch the manager, behind a single
+      // save(). Two reasons to batch: each save() drops and re-adds the manager's data
+      // space change listener and the notification for the write is delivered
+      // asynchronously, so one save() per entry used to open several windows in which a
+      // late self-notification could reload the file over the entry the next step had
+      // just added; and any copy step below can throw, so mutating the shared manager as
+      // we go would leave entries for newOrgID in memory that were never persisted when a
+      // later step fails, to be picked up by whatever calls save() next.
+      String cssEntry = null;
+      String logoEntry = null;
+      String faviconEntry = null;
+      PortalWelcomePage newWelcomePage = null;
 
       if(viewsheet != null) {
          String[] viewsheetFile = viewsheet.split("/");
@@ -236,8 +248,7 @@ public abstract class AbstractEditableAuthenticationProvider
             throw new RuntimeException(e);
          }
 
-         manager.addCSSEntry(newOrgID, newOrgID + "/" + cssName);
-         manager.save();
+         cssEntry = newOrgID + "/" + cssName;
       }
 
       Map<String, String> logoEntries = manager.getLogoEntries();
@@ -255,8 +266,7 @@ public abstract class AbstractEditableAuthenticationProvider
             throw new RuntimeException(e);
          }
 
-         manager.addLogoEntry(newOrgID, dir + "/" + logoName);
-         manager.save();
+         logoEntry = dir + "/" + logoName;
       }
 
       Map<String, String> faviconEntries = manager.getFaviconEntries();
@@ -274,14 +284,34 @@ public abstract class AbstractEditableAuthenticationProvider
             throw new RuntimeException(e);
          }
 
-         manager.addFaviconEntry(newOrgID, dir + "/" + faviconName);
-         manager.save();
+         faviconEntry = dir + "/" + faviconName;
       }
 
       PortalWelcomePage welcomePage = manager.getWelcomePage(fromOrgId);
 
       if(welcomePage != null) {
-         manager.setWelcomePage(newOrgID, (PortalWelcomePage) welcomePage.clone());
+         newWelcomePage = (PortalWelcomePage) welcomePage.clone();
+      }
+
+      if(cssEntry != null || logoEntry != null || faviconEntry != null ||
+         newWelcomePage != null)
+      {
+         if(cssEntry != null) {
+            manager.addCSSEntry(newOrgID, cssEntry);
+         }
+
+         if(logoEntry != null) {
+            manager.addLogoEntry(newOrgID, logoEntry);
+         }
+
+         if(faviconEntry != null) {
+            manager.addFaviconEntry(newOrgID, faviconEntry);
+         }
+
+         if(newWelcomePage != null) {
+            manager.setWelcomePage(newOrgID, newWelcomePage);
+         }
+
          manager.save();
       }
 

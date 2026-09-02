@@ -54,6 +54,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -326,6 +327,36 @@ class OrgLifecyclePortalBrandingTest {
 
       verify(portalThemesManager, times(2))
          .addLogoEntry(toOrgId, "portal/" + toOrgId + "/logo.png");
+   }
+
+   // -- TC-14: a branding step that fails partway must leave the shared PortalThemesManager
+   // untouched. The four branding writes are batched behind one save() (bug #76393), so mutating
+   // the manager as each copy completes would leave entries for toOrgId in memory that were never
+   // persisted -- readable via getCssEntries()/getLogoEntries() on this node, and silently written
+   // out by whatever calls save() next, for an org whose copy actually failed. --
+
+   @Test
+   void copy_laterBrandingStepFails_earlierEntriesNotAddedToManager() {
+      String fromOrgId = "branding_fail_from";
+      String toOrgId = "branding_fail_to";
+
+      when(portalThemesManager.getCssEntries())
+         .thenReturn(Map.of(fromOrgId, fromOrgId + "/brand.css"));
+      when(portalThemesManager.getLogoEntries())
+         .thenReturn(Map.of(fromOrgId, "portal/" + fromOrgId + "/logo.png"));
+      // fails after the css and logo copies have run, standing in for any of the
+      // IOException -> RuntimeException throws in the copy steps
+      when(portalThemesManager.getWelcomePage(fromOrgId))
+         .thenThrow(new RuntimeException("branding copy failed"));
+
+      assertThrows(RuntimeException.class,
+                   () -> invokeCopyOrganization(fromOrgId, toOrgId, false));
+
+      // scoped to toOrgId, not blanket never() -- the mock is shared across the class, see the
+      // note on the rename cleanup test above
+      verify(portalThemesManager, never()).addCSSEntry(eq(toOrgId), any());
+      verify(portalThemesManager, never()).addLogoEntry(eq(toOrgId), any());
+      verify(portalThemesManager, never()).setWelcomePage(eq(toOrgId), any());
    }
 
    // Shared invocation helper for the logo/favicon/welcome-page/edge-case tests above -- mirrors
