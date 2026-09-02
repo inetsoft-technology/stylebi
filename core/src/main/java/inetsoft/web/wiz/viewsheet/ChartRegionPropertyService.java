@@ -123,6 +123,11 @@ public class ChartRegionPropertyService {
          requireLinearAxisForLinearOnlyKeys(sessionToken, user, assembly, key, field, properties);
       }
 
+      if(properties.containsKey("rotation")) {
+         properties = new LinkedHashMap<>(properties);
+         properties.put("rotation", canonicalRotation(name, properties.get("rotation")));
+      }
+
       Object model = readModel(sessionToken, user, assembly, name, key, field);
       Map<String, String> aliases = aliasesFor(name);
       Map<String, Object> resolved = new LinkedHashMap<>();
@@ -247,6 +252,40 @@ public class ChartRegionPropertyService {
             "silently ignored — or, on some chart types, corrupt the render instead of being " +
             "ignored. Omit them for a dimension axis.");
       }
+   }
+
+   /** The axis label's rotation offers "auto"; the title's does not (it is never presented). */
+   private static final Set<String> AXIS_ROTATIONS = Set.of("auto", "-90", "-45", "0", "45", "90");
+   private static final Set<String> TITLE_ROTATIONS = Set.of("-90", "-45", "0", "45", "90");
+
+   /**
+    * Validates a {@code rotation} against the domain the target region's model actually accepts,
+    * and returns the canonical spelling PropertyPath should be given.
+    *
+    * <p>Both {@code AxisLabelPaneModel}'s and {@code TitleFormatPaneModel}'s rotation live at a
+    * path ending in {@code .rotation} (via their shared {@code RotationRadioGroupModel}), so a
+    * single {@code PropertyPath.CONSTRAINED_STRINGS} entry keyed by that leaf name cannot express
+    * that the two accept different domains: the axis label genuinely offers {@code "auto"} in the
+    * Composer (clears the rotation back to the default, matched case-sensitively —
+    * {@code AxisPropertyDialogModel.java:300}, {@code "auto".equals(rotation)}), while the
+    * title's own persist step ({@code TitleFormatDialogModel.updateTitleFormatPaneModel}) does not
+    * handle {@code "auto"} at all and calls {@code Float.parseFloat(rotation)} directly on
+    * whatever string arrives, which throws an unhelpful raw {@code NumberFormatException} for it.
+    * Checked here, region-aware, before either path is reached — and canonicalized the same way
+    * {@code PropertyPath}'s own {@code CONSTRAINED_STRINGS} check does, so {@code "AUTO"} reaches
+    * the axis model as the lowercase {@code "auto"} the exact-match check requires.
+    */
+   private static String canonicalRotation(String region, Object rotation) {
+      String text = rotation == null ? "" : String.valueOf(rotation).trim().toLowerCase();
+      Set<String> allowed = "axis".equals(region) ? AXIS_ROTATIONS : TITLE_ROTATIONS;
+
+      if(!allowed.contains(text)) {
+         throw new IllegalArgumentException(
+            "'rotation' on a chart " + region + " accepts only " + new TreeSet<>(allowed) +
+            "; '" + rotation + "' is not one of them.");
+      }
+
+      return text;
    }
 
    /**
@@ -452,6 +491,10 @@ public class ChartRegionPropertyService {
       aliases.put("minorIncrement", "axisLinePaneModel.minorIncrement");
       aliases.put("showAxisLabel", "axisLabelPaneModel.showAxisLabel");
       aliases.put("labelOnSecondaryAxis", "axisLabelPaneModel.labelOnSecondaryAxis");
+      // The Label tab's Rotation fieldset had no tool equivalent (parity audit L4, finding G3-6).
+      // Unlike the title's rotation, "auto" is a real, offered value here -- see
+      // requireValidRotation for why the two can't share one CONSTRAINED_STRINGS entry.
+      aliases.put("rotation", "axisLabelPaneModel.rotationRadioGroupModel.rotation");
       return aliases;
    }
 
@@ -470,12 +513,24 @@ public class ChartRegionPropertyService {
       aliases.put("style", "legendFormatGeneralPaneModel.style");
       aliases.put("notShowNull", "legendFormatGeneralPaneModel.notShowNull");
       aliases.put("symbolSize", "legendFormatGeneralPaneModel.symbolSize");
+      // Only meaningful on a measure-bound legend (LegendScalePaneModel.reverseVisible/
+      // includeZeroVisible say which of these two actually apply, per legend; logarithmic is
+      // always offered). Genuinely missing before this: the UI's Scale tab had no tool
+      // equivalent at all (parity audit L4, finding G3-3).
+      aliases.put("logarithmicScale", "legendScalePaneModel.logarithmic");
+      aliases.put("reverse", "legendScalePaneModel.reverse");
+      aliases.put("includeZero", "legendScalePaneModel.includeZero");
       return aliases;
    }
 
    private static Map<String, String> title() {
       Map<String, String> aliases = new LinkedHashMap<>();
       aliases.put("title", "titleFormatPaneModel.title");
+      // The Title Properties dialog's Rotation fieldset had no tool equivalent (parity audit L4,
+      // finding G3-5). "auto" is not offered here -- the UI's own title-rotation control never
+      // offers it either (contrast axis-label rotation, which does); the fixed angles are -90,
+      // -45, 0, 45, 90.
+      aliases.put("rotation", "titleFormatPaneModel.rotationRadioGroupModel.rotation");
       return aliases;
    }
 

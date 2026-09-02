@@ -242,6 +242,121 @@ class ChartRegionPropertyServiceTest {
       verifyNoInteractions(h.regions);
    }
 
+   /** L4 finding G3-3: the legend Scale tab (logarithmic/reverse/includeZero) had no tool alias. */
+   @Test
+   void writesLegendScaleProperties() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("logarithmicScale", true, "reverse", true, "includeZero", true), "");
+
+      ArgumentCaptor<LegendFormatDialogModel> captor =
+         ArgumentCaptor.forClass(LegendFormatDialogModel.class);
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                   captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      LegendScalePaneModel scale = captor.getValue().getLegendScalePaneModel();
+      assertTrue(scale.isLogarithmic());
+      assertTrue(scale.isReverse());
+      assertTrue(scale.isIncludeZero());
+   }
+
+   /** L4 finding G3-5: the Title Properties dialog's Rotation fieldset had no tool alias. */
+   @Test
+   void writesTitleRotation() throws Exception {
+      Harness h = harness();
+      when(h.regions.getTitleFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                               any(Principal.class)))
+         .thenReturn(titleModel());
+
+      h.service.set("tok", principal(), "Chart1", "title", "y", null, Map.of("rotation", "-90"), "");
+
+      ArgumentCaptor<TitleFormatDialogModel> captor =
+         ArgumentCaptor.forClass(TitleFormatDialogModel.class);
+      verify(h.regions).setTitleFormatDialogModel(anyString(), anyString(), anyString(),
+                                                  captor.capture(), anyString(),
+                                                  any(Principal.class), any());
+      assertEquals("-90",
+                   captor.getValue().getTitleFormatPaneModel().getRotationRadioGroupModel()
+                      .getRotation());
+   }
+
+   /**
+    * The title's rotation does not accept "auto" -- unlike the axis label's, its own persist step
+    * calls {@code Float.parseFloat} on whatever arrives with no "auto" branch at all, which would
+    * otherwise surface as a raw {@code NumberFormatException} instead of a named refusal.
+    */
+   @Test
+   void refusesAutoRotationOnATitle() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "title", "y", null,
+                             Map.of("rotation", "auto"), ""));
+
+      assertTrue(thrown.getMessage().contains("rotation"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** L4 finding G3-6: the axis Label tab's Rotation fieldset had no tool alias. */
+   @Test
+   void writesAxisLabelRotation() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null, Map.of("rotation", "45"), "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals("45",
+                   captor.getValue().getAxisLabelPaneModel().getRotationRadioGroupModel()
+                      .getRotation());
+   }
+
+   /** Unlike the title, the axis label genuinely offers "auto" -- and normalizes its case. */
+   @Test
+   void writesAutoRotationOnAnAxisCaseInsensitively() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null, Map.of("rotation", "AUTO"), "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals("auto",
+                   captor.getValue().getAxisLabelPaneModel().getRotationRadioGroupModel()
+                      .getRotation(),
+                   "AxisPropertyDialogModel matches \"auto\" case-sensitively, so the canonical " +
+                   "lowercase form must reach it, not the caller's original casing");
+   }
+
+   @Test
+   void refusesARotationOutsideEitherDomain() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                             Map.of("rotation", "30"), ""));
+
+      assertTrue(thrown.getMessage().contains("30"));
+      verifyNoInteractions(h.regions);
+   }
+
    private static Viewsheet mixedShelfViewsheet(ChartRef[] xFields) {
       VSChartAggregateRef y = mock(VSChartAggregateRef.class);
       when(y.isSecondaryY()).thenReturn(false);
@@ -549,19 +664,24 @@ class ChartRegionPropertyServiceTest {
    private static AxisPropertyDialogModel axisModel() {
       AxisPropertyDialogModel model = new AxisPropertyDialogModel();
       model.setAxisLinePaneModel(new AxisLinePaneModel());
-      model.setAxisLabelPaneModel(new AxisLabelPaneModel());
+      AxisLabelPaneModel labelPaneModel = new AxisLabelPaneModel();
+      labelPaneModel.setRotationRadioGroupModel(new RotationRadioGroupModel());
+      model.setAxisLabelPaneModel(labelPaneModel);
       return model;
    }
 
    private static LegendFormatDialogModel legendModel() {
       LegendFormatDialogModel model = new LegendFormatDialogModel();
       model.setLegendFormatGeneralPaneModel(new LegendFormatGeneralPaneModel());
+      model.setLegendScalePaneModel(new LegendScalePaneModel());
       return model;
    }
 
    private static TitleFormatDialogModel titleModel() {
       TitleFormatDialogModel model = new TitleFormatDialogModel();
-      model.setTitleFormatPaneModel(new TitleFormatPaneModel());
+      TitleFormatPaneModel paneModel = new TitleFormatPaneModel();
+      paneModel.setRotationRadioGroupModel(new RotationRadioGroupModel());
+      model.setTitleFormatPaneModel(paneModel);
       return model;
    }
 
