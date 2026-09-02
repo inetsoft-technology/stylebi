@@ -282,6 +282,7 @@ public class VSCrosstabBindingFactory
       crossInfo.setPercentageByValue(option.getPercentageByValue());
       crossInfo.setRowTotalVisibleValue(option.getRowTotalVisibleValue());
       crossInfo.setColTotalVisibleValue(option.getColTotalVisibleValue());
+      crossInfo.setSummarySideBySide(option.isSummarySideBySide());
       syncPercentCalcs(crossInfo);
       VSUtil.updateCalculate(crossInfo, null);
       return assembly;
