@@ -217,8 +217,7 @@ class DateComparisonServiceTest {
    {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison =
-         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null,
-                                              null);
+         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null);
 
       harness(model).service.set("tok", principal(), "Chart1", comparison, "");
 
@@ -232,8 +231,7 @@ class DateComparisonServiceTest {
    void refusesAnUnrecognizedPeriodLevel(String word) {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison =
-         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null,
-                                              null);
+         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null);
 
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
