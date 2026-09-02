@@ -133,7 +133,7 @@ public class ConditionUtil {
 
                   // look for a built in condition with this name and clone it
                   for(DateCondition dateCondition : DateCondition.getBuiltinDateConditions()) {
-                     if(dateCondition.getName().equals(value)) {
+                     if(dateCondition.getName().equalsIgnoreCase(value)) {
                         condition = (XCondition) dateCondition.clone();
                         break;
                      }
@@ -143,10 +143,21 @@ public class ConditionUtil {
                   if(condition == null && rws != null) {
                      Worksheet ws = rws.getWorksheet();
 
-                     if(ws.getAssembly(value) instanceof DateRangeAssembly) {
-                        condition = ((DateRangeAssembly) ws.getAssembly(value))
-                           .getDateRange().clone();
+                     for(Assembly assembly : ws.getAssemblies()) {
+                        if(assembly instanceof DateRangeAssembly &&
+                           assembly.getName().equalsIgnoreCase(value))
+                        {
+                           condition = ((DateRangeAssembly) assembly).getDateRange().clone();
+                           break;
+                        }
                      }
+                  }
+
+                  if(condition == null) {
+                     throw new IllegalArgumentException(
+                        "'" + value + "' is not a known date range. Call list_condition_date_ranges " +
+                        "for the exact built-in names (e.g. \"Last month\"), or name a worksheet " +
+                        "date-range assembly.");
                   }
                }
                else if(conditionModel.getOperation() == AbstractCondition.TOP_N ||

@@ -68,4 +68,60 @@ class ConditionUtilTest {
                         "a date_in value naming a builtin range must resolve to a real " +
                         "DateCondition, not fall through to a plain value condition");
    }
+
+   /**
+    * The builtin lookup must not be case-sensitive -- a correctly-spelled name in the wrong
+    * case (e.g. an LLM normalizing "Last year" to "Last Year") must still resolve to the same
+    * builtin range, not silently fail to match and fall through.
+    */
+   @Test
+   void aBuiltinDateRangeNameInTheWrongCaseStillResolvesToTheSameDateCondition() throws Exception {
+      DataRefModel field = mock(DataRefModel.class);
+      when(field.getName()).thenReturn("OrderDate");
+      when(field.getDataType()).thenReturn(XSchema.DATE);
+
+      String correctlyCasedName = "Last year";
+      String wrongCasedName = "Last Year";
+
+      Object[] correctModel = ConditionVocabulary.toConditionList(
+         List.of(new ConditionVocabulary.Clause(
+            "OrderDate", "date_in", List.of(correctlyCasedName), null, false)),
+         new DataRefModel[]{ field });
+      Object[] wrongCaseModel = ConditionVocabulary.toConditionList(
+         List.of(new ConditionVocabulary.Clause(
+            "OrderDate", "date_in", List.of(wrongCasedName), null, false)),
+         new DataRefModel[]{ field });
+
+      Principal principal = () -> "admin";
+      ConditionList correctConditions =
+         ConditionUtil.fromModelToConditionList(correctModel, null, null, principal);
+      ConditionList wrongCaseConditions =
+         ConditionUtil.fromModelToConditionList(wrongCaseModel, null, null, principal);
+
+      assertEquals(correctConditions.getXCondition(0), wrongCaseConditions.getXCondition(0),
+                   "a builtin name in the wrong case must resolve to the same DateCondition " +
+                   "as the correctly-cased name");
+   }
+
+   /**
+    * A value that names no builtin range and no worksheet date-range assembly must fail loud,
+    * not silently drop the condition or fall through to a plain value condition.
+    */
+   @Test
+   void anUnrecognizedDateRangeNameThrows() throws Exception {
+      DataRefModel field = mock(DataRefModel.class);
+      when(field.getName()).thenReturn("OrderDate");
+      when(field.getDataType()).thenReturn(XSchema.DATE);
+
+      Object[] model = ConditionVocabulary.toConditionList(
+         List.of(new ConditionVocabulary.Clause(
+            "OrderDate", "date_in", List.of("Last Decade"), null, false)),
+         new DataRefModel[]{ field });
+
+      Principal principal = () -> "admin";
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> ConditionUtil.fromModelToConditionList(model, null, null, principal),
+                   "an unrecognized date range name must fail loud, not fall through silently");
+   }
 }

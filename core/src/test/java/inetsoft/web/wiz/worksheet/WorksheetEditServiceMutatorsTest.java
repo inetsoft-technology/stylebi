@@ -4687,6 +4687,29 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
+    * A builtin name in the wrong case (e.g. an LLM normalizing "Last month" to "LAST MONTH")
+    * must still resolve, mirroring ConditionUtil.fromModelToConditionList's now-case-insensitive
+    * builtin lookup -- not fail to match and fall through to an unresolved condition.
+    */
+   @Test
+   void addFilterWithDateInResolvesANameInTheWrongCase() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "LAST MONTH"));
+
+      XCondition xc = firstXCondition(t);
+      assertInstanceOf(DateCondition.MonthCondition.class, xc,
+         "a wrong-cased builtin name must still resolve to a real DateCondition");
+      DateCondition.MonthCondition mc = (DateCondition.MonthCondition) xc;
+      assertEquals(0, mc.getYearN());
+      assertEquals(1, mc.getMonthN());
+   }
+
+   /**
     * An unmatched/typo'd range name must fail loudly, naming the bad value -- not silently
     * substitute the shared rescue mechanism's hardcoded "one year ago" default (see
     * ConditionTest#toSqlConditionSilentlyDefaultsOnAnUnmatchedName for that default's own

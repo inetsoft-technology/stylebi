@@ -2443,7 +2443,7 @@ public final class WorksheetMutationSupport {
       }
 
       for(DateCondition dc : DateCondition.getBuiltinDateConditions()) {
-         if(dc.getName().equals(value)) {
+         if(dc.getName().equalsIgnoreCase(value)) {
             return dc.clone();
          }
       }
