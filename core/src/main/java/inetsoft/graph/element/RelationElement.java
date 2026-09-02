@@ -31,6 +31,7 @@ import inetsoft.graph.visual.ElementVO;
 import inetsoft.graph.visual.VOText;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.CoreTool;
+import inetsoft.util.DefaultComparator;
 
 import java.awt.*;
 import java.awt.geom.AffineTransform;
@@ -507,7 +508,58 @@ public class RelationElement extends GraphElement {
          sdata.addSortColumn(getTargetDim(), false);
       }
 
+      // A node's "representative row" (whose value drives its color lookup, see
+      // RelationGeometry.getColor()/getSubRowIndex()) is the first row encountered, after
+      // this sort, for that node's id. Since the sort key above is only [sourceDim,
+      // targetDim], rows that tie on both are otherwise ordered arbitrarily (whatever order
+      // the query/dataset happens to hand them in). Break such ties using the field that
+      // actually paints the node (the general Color and/or Node Color aesthetic) so the
+      // chosen representative row -- and thus the rendered color -- is deterministic for a
+      // given dataset, regardless of row order. (76417)
+      addColorTieBreakColumns(sdata, data);
+
       return sdata;
+   }
+
+   /**
+    * Add the color aesthetic field(s) as additional sort columns on top of [sourceDim,
+    * targetDim], so ties on those two are broken by the color-driving field instead of by
+    * incidental row order. The tie-break is applied in **descending** order, so the most
+    * recent (largest) value of the color field wins a tie -- e.g. among rows tied on the
+    * same [source, target] group but spanning several quarters of the same year, the latest
+    * quarter is picked as the node's representative row/color, matching a report viewer's
+    * expectation that a node summarizing a period should reflect its most recent state.
+    * No-op when a frame has no bound field, when the field is already part of the sort key
+    * (including the source/target dims themselves), or when the field isn't present in the
+    * data being sorted.
+    */
+   private void addColorTieBreakColumns(SortedDataSet sdata, DataSet data) {
+      Set<String> existing = new HashSet<>(Arrays.asList(getSourceDim(), getTargetDim()));
+
+      for(ColorFrame frame : new ColorFrame[] { getColorFrame(), getNodeColorFrame() }) {
+         if(frame == null) {
+            continue;
+         }
+
+         String field = frame.getField();
+
+         if(field == null || existing.contains(field) || data.indexOfHeader(field) < 0) {
+            continue;
+         }
+
+         sdata.addSortColumn(field, false);
+
+         // addSortColumn()'s boolean is "sortrow" (use DataSetComparator row comparison),
+         // not ascending/descending -- it has no direction parameter. To sort this tie-break
+         // column in descending (most-recent-wins) order, explicitly install a negated
+         // DefaultComparator, the same pattern PointElement.sortData() uses to put the
+         // largest bubble on top.
+         DefaultComparator comp = new DefaultComparator();
+         comp.setNegate(true);
+         sdata.setComparator(field, comp);
+
+         existing.add(field);
+      }
    }
 
    @Override
