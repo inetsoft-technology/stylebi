@@ -28,7 +28,12 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.viewsheet.CalendarVSAssembly;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
+import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.MessageException;
 import inetsoft.web.service.BinaryTransferService;
@@ -44,11 +49,15 @@ import inetsoft.web.wiz.request.WizVisualizationRenameRequest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Dimension;
+import java.awt.Point;
 import java.security.Principal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -164,6 +173,171 @@ class WizVisualizationServiceTest {
          any(AssetEntry.class), eq(principal), eq(true), any(AssetContent.class));
       verify(viewsheetService).setViewsheet(
          any(Viewsheet.class), any(AssetEntry.class), eq(principal), eq(true), eq(true));
+   }
+
+   // ── saveVisualization carries forward filter-control assemblies (07-fix-r3.md) ───────────────
+   //
+   // WizVisualizationService.saveVisualization historically cloned ONLY the one named chart
+   // assembly into the new single-assembly ViewSheet, so any sibling SelectionList/TimeSlider/
+   // Calendar controls add_visualization_filters had placed below it on the source runtime were
+   // silently dropped -- a saved visualization reopened with none of its controls. These three
+   // tests pin: (a) the pre-existing single-chart save path is unchanged when there are no
+   // controls; (b) 1-3 controls all survive, each at its original (unreset) position; (c) a
+   // control's table binding survives clone().
+
+   @Test
+   void savingAChartWithNoFilterControlsCarriesOnlyTheChart() throws Exception {
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WizVisualizationService service = createService(viewsheetService, assetRepository);
+
+      AssetEntry insideEntry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/vs1", null);
+
+      Viewsheet sourceVs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(sourceVs, "Chart1");
+      chart.setPixelOffset(new Point(0, 0));
+      chart.setPixelSize(new Dimension(400, 240));
+      sourceVs.addAssembly(chart);
+
+      WizVisualizationSaveEvent event = new WizVisualizationSaveEvent();
+      event.setSourceViewsheetIdentifier(insideEntry.toIdentifier());
+      event.setAssemblyName("Chart1");
+
+      Principal principal = mock(Principal.class);
+      when(principal.getName()).thenReturn("admin" + IdentityID.KEY_DELIMITER + "host-org");
+      when(assetRepository.getSheet(
+         any(AssetEntry.class), eq(principal), eq(true), any(AssetContent.class)))
+         .thenReturn(sourceVs);
+
+      service.saveVisualization(event, principal);
+
+      var captor = ArgumentCaptor.forClass(Viewsheet.class);
+      verify(viewsheetService).setViewsheet(
+         captor.capture(), any(AssetEntry.class), eq(principal), eq(true), eq(true));
+      Viewsheet newVs = captor.getValue();
+
+      assertEquals(1, newVs.getAssemblies().length, "no filter controls on the source -> only the chart clone");
+   }
+
+   @Test
+   void savingAChartWithThreeFilterControlsCarriesAllOfThemAtTheirOriginalPositions() throws Exception {
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WizVisualizationService service = createService(viewsheetService, assetRepository);
+
+      AssetEntry insideEntry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/vs1", null);
+
+      Viewsheet sourceVs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(sourceVs, "Chart1");
+      chart.setPixelOffset(new Point(0, 0));
+      chart.setPixelSize(new Dimension(400, 240));
+      sourceVs.addAssembly(chart);
+
+      SelectionListVSAssembly selectionList = new SelectionListVSAssembly(sourceVs, "SelectionList1");
+      selectionList.setPixelOffset(new Point(0, 250));
+      selectionList.setPixelSize(new Dimension(100, 120));
+      selectionList.setTableNames(List.of("SALES_FULL"));
+      sourceVs.addAssembly(selectionList);
+
+      TimeSliderVSAssembly timeSlider = new TimeSliderVSAssembly(sourceVs, "RangeSlider1");
+      timeSlider.setPixelOffset(new Point(100, 250));
+      timeSlider.setPixelSize(new Dimension(100, 120));
+      timeSlider.setTableNames(List.of("SALES_FULL"));
+      sourceVs.addAssembly(timeSlider);
+
+      CalendarVSAssembly calendar = new CalendarVSAssembly(sourceVs, "Calendar1");
+      calendar.setPixelOffset(new Point(200, 250));
+      calendar.setPixelSize(new Dimension(100, 120));
+      calendar.setTableNames(List.of("SALES_FULL"));
+      sourceVs.addAssembly(calendar);
+
+      WizVisualizationSaveEvent event = new WizVisualizationSaveEvent();
+      event.setSourceViewsheetIdentifier(insideEntry.toIdentifier());
+      event.setAssemblyName("Chart1");
+
+      Principal principal = mock(Principal.class);
+      when(principal.getName()).thenReturn("admin" + IdentityID.KEY_DELIMITER + "host-org");
+      when(assetRepository.getSheet(
+         any(AssetEntry.class), eq(principal), eq(true), any(AssetContent.class)))
+         .thenReturn(sourceVs);
+
+      service.saveVisualization(event, principal);
+
+      var captor = ArgumentCaptor.forClass(Viewsheet.class);
+      verify(viewsheetService).setViewsheet(
+         captor.capture(), any(AssetEntry.class), eq(principal), eq(true), eq(true));
+      Viewsheet newVs = captor.getValue();
+
+      assertEquals(4, newVs.getAssemblies().length,
+                   "chart + all 3 controls must be carried into the saved viewsheet");
+
+      VSAssembly clonedSelectionList = (VSAssembly) newVs.getAssembly("SelectionList1");
+      VSAssembly clonedTimeSlider = (VSAssembly) newVs.getAssembly("RangeSlider1");
+      VSAssembly clonedCalendar = (VSAssembly) newVs.getAssembly("Calendar1");
+      assertNotNull(clonedSelectionList, "SelectionList control must be present on the saved viewsheet");
+      assertNotNull(clonedTimeSlider, "TimeSlider control must be present on the saved viewsheet");
+      assertNotNull(clonedCalendar, "Calendar control must be present on the saved viewsheet");
+
+      // Unlike the primary chart's clone (reset to (24,24)), a control's pixelOffset/pixelSize must
+      // be preserved exactly -- it stays packed relative to the chart, never repositioned by save.
+      assertEquals(new Point(0, 250), clonedSelectionList.getPixelOffset());
+      assertEquals(new Dimension(100, 120), clonedSelectionList.getPixelSize());
+      assertEquals(new Point(100, 250), clonedTimeSlider.getPixelOffset());
+      assertEquals(new Point(200, 250), clonedCalendar.getPixelOffset());
+
+      VSAssembly clonedChart = (VSAssembly) newVs.getAssembly("Chart1");
+      assertEquals(new Point(24, 24), clonedChart.getPixelOffset(),
+                   "the primary chart clone is still reset to the viewsheet's top-left, unlike its controls");
+   }
+
+   @Test
+   void aCarriedOverFilterControlsTableBindingSurvivesClone() throws Exception {
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WizVisualizationService service = createService(viewsheetService, assetRepository);
+
+      AssetEntry insideEntry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/vs1", null);
+
+      Viewsheet sourceVs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(sourceVs, "Chart1");
+      chart.setPixelOffset(new Point(0, 0));
+      chart.setPixelSize(new Dimension(400, 240));
+      sourceVs.addAssembly(chart);
+
+      SelectionListVSAssembly selectionList = new SelectionListVSAssembly(sourceVs, "SelectionList1");
+      selectionList.setPixelOffset(new Point(0, 250));
+      selectionList.setPixelSize(new Dimension(100, 120));
+      selectionList.setTableNames(List.of("SALES_FULL"));
+      sourceVs.addAssembly(selectionList);
+
+      WizVisualizationSaveEvent event = new WizVisualizationSaveEvent();
+      event.setSourceViewsheetIdentifier(insideEntry.toIdentifier());
+      event.setAssemblyName("Chart1");
+
+      Principal principal = mock(Principal.class);
+      when(principal.getName()).thenReturn("admin" + IdentityID.KEY_DELIMITER + "host-org");
+      when(assetRepository.getSheet(
+         any(AssetEntry.class), eq(principal), eq(true), any(AssetContent.class)))
+         .thenReturn(sourceVs);
+
+      service.saveVisualization(event, principal);
+
+      var captor = ArgumentCaptor.forClass(Viewsheet.class);
+      verify(viewsheetService).setViewsheet(
+         captor.capture(), any(AssetEntry.class), eq(principal), eq(true), eq(true));
+      Viewsheet newVs = captor.getValue();
+
+      SelectionListVSAssembly clonedSelectionList =
+         (SelectionListVSAssembly) newVs.getAssembly("SelectionList1");
+      assertNotNull(clonedSelectionList);
+      assertEquals(List.of("SALES_FULL"), clonedSelectionList.getTableNames(),
+                   "the control's table binding must survive clone(), not just its geometry");
    }
 
    // ── createVisualizationFolder ─────────────────────────────────────────────────
