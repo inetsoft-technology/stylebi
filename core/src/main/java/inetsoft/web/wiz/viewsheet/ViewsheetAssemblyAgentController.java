@@ -874,15 +874,21 @@ public class ViewsheetAssemblyAgentController {
       return comparisonService.read(sessionToken, user, assembly);
    }
 
+   /**
+    * Sets a date comparison. The response reports whether the comparison retargeted a bound
+    * date dimension's runtime grouping level to match the comparison period — see
+    * {@link DateComparisonService#set}.
+    */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/date-comparison")
-   public void setDateComparison(
+   public Map<String, Object> setDateComparison(
       @PathVariable String sessionToken,
       @RequestBody DateComparisonRequest request,
       @RequestParam(required = false, defaultValue = "") String linkUri,
       Principal user) throws Exception
    {
       requireEnabled();
-      comparisonService.set(sessionToken, user, request.assembly(), request.comparison(), linkUri);
+      return comparisonService.set(sessionToken, user, request.assembly(), request.comparison(),
+                                   linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/date-comparison/clear")

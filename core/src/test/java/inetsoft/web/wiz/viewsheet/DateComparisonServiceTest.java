@@ -19,7 +19,8 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.XConstants;
-import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
 import org.junit.jupiter.api.Tag;
@@ -270,6 +271,97 @@ class DateComparisonServiceTest {
       assertTrue(thrown.getMessage().contains("date dimension"));
    }
 
+   // ── reporting a retargeted dimension ────────────────────────────────────────
+
+   /**
+    * {@code describeRetargetedDimension} matches the pre-retarget snapshot on
+    * {@code VSCrosstabInfo.getDateComparisonRef()} against the same-named dimension in the
+    * refreshed runtime headers, and reports the dimension/before/after level when the level
+    * actually moved.
+    */
+   @Test
+   void reportsARetargetedDimensionWhenTheRuntimeLevelActuallyChanged() throws Exception {
+      VSDimensionRef before = mock(VSDimensionRef.class);
+      when(before.getName()).thenReturn("Order Date");
+      when(before.getDateLevel()).thenReturn(XConstants.MONTH_DATE_GROUP);
+
+      VSDimensionRef after = mock(VSDimensionRef.class);
+      when(after.getName()).thenReturn("Order Date");
+      when(after.getDateLevel()).thenReturn(XConstants.YEAR_DATE_GROUP);
+
+      CrosstabVSAssembly assembly = crosstabAssembly(before, new DataRef[] {after}, new DataRef[0]);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Crosstab1", comparison("2026-03-31", false), "");
+
+      assertEquals("Order Date", result.get("retargetedDimension"));
+      assertEquals("month", result.get("retargetedFromLevel"));
+      assertEquals("year", result.get("retargetedToLevel"));
+   }
+
+   /** The dimension can turn up in the column headers instead of the row headers. */
+   @Test
+   void findsTheRetargetedDimensionInTheColumnHeadersToo() throws Exception {
+      VSDimensionRef before = mock(VSDimensionRef.class);
+      when(before.getName()).thenReturn("Order Date");
+      when(before.getDateLevel()).thenReturn(XConstants.MONTH_DATE_GROUP);
+
+      VSDimensionRef after = mock(VSDimensionRef.class);
+      when(after.getName()).thenReturn("Order Date");
+      when(after.getDateLevel()).thenReturn(XConstants.YEAR_DATE_GROUP);
+
+      CrosstabVSAssembly assembly = crosstabAssembly(before, new DataRef[0], new DataRef[] {after});
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Crosstab1", comparison("2026-03-31", false), "");
+
+      assertEquals("Order Date", result.get("retargetedDimension"));
+   }
+
+   @Test
+   void returnsAnEmptyMapWhenTheLevelDidNotActuallyChange() throws Exception {
+      VSDimensionRef before = mock(VSDimensionRef.class);
+      when(before.getName()).thenReturn("Order Date");
+      when(before.getDateLevel()).thenReturn(XConstants.MONTH_DATE_GROUP);
+
+      VSDimensionRef after = mock(VSDimensionRef.class);
+      when(after.getName()).thenReturn("Order Date");
+      when(after.getDateLevel()).thenReturn(XConstants.MONTH_DATE_GROUP);
+
+      CrosstabVSAssembly assembly = crosstabAssembly(before, new DataRef[] {after}, new DataRef[0]);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Crosstab1", comparison("2026-03-31", false), "");
+
+      assertTrue(result.isEmpty());
+   }
+
+   @Test
+   void returnsAnEmptyMapWhenTheAssemblyIsNotACrosstab() throws Exception {
+      Harness h = harness(model(), null);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertTrue(result.isEmpty());
+   }
+
+   private static CrosstabVSAssembly crosstabAssembly(VSDimensionRef dateComparisonRef,
+                                                       DataRef[] rowHeaders, DataRef[] colHeaders)
+   {
+      VSCrosstabInfo crosstabInfo = mock(VSCrosstabInfo.class);
+      when(crosstabInfo.getDateComparisonRef()).thenReturn(dateComparisonRef);
+      when(crosstabInfo.getRuntimeRowHeaders()).thenReturn(rowHeaders);
+      when(crosstabInfo.getRuntimeColHeaders()).thenReturn(colHeaders);
+
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(crosstabInfo);
+      return assembly;
+   }
+
    @Test
    void clearDelegates() throws Exception {
       Harness h = harness(model());
@@ -361,9 +453,18 @@ class DateComparisonServiceTest {
                           DateComparisonDialogService comparisons) {}
 
    private static Harness harness(DateComparisonPaneModel model) {
+      return harness(model, null);
+   }
+
+   private static Harness harness(DateComparisonPaneModel model, VSAssembly assembly) {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
-      when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getID()).thenReturn("rt1");
+
+      if(assembly != null) {
+         when(vs.getAssembly(anyString())).thenReturn(assembly);
+      }
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       DateComparisonDialogService comparisons = mock(DateComparisonDialogService.class);

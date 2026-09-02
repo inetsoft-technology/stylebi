@@ -17,7 +17,10 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -103,11 +106,19 @@ public class DateComparisonService {
       return out;
    }
 
-   /** Applies a comparison. One {@code sessions.mutate}, so one undo checkpoint. */
-   public void set(String sessionToken, Principal user, String assemblyName,
-                   Comparison comparison, String linkUri) throws Exception
+   /**
+    * Applies a comparison. One {@code sessions.mutate}, so one undo checkpoint.
+    *
+    * @return a map that, when the comparison forced a bound date dimension's rendering level
+    * to change (e.g. a row bound at "month" retargeted to "year" so periods line up), reports
+    * the dimension name and the before/after level under {@code retargetedDimension} /
+    * {@code retargetedFromLevel} / {@code retargetedToLevel}. Empty when nothing was retargeted.
+    */
+   public Map<String, Object> set(String sessionToken, Principal user, String assemblyName,
+                                  Comparison comparison, String linkUri) throws Exception
    {
       requireEndAnchor(comparison);
+      Map<String, Object> result = new LinkedHashMap<>();
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          DateComparisonPaneModel model =
@@ -123,7 +134,74 @@ public class DateComparisonService {
          comparisonService.setDateComparison(runtimeId, assemblyName,
                                             model.toDateComparisonInfo(), null, linkUri, user,
                                             dispatcher);
+         result.putAll(describeRetargetedDimension(rvs, assemblyName));
       });
+
+      return result;
+   }
+
+   /**
+    * Date comparison forces a bound date dimension's runtime grouping level up (or down) to
+    * match the comparison period, so periods actually line up — a deliberate rendering decision,
+    * not a bug. But it only ever mutates the runtime clone (design binding is untouched), and
+    * nothing told the caller it happened. {@code CrosstabDcProcessor.process()} already stashes
+    * the pre-retarget clone on {@code VSCrosstabInfo.getDateComparisonRef()} before mutating the
+    * live runtime ref in place; comparing that snapshot's level against the same-named dimension
+    * in the (already-refreshed, by the time {@code sessions.mutate} returns) runtime headers is
+    * the cheapest way to observe what actually changed, without re-deriving the DC math here.
+    *
+    * <p>Matches by {@code getName()} (the plain column name), not {@code getFullName()} — the
+    * full name embeds the date level itself (e.g. "Month(ORDER_DATE)" vs. "Year(ORDER_DATE)"),
+    * so it never matches once the level has actually changed.
+    */
+   private static Map<String, Object> describeRetargetedDimension(RuntimeViewsheet rvs,
+                                                                   String assemblyName)
+   {
+      Map<String, Object> out = new LinkedHashMap<>();
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof CrosstabVSAssembly)) {
+         return out;
+      }
+
+      VSCrosstabInfo crosstabInfo = ((CrosstabVSAssembly) assembly).getVSCrosstabInfo();
+      VSDataRef before = crosstabInfo == null ? null : crosstabInfo.getDateComparisonRef();
+
+      if(!(before instanceof VSDimensionRef)) {
+         return out;
+      }
+
+      VSDimensionRef beforeDim = (VSDimensionRef) before;
+      VSDimensionRef afterDim = findDimensionByName(crosstabInfo.getRuntimeRowHeaders(),
+                                                    beforeDim.getName());
+
+      if(afterDim == null) {
+         afterDim = findDimensionByName(crosstabInfo.getRuntimeColHeaders(), beforeDim.getName());
+      }
+
+      if(afterDim == null || afterDim.getDateLevel() == beforeDim.getDateLevel()) {
+         return out;
+      }
+
+      out.put("retargetedDimension", beforeDim.getName());
+      out.put("retargetedFromLevel", levelWord(beforeDim.getDateLevel()));
+      out.put("retargetedToLevel", levelWord(afterDim.getDateLevel()));
+      return out;
+   }
+
+   private static VSDimensionRef findDimensionByName(DataRef[] refs, String name) {
+      if(refs == null || name == null) {
+         return null;
+      }
+
+      for(DataRef ref : refs) {
+         if(ref instanceof VSDimensionRef && name.equals(((VSDimensionRef) ref).getName())) {
+            return (VSDimensionRef) ref;
+         }
+      }
+
+      return null;
    }
 
    public void clear(String sessionToken, Principal user, String assemblyName, String linkUri)
@@ -279,6 +357,19 @@ public class DateComparisonService {
       }
 
       return code.toString();
+   }
+
+   private static final Map<Integer, String> LEVEL_NAMES = Map.of(
+      XConstants.YEAR_DATE_GROUP, "year",
+      XConstants.QUARTER_DATE_GROUP, "quarter",
+      XConstants.MONTH_DATE_GROUP, "month",
+      XConstants.WEEK_DATE_GROUP, "week",
+      XConstants.DAY_DATE_GROUP, "day"
+   );
+
+   /** The inverse of {@link #normalizeLevel(String)}, for reporting a level back to the caller. */
+   private static String levelWord(int level) {
+      return LEVEL_NAMES.getOrDefault(level, String.valueOf(level));
    }
 
    private static void setDynamic(DynamicValueModel target, String value) {
