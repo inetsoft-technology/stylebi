@@ -24,6 +24,7 @@ import inetsoft.util.log.LogContext;
 import inetsoft.util.log.LogLevel;
 
 import java.awt.*;
+import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -72,6 +73,31 @@ public class SreeEnv {
 
    public static String getPropertyFromStorage(String name) {
       return PropertiesEngine.getInstance().getPropertyFromStorage(name);
+   }
+
+   /**
+    * Adds a listener that is notified when the named property is changed in shared storage,
+    * including changes made by another cluster node. Use this to invalidate values that are
+    * cached in a field for the lifetime of the JVM.
+    *
+    * @param propertyName the name of the property to watch.
+    * @param listener     the listener to add.
+    */
+   public static void addPropertyChangeListener(String propertyName, PropertyChangeListener listener) {
+      PropertiesEngine.getInstance().addPropertyChangeListener(propertyName, listener);
+   }
+
+   /**
+    * Removes a property change listener added by
+    * {@link #addPropertyChangeListener(String, PropertyChangeListener)}.
+    *
+    * @param propertyName the name of the property being watched.
+    * @param listener     the listener to remove.
+    */
+   public static void removePropertyChangeListener(String propertyName,
+                                                   PropertyChangeListener listener)
+   {
+      PropertiesEngine.getInstance().removePropertyChangeListener(propertyName, listener);
    }
 
    public static boolean getBooleanProperty(String name, boolean earlyLoaded, boolean orgScope, String ... trueValues) {
@@ -212,8 +238,24 @@ public class SreeEnv {
     * @return the value of the property.
     */
    public static String getPassword(String name) {
-      String encryptedPassword = getProperty(name);
+      return decodePassword(name, getProperty(name));
+   }
 
+   /**
+    * Get the value of a password property, reading it directly from the backing store instead
+    * of the in-memory property cache. Use this when a stale null from the cache would cause
+    * irreversible side effects, such as regenerating a key that another cluster node has
+    * already generated and persisted.
+    *
+    * @param name the name of the property.
+    *
+    * @return the value of the property.
+    */
+   public static String getPasswordFromStorage(String name) {
+      return decodePassword(name, getPropertyFromStorage(name));
+   }
+
+   private static String decodePassword(String name, String encryptedPassword) {
       if(Tool.isEmptyString(encryptedPassword)) {
          return encryptedPassword;
       }

@@ -239,15 +239,28 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
       // Guard the read-check-regenerate sequence with the cluster lock, matching
       // getSSOKeyPair(). Without it, an upgraded clustered FIPS deployment could have every
       // node independently regenerate and persist a different key at once (the self-heal
-      // branch below), causing transient cross-node JWT verification failures. Reading the
-      // property inside the lock also double-checks: once one node re-persists a valid key,
-      // the next node reads it and skips a redundant regeneration.
+      // branch below), causing transient cross-node JWT verification failures.
+      //
+      // The lock only serializes the nodes; it does not make the check correct on its own.
+      // SreeEnv.getProperty() serves this node's in-memory snapshot, which the key-value storage
+      // change listener refreshes asynchronously (debounced). Read the backing store FIRST and
+      // treat the snapshot only as a fallback for when storage is unreadable. Storage-first
+      // matters in two places:
+      //   - a simultaneous multi-node start, where a node can hold the lock and still see a stale
+      //     null for a key another node just persisted, and generate a second one;
+      //   - a re-read triggered by the property-change listener, which fires BEFORE the debounced
+      //     snapshot refresh, so the snapshot still holds the OLD key at that point. Checking the
+      //     store only when the snapshot is null would silently keep the stale key.
       Lock lock = Cluster.getInstance().getLock(LOCK_NAME);
       lock.lock();
 
       try {
          SecretKey signingKey;
-         String property = SreeEnv.getProperty("jwt.signing.key");
+         String property = SreeEnv.getPropertyFromStorage("jwt.signing.key");
+
+         if(property == null) {
+            property = SreeEnv.getProperty("jwt.signing.key");
+         }
 
          if(property == null) {
             signingKey = createAndStoreJwtSigningKey();
@@ -288,8 +301,20 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
       lock.lock();
 
       try {
-         String privateKeyProperty = SreeEnv.getPassword("sso.rsa.private.key");
-         String publicKeyProperty = SreeEnv.getProperty("sso.rsa.public.key");
+         // Read the backing store first; the in-memory snapshot is only a fallback for when
+         // storage is unreadable. See getJwtSigningKey() for why storage-first (rather than
+         // storage-as-a-null-fallback) is required: the snapshot is stale both during a
+         // simultaneous multi-node start and at the moment the property-change listener fires.
+         String privateKeyProperty = SreeEnv.getPasswordFromStorage("sso.rsa.private.key");
+         String publicKeyProperty = SreeEnv.getPropertyFromStorage("sso.rsa.public.key");
+
+         if(privateKeyProperty == null) {
+            privateKeyProperty = SreeEnv.getPassword("sso.rsa.private.key");
+         }
+
+         if(publicKeyProperty == null) {
+            publicKeyProperty = SreeEnv.getProperty("sso.rsa.public.key");
+         }
 
          if(privateKeyProperty == null || publicKeyProperty == null) {
             KeyPair keyPair = createSSOKeyPair();

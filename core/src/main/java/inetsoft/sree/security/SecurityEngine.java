@@ -403,7 +403,7 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
       }
       else if(ClientInfo.ANONYMOUS.equals(user.getLoginUserID().name)) {
          if(containsAnonymous(user.getUserIdentity().getOrgID())) {
-            principal = users.get(user.getCacheKey());
+            principal = getLoggedInUser(user);
 
             if(principal == null ||
                ((new Date()).getTime() - principal.getAge()) > 36000000L) {
@@ -416,9 +416,9 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
                      user.getUserIdentity().orgID,
                      secureID);
                   principal.setProperty("__internal__", "true");
-                  users.remove(user);
+                  removeLoggedInUser(user);
                   principal.setProperty("login.user", "true");
-                  users.put(user.getCacheKey(), principal);
+                  putLoggedInUser(user, principal);
                   ConnectionProcessor.getInstance().setAdditionalDatasource(principal);
                }
             }
@@ -444,7 +444,7 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
                user.setUserName(realUser.getIdentityID());
             }
 
-            principal = users.get(user.getCacheKey());
+            principal = getLoggedInUser(user);
 
             if(principal == null ||
                ((new Date()).getTime() - principal.getAge()) > 36000000L)
@@ -465,9 +465,9 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
                   principal.setUser(user.getCacheKey());
                }
 
-               users.remove(user);
+               removeLoggedInUser(user);
                principal.setProperty("login.user", "true");
-               users.put(user.getCacheKey(), principal);
+               putLoggedInUser(user, principal);
             }
          }
       }
@@ -522,7 +522,7 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
    private void logout(Principal principal) {
       if((principal instanceof SRPrincipal) && isLogin(principal)) {
          synchronized(this) {
-            users.remove(((SRPrincipal) principal).getUser());
+            removeLoggedInUser(((SRPrincipal) principal).getUser());
          }
       }
    }
@@ -1429,6 +1429,69 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
    }
 
    /**
+    * Looks up the registered principal for a logged-in user.
+    *
+    * <p>The map is keyed by {@link ClientInfo#getLoginKey()} rather than
+    * {@link ClientInfo#getCacheKey()}: the cache key includes the client address and the locale,
+    * which can differ once a principal has been serialized to another cluster node (for example
+    * when a viewsheet action is routed to the node that owns the sheet). That made the lookup miss
+    * and the user appear never to have logged in.
+    *
+    * @param user the client info of the user to look up.
+    *
+    * @return the registered principal, or {@code null} if the user is not logged in.
+    */
+   private SRPrincipal getLoggedInUser(ClientInfo user) {
+      if(user == null) {
+         return null;
+      }
+
+      SRPrincipal stored = users.get(user.getLoginKey());
+
+      if(stored == null) {
+         // Entries written by a node still running an older build are keyed by the full cache
+         // key. Fall back to it so users stay logged in across a rolling upgrade. This can be
+         // removed once no node can be writing the old key.
+         stored = users.get(user.getCacheKey());
+
+         if(stored == null && LOG.isDebugEnabled()) {
+            LOG.debug("No logged-in principal registered for user {} with session {}",
+                      user.getUserIdentity(), user.getSession());
+         }
+      }
+
+      return stored;
+   }
+
+   /**
+    * Registers a principal as logged in.
+    *
+    * <p>Writes under both the login key and the legacy cache key. The legacy write is what keeps
+    * a rolling upgrade working in the other direction: a node still running an older build reads
+    * {@code users.get(user.getCacheKey())} exclusively, so without it every login registered on an
+    * upgraded node would be invisible to a not-yet-upgraded one and those users would hit
+    * "did not log in" for the whole upgrade window. When the two keys coincide (no session id)
+    * this is a single entry. The legacy write can be dropped once no supported upgrade path
+    * starts from a build that reads the cache key.
+    */
+   private void putLoggedInUser(ClientInfo user, SRPrincipal principal) {
+      users.put(user.getLoginKey(), principal);
+      users.put(user.getCacheKey(), principal);
+   }
+
+   /**
+    * Removes a logged-in principal, under both the current and the legacy key.
+    */
+   private void removeLoggedInUser(ClientInfo user) {
+      if(user == null) {
+         return;
+      }
+
+      users.remove(user.getLoginKey());
+      users.remove(user.getCacheKey());
+   }
+
+   /**
     * Check whether this user has logged in or not.
     */
    private boolean isLogin(Principal principal) {
@@ -1443,7 +1506,7 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
             return true;
          }
 
-         SRPrincipal srPrincipal2 = users.get(srPrincipal.getUser().getCacheKey());
+         SRPrincipal srPrincipal2 = getLoggedInUser(srPrincipal.getUser());
 
          if(srPrincipal2 == null) {
             // anonymous users are not added to the users map. allow anonymous users if they exist
@@ -1492,7 +1555,7 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
          return false;
       }
 
-      SRPrincipal stored = users.get(srPrincipal.getUser().getCacheKey());
+      SRPrincipal stored = getLoggedInUser(srPrincipal.getUser());
 
       // Compare user identity to be resilient to serialization issues in clustered environments
       return stored != null &&
@@ -1513,7 +1576,7 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
             return true;
          }
 
-         SRPrincipal stored = users.get(sr.getUser().getCacheKey());
+         SRPrincipal stored = getLoggedInUser(sr.getUser());
 
          // Compare user identity to be resilient to serialization issues in clustered environments
          return stored != null &&

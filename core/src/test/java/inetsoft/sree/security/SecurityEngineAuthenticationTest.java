@@ -31,6 +31,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.security.Principal;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -131,7 +132,10 @@ class SecurityEngineAuthenticationTest {
       @SuppressWarnings("unchecked")
       Map<ClientInfo, SRPrincipal> users =
          (Map<ClientInfo, SRPrincipal>) ReflectionTestUtils.getField(engine, "users");
-      assertSame(srPrincipal, users.get(user.getCacheKey()));
+      // Registered under the login key (user identity + session), not the full cache key: the
+      // cache key also includes the client address and locale, which can differ once the
+      // principal has been serialized to another cluster node.
+      assertSame(srPrincipal, users.get(user.getLoginKey()));
    }
 
    // [Scenario: auth failed] provider rejects the credential -> null returned and no cache entry created
@@ -312,6 +316,90 @@ class SecurityEngineAuthenticationTest {
       engine.fireLoginEvent(principal);
 
       verify(listener).userLogin(argThat(event -> event.getPrincipal() == principal));
+   }
+
+   // [Scenario: cross-node lookup] the same login arriving on another cluster node with a
+   // different client address and locale must still resolve to the registered principal.
+   // A viewsheet action routed by IgniteCluster.affinityCall runs on the node that owns the
+   // sheet, against a principal that has been serialized across the cluster; the map was keyed
+   // by ClientInfo.getCacheKey(), whose equals/hashCode include the address and the locale, so
+   // the lookup missed and SecurityEngine.checkPermission threw "<user> did not log in" for a
+   // user who was actively logged in.
+   // Setup: register a login, then look it up with an otherwise identical ClientInfo whose
+   // address and locale differ.
+   @Test
+   void isValidUser_sameSessionDifferentAddressAndLocale_stillRecognizedAsLoggedIn() {
+      SecurityProvider provider = mock(SecurityProvider.class);
+      ClientInfo user = clientInfo(USER_ID);
+
+      when(provider.authenticate(USER_ID, "secret")).thenReturn(true);
+      when(provider.getUser(USER_ID)).thenReturn(null);
+      when(provider.getRoles(USER_ID)).thenReturn(new IdentityID[0]);
+      when(provider.getUserGroups(USER_ID)).thenReturn(new String[0]);
+
+      SRPrincipal registered = (SRPrincipal) engine.authenticate(user, "secret", provider);
+      assertNotNull(registered);
+
+      ClientInfo roundTripped = new ClientInfo(
+         user.getUserIdentity(), "10.244.0.237", user.getSession(), Locale.FRANCE);
+      SRPrincipal remote = new SRPrincipal(roundTripped, new IdentityID[0], new String[0],
+         USER_ID.getOrgID(), registered.getSecureID());
+      remote.setProperty("login.user", "true");
+      remote.setIgnoreLogin(false);
+
+      assertTrue(engine.isActiveUser(remote),
+         "a principal serialized to another node must still resolve to its login");
+      assertTrue(engine.isValidUser(remote));
+   }
+
+   // [Scenario: different session] a different session for the same user is a different login
+   // and must not resolve. Guards against relaxing the login key so far that any principal
+   // naming an existing user is accepted.
+   // Setup: register a login, then look up the same user with a different session id.
+   @Test
+   void isValidUser_differentSession_notRecognizedAsLoggedIn() {
+      SecurityProvider provider = mock(SecurityProvider.class);
+      ClientInfo user = clientInfo(USER_ID);
+
+      when(provider.authenticate(USER_ID, "secret")).thenReturn(true);
+      when(provider.getUser(USER_ID)).thenReturn(null);
+      when(provider.getRoles(USER_ID)).thenReturn(new IdentityID[0]);
+      when(provider.getUserGroups(USER_ID)).thenReturn(new String[0]);
+
+      SRPrincipal registered = (SRPrincipal) engine.authenticate(user, "secret", provider);
+      assertNotNull(registered);
+
+      ClientInfo other = new ClientInfo(user.getUserIdentity(), "127.0.0.1", "session-2");
+      SRPrincipal otherPrincipal = new SRPrincipal(other, new IdentityID[0], new String[0],
+         USER_ID.getOrgID(), 99L);
+      otherPrincipal.setProperty("login.user", "true");
+      otherPrincipal.setIgnoreLogin(false);
+
+      assertFalse(engine.isValidUser(otherPrincipal));
+   }
+
+   // [Scenario: legacy key] an entry written by a node still running an older build is keyed by
+   // the full cache key. It must remain resolvable so a rolling upgrade does not log users out.
+   // Setup: seed the map under the legacy key only, as cachedLoginPrincipal does.
+   @Test
+   void isValidUser_entryStoredUnderLegacyCacheKey_stillResolves() {
+      ClientInfo user = clientInfo(USER_ID);
+      user.setLocale(Locale.US);
+      SRPrincipal principal = new SRPrincipal(user, new IdentityID[0], new String[0],
+         USER_ID.getOrgID(), 42L);
+      principal.setProperty("login.user", "true");
+      principal.setIgnoreLogin(false);
+
+      @SuppressWarnings("unchecked")
+      Map<ClientInfo, SRPrincipal> users =
+         (Map<ClientInfo, SRPrincipal>) ReflectionTestUtils.getField(engine, "users");
+      users.put(user.getCacheKey(), principal);
+
+      assertNull(users.get(user.getLoginKey()),
+         "precondition: the entry exists only under the legacy key");
+
+      assertTrue(engine.isValidUser(principal));
+      assertTrue(engine.isActiveUser(principal));
    }
 
    private ClientInfo clientInfo(IdentityID userId) {

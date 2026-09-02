@@ -518,16 +518,35 @@ public class PropertiesEngine {
    /**
     * Reads a property directly from the backing key-value storage, bypassing the in-memory
     * cache. Use this when a stale null from the cache would cause irreversible side effects.
+    *
+    * <p>A failure to read the store is propagated rather than reported as an absent value. Every
+    * caller uses this method to decide whether a key already exists before generating a new one,
+    * and "storage is unreadable" must not be mistaken for "storage is confirmed empty" — that
+    * mistake is what lets two nodes each generate a different key. Failing here is recoverable;
+    * silently minting a second signing or encryption key is not.
+    *
+    * @param name the name of the property.
+    *
+    * @return the stored value, or {@code null} if the store confirms there is no such property.
+    *
+    * @throws RuntimeException if the store could not be read.
     */
    public String getPropertyFromStorage(String name) {
       name = fixPropertyNameCase(name);
+      KeyValueStorage<String> storage = kvStorage;
+
+      if(storage == null) {
+         throw new IllegalStateException(
+            "Cannot read property " + name + " from storage: the property storage is not " +
+            "initialized yet.");
+      }
 
       try {
-         return kvStorage.get(name);
+         return storage.get(name);
       }
       catch(Exception e) {
-         LOG.debug("Failed to read property from storage: {}", name, e);
-         return null;
+         LOG.warn("Failed to read property from storage: {}", name, e);
+         throw new RuntimeException("Failed to read property from storage: " + name, e);
       }
    }
 
