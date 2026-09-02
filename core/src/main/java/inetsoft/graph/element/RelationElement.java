@@ -139,22 +139,28 @@ public class RelationElement extends GraphElement {
       // A node's "representative row" (the row whose value drives its color lookup, see
       // RelationGeometry.getColor()/getSubRowIndex()) must be resolved independently for
       // root (source) and leaf (target) nodes, since RelationGeometry.getColor() consults
-      // a *different* frame depending on node type: a root node falls through to the
-      // general Color frame (getColorFrame()), while a leaf node consults the Node Color
-      // frame (getNodeColorFrame()) directly. A single shared tie-break (as previously
-      // implemented) would let one frame's field incorrectly decide the other node type's
-      // representative row whenever the two frames are bound to different fields. (76417)
+      // a *different* frame depending on node type: a root node normally falls through to
+      // the general Color frame (getColorFrame()), while a leaf node consults the Node
+      // Color frame (getNodeColorFrame()) directly. A single shared tie-break (as
+      // previously implemented) would let one frame's field incorrectly decide the other
+      // node type's representative row whenever the two frames are bound to different
+      // fields. (76417)
       //
       // Root nodes keep the pre-existing structural precedence -- among all rows sharing a
       // source (fromDim) value, the one with the earliest target (toDim) value wins -- and
-      // only break ties *within* that earliest-target group using the general Color field.
-      // Leaf nodes have no such secondary structural dimension (toDim alone already fully
-      // identifies a leaf), so all rows sharing a target value are eligible, and are
-      // resolved directly by the Node Color field. In both cases, "most recent" (largest)
-      // tie-break value wins, and a missing/unbound color field falls back to the first
-      // row encountered -- an exact no-op match for the pre-fix behavior.
+      // only break ties *within* that earliest-target group using whichever frame
+      // RelationGeometry.getColor() would actually consult for a root: when
+      // isApplyAestheticsToSource() is true, that method's general-Color fallback branch
+      // is skipped entirely and a root's color comes from Node Color directly, exactly
+      // like a leaf -- so the tie-break field must follow suit. Leaf nodes have no such
+      // secondary structural dimension (toDim alone already fully identifies a leaf), so
+      // all rows sharing a target value are eligible, and are always resolved directly by
+      // the Node Color field. In all cases, "most recent" (largest) tie-break value wins,
+      // and a missing/unbound color field falls back to the first row encountered -- an
+      // exact no-op match for the pre-fix behavior.
+      ColorFrame rootColorFrame = isApplyAestheticsToSource() ? getNodeColorFrame() : getColorFrame();
       Map<String, Integer> rootRepresentativeRows = findRepresentativeRows(
-         data, sdata, fromDim, toDim, resolveTieField(getColorFrame(), data));
+         data, sdata, fromDim, toDim, resolveTieField(rootColorFrame, data));
       Map<String, Integer> leafRepresentativeRows = findRepresentativeRows(
          data, sdata, toDim, null, resolveTieField(getNodeColorFrame(), data));
 
