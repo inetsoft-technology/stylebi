@@ -63,6 +63,7 @@ import inetsoft.web.wiz.service.MetadataApiService;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
+import inetsoft.util.MissingAssetClassNameException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -76,6 +77,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.server.ResponseStatusException;
+import org.xml.sax.SAXParseException;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -497,6 +499,64 @@ class WorksheetAgentControllerTest {
       assertEquals("Sales Dashboard", dependents.get(0).get("path"));
       assertEquals("viewsheet", dependents.get(0).get("type"));
       assertTrue(result.get("summary").toString().contains("Sales Dashboard"));
+   }
+
+   /** Mirrors the tolerance {@code AssetRepository#checkSheetRemoveable} applies around this
+    *  same {@code getSheetDependencies} call: if the sheet can't be read back (corrupted asset
+    *  XML, or a class from a since-uninstalled plugin), that's treated as "no dependents"
+    *  rather than propagating and landing on the generic error handler as a 500. */
+   @Test
+   void dependentsToleratesUnreadableSheetXml() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(entry);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK-DEP-BADXML"), eq(agent))).thenReturn(rws);
+
+      AssetRepository repo = mock(AssetRepository.class);
+      when(repo.getSheetDependencies(eq(entry), eq(agent)))
+         .thenThrow(new SAXParseException("unexpected end of file", null, null, 0, 0));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), repo);
+
+      Map<String, Object> result = ctrl.dependents("TOK-DEP-BADXML", agent);
+
+      assertEquals(Boolean.TRUE, result.get("saved"));
+      assertEquals(List.of(), result.get("dependents"));
+      assertTrue(result.get("summary").toString().contains("No saved asset"));
+   }
+
+   @Test
+   void dependentsToleratesMissingAssetClass() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(entry);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK-DEP-BADCLASS"), eq(agent))).thenReturn(rws);
+
+      AssetRepository repo = mock(AssetRepository.class);
+      when(repo.getSheetDependencies(eq(entry), eq(agent)))
+         .thenThrow(new MissingAssetClassNameException("class from an uninstalled plugin"));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), repo);
+
+      Map<String, Object> result = ctrl.dependents("TOK-DEP-BADCLASS", agent);
+
+      assertEquals(Boolean.TRUE, result.get("saved"));
+      assertEquals(List.of(), result.get("dependents"));
+      assertTrue(result.get("summary").toString().contains("No saved asset"));
    }
 
    // ---------------------------------------------------------------------------

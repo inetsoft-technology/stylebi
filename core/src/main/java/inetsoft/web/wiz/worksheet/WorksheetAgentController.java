@@ -63,6 +63,7 @@ import inetsoft.uql.util.filereader.TextUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.CoreTool;
 import inetsoft.util.FileSystemService;
+import inetsoft.util.MissingAssetClassNameException;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
@@ -87,6 +88,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import org.xml.sax.SAXParseException;
 
 import java.awt.*;
 import java.io.*;
@@ -969,7 +971,18 @@ public class WorksheetAgentController {
       result.put("saved", true);
       result.put("path", entry.getPath());
 
-      AssetEntry[] deps = assetRepository.getSheetDependencies(entry, user);
+      AssetEntry[] deps;
+
+      try {
+         deps = assetRepository.getSheetDependencies(entry, user);
+      }
+      catch(SAXParseException | MissingAssetClassNameException ex) {
+         // same tolerance as AssetRepository#checkSheetRemoveable: if the sheet can't be
+         // read (corrupted asset XML, or a class from a since-uninstalled plugin), treat
+         // it as having no dependents rather than erroring.
+         deps = new AssetEntry[0];
+      }
+
       List<Map<String, Object>> dependents = new ArrayList<>();
       StringBuilder paths = new StringBuilder();
 
