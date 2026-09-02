@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient, HttpParams } from "@angular/common/http";
+import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http";
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
@@ -79,8 +79,8 @@ export class ObjectWizardToolBarComponent {
 
       this.http.get("../api/vswizard/object/toolbar/full-editor", {params: params})
          .subscribe(() => this.onFullEditor.emit(this.vsObject),
-            (error) => {
-               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", error);
+            (error: HttpErrorResponse) => {
+               ComponentTool.showHttpError("_#(js:Error)", error, this.modalService);
             });
    }
 

@@ -45,7 +45,7 @@
 // which requires the JIT compiler when running outside the Angular builder pipeline.
 import "@angular/compiler";
 import { Component, Directive, Input, NO_ERRORS_SCHEMA } from "@angular/core";
-import { HttpClient, HttpParams } from "@angular/common/http";
+import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { render } from "@testing-library/angular";
 import { of, throwError } from "rxjs";
@@ -168,25 +168,25 @@ describe("ObjectWizardToolBarComponent — openFullEditor()", () => {
    // Bug #76409 - openFullEditor()'s HTTP call had no error callback, so a failed
    // "../api/vswizard/object/toolbar/full-editor" request meant onFullEditor never fired
    // and the click did nothing observable (matching the reported "Full Editor" hang with no
-   // error surfaced). This verifies a failure now shows a visible error dialog rather than
-   // silently doing nothing. Note: this does not by itself confirm the specific "persistent
-   // loading spinner" mechanism reported (that spinner is driven by a separate STOMP
-   // loadingEventCount, which this HTTP call cannot touch) - see 03-fix.md.
+   // error surfaced). This verifies a failure now shows a visible, readable error dialog
+   // rather than silently doing nothing. Uses a real HttpErrorResponse (not a plain string)
+   // since ComponentTool.showHttpError expects one and unwraps it into a readable message.
+   // Note: this does not by itself confirm the specific "persistent loading spinner"
+   // mechanism reported (that spinner is driven by a separate STOMP loadingEventCount, which
+   // this HTTP call cannot touch).
    it("should show an error dialog and not emit onFullEditor when the HTTP call fails", async () => {
       const vsObject = makeVsObject("VSChart");
       const { comp } = await renderComponent({ vsObject });
       const emitted: VSObjectModel[] = [];
       comp.onFullEditor.subscribe((v: VSObjectModel) => emitted.push(v));
-      const showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog")
-         .mockImplementation(() => Promise.resolve("ok"));
-      HTTP_MOCK.get.mockReturnValue(throwError("Server error"));
+      const showHttpError = vi.spyOn(ComponentTool, "showHttpError").mockImplementation(() => {});
+      const httpError = new HttpErrorResponse({ status: 500, error: "Server error" });
+      HTTP_MOCK.get.mockReturnValue(throwError(httpError));
 
       comp.openFullEditor();
 
       expect(emitted).toHaveLength(0);
-      expect(showMessageDialog).toHaveBeenCalledTimes(1);
-      expect(showMessageDialog.mock.calls[0][1]).toBe("_#(js:Error)");
-      expect(showMessageDialog.mock.calls[0][2]).toBe("Server error");
+      expect(showHttpError).toHaveBeenCalledWith("_#(js:Error)", httpError, MODAL_MOCK);
    });
 });
 
