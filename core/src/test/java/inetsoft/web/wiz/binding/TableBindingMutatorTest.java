@@ -315,32 +315,81 @@ class TableBindingMutatorTest {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "cols", List.of(dim("Year")));
       Object colsBefore = model.getCols();
-      model.getSuppressGroupTotal().put("Year", Boolean.TRUE);
+      // "Year:cols0" -- the real composite key VSCrosstabBindingFactory reads/writes
+      // (column + ":" + shelf + position), not the bare column name. A bare-keyed entry is
+      // exactly what the bug this test's sibling below guards against would have accepted and
+      // then silently dropped.
+      model.getSuppressGroupTotal().put("Year:cols0", Boolean.TRUE);
 
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
 
       assertSame(colsBefore, model.getCols());
-      assertEquals(Boolean.TRUE, model.getSuppressGroupTotal().get("Year"),
-                   "suppressGroupTotal is keyed by field name and must survive an unrelated write");
+      assertEquals(Boolean.TRUE, model.getSuppressGroupTotal().get("Year:cols0"),
+                   "suppressGroupTotal is keyed by column+shelf+position and must survive an " +
+                   "unrelated write");
    }
 
    /**
-    * {@code suppressGroupTotal} is a Hashtable keyed by field name that nothing prunes, so a
-    * removed field leaves an entry behind. It grows unboundedly across edits, and can
-    * resurrect suppression if the name is ever reused. See spec 2d risk 1.
+    * {@code suppressGroupTotal} is keyed by {@code "<column>:<shelf><position>"} -- the same
+    * composite form {@link inetsoft.web.binding.service.VSCrosstabBindingFactory} reads and
+    * writes on the real assembly, needed because a column can be bound twice at different date
+    * levels (a Year > Quarter drill) with independent suppression state per occurrence. A key
+    * whose position no longer exists must be pruned, or it grows the map unboundedly across
+    * edits and can resurrect suppression if the same column is ever rebound at that position.
+    * See spec 2d risk 1. (Comparing against *bare* column names here, instead of this composite
+    * form, previously treated every legitimately-keyed entry as an orphan and deleted all of
+    * them on every write -- the exact defect that made {@code suppressGroupTotal} a complete
+    * no-op through the wiz agent surface.)
     */
    @Test
-   void prunesSuppressGroupTotalEntriesForFieldsNoLongerBound() {
+   void prunesSuppressGroupTotalEntriesForPositionsNoLongerBound() {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region"), dim("Year")));
-      model.getSuppressGroupTotal().put("Region", Boolean.TRUE);
-      model.getSuppressGroupTotal().put("Year", Boolean.TRUE);
+      model.getSuppressGroupTotal().put("Region:rows0", Boolean.TRUE);
+      model.getSuppressGroupTotal().put("Year:rows1", Boolean.TRUE);
 
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
 
-      assertEquals(Boolean.TRUE, model.getSuppressGroupTotal().get("Region"));
-      assertNull(model.getSuppressGroupTotal().get("Year"),
-                 "an orphaned suppression entry must be pruned, not left to resurrect later");
+      assertEquals(Boolean.TRUE, model.getSuppressGroupTotal().get("Region:rows0"),
+                   "Region is still bound at rows0, so its suppression entry must survive");
+      assertNull(model.getSuppressGroupTotal().get("Year:rows1"),
+                 "Year is no longer bound at rows1 -- an orphaned suppression entry must be " +
+                 "pruned, not left to resurrect later");
+   }
+
+   /**
+    * The regression for the bug this whole pruning function existed to fix in the first place:
+    * a caller who supplies the exact, correctly-formatted composite key must have it survive --
+    * before this fix, {@code pruneOrphanedSuppression} compared every key (correct format or
+    * not) against bare column names, so even a perfectly-formatted key was deleted as an
+    * "orphan" and the option could never be durably set through this tool at all. Pruning runs
+    * on every shelf write (not only ones that touch {@code suppressGroupTotal}), so re-setting
+    * an unrelated shelf is enough to exercise it -- and is exactly the live-observed trigger
+    * (any {@code set_table_fields}/{@code add_table_field}/{@code move_table_field} call).
+    */
+   @Test
+   void aCorrectlyKeyedSuppressionEntrySurvivesPruning() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "cols", List.of(dim("Region")));
+      model.getSuppressGroupTotal().put("Region:cols0", Boolean.FALSE);
+
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Year")));
+
+      assertEquals(Boolean.FALSE, model.getSuppressGroupTotal().get("Region:cols0"),
+                   "a correctly composite-keyed entry must not be pruned as an orphan");
+   }
+
+   @Test
+   void aBareNameKeyIsPrunedRatherThanSurviving() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "cols", List.of(dim("Region")));
+      model.getSuppressGroupTotal().put("Region", Boolean.TRUE);
+
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Year")));
+
+      assertNull(model.getSuppressGroupTotal().get("Region"),
+                 "a bare column name is not the real key shape and must not masquerade as a " +
+                 "valid entry");
    }
 
    // ── sorting and ranking (2d Phase 2) ──────────────────────────────────────
@@ -436,12 +485,59 @@ class TableBindingMutatorTest {
    void ranksADimensionByAMeasureName() {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
 
       TableBindingMutator.setRanking(model, "rows", "Region", null,
                                      new DimensionSortRanking.Ranking("top", 5, "Sales", null));
 
       assertEquals("5", model.getRows().get(0).getRankingN());
       assertEquals("Sales", model.getRows().get(0).getRankingCol());
+   }
+
+   @Test
+   void refusesRankingByAMeasureThatIsNotBound() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setRanking(model, "rows", "Region", null,
+            new DimensionSortRanking.Ranking("top", 5, "TOTAL_REVENUE", null)));
+
+      assertTrue(thrown.getMessage().contains("TOTAL_REVENUE"));
+      assertTrue(thrown.getMessage().contains("Sales"), "name what is actually bound");
+   }
+
+   @Test
+   void acceptsRankingByAMeasuresFullAggregateName() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
+         new DimensionSortRanking.Ranking("top", 5, "sum(Sales)", null));
+
+      assertEquals("sum(Sales)", model.getRows().get(0).getRankingCol());
+   }
+
+   @Test
+   void refusesSortingByFieldThatIsNotBound() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setSort(model, "rows", "Region", null,
+            new DimensionSortRanking.Sort("value_desc", "TOTAL_REVENUE", null)));
+
+      assertTrue(thrown.getMessage().contains("TOTAL_REVENUE"));
+      assertTrue(thrown.getMessage().contains("Sales"), "name what is actually bound");
    }
 
    @Test
@@ -474,6 +570,8 @@ class TableBindingMutatorTest {
    void describesTheSortsOnAShelf() {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
       TableBindingMutator.setRanking(model, "rows", "Region", null,
                                      new DimensionSortRanking.Ranking("top", 5, "Sales", null));
 

@@ -441,9 +441,17 @@ public final class TableBindingMutator {
    }
 
    /**
-    * {@code suppressGroupTotal} is keyed by field name and nothing prunes it, so a removed
-    * field leaves an entry that grows the map unboundedly and can resurrect suppression if
-    * the name is ever reused. Every write prunes what is no longer bound.
+    * {@code suppressGroupTotal} is keyed by {@code "<column>:rows<i>"}/{@code "<column>:cols<i>"}
+    * -- the same composite, position-qualified form {@link VSCrosstabBindingFactory} reads and
+    * writes (a column can be bound twice at different date levels, e.g. a Year > Quarter drill,
+    * so a bare column name cannot disambiguate which occurrence a suppression entry belongs to).
+    * Nothing prunes an entry whose shelf position no longer exists, so a removed or reordered
+    * field left a stale entry that grew the map unboundedly and could resurrect suppression if
+    * the same column was ever rebound at that position -- and worse, comparing entries against
+    * *bare* column names here (rather than this composite form) treated every legitimately-keyed
+    * entry as an orphan and deleted it on every single write, which is what let {@code
+    * suppressGroupTotal} regress to a complete no-op. Every write prunes what is no longer bound,
+    * using the real key shape.
     */
    private static void pruneOrphanedSuppression(BaseTableBindingModel model) {
       if(!(model instanceof CrosstabBindingModel crosstab)) {
@@ -456,17 +464,21 @@ public final class TableBindingMutator {
          return;
       }
 
-      Set<String> bound = new HashSet<>();
+      Set<String> valid = new HashSet<>();
 
-      for(String shelf : shelvesOf(model)) {
-         for(FieldRef field : read(model, shelf)) {
+      for(String shelf : List.of("rows", "cols")) {
+         List<FieldRef> fields = read(model, shelf);
+
+         for(int i = 0; i < fields.size(); i++) {
+            FieldRef field = fields.get(i);
+
             if(field.column() != null) {
-               bound.add(field.column());
+               valid.add(field.column() + ":" + shelf + i);
             }
          }
       }
 
-      suppression.keySet().removeIf(key -> !bound.contains(key));
+      suppression.keySet().removeIf(key -> !valid.contains(key));
    }
 
    // ── sorting and ranking (2d Phase 2) ──────────────────────────────────────
@@ -480,13 +492,69 @@ public final class TableBindingMutator {
    public static void setSort(BaseTableBindingModel model, String shelf, String column,
                               Integer index, DimensionSortRanking.Sort sort)
    {
+      if(sort != null && !blank(sort.sortByField())) {
+         requireKnownMeasure(model, sort.sortByField(), "sortByField");
+      }
+
       DimensionSortRanking.applySort(requireDimension(model, shelf, column, index), sort);
    }
 
    public static void setRanking(BaseTableBindingModel model, String shelf, String column,
                                  Integer index, DimensionSortRanking.Ranking ranking)
    {
+      if(ranking != null && !"none".equalsIgnoreCase(ranking.mode()) &&
+         !blank(ranking.measure()))
+      {
+         requireKnownMeasure(model, ranking.measure(), "measure");
+      }
+
       DimensionSortRanking.applyRanking(requireDimension(model, shelf, column, index), ranking);
+   }
+
+   private static boolean blank(String value) {
+      return value == null || value.isBlank();
+   }
+
+   /**
+    * Refuses a {@code sortByField}/{@code measure} that names no aggregate bound on this
+    * assembly's aggregates shelf. Ranking or sorting by an unresolvable measure is accepted
+    * silently downstream and renders a plausible-but-arbitrary result (the ranking condition
+    * never builds, or a by-value sort falls back to label order) rather than failing loudly --
+    * the same bound-reference discipline {@link #setColumnLabels} already applies to column
+    * labels. Both the bare column name (e.g. {@code "QUANTITY"}) and the full aggregate name
+    * (e.g. {@code "Sum(QUANTITY)"}, matching {@code VSAggregateRef.getFullName()}'s own
+    * {@code formula(column)} shape) are accepted, since both forms resolve at render time.
+    */
+   private static void requireKnownMeasure(BaseTableBindingModel model, String measure,
+                                           String param)
+   {
+      if(!shelvesOf(model).contains("aggregates")) {
+         throw new IllegalArgumentException(
+            "'" + param + "' requires an aggregates shelf, which this " +
+            (model instanceof CrosstabBindingModel ? "crosstab" : "table") + " does not have.");
+      }
+
+      List<String> known = new ArrayList<>();
+
+      for(FieldRef field : read(model, "aggregates")) {
+         if(field.column() == null) {
+            continue;
+         }
+
+         known.add(field.column());
+
+         if(field.aggregate() != null) {
+            known.add(field.aggregate() + "(" + field.column() + ")");
+         }
+      }
+
+      if(known.stream().noneMatch(name -> name.equalsIgnoreCase(measure))) {
+         throw new IllegalArgumentException(
+            "'" + param + "' is '" + measure + "', which is not a bound aggregate. Ranking or " +
+            "sorting by an unbound measure renders an arbitrary result rather than failing, so " +
+            "it is refused instead. Bound: " +
+            (known.isEmpty() ? "(none)" : String.join(", ", known)) + ".");
+      }
    }
 
    /** The sort and ranking on every dimension of a shelf. */
