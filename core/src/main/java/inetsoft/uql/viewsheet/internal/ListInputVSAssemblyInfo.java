@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
+import java.awt.Insets;
 import java.io.PrintWriter;
 import java.util.BitSet;
 
@@ -672,6 +673,54 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
    }
 
    /**
+    * The modern title lane for an input widget: unfilled, with a bottom rule. Deliberately not an
+    * override and not called from here - ComboBoxVSAssemblyInfo also extends this class and is not
+    * a titled card, so each type that wants the lane calls this from its own seedChromeDefaults.
+    *
+    * The legacy branch nulls the rule colour rather than restoring one, and leaves the background
+    * undefined rather than defined-null, because that is what a gate-off creation writes: these
+    * titles have never carried a rule or a fill.
+    */
+   /**
+    * The dark ink for an input widget's item labels. They paint from the DETAIL composite, whose
+    * foreground is VSFormat's own "0" - black, and unreadable on a dark card. Only dark moves:
+    * light and legacy keep the black they have always had, so the legacy branch restores it rather
+    * than clearing it. Not called from here, for the same reason as seedInputTitleLane.
+    */
+   protected final void seedInputValueInk(VizContext ctx) {
+      VSCompositeFormat cellFormat =
+         getFormatInfo().getFormat(new TableDataPath(-1, TableDataPath.DETAIL));
+
+      if(cellFormat != null) {
+         VSFormat def = cellFormat.getDefaultFormat();
+         def.setForegroundValue(
+            ctx.dark ? VSObjectChromeDefaults.darkForegroundValue() : BLACK_VALUE, ctx.dark);
+         // getForeground() falls back to the fg field when the value yields nothing
+         def.setForeground(null, false);
+      }
+   }
+
+   protected final void seedInputTitleLane(VizContext ctx) {
+      VSCompositeFormat titleFormat = getFormatInfo().getFormat(TITLEPATH);
+
+      if(titleFormat == null) {
+         return;
+      }
+
+      VSFormat def = titleFormat.getDefaultFormat();
+      def.setBordersValue(ctx.modern
+         ? VSTitleChromeDefaults.titleRuleBorders() : new Insets(0, 0, 0, 0));
+      def.setBorderColorsValue(ctx.modern ? VSTitleChromeDefaults.titleRuleColors(ctx) : null);
+      def.setForegroundValue(ctx.modern ? VSTitleChromeDefaults.titleForegroundValue(ctx) : null);
+      // getForeground() falls back to the fg field when fgval yields nothing, so the legacy branch
+      // has to null both or a runtime foreground survives the clear
+      def.setForeground(null);
+      // defined on the modern branch so the object background cannot copy down through
+      // getFormat(TITLEPATH, false); left undefined on the legacy branch, as a gate-off creation has it
+      def.setBackgroundValue(null, ctx.modern);
+   }
+
+   /**
     * Check if the dynamic value of the format should be processed.
     */
    @Override
@@ -814,6 +863,9 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
    private Object[] values;
    private String[] labels;
    private VSCompositeFormat[] formats;
+   // what VSFormat's own constructor seeds a foreground with, so restoring it is what reproduces a
+   // gate-off creation - the value is not absent there, it is black
+   private static final String BLACK_VALUE = "0";
    private static final Logger LOG =
       LoggerFactory.getLogger(ListInputVSAssemblyInfo.class);
 }

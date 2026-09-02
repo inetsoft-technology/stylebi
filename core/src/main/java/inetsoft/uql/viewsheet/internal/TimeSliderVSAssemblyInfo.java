@@ -719,23 +719,19 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
 
    @Override
    protected void seedChromeDefaults(VizContext ctx) {
+      // the title lane is the parent's, shared with the selection family
       super.seedChromeDefaults(ctx);
 
-      // the title lane: this type clears its own title fill at creation and keeps it cleared on
-      // both branches, so only the rule's colour and the text colour move. The legacy branch is
-      // what Revert relies on to restore a never-modernized slider
-      VSCompositeFormat titleFormat = getFormatInfo().getFormat(TITLEPATH);
+      // the min / max / current labels, which VSTimeSlider paints from the object foreground
+      // rather than a cell path. Its default is VSFormat's own black, unreadable on a dark card.
+      // Only dark moves; legacy restores the black, because that is what a gate-off creation has
+      VSCompositeFormat objFormat = getFormat();
 
-      if(titleFormat != null) {
-         VSFormat def = titleFormat.getDefaultFormat();
-         def.setBordersValue(VSTitleChromeDefaults.titleRuleBorders());
-         def.setBorderColorsValue(ctx.modern
-            ? VSTitleChromeDefaults.titleRuleColors(ctx) : legacyTitleRuleColors());
+      if(objFormat != null) {
+         VSFormat def = objFormat.getDefaultFormat();
          def.setForegroundValue(
-            ctx.modern ? VSTitleChromeDefaults.titleForegroundValue(ctx) : null);
-         // getForeground() falls back to the fg field when fgval yields nothing, so the legacy
-         // branch has to null both or a runtime foreground survives the clear
-         def.setForeground(null);
+            ctx.dark ? VSObjectChromeDefaults.darkForegroundValue() : "0", ctx.dark);
+         def.setForeground(null, false);
       }
    }
 
@@ -1143,11 +1139,4 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
    private TimeSliderSelection timeSliderSelection;
 
    private static final Logger LOG = LoggerFactory.getLogger(TimeSliderVSAssemblyInfo.class);
-
-   // the title rule this type has always drawn; the seed's legacy branch restores it.
-   // Fresh every call - BorderColors is mutable and the caller installs it on a format.
-   private static BorderColors legacyTitleRuleColors() {
-      return new BorderColors(new Color(0xc0c0c0), new Color(0xc0c0c0),
-                              new Color(0xc0c0c0), new Color(0xc0c0c0));
-   }
 }

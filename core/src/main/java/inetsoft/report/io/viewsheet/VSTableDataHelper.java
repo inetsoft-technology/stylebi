@@ -397,10 +397,7 @@ public abstract class VSTableDataHelper extends ExporterHelper {
 
       Point position = info.getPixelOffset();
       FormatInfo finfo = info.getFormatInfo();
-      VSCompositeFormat format =
-         VSTitleChromeDefaults.applyModernDefaults(
-            finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE), false), VizContext.of(info),
-            info);
+      VSCompositeFormat format = finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE), false);
 
       // set the defaultfont to make the foreground take effect.
       if(format != null && format.getFont() == null) {

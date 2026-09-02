@@ -141,6 +141,35 @@ class SeedChromeDefaultsTest {
       return (SliderVSAssemblyInfo) slider.getVSAssemblyInfo();
    }
 
+   private CheckBoxVSAssemblyInfo newCheckBox() {
+      Viewsheet vs = new Viewsheet();
+      CheckBoxVSAssembly checkbox = new CheckBoxVSAssembly(vs, "CheckBox1");
+      checkbox.getVSAssemblyInfo().initDefaultFormat();
+      return (CheckBoxVSAssemblyInfo) checkbox.getVSAssemblyInfo();
+   }
+
+   private RadioButtonVSAssemblyInfo newRadioButton() {
+      Viewsheet vs = new Viewsheet();
+      RadioButtonVSAssembly radio = new RadioButtonVSAssembly(vs, "RadioButton1");
+      radio.getVSAssemblyInfo().initDefaultFormat();
+      return (RadioButtonVSAssemblyInfo) radio.getVSAssemblyInfo();
+   }
+
+   private CalendarVSAssemblyInfo newCalendar() {
+      Viewsheet vs = new Viewsheet();
+      CalendarVSAssembly calendar = new CalendarVSAssembly(vs, "Calendar1");
+      calendar.getVSAssemblyInfo().initDefaultFormat();
+      return (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
+   }
+
+   private static VSFormat calendarPath(VSAssemblyInfo info, int type) {
+      return info.getFormatInfo().getFormat(new TableDataPath(-1, type)).getDefaultFormat();
+   }
+
+   private static String colorValue(Color c) {
+      return c == null ? null : String.format("0x%06x", c.getRGB() & 0xFFFFFF);
+   }
+
    // ---- object border colour and card radius -------------------------------------------------
 
    @Test
@@ -1132,6 +1161,393 @@ class SeedChromeDefaultsTest {
       assertEquals(expectedBg, reverted.getBackgroundValue(),
                    "Revert must match a container that was never modernized");
       assertEquals(expectedBorders, reverted.getBordersValue());
+   }
+
+   // ---- the checkbox and radio button title lane -----------------------------------------------
+
+   @Test
+   void aModernCheckBoxTitleIsUnfilledWithABottomRule() {
+      gateOn();
+      VizContext ctx = VizContext.ofGate();
+      VSFormat def = titleFormat(newCheckBox()).getDefaultFormat();
+
+      Insets borders = def.getBordersValue();
+      assertEquals(StyleConstants.NONE, borders.top, "no top rule");
+      assertEquals(StyleConstants.NONE, borders.left, "no left rule");
+      assertEquals(StyleConstants.NONE, borders.right, "no right rule");
+      assertEquals(StyleConstants.THIN_LINE, borders.bottom, "a bottom rule only");
+
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
+                   def.getBorderColorsValue().bottomColor);
+      assertEquals(VSTitleChromeDefaults.titleForegroundValue(ctx), def.getForegroundValue());
+      assertNull(def.getBackgroundValue(), "the modern input lane carries no fill");
+      assertTrue(def.isBackgroundValueDefined(),
+                 "defined, so the object background cannot copy down onto the lane");
+   }
+
+   @Test
+   void aLegacyCheckBoxTitleHasNoRuleOnAnySide() {
+      gateOff();
+      VSFormat def = titleFormat(newCheckBox()).getDefaultFormat();
+
+      assertEquals(new Insets(0, 0, 0, 0), def.getBordersValue(),
+                   "a gate-off input title has never carried a rule");
+      assertNull(def.getBorderColorsValue(),
+                 "and no rule colour either: storing one would differ from a gate-off creation");
+      assertNull(def.getForegroundValue());
+      assertNull(def.getForeground(), "the fg field too, or a runtime colour survives Revert");
+      assertFalse(def.isBackgroundValueDefined(),
+                  "undefined, as a gate-off creation leaves it");
+   }
+
+   @Test
+   void revertingACheckBoxTitleRestoresAGateOffCreation() {
+      gateOff();
+      VSFormat expected = titleFormat(newCheckBox()).getDefaultFormat();
+      Insets expectedBorders = expected.getBordersValue();
+      boolean expectedBgDefined = expected.isBackgroundValueDefined();
+
+      gateOn();
+      CheckBoxVSAssemblyInfo info = newCheckBox();
+      info.setVizMark(VizMark.fromGate());
+      info.seedChromeDefaults(VizContext.of(info));
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      VSFormat reverted = titleFormat(info).getDefaultFormat();
+      assertEquals(expectedBorders, reverted.getBordersValue());
+      assertNull(reverted.getBorderColorsValue());
+      assertNull(reverted.getForegroundValue());
+      assertEquals(expectedBgDefined, reverted.isBackgroundValueDefined(),
+                   "Revert must match a checkbox that was never modernized, not almost match it");
+   }
+
+   @Test
+   void aModernRadioButtonTitleTakesTheSameLaneAsTheCheckBox() {
+      gateOn();
+      VizContext ctx = VizContext.ofGate();
+      VSFormat def = titleFormat(newRadioButton()).getDefaultFormat();
+
+      assertEquals(StyleConstants.THIN_LINE, def.getBordersValue().bottom);
+      assertEquals(VSTitleChromeDefaults.titleForegroundValue(ctx), def.getForegroundValue());
+      assertNull(def.getBackgroundValue());
+   }
+
+   @Test
+   void aLegacyRadioButtonTitleHasNoRuleOnAnySide() {
+      gateOff();
+      VSFormat def = titleFormat(newRadioButton()).getDefaultFormat();
+
+      assertEquals(new Insets(0, 0, 0, 0), def.getBordersValue());
+      assertNull(def.getForegroundValue());
+   }
+
+   // ---- the input value text: black on the dark card until it is seeded -----------------------
+
+   private static VSFormat detailFormat(VSAssemblyInfo info) {
+      return info.getFormatInfo().getFormat(new TableDataPath(-1, TableDataPath.DETAIL))
+         .getDefaultFormat();
+   }
+
+   @Test
+   void aDarkCheckBoxValueTakesTheLightInk() {
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+
+      assertEquals(VSObjectChromeDefaults.darkForegroundValue(),
+                   detailFormat(newCheckBox()).getForegroundValue(),
+                   "the item labels paint from DETAIL and were black on the dark card");
+   }
+
+   @Test
+   void aDarkRadioButtonValueTakesTheLightInk() {
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+
+      assertEquals(VSObjectChromeDefaults.darkForegroundValue(),
+                   detailFormat(newRadioButton()).getForegroundValue());
+   }
+
+   @Test
+   void aLightInputValueKeepsWhateverAGateOffCreationWrites() {
+      gateOff();
+      String gateOff = detailFormat(newCheckBox()).getForegroundValue();
+
+      gateOn();
+      assertEquals(gateOff, detailFormat(newCheckBox()).getForegroundValue(),
+                   "only dark had a legibility bug; light modern must not move");
+   }
+
+   @Test
+   void aLegacyInputValueKeepsTheBlackDefault() {
+      gateOff();
+      VSFormat def = detailFormat(newCheckBox());
+
+      // VSFormat:168 seeds fgval "0" on every fresh format, so black is the pristine value here,
+      // not an absent one - the legacy branch has to restore it rather than clear it
+      assertEquals("0", def.getForegroundValue());
+   }
+
+   @Test
+   void aDarkRangeSliderValueTakesTheLightInk() {
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      VSFormat def = objectDefault(newTimeSlider());
+
+      assertEquals(VSObjectChromeDefaults.darkForegroundValue(), def.getForegroundValue(),
+                   "VSTimeSlider paints its min/max labels from the object foreground");
+   }
+
+   @Test
+   void aLegacyRangeSliderValueKeepsTheGateOffInk() {
+      gateOff();
+      VSFormat def = objectDefault(newTimeSlider());
+
+      assertEquals("0", def.getForegroundValue(),
+                   "black is the pristine value from VSFormat:168, so legacy restores it");
+   }
+
+   @Test
+   void revertingADarkInputRestoresAGateOffCreation() {
+      gateOff();
+      String expected = detailFormat(newCheckBox()).getForegroundValue();
+
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      CheckBoxVSAssemblyInfo info = newCheckBox();
+      info.setVizMark(VizMark.fromGate());
+      info.seedChromeDefaults(VizContext.of(info));
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(expected, detailFormat(info).getForegroundValue(),
+                   "Revert must match a checkbox that was never modernized");
+   }
+
+   @Test
+   void revertingADarkRangeSliderRestoresAGateOffCreation() {
+      gateOff();
+      String expected = objectDefault(newTimeSlider()).getForegroundValue();
+
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      TimeSliderVSAssemblyInfo info = newTimeSlider();
+      info.setVizMark(VizMark.fromGate());
+      info.seedChromeDefaults(VizContext.of(info));
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(expected, objectDefault(info).getForegroundValue());
+   }
+
+   // ---- the calendar title, its month/year header and its body cells --------------------------
+
+   @Test
+   void aModernCalendarTitleIsUnfilledWithABottomRule() {
+      gateOn();
+      VizContext ctx = VizContext.ofGate();
+      VSFormat def = titleFormat(newCalendar()).getDefaultFormat();
+
+      assertNull(def.getBackgroundValue(), "the modern title lane carries no fill");
+      assertEquals(StyleConstants.THIN_LINE, def.getBordersValue().bottom);
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
+                   def.getBorderColorsValue().bottomColor);
+      assertEquals(VSTitleChromeDefaults.titleForegroundValue(ctx), def.getForegroundValue());
+   }
+
+   @Test
+   void aLegacyCalendarTitleKeepsTheFilledBand() {
+      gateOff();
+      VSFormat def = titleFormat(newCalendar()).getDefaultFormat();
+
+      assertEquals(VSAssemblyInfo.DEFAULT_TITLE_BG, def.getBackgroundValue(),
+                   "a gate-off calendar title is filled, unlike an input title");
+      assertNull(def.getForegroundValue());
+   }
+
+   @Test
+   void aModernCalendarHeaderTakesTheTableHeaderNeutrals() {
+      gateOn();
+      VizContext ctx = VizContext.ofGate();
+      VSFormat def = calendarPath(newCalendar(), TableDataPath.CALENDAR_TITLE);
+
+      assertEquals(colorValue(VSTableStructureDefaults.headerForeground(ctx)),
+                   def.getForegroundValue(),
+                   "the month/year header is a header band, and tracks the table's");
+      assertEquals(colorValue(VSTableStructureDefaults.headerBackground(ctx)),
+                   def.getBackgroundValue());
+   }
+
+   @Test
+   void aLegacyCalendarHeaderTakesNoHeaderNeutral() {
+      gateOff();
+      VSFormat def = calendarPath(newCalendar(), TableDataPath.CALENDAR_TITLE);
+
+      assertNull(def.getForegroundValue(),
+                 "a gate-off calendar header must not carry the modern header neutral");
+      assertNull(def.getBackgroundValue());
+   }
+
+   @Test
+   void aModernCalendarBodyTracksTheTableBodyInBothSchemes() {
+      gateOn();
+      VizContext light = VizContext.ofGate();
+      VSFormat def = calendarPath(newCalendar(), TableDataPath.MONTH_CALENDAR);
+
+      assertNull(VSTableStructureDefaults.bodyForeground(light),
+                 "precondition: the table body is unthemed in light modern too");
+      assertNull(def.getForegroundValue(), "so the calendar body is unthemed there as well");
+
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      VizContext dark = VizContext.ofGate();
+      VSFormat darkDef = calendarPath(newCalendar(), TableDataPath.YEAR_CALENDAR);
+
+      assertEquals(colorValue(VSTableStructureDefaults.bodyForeground(dark)),
+                   darkDef.getForegroundValue());
+      assertEquals(colorValue(VSTableStructureDefaults.bodyBackground(dark)),
+                   darkDef.getBackgroundValue());
+      assertNotNull(darkDef.getForegroundValue(), "dark is the branch that has a value");
+   }
+
+   @Test
+   void revertingACalendarRestoresAGateOffCreation() {
+      gateOff();
+      CalendarVSAssemblyInfo expected = newCalendar();
+      String expectedTitleBg = titleFormat(expected).getDefaultFormat().getBackgroundValue();
+      String expectedBodyFg =
+         calendarPath(expected, TableDataPath.MONTH_CALENDAR).getForegroundValue();
+
+      gateOn();
+      CalendarVSAssemblyInfo info = newCalendar();
+      info.setVizMark(VizMark.fromGate());
+      info.seedChromeDefaults(VizContext.of(info));
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(expectedTitleBg, titleFormat(info).getDefaultFormat().getBackgroundValue());
+      assertEquals(expectedBodyFg,
+                   calendarPath(info, TableDataPath.MONTH_CALENDAR).getForegroundValue());
+   }
+
+   /**
+    * A dropdown calendar's title is not a normal calendar's: a boxed white field, not a filled band
+    * with one hairline. The legacy branch has to restore whichever prototype applies.
+    */
+   @Test
+   void aLegacyDropdownCalendarKeepsTheBoxedWhiteTitle() {
+      gateOff();
+      VSFormat def = titleFormat(newDropdownCalendar()).getDefaultFormat();
+
+      assertEquals(new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                              StyleConstants.THIN_LINE, StyleConstants.THIN_LINE),
+                   def.getBordersValue());
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, def.getBorderColorsValue().bottomColor);
+      assertEquals("0xffffff", def.getBackgroundValue());
+   }
+
+   /**
+    * The dropdown prototype stores no cell formats, so the seed has to install them: a null lookup
+    * would leave a dark dropdown calendar painting black date cells on the dark card.
+    */
+   @Test
+   void aDarkDropdownCalendarBodyTakesTheTableNeutrals() {
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      VizContext dark = VizContext.ofGate();
+      CalendarVSAssemblyInfo info = newDropdownCalendar();
+
+      assertEquals(colorValue(VSTableStructureDefaults.bodyForeground(dark)),
+                   calendarPath(info, TableDataPath.MONTH_CALENDAR).getForegroundValue());
+      assertEquals(colorValue(VSTableStructureDefaults.bodyBackground(dark)),
+                   calendarPath(info, TableDataPath.YEAR_CALENDAR).getBackgroundValue());
+      assertEquals(colorValue(VSTableStructureDefaults.headerForeground(dark)),
+                   calendarPath(info, TableDataPath.CALENDAR_TITLE).getForegroundValue());
+   }
+
+   /**
+    * Modernize reaches a dropdown calendar that predates the seed, whose stored format carries the
+    * object and title paths only.
+    */
+   @Test
+   void modernizingAPreExistingDropdownCalendarSeedsItsCells() {
+      gateOff();
+      CalendarVSAssemblyInfo info = newDropdownCalendar();
+      assertNull(info.getFormatInfo().getFormat(
+                    new TableDataPath(-1, TableDataPath.MONTH_CALENDAR)),
+                 "precondition: the dropdown prototype stores no cell format");
+
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      VizContext dark = VizContext.ofGate();
+      info.setVizMark(VizMark.fromGate());
+      info.seedChromeDefaults(VizContext.of(info));
+
+      assertEquals(colorValue(VSTableStructureDefaults.bodyForeground(dark)),
+                   calendarPath(info, TableDataPath.MONTH_CALENDAR).getForegroundValue());
+   }
+
+   /**
+    * The whole stored format, not one value: Revert has to leave a dropdown calendar value-equal to
+    * a gate-off creation, because that equality is what copyViewInfo's show-type guard compares.
+    */
+   @Test
+   void revertingADropdownCalendarRestoresAGateOffCreation() {
+      gateOff();
+      FormatInfo expected = newDropdownCalendar().getFormatInfo();
+
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      CalendarVSAssemblyInfo info = newDropdownCalendar();
+      assertNotEquals(expected, info.getFormatInfo(), "precondition: the seed changed something");
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(expected, info.getFormatInfo());
+   }
+
+   /**
+    * The gate-off body cells stay undefined rather than defined-null: getFormat(path, false) copies
+    * the object format's own black down only onto an undefined foreground, and the year view paints
+    * a grey fallback over any cell that resolves none.
+    */
+   @Test
+   void aLegacyCalendarBodyResolvesTheObjectBlack() {
+      gateOff();
+      CalendarVSAssemblyInfo info = newCalendar();
+      TableDataPath year = new TableDataPath(-1, TableDataPath.YEAR_CALENDAR);
+
+      assertFalse(calendarPath(info, TableDataPath.YEAR_CALENDAR).isForegroundValueDefined(),
+                  "a defined null would block the copy-down");
+      assertEquals(Color.BLACK, info.getFormatInfo().getFormat(year, false).getForeground(),
+                   "a gate-off calendar resolves black, as one created before the seed does");
+   }
+
+   /** And the modern seed stays defined, or the same copy-down would put black over it. */
+   @Test
+   void aDarkCalendarBodyKeepsItsSeededForegroundThroughTheCopyDown() {
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      VizContext dark = VizContext.ofGate();
+      CalendarVSAssemblyInfo info = newCalendar();
+      TableDataPath year = new TableDataPath(-1, TableDataPath.YEAR_CALENDAR);
+
+      assertTrue(calendarPath(info, TableDataPath.YEAR_CALENDAR).isForegroundValueDefined());
+      assertEquals(VSTableStructureDefaults.bodyForeground(dark),
+                   info.getFormatInfo().getFormat(year, false).getForeground());
+   }
+
+   /** A dropdown calendar, reached the way the property dialog reaches it. */
+   private CalendarVSAssemblyInfo newDropdownCalendar() {
+      CalendarVSAssemblyInfo info = newCalendar();
+      CalendarVSAssemblyInfo source = (CalendarVSAssemblyInfo) info.clone();
+      source.setShowTypeValue(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      info.copyInfo(source);
+      return info;
    }
 
    // ---- the selection cell's foreground, seeded rather than substituted -----------------------

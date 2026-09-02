@@ -104,14 +104,10 @@ public class ExportUtil {
     * Get background color of time slider in current selection.
     * @param titleFormat format of slider title.
     * @param objectFormat format of slider object.
-    * @param ctx the viz context to resolve modern chrome defaults against.
-    * @param info the slider's assembly info, to skip the default substitution for a seeded title.
     */
    public static Color getBackGroundColor(VSCompositeFormat titleFormat,
-                                          VSCompositeFormat objectFormat, VizContext ctx,
-                                          VSAssemblyInfo info)
+                                          VSCompositeFormat objectFormat)
    {
-      titleFormat = VSTitleChromeDefaults.applyModernDefaults(titleFormat, ctx, info);
       return titleFormat != null && titleFormat.getBackground() != null ?
          titleFormat.getBackground() : objectFormat != null &&
          objectFormat.getBackground() != null ? objectFormat.getBackground() : null;

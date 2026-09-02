@@ -24,9 +24,6 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalendarUtil;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSCalendarChromeDefaults;
-import inetsoft.uql.viewsheet.internal.VSTitleChromeDefaults;
-import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.web.viewsheet.model.*;
 import org.springframework.stereotype.Component;
 
@@ -42,10 +39,8 @@ public class VSCalendarModel extends VSObjectModel<CalendarVSAssembly> {
       CalendarVSAssemblyInfo assemblyInfo =
         (CalendarVSAssemblyInfo) assembly.getVSAssemblyInfo();
       FormatInfo fmtInfo = assemblyInfo.getFormatInfo();
-      VizContext ctx = VizContext.of(assemblyInfo);
       TableDataPath dataPath = new TableDataPath(-1, TableDataPath.TITLE);
-      VSCompositeFormat compositeFormat = VSTitleChromeDefaults.applyModernDefaults(
-         fmtInfo.getFormat(dataPath, false), ctx);
+      VSCompositeFormat compositeFormat = fmtInfo.getFormat(dataPath, false);
       titleFormat = new VSFormatModel(compositeFormat, assemblyInfo);
 
       dataPath = new TableDataPath(-1, TableDataPath.CALENDAR_TITLE);
@@ -73,8 +68,7 @@ public class VSCalendarModel extends VSObjectModel<CalendarVSAssembly> {
 
       dataPath = new TableDataPath(-1, TableDataPath.MONTH_CALENDAR);
       compositeFormat = fmtInfo.getFormat(dataPath, false);
-      monthFormat = new VSFormatModel(
-         VSCalendarChromeDefaults.applyModernDefaults(compositeFormat, ctx), assemblyInfo);
+      monthFormat = new VSFormatModel(compositeFormat, assemblyInfo);
 
       if(!assemblyInfo.isYearView()) {
          fixSelectedFormat(assemblyInfo, compositeFormat);
@@ -89,8 +83,7 @@ public class VSCalendarModel extends VSObjectModel<CalendarVSAssembly> {
 
       dataPath = new TableDataPath(-1, TableDataPath.YEAR_CALENDAR);
       compositeFormat = fmtInfo.getFormat(dataPath, false);
-      yearFormat = new VSFormatModel(
-         VSCalendarChromeDefaults.applyModernDefaults(compositeFormat, ctx), assemblyInfo);
+      yearFormat = new VSFormatModel(compositeFormat, assemblyInfo);
 
       if(assemblyInfo.isYearView()) {
          fixSelectedFormat(assemblyInfo, compositeFormat);

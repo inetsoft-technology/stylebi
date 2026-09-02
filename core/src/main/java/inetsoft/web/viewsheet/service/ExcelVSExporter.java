@@ -39,5 +39,14 @@ public abstract class ExcelVSExporter extends AbstractVSExporter {
       return exportAllTabbedTables;
    }
 
+   /**
+    * A spreadsheet has no page to paint. Both Excel exporters extend this class, so this one
+    * override covers them.
+    */
+   @Override
+   protected boolean paintsPageBackground() {
+      return false;
+   }
+
    private boolean exportAllTabbedTables;
 }
