@@ -409,6 +409,101 @@ class ChartRegionPropertyServiceTest {
       assertEquals("West", written[0].getLabel(), "label defaults to the value when omitted");
    }
 
+   /**
+    * The bug this test exists to pin, found live 2026-09-02 by this audit's own promotion pass
+    * on a real year-grouped axis: {@code AxisPropertyDialogModel.updateAxisPropertyDialogModel}
+    * calls {@code axisDesc.setLabelAlias(value, alias)} with WHATEVER value this service hands
+    * it, unconditionally -- it does not itself match against the real items. A caller supplying
+    * the display text ({@code "2022"}) rather than the real underlying value (a date-grouped
+    * axis's real value is a full timestamp, e.g. {@code "2022-01-01 00:00:00"}) used to have
+    * that alias silently stored under a key nothing ever reads back -- {@code ok:true}, chart
+    * unchanged. This asserts the value actually written is the REAL one, resolved from the
+    * axis's own current alias list (mirroring what list_chart_region_properties already reports),
+    * not the caller's display-text guess.
+    */
+   @Test
+   void resolvesAnAxisAliasValueSuppliedAsItsDisplayLabel() throws Exception {
+      Harness h = harness();
+      AxisPropertyDialogModel model = axisModel();
+      model.getAliasPaneModel().setAliasList(new ModelAlias[] {
+         new ModelAlias("2022", "2022-01-01 00:00:00", "2022"),
+         new ModelAlias("2023", "2023-01-01 00:00:00", "2023"),
+      });
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                    Map.of("aliases", List.of(Map.of("value", "2022", "alias", "FY22"))), "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      ModelAlias written = captor.getValue().getAliasPaneModel().getAliasList()[0];
+      assertEquals("2022-01-01 00:00:00", written.getValue(),
+                   "the REAL value must be written, not the caller's display-text guess -- " +
+                   "AxisPropertyDialogModel keys setLabelAlias on whatever value arrives here " +
+                   "with no matching of its own");
+      assertEquals("FY22", written.getAlias());
+   }
+
+   /** Supplying the real value directly (not the label) must also resolve, unchanged. */
+   @Test
+   void resolvesAnAxisAliasValueSuppliedAsTheRealValue() throws Exception {
+      Harness h = harness();
+      AxisPropertyDialogModel model = axisModel();
+      model.getAliasPaneModel().setAliasList(new ModelAlias[] {
+         new ModelAlias("2022", "2022-01-01 00:00:00", "2022"),
+      });
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                    Map.of("aliases",
+                           List.of(Map.of("value", "2022-01-01 00:00:00", "alias", "FY22"))),
+                    "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals("2022-01-01 00:00:00",
+                   captor.getValue().getAliasPaneModel().getAliasList()[0].getValue());
+   }
+
+   /**
+    * A value matching neither the real value nor the label used to reach the same silent-no-op
+    * shape resolvesAnAxisAliasValueSuppliedAsItsDisplayLabel pins -- refused here instead, naming
+    * what the axis actually has, so the caller can retry with a value that will actually work.
+    */
+   @Test
+   void refusesAnAxisAliasValueMatchingNeitherRealValueNorLabel() throws Exception {
+      Harness h = harness();
+      AxisPropertyDialogModel model = axisModel();
+      model.getAliasPaneModel().setAliasList(new ModelAlias[] {
+         new ModelAlias("2022", "2022-01-01 00:00:00", "2022"),
+      });
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("aliases", List.of(Map.of("value", "9999", "alias", "FY99"))),
+                             ""));
+
+      assertTrue(thrown.getMessage().contains("9999"));
+      assertTrue(thrown.getMessage().contains("2022"));
+      verify(h.regions, never()).setAxisPropertyDialogModel(anyString(), anyString(), anyString(),
+                                                            anyInt(), any(), any(), anyString(),
+                                                            any(Principal.class), any());
+   }
+
    @Test
    void refusesAnAliasEntryMissingAlias() {
       Harness h = harness();

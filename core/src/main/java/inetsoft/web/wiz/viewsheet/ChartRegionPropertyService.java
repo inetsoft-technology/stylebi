@@ -126,17 +126,28 @@ public class ChartRegionPropertyService {
 
       if(properties.containsKey("rotation") || properties.containsKey("aliases")) {
          properties = new LinkedHashMap<>(properties);
-
-         if(properties.containsKey("rotation")) {
-            properties.put("rotation", canonicalRotation(name, properties.get("rotation")));
-         }
-
-         if(properties.containsKey("aliases")) {
-            properties.put("aliases", toModelAliases(properties.get("aliases")));
-         }
       }
 
+      if(properties.containsKey("rotation")) {
+         properties.put("rotation", canonicalRotation(name, properties.get("rotation")));
+      }
+
+      // Shape-validated here, before readModel, so a malformed 'aliases' value keeps failing
+      // fast the same way every other bad-shape property in this class does -- with no model
+      // fetch spent on a request that was always going to be refused. Resolving each entry's
+      // real value needs the model (see toModelAliases), which is fetched below regardless for
+      // the main property-write loop; the resolution itself waits until then.
+      List<Map<?, ?>> aliasEntries = properties.containsKey("aliases")
+                                     && ("axis".equals(name) || "legend".equals(name))
+         ? parseAliasEntries(properties.get("aliases")) : null;
+
       Object model = readModel(sessionToken, user, assembly, name, key, field);
+
+      if(aliasEntries != null) {
+         Object current = PropertyPath.get(model, "aliasPaneModel.aliasList");
+         properties.put("aliases", toModelAliases(aliasEntries, (ModelAlias[]) current));
+      }
+
       Map<String, String> aliases = aliasesFor(name);
       Map<String, Object> resolved = new LinkedHashMap<>();
 
@@ -310,20 +321,30 @@ public class ChartRegionPropertyService {
     * an already-correct {@code ModelAlias[]} and its own pass-through check
     * ({@code target.isInstance(value)}) hands it straight to the setter unchanged.
     *
-    * <p>Each entry needs {@code value} (the real data value the alias replaces) and {@code alias}
-    * (what to show instead); {@code label} is optional and, when omitted, mirrors {@code value} --
-    * on the read side, {@code label} is the value as StyleBI's own {@code GraphUtil.getLegendItems}
-    * / {@code getAxisItems} format it, which for a caller supplying a value fresh rather than
-    * echoing one just read back is not always knowable in advance.
+    * <p>Each entry needs {@code value} (the data value the alias replaces) and {@code alias}
+    * (what to show instead). {@code value} is matched against {@code current} — the region's own
+    * alias list, exactly as {@link #list} already reports it — first by real value, then, more
+    * forgivingly, by display {@code label}: a date-grouped axis's real value is not its display
+    * text (e.g. the label {@code "2022"}'s real value is {@code "2022-01-01 00:00:00"}), and
+    * both {@link AxisPropertyDialogModel#updateAxisPropertyDialogModel} and
+    * {@link LegendFormatDialogModel#updateLegendFormatDialogModel} call
+    * {@code XxxDescriptor.setLabelAlias(value, alias)} with whatever {@code value} this method
+    * hands them, <b>unconditionally, with no matching of their own</b> — so a caller-supplied
+    * value that does not match the real one is silently stored under a key nothing ever reads
+    * back. Live-confirmed 2026-09-02, found by this audit's own live verification pass: writing
+    * {@code {value:"2022", alias:"FY22"}} against a year-grouped axis returned {@code ok:true},
+    * left the chart showing "2022" unchanged, and read back the original, untouched alias list.
+    * A value matching neither the real value nor the label is refused by name, rather than
+    * repeating that silent-no-op shape for a typo or a stale value from an earlier read.
     */
-   private static ModelAlias[] toModelAliases(Object value) {
+   private static List<Map<?, ?>> parseAliasEntries(Object value) {
       if(!(value instanceof List<?> list)) {
          throw new IllegalArgumentException(
             "'aliases' expects a JSON array of {value, alias} objects; '" + value + "' is not " +
             "an array.");
       }
 
-      ModelAlias[] result = new ModelAlias[list.size()];
+      List<Map<?, ?>> parsed = new ArrayList<>(list.size());
 
       for(int i = 0; i < list.size(); i++) {
          Object entry = list.get(i);
@@ -334,22 +355,78 @@ public class ChartRegionPropertyService {
                "'.");
          }
 
-         Object rawValue = map.get("value");
-         Object rawAlias = map.get("alias");
-
-         if(rawValue == null || rawAlias == null) {
+         if(map.get("value") == null || map.get("alias") == null) {
             throw new IllegalArgumentException(
                "'aliases[" + i + "]' needs both 'value' (the data value to replace) and 'alias' " +
                "(what to show instead); got " + map + ".");
          }
 
-         String stringValue = String.valueOf(rawValue);
-         Object rawLabel = map.get("label");
-         String label = rawLabel == null ? stringValue : String.valueOf(rawLabel);
-         result[i] = new ModelAlias(label, stringValue, String.valueOf(rawAlias));
+         parsed.add(map);
+      }
+
+      return parsed;
+   }
+
+   private static ModelAlias[] toModelAliases(List<Map<?, ?>> entries, ModelAlias[] current) {
+      ModelAlias[] result = new ModelAlias[entries.size()];
+
+      for(int i = 0; i < entries.size(); i++) {
+         Map<?, ?> map = entries.get(i);
+         String suppliedValue = String.valueOf(map.get("value"));
+         Object rawAlias = map.get("alias");
+         ModelAlias resolved = resolveAliasItem(suppliedValue, current, i);
+         String realValue = resolved != null ? resolved.getValue() : suppliedValue;
+         String realLabel = resolved != null ? resolved.getLabel() : suppliedValue;
+         result[i] = new ModelAlias(realLabel, realValue, String.valueOf(rawAlias));
       }
 
       return result;
+   }
+
+   /**
+    * Finds the {@code current} entry a caller-supplied alias {@code value} means — an exact match
+    * on the real value first, then a match on the real display label — and refuses, naming the
+    * real value/label pairs, when {@code current} is non-empty and neither matches. {@code null}
+    * (not a refusal) means {@code current} is empty: this region has no items to check against
+    * yet (an unbound or not-yet-laid-out chart), so there is nothing to validate against and the
+    * caller-supplied value passes through rather than being refused for a reason unrelated to
+    * what they typed.
+    */
+   private static ModelAlias resolveAliasItem(String suppliedValue, ModelAlias[] current, int index) {
+      if(current == null || current.length == 0) {
+         return null;
+      }
+
+      for(ModelAlias item : current) {
+         if(suppliedValue.equals(item.getValue())) {
+            return item;
+         }
+      }
+
+      for(ModelAlias item : current) {
+         if(suppliedValue.equals(item.getLabel())) {
+            return item;
+         }
+      }
+
+      StringBuilder known = new StringBuilder();
+
+      for(ModelAlias item : current) {
+         if(known.length() > 0) {
+            known.append(", ");
+         }
+
+         known.append("'").append(item.getLabel()).append("'");
+
+         if(!Objects.equals(item.getLabel(), item.getValue())) {
+            known.append(" (real value '").append(item.getValue()).append("')");
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "'aliases[" + index + "].value' ('" + suppliedValue + "') matches neither the real " +
+         "value nor the display label of anything list_chart_region_properties reports for " +
+         "this region. Known: " + known + ".");
    }
 
    /**
