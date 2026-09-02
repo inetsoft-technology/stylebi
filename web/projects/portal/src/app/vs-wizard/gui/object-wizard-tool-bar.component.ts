@@ -17,10 +17,12 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { AiAssistantDialogService } from "../../common/services/ai-assistant-dialog.service";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
 import { VSObjectModel } from "../../vsobjects/model/vs-object-model";
+import { ComponentTool } from "../../common/util/component-tool";
 import { ToolbarAction } from "../../widget/toolbar/toolbar-action";
 import { ToolbarActionGroup } from "../../widget/toolbar/toolbar-action-group";
 import { HelpLinkDirective } from "../../widget/help-link/help-link.directive";
@@ -47,7 +49,8 @@ export class ObjectWizardToolBarComponent {
    constructor(public aiAssistantDialogService: AiAssistantDialogService,
                private aiAssistantService: AiAssistantService,
                private context: ContextProvider,
-               private http: HttpClient)
+               private http: HttpClient,
+               private modalService: NgbModal)
    {
    }
 
@@ -75,7 +78,10 @@ export class ObjectWizardToolBarComponent {
       }
 
       this.http.get("../api/vswizard/object/toolbar/full-editor", {params: params})
-         .subscribe(() => this.onFullEditor.emit(this.vsObject));
+         .subscribe(() => this.onFullEditor.emit(this.vsObject),
+            (error) => {
+               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", error);
+            });
    }
 
    getAssemblyTypeIcon(): string {

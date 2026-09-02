@@ -46,8 +46,9 @@
 import "@angular/compiler";
 import { Component, Directive, Input, NO_ERRORS_SCHEMA } from "@angular/core";
 import { HttpClient, HttpParams } from "@angular/common/http";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { render } from "@testing-library/angular";
-import { of } from "rxjs";
+import { of, throwError } from "rxjs";
 
 import { ObjectWizardToolBarComponent } from "./object-wizard-tool-bar.component";
 import { ToolbarGroup } from "../../widget/toolbar/toolbar-group/toolbar-group.component";
@@ -56,6 +57,7 @@ import { AiAssistantDialogService } from "../../common/services/ai-assistant-dia
 import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
 import { VSObjectModel } from "../../vsobjects/model/vs-object-model";
+import { ComponentTool } from "../../common/util/component-tool";
 
 @Component({ selector: "toolbar-group", template: "", standalone: true })
 class ToolbarGroupStub {
@@ -73,6 +75,7 @@ const HTTP_MOCK = { get: vi.fn() };
 const AI_DIALOG_MOCK = { openAiAssistantDialog: vi.fn() };
 const AI_SERVICE_MOCK = { lastBindingObject: "" };
 const CONTEXT_MOCK = { vsWizard: true };
+const MODAL_MOCK = { open: vi.fn() };
 
 function makeVsObject(objectType: string): VSObjectModel {
    return { absoluteName: "TestObj", objectType } as unknown as VSObjectModel;
@@ -94,6 +97,7 @@ async function renderComponent(opts: {
          { provide: AiAssistantDialogService, useValue: AI_DIALOG_MOCK },
          { provide: AiAssistantService, useValue: AI_SERVICE_MOCK },
          { provide: ContextProvider, useValue: CONTEXT_MOCK },
+         { provide: NgbModal, useValue: MODAL_MOCK },
       ],
       importOverrides: [
          { replace: ToolbarGroup, with: ToolbarGroupStub },
@@ -105,10 +109,12 @@ async function renderComponent(opts: {
 }
 
 beforeEach(() => {
+   vi.restoreAllMocks();
    HTTP_MOCK.get.mockClear();
    HTTP_MOCK.get.mockReturnValue(of({}));
    AI_DIALOG_MOCK.openAiAssistantDialog.mockClear();
    AI_SERVICE_MOCK.lastBindingObject = "";
+   MODAL_MOCK.open.mockClear();
 });
 
 // ---------------------------------------------------------------------------
@@ -157,6 +163,30 @@ describe("ObjectWizardToolBarComponent — openFullEditor()", () => {
 
       expect(emitted).toHaveLength(1);
       expect(emitted[0]).toBe(vsObject);
+   });
+
+   // Bug #76409 - openFullEditor()'s HTTP call had no error callback, so a failed
+   // "../api/vswizard/object/toolbar/full-editor" request meant onFullEditor never fired
+   // and the click did nothing observable (matching the reported "Full Editor" hang with no
+   // error surfaced). This verifies a failure now shows a visible error dialog rather than
+   // silently doing nothing. Note: this does not by itself confirm the specific "persistent
+   // loading spinner" mechanism reported (that spinner is driven by a separate STOMP
+   // loadingEventCount, which this HTTP call cannot touch) - see 03-fix.md.
+   it("should show an error dialog and not emit onFullEditor when the HTTP call fails", async () => {
+      const vsObject = makeVsObject("VSChart");
+      const { comp } = await renderComponent({ vsObject });
+      const emitted: VSObjectModel[] = [];
+      comp.onFullEditor.subscribe((v: VSObjectModel) => emitted.push(v));
+      const showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog")
+         .mockImplementation(() => Promise.resolve("ok"));
+      HTTP_MOCK.get.mockReturnValue(throwError("Server error"));
+
+      comp.openFullEditor();
+
+      expect(emitted).toHaveLength(0);
+      expect(showMessageDialog).toHaveBeenCalledTimes(1);
+      expect(showMessageDialog.mock.calls[0][1]).toBe("_#(js:Error)");
+      expect(showMessageDialog.mock.calls[0][2]).toBe("Server error");
    });
 });
 
