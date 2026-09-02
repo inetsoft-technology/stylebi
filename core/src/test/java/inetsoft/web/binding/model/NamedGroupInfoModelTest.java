@@ -114,6 +114,19 @@ public class NamedGroupInfoModelTest {
    }
 
    @Test
+   void normalizeDateInGroupCondition_negatedCondition_isNoOp() {
+      DataRef attribute = dateAttribute(XSchema.DATE);
+      DateCondition dateCondition = new DateCondition.YearCondition(0);
+      dateCondition.setNegated(true);
+      ConditionList conditionList = singleItemList(attribute, dateCondition);
+
+      NamedGroupInfoModel.normalizeDateInGroupCondition(conditionList);
+
+      assertEquals(1, conditionList.getConditionSize());
+      assertSame(dateCondition, conditionList.getConditionItem(0).getXCondition());
+   }
+
+   @Test
    void normalizeDateInGroupCondition_nullList_doesNotThrow() {
       assertDoesNotThrow(() -> NamedGroupInfoModel.normalizeDateInGroupCondition(null));
    }

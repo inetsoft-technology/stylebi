@@ -235,6 +235,14 @@ public class NamedGroupInfoModel implements Serializable {
       }
 
       DateCondition dateCondition = (DateCondition) item.getXCondition();
+
+      if(dateCondition.isNegated()) {
+         // Negation can't be expressed by the GREATER_THAN/LESS_THAN range shape below
+         // (that would require a NOT/OR-of-two-ranges shape NamedRangeRef doesn't support) -
+         // leave the list alone rather than silently producing the wrong-signed range.
+         return;
+      }
+
       DataRef attribute = item.getAttribute();
       // isTimestamp must reflect the bound field's actual data type, not the
       // DateCondition's own type (every DateCondition ctor hardcodes type = XSchema.DATE),
