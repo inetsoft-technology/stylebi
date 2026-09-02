@@ -209,7 +209,28 @@ class DimensionSortRankingTest {
       DimensionSortRanking.applyRanking(
          dimension, new DimensionSortRanking.Ranking("top", 5, "Sales", true));
 
-      assertTrue(dimension.isOthers());
+      // groupOthers ("group others in topN") is the field createDataRef() actually reads back
+      // into VSDimensionRef.groupOthersValue, which real ranking rendering consults. namedOthers
+      // ("group others in named group") is an unrelated, orphaned field with no render-time
+      // consumer -- applyRanking previously wrote there by mistake, which this test's own
+      // assertion (checking isOthers()/namedOthers) failed to catch. Assert both explicitly so a
+      // regression back to the wrong field fails loudly here instead of shipping silently again.
+      assertTrue(dimension.isGroupOthers(), "others:true must set groupOthers, the field the " +
+                 "real ranking condition renders from");
+      assertFalse(dimension.isOthers(), "namedOthers has no render-time reader -- writing it " +
+                  "instead of groupOthers is the exact bug this test guards against");
+   }
+
+   @Test
+   void othersRoundTripsThroughDescribe() {
+      BDimensionRefModel dimension = new BDimensionRefModel();
+
+      DimensionSortRanking.applyRanking(
+         dimension, new DimensionSortRanking.Ranking("top", 5, "Sales", true));
+
+      assertEquals(true, DimensionSortRanking.describe(dimension).get("others"),
+                  "describe() must read back the same field applyRanking wrote, not the " +
+                  "orphaned namedOthers field");
    }
 
    // ── read back ─────────────────────────────────────────────────────────────
