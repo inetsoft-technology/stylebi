@@ -2261,6 +2261,90 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals("field['end_date'] - field['start_date']", expr3);
    }
 
+   @Test
+   void addExpressionColumnInfersNumericTypeForPureArithmeticExpression() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("a")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("b")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // No "type" argument -- a purely-arithmetic expression over numeric columns must
+      // infer numeric instead of silently falling through to the untyped "string"
+      // default.
+      svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("T", "computed", "field['a'] * field['b']", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("computed");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnInfersNumericTypeForThreeFactorExpression() throws Exception {
+      // The three-factor, parenthesized-subtraction shape from the bug doc's G9 case --
+      // must infer the same as the two-factor case above.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b", "c");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("a")).setDataType(XSchema.DOUBLE);
+      ((ColumnRef) cs.getAttribute("b")).setDataType(XSchema.DOUBLE);
+      ((ColumnRef) cs.getAttribute("c")).setDataType(XSchema.DOUBLE);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "computed", "field['a'] * field['b'] * (1 - field['c'])", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("computed");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnLeavesStringDefaultForNonNumericExpression() throws Exception {
+      Worksheet ws = new Worksheet();
+      // "a" and "b" are left at their default (untyped -> string) type.
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Referenced fields are not numeric -- must not guess; the existing "string"
+      // default is preserved.
+      svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("T", "computed", "field['a'] + field['b']", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("computed");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnHonorsExplicitTypeOverInference() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("a")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("b")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Even though the expression would infer as numeric, an explicit "type" argument
+      // must still win over inference (no regression on the existing explicit-type path).
+      svc.apply("TOK", agent, ed ->
+         ed.addExpressionColumn("T", "computed", "field['a'] * field['b']", "integer", false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("computed");
+      assertNotNull(col);
+      assertEquals(XSchema.INTEGER, col.getDataType());
+   }
+
    // =========================================================================
    // Duplicate-name rejection tests — add_column / add_expression_column
    // =========================================================================
@@ -2596,6 +2680,86 @@ class WorksheetEditServiceMutatorsTest {
 
       assertNotNull(t.getColumnSelection(false).getAttribute("newcalc"),
                     "'newcalc' should be added as a new expression column");
+   }
+
+   @Test
+   void editExpressionInfersNumericTypeWhenTypeOmitted() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("a")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("b")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Original add omits "type" against a non-numeric expression, landing on the
+      // untyped "string" default -- same gap as add_expression_column.
+      svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("T", "calc", "'literal'", null, false));
+
+      // A later edit_expression, also omitting "type", switches to a purely-arithmetic
+      // numeric expression -- it must infer numeric instead of keeping the stale string
+      // default.
+      svc.apply("TOK", agent,
+         ed -> ed.editExpression("T", "calc", "field['a'] * field['b']", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("calc");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void editExpressionPreservesExplicitPriorTypeWhenTypeOmitted() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("a")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("b")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.addExpressionColumn("T", "calc", "field['a'] * 1", "integer", false));
+
+      // Omitting "type" on edit_expression must leave a real, previously-set explicit
+      // type alone -- per the "null = leave unchanged" contract -- even though the new
+      // expression would otherwise infer as numeric (double).
+      svc.apply("TOK", agent, ed ->
+         ed.editExpression("T", "calc", "field['a'] * field['b']", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("calc");
+      assertNotNull(col);
+      assertEquals(XSchema.INTEGER, col.getDataType());
+   }
+
+   @Test
+   void editExpressionPreservesExplicitStringPriorTypeWhenTypeOmitted() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("a")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("b")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.addExpressionColumn("T", "calc", "field['a'] * 1", "string", false));
+
+      // An explicit "string" prior type happens to equal the untyped fallback's
+      // *derived* getDataType() value, so a guard that compares against that value
+      // (instead of checking whether a type was ever explicitly set) would wrongly
+      // re-infer here. Omitting "type" on edit_expression must still leave a real,
+      // previously-set explicit "string" type alone, even though the new expression
+      // would otherwise infer as numeric (double).
+      svc.apply("TOK", agent, ed ->
+         ed.editExpression("T", "calc", "field['a'] * field['b']", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("calc");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType());
    }
 
    @Test
