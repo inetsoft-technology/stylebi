@@ -17,11 +17,16 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.sree.SreeEnv;
+import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.VSChartGeoRef;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.graph.VSMapInfo;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.wiz.binding.model.FieldRef;
-import org.junit.jupiter.api.Tag;
+import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -29,7 +34,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@Tag("core")
+@WizAgentTestSupport
 class ChartBindingMutatorTest {
    @Test
    void setsTheXShelfFromFieldRefs() {
@@ -229,5 +234,321 @@ class ChartBindingMutatorTest {
          () -> ChartBindingMutator.setSort(model, "y", "Sales", null,
             new DimensionSortRanking.Sort("asc", null, null)));
       assertTrue(thrown.getMessage().contains("Sales"));
+   }
+
+   // ── org column-count limit (L3-Group1 finding G1-1) ───────────────────────
+   //
+   // VSChartDndService.addColumns refuses a drag-drop add that would push a chart's total
+   // bound-field count past Util.getOrganizationMaxColumn() -- the agent path had no equivalent
+   // check at all, live-confirmed 2026-09-01 by binding 286 fields to one chart's x shelf in a
+   // single call with zero rejection. These exercise the new check via the chartInfo-carrying
+   // overloads only -- the no-chartInfo overloads every other test in this class uses are
+   // untouched (chartInfo == null skips the check by design, matching a caller with no live
+   // chart to total against).
+
+   @Test
+   void refusesAShelfWriteThatWouldExceedTheOrgColumnLimit() throws Exception {
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "2");
+         VSChartInfo chartInfo = new VSChartInfo();
+         chartInfo.addYField(new VSChartAggregateRef());
+         chartInfo.addYField(new VSChartAggregateRef());
+         ChartBindingModel model = new ChartBindingModel();
+
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> ChartBindingMutator.setShelf(
+               model, "x", List.of(new FieldRef("Region", "dimension", null, null, null)),
+               null, null, null, chartInfo));
+
+         assertTrue(thrown.getMessage().toLowerCase().contains("column")
+                    || thrown.getMessage().contains("2"), thrown.getMessage());
+         assertTrue(model.getXFields().isEmpty(),
+                    "the refused write must not have mutated the model");
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
+   }
+
+   @Test
+   void allowsAShelfWriteWithinTheOrgColumnLimit() throws Exception {
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "2");
+         VSChartInfo chartInfo = new VSChartInfo();
+         chartInfo.addYField(new VSChartAggregateRef());
+         ChartBindingModel model = new ChartBindingModel();
+
+         ChartBindingMutator.setShelf(
+            model, "x", List.of(new FieldRef("Region", "dimension", null, null, null)),
+            null, null, null, chartInfo);
+
+         assertEquals(1, model.getXFields().size());
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
+   }
+
+   @Test
+   void replacingAShelfDoesNotDoubleCountItsOwnPriorFields() throws Exception {
+      // The check must subtract the shelf's OWN current size before adding the new size --
+      // otherwise re-setting a shelf to the same field count it already has would look like
+      // growth and eventually refuse a no-op write.
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "1");
+         VSChartInfo chartInfo = new VSChartInfo();
+         chartInfo.addXField(new VSChartAggregateRef());
+         ChartBindingModel model = new ChartBindingModel();
+         model.getXFields().add(new ChartDimensionRefModel());
+
+         ChartBindingMutator.setShelf(
+            model, "x", List.of(new FieldRef("Region", "dimension", null, null, null)),
+            null, null, null, chartInfo);
+
+         assertEquals(1, model.getXFields().size());
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
+   }
+
+   @Test
+   void growingAShelfDoesNotDoubleCountItsOwnPriorFieldsAgainstTheLimit() throws Exception {
+      // Unlike replacingAShelfDoesNotDoubleCountItsOwnPriorFields (a net-neutral edit that now
+      // short-circuits through requireColumnLimit's net-growth-only early return before ever
+      // reaching the subtraction below), this drives an actual GROWTH of the shelf
+      // (newShelfCount > oldShelfCount) so the "- oldShelfCount" term in
+      //   chartInfo.getFields().length + geoSize - oldShelfCount + newShelfCount
+      // is the thing standing between pass and fail. chartInfo already carries the shelf's own
+      // 2 prior fields (mirroring the model's 2), so a version of the formula that forgot to
+      // subtract oldShelfCount would double-count them: 2 + 3 = 5 > 3, refused. Correctly
+      // subtracting them gives 2 - 2 + 3 = 3, which is exactly at the limit and must be allowed.
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "3");
+         VSChartInfo chartInfo = new VSChartInfo();
+         chartInfo.addXField(new VSChartAggregateRef());
+         chartInfo.addXField(new VSChartAggregateRef());
+         ChartBindingModel model = new ChartBindingModel();
+         model.getXFields().add(new ChartDimensionRefModel());
+         model.getXFields().add(new ChartDimensionRefModel());
+
+         // Grow x from 2 fields to 3 -- a strict increase -- which must be allowed because the
+         // shelf's own 2 prior fields are subtracted back out before comparing to the limit.
+         ChartBindingMutator.setShelf(
+            model, "x",
+            List.of(new FieldRef("A", "dimension", null, null, null),
+                    new FieldRef("B", "dimension", null, null, null),
+                    new FieldRef("C", "dimension", null, null, null)),
+            null, null, null, chartInfo);
+
+         assertEquals(3, model.getXFields().size());
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
+   }
+
+   @Test
+   void refusesASingleShelfWriteThatWouldExceedTheOrgColumnLimit() throws Exception {
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "1");
+         VSChartInfo chartInfo = new VSChartInfo();
+         chartInfo.addYField(new VSChartAggregateRef());
+         ChartBindingModel model = new ChartBindingModel();
+
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> ChartBindingMutator.setSingleShelf(
+               model, "close", new FieldRef("Price", "measure", "Sum", null, null),
+               null, null, null, chartInfo));
+
+         assertTrue(thrown.getMessage().toLowerCase().contains("column")
+                    || thrown.getMessage().contains("1"), thrown.getMessage());
+         assertNull(ChartBindingMutator.readSingleShelf(model, "close"));
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
+   }
+
+   // ── net-growth-only column limit (PR #4921 round-1 finding 1) ────────────
+   //
+   // requireColumnLimit compared the ABSOLUTE post-edit total against the org limit, so a chart
+   // already over budget (grandfathered, or the limit lowered by an admin after creation) became
+   // permanently unable to have ANY shelf edited via the wiz path -- even a strict shrink --
+   // because native's VSChartDndService.removeColumns has no limit check at all while addColumns
+   // does. Live-confirmed 2026-09-01: shrinking a 5-field shelf to 4 fields under max.col.count=3
+   // still threw. The fix gates the check on net growth of the shelf being written.
+
+   @Test
+   void allowsANetDecreaseOnAShelfEvenWhenTheChartIsAlreadyOverTheLimit() throws Exception {
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "3");
+         // The chart is already over budget: 5 fields on x alone, against a limit of 3.
+         VSChartInfo chartInfo = new VSChartInfo();
+         chartInfo.addXField(new VSChartAggregateRef());
+         chartInfo.addXField(new VSChartAggregateRef());
+         chartInfo.addXField(new VSChartAggregateRef());
+         chartInfo.addXField(new VSChartAggregateRef());
+         chartInfo.addXField(new VSChartAggregateRef());
+         ChartBindingModel model = new ChartBindingModel();
+         model.getXFields().add(new ChartDimensionRefModel());
+         model.getXFields().add(new ChartDimensionRefModel());
+         model.getXFields().add(new ChartDimensionRefModel());
+         model.getXFields().add(new ChartDimensionRefModel());
+         model.getXFields().add(new ChartDimensionRefModel());
+
+         // Shrink x from 5 fields to 4 -- a strict decrease -- and it must be allowed even though
+         // the chart's total (before and after) is still over the limit of 3.
+         ChartBindingMutator.setShelf(
+            model, "x",
+            List.of(new FieldRef("A", "dimension", null, null, null),
+                    new FieldRef("B", "dimension", null, null, null),
+                    new FieldRef("C", "dimension", null, null, null),
+                    new FieldRef("D", "dimension", null, null, null)),
+            null, null, null, chartInfo);
+
+         assertEquals(4, model.getXFields().size());
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
+   }
+
+   @Test
+   void allowsANetNeutralEditOnAShelfEvenWhenTheChartIsAlreadyOverTheLimit() throws Exception {
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "1");
+         VSChartInfo chartInfo = new VSChartInfo();
+         chartInfo.addXField(new VSChartAggregateRef());
+         chartInfo.addXField(new VSChartAggregateRef());
+         ChartBindingModel model = new ChartBindingModel();
+         model.getXFields().add(new ChartDimensionRefModel());
+         model.getXFields().add(new ChartDimensionRefModel());
+
+         // Same field count in, same count out -- no growth at all -- must be allowed despite
+         // the chart already sitting at twice the limit.
+         ChartBindingMutator.setShelf(
+            model, "x",
+            List.of(new FieldRef("A", "dimension", null, null, null),
+                    new FieldRef("B", "dimension", null, null, null)),
+            null, null, null, chartInfo);
+
+         assertEquals(2, model.getXFields().size());
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
+   }
+
+   @Test
+   void stillRefusesANetIncreaseThatPushesAnAlreadyOverLimitChartFurtherOver() throws Exception {
+      // Net growth must still be checked -- the fix only exempts neutral/decreasing edits, not
+      // every edit on an over-limit chart.
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "3");
+         VSChartInfo chartInfo = new VSChartInfo();
+         chartInfo.addXField(new VSChartAggregateRef());
+         chartInfo.addXField(new VSChartAggregateRef());
+         chartInfo.addXField(new VSChartAggregateRef());
+         chartInfo.addXField(new VSChartAggregateRef());
+         chartInfo.addXField(new VSChartAggregateRef());
+         ChartBindingModel model = new ChartBindingModel();
+         model.getXFields().add(new ChartDimensionRefModel());
+         model.getXFields().add(new ChartDimensionRefModel());
+         model.getXFields().add(new ChartDimensionRefModel());
+         model.getXFields().add(new ChartDimensionRefModel());
+         model.getXFields().add(new ChartDimensionRefModel());
+
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> ChartBindingMutator.setShelf(
+               model, "x",
+               List.of(new FieldRef("A", "dimension", null, null, null),
+                       new FieldRef("B", "dimension", null, null, null),
+                       new FieldRef("C", "dimension", null, null, null),
+                       new FieldRef("D", "dimension", null, null, null),
+                       new FieldRef("E", "dimension", null, null, null),
+                       new FieldRef("F", "dimension", null, null, null)),
+               null, null, null, chartInfo));
+
+         assertTrue(thrown.getMessage().toLowerCase().contains("column")
+                    || thrown.getMessage().contains("3"), thrown.getMessage());
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
+   }
+
+   // ── VSMapInfo geo-field branch (PR #4921 round-1 finding 4) ───────────────
+   //
+   // requireColumnLimit adds VSMapInfo.getGeoFieldCount() to the chart's own getFields().length
+   // total, since a map's geo fields are not part of getFields() at all -- this exercises that
+   // branch, which no prior test in this class touched.
+
+   @Test
+   void countsGeoFieldsTowardTheLimitOnAMapChart() throws Exception {
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "2");
+         VSMapInfo chartInfo = new VSMapInfo();
+         chartInfo.addYField(new VSChartAggregateRef());
+         chartInfo.addGeoField(new VSChartGeoRef());
+         ChartBindingModel model = new ChartBindingModel();
+
+         // 1 y field + 1 geo field + 1 new x field = 3, over a limit of 2 -- refused only because
+         // the geo field is counted; without it the total would be 2 and would pass.
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> ChartBindingMutator.setShelf(
+               model, "x", List.of(new FieldRef("Region", "dimension", null, null, null)),
+               null, null, null, chartInfo));
+
+         assertTrue(thrown.getMessage().toLowerCase().contains("column")
+                    || thrown.getMessage().contains("2"), thrown.getMessage());
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
+   }
+
+   @Test
+   void allowsAMapChartWriteWhenGeoAndFieldsTogetherStayWithinTheLimit() throws Exception {
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", "3");
+         VSMapInfo chartInfo = new VSMapInfo();
+         chartInfo.addYField(new VSChartAggregateRef());
+         chartInfo.addGeoField(new VSChartGeoRef());
+         ChartBindingModel model = new ChartBindingModel();
+
+         ChartBindingMutator.setShelf(
+            model, "x", List.of(new FieldRef("Region", "dimension", null, null, null)),
+            null, null, null, chartInfo);
+
+         assertEquals(1, model.getXFields().size());
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
    }
 }
