@@ -289,7 +289,8 @@ class DateComparisonServiceTest {
       when(after.getName()).thenReturn("Order Date");
       when(after.getDateLevel()).thenReturn(XConstants.YEAR_DATE_GROUP);
 
-      CrosstabVSAssembly assembly = crosstabAssembly(before, new DataRef[] {after}, new DataRef[0]);
+      CrosstabVSAssembly assembly =
+         crosstabAssembly(before, true, new DataRef[] {after}, new DataRef[0]);
       Harness h = harness(model(), assembly);
 
       Map<String, Object> result =
@@ -311,7 +312,8 @@ class DateComparisonServiceTest {
       when(after.getName()).thenReturn("Order Date");
       when(after.getDateLevel()).thenReturn(XConstants.YEAR_DATE_GROUP);
 
-      CrosstabVSAssembly assembly = crosstabAssembly(before, new DataRef[0], new DataRef[] {after});
+      CrosstabVSAssembly assembly =
+         crosstabAssembly(before, false, new DataRef[0], new DataRef[] {after});
       Harness h = harness(model(), assembly);
 
       Map<String, Object> result =
@@ -330,7 +332,8 @@ class DateComparisonServiceTest {
       when(after.getName()).thenReturn("Order Date");
       when(after.getDateLevel()).thenReturn(XConstants.MONTH_DATE_GROUP);
 
-      CrosstabVSAssembly assembly = crosstabAssembly(before, new DataRef[] {after}, new DataRef[0]);
+      CrosstabVSAssembly assembly =
+         crosstabAssembly(before, true, new DataRef[] {after}, new DataRef[0]);
       Harness h = harness(model(), assembly);
 
       Map<String, Object> result =
@@ -349,11 +352,49 @@ class DateComparisonServiceTest {
       assertTrue(result.isEmpty());
    }
 
+   /**
+    * Review round 1 finding: {@code describeRetargetedDimension} must resolve which shelf holds
+    * the retargeted dimension via {@code VSCrosstabInfo.isDateComparisonOnRow()} — set by the same
+    * {@code updateRuntimeHeaders()} call that produces {@code getDateComparisonRef()} — not by
+    * trying rows then falling back to columns. A same-named, untouched decoy dimension sitting on
+    * the shelf {@code isDateComparisonOnRow()} does NOT name must never be reported as the
+    * retarget result.
+    */
+   @Test
+   void ignoresASameNamedDecoyDimensionOnTheOtherShelf() throws Exception {
+      VSDimensionRef before = mock(VSDimensionRef.class);
+      when(before.getName()).thenReturn("Order Date");
+      when(before.getDateLevel()).thenReturn(XConstants.MONTH_DATE_GROUP);
+
+      VSDimensionRef after = mock(VSDimensionRef.class);
+      when(after.getName()).thenReturn("Order Date");
+      when(after.getDateLevel()).thenReturn(XConstants.YEAR_DATE_GROUP);
+
+      // Same name, different level again — if the code ever fell back to "row, then column" this
+      // decoy (sitting in rows) is what it would wrongly report instead of the real DC target
+      // (sitting in columns, per isDateComparisonOnRow() == false below).
+      VSDimensionRef decoy = mock(VSDimensionRef.class);
+      when(decoy.getName()).thenReturn("Order Date");
+      when(decoy.getDateLevel()).thenReturn(XConstants.WEEK_DATE_GROUP);
+
+      CrosstabVSAssembly assembly =
+         crosstabAssembly(before, false, new DataRef[] {decoy}, new DataRef[] {after});
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Crosstab1", comparison("2026-03-31", false), "");
+
+      assertEquals("year", result.get("retargetedToLevel"),
+                   "must report the actual DC-target shelf's level, not a same-named decoy's");
+   }
+
    private static CrosstabVSAssembly crosstabAssembly(VSDimensionRef dateComparisonRef,
+                                                       boolean dateComparisonOnRow,
                                                        DataRef[] rowHeaders, DataRef[] colHeaders)
    {
       VSCrosstabInfo crosstabInfo = mock(VSCrosstabInfo.class);
       when(crosstabInfo.getDateComparisonRef()).thenReturn(dateComparisonRef);
+      when(crosstabInfo.isDateComparisonOnRow()).thenReturn(dateComparisonOnRow);
       when(crosstabInfo.getRuntimeRowHeaders()).thenReturn(rowHeaders);
       when(crosstabInfo.getRuntimeColHeaders()).thenReturn(colHeaders);
 

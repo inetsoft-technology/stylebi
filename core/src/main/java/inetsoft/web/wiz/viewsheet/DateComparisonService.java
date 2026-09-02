@@ -153,6 +153,12 @@ public class DateComparisonService {
     * <p>Matches by {@code getName()} (the plain column name), not {@code getFullName()} — the
     * full name embeds the date level itself (e.g. "Month(ORDER_DATE)" vs. "Year(ORDER_DATE)"),
     * so it never matches once the level has actually changed.
+    *
+    * <p>Searches only the shelf {@code VSCrosstabInfo.isDateComparisonOnRow()} names, not "row,
+    * then column" — that flag is set by the very same {@code updateRuntimeHeaders()} call that
+    * produces {@code getDateComparisonRef()}, so it is a definitive answer, not a guess. Trying
+    * row first and falling back to column would misreport an unrelated, untouched dimension's
+    * level if a crosstab happened to bind a same-named date dimension on both shelves.
     */
    private static Map<String, Object> describeRetargetedDimension(RuntimeViewsheet rvs,
                                                                    String assemblyName)
@@ -173,12 +179,9 @@ public class DateComparisonService {
       }
 
       VSDimensionRef beforeDim = (VSDimensionRef) before;
-      VSDimensionRef afterDim = findDimensionByName(crosstabInfo.getRuntimeRowHeaders(),
-                                                    beforeDim.getName());
-
-      if(afterDim == null) {
-         afterDim = findDimensionByName(crosstabInfo.getRuntimeColHeaders(), beforeDim.getName());
-      }
+      DataRef[] shelf = crosstabInfo.isDateComparisonOnRow() ?
+         crosstabInfo.getRuntimeRowHeaders() : crosstabInfo.getRuntimeColHeaders();
+      VSDimensionRef afterDim = findDimensionByName(shelf, beforeDim.getName());
 
       if(afterDim == null || afterDim.getDateLevel() == beforeDim.getDateLevel()) {
          return out;
