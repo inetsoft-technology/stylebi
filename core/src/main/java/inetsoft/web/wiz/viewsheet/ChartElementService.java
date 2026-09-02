@@ -29,6 +29,8 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.*;
 import inetsoft.report.composition.region.ChartArea;
+import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.viewsheet.controller.chart.*;
@@ -99,7 +101,8 @@ public class ChartElementService {
     *                chart title. Null, or blank, means all of that element.
     */
    public void setVisibility(String sessionToken, Principal user, String assemblyName,
-                             String element, String target, boolean visible, String linkUri)
+                             String element, String target, boolean visible, boolean secondary,
+                             String linkUri)
       throws Exception
    {
       String kind = requireElement(element);
@@ -120,6 +123,30 @@ public class ChartElementService {
             "hide the ones you do not want.");
       }
 
+      // Unlike legends (VSChartLegendsVisibilityService.showAllLegends genuinely iterates every
+      // legend descriptor), neither the axis nor the title event has a real "hide everything"
+      // mode: VSChartAxesVisibilityEvent#getColumnName's own javadoc documents null as meaning
+      // "show all axis", never hide-all, and hideAxis()/hideChartTitle() both fall through a null
+      // target to one arbitrary/narrow descriptor. A prior version of this method let that
+      // fallthrough run silently: it reported "Hid all axiss on <chart>" while only ever touching
+      // one unrelated descriptor (no axis label ever changed, confirmed live), and reported "Hid
+      // all titles" while only ever touching the chart's own title (axis titles were untouched,
+      // also confirmed live). Refusing here, rather than teaching the event a hide-all mode it was
+      // never designed to have, is the same choice the show-path above already made for "showing
+      // one is not supported" — tell the caller what actually works instead of a false success.
+      if(!visible && target0 == null && !"legend".equals(kind)) {
+         throw new IllegalArgumentException(
+            "Hiding every " + kind + " with no 'target' is not supported — there is no Composer " +
+            "action that hides every " + kind + " at once, so this call cannot honour it. Name " +
+            ("title".equals(kind)
+               ? "the title to hide: 'chart' for the chart's own title, or an axis type (x, x2, " +
+                 "y, y2) for that axis's title."
+               : "the " + kind + " to hide (its column name — call get_binding, but see " +
+                 "list_chart_elements's own axis note for a date/named-group dimension) one at " +
+                 "a time.") +
+            " Hide them one at a time if you need more than one gone.");
+      }
+
       // Resolved before the runtime is mutated, for the same reason as the guard above and by the
       // same route ChartRegionPropertyService takes for its own refusals: sessions.mutate
       // checkpoints and broadcasts in a finally, deliberately, because a composer service can
@@ -135,8 +162,8 @@ public class ChartElementService {
          switch(kind) {
             case "axis" -> axesService.eventHandler(
                runtimeId,
-               event(Map.of("chartName", assemblyName, "hide", !visible), "columnName", target0,
-                     VSChartAxesVisibilityEvent.class),
+               event(Map.of("chartName", assemblyName, "hide", !visible, "secondary", secondary),
+                     "columnName", target0, VSChartAxesVisibilityEvent.class),
                linkUri, user, dispatcher);
             case "legend" -> legendsService.eventHandler(
                runtimeId, legendEvent, linkUri, user, dispatcher);
@@ -539,6 +566,35 @@ public class ChartElementService {
       out.put("axesMeasured", axes.measured());
       out.put("legends", describe(regions.legends()));
       out.put("legendsMeasured", regions.legends().measured());
+
+      // Which measure(s) are on the secondary axis -- the piece a caller needs to pass
+      // setVisibility's own 'secondary' correctly. Without this, "hide the axis for measure X"
+      // on a dual-Y-axis chart has no way to know whether X is the primary or secondary one; a
+      // wrong guess used to always resolve to the primary axis regardless (parity audit L4,
+      // finding G1-3).
+      List<String> secondaryFields = sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+         List<String> found = new ArrayList<>();
+
+         for(ChartRef ref : info.getXFields()) {
+            if(ref instanceof ChartAggregateRef agg && agg.isSecondaryY()) {
+               found.add(ref.getFullName());
+            }
+         }
+
+         for(ChartRef ref : info.getYFields()) {
+            if(ref instanceof ChartAggregateRef agg && agg.isSecondaryY()) {
+               found.add(ref.getFullName());
+            }
+         }
+
+         return found;
+      });
+
+      if(!secondaryFields.isEmpty()) {
+         out.put("secondaryFields", secondaryFields);
+      }
+
       return out;
    }
 

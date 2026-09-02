@@ -433,7 +433,7 @@ public class ViewsheetAssemblyAgentController {
    }
 
    public record ElementVisibilityRequest(String assembly, String element, String target,
-                                          Boolean visible) {}
+                                          Boolean visible, Boolean secondary) {}
    public record PlotResizeRequest(String assembly, Double ratio, Boolean vertical,
                                    Boolean reset) {}
 
@@ -643,7 +643,7 @@ public class ViewsheetAssemblyAgentController {
 
       chartElementService.setVisibility(sessionToken, user, request.assembly(),
                                         request.element(), request.target(), request.visible(),
-                                        linkUri);
+                                        Boolean.TRUE.equals(request.secondary()), linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/plot-size")
@@ -856,12 +856,11 @@ public class ViewsheetAssemblyAgentController {
 
    public record DateComparisonRequest(String assembly, Integer periods, String level,
                                        String endDate, Boolean endToday, String interval,
-                                       Boolean useFacet, Boolean onlyShowMostRecentDate,
-                                       Map<String, Object> frame) {
+                                       Boolean useFacet, Boolean onlyShowMostRecentDate) {
       DateComparisonService.Comparison comparison() {
          return new DateComparisonService.Comparison(
             periods, level, endDate, Boolean.TRUE.equals(endToday), interval, useFacet,
-            onlyShowMostRecentDate, frame);
+            onlyShowMostRecentDate);
       }
    }
 

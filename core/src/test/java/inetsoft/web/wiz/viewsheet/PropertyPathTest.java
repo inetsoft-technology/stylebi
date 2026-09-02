@@ -543,6 +543,41 @@ class PropertyPathTest {
       assertTrue(thrown.getMessage().contains("Linear"), "list the tokens that do work");
    }
 
+   /** Mirrors {@code LegendFormatGeneralPaneModel.position}. */
+   public static class Position {
+      public String getPosition() { return position; }
+      public void setPosition(String position) { this.position = position; }
+
+      private String position = "Top";
+   }
+
+   /**
+    * {@code LegendFormatDialogModel.getIndexByName} has the identical starts-at-0-on-no-match bug
+    * as {@code trendLineType}'s: {@code set_chart_region_properties}'s own docstring example,
+    * {@code {position: "right"}} (lowercase), silently landed on {@code "Top"} instead of
+    * {@code "Right"}. Found live 2026-09-02.
+    */
+   @Test
+   void storesTheDomainsSpellingNotTheCallersForLegendPosition() {
+      Position target = new Position();
+
+      PropertyPath.set(target, "position", "right");
+
+      assertEquals("Right", target.getPosition(),
+                   "LegendFormatDialogModel.getIndexByName compares with equals() and starts at " +
+                   "0 ('Top'); 'right' would have silently meant 'Top'");
+   }
+
+   @Test
+   void refusesALegendPositionOutsideTheDomainListingTheValid() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(new Position(), "position", "sideways"));
+
+      assertTrue(thrown.getMessage().contains("position"), "name the property");
+      assertTrue(thrown.getMessage().contains("Right"), "list the tokens that do work");
+   }
+
    @Test
    void anUnconstrainedStringKeepsTheCallersSpelling() {
       Leaf leaf = new Leaf();

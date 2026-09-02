@@ -80,6 +80,24 @@ public final class AestheticChannels {
    public static String requireFieldChannel(String channel, boolean relationChart,
                                             boolean sizeSupported)
    {
+      return requireFieldChannel(channel, relationChart, sizeSupported, true);
+   }
+
+   /**
+    * @param relationChart        see {@link #requireFieldChannel(String, boolean)}.
+    * @param sizeSupported        see {@link #requireFieldChannel(String, boolean, boolean)}.
+    * @param colorShapeSupported  whether the target chart type renders {@code color}/{@code
+    *                             shape} as field-driven aesthetics — {@code false} for a
+    *                             contour chart ({@code !GraphTypes.isContour(chartType)}).
+    *                             A contour chart's colour is chart-level density shading, not a
+    *                             per-point/per-category binding, and it has no point markers for
+    *                             shape to vary at all — live-confirmed 2026-09-01 (L3-Group3
+    *                             G3-1/G3-2): both channels accepted a field and stored it, but
+    *                             the render showed no per-category variation for either.
+    */
+   public static String requireFieldChannel(String channel, boolean relationChart,
+                                            boolean sizeSupported, boolean colorShapeSupported)
+   {
       String name = normalize(channel);
 
       if(NODE_CHANNELS.contains(name)) {
@@ -96,6 +114,14 @@ public final class AestheticChannels {
          throw new IllegalArgumentException(
             "Channel 'size' is not supported on this chart type — it accepts no size aesthetic " +
             "and a binding here would never be rendered. Field channels: " +
+            String.join(", ", FIELD_CHANNELS) + ".");
+      }
+
+      if(("color".equals(name) || "shape".equals(name)) && !colorShapeSupported) {
+         throw new IllegalArgumentException(
+            "Channel '" + channel + "' is not supported on a contour chart — colour there is " +
+            "chart-level density shading, not a field-driven aesthetic, and there are no point " +
+            "markers for shape to vary. A binding here would never be rendered. Field channels: " +
             String.join(", ", FIELD_CHANNELS) + ".");
       }
 

@@ -36,9 +36,31 @@ import java.util.Map;
  *                  parameters (e.g. the dataset id is itself the one property value a query needs)
  *                  or the connector has not implemented this yet. Never null — use the 3-arg
  *                  constructor below, which defaults to {@link Map#of()}, rather than passing null.
+ * @param columnsMayBeIncomplete true when {@code columns} was only inferred from a bounded scan of
+ *                  the source rather than read from the source's own declared metadata, so the
+ *                  list above may be missing columns the source actually holds. False for every
+ *                  connector that reads a declared schema (a JDBC catalog, an EDMX document, a list
+ *                  endpoint) — see {@link TabularCatalogProvider#describeDataset}. Deliberately a
+ *                  dataset-level fact, not a per-column one: every column returned by one
+ *                  {@code describeDataset} call comes from the same scan and shares the same trust
+ *                  level.
  */
 public record TabularDatasetSchema(String datasetId, List<TabularColumn> columns,
-                                   List<String> keyColumns, Map<String, String> params) {
+                                   List<String> keyColumns, Map<String, String> params,
+                                   boolean columnsMayBeIncomplete) {
+   /**
+    * Compatibility constructor for callers written before {@code columnsMayBeIncomplete} existed —
+    * every existing connector's construction site. Defaults to {@code false}: Cassandra, Hive,
+    * OData, and SharePoint Online all read declared, source-published metadata rather than
+    * inferring columns from a bounded scan, so "this list is authoritative" is the true fact about
+    * them, not just a compatibility default.
+    */
+   public TabularDatasetSchema(String datasetId, List<TabularColumn> columns,
+                               List<String> keyColumns, Map<String, String> params)
+   {
+      this(datasetId, columns, keyColumns, params, false);
+   }
+
    /**
     * Compatibility constructor for callers written before {@code params} existed — every existing
     * connector-test construction site and any connector that has not opted into target binding

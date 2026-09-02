@@ -18,7 +18,10 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.internal.Util;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.graph.VSMapInfo;
 import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
@@ -50,7 +53,7 @@ public final class ChartBindingMutator {
 
    public static void setShelf(ChartBindingModel model, String shelf, List<FieldRef> fields) {
       try {
-         setShelf(model, shelf, fields, null, null, null);
+         setShelf(model, shelf, fields, null, null, null, null);
       }
       catch(RuntimeException e) {
          throw e; // preserve e.g. requireType's IllegalArgumentException as-is
@@ -71,6 +74,21 @@ public final class ChartBindingMutator {
                                DataRefModelFactoryService refModelService)
       throws Exception
    {
+      setShelf(model, shelf, fields, rvs, source, refModelService, null);
+   }
+
+   /**
+    * @param chartInfo      the chart's live {@code VSChartInfo}, so this write can be checked
+    *                       against the org's column-count limit before it lands — the same
+    *                       check {@code VSChartDndService.addColumns} makes for a drag-drop add.
+    *                       {@code null} skips the check (matching the no-chartInfo overloads,
+    *                       used where no live chart/session is available, e.g. unit tests).
+    */
+   public static void setShelf(ChartBindingModel model, String shelf, List<FieldRef> fields,
+                               RuntimeViewsheet rvs, SourceInfo source,
+                               DataRefModelFactoryService refModelService, VSChartInfo chartInfo)
+      throws Exception
+   {
       String name = shelf == null ? "" : shelf.trim().toLowerCase();
 
       if(SINGLE_SHELVES.contains(name)) {
@@ -86,6 +104,8 @@ public final class ChartBindingMutator {
             String.join(", ", SHELVES) + ". Single-field shelves (open, high, low, close, path, " +
             "source, target, start, end, milestone) use set_chart_single_shelf.");
       }
+
+      requireColumnLimit(chartInfo, readShelf(model, name).size(), fields == null ? 0 : fields.size());
 
       List<ChartRefModel> refs = new ArrayList<>();
 
@@ -121,7 +141,7 @@ public final class ChartBindingMutator {
     */
    public static void setSingleShelf(ChartBindingModel model, String shelf, FieldRef field) {
       try {
-         setSingleShelf(model, shelf, field, null, null, null);
+         setSingleShelf(model, shelf, field, null, null, null, null);
       }
       catch(RuntimeException e) {
          throw e; // preserve e.g. requireSingleShelf's IllegalArgumentException as-is
@@ -137,7 +157,24 @@ public final class ChartBindingMutator {
                                      DataRefModelFactoryService refModelService)
       throws Exception
    {
+      setSingleShelf(model, shelf, field, rvs, source, refModelService, null);
+   }
+
+   /**
+    * @param chartInfo see {@link #setShelf(ChartBindingModel, String, List, RuntimeViewsheet,
+    *                  SourceInfo, DataRefModelFactoryService, VSChartInfo)}'s {@code chartInfo}.
+    */
+   public static void setSingleShelf(ChartBindingModel model, String shelf, FieldRef field,
+                                     RuntimeViewsheet rvs, SourceInfo source,
+                                     DataRefModelFactoryService refModelService,
+                                     VSChartInfo chartInfo)
+      throws Exception
+   {
       String name = requireSingleShelf(shelf);
+      int oldCount = readSingleShelf(model, name) == null ? 0 : 1;
+      int newCount = field == null ? 0 : 1;
+      requireColumnLimit(chartInfo, oldCount, newCount);
+
       ChartRefModel ref = field == null
          ? null : FieldRefFactory.toChartRef(field, rvs, source, refModelService);
 
@@ -152,6 +189,37 @@ public final class ChartBindingMutator {
       case "start" -> model.setStartField(ref);
       case "end" -> model.setEndField(ref);
       default -> model.setMilestoneField(ref);
+      }
+   }
+
+   /**
+    * Refuses a shelf write that would push the chart's total bound-field count (every shelf plus
+    * every aesthetic channel, mirroring {@code VSChartInfo.getFields()} — the same total
+    * {@code VSChartDndService.addColumns} checks for a drag-drop add) past
+    * {@code Util.getOrganizationMaxColumn()}. {@code chartInfo == null} skips the check: there is
+    * no live chart to total against (the no-chartInfo overloads used by unit tests and any other
+    * caller that only has a bare {@code ChartBindingModel}).
+    *
+    * <p>The check only fires on <b>net growth</b> of this shelf ({@code newShelfCount >
+    * oldShelfCount}). A net-neutral or net-decreasing edit is always allowed, regardless of the
+    * chart's pre-existing total — mirroring how native's own add/remove split behaves:
+    * {@code VSChartDndService.addColumns} caps a drag-drop add, but
+    * {@code VSChartDndService.removeColumns} has no limit check at all. Without this guard, a
+    * chart that is already over budget (grandfathered, or the org limit lowered by an admin after
+    * the chart was created) would become permanently unable to have any shelf edited through this
+    * path — even a strict shrink — because the absolute post-edit total would still read over
+    * limit.
+    */
+   private static void requireColumnLimit(VSChartInfo chartInfo, int oldShelfCount, int newShelfCount) {
+      if(chartInfo == null || newShelfCount <= oldShelfCount) {
+         return;
+      }
+
+      int geoSize = chartInfo instanceof VSMapInfo ? ((VSMapInfo) chartInfo).getGeoFieldCount() : 0;
+      int total = chartInfo.getFields().length + geoSize - oldShelfCount + newShelfCount;
+
+      if(total > Util.getOrganizationMaxColumn()) {
+         throw new IllegalArgumentException(Util.getColumnLimitMessage());
       }
    }
 

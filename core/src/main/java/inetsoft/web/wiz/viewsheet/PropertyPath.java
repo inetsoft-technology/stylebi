@@ -531,5 +531,10 @@ public final class PropertyPath {
       // ChartLinePaneModel.getIndexByName walks TRENDLINE_NAMES with equals() and starts its
       // index at 0, so anything it does not match exactly becomes "NONE" with no complaint.
       "trendLineType", Set.of("NONE", "Linear", "Quadratic", "Cubic", "Exponential",
-                              "Logarithmic", "Power"));
+                              "Logarithmic", "Power"),
+      // LegendFormatDialogModel.getIndexByName has the identical starts-at-0 bug against
+      // LEGEND_POSITIONS: set_chart_region_properties({region:"legend", properties:
+      // {position:"right"}}) -- literally this tool's own docstring example -- silently landed
+      // on "Top" instead, confirmed live 2026-09-02.
+      "position", Set.of("Top", "Right", "Bottom", "Left", "In Place"));
 }

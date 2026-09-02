@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -100,6 +101,612 @@ class ChartRegionPropertyServiceTest {
                                                             any(Principal.class), any());
    }
 
+   /**
+    * A categorical (dimension) axis given a linear-only property used to be silently accepted:
+    * {@code getAxisPropertyDialogModel} always asked for area index 0, which
+    * {@code ChartRegionHandler.createAxisPropertyDialogModel} used to <em>infer</em> linearity
+    * from whichever leaf area happened to sort first on screen rather than from the bound field,
+    * so an ordinary bottom x-axis came back {@code isLinear: true} regardless of what was bound
+    * to it. Live evidence: {@code minimum:"5"} on a year-grouped date dimension was persisted and
+    * rendered as a fabricated numeric axis, corrupting the chart (2026-09-02). This checks
+    * linearity independently, off the actual bound ref, before the buggy area-index path is ever
+    * reached.
+    */
+   @Test
+   void refusesLinearOnlyAxisPropertiesOnADimensionAxis() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("minimum", "5", "reverse", true), ""));
+
+      assertTrue(thrown.getMessage().contains("minimum"));
+      assertTrue(thrown.getMessage().contains("reverse"));
+      assertTrue(thrown.getMessage().contains("'x'"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** The same categorical axis must still accept properties that apply regardless of type. */
+   @Test
+   void stillAcceptsNonLinearAxisPropertiesOnADimensionAxis() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                    Map.of("showAxisLine", false, "ignoreNull", true), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /** The genuinely linear y-axis (a real measure, per the default harness) must be unaffected. */
+   @Test
+   void stillAcceptsLinearOnlyAxisPropertiesOnAMeasureAxis() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                    Map.of("minimum", "5", "reverse", true), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /**
+    * A repair-review catch, live 2026-09-02: the first cut of the linearity check asked "does
+    * ANY field on this shelf happen to be a measure" instead of resolving the specific field this
+    * call addresses. On a shelf carrying both a dimension and a measure of the same axis type —
+    * exactly the case {@code vocabulary()}'s own note describes ("to address one of several axes
+    * of the same type... pass the column name as 'field'") — that let a write aimed at the
+    * dimension slip through because a measure happened to sit on the same shelf, reopening the
+    * exact corruption this fix exists to close.
+    */
+   @Test
+   void refusesLinearOnlyKeysOnADimensionFieldEvenWhenTheShelfAlsoHasAMeasure() {
+      VSChartDimensionRef dimension = mock(VSChartDimensionRef.class);
+      when(dimension.getFullName()).thenReturn("Year(ORDER_DATE)");
+      when(dimension.getName()).thenReturn("ORDER_DATE");
+      VSChartAggregateRef measure = mock(VSChartAggregateRef.class);
+      when(measure.isSecondaryY()).thenReturn(false);
+      when(measure.getFullName()).thenReturn("Sum(Total)");
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { dimension, measure }));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", "Year(ORDER_DATE)",
+                             Map.of("minimum", "5"), ""));
+
+      assertTrue(thrown.getMessage().contains("minimum"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** The measure on that same mixed shelf must still be reachable via its own 'field'. */
+   @Test
+   void stillAcceptsLinearOnlyKeysOnTheMeasureFieldOfAMixedShelf() throws Exception {
+      VSChartDimensionRef dimension = mock(VSChartDimensionRef.class);
+      when(dimension.getFullName()).thenReturn("Year(ORDER_DATE)");
+      VSChartAggregateRef measure = mock(VSChartAggregateRef.class);
+      when(measure.isSecondaryY()).thenReturn(false);
+      when(measure.getFullName()).thenReturn("Sum(Total)");
+      when(measure.getName()).thenReturn("Sum(Total)");
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { dimension, measure }));
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", "Sum(Total)",
+                    Map.of("minimum", "5"), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /**
+    * A repair-review catch, live 2026-09-02: the first cut only required
+    * {@code isSecondaryY()} on the SECONDARY side ({@code !secondary || isSecondaryY()}), which
+    * degrades to "any measure at all" on the PRIMARY side. A chart whose only y-shelf measure is
+    * itself flagged secondary must still refuse a write to the primary 'y' — that primary axis is
+    * a grid-line carrier mirroring the real (secondary) one, per
+    * {@code ChartRegionResolver}'s own documentation, not a genuine linear axis of its own.
+    */
+   @Test
+   void refusesLinearOnlyKeysOnAPrimaryAxisWhoseOnlyMeasureIsFlaggedSecondary() {
+      VSChartAggregateRef onlySecondary = mock(VSChartAggregateRef.class);
+      when(onlySecondary.isSecondaryY()).thenReturn(true);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getXFields()).thenReturn(new ChartRef[] { mock(VSChartDimensionRef.class) });
+      when(info.getYFields()).thenReturn(new ChartRef[] { onlySecondary });
+      when(info.isInvertedGraph()).thenReturn(false);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(chart);
+
+      Harness h = harness(vs);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                             Map.of("minimum", "5"), ""));
+
+      assertTrue(thrown.getMessage().contains("minimum"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /**
+    * Claude review (stylebi PR #4942): an earlier cut of the shelf lookup XOR'd {@code onYShelf}
+    * with {@code isInvertedGraph()}, which resolves every canonical target to the wrong shelf on
+    * any inverted chart. On an inverted chart the dimension sits on the Y shelf (per
+    * {@code isInvertedGraph()}'s own definition -- a measure on the X shelf, not the Y one) --
+    * canonical 'y' must still refuse a linear-only property, the same as the non-inverted 'x' case
+    * above. Every existing test in this file stubs {@code isInvertedGraph()} false or leaves it
+    * unstubbed (same default), so this branch had zero coverage before.
+    */
+   @Test
+   void refusesLinearOnlyAxisPropertiesOnADimensionAxisWhenTheChartIsInverted() {
+      VSChartAggregateRef measure = mock(VSChartAggregateRef.class);
+      when(measure.isSecondaryY()).thenReturn(false);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getXFields()).thenReturn(new ChartRef[] { measure });
+      when(info.getYFields()).thenReturn(new ChartRef[] { mock(VSChartDimensionRef.class) });
+      when(info.isInvertedGraph()).thenReturn(true);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(chart);
+
+      Harness h = harness(vs);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                             Map.of("minimum", "5"), ""));
+
+      assertTrue(thrown.getMessage().contains("minimum"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** The mirror case: canonical 'x' on that same inverted chart is the real measure axis. */
+   @Test
+   void stillAcceptsLinearOnlyAxisPropertiesOnAMeasureAxisWhenTheChartIsInverted()
+      throws Exception
+   {
+      VSChartAggregateRef measure = mock(VSChartAggregateRef.class);
+      when(measure.isSecondaryY()).thenReturn(false);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getXFields()).thenReturn(new ChartRef[] { measure });
+      when(info.getYFields()).thenReturn(new ChartRef[] { mock(VSChartDimensionRef.class) });
+      when(info.isInvertedGraph()).thenReturn(true);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(chart);
+
+      Harness h = harness(vs);
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null, Map.of("minimum", "5"), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /** L4 finding G3-3: the legend Scale tab (logarithmic/reverse/includeZero) had no tool alias. */
+   @Test
+   void writesLegendScaleProperties() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("logarithmicScale", true, "reverse", true, "includeZero", true), "");
+
+      ArgumentCaptor<LegendFormatDialogModel> captor =
+         ArgumentCaptor.forClass(LegendFormatDialogModel.class);
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                   captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      LegendScalePaneModel scale = captor.getValue().getLegendScalePaneModel();
+      assertTrue(scale.isLogarithmic());
+      assertTrue(scale.isReverse());
+      assertTrue(scale.isIncludeZero());
+   }
+
+   /** L4 finding G3-5: the Title Properties dialog's Rotation fieldset had no tool alias. */
+   @Test
+   void writesTitleRotation() throws Exception {
+      Harness h = harness();
+      when(h.regions.getTitleFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                               any(Principal.class)))
+         .thenReturn(titleModel());
+
+      h.service.set("tok", principal(), "Chart1", "title", "y", null, Map.of("rotation", "-90"), "");
+
+      ArgumentCaptor<TitleFormatDialogModel> captor =
+         ArgumentCaptor.forClass(TitleFormatDialogModel.class);
+      verify(h.regions).setTitleFormatDialogModel(anyString(), anyString(), anyString(),
+                                                  captor.capture(), anyString(),
+                                                  any(Principal.class), any());
+      assertEquals("-90",
+                   captor.getValue().getTitleFormatPaneModel().getRotationRadioGroupModel()
+                      .getRotation());
+   }
+
+   /**
+    * The title's rotation does not accept "auto" -- unlike the axis label's, its own persist step
+    * calls {@code Float.parseFloat} on whatever arrives with no "auto" branch at all, which would
+    * otherwise surface as a raw {@code NumberFormatException} instead of a named refusal.
+    */
+   @Test
+   void refusesAutoRotationOnATitle() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "title", "y", null,
+                             Map.of("rotation", "auto"), ""));
+
+      assertTrue(thrown.getMessage().contains("rotation"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** L4 finding G3-6: the axis Label tab's Rotation fieldset had no tool alias. */
+   @Test
+   void writesAxisLabelRotation() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null, Map.of("rotation", "45"), "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals("45",
+                   captor.getValue().getAxisLabelPaneModel().getRotationRadioGroupModel()
+                      .getRotation());
+   }
+
+   /** Unlike the title, the axis label genuinely offers "auto" -- and normalizes its case. */
+   @Test
+   void writesAutoRotationOnAnAxisCaseInsensitively() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null, Map.of("rotation", "AUTO"), "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals("auto",
+                   captor.getValue().getAxisLabelPaneModel().getRotationRadioGroupModel()
+                      .getRotation(),
+                   "AxisPropertyDialogModel matches \"auto\" case-sensitively, so the canonical " +
+                   "lowercase form must reach it, not the caller's original casing");
+   }
+
+   @Test
+   void refusesARotationOutsideEitherDomain() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                             Map.of("rotation", "30"), ""));
+
+      assertTrue(thrown.getMessage().contains("30"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /**
+    * Repair-review finding on G3-5/G3-6: neither model ever stores a bare integer string.
+    * {@code AxisPropertyDialogModel.updateAxisPropertyDialogModel} populates
+    * {@code RotationRadioGroupModel} via {@code rotation + ""} on a {@code Float} field, which
+    * yields {@code "90.0"} -- the exact form {@code list_chart_region_properties} would read back
+    * and the exact form the Composer UI's own radio group writes. A round trip through this tool
+    * must not be rejected just because the stored form has a decimal point.
+    */
+   @Test
+   void writesAxisLabelRotationSuppliedInTheModelsOwnDecimalForm() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null, Map.of("rotation", "-45.0"),
+                    "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals("-45",
+                   captor.getValue().getAxisLabelPaneModel().getRotationRadioGroupModel()
+                      .getRotation());
+   }
+
+   /** Same round-trip form on the title side, which has no "auto" branch to fall back on. */
+   @Test
+   void writesTitleRotationSuppliedInTheModelsOwnDecimalForm() throws Exception {
+      Harness h = harness();
+      when(h.regions.getTitleFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                               any(Principal.class)))
+         .thenReturn(titleModel());
+
+      h.service.set("tok", principal(), "Chart1", "title", "y", null, Map.of("rotation", "90.0"),
+                    "");
+
+      ArgumentCaptor<TitleFormatDialogModel> captor =
+         ArgumentCaptor.forClass(TitleFormatDialogModel.class);
+      verify(h.regions).setTitleFormatDialogModel(anyString(), anyString(), anyString(),
+                                                  captor.capture(), anyString(),
+                                                  any(Principal.class), any());
+      assertEquals("90",
+                   captor.getValue().getTitleFormatPaneModel().getRotationRadioGroupModel()
+                      .getRotation());
+   }
+
+   /** A decimal value that isn't one of the five real angles is still refused. */
+   @Test
+   void refusesADecimalRotationOutsideEitherDomain() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                             Map.of("rotation", "90.5"), ""));
+
+      assertTrue(thrown.getMessage().contains("90.5"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** L4 finding G3-4: the legend Alias tab (per-value label overrides) had no tool alias. */
+   @Test
+   void writesLegendAliases() throws Exception {
+      Harness h = harness();
+      LegendFormatDialogModel model = legendModel();
+      model.getAliasPaneModel().setAliasList(new ModelAlias[] {
+         new ModelAlias("2022", "2022", "2022"),
+         new ModelAlias("2023", "2023", "2023"),
+      });
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(model);
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("aliases", List.of(
+                       Map.of("value", "2022", "alias", "FY22"),
+                       Map.of("value", "2023", "alias", "FY23"))),
+                    "");
+
+      ArgumentCaptor<LegendFormatDialogModel> captor =
+         ArgumentCaptor.forClass(LegendFormatDialogModel.class);
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                   captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      ModelAlias[] written = captor.getValue().getAliasPaneModel().getAliasList();
+      assertEquals(2, written.length);
+      assertEquals("2022", written[0].getValue());
+      assertEquals("FY22", written[0].getAlias());
+      assertEquals("2023", written[1].getValue());
+      assertEquals("FY23", written[1].getAlias());
+   }
+
+   /** L4 finding G3-7: the axis Alias tab (per-value label overrides) had no tool alias. */
+   @Test
+   void writesAxisAliases() throws Exception {
+      Harness h = harness();
+      AxisPropertyDialogModel model = axisModel();
+      model.getAliasPaneModel().setAliasList(new ModelAlias[] {
+         new ModelAlias("West", "West", "West"),
+      });
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                    Map.of("aliases", List.of(Map.of("value", "West", "alias", "Region West"))),
+                    "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      ModelAlias[] written = captor.getValue().getAliasPaneModel().getAliasList();
+      assertEquals(1, written.length);
+      assertEquals("West", written[0].getValue());
+      assertEquals("Region West", written[0].getAlias());
+      assertEquals("West", written[0].getLabel(), "label defaults to the value when omitted");
+   }
+
+   /**
+    * The bug this test exists to pin, found live 2026-09-02 by this audit's own promotion pass
+    * on a real year-grouped axis: {@code AxisPropertyDialogModel.updateAxisPropertyDialogModel}
+    * calls {@code axisDesc.setLabelAlias(value, alias)} with WHATEVER value this service hands
+    * it, unconditionally -- it does not itself match against the real items. A caller supplying
+    * the display text ({@code "2022"}) rather than the real underlying value (a date-grouped
+    * axis's real value is a full timestamp, e.g. {@code "2022-01-01 00:00:00"}) used to have
+    * that alias silently stored under a key nothing ever reads back -- {@code ok:true}, chart
+    * unchanged. This asserts the value actually written is the REAL one, resolved from the
+    * axis's own current alias list (mirroring what list_chart_region_properties already reports),
+    * not the caller's display-text guess.
+    */
+   @Test
+   void resolvesAnAxisAliasValueSuppliedAsItsDisplayLabel() throws Exception {
+      Harness h = harness();
+      AxisPropertyDialogModel model = axisModel();
+      model.getAliasPaneModel().setAliasList(new ModelAlias[] {
+         new ModelAlias("2022", "2022-01-01 00:00:00", "2022"),
+         new ModelAlias("2023", "2023-01-01 00:00:00", "2023"),
+      });
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                    Map.of("aliases", List.of(Map.of("value", "2022", "alias", "FY22"))), "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      ModelAlias written = captor.getValue().getAliasPaneModel().getAliasList()[0];
+      assertEquals("2022-01-01 00:00:00", written.getValue(),
+                   "the REAL value must be written, not the caller's display-text guess -- " +
+                   "AxisPropertyDialogModel keys setLabelAlias on whatever value arrives here " +
+                   "with no matching of its own");
+      assertEquals("FY22", written.getAlias());
+   }
+
+   /** Supplying the real value directly (not the label) must also resolve, unchanged. */
+   @Test
+   void resolvesAnAxisAliasValueSuppliedAsTheRealValue() throws Exception {
+      Harness h = harness();
+      AxisPropertyDialogModel model = axisModel();
+      model.getAliasPaneModel().setAliasList(new ModelAlias[] {
+         new ModelAlias("2022", "2022-01-01 00:00:00", "2022"),
+      });
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                    Map.of("aliases",
+                           List.of(Map.of("value", "2022-01-01 00:00:00", "alias", "FY22"))),
+                    "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals("2022-01-01 00:00:00",
+                   captor.getValue().getAliasPaneModel().getAliasList()[0].getValue());
+   }
+
+   /**
+    * A value matching neither the real value nor the label used to reach the same silent-no-op
+    * shape resolvesAnAxisAliasValueSuppliedAsItsDisplayLabel pins -- refused here instead, naming
+    * what the axis actually has, so the caller can retry with a value that will actually work.
+    */
+   @Test
+   void refusesAnAxisAliasValueMatchingNeitherRealValueNorLabel() throws Exception {
+      Harness h = harness();
+      AxisPropertyDialogModel model = axisModel();
+      model.getAliasPaneModel().setAliasList(new ModelAlias[] {
+         new ModelAlias("2022", "2022-01-01 00:00:00", "2022"),
+      });
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("aliases", List.of(Map.of("value", "9999", "alias", "FY99"))),
+                             ""));
+
+      assertTrue(thrown.getMessage().contains("9999"));
+      assertTrue(thrown.getMessage().contains("2022"));
+      verify(h.regions, never()).setAxisPropertyDialogModel(anyString(), anyString(), anyString(),
+                                                            anyInt(), any(), any(), anyString(),
+                                                            any(Principal.class), any());
+   }
+
+   /**
+    * Repair-review finding on the G3-4/G3-7 fix: an empty {@code current} used to pass the
+    * caller's raw value through unresolved on the theory that empty means "unbound, nothing to
+    * validate against." But {@code current} comes from the executed graph area, not the binding
+    * -- a genuinely bound axis reports empty too when the graph has not been (re-)executed since
+    * a binding/filter change, or the active filter currently excludes every row. Passing the
+    * value through in that window reproduces the exact silent-no-op shape this whole feature
+    * exists to close, for the case most likely to have just changed. Refused instead.
+    */
+   @Test
+   void refusesAnAliasWhenTheRegionReportsNoCurrentValues() throws Exception {
+      Harness h = harness();
+      AxisPropertyDialogModel model = axisModel();
+      model.getAliasPaneModel().setAliasList(new ModelAlias[0]);
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("aliases", List.of(Map.of("value", "2022", "alias", "FY22"))),
+                             ""));
+
+      assertTrue(thrown.getMessage().contains("no known values"), thrown.getMessage());
+      verify(h.regions, never()).setAxisPropertyDialogModel(anyString(), anyString(), anyString(),
+                                                            anyInt(), any(), any(), anyString(),
+                                                            any(Principal.class), any());
+   }
+
+   @Test
+   void refusesAnAliasEntryMissingAlias() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("aliases", List.of(Map.of("value", "2022"))), ""));
+
+      assertTrue(thrown.getMessage().contains("alias"));
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void refusesANonArrayAliasesValue() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("aliases", "not-an-array"), ""));
+
+      assertTrue(thrown.getMessage().contains("array"));
+      verifyNoInteractions(h.regions);
+   }
+
+   private static Viewsheet mixedShelfViewsheet(ChartRef[] xFields) {
+      VSChartAggregateRef y = mock(VSChartAggregateRef.class);
+      when(y.isSecondaryY()).thenReturn(false);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getXFields()).thenReturn(xFields);
+      when(info.getYFields()).thenReturn(new ChartRef[] { y });
+      when(info.isInvertedGraph()).thenReturn(false);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(chart);
+      return vs;
+   }
+
    @Test
    void writesALegendPropertyAddressedByIndex() throws Exception {
       Harness h = harness();
@@ -116,6 +723,33 @@ class ChartRegionPropertyServiceTest {
                                                    captor.capture(), anyString(),
                                                    any(Principal.class), any());
       assertFalse(captor.getValue().getLegendFormatGeneralPaneModel().isVisible());
+   }
+
+   /**
+    * The legend's {@code title} property must land on {@code titleValue} — the field
+    * {@code legend-format-general-pane.component.html} actually binds
+    * ({@code [(value)]="model.titleValue"}; {@code title} is only the read-only {@code origValue}
+    * placeholder). Aliasing it onto {@code title} used to return {@code ok:true} and change
+    * nothing, since {@code LegendFormatDialogModel.updateLegendFormatDialogModel} only ever reads
+    * {@code getTitleValue()}. Found live 2026-09-02.
+    */
+   @Test
+   void writesLegendTitleOntoTheEditableTitleValueField() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("title", "Revenue by Year"), "");
+
+      ArgumentCaptor<LegendFormatDialogModel> captor =
+         ArgumentCaptor.forClass(LegendFormatDialogModel.class);
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                   captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals("Revenue by Year",
+                   captor.getValue().getLegendFormatGeneralPaneModel().getTitleValue());
    }
 
    @Test
@@ -366,19 +1000,26 @@ class ChartRegionPropertyServiceTest {
    private static AxisPropertyDialogModel axisModel() {
       AxisPropertyDialogModel model = new AxisPropertyDialogModel();
       model.setAxisLinePaneModel(new AxisLinePaneModel());
-      model.setAxisLabelPaneModel(new AxisLabelPaneModel());
+      AxisLabelPaneModel labelPaneModel = new AxisLabelPaneModel();
+      labelPaneModel.setRotationRadioGroupModel(new RotationRadioGroupModel());
+      model.setAxisLabelPaneModel(labelPaneModel);
+      model.setAliasPaneModel(new AliasPaneModel());
       return model;
    }
 
    private static LegendFormatDialogModel legendModel() {
       LegendFormatDialogModel model = new LegendFormatDialogModel();
       model.setLegendFormatGeneralPaneModel(new LegendFormatGeneralPaneModel());
+      model.setLegendScalePaneModel(new LegendScalePaneModel());
+      model.setAliasPaneModel(new AliasPaneModel());
       return model;
    }
 
    private static TitleFormatDialogModel titleModel() {
       TitleFormatDialogModel model = new TitleFormatDialogModel();
-      model.setTitleFormatPaneModel(new TitleFormatPaneModel());
+      TitleFormatPaneModel paneModel = new TitleFormatPaneModel();
+      paneModel.setRotationRadioGroupModel(new RotationRadioGroupModel());
+      model.setTitleFormatPaneModel(paneModel);
       return model;
    }
 
@@ -391,10 +1032,12 @@ class ChartRegionPropertyServiceTest {
    }
 
    private static Harness harness(boolean secondaryAxis) {
+      return harness(viewsheet(secondaryAxis));
+   }
+
+   private static Harness harness(Viewsheet vs) {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
-      // Built first: calling viewsheet() inside the when(...) argument is nested stubbing.
-      Viewsheet vs = viewsheet(secondaryAxis);
       when(rvs.getViewsheet()).thenReturn(vs);
 
       try {

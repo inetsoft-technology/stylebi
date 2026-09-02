@@ -1010,19 +1010,42 @@ public final class ChartAestheticMutator {
    public static Map<String, Object> describe(ChartBindingModel model, boolean relationChart,
                                               Collection<String> perMeasureFrameChannels)
    {
+      return describe(model, relationChart, perMeasureFrameChannels, true, true);
+   }
+
+   /**
+    * @param sizeSupported       see {@link AestheticChannels#requireFieldChannel(String,
+    *                            boolean, boolean, boolean)}. When {@code false}, {@code size}'s
+    *                            {@code acceptsField} reports {@code false} too — otherwise this
+    *                            read and {@code set_aesthetic_field}'s own write-time refusal
+    *                            disagree about whether the channel is writable (live-confirmed
+    *                            2026-09-01, L3-Group4 G4-4: a mekko chart's {@code size} channel
+    *                            reported {@code acceptsField:true} here, then
+    *                            {@code set_aesthetic_field} refused the identical write).
+    * @param colorShapeSupported see {@link AestheticChannels#requireFieldChannel(String, boolean,
+    *                            boolean, boolean)}. Same reasoning, for {@code color}/{@code
+    *                            shape} on a contour chart (L3-Group3 G3-1/G3-2).
+    */
+   public static Map<String, Object> describe(ChartBindingModel model, boolean relationChart,
+                                              Collection<String> perMeasureFrameChannels,
+                                              boolean sizeSupported, boolean colorShapeSupported)
+   {
       Map<String, Object> out = new LinkedHashMap<>();
 
       for(String channel : AestheticChannels.FIELD_CHANNELS) {
-         out.put(channel, channelView(model, channel, perMeasureFrameChannels));
+         out.put(channel, channelView(model, channel, perMeasureFrameChannels,
+                                       sizeSupported, colorShapeSupported));
       }
 
       for(String channel : AestheticChannels.FRAME_CHANNELS) {
-         out.computeIfAbsent(channel, name -> channelView(model, name, perMeasureFrameChannels));
+         out.computeIfAbsent(channel, name -> channelView(
+            model, name, perMeasureFrameChannels, sizeSupported, colorShapeSupported));
       }
 
       if(relationChart) {
          for(String channel : AestheticChannels.NODE_CHANNELS) {
-            out.put(channel, channelView(model, channel, perMeasureFrameChannels));
+            out.put(channel, channelView(model, channel, perMeasureFrameChannels,
+                                          sizeSupported, colorShapeSupported));
          }
       }
 
@@ -1071,6 +1094,42 @@ public final class ChartAestheticMutator {
    private static boolean acceptsField(String channel) {
       return AestheticChannels.FIELD_CHANNELS.contains(channel) ||
          AestheticChannels.NODE_CHANNELS.contains(channel);
+   }
+
+   /**
+    * Whether the <em>current chart type</em> actually renders a field bound to this channel —
+    * as opposed to {@link #acceptsField(String)}, which only asks whether the channel has a
+    * field slot in the model at all, independent of chart type. This is what the reported
+    * {@code "acceptsField"} view property must reflect: it feeds a caller's decision to call
+    * {@code set_aesthetic_field}, and that write enforces exactly this same
+    * {@code sizeSupported}/{@code colorShapeSupported} gate ({@link
+    * AestheticChannels#requireFieldChannel(String, boolean, boolean, boolean)}) — reporting
+    * {@code acceptsField(channel)}'s structural answer here instead let the two disagree
+    * (live-confirmed 2026-09-01, L3-Group4 G4-4: {@code get_chart_aesthetics} reported
+    * {@code size.acceptsField:true} on a mekko chart, then {@code set_aesthetic_field} refused
+    * the identical write).
+    *
+    * @param sizeSupported       see {@link #describe(ChartBindingModel, boolean, Collection,
+    *                            boolean, boolean)}.
+    * @param colorShapeSupported see {@link #describe(ChartBindingModel, boolean, Collection,
+    *                            boolean, boolean)}.
+    */
+   private static boolean rendersField(String channel, boolean sizeSupported,
+                                       boolean colorShapeSupported)
+   {
+      if(!acceptsField(channel)) {
+         return false;
+      }
+
+      if("size".equals(channel)) {
+         return sizeSupported;
+      }
+
+      if("color".equals(channel) || "shape".equals(channel)) {
+         return colorShapeSupported;
+      }
+
+      return true;
    }
 
    /**
@@ -1130,13 +1189,27 @@ public final class ChartAestheticMutator {
    private static Map<String, Object> channelView(ChartBindingModel model, String channel,
                                                   Collection<String> perMeasureFrameChannels)
    {
+      return channelView(model, channel, perMeasureFrameChannels, true, true);
+   }
+
+   /**
+    * @param sizeSupported       see {@link #describe(ChartBindingModel, boolean, Collection,
+    *                            boolean, boolean)}.
+    * @param colorShapeSupported see {@link #describe(ChartBindingModel, boolean, Collection,
+    *                            boolean, boolean)}.
+    */
+   private static Map<String, Object> channelView(ChartBindingModel model, String channel,
+                                                  Collection<String> perMeasureFrameChannels,
+                                                  boolean sizeSupported,
+                                                  boolean colorShapeSupported)
+   {
       Map<String, Object> view = new LinkedHashMap<>();
       AestheticInfo info = frameField(model, channel);
 
       view.put("field", fieldNameOf(info));
       view.put("frame",
                VisualFrameAliases.describe(frameOf(model, channel, perMeasureFrameChannels)));
-      view.put("acceptsField", acceptsField(channel));
+      view.put("acceptsField", rendersField(channel, sizeSupported, colorShapeSupported));
       view.put("acceptsFrame", acceptsFrame(channel));
 
       Map<String, Object> perMeasure =

@@ -20,7 +20,6 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.uql.XConstants;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
-import inetsoft.web.wiz.binding.VisualFrameAliases;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -41,8 +40,16 @@ import java.util.*;
  * once serialized a 67 KB timezone table into the response; the normalized shape here carries
  * only what a caller can act on.
  *
- * <p>{@code DateComparisonPaneModel} also carries a {@code VisualFrameModel}, so it reuses spec
- * 2c's frame vocabulary rather than a parallel one.
+ * <p>{@code DateComparisonPaneModel} also carries a {@code VisualFrameModel}, and this service
+ * deliberately does <b>not</b> expose it. The date-comparison palette is disabled product-wide:
+ * every point that would apply it is commented out behind an {@code @dcColorRemove} marker — the
+ * dialog row in {@code date-comparison-pane.component.html}, three blocks plus
+ * {@code refreshDcColorFrame()} in {@code ChartDcProcessor}, and the crosstab-to-chart handoff in
+ * {@code DateComparisonUtil}. What replaced it is {@code ChartDcProcessor}'s live path, where the
+ * trend point/line simply takes its bar's colour. The model still round-trips a frame, so a tool
+ * that accepted one would store it, report it back, and change nothing on the chart — a silent
+ * success is worse than no knob at all. If the marker is ever lifted, this is the place to
+ * re-expose it.
  */
 @Service
 public class DateComparisonService {
@@ -63,8 +70,7 @@ public class DateComparisonService {
     * @param endToday anchor the range on today instead of an explicit end
     */
    public record Comparison(Integer periods, String level, String endDate, boolean endToday,
-                            String interval, Boolean useFacet, Boolean onlyShowMostRecentDate,
-                            Map<String, Object> frame) {}
+                            String interval, Boolean useFacet, Boolean onlyShowMostRecentDate) {}
 
    /** The current settings, normalized. Never echoes the raw cell format. */
    public Map<String, Object> read(String sessionToken, Principal user, String assemblyName)
@@ -94,8 +100,6 @@ public class DateComparisonService {
       out.put("onlyShowMostRecentDate", model.isOnlyShowMostRecentDate());
       out.put("period", describePeriod(model.getPeriodPaneModel()));
       out.put("interval", describeInterval(model.getIntervalPaneModel()));
-      // The frame is described through 2c's vocabulary, so no FQCN reaches the caller.
-      out.put("frame", VisualFrameAliases.describe(model.getVisualFrameModel()));
       return out;
    }
 
@@ -195,10 +199,6 @@ public class DateComparisonService {
 
       if(comparison.onlyShowMostRecentDate() != null) {
          model.setOnlyShowMostRecentDate(comparison.onlyShowMostRecentDate());
-      }
-
-      if(comparison.frame() != null) {
-         model.setVisualFrameModel(VisualFrameAliases.create("color", comparison.frame()));
       }
 
       PeriodPaneModel periods = model.getPeriodPaneModel();

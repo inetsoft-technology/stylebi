@@ -1,0 +1,101 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.uql.aerospike;
+
+import inetsoft.util.ConfigurationContext;
+import inetsoft.util.credential.*;
+import org.junit.jupiter.api.*;
+import org.springframework.context.ApplicationContext;
+
+import java.time.Duration;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ * Covers charter assertion A4's "blank Namespace" path through {@link AerospikeRuntime}'s new SPI
+ * methods -- the one part of A4 that is provably testable without a real cluster or the
+ * aerospike-jdbc driver actually connecting, since {@code requireNamespace} runs before
+ * {@link AerospikeRuntime}'s private {@code getConnection} is ever called. Both data sources here
+ * point at a reserved, documentation-only address (RFC 5737 TEST-NET-2, 198.51.100.1) that is
+ * guaranteed never to be dialed: if the guard did not run first, connecting would attempt a real
+ * (doomed) TCP handshake and fail with a driver connection exception instead of this method's own
+ * message -- {@link Assertions#assertTimeout} additionally bounds the wait for that reason.
+ */
+class AerospikeRuntimeCatalogTest {
+   private static final String UNROUTABLE_HOST = "198.51.100.1";
+
+   @BeforeAll
+   static void mockService() {
+      CredentialService credentialService = mock(CredentialService.class);
+      when(credentialService.createCredential(CredentialType.PASSWORD))
+         .thenReturn(mock(LocalPasswordCredential.class));
+      when(credentialService.createCredential(CredentialType.PASSWORD, false))
+         .thenReturn(mock(LocalPasswordCredential.class));
+      ApplicationContext context = mock(ApplicationContext.class);
+      when(context.getBean(CredentialService.class)).thenReturn(credentialService);
+      ConfigurationContext.getContext().setApplicationContext(context);
+   }
+
+   @AfterAll
+   static void resetContext() {
+      ConfigurationContext.getContext().setApplicationContext(null);
+   }
+
+   @Test
+   void listDatasets_blankNamespace_throwsBeforeConnecting() {
+      AerospikeDataSource ds = new AerospikeDataSource();
+      ds.setHost(UNROUTABLE_HOST);
+      ds.setNamespace("");
+      AerospikeRuntime runtime = new AerospikeRuntime();
+
+      Exception ex = assertTimeout(Duration.ofSeconds(2),
+         () -> assertThrows(Exception.class, () -> runtime.listDatasets(ds)));
+
+      assertTrue(ex.getMessage().contains("no namespace configured"));
+   }
+
+   @Test
+   void describeDataset_nullNamespace_throwsBeforeConnecting() {
+      AerospikeDataSource ds = new AerospikeDataSource();
+      ds.setHost(UNROUTABLE_HOST);
+      ds.setNamespace(null);
+      AerospikeRuntime runtime = new AerospikeRuntime();
+
+      Exception ex = assertTimeout(Duration.ofSeconds(2),
+         () -> assertThrows(Exception.class, () -> runtime.describeDataset(ds, "any_set")));
+
+      assertTrue(ex.getMessage().contains("no namespace configured"));
+   }
+
+   @Test
+   void listDatasets_whitespaceOnlyNamespace_throwsBeforeConnecting() {
+      // requireNamespace calls String.isBlank(), not just a null/empty check -- "" and null are
+      // both covered above, but neither exercises the .isBlank() branch specifically.
+      AerospikeDataSource ds = new AerospikeDataSource();
+      ds.setHost(UNROUTABLE_HOST);
+      ds.setNamespace("   ");
+      AerospikeRuntime runtime = new AerospikeRuntime();
+
+      Exception ex = assertTimeout(Duration.ofSeconds(2),
+         () -> assertThrows(Exception.class, () -> runtime.listDatasets(ds)));
+
+      assertTrue(ex.getMessage().contains("no namespace configured"));
+   }
+}
