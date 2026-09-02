@@ -509,9 +509,24 @@ public class WizVsService {
             continue;
          }
 
+         int type = resolveAddType(spec.getControlType());
+         String dtype = col.getDataType();
+
+         // TimeSlider's range type (bindColumn) only has a sensible value for numeric/date
+         // columns (mirrors AddFilterService.createFilterAssembly's own gate) -- an explicit
+         // time_slider override (assertion A2) on e.g. a boolean/string column has no sensible
+         // range and must be reported, not silently bound with a MONTH range (07-fix-r5.md).
+         if(type == AbstractSheet.TIME_SLIDER_ASSET &&
+            !(XSchema.isNumericType(dtype) || XSchema.isDateType(dtype)))
+         {
+            skipped.add(new SkippedFilter(spec.getField(),
+               "time_slider is not supported for " + dtype + " columns"));
+            continue;
+         }
+
          resolvable.add(spec);
          resolvedColumns.add(col);
-         resolvedTypes.add(resolveAddType(spec.getControlType()));
+         resolvedTypes.add(type);
       }
 
       // Every live filter-control assembly already sitting below the chart (06-review-r1.md
@@ -813,20 +828,27 @@ public class WizVsService {
       }
       else if(control instanceof TimeSliderVSAssembly slider) {
          String dtype = col.getDataType();
-         SingleTimeInfo tinfo = new SingleTimeInfo();
-         tinfo.setDataRef(col);
 
-         if(XSchema.isNumericType(dtype)) {
-            tinfo.setRangeTypeValue(TimeInfo.NUMBER);
-         }
-         else if(XSchema.TIME.equals(dtype)) {
-            tinfo.setRangeTypeValue(TimeInfo.MINUTE_OF_DAY);
-         }
-         else {
-            tinfo.setRangeTypeValue(TimeInfo.MONTH);
-         }
+         // Mirrors AddFilterService#createFilterAssembly's own outer gate -- addFilters already
+         // skips a time_slider override on a non-numeric/date column before reaching this call
+         // (07-fix-r5.md), but this gate is kept here too so this method can never mis-range a
+         // column its own doc comment above says it must not.
+         if(XSchema.isNumericType(dtype) || XSchema.isDateType(dtype)) {
+            SingleTimeInfo tinfo = new SingleTimeInfo();
+            tinfo.setDataRef(col);
 
-         slider.getTimeSliderInfo().setTimeInfo(tinfo);
+            if(XSchema.isNumericType(dtype)) {
+               tinfo.setRangeTypeValue(TimeInfo.NUMBER);
+            }
+            else if(XSchema.TIME.equals(dtype)) {
+               tinfo.setRangeTypeValue(TimeInfo.MINUTE_OF_DAY);
+            }
+            else {
+               tinfo.setRangeTypeValue(TimeInfo.MONTH);
+            }
+
+            slider.getTimeSliderInfo().setTimeInfo(tinfo);
+         }
       }
    }
 
