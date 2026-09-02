@@ -17,6 +17,10 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.web.binding.controller.ModifyCalculateFieldServiceProxy;
 import inetsoft.web.binding.drm.CalculateRefModel;
@@ -50,11 +54,13 @@ public class CalcFieldAgentService {
    @Autowired
    public CalcFieldAgentService(ViewsheetSessionService sessions,
                                 BindableFieldsService fieldsService,
-                                ModifyCalculateFieldServiceProxy modifyCalculateFieldService)
+                                ModifyCalculateFieldServiceProxy modifyCalculateFieldService,
+                                SecurityEngine securityEngine)
    {
       this.sessions = sessions;
       this.fieldsService = fieldsService;
       this.modifyCalculateFieldService = modifyCalculateFieldService;
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -89,6 +95,16 @@ public class CalcFieldAgentService {
    public void modify(String sessionToken, Principal agent, CalcFieldRequest req, String linkUri)
       throws Exception
    {
+      // ModifyCalculateFieldService.modifyCalculateField itself performs no permission check --
+      // the native Formula Editor dialog's own controller (ModifyCalculateFieldController) is the
+      // sole enforcement point, gating on this exact resource/action. Calling the service directly,
+      // as this class does, bypasses that gate unless it is re-applied here.
+      if(!securityEngine.checkPermission(
+         agent, ResourceType.VIEWSHEET_CALCULATED_FIELD, "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("You do not have permission to modify calculated fields.");
+      }
+
       if(req.table() == null || req.table().isBlank()) {
          throw new IllegalArgumentException(
             "A calc field requires 'table' -- the source table it belongs to, as reported by " +
@@ -200,4 +216,5 @@ public class CalcFieldAgentService {
    private final ViewsheetSessionService sessions;
    private final BindableFieldsService fieldsService;
    private final ModifyCalculateFieldServiceProxy modifyCalculateFieldService;
+   private final SecurityEngine securityEngine;
 }

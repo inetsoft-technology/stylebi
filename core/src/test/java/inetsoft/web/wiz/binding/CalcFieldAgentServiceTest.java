@@ -18,6 +18,10 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.controller.ModifyCalculateFieldServiceProxy;
@@ -54,6 +58,15 @@ class CalcFieldAgentServiceTest {
       return fields;
    }
 
+   /** A SecurityEngine that grants every permission check -- the default for tests not exercising
+   * the VIEWSHEET_CALCULATED_FIELD gate itself. */
+   private static SecurityEngine allowingSecurityEngine() throws Exception {
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(ResourceType.class), anyString(),
+         any(ResourceAction.class))).thenReturn(true);
+      return securityEngine;
+   }
+
    /** A session service whose mutate() runs the mutation immediately against runtime "rt1". */
    private static ViewsheetSessionService sessionsRunningAgainstRt1() throws Exception {
       Viewsheet vs = mock(Viewsheet.class);
@@ -70,11 +83,42 @@ class CalcFieldAgentServiceTest {
       return sessions;
    }
 
+   /**
+    * {@code ModifyCalculateFieldService.modifyCalculateField} performs no permission check of its
+    * own -- {@code ModifyCalculateFieldController} is the sole enforcement point for the native
+    * Formula Editor dialog, gating on {@code VIEWSHEET_CALCULATED_FIELD}/{@code ACCESS}. Calling
+    * the service directly, as this class does, must re-apply that same gate up front, before the
+    * table/name validation, model building, or {@code sessions.mutate} -- an admin-restricted
+    * agent must be refused before any of that runs, not merely before the proxy call.
+    */
+   @Test
+   void refusesWhenCalculatedFieldPermissionIsDenied() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      BindableFieldsService fieldsService = mock(BindableFieldsService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(ResourceType.class), anyString(),
+         any(ResourceAction.class))).thenReturn(false);
+
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessions, fieldsService, proxy, securityEngine);
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "NetTotal", null, "field['Total']", "double", false, true, false, true);
+
+      assertThrows(SecurityException.class,
+         () -> service.modify("tok", principal(), req, ""));
+
+      verifyNoInteractions(proxy);
+      verifyNoInteractions(sessions);
+      verifyNoInteractions(fieldsService);
+   }
+
    @Test
    void requiresTable() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
       CalcFieldAgentService service = new CalcFieldAgentService(
-         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy);
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
 
       CalcFieldRequest req = new CalcFieldRequest(
          null, null, "NetTotal", null, "field['Total']", "double", false, true, false, true);
@@ -89,7 +133,7 @@ class CalcFieldAgentServiceTest {
    void requiresName() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
       CalcFieldAgentService service = new CalcFieldAgentService(
-         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy);
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
 
       CalcFieldRequest req = new CalcFieldRequest(
          "ORDERS", null, "", null, "field['Total']", "double", false, true, false, true);
@@ -104,7 +148,7 @@ class CalcFieldAgentServiceTest {
    void requiresExpressionUnlessRemoving() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
       CalcFieldAgentService service = new CalcFieldAgentService(
-         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy);
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
 
       CalcFieldRequest req = new CalcFieldRequest(
          "ORDERS", null, "NetTotal", null, null, null, null, null, false, true);
@@ -119,7 +163,7 @@ class CalcFieldAgentServiceTest {
    void refusesATableTheListingDoesNotHave() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
       CalcFieldAgentService service = new CalcFieldAgentService(
-         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy);
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
 
       CalcFieldRequest req = new CalcFieldRequest(
          "NO_SUCH_TABLE", null, "NetTotal", null, "field['Total']", "double", false, true, false,
@@ -143,7 +187,7 @@ class CalcFieldAgentServiceTest {
    void resolvesTableNameToTheListingsCanonicalCasing() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
       CalcFieldAgentService service = new CalcFieldAgentService(
-         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy);
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
       Principal agent = principal();
 
       CalcFieldRequest req = new CalcFieldRequest(
@@ -178,7 +222,7 @@ class CalcFieldAgentServiceTest {
       when(fields.list(eq("rt1"), isNull(), any(Principal.class))).thenReturn(List.of(orders));
 
       CalcFieldAgentService service = new CalcFieldAgentService(
-         sessionsRunningAgainstRt1(), fields, proxy);
+         sessionsRunningAgainstRt1(), fields, proxy, allowingSecurityEngine());
       Principal agent = principal();
 
       CalcFieldRequest req = new CalcFieldRequest("ORDERS", "Chart1", "NetTotal", null,
@@ -193,7 +237,7 @@ class CalcFieldAgentServiceTest {
    void createBuildsAnEventWithTheGivenNameAndSensibleDefaults() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
       CalcFieldAgentService service = new CalcFieldAgentService(
-         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy);
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
       Principal agent = principal();
 
       CalcFieldRequest req = new CalcFieldRequest("ORDERS", "Chart1", "NetTotal", null,
@@ -226,7 +270,7 @@ class CalcFieldAgentServiceTest {
    void editWithoutNewNameKeepsTheSameName() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
       CalcFieldAgentService service = new CalcFieldAgentService(
-         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy);
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
       Principal agent = principal();
 
       CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "NetTotal", null,
@@ -249,7 +293,7 @@ class CalcFieldAgentServiceTest {
    void editWithNewNameRenames() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
       CalcFieldAgentService service = new CalcFieldAgentService(
-         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy);
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
       Principal agent = principal();
 
       CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "NetTotal", "NetAfterDiscount",
@@ -273,7 +317,7 @@ class CalcFieldAgentServiceTest {
    void removeSendsNoCalculateRefAndSkipsExpressionValidation() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
       CalcFieldAgentService service = new CalcFieldAgentService(
-         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy);
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
       Principal agent = principal();
 
       CalcFieldRequest req = new CalcFieldRequest(
@@ -318,7 +362,7 @@ class CalcFieldAgentServiceTest {
       }).when(sessions).mutate(anyString(), any(Principal.class), any());
 
       CalcFieldAgentService service = new CalcFieldAgentService(
-         sessions, fieldsServiceWithOrdersTable(), proxy);
+         sessions, fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
       Principal agent = principal();
 
       // Edit: rename only, sql/baseOnDetail/dataType all omitted (null).
@@ -343,7 +387,7 @@ class CalcFieldAgentServiceTest {
    void baseOnDetailFalseIsPreserved() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
       CalcFieldAgentService service = new CalcFieldAgentService(
-         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy);
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
       Principal agent = principal();
 
       CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "AvgDiscountPct", null,
