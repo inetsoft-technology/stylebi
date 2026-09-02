@@ -26,8 +26,7 @@ package inetsoft.web.security;
  * became a 500. The fix switched the thrown type to the unchecked java.lang.SecurityException and
  * added it to ControllerErrorHandler's handler alongside the original checked type (kept for any
  * other code path that still throws it directly). This class had zero test coverage of either half
- * of that fix before this file -- see docs/superpowers/plans/2026-09-01-sso-recent-fixes-test-plan.md
- * section 0 (historical commit 04dfb3074) for how that gap was found.
+ * of that fix before this file.
  */
 
 import inetsoft.sree.AnalyticRepository;
