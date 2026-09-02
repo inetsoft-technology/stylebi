@@ -524,6 +524,16 @@ public class WizVsService {
             continue;
          }
 
+         // Calendar has no numeric-range use case the way TimeSlider does (VZF-017) -- a
+         // "calendar" widget only makes sense over a date/time/timeInstant column, so an explicit
+         // calendar override on a string/numeric column has no sensible date to display and must
+         // be reported, not silently bound (case-vzf-017-calendar-gate/01-diagnosis.md).
+         if(type == AbstractSheet.CALENDAR_ASSET && !XSchema.isDateType(dtype)) {
+            skipped.add(new SkippedFilter(spec.getField(),
+               "calendar is not supported for " + dtype + " columns"));
+            continue;
+         }
+
          resolvable.add(spec);
          resolvedColumns.add(col);
          resolvedTypes.add(type);
@@ -817,14 +827,23 @@ public class WizVsService {
     * setter and binds through a {@link SingleTimeInfo} instead, whose range type must match the
     * column's own data type (numeric/time/date) the same way {@code createFilterAssembly}
     * derives it -- getting this branch wrong (e.g. always defaulting to MONTH) would produce a
-    * control that LOOKS bound but silently mis-ranges a numeric or time-of-day column.
+    * control that LOOKS bound but silently mis-ranges a numeric or time-of-day column. Only
+    * SelectionList is unconditionally safe for any type ("list all distinct values" is meaningful
+    * regardless of dtype); Calendar's {@code setDataRef} is also gated below, to a date type only
+    * (VZF-017) -- unlike TimeSlider, Calendar has no legitimate numeric-range use case.
     */
    private static void bindColumn(AbstractSelectionVSAssembly control, DataRef col) {
       if(control instanceof SelectionListVSAssembly list) {
          list.setDataRef(col);
       }
       else if(control instanceof CalendarVSAssembly calendar) {
-         calendar.setDataRef(col);
+         // Mirrors the TimeSlider branch's own defense-in-depth gate below -- addFilters already
+         // skips a calendar override on a non-date column before reaching this call
+         // (case-vzf-017-calendar-gate/01-diagnosis.md), but this gate is kept here too so this
+         // method can never mis-bind a column its own doc comment above says it must not.
+         if(XSchema.isDateType(col.getDataType())) {
+            calendar.setDataRef(col);
+         }
       }
       else if(control instanceof TimeSliderVSAssembly slider) {
          String dtype = col.getDataType();
