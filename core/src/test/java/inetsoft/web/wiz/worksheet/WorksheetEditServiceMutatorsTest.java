@@ -2735,6 +2735,34 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void editExpressionPreservesExplicitStringPriorTypeWhenTypeOmitted() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("a")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("b")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.addExpressionColumn("T", "calc", "field['a'] * 1", "string", false));
+
+      // An explicit "string" prior type happens to equal the untyped fallback's
+      // *derived* getDataType() value, so a guard that compares against that value
+      // (instead of checking whether a type was ever explicitly set) would wrongly
+      // re-infer here. Omitting "type" on edit_expression must still leave a real,
+      // previously-set explicit "string" type alone, even though the new expression
+      // would otherwise infer as numeric (double).
+      svc.apply("TOK", agent, ed ->
+         ed.editExpression("T", "calc", "field['a'] * field['b']", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("calc");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType());
+   }
+
+   @Test
    void editJoinUpdatesKeyColumns() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id", "altId");

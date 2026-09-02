@@ -1378,10 +1378,10 @@ public final class WorksheetMutationSupport {
                if(type != null) {
                   cr.setDataType(type);
                }
-               else if(XSchema.STRING.equals(cr.getDataType())) {
-                  // Only re-infer when the column is still sitting on the untyped
-                  // fallback -- a real, previously-set explicit type (e.g. "integer")
-                  // must be left alone per the "null = leave unchanged" contract above.
+               else if(!cr.isDataTypeSet()) {
+                  // Only re-infer when the column has never had an explicit type set --
+                  // a real, previously-set explicit type (even "string") must be left
+                  // alone per the "null = leave unchanged" contract above.
                   String inferred = inferNumericExpressionType(t, expression);
 
                   if(inferred != null) {
