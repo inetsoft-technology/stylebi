@@ -1,5 +1,42 @@
 # Chart Card — Roadmap
 
+**Date:** 2026-09-02 (eighteenth revision — **the release gate is empty, and every item the seventeenth
+revision's ranking held has shipped.** Bookmarks, the gate default and the read-time migration are all in,
+and so is F, the anchored rollout, which this file had carried as unblocked-but-unbuilt since 2026-08-13.
+**The branch is feature-complete for a PR into `epic-74519`** — 98 commits ahead of it, 0 behind, and
+`origin/viz-updates` now matches `HEAD` again.
+
+**The dependency picture has no edges left among unshipped items.** That is the single most useful fact in
+this revision and it changes how the ranking below must be read: for the first time since this file was
+written, nothing remaining blocks anything else. Every open item is independent, so "What to pick up next"
+is now a *value* ordering rather than a dependency ordering, and picking the second row before the first
+costs nothing but the difference in value. Two of the four remaining items are additionally blocked on
+something that is not code — a product decision for §10.1, a design pass for the chart interior dark
+palette — so the top of the ranking is the smaller of the two that are merely unbuilt.
+
+**A FOURTH rebase happened, and this time it killed the hashes the file had just written.** Every hash the
+2026-08-31 amendment cited is unreachable: `f47c59304`, `c7790bbf0`, `f499c0ffa`, `bee8d4169`, and group 1's
+range tip `a2610c387`. The group 2 design doc's "verified against `39aa4b252`" is dead the same way. They
+are resolved in the table below with the rest; the amendment's prose keeps its dead hashes, per the standing
+rule that a hash is not rewritten inside a sentence about what a phase found.
+
+**What is left is deferred by decision, not by sequencing, and the file says so in four places already.**
+§10.1 is blocked on a product call about what a kebab-only family does at rest on a desktop; the chart
+interior dark palette is design work because `GDefaults` has no dark branch to reconcile against; and the
+calendar's weekday-header path split is a stored-format change, a different initiative. Everything else
+open is in "Ready now" and is small.
+
+**Amended the same day: §04's last item is DECLINED and §04 is closed.** It was ranked #1 below as the
+one remaining item needing neither a decision nor a design pass. It needed neither — it needed a
+**measurement**, and the measurement declines it: full CSS line-height semantics double-counts the gap
+scale §04 itself shipped, and costs 13.4% of plot height on a small faceted chart. Reasoning, numbers
+and method in [the geometry decisions](./chart-card-geometry-decisions.md) **decision 6**. The ranking's
+row is struck in place rather than the table being re-derived a second time on the same day.
+
+**"What to pick up next" was re-derived, not repaired**, per this file's own instruction. The 2026-08-31
+amendment that patched three rows of the previous ranking is gone with the ranking it patched. The 2026-08-28
+amendment's note follows.
+
 **Amended 2026-08-28 (not a revision — the seventeenth still stands below).** Three additions, all in "What
 to pick up next" and all mirrored in the dependency picture. **Decision 10 / bookmarks is IN FLIGHT in a
 parallel session** — check for its branch before starting it. **A new #2: defaulting
@@ -51,8 +88,11 @@ that day, **decision 13, overrules the org-wide revert sweep**: disabling the ga
 per-dashboard Revert action mirrors Modernize. That collapses most of the release gate into one phase, P6.
 The seventh revision's P4 note, the sixth's P3 note, the fifth's P2 note and the fourth's rebase note are all
 retained below)
-**Verified against:** community `viz-updates` @ `1b8eb3cea`, which is `HEAD`, plus this commit's own working
-tree for the card radius. Every hash in this file was re-checked at this revision with
+**Verified against:** community `viz-updates` @ `920e2cca5`, which is `HEAD` and is also
+`origin/viz-updates`. Every code claim added at this revision was checked against that commit's files, and
+every hash the 2026-08-31 amendment carried was re-checked with `git merge-base --is-ancestor` and found
+dead. The seventeenth revision verified against `1b8eb3cea` plus its own working tree for the card radius;
+that hash is two rewrites gone. Every hash in this file was re-checked at that revision with
 `git merge-base --is-ancestor <hash> HEAD`; the ones that failed are named in the Done section. The twelfth
 revision's "verified against `8ef511e45`" is one of the failures — that hash is no longer reachable. The seventh
 revision verified against `cd06da9b1` plus P4's then-uncommitted working tree; that has since committed
@@ -107,6 +147,17 @@ Resolve them here instead:
 | `1d26dbefb` | `df3044734` | N — `userTitleHeight`, the flag |
 | `d4d0d5d48` | `5d0c7782f` | N — `userTitleHeight`, the stamps |
 
+**And the fourth rebase killed the "Current" column above too, along with every hash in the Done table.**
+Resolving them a second time would repeat the exercise a fifth rebase then undoes. Read the whole
+right-hand column as "some earlier commit", and use the SUBJECT to find the current commit:
+`git log --oneline --grep="<subject>"`. The Done table now carries subjects for exactly this reason, and
+the subjects for the nine rows above are, in order: *"record which gate an assembly was created under"*,
+*"resolve modern defaults from a context, not the gate"*, *"survive a host viewsheet with no assembly
+info"*, *"seed modern chrome from one hook, and modernize on request"*, *"render from the assembly's mark,
+not the org gate"*, *"scope modern chrome to the assembly in the browser"*, *"suppress the anchored strip
+where the title lane cannot hold it"*, *"record whether a title height was set by its author"* and *"mark
+title heights an author chose"*.
+
 Hashes from earlier revisions — `8357e05d8`, `952614aa7`, `1c0ace705`, `55c3bad1a`, `07c91926e`,
 `307a6ee09`, `a38cb6957`, `e7ef501fb`, `881a9b049`, `ef42a6c65`, `35ca4fce0`, `27ea5fdd5` — are two or three
 rewrites dead and are not worth resolving; read them as "some earlier commit". **When this branch is rebased
@@ -127,16 +178,28 @@ rather than repairing it — the whole of its content is one reading of the two 
 ## The dependency picture
 
 ```
-  L. Strip density gating ──→ F. Rollout slices 4–5
-     SHIPPED f5f568f12          NO LONGER BLOCKED · container, calendar
-     the interim · L'' HAS NOW REPLACED IT (the density test is deleted)
+  L. Strip density gating ──→ F. Rollout slices 4–5 ── SHIPPED · THE ROLLOUT IS COMPLETE
+     SHIPPED, then REPLACED       container + calendar. ANCHORED_ASSEMBLY_TYPES is no longer a
+     by L'' (density test gone)   rollout boundary; it is the permanent anchored set, eight types,
+                                  differing from hasMiniToolbar() by the adhoc range slider alone.
+                                  ITS PROMISED DELETION IS UNSAFE and the reason is now in the code:
+                                  drop the type test and every laneless assembly resolves lane 0,
+                                  so isAnchoredChromeSuppressed goes true for text, gauge, image and
+                                  spinner and the composer's mobile toolbar goes blank.
+                                  Anchoring a type costs a MENU-REACHABILITY DUPLICATION, and slices
+                                  4 and 5 did not pay it: a title-hidden container or calendar reached
+                                  only Hide MiniToolbar by right-click. Fixed in the follow-up, which
+                                  also flattens the kebab wherever the menu wrapper is the only
+                                  overflow — every anchored type's normal shape at 3 or fewer real
+                                  actions, so it changed chart, four table types and both selection
+                                  types too. Taken deliberately, not as a side effect.
 
   N. userTitleHeight flag ──┐
-     SHIPPED df3044734      │
-     5d0c7782f              ├──→ L'. Title lane height row ──→ L''. Geometric suppression
-                            │    SHIPPED 2eb67ba07                SHIPPED · lane >= 24, not density
+     SHIPPED, two commits   │
+                            ├──→ L'. Title lane height row ──→ L''. Geometric suppression
+                            │    SHIPPED                          SHIPPED · lane >= 24, not density
   M-P4. Read paths ─────────┘    20/26/30 · titleHeight() exists  MUST NOT PRECEDE L'
-        SHIPPED b2e2d56dc        resolver reads the mark now      replaces L's density test
+        SHIPPED                  resolver reads the mark now      replaces L's density test
 
      N answers "did the author choose this height" · the MARK answers "is this assembly modern"
      The row needs both. On the flag alone it resizes every dashboard ever saved.
@@ -145,20 +208,20 @@ rather than repairing it — the whole of its content is one reading of the two 
 
   M. Seed mark — SIX phases, ALL SHIPPED, ALL SEEN IN A BROWSER as of 2026-08-25.
      design: ../2026-08-14-seed-mark-forward-half-design.md · decisions 1–13
-     ALSO THE RELEASE GATE — and after P6 the gate has exactly ONE item left: BOOKMARKS.
-     Decision 13 overruled the sweep (decisions 6+7) on 2026-08-19, so release needs
-     P6 + bookmarks rather than an async org-wide sweep with a restore point, scheduler
-     blocking and composer-session blocking. P6 is done. Bookmarks is not.
+     IT WAS ALSO THE RELEASE GATE, AND THE GATE IS NOW EMPTY: P6 shipped 2026-08-25 and
+     bookmarks shipped 2026-08-31. Decision 13 overruled the sweep (decisions 6+7) on
+     2026-08-19, so release needed P6 + bookmarks rather than an async org-wide sweep with
+     a restore point, scheduler blocking and composer-session blocking. Both are done.
 
-     P1  the field, persisted, stamped at creation      SHIPPED da34d78a7 — nothing reads it
+     P1  the field, persisted, stamped at creation      SHIPPED — nothing reads it
       │
-     P2  VizContext threaded, 71 files, ofGate()        SHIPPED 37667c1bc
+     P2  VizContext threaded, 71 files, ofGate()        SHIPPED
       │  + all four sub-gate properties deleted         verified behaviour-neutral, suite green
-     P3  decision 11's enumeration point + Modernize    SHIPPED f07ea96d2
+     P3  decision 11's enumeration point + Modernize    SHIPPED
       │  the only route in for old content              its eleven checks ran inside P5's pass
-     P4  server reads follow the mark                   SHIPPED b2e2d56dc · THE BEHAVIOUR REVERSAL
+     P4  server reads follow the mark                   SHIPPED · THE BEHAVIOUR REVERSAL
       │  43 read sites + the creation site              unblocked L' · nine manual checks PASSED
-     P5  browser reads follow the mark                  SHIPPED 6d8d5da04 · 61 files
+     P5  browser reads follow the mark                  SHIPPED · 61 files
       │  resolved modern/dark on the model · 15         4905 core / 1316+356 portal / full
       │  bindings across 7 templates · body class       cross-module build · ALL manual
       │  renamed viz-shell · isVizModern() deleted      checks passed, incl. P3's eleven
@@ -167,7 +230,7 @@ rather than repairing it — the whole of its content is one reading of the two 
       │  │         └──→ Range slider — painter half
       │  └──→ Outlined text conversion (also behind G)
       │
-     P6  Revert — the per-dashboard mirror of         SHIPPED 47521e72c · 4 automated gates
+     P6  Revert — the per-dashboard mirror of         SHIPPED · 4 automated gates
       │  Modernize; deletes the gate && term,         green · TEN MANUAL CHECKS + THE P0
       │  both PlotDescriptor seed booleans AND        COHORT CONFIRMATION ALL PASSED
       │  resolveSeededCorner, all in one commit       2026-08-25
@@ -177,104 +240,122 @@ rather than repairing it — the whole of its content is one reading of the two 
       │                                              unmerged, so every marked asset is a
       │                                              test asset
       │
-      └──→ Palette carried by Revert                 SHIPPED 1b8eb3cea · NOT a planned phase.
+      └──→ Palette carried by Revert                 SHIPPED · NOT a planned phase.
                                                      Revert did not carry a chart's colours;
                                                      five defects, each visible only once the
                                                      one before it was fixed. 6 new test
                                                      classes. Four narrower colour defects
                                                      recorded and deliberately unfixed
 
-  BOOKMARKS. Decision 10 — resolve chrome on restore, never rewrite    UNBUILT · THE RELEASE GATE
-     Confirmed unbuilt 2026-08-25: TableVSAssembly.parseStateContent (:173-194) parses
-     state_tableformat into a fresh FormatInfo and calls setFormatInfo, with no re-resolution
-     against the mark; neither TableVSAssembly nor ChartVSAssembly names seedChromeDefaults or
-     VizModernizeUtil at all. So a bookmark taken before a Revert silently un-reverts.
-     WIDER THAN DECISION 10 COSTED: ChartVSAssembly.writeStateContent also emits <state_info>,
-     the whole VSChartInfo (:457-470), which carries the aesthetic refs and therefore the COLOUR
-     FRAMES — so a stale bookmark un-reverts the palette too, the same class of defect 1b8eb3cea
-     spent five rounds closing everywhere else. The card radius rides in the same
-     VSCompositeFormat. Re-derive the property list from the code, not from decision 10's table.
+  BOOKMARKS. Decision 10 — resolve chrome on restore, never rewrite    SHIPPED · EMPTIED THE GATE
+     "resolve an assembly's chrome when its state is restored". The re-seed goes at
+     AbstractVSAssembly.parseState, the chokepoint every restore passes, and runs AFTER the content
+     is parsed — a table's parse replaces the whole format object the seed writes into.
+     IT WENT WIDER THAN DECISION 10 COSTED, as this node predicted: dimensionColors is left alone
+     (persisted author content, not a cache), an author's bar corner radius and smooth lines survive
+     via two provenance flags, and the live mark is captured across the parse so a calc table's
+     serialized info cannot reinstall a stale one.
+     A SECOND RESTORE DEFECT was found later, by the selection-family title lane work, and fixed
+     there: a selection container's CHILDREN are re-created from the state blob and never pass
+     through parseState, so they kept the bookmark's mark and came back modern over a reverted
+     container. Their marks are captured before removal and handed back with a re-seed, mirroring
+     the annotation branch in the same method.
 
-  GATE DEFAULT. viewsheet.modernVisualization ships true            NEW 2026-08-28 · FOLLOWS BOOKMARKS
-     The property is unset today, so every read resolves false and modern is opt-in per org. Shipping
-     it true is what turns the whole initiative on by default. Four reads resolve it —
-     `VSDensityDefaults.isModern` (`:42`), `LookAndFeelService` (`:59`), `PortalController` (`:115`)
-     and `CoreLifecycleService` (`:305`) — plus the EM checkbox's own unset state.
-     It is a CREATION-TIME switch (VizContext.of(VizMark)'s contract), so flipping it does not
-     re-render one existing dashboard: it decides what a NEW assembly is stamped with, and it
-     re-opens the composer's Modernize offer everywhere.
-     WHY IT FOLLOWS BOOKMARKS: while the gate is off, decision 10's bookmark defect reaches only
-     dashboards an author opted in. Default-true makes every newly created dashboard marked, so the
-     defect becomes the common path rather than the opt-in one. Do not flip this ahead of it.
-     Also re-reads the srinter tooltip at `srinter.properties:4508`, which is written for an
-     opt-in switch.
+  GATE DEFAULT. viewsheet.modernVisualization ships true                  SHIPPED · AFTER BOOKMARKS
+     Two lines in core/src/main/resources/inetsoft/report/defaults.properties (:247-248):
+     viewsheet.density=compact and viewsheet.modernvisualization=true. No read site changed.
+     DENSITY SHIPPED AT COMPACT, NOT DENSE, and this is the one thing not to undo by tidying:
+     dense's 20px lane cannot hold the 24px anchored strip, and L'' draws NO CHROME AT ALL below that
+     threshold — so dense would have shipped the modern look with no toolbar and no kebab on charts,
+     tables, crosstabs, calc tables and both selection types.
+     CONSEQUENCE FOR EVERYTHING ELSE IN THIS FILE: "UNSET" NO LONGER MEANS LEGACY. A test or a
+     gate-off check must now set the property to "false" explicitly. Anything written before
+     2026-08-31 that relies on an absent property resolving false is wrong.
+     It stayed a CREATION-TIME switch (VizContext.of(VizMark)'s contract), so the flip re-rendered no
+     existing dashboard: it decides what a NEW assembly is stamped with, and it re-opens the
+     composer's Modernize offer everywhere. It went second, behind bookmarks, for the reason this
+     node used to give — default-true promotes decision 10's defect from the opt-in path to the
+     common one, and decision 10 had to be closed first. It was.
 
-  READ-TIME MIGRATION. Move the substituting resolvers onto seedChromeDefaults   NEW 2026-08-28
-     Five resolvers substitute a modern value at render instead of writing it at creation. A read-time
-     value is NOT IN THE ASSET, so an export/import into a build older than this work renders the card
-     MIXED — modern frame, radius, background, bars and palette (all seeded, all stored), classic title
-     lane and legacy 10px inset (both substituted, both absent). That is the defect this item closes.
+  READ-TIME MIGRATION. The substituting resolvers are on seedChromeDefaults    SHIPPED · BOTH GROUPS
+     NO CHROME VALUE IS COMPUTED AT RENDER ANY MORE. That is the end state this node asked for, and
+     it is reached: applyModernDefaults, applyDarkForeground, isSeededTitle and the whole
+     VSCalendarChromeDefaults class are deleted. VSTitleChromeDefaults, VSObjectChromeDefaults and
+     VSOutputChromeDefaults survive as PALETTE SUPPLIERS, which is what VSObjectChromeDefaults
+     already was. Verified at HEAD: zero occurrences of any of those four names in core/src or
+     web/projects.
 
-       VSTitleChromeDefaults.applyModernDefaults / InPlace     18 sites · 9 converted by the title-lane
-                                                               spec, the other 9 are this item
-       VSCalendarChromeDefaults.applyModernDefaults             4 sites (VSCalendar, VSCalendarModel)
-       VSObjectChromeDefaults.applyDarkForeground / InPlace     6 sites (slider, selection list/tree,
-                                                               HTML helpers, format painter)
-       VSOutputChromeDefaults.applyModernDefaults / InPlace     3 sites (exporter, painter, VSTextModel)
-       VSObjectChromeDefaults.chartPadding                      1 site — ChartVSAssemblyInfo.getPadding
-                                                               (:2855), the 12px card inset
+     THE DEFECT IT CLOSED, restated because it is the reason to never reintroduce the pattern: a
+     value computed only at render IS NOT IN THE ASSET. Export such a dashboard, import it into a
+     build without this work, and the card arrives MIXED — modern frame, radius, background, bars
+     and palette (all seeded, all stored), classic title lane and legacy inset (both substituted,
+     both absent).
 
-     NOT IN SCOPE, and the distinction is the whole safety property: VSDensityDefaults.rowHeight /
-     titleHeight / mode() must STAY read-time. mode() reads the live org property viewsheet.density
-     (:66-69) and the dependency picture is explicit that the mark decides whether an assembly honours
-     density, not which density is in force. Seeding a density-derived value freezes it at creation.
-     Dark is the opposite and IS seedable: VizContext.of(VizMark) derives it from mark == MODERN_DARK,
-     so it is already per-assembly and already stamped at creation.
+     Group 1 (four resolvers): the four seeded at creation instead of resolved.
+     Group 2 (the last three titled types + two deletions): checkbox, radio button, calendar; both
+     remaining resolvers deleted with their fifteen call sites; the MaxModeSelectionVSAssemblyInfo
+     hoist; and Excel's dark opt-out extended to titles and the painted slider.
+     Designs: ./2026-09-01-seeded-chrome-migration-group1-design.md and -group2-design.md. Read
+     group 1's "What the implementation found" before touching this area again — three of its
+     lessons were load-bearing for group 2.
 
-     The three arguments that produced the read-time family in the first place are all disproved, and
-     the disproof is recorded in 2026-08-28-title-lane-unfilled-design.md section 1 rather than here
-     because whoever picks this up will reach for them again: a seeded value needs no Revert reverser
-     (revert clears the mark and re-runs the same hook); the chart's title format is not in its
-     bookmark at all (state_format is the OBJECT format); and the bookmark collision is obsolete since
-     the bookmark work made parseState call reseedAfterRestore, which resolves any seeded value on restore BY
-     CONSTRUCTION. What each conversion does owe is a LEGACY BRANCH THAT EXACTLY REPRODUCES A GATE-OFF
-     CREATION — per type, since the legacy title chrome differs by type.
+     STILL READ-TIME, BY DESIGN, and the distinction is the whole safety property:
+     VSDensityDefaults.rowHeight / titleHeight / mode(). mode() reads the live org property
+     viewsheet.density (:66-69), and the mark decides whether an assembly HONOURS density, not
+     which density is in force. Seeding a density-derived value freezes it at creation.
+     Dark is the opposite and IS seeded: VizContext.of(VizMark) derives it from mark ==
+     MODERN_DARK, so it was already per-assembly and already stamped at creation.
 
-     ORDERING TRAP, paid once per type: VSAssemblyInfo.setDefaultFormat calls seedChromeDefaults last
-     (:1235), but ChartVSAssemblyInfo (:98), SelectionBaseVSAssemblyInfo and TimeSliderVSAssemblyInfo
-     each install or overwrite their TITLEPATH composite AFTER super, so the hook seeds a composite
-     they then discard. Each needs the hook re-invoked after its install. This is what
-     installsOwnTitleFormat() (:1340) exists to work around today.
+     FOUR LESSONS WORTH MORE THAN THE ITEM, all paid for at review or in a browser:
+     · ENUMERATE EVERY FORMAT PATH THE TYPE RENDERS, not every path the resolver was called from.
+       The two differ whenever a type clones one composite into others. A selection tree renders
+       non-leaf rows through five TableDataPath(i, GROUP_HEADER) composites cloned from DETAIL;
+       seeding DETAIL alone was correct at creation only by accident of dispatch order, and
+       Modernize, Revert and reseedAfterRestore all left those composites stale.
+     · BOTH BRANCHES ALWAYS WRITE. VizModernizeUtil.revert (:102-111) clears the mark and re-runs
+       the same hook, so a value written on the modern branch and not on the legacy one is
+       STRANDED by Revert. The legacy branch is the Revert contract, not a courtesy.
+     · NO CUSTOMIZATION GUARDS. A USER or CSS value outranks DEFAULT by construction, so the
+       isForegroundCustomized / isBackgroundCustomized tests the resolvers carried were not
+       reimplemented.
+     · FormatInfo.getFormat(TITLEPATH, false) IS NOT A READ. It mutates the stored DEFAULT tier via
+       copyDefaultFormat, and a seeded value survives only because its setter sets the matching
+       *ValDefined flag.
 
+     A SIGNATURE CHANGE REACHED utils/inetsoft-xml-formats TWICE ON THIS BRANCH — getValueFormat,
+     then ExportUtil.getBackGroundColor → PPTVSExporter. WIDEN RATHER THAN OVERLOAD so a missed
+     caller is a compile error, and verify a cross-module signature change with a clean reactor
+     build: a 77-module incremental install reported SUCCESS over one of these breaks.
 
-     ONE SHIPPED ENTRY STATES THE SUPERSEDED RATIONALE. S / §04's row in the Done table reads "Nothing is
-     seeded, so clearing the mark reverts by construction — no reverser, no migration, nothing added to
-     the bookmark path." That was an accurate description of a real trade at the time and it is why the
-     card inset is on the list above. It is not an endorsement to copy: the same three arguments are
-     disproved, and what the inset bought with them was a value that does not travel in the asset.
+     THE ORDERING TRAP, paid once per type and now paid for all of them:
+     VSAssemblyInfo.setDefaultFormat calls seedChromeDefaults last (:1235), but ChartVSAssemblyInfo,
+     SelectionBaseVSAssemblyInfo and TimeSliderVSAssemblyInfo each install or overwrite their
+     TITLEPATH composite AFTER super, so the hook seeded a composite they then discarded. Each needs
+     the hook re-invoked after its install; installsOwnTitleFormat() is the surviving expression of
+     it, collapsed to one branch once the two siblings' shared block moved to the parent they do
+     share. SelectionBaseVSAssemblyInfo and TimeSliderVSAssemblyInfo are SIBLINGS, not parent and
+     child — three code comments exist to stop that being mis-assumed again.
 
-     END STATE: VSTitleChromeDefaults.applyModernDefaults is deleted and all 18 of its call sites drop
-     it. Same for the other four. The classes survive as palette suppliers, which is what
-     VSObjectChromeDefaults already is.
+     ONE SHIPPED ENTRY STATES THE SUPERSEDED RATIONALE. S / §04's row in the Done table reads
+     "Nothing is seeded, so clearing the mark reverts by construction — no reverser, no migration,
+     nothing added to the bookmark path." That was an accurate description of a real trade at the
+     time. It is not an endorsement to copy: the three arguments behind it are disproved in
+     2026-08-28-title-lane-unfilled-design.md §1, and what the card inset bought with them was a
+     value that does not travel in the asset. The inset was converted in group 1.
 
-     P4 unblocked the first of the six — L' — directly, ahead of P5. P5 gated four of the other five. P1 and
-     P2 unblocked none of the six, by design; P3 unblocked P4's testability rather than any of the six; P4
-     was the first phase whose landing moved one.
-
-     The card radius history, kept because it explains why the item took three revisions to become one line:
-     it moved off P5 onto P6 on 2026-08-19 — it never needed the sweep specifically, only A reversal path for
-     resolveSeededCorner's retirement, and Revert is one. The 2026-08-20 P6 review then sharpened that:
-     retiring resolveSeededCorner was REQUIRED BY P6 rather than unblocked by it, because its gate read
-     stranded a marked assembly's card radius the moment the gate && term went. That put the retirement inside
-     P6's same-commit set and left only the 12→6 CONSTANT as a follow-on. Landed 2026-08-25 with the
-     annotation-rectangle question answered (unrelated, USER tier, left alone) and §01's cohort instruction
-     found void rather than satisfied — resolveSeededCorner, the equality test the instruction protects
-     against, no longer exists.
+     LEFT OPEN, and neither is chrome-default migration:
+     · THE WEEKDAY-HEADER PATH SPLIT. MONTH_CALENDAR / YEAR_CALENDAR is ONE format shared by the
+       weekday header and the date cells, so the header cannot take a header treatment without the
+       cells taking it too. Splitting it is a stored-format change with migration, export,
+       format-pane and CSS-mapping consequences. This is the structural change the design set was
+       reaching for when it asked for "light-modern coverage".
+     · THE CALENDAR'S §07 derived selection fill with endpoint borders, and its §04 density row.
+       Separate features.
 
   G. Chart type scale ──→ H. Outlined text conversion
      needs one measurement
 
-  S. Card geometry — §04 sizing and spacing            SHIPPED 2afb06bc1 + 2b86a9fa3
+  S. Card geometry — §04 sizing and spacing            SHIPPED · the follow-ups squashed in
      12px card inset · interior gaps 4 / 8 / 14(+2) · hidden-means-zero inheritance
      Audited first, and the audit moved the numbers rather than confirming them: THREE of §04's
      claims are disproved in code, recorded with evidence in
@@ -282,9 +363,13 @@ rather than repairing it — the whole of its content is one reading of the two 
      had no spacing scale; three of the four gaps turned out to be tiered CompositeValues that
      GraphGenerator already threaded, so the work was seeding DEFAULT tiers on values that
      existed. Read that doc before costing anything else from §04's numbers.
-     LEFT UNDONE, and it is the whole remainder of §04: --inet-chart-line-height at 1.2,
-     §04's one type value. Chart text is server-painted, so it is a Java font-metrics change
-     with no CSS half whatever the token-shaped name suggests.
+     §04 IS NOW COMPLETE. Its last item, --inet-chart-line-height at 1.2, is
+     DECLINED by decision 6 rather than deferred: measured, it double-counts the gap scale
+     above (a taller text box distributes its extra space around the text through alignText,
+     which is what the 4 / 8 / 14(+2) gaps already set explicitly and per-gap), and it costs
+     13.4% of plot height on a small faceted chart. The one variant that would add something
+     the gaps do not - spacing between the lines of a WRAPPED label - measured exactly zero,
+     because no default axis band clears VLabel:534's wrap threshold.
      THE COST NOBODY HAS ANSWERED: the plot lost ~28px of width and ~14px of height, where
      §2.1 predicted ~19px. The difference is §04-b's legend return, which does not exist
      (below). Nothing offsets it.
@@ -309,11 +394,17 @@ rather than repairing it — the whole of its content is one reading of the two 
            literals · drill and DC tips · zoom naming · dead menu icons · title band
 
   Ungated since P5 shipped: dark (four DOM surfaces). Decision 4 turned viz-dark from a
-           body class into a per-assembly scope, and P5 (6d8d5da04) did that, so the
+           body class into a per-assembly scope, and P5 did that, so the
            do-it-twice cost this line used to warn about is paid. CSS only.
 ```
 
-**The one hard sequencing rule in this picture was L'' must not ship before L'. It was honoured: L' shipped in `2eb67ba07`, L'' after it, and never together.** The reasoning is kept because it is why the order mattered, and because the same trap recurs for anything else that measures a lane. Geometric suppression
+**Hashes have been removed from this picture.** Four rebases have each destroyed every one of them, and
+the picture is about structure rather than provenance. The Done table carries the commit *subjects*, which
+survive a rebase; `git log --oneline --grep="<subject>"` resolves one to the current hash. The two hashes
+left in the prose below — `380705bc1` in a section heading — are historical and named in the resolution
+table at the top.
+
+**The one hard sequencing rule in this picture was L'' must not ship before L'. It was honoured: L' shipped first, L'' after it, and never together.** The reasoning is kept because it is why the order mattered, and because the same trap recurs for anything else that measures a lane. Geometric suppression
 compares the assembly's real lane against a 26px threshold (24px strip plus 1px of clearance above and
 below). Until the lane row lands, every assembly still carrying `AssetUtil.defh` has a 20px lane at
 *every* density, so the threshold fails everywhere and the strip disappears from the whole anchored set —
@@ -347,131 +438,119 @@ Four corrections this picture carries against the external set, all recorded in
 
 ## What to pick up next
 
-**Re-derived a second time on 2026-08-25, to place §04 — the card's sizing and spacing model — which had
-never been on this list at all.** It enters at #3: it does not gate the release and it is not in flight, so
-it sits behind bookmarks and L', but it is much larger than either and it is what most of the external
-set's mockups are actually drawing. Nothing else moved, and the reasoning below still holds. The first
-re-derivation's note follows.
+**Re-derived from scratch on 2026-09-02, at `920e2cca5`.** Every prior ranking and every amendment to one
+is gone rather than repaired — this file's own instruction. What follows is one reading of the dependency
+picture above at this commit.
 
-**Re-derived 2026-08-25, from the dependency picture above rather than by editing the 2026-08-21 ranking in
-place — this file's own instructions say to re-derive rather than repair.** Every prior revision's ranking is
-gone rather than amended; what follows is one reading of the picture at this commit. Four things changed
-since the last one, and the fourth is the reason the table below has a new first row:
+**The picture has no edges left among unshipped items.** Nothing remaining blocks anything else, so this
+is a *value* ordering, not a dependency ordering: taking #3 before #1 costs the difference in value and
+nothing else. Two of the five rows are additionally blocked on something that is not code, and they are
+marked so rather than being ranked above work that can actually start.
 
-- **P6 committed** as `47521e72c`, and **its ten manual checks plus the P0 cohort confirmation have run and
-  passed**, confirmed by a human partner on 2026-08-25. M-P6 is therefore *shipped and seen*, not merely
-  built — the distinction the 2026-08-21 revision was careful to draw, now closed in the good direction.
-- **The palette work committed** as `1b8eb3cea` — five bug-fix rounds after Revert turned out not to carry a
-  chart's colours. Not a phase anyone planned; it is what P6's first browser pass found.
-- **The card radius shipped** (this commit), which empties the "Decided, unscheduled" section's only
-  mark-dependent entry. It needed no migration and no cohort check: the branch is unreleased and unmerged, so
-  every marked asset in existence is a test asset, confirmed by a human partner on 2026-08-25.
-- **Decision 10 — bookmarks — is the last release-gate item, and it is unbuilt.** The dependency picture has
-  said "release needs P6 + bookmarks" since 2026-08-19 and P6 has absorbed all the attention since. It is
-  first now by elimination as much as by weight: nothing else is between this branch and a release.
+**Three things came off the table since the last ranking, and they were the whole of it.** Bookmarks, the
+gate default and the read-time migration all shipped, plus F — the anchored rollout — which this file had
+carried as unblocked-but-unbuilt since 2026-08-13. **The release gate is empty and the branch is
+feature-complete for a PR into `epic-74519`.**
 
-**Amended 2026-08-28, not re-derived — two facts, neither of which changes the ranking's reasoning.**
-The file's instruction is to re-derive rather than repair, and this is deliberately not that: nothing in
-the picture above moved, so the ranking below still reads correctly and only gains an entry and a status.
-
-- **#1 is IN FLIGHT.** A parallel session is implementing decision 10's bookmark handling — the restore-side
-  resolution for Revert and Modernize. Do not start it a second time; check for its branch before picking
-  anything off this table. Everything the three notes below say about its surface still stands and is what
-  that session is working against.
-- **A new item enters at #2: default `viewsheet.modernVisualization` to true.** It is the switch that turns
-  the initiative on for everyone rather than per opted-in org, and it is the first item since P6 that changes
-  what an untouched customer sees. It sits behind bookmarks for the reason in the dependency picture: the
-  gate being off is what currently keeps decision 10's defect to opted-in dashboards, and default-true makes
-  every newly created dashboard marked. §04's last item and the dark palette each move down one.
-- **And a third enters at #3, added the same day: migrate the read-time resolvers onto
-  `seedChromeDefaults`.** It came out of designing the title lane, where the mechanism question turned out
-  to decide something larger than the title lane: five resolvers substitute their modern value at render
-  rather than writing it at creation, and a value that is only ever computed at render **is not in the
-  asset**. Export such a dashboard and import it into a build older than this work and the card arrives
-  mixed — everything seeded renders, everything substituted falls back to legacy. §04's last item, the
-  dark palette and the cheap items each move down one again.
-
-| # | Item | Impact | Effort | Unblocks | Risk |
+| # | Item | Impact | Effort | Blocked on | Risk |
 |---|---|---|---|---|---|
-| 1 | **Decision 10 — resolve chrome on bookmark restore** | the last release-gate item, and a correctness defect rather than a polish one: a bookmark taken before a Revert silently un-reverts the assembly | **M** — four restore points across three classes, not the two this row used to claim: `ChartVSAssembly` writes `state_info` (`:470`), `state_descriptor` (`:479`) and `state_format` (`:488`), `TableVSAssembly` writes `state_tableformat` (`:161`) and `CrosstabVSAssembly` writes `state_crosstabformat` (`:362`). `CalcTableVSAssembly` writes only `state_calctable` (`:503`) and carries no format, so it is out of scope | the release | see the three notes below; the surface is wider than decision 10 was written against |
-| 2 | **Default `viewsheet.modernVisualization` to true** | the switch that makes the whole initiative the product's look rather than an opt-in; first item since P6 that changes what an untouched customer sees | **S** in code — four gate reads (`VSDensityDefaults:42`, `LookAndFeelService:59`, `PortalController:115`, `CoreLifecycleService:305`) plus the EM checkbox's unset state and the `srinter.properties:4508` tooltip, which is worded for an opt-in switch. The cost is the decision and the sign-off, not the diff | the rollout as a default | **the highest-risk item on this table, and the risk is not in the code.** Creation-time only, so no existing dashboard re-renders — but every new one is stamped, which promotes decision 10's bookmark defect from an opt-in path to the common one. Must follow #1 |
-| 3 | ~~**Migrate the read-time resolvers onto `seedChromeDefaults`**~~ **— the title resolver is DONE for 7 of its 10 titled types; the other four resolvers are untouched** | closes a portability defect, not a polish one: a read-time value is not in the asset, so an export into an older build renders the card mixed — modern frame, radius, background, bars and palette, classic title lane and legacy inset | **was M / 32 call sites across five resolvers.** The title resolver is now converted for the chart and three table types (`f499c0ffa`) and the selection list, tree, container and range slider (this section's note below). **What is left: dark-foreground 6, calendar 4, output 3, chart inset 1, plus the title resolver's last three types — checkbox, radio button, calendar** | deleting `applyModernDefaults` outright | med, and the remaining title types are the hard ones — see below |
-| 4 | **§04's last item — `--inet-chart-line-height` at 1.2** | closes §04 completely; the rest of it shipped in `2afb06bc1` + `2b86a9fa3` | **M** — server-painted text, so Java font metrics, no CSS half despite the token-shaped name | closing §04 | low-med. Touches every chart text run, so budget the export pass |
-| 5 | **Chart interior dark palette** | the last visible hole in a dark mode that is otherwise complete | **M-L**, design first — `GDefaults` has no dark branch to reconcile against | nothing | med |
-| 6 | The ungated cheap items | low each, additive | **S** each | nothing | none |
+| 1 | ~~**§04's last item — `--inet-chart-line-height` at 1.2**~~ **DECLINED 2026-09-02, and §04 is closed** | it needed neither a decision nor a design pass, as this row said — it needed a **measurement**, and the measurement declines it. Full CSS semantics costs 3w/6h on a normal chart and 3w/9h faceted, which is 5.1% of plot height at 260×160 and **13.4% faceted**; and it is a second spacing mechanism layered on the gap scale that shipped with the card geometry, since a taller box distributes its extra space around the text through `alignText`. The one non-redundant variant, advance-only, measured **exactly zero** on every shape — nothing wrapped, because a default axis band never clears `VLabel:534`'s wrap threshold | — | — | full record, numbers and the throwaway-probe method in [the geometry decisions](./chart-card-geometry-decisions.md) **decision 6**. Reopening it owes a chart whose labels actually wrap |
+| 2 | **Chart interior dark palette** | the last visible hole in a dark mode that is otherwise complete, and the most valuable thing left in the whole set | **M-L, design first** | **a design pass.** Verified at `HEAD`: `graph/internal/GDefaults.java` contains no occurrence of "dark", "modern" or `VizContext` — there is no branch to reconcile against, so the values do not exist yet | med. Server-side, so it is an export-affecting change from the first line |
+| 3 | **§07 derived selection fill, and retiring the teal family** — with the range slider's painter half behind it | ends the second selection idiom the overlay-surfaces decision was taken to end | **M** | **an owner.** The five teal state colours at `_viz-tokens.scss:50-54` are unchanged and v3 deleted the paragraphs that tracked it without resolving it — see "Still undecided" | med |
+| 4 | **G, the chart type scale** → unblocks **H, the outlined text conversion** | its chrome tier is already fully shipped; the scale is what is left | **one measurement**, then S-M — whether 9pt renders as 9px is a single build | nothing | low |
+| 5 | The ungated cheap items | low each, additive | **S** each | nothing | none |
 
-**AMENDED 2026-08-31 — this ranking is stale in three rows and needs re-deriving, not repairing. Three things shipped after it was written:**
+**§10.1 is deliberately absent from this table.** It is blocked on a product decision, not on sequencing or
+effort, and ranking a blocked item invites someone to start it. Verified still unbuilt at `HEAD`:
+`isAnchoredResident` (`mini-toolbar.service.ts:99-103`) is `vizModern && laneHeight >= ANCHORED_LANE_MIN &&
+isAnchoredAssemblyType` — resting visibility is still derived from **geometry**, which is exactly what L''
+answers, rather than from **pointer capability**, which is what §10.1 asks for. L'' left the resting
+semantics alone on purpose so the two would not tangle. The decision it waits on: a pointer query would
+leave every kebab-only family with no chrome at all at rest on a desktop, and **three of the eight anchored
+types are kebab-only now that the container has joined them**, so the question is larger than when
+`github.md` first recorded it on 2026-08-12. Its row in "Ready now" carries the mechanics.
 
-- **#1, decision 10 / bookmarks, is DONE** — `f47c59304`, "resolve an assembly's chrome when its state is restored". The re-seed goes at `AbstractVSAssembly.parseState`, the chokepoint every restore passes through. It went wider than decision 10 costed: `dimensionColors` preservation, provenance flags so an author's bar-corner-radius and smooth-lines survive the seed, and capturing the live mark across the parse so a calc table's serialized info cannot reinstall a stale one. **The release gate this file has cited since 2026-08-19 is therefore empty.**
-- **#2, `viewsheet.modernVisualization` default-true, is DONE** — `c7790bbf0`, two lines in `defaults.properties`. **Density shipped at `compact`, not dense**, because dense's 20px lane cannot hold the 24px anchored strip and L″ draws no chrome at all below that threshold — so dense would have shipped the modern look with no toolbar and no kebab on charts, tables, crosstabs, calc tables and both selection types. **Consequence for everything below: "unset" no longer means legacy.** A test or a gate-off check must now set the property to `"false"` explicitly.
-- **#3's title resolver is 7 of 10 types done.** `f499c0ffa` + `bee8d4169` converted the chart and the three table types to an unfilled lane with a `#D9D5CC` bottom rule; the selection list, tree, container and range slider followed. **The three that remain are the hard ones and need their own design**: checkbox, radio button and calendar are all on `bypassesBaseChrome()`, where the hook returns before writing anything, so converting them means deciding whether that predicate splits into a bypassable object-chrome half and an always-run title half — a change to the hook's contract rather than an application of it. The calendar additionally has never run the hook at all (`initDefaultFormat` never calls `setDefaultFormat`) and `AbstractVSExporter:2716-2721` would box its bottom-only rule back to four sides. Full record, including a bookmark-restore defect for selection-container children that the work found and fixed, and a recommended hoist, in [the selection family design](./2026-08-31-selection-family-title-lane-design.md) §9.
+**The calendar's weekday-header path split is absent for a different reason** — it is a stored-format change
+with migration, export, format-pane and CSS-mapping consequences, so it is a different initiative rather
+than a low-ranked item. The read-time migration node above records what it is and why it could not be done
+there.
 
-**Two things that shipped with the selection family and are worth carrying forward, because both cost a review round to find.** `FormatInfo.getFormat(TITLEPATH, false)` is **not a read** — it mutates the stored DEFAULT tier via `copyDefaultFormat`, and a seeded value survives only because its setter sets the matching `*ValDefined` flag. And a signature change reached `utils/inetsoft-xml-formats` for the **second** time on this branch (`ExportUtil.getBackGroundColor` → `PPTVSExporter`, after `getValueFormat` did the same); widen rather than overload so a missed caller is a compile error.
+### Before the PR into `epic-74519`
 
-**Re-derived a third time on 2026-08-25, after L′ shipped in this commit.** L′ comes off the table because it is built, reviewed and seen in a browser — nine included assembly types checked at three densities, the three excluded types confirmed unmoved, export agreement across PDF, PNG and Excel, and the composer round-trip for the new checkbox. It is the last of the six items the seed mark existed to free, so **the mark has now paid for all six**. §04 and the cheap items each move up one; nothing else changed, and bookmarks stays first because it is still the only thing between this branch and a release.
+Nothing here is a feature. It is what a reviewer will otherwise find.
 
-**What L′ unblocked, and what became of it.** L″ has since shipped: the density-keyed strip test is deleted and the predicate compares a real lane against **24px** (26 at first, corrected the same day — see the header). The reasoning for the order is kept because it explains the trap. Until L′ landed every assembly carried a 20px lane at every density, so the test would have failed everywhere and stripped the toolbar from the whole anchored set. **The sequencing rule in [the strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md) decision 3 is one-directional: L″ must follow L′, never accompany it.** It did not, and it must not be folded into a follow-up that also touches the lane. L′ also retires the interim's approximation rather than the interim itself: `f5f568f12` keyed suppression off density as a stand-in for a 26px lane, and at compact the lane now actually is 26.
+- **The suites, as of 2026-09-02 at this commit.** Java `core` 5245 tests / 0 failures. Browser:
+  `ng test portal` 219 files / **1407 passed**, `ng test em` 104 files / **371 passed**, `em:test-tl` 70
+  files / **818 passed + 19 expected fail**, and the two portal TL specs this branch touched
+  (`vs-object-container.component.display.tl.spec.ts`, `mini-toolbar.component.tl.spec.ts`) 72 passed.
+  All green.
+- **`npm run test:portal` does not run the portal project.** It is `ng test` with no project argument, and
+  that resolves to **`em`** — measured, not inferred: the run emitted 371 tests and not one `portal` line.
+  So CI's `npm run test` (`test:portal && test:em && test:em:tl`) runs `em` twice and **never runs portal's
+  1407 tests**. Use `ng test portal` explicitly until the script is fixed. This is wider than the portal
+  TL gap that was recorded separately; that one is about `*.tl.spec.ts`, this one is about the main suite.
+- **One residual from the four deleted sub-gates, a two-minute check.** If any internal or demo instance
+  has one of the four keys set to `"false"` in a `sree.properties`, that instance changes appearance on
+  upgrade. The argument that this is impossible rests on `viz-updates` never having shipped, which cannot
+  be verified from the repo.
+- **A coordination item, not code: `chart-card-design3/` §05 is stale.** It still documents the title bar as
+  "#F1EFEA on #6A685F with a #D9D5CC rule, deliberately equal to the table header so chrome reads as one
+  system" — the filled band, superseded three days after that folder was last synced, and the sibling
+  project endorsed the fill for cross-widget consistency. Show them the unfilled decision before this
+  merges. Note also that this cannot be recorded inside `chart-card-design3/`: notes written there are
+  destroyed by the next sync.
+- **Test-coverage debt, invisible from the diff** — unchanged from P5 and carried forward: four templates
+  have no spec file at all (`layout-object.component`, `wizard-preview-container.component`,
+  `embed-chart.component`, and the layout pane's child-assembly bindings), so an Angular binding on a
+  wrongly-scoped variable there applies no class and raises no error. Verified by code reading and a
+  type-check only.
 
-**Decision 10 is confirmed unbuilt, not merely unrecorded.** `TableVSAssembly.parseStateContent` (`:173-194`)
-parses `state_tableformat` into a fresh `FormatInfo` and calls `setFormatInfo` — no re-resolution against the
-mark anywhere in the method, and neither `TableVSAssembly` nor `ChartVSAssembly` mentions
-`seedChromeDefaults` or `VizModernizeUtil` at all. So the defect decision 10 describes is live: restore a
-pre-Revert bookmark and the table's chrome comes back modern on an unmarked assembly.
+### Notes carried from earlier rankings, because each one cost something to learn
 
-**And its surface is wider than decision 10 costed, because of what shipped after it was written.** Decision
-10 enumerates `barCornerRadius`, `smoothLines`, the two seed booleans and `roundCorners` from
-`<state_descriptor>`, plus the chart's `VSCompositeFormat` from `<state_format>`. Two additions:
-`ChartVSAssembly.writeStateContent` also emits **`<state_info>`**, the whole `VSChartInfo`
-(`ChartVSAssembly.java:457-470`), which carries the aesthetic refs and therefore **the colour frames** — so a
-stale bookmark un-reverts the *palette* as well, the exact class of defect `1b8eb3cea` spent five rounds
-closing on every other path. And the card radius now sits in the same `VSCompositeFormat` the bookmark
-restores. Whoever takes this should re-derive the property list from the code rather than from decision 10's
-table.
+**Check for an existing tier before costing anything from the external set.** §04 was costed XL by this
+file on the premise that binding its gaps meant introducing a spacing scale into a subsystem CSS cannot
+reach; three of the four gaps turned out to be tiered `CompositeValue`s that `GraphGenerator` already
+threaded, in a class that already held a `VizContext`. The work was seeding DEFAULT tiers on values that
+existed. **Four of §04's own numbers are disproved in code**, each recorded with its evidence in
+[the geometry decisions](./chart-card-geometry-decisions.md).
 
-**Two things decision 10 already settled that are worth not re-litigating.** The mark is *not* in the
-bookmark — `AbstractVSAssembly.writeState` emits only class, name and `writeStateContent`, while the mark
-lives in `writeAttributes`, which is asset XML — so restore can replace the formats while the assembly's
-correct mark stays put, and the decision-11 path recomputes against it. And USER-tier entries are *not*
-cleared on restore, because after a Revert clears the mark, "unmarked" cannot tell *never modern* from
-*reverted*, and clearing would strip a designer's deliberate value from a dashboard that was never modern.
-
-**M-P6's manual checks are off this table because they have run and passed** — including the four that no
-prior pass had exercised: a marked assembly in a gate-off org keeping card radius and bar corners, density
-applying there, the EM's unhidden density control, and the confirmation that legacy tooltip chrome and the
-absent inline-SVG animation are the *only* two surfaces staying legacy. That last one closes the two accepted
-costs negatively, as P6's plan intended. **P3's eleven were covered by P5's pass**, per the dependency
-picture; the prose further down this file that still says they are outstanding predates that and is wrong.
-
-**The card radius is off this table because it shipped.** What it needed was not the cohort check the v3
-spec's section 01 asks for — that instruction died with `resolveSeededCorner` in P6 — but a sign-off on the
-value, which it has. See [the corrections doc](./chart-card-source-doc-corrections.md) section 3.4, closed in
-the same commit.
-
-**L-prime has not moved for any reason of its own.** `VSDensityDefaults.titleHeight()` still resolves
-defh/26/30 and is still uncalled by the resolver itself; `userTitleHeight` still tells an author's height from
-a default one; P4 still supplies the read path. It is second rather than first only because #1 stands between
-this branch and a release and L-prime does not. If the release is not imminent, swap them — the argument for
-L-prime first is that it is the item the whole mark investment exists to free, and it is a fair argument.
-
-**The seed mark is complete.** All six phases are shipped, committed and — as of 2026-08-25 — seen in a
-browser. What used to be "M, XL, six items" is closed, and the five items it gated are ordinary work with no
-phase in front of them. The one thing it left behind is the bookmark path, which was never one of the six.
+**The cost nobody has answered.** The plot lost ~28px of width and ~14px of height where §2.1 predicted
+~19px. The difference was §04-b's legend return, and that return does not exist — the panel's border and
+fill give back ~2px, not 8–10px. Nothing offsets it.
 
 **Two gate reads survive by decision, not by omission**, and they are confirmed to be the only two:
-`AbstractChartInfo.getTooltipStyle` and `VSChartInteractionDefaults.isInlineSvg()`. Each makes a marked chart
-in a gate-off org modern everywhere except one surface — legacy tooltip chrome, and no inline-SVG animation or
-hover dimming. Threading the tooltip means widening five `ChartArea` constructor overloads reached by the
-report painter, the exporter, annotations and the scheduler, which is larger than the whole of P6;
-`isInlineSvg()` is interaction rather than chrome and carries a `graph.svg.inline` override, which is the
-workaround for release notes.
+`AbstractChartInfo.getTooltipStyle` and `VSChartInteractionDefaults.isInlineSvg()`. Each makes a marked
+chart in a gate-off org modern everywhere except one surface — legacy tooltip chrome, and no inline-SVG
+animation or hover dimming. Threading the tooltip means widening five `ChartArea` constructor overloads
+reached by the report painter, the exporter, annotations and the scheduler, which is larger than the whole
+of P6; `isInlineSvg()` is interaction rather than chrome and carries a `graph.svg.inline` override, which
+is the workaround for release notes. **Now that the gate ships true these are two shipped behaviours rather
+than two accepted costs** — the direction they are wrong in has flipped, and neither has been re-examined
+in that light.
 
-**Four colour defects are recorded and deliberately unfixed**, all found while closing `1b8eb3cea` and all
-narrower than what it fixed: the target-line band fill pins all three colour tiers on every apply (separate
-code path, pre-existing); toggling multi-styles off and back on around a Revert can strand modern colours on
-the per-measure frames; `applyGlobalColors` writes a derived colour back without its provenance mark; and the
-value axis's runtime clone (`VGraphPair:1338-1341`) is intentionally still gated. They live in
+**Four colour defects are recorded and deliberately unfixed**, all found while closing the palette work and
+all narrower than what it fixed: the target-line band fill pins all three colour tiers on every apply
+(separate code path, pre-existing); toggling multi-styles off and back on around a Revert can strand modern
+colours on the per-measure frames; `applyGlobalColors` writes a derived colour back without its provenance
+mark; and the value axis's runtime clone (`VGraphPair:1338-1341`) is intentionally still gated. They live in
 [the forward-half design](../2026-08-14-seed-mark-forward-half-design.md)'s dated 2026-08-24 block. Do not
 report them as new.
+
+**The seed mark is complete and has paid for all six items it existed to free.** What used to be "M, XL,
+six items" is closed. The one thing it left behind was the bookmark path, which was never one of the six,
+and that is closed too.
+
+**Two things decision 10 settled that are worth not re-litigating**, now that it has shipped and the code
+agrees with both. The mark is *not* in the bookmark — `AbstractVSAssembly.writeState` emits only class,
+name and `writeStateContent`, while the mark lives in `writeAttributes`, which is asset XML — so restore
+replaces the formats while the assembly's correct mark stays put. And USER-tier entries are *not* cleared
+on restore, because after a Revert clears the mark, "unmarked" cannot tell *never modern* from *reverted*,
+and clearing would strip a designer's deliberate value from a dashboard that was never modern.
+
+**The one hard sequencing rule this file ever carried was honoured, and the trap it names recurs.** L'' must
+not precede L'; L' shipped first and L'' after it, never together. Anything else that measures a lane
+inherits the same trap — see [the strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md)
+decision 3.
 
 ---
 
@@ -1261,8 +1340,10 @@ the set is trying to delete. Specify it before scheduling it.
 **Shipped 2026-08-27 in `2afb06bc1` (the card inset and the gap scale) and `2b86a9fa3` (a custom axis
 title's gap, and an author's zero legend gap). The decisions, the audit and the evidence are in
 [chart-card-geometry-decisions.md](./chart-card-geometry-decisions.md) — read that, not the section
-below, before touching anything §04 describes.** What remains of §04 is one item:
-`--inet-chart-line-height` at 1.2.
+below, before touching anything §04 describes.** **Nothing remains of §04.** Its last item,
+`--inet-chart-line-height` at 1.2, is **declined by decision 6** rather than deferred — measured, it is
+a second spacing mechanism layered on the gap scale this same section shipped, and its cost lands worst
+on the smallest charts. §04 is complete.
 
 **The estimate was wrong by roughly an order of magnitude, and the reason generalises.** This section
 costed §04 as XL on the premise that binding its gaps meant "introducing a spacing scale where none
@@ -1386,13 +1467,13 @@ resolve to a zero lane — and the composer's mobile toolbar, which renders `sho
 whatever assembly is focused, goes blank for text, gauge, image and spinner. The reasoning is now in
 the code as well as here.
 
-**Not this — L'' waits for L'.** The geometric suppression that replaces the density test is decided but
-must not land until the lane row does, or the strip vanishes from every assembly carrying the default
-title height. See the sequencing rule under the dependency picture. When it does land it also retires
-`rightEdgeReserve()` and `SORT_CONTROL_RESERVE` (`vs-object-container.component.ts:588-603`), because a
-hidden title suppresses the strip rather than overlaying it — a reversal of the slice-2 and slice-3
-title-hidden decisions, costed in
-[the strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md) decision 4.
+**L'' has since shipped, and the sequencing rule it waited on was honoured.** The geometric suppression
+that replaced the density test could not land until the lane row did, or the strip would have vanished from
+every assembly carrying the default title height; L' shipped first and L'' after it, never together. It
+retired `rightEdgeReserve()` and `SORT_CONTROL_RESERVE` as costed, because a hidden title now suppresses
+the strip rather than overlaying it — a reversal of the slice-2 and slice-3 title-hidden decisions, and
+title-hidden tables gained 22px of plot. **What decision 4 opened is still open**: whether
+title-hidden-plus-touch is meant to have no affordance at all. See "Still undecided".
 
 ## Decided, unscheduled
 
@@ -1441,58 +1522,68 @@ doc](./chart-card-source-doc-corrections.md) section 3.4.
 
 ## Done
 
-**Hashes re-resolved 2026-08-25, after a THIRD rebase — and this is the important part: every hash the
-twelfth revision carried was stale, including the ones it had itself re-resolved on 2026-08-14 after the
-second rebase.** Checked with `git merge-base --is-ancestor <hash> HEAD`: `8f75872a6`, `119bfdaac`,
-`be0e3c664`, `cd06da9b1`, `8ef511e45`, `4c237a7dd`, `380705bc1`, `1d26dbefb` and `d4d0d5d48` are **none of
-them** reachable from `HEAD` any more. They still resolve under `git show`, which is exactly why that command
-must not be used to check them. The table below was re-derived by matching commit *subjects*, not by trusting
-any prior column — subjects survive a rebase and hashes do not. **Do not add a "cited at revision N" column
-again**: three rebases in, a history of dead hashes is a history of things a reader may not use, and it grew
-this file for no benefit. Cite by subject and re-resolve.
+**Re-derived 2026-09-02 after a FOURTH rebase, and the column has changed: every hash this table carried
+is dead, all twenty-four of them, so the Commit column now holds the commit *subject*.** Checked with
+`git merge-base --is-ancestor <hash> HEAD`: not one of `38c36aba1`, `e39516e40`, `4077f9099`, `cc2948231`,
+`9dbc9857e`, `5c7e106f2`, `2736113df`, `39239784b`, `9881350c1`, `65e249e91`, `f5f568f12`, `df3044734`,
+`5d0c7782f`, `da34d78a7`, `37667c1bc`, `6db87680c`, `f07ea96d2`, `b2e2d56dc`, `6d8d5da04`, `f4e4c4498`,
+`47521e72c`, `1b8eb3cea`, `f69751842`, `ffae8a1dd`, `46e8f6b5a`, `2afb06bc1`, `2b86a9fa3`, `f4a7993f9`,
+`f47c59304`, `c7790bbf0`, `f499c0ffa`, `bee8d4169`, `f36469d2f`, `8b92878fd`, `4434877ca`, `09b29620e` or
+`aab93d919` is reachable from `HEAD`. They all still resolve under `git show`, which is exactly why that
+command must not be used to check them.
+
+**The third revision of this preamble said to cite by subject and re-resolve. This revision finally does
+it.** Four rewrites in, a hash column has been re-derived three times and been wrong three times, while
+the subject column would have been right every time — a rebase preserves subjects and destroys hashes. So
+the durable identifier is the subject, and `git log --oneline --grep=<subject>` resolves it to whatever the
+current hash is. **Do not put hashes back in this table.** Two rows below carry a subject that a rebase
+squashed into another commit, and that is recorded in the row rather than hidden by giving it a hash of its
+own.
 
 | Item | Commit |
 |---|---|
-| Phase 9B dark mode — every server-rendered surface, chart included | `38c36aba1` |
-| Inline-SVG chart rendering coupled to the modern gate | `e39516e40` |
-| Data-mark-anchored tooltip tail | `4077f9099` |
-| Shell tooltip retokenize + CARD ramp + data-tip layer declaration | `cc2948231` |
-| Selection vocabulary — chart-owned surfaces and the annotation border | `9dbc9857e` |
-| Menu-action reachability, the §06 ladder, and rollout slice 1 — chart | `5c7e106f2` |
-| Right-click reaches max mode on tables | `2736113df` |
-| Rollout slice 2 — table, crosstab, calc table | `39239784b` |
-| Max-mode mini-toolbar positioning fix | `9881350c1` |
-| Rollout slice 3 — selection list and tree, kebab-only at any width | `65e249e91` |
-| Strip suppression where the lane cannot hold it — L, density-approximated | `f5f568f12` |
-| `userTitleHeight` — N, the flag and its per-type default | `df3044734` |
-| `userTitleHeight` — N, the thirteen stamps, the propagate and the reset un-stamp | `5d0c7782f` |
-| **M-P1 — the seed mark's field, persistence and creation stamps** | `da34d78a7` |
-| **M-P2 — `VizContext` threaded, the six `isModern()` predicates and all four sub-gates deleted** | `37667c1bc` |
-| M-P1's null-guard — a mocked host viewsheet with no assembly info | `6db87680c` |
-| **M-P3 — the enumeration point, `seedChromeDefaults`'s bypass predicates, `VizModernizeUtil`, the endpoint and the composer bar** | `f07ea96d2` |
-| **M-P4 — the 43 read-path sites and the creation site flipped from `ofGate()` to the mark, one documented survivor left** | `b2e2d56dc` |
-| **M-P5 — browser reads follow the mark; 61 files, the body class renamed `viz-shell`, `isVizModern()` deleted** | `6d8d5da04` |
-| The modern strip no longer draws controls that do nothing | `f4e4c4498` |
-| **M-P6 — Revert (the per-dashboard mirror of Modernize), plus the `gate &&` term in `VizContext.of(VizMark)`, both `PlotDescriptor` seed booleans and `VSObjectChromeDefaults.resolveSeededCorner` all deleted in one commit** | `47521e72c` |
-| **Revert carries a chart's colours with the assembly** — the palette seeded in `seedChromeDefaults`, derived per-value colours marked and dropped, the two sheet-level colour caches cleared, the binding pane's Apply comparing against the reported tier state, and the value axis's per-column label gate removed. Five bug-fix rounds, six new test classes | `1b8eb3cea` |
-| **Card radius 12 → 6** — `CARD_CORNER_RADIUS` onto `--inet-radius-xl`, the top of the DOM radius scale | `f69751842` |
+| Phase 9B dark mode — every server-rendered surface, chart included | *"Visualization Phase 9B: org-scoped dark mode"* |
+| Inline-SVG chart rendering coupled to the modern gate | *"Couple inline-SVG chart rendering to the modern visualization gate"* |
+| Data-mark-anchored tooltip tail | *"point the tooltip tail at the hovered data mark"* |
+| Shell tooltip retokenize + CARD ramp + data-tip layer declaration | *"retokenize the tooltip surfaces and declare the data-tip layers"* |
+| Selection vocabulary — chart-owned surfaces and the annotation border | *"Chart overlay surfaces ticket items 7, 8 and 9 and Shell surfaces ticket item 11"* |
+| Menu-action reachability, the §06 ladder, and rollout slice 1 — chart | *"anchor the mini-toolbar in the title lane with a resident kebab"* |
+| Right-click reaches max mode on tables | *"let right-click reach max mode on tables"* |
+| Rollout slice 2 — table, crosstab, calc table | *"anchor the table family's mini-toolbar"* |
+| Max-mode mini-toolbar positioning fix | *"stop max mode positioning the mini-toolbar above its own origin"* |
+| Rollout slice 3 — selection list and tree, kebab-only at any width | *"anchor the selection family, kebab-only"* |
+| Strip suppression where the lane cannot hold it — L, density-approximated | *"suppress the anchored strip where the title lane cannot hold it"* |
+| `userTitleHeight` — N, the flag and its per-type default | *"record whether a title height was set by its author"* |
+| `userTitleHeight` — N, the thirteen stamps, the propagate and the reset un-stamp | *"mark title heights an author chose"* |
+| **M-P1 — the seed mark's field, persistence and creation stamps** | *"record which gate an assembly was created under"* |
+| **M-P2 — `VizContext` threaded, the six `isModern()` predicates and all four sub-gates deleted** | *"resolve modern defaults from a context, not the gate"* |
+| M-P1's null-guard — a mocked host viewsheet with no assembly info | *"survive a host viewsheet with no assembly info"* |
+| **M-P3 — the enumeration point, `seedChromeDefaults`'s bypass predicates, `VizModernizeUtil`, the endpoint and the composer bar** | *"seed modern chrome from one hook, and modernize on request"* |
+| **M-P4 — the 43 read-path sites and the creation site flipped from `ofGate()` to the mark, one documented survivor left** | *"render from the assembly's mark, not the org gate"* |
+| **M-P5 — browser reads follow the mark; 61 files, the body class renamed `viz-shell`, `isVizModern()` deleted** | *"scope modern chrome to the assembly in the browser"* |
+| The modern strip no longer draws controls that do nothing | *"stop the modern strip drawing controls that do nothing"* |
+| **M-P6 — Revert (the per-dashboard mirror of Modernize), plus the `gate &&` term in `VizContext.of(VizMark)`, both `PlotDescriptor` seed booleans and `VSObjectChromeDefaults.resolveSeededCorner` all deleted in one commit** | *"revert per dashboard, and end the gate's read-time life"* |
+| **Revert carries a chart's colours with the assembly** — the palette seeded in `seedChromeDefaults`, derived per-value colours marked and dropped, the two sheet-level colour caches cleared, the binding pane's Apply comparing against the reported tier state, and the value axis's per-column label gate removed. Five bug-fix rounds, six new test classes | *"revert a chart's colours with the assembly"* |
+| **Card radius 12 → 6** — `CARD_CORNER_RADIUS` onto `--inet-radius-xl`, the top of the DOM radius scale | *"drop the card radius onto the DOM radius scale"* |
 | **L′ — the title lane height row**, plus the follow-the-default-density affordance for title and selection cell height. Five per-type `getTitleHeight()` delegations consult a mark-gated resolver, so all 111 read sites follow untouched, 46 of them painters; `TitleInfo` keeps its own getter, serialization and equality, which is what makes the row reversible. `getDefaultTitleHeight` renamed `getLegacyTitleHeight` so the calendar’s 36 is not later “corrected” into the row. Eight dialog services read and write the checkbox and their inference guards are deleted; a missing flag means no opinion, so unmarked content and stale clients keep the old comparison behaviour | *this commit* |
 | **L″ — geometric suppression of the anchored strip.** The two predicates stop reading the org density and take the assembly's own lane: `lane >= 24` draws the strip, below it draws no chrome, and a hidden title yields lane 0 so one rule covers both. `anchoredLaneHeight` rounds, because the composer's drag path feeds `getBoundingClientRect()` heights in. Deletes `GuiTool.isVizDensityAtLeastCompact`, `rightEdgeReserve` and `SORT_CONTROL_RESERVE` — title-hidden tables gain 22px of plot. Threshold shipped at 26, corrected to 24 the same day. Browser-only: no persisted state, no export pass | *this commit* |
-| **§10.2 — the seamless in-lane strip and its derived glyph tone.** The anchored strip's surface is gone: `.mini-toolbar--anchored .mini-toolbar-container` overrides the unconditional fill, border and radius from `mini-toolbar.component.scss:25-33` to transparent/none/0, so the white bordered box §10.2 named no longer draws on the anchored path. Each glyph and its button take one of two inks — black or white — chosen by measured contrast against the resolved background (the title lane, falling back through the card, the optional viewsheet canvas, then `vizDark`), computed once per background change in the new pure `resolveStripGlyphTone` (`strip-glyph-tone.ts`) and delivered from `vs-object-container` as `data-tone` plus `--viz-strip-glyph-a`. Hover and the focus ring derive from that alpha in CSS; the resting kebab's `opacity: 0.55` dimmer is gone, replaced by the tone's own resting-to-hover step. **Diverges from the source spec on the tone rule.** §10.2's `L > 0.45` luminance threshold is not what shipped — measured, it selects the *lower*-contrast ink across a wide band of author colours, including 1.86:1 on the swatch the spec itself flags as the one to check first. The resolver instead carries no threshold constant: it measures both candidate inks at their base alphas, takes whichever reads higher, and lifts only that ink's alpha until it clears WCAG 1.4.11's 3:1 floor. The scrim §10.2 prescribes for a glyph overlaying the plot also does not ship — measured, it reduces contrast at every alpha, and post-L″ its title-hidden case does not occur on the anchored path. Full record of this and two smaller corrections (the `<img>` precondition, the hover-background framing) in [the corrections doc](./chart-card-source-doc-corrections.md) §1.5–§1.8, and the shipped design in [chart-card-seamless-strip-design.md](./chart-card-seamless-strip-design.md) | `ffae8a1dd` — landed as one commit rather than the five intended subjects |
+| **§10.2 — the seamless in-lane strip and its derived glyph tone.** The anchored strip's surface is gone: `.mini-toolbar--anchored .mini-toolbar-container` overrides the unconditional fill, border and radius from `mini-toolbar.component.scss:25-33` to transparent/none/0, so the white bordered box §10.2 named no longer draws on the anchored path. Each glyph and its button take one of two inks — black or white — chosen by measured contrast against the resolved background (the title lane, falling back through the card, the optional viewsheet canvas, then `vizDark`), computed once per background change in the new pure `resolveStripGlyphTone` (`strip-glyph-tone.ts`) and delivered from `vs-object-container` as `data-tone` plus `--viz-strip-glyph-a`. Hover and the focus ring derive from that alpha in CSS; the resting kebab's `opacity: 0.55` dimmer is gone, replaced by the tone's own resting-to-hover step. **Diverges from the source spec on the tone rule.** §10.2's `L > 0.45` luminance threshold is not what shipped — measured, it selects the *lower*-contrast ink across a wide band of author colours, including 1.86:1 on the swatch the spec itself flags as the one to check first. The resolver instead carries no threshold constant: it measures both candidate inks at their base alphas, takes whichever reads higher, and lifts only that ink's alpha until it clears WCAG 1.4.11's 3:1 floor. The scrim §10.2 prescribes for a glyph overlaying the plot also does not ship — measured, it reduces contrast at every alpha, and post-L″ its title-hidden case does not occur on the anchored path. Full record of this and two smaller corrections (the `<img>` precondition, the hover-background framing) in [the corrections doc](./chart-card-source-doc-corrections.md) §1.5–§1.8, and the shipped design in [chart-card-seamless-strip-design.md](./chart-card-seamless-strip-design.md) | *"draw the anchored strip as bare glyphs toned to the card behind them"* — landed as one commit rather than the five intended subjects |
 | **Dark — the browser-DOM surfaces**, re-scoped against `ffae8a1dd` before building. Five `--inet-viz-*-dark` tokens in the existing dark block carry the neutrals the server-side resolvers already use, so a painted chart and the chrome around it hold one dark palette; a fifth, caption-tier value (`#938F99`, 4.87:1 on the surface) is new, because the painted chrome needs only two text tiers and the CARD tooltip binds three. Three surfaces take them: the **floating** strip (`mini-toolbar.component.scss`), every **tooltip** plus its SVG tail (`_directives.scss`, `tooltip.component.scss`), and the **nav bar** (`chart-nav-bar.component.scss`, which also brings its off-scale 5px corner onto `--inet-radius-xl` under the modern gate). **Four of the plan's own premises were false and are corrected rather than carried:** its Task 1 targeted the *anchored* strip, which `ffae8a1dd` had already left surfaceless — the light pill that survives is the floating one, on the types in `hasMiniToolbar()` but not `ANCHORED_ASSEMBLY_TYPES` (as written, calendar, selection container and adhoc-filter range slider; since slices 4 and 5 landed, the adhoc-filter range slider alone); its tooltip scope class was `.viz-dark`, the per-assembly wrapper, which can never match a body-level overlay — the gate there is `.viz-shell`, so the dark scope is `.viz-shell-dark`; its CARD-ramp override was one foreground, now three; and its Task 3 is closed as a **no-op by measurement** (see below). The nav-bar glyphs needed the ink set on the `<i>`, not the button: they extend `.ineticons`, which declares its own `color`, and the icon token's `#6A685F` measures **2.76:1** on the dark bar and **2.07:1** pressed — both under WCAG 1.4.11's 3:1 floor. The same correction was applied to the floating strip. The pan toggle's pressed fill is a neutral raise, not the modern selection teal: light reads that state as a 1.12 step off its own surface, and a toggle being on is a pressed state rather than a selection**The browser pass then found two defects and both are fixed here.** (1) Tooltips were scoped to `.viz-shell-dark` and had to be re-scoped per assembly: a tooltip is reparented to the body, so it has no assembly ancestor, and the body class follows the live org `viewsheet.darkMode` while an assembly follows its mark — observed drawing a light tooltip on a `MODERN_DARK` chart in a light org, and a dark tooltip on a `MODERN_LIGHT` chart in a dark org. `TooltipDirective.resolveDark()` now reads `closest(".viz-modern, .viz-dark")` from the hovered element and stamps `widget__tooltip--dark` / `tooltip-chrome--dark`, falling back to the shell only where there is no wrapper. This cashes in the R17/R21 deferral on its own stated trigger — "revisit only if a mixed dashboard makes it visible" — for the palette only; the scrim and the data-tip offsets stay org-scoped, because a 4px offset is the inventing-precision case and a palette is not. The five `--inet-viz-*-dark` tokens also moved to bare `:root`, since a body-level tooltip sits outside every dark scope and could not resolve them. (2) Selection list and tree **cell text** rendered near-black on the dark surface — `SelectionBaseVSAssemblyInfo.setDefaultFormat` hardcodes `0x2b2b2b` on the DEFAULT tier, an unconditional creation default that `seedChromeDefaults` is documented never to touch, delivered to the browser as an inline style so no stylesheet could reach it. Fixed in `SelectionListModel.getFormats()` via `applyDarkForeground`, the 9B mechanism that existed for exactly this and was wired to only one surface, the slider; one site covers list and tree both. **Not a regression from this work** — a pre-existing 9B gap. **Export parity was then corrected too, and the title is the precedent for why one read point is not enough.** What makes `VSTitleChromeDefaults` right is not the clone-at-read-time shape but that it runs at *every* read point, `FormatPainterService` included — miss that and the composer's format pane shows the stored near-black while the canvas, the viewer and the export all draw light text, a design-time WYSIWYG break. The substitution now runs at five: the browser model; `VSSelectionListHelper.getValueFormat` (given a `VizContext`), the chokepoint PDF, SVG/PNG and the tree all route through; both HTML helpers, which bypass it and emit CSS from `svalue.getFormat()`; `VsToReportConverter` on the DETAIL path; and the composer picker via a new `applyDarkForegroundInPlace`. Two load-bearing details: the substitution runs *before* `getValueFormat`'s dimming, which writes the USER tier and must keep winning so an excluded value stays grey; and the tree helper passes `sv.getFormat()` uncloned, so the clone-returning variant is required there and the in-place one must never touch a format reached from a `FormatInfo`. A code review after the manual passes then corrected four things, three of them defects it would have shipped: the `getValueFormat` signature change left three callers in `utils/inetsoft-xml-formats` (Excel list, Excel tree, PPT) stale — a build break that a 77-module incremental `install` reported as SUCCESS and only `clean` exposed, so verify a cross-module signature change with `clean`; the print-layout substitution is **reverted**, being the one renderer that does not paint the dark page (`setUserBackground` fires only when the background differs from the DEFAULT tier, which is where the dark page colour is written, so the report stays white and light ink is *less* readable); the composer branch also caught Measure Text / Measure Bar / Measure Bar(-), which share the DETAIL type and whose foreground *is* the bar colour, now excluded by testing for an empty path array rather than the incomplete `isMeasureTextBar`; and the tooltip's `viz-shell-dark` fallback is gone, since that class paints no surface and the shell's own surfaces stay light. Excel is deliberately left on the legacy ink: unfilled white cells, no page to paint, so the light neutral would be invisible. Clean 77-module build, core 5123 and portal 1375 green | **No commit yet.** Complete in the working tree, gates green: portal 1369/1369, the mini-toolbar TL suite 24/24 (two new, and the exclusion assertion was confirmed to fail when the `:not(.mini-toolbar--anchored)` guard is removed), and `styles.scss` compiles. **Not yet seen in a browser** — the visual pass across the three surfaces is the outstanding gate. Three intended subjects: `feat(vsobjects): darken the floating mini-toolbar strip`; `feat(shell): darken the tooltip surfaces under the dark gate`; `feat(chart): darken the chart nav bar and put its corner on the radius scale` |
-| **Dark — the browser-DOM surfaces** — the row above committed as `46e8f6b5a`, and its browser pass ran (it found the two defects the row records, both fixed before the commit). Its "No commit yet / not yet seen in a browser" text predates that by minutes and is stale | `46e8f6b5a` |
-| **S / §04 — the card's inset and its interior gap scale.** A marked chart resolves a 12px card inset and 4 / 8 / 14(+2) interior gaps at read time, and an unmarked chart is bit-for-bit unchanged in the viewer, the composer and every export. Nothing is seeded, so clearing the mark reverts by construction — no reverser, no migration, nothing added to the bookmark path. The inset resolves behind `ChartVSAssemblyInfo.getPadding()`, so all 17 read sites follow untouched (four exporters, the report converter, annotation placement, the browser model); the three gaps resolve at the descriptor-to-spec boundary in `GraphGenerator`, keeping `inetsoft.graph` a consumer of resolved values with zero `VizContext` references. `userPadding` records authorship and is carried through the dialog's clone-and-merge; the padding pane and the legend format dialog each gain a follow-the-default checkbox. Hidden-means-zero inheritance: an axis title whose labels are hidden takes the plot-adjacent gap, resolved against the same per-ref descriptor the axis spec uses and mirroring its mode-dependent visibility test, so it holds on a separated chart and in max mode. **Costed XL by this file and it was not** — see the §04 section. **Four of §04's numbers are disproved in code**, recorded in [the geometry decisions](./chart-card-geometry-decisions.md) | `2afb06bc1` |
-| **§04 follow-ups** — a custom axis title now resolves the card gap (`getTitleSpec` returned early before the gap was set, so a typed title kept 0 while a derived one took the card's); legacy is fed 0 explicitly there so a CSS `label_gap` cannot start moving unmarked charts. An author can now set the legend gap to 0: the descriptor reports whether it holds an opinion and the resolver asks that instead of comparing against zero. The opinion test is `hasUserValue() || getGap() != 0` — the flag alone is a **regression**, because `CompositeValue` records `cssDefined` privately with no accessor, so a CSS gap would be overridden. Confirmed empirically: the flag alone failed a pre-existing test | `2b86a9fa3` |
-| The geometry decisions and the plan that built them | `f4a7993f9` |
-| **Decision 10 — chrome resolves on bookmark restore.** The re-seed goes at `AbstractVSAssembly.parseState`, the chokepoint every restore passes, and runs after the content is parsed because a table's parse replaces the whole format object the seed writes into. Wider than decision 10 costed: `dimensionColors` is left alone (persisted author content, not a cache), author-set bar corner radius and smooth lines survive via two provenance flags, and the live mark is captured across the parse so a calc table's serialized info cannot reinstall a stale one. **This emptied the release gate** | `f47c59304` |
-| **`viewsheet.modernVisualization` defaults to true**, with `viewsheet.density=compact`. Two lines in `defaults.properties`; no read site changed. Compact rather than dense because dense's 20px lane cannot hold the 24px anchored strip and L″ draws no chrome below that — dense would have shipped the modern look with no toolbar on charts, tables, crosstabs, calc tables and both selection types. **Unset no longer means legacy** | `c7790bbf0` |
-| **The title lane becomes unfilled — chart and the three table types.** A `#D9D5CC` bottom rule replaces the `#F1EFEA` filled band, seeded at creation so it travels in an exported asset and resolves on bookmark restore. Both branches write, because the legacy one is the Revert contract. The chart needed the hook re-invoked after it installs its own title composite. Design: [2026-08-28-title-lane-unfilled-design.md](./2026-08-28-title-lane-unfilled-design.md) | `f499c0ffa`, `bee8d4169` |
+| **Dark — the browser-DOM surfaces** — the row above committed as `46e8f6b5a`, and its browser pass ran (it found the two defects the row records, both fixed before the commit). Its "No commit yet / not yet seen in a browser" text predates that by minutes and is stale | *"darken the chart card's browser surfaces"* |
+| **S / §04 — the card's inset and its interior gap scale.** A marked chart resolves a 12px card inset and 4 / 8 / 14(+2) interior gaps at read time, and an unmarked chart is bit-for-bit unchanged in the viewer, the composer and every export. Nothing is seeded, so clearing the mark reverts by construction — no reverser, no migration, nothing added to the bookmark path. The inset resolves behind `ChartVSAssemblyInfo.getPadding()`, so all 17 read sites follow untouched (four exporters, the report converter, annotation placement, the browser model); the three gaps resolve at the descriptor-to-spec boundary in `GraphGenerator`, keeping `inetsoft.graph` a consumer of resolved values with zero `VizContext` references. `userPadding` records authorship and is carried through the dialog's clone-and-merge; the padding pane and the legend format dialog each gain a follow-the-default checkbox. Hidden-means-zero inheritance: an axis title whose labels are hidden takes the plot-adjacent gap, resolved against the same per-ref descriptor the axis spec uses and mirroring its mode-dependent visibility test, so it holds on a separated chart and in max mode. **Costed XL by this file and it was not** — see the §04 section. **Four of §04's numbers are disproved in code**, recorded in [the geometry decisions](./chart-card-geometry-decisions.md) | *"give a marked chart the card's geometry"* |
+| **§04 follow-ups** — a custom axis title now resolves the card gap (`getTitleSpec` returned early before the gap was set, so a typed title kept 0 while a derived one took the card's); legacy is fed 0 explicitly there so a CSS `label_gap` cannot start moving unmarked charts. An author can now set the legend gap to 0: the descriptor reports whether it holds an opinion and the resolver asks that instead of comparing against zero. The opinion test is `hasUserValue() || getGap() != 0` — the flag alone is a **regression**, because `CompositeValue` records `cssDefined` privately with no accessor, so a CSS gap would be overridden. Confirmed empirically: the flag alone failed a pre-existing test | *squashed into "give a marked chart the card's geometry"* by the fourth rebase; its own subject no longer exists |
+| The geometry decisions and the plan that built them | *squashed into "give a marked chart the card's geometry"*, which now carries `chart-card-geometry-decisions.md` and its plan |
+| **Decision 10 — chrome resolves on bookmark restore.** The re-seed goes at `AbstractVSAssembly.parseState`, the chokepoint every restore passes, and runs after the content is parsed because a table's parse replaces the whole format object the seed writes into. Wider than decision 10 costed: `dimensionColors` is left alone (persisted author content, not a cache), author-set bar corner radius and smooth lines survive via two provenance flags, and the live mark is captured across the parse so a calc table's serialized info cannot reinstall a stale one. **This emptied the release gate** | *"resolve an assembly's chrome when its state is restored"* |
+| **`viewsheet.modernVisualization` defaults to true**, with `viewsheet.density=compact`. Two lines in `defaults.properties`; no read site changed. Compact rather than dense because dense's 20px lane cannot hold the 24px anchored strip and L″ draws no chrome below that — dense would have shipped the modern look with no toolbar on charts, tables, crosstabs, calc tables and both selection types. **Unset no longer means legacy** | *"make modern visualization the default for a new install"* |
+| **The title lane becomes unfilled — chart and the three table types.** A `#D9D5CC` bottom rule replaces the `#F1EFEA` filled band, seeded at creation so it travels in an exported asset and resolves on bookmark restore. Both branches write, because the legacy one is the Revert contract. The chart needed the hook re-invoked after it installs its own title composite. Design: [2026-08-28-title-lane-unfilled-design.md](./2026-08-28-title-lane-unfilled-design.md) | *"draw the modern title lane unfilled with a bottom rule"* + *"keep the object frame's colour off a chart's title rule"* |
 | **The title lane becomes unfilled — the selection family**: selection list, tree, container and range slider. For the first three this is only a colour change; their lane was already unfilled with a bottom-only rule, and they looked filled solely because the read-time substitution repainted them. The container is structurally the table's case. `isSeededTitle` widens to seven types; the browser and all four export call sites convert, one of them (`PPTVSExporter`) in another Maven module. Full `core` suite 5222/0. **Also fixes a pre-existing bookmark-restore defect**: a container's children are re-created from the state blob and never pass through `parseState`, so they kept the bookmark's mark and came back modern over a reverted container. Their marks are now captured before removal and handed back with a re-seed, mirroring the annotation branch in the same method. **Leaves a recommended hoist** — see [the design](./2026-08-31-selection-family-title-lane-design.md) §9 | *"draw the selection family's title lane unfilled"* |
-| **Rollout slice 4 — the selection container**, kebab-only like the rest of its family | `f36469d2f` |
-| Slice 4 follow-up — corrected what the max-mode test claims to pin | `8b92878fd` |
-| A preparatory test refactor — moved the suite's "outside the anchored set" control from the calendar to the adhoc range slider | `4434877ca` |
-| **Rollout slice 5 — the calendar**, the table treatment unmodified; the last slice | `09b29620e` |
-| **The anchored set made permanent** — the four TEMPORARY markers rewritten, and the promised deletion of the type test recorded as unsafe: it would empty every laneless assembly's toolbar under the gate | `aab93d919` |
+| **Rollout slice 4 — the selection container**, kebab-only like the rest of its family | *"anchor the selection container's kebab in its title lane"* |
+| Slice 4 follow-up — corrected what the max-mode test claims to pin | *"say what the max-mode tests actually pin"* |
+| A preparatory test refactor — moved the suite's "outside the anchored set" control from the calendar to the adhoc range slider | *"control for a non-anchored type with the range slider"* |
+| **Rollout slice 5 — the calendar**, the table treatment unmodified; the last slice | *"anchor the calendar's strip in its title lane"* |
+| **The anchored set made permanent** — the four TEMPORARY markers rewritten, and the promised deletion of the type test recorded as unsafe: it would empty every laneless assembly's toolbar under the gate | *"make the anchored set permanent, and say why it cannot go"* |
+| **Seeded chrome migration, group 1** — four chrome values seeded at creation instead of resolved at render. Design: [group 1](./2026-09-01-seeded-chrome-migration-group1-design.md). Nine commits, full `core` suite 5219/0 and a clean 46-module cross-module build. **Its final review found a Critical the task-level reviews structurally could not**: a selection tree renders non-leaf rows through five `TableDataPath(i, GROUP_HEADER)` composites cloned from DETAIL, so seeding DETAIL alone left them stale on Modernize, Revert and `reseedAfterRestore` — a dark tree kept near-black group rows on the dark card. The tree's override now COPIES the value `super.seedChromeDefaults` just wrote rather than re-deriving it from `ctx`, so the decision about what the value should be exists once. Also replaced a hook-wide re-run with a narrow `ChartVSAssemblyInfo.resetCardInset(VizContext)` — the wide version reset one `Insets` by re-seeding the card background, the title lane and the palette, `clearDerivedColors()` included, without the sheet-level cache clears that Modernize and Revert pair with that write | *"seed four chrome values at creation instead of resolving them"* |
+| **Seeded chrome migration, group 2** — the last three titled types (checkbox, radio button, calendar), both remaining resolvers deleted with their fifteen call sites, the `MaxModeSelectionVSAssemblyInfo` hoist, and Excel's dark opt-out extended to titles and the painted slider. Design: [group 2](./2026-09-01-seeded-chrome-migration-group2-design.md). **After this, no chrome value is computed at render.** Checkbox and radio needed the hook call added at all — both override `setDefaultFormat` without calling `super`, so the base's call was unreachable; their writer sits on `ListInputVSAssemblyInfo` but is not called from there, because `ComboBoxVSAssemblyInfo` extends the same class and is not a titled card. **Three defects surfaced converting the calendar, all reachable with the gate off**: its show-type swap installed a JVM-wide static `FormatInfo` uncloned, so one author's later format edit corrupted every calendar created afterwards in that JVM regardless of org (a live cross-tenant bug with no test); the swap's equality guard had to start comparing against the prototype *as seeded for the assembly's own mark*, since `FormatInfo.equals` is a deep comparison; and the dropdown prototype stores only an object and a title format, so seeding read its cell paths through the shrinking `getFormat` overload and silently did nothing. Its month/year header had never been written by anything in either mode, so a dark calendar drew black ink on the dark card in every server-painted export. `paintsPageBackground()` names the Excel distinction rather than testing for Excel, overridden once on the abstract `ExcelVSExporter`; PPT keeps the modern ink because a slide paints the viewsheet background. Also seeded, pre-existing rather than regressions: a checkbox's and radio button's item labels and a range slider's min/max labels had always been black on the dark card, because all six of `applyDarkForeground`'s call sites were selection lists, trees or the painted slider. `CalendarPropertyDialogServiceTest` gains `@Tag("core")`, without which surefire's hardcoded group filter meant it never ran — which is how the dropdown title defect survived review. Full `core` suite 5245/0 | *"seed the last three types' chrome and drop the read-time resolvers"* |
 | **A suppressed assembly's actions stay reachable, and the kebab flattens.** Found by the manual browser pass, not by any test: a title-hidden container or calendar right-clicked to a menu holding only Hide MiniToolbar, because the lane-0 rung draws neither strip nor kebab and right-click opens `menuActions`, a different list from `toolbarActions`. **Anchoring a type has always cost a menu-reachability duplication** — the chart pays it for show-data and the max-mode pair, the table family for show-details and export — and slices 4 and 5 did not pay it. Both types now carry their toolbar actions in the menu, under their toolbar twins' ids. **The kebab also flattens where the menu wrapper is the only overflow**, which is every anchored type's normal shape at three or fewer visible actions, so this changes chart, the four table types and both selection types too — taken deliberately, not as a side effect. Flattening then exposed the menu's copies beside the buttons they duplicate, so the merge now also deduplicates against what the strip is drawing | *"keep a suppressed assembly's actions reachable, and flatten its kebab"* |
 
 **Why P2 landed as two commits.** `6db87680c` is a two-line guard in `AbstractVSAssembly`'s stamp plus its
@@ -1532,15 +1623,16 @@ note above already gives.
 
 ## Still undecided
 
-- **Whether `viewsheet.modernVisualization` ships true, and on which release.** Raised 2026-08-28. The
-  mechanism is settled and small — the property is simply unset today — so what is open is the product
-  call, not the code. Three things the decision needs an answer on: whether default-true waits for
-  decision 10 to land (the dependency picture says it must, because the gate is what currently confines
-  that defect to opted-in dashboards); whether an upgrading customer who has never seen the EM checkbox
-  should find their *next* new dashboard modern with no action taken; and whether the two surfaces that
-  still follow the gate rather than the mark — `AbstractChartInfo.getTooltipStyle` and
-  `VSChartInteractionDefaults.isInlineSvg` — become the default everywhere the moment it flips, which
-  turns two accepted costs into two shipped behaviours.
+- ~~**Whether `viewsheet.modernVisualization` ships true, and on which release.**~~ **Answered and shipped
+  2026-08-31: true, with `viewsheet.density=compact`.** It went second, behind decision 10, exactly as the
+  dependency picture required. Two of the three sub-questions it raised are now settled by the shipping
+  decision itself: an upgrading customer who has never seen the EM checkbox does find their *next* new
+  dashboard modern, and **"unset" no longer means legacy** — a gate-off test must set the property to
+  `"false"` explicitly. **The third is not settled, it is merely no longer blocking**: the two surfaces
+  that follow the gate rather than the mark — `AbstractChartInfo.getTooltipStyle` and
+  `VSChartInteractionDefaults.isInlineSvg` — became the default everywhere the moment it flipped, which
+  turned two *accepted costs* into two *shipped behaviours*. Neither has been re-examined in that light.
+  See the note under the ranking.
 - ~~**The four sub-gates.**~~ **Answered 2026-08-14 and shipped in P2: all four are deleted**, and
   `VizContext` keeps its three fields. They were rollout scaffolding — undocumented, absent from EM,
   referenced nowhere outside the six classes that read them, default-on, and one with no test. Deleting them

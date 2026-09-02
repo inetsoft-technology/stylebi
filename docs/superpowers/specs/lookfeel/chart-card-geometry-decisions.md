@@ -1,7 +1,10 @@
 # Chart Card — Card Geometry Decisions
 
-**Date:** 2026-08-27
-**Verified against:** community `viz-updates` @ `46e8f6b5a`, which is `HEAD`
+**Date:** 2026-08-27, amended 2026-09-02 with **decision 6, which declines §04's last item and closes
+§04 completely.** §2.2's line-height bullet is superseded there.
+**Verified against:** community `viz-updates` @ `920e2cca5` at the amendment, `HEAD` then and now.
+Decisions 1–5 were verified against `46e8f6b5a`, a hash the branch's fourth rebase has since killed —
+its subject was *"darken the chart card's browser surfaces"*.
 **Covers:** §04, the card's sizing and spacing — roadmap item **S**. This file opens with decision 1,
 the chart assembly's `padding`: what it is, and how a modern value reaches it reversibly.
 
@@ -248,8 +251,8 @@ inset as a design-system constant while the product ships it as a per-chart auth
 document cannot answer what happens when the two disagree. That is decision 1 below.
 
 **Not a decision — a measurement.** The values: 12px was drawn against mockups at 1100×620 and has not
-been measured at real render sizes here, and §04's own "graph's own outer margin" is unlocated in code
-(§1.1). §04 asks for this pass itself, on the grounds that every mock in the document draws the intended
+been measured at real render sizes here, and §04's own "graph's own outer margin" does not exist — §1.1.1
+settled that; it is the card `padding` seen from inside an exported SVG. §04 asks for this pass itself, on the grounds that every mock in the document draws the intended
 result and so none of them can show the defect.
 
 ### 1.6 The decision — the author wins, but opts in
@@ -337,11 +340,17 @@ taken on its own; see decision 3, which also corrects what this section first sa
 
 ### 2.2 Three more §04 items that are not gaps
 
-- **Zero the graph's own outer margin.** Still unlocated in code (§1.1). §04 observed it in a sample
-  asset. Until it is found, the four gap changes are unopposed and the plot only shrinks.
-- **`--inet-chart-line-height` at 1.2** — "the one type value this spec adds", covering title, axis
+- ~~**Zero the graph's own outer margin.**~~ **Closed by §1.1.1: it does not exist.** The band §04
+  observed in a sample asset is the card `padding` seen from inside an exported SVG, so there is nothing
+  to zero and §04's source edit is void. The consequence stands and is the point: the four gap changes
+  are unopposed and the plot only shrinks. **This bullet said "still unlocated" until 2026-09-02; do not
+  go hunting for the margin.**
+- ~~**`--inet-chart-line-height` at 1.2**~~ — "the one type value this spec adds", covering title, axis
   titles, tick labels and legend labels. Chart text is server-painted, so this is a Java font-metrics
-  change, not a CSS token, whatever the token name suggests.
+  change, not a CSS token, whatever the token name suggests. **DECLINED 2026-09-02 — see decision 6.**
+  Measured, it is a second spacing mechanism layered on the gap scale decision 2 shipped, and it costs
+  up to 13% of plot height on a small faceted chart. §04's last item is therefore closed by decision
+  rather than deferred, which closes §04 completely.
 - **Hidden means zero, with gap inheritance.** §04's rule is subtler than "collapse": with the y labels
   hidden but the axis title kept, the title takes the labels' 8px rather than keeping its own 4px. Check
   whether the engine already does this — the bands size to content, so it may — before costing it.
@@ -532,6 +541,132 @@ one geometry value reversibly and two irreversibly.
 **Not scheduled here.** Decisions 1–3 are what §04-a and the gap scale need. This one is recorded so it
 is not re-discovered as a defect during the export pass, and because it is the strongest argument yet
 that the follow-the-default checkbox should be a pattern rather than three separate controls.
+
+---
+
+## Decision 6 — `--inet-chart-line-height` at 1.2 is DECLINED, and it closes §04
+
+**Date:** 2026-09-02 · **Verified against** `viz-updates` @ `920e2cca5`, which is `HEAD`.
+
+§04 calls this "the one type value this spec adds", covering the title, axis titles, tick labels and
+legend labels. It was the last open item in §04 and the roadmap ranked it first, on the grounds that it
+was the only remaining item needing neither a product decision nor a design pass. **It needed neither.
+It needed a measurement, and the measurement declines it.**
+
+### 6.1 It is one chokepoint, not a sweep
+
+`TextSpec.lineSpacing` already exists (`:202-215`) but is **not** a line height: its contract is
+"spaced out evenly by *filling the allocated label height* … the ratio of the gaps between lines", it
+applies only to horizontal or vertical labels, and it has exactly one producer — `GraphGenerator:2516`
+setting `5/30.0` for the x-axis even-spacing feature. Different semantic, not reusable, but it is
+precedent for the seam.
+
+The real line height is `fm.getHeight()`, which appears twelve times in `VLabel`. Only two of the twelve
+define a box, and one of those is the whole measurement path:
+
+| Site | Role |
+|---|---|
+| `VLabel:924` — `lheight = fm.getHeight() * lines.length`, in `getTransformedBounds0` | **the chokepoint.** `getPreferredWidth(String...)` and `getPreferredHeight(String...)` (`:898`, `:906`) both delegate here, so this one line sizes the axis band — and therefore the plot — as well as the label's own bounds |
+| `VLabel:155` — `yIncr = fm.getHeight()` | the paint advance. Multi-line only; a single line never increments |
+| `:1328`, `:1451` | two more copies of `fm.getHeight() * dlabels.length`, for rotated labels' offsets. They duplicate `:924`'s arithmetic instead of calling it — worth collapsing if this area is ever touched for another reason |
+| `:172`, `:179` | centering inside the `lineSpacing` feature's computed bar. Not box-defining |
+| `:242`, `:243`, `:264`, `:265` | clipping compensation for a box *smaller* than one line. Not box-defining |
+| `:534` | the wrap heuristic, `height > fm.getHeight() * 1.6`. A decision about whether to wrap, not a box |
+| `:819` | a rich-text segment's background fill rect. Paint-side, not layout |
+
+So the implementation would have been small. That is not why it is declined.
+
+### 6.2 What it costs, measured
+
+A throwaway probe put a multiplier on `:924` and `:155`, built marked charts through `GraphGenerator`,
+ran them through `Plotter.plotAndLayout` at three canvas sizes and read `VGraph.getPlotBounds()`. Two
+semantics were compared against baseline: **full CSS** (every run's box grows, `fm.getHeight() * 1.2 * n`)
+and **advance-only** (only the gaps between lines of a multi-line label grow,
+`fm.getHeight() * (1 + (n-1) * 1.2)`). The probe and the multiplier were deleted; the numbers are here
+because that is the durable part.
+
+| Case | Canvas | Baseline plot | Full 1.2 | Advance-only |
+|---|---|---|---|---|
+| bar / line / point, x+y ticks + titles | 1100×620 | 1048×577 | −3w, −6h | **0** |
+| " | 600×400 | 548×357 | −3w, −6h | **0** |
+| " | 260×160 | 208×117 | −3w, −6h | **0** |
+| faceted, two x dimensions | 1100×620 | 1049×527 | −3w, −9h | **0** |
+| " | 260×160 | 209×67 | −3w, −9h | **0** |
+
+**The model behind those numbers, which is what makes them trustworthy rather than three data points.**
+`fm.getHeight()` is 14px at the default font, so full semantics adds `0.2 × 14 = 2.8px` per **stacked
+single-line text run**, and every measurement lands on that:
+
+- height = x tick labels + x title = 2 runs = +5.6 ≈ **6**
+- width = the y title alone = 1 run = +2.8 ≈ **3**. The y tick labels contribute nothing, because a
+  horizontal label's *width* comes from `GTool.stringWidth`, which a line height does not touch
+- faceted = three stacked runs = +8.4 ≈ **9**
+
+The absolute numbers are small and the proportions are not. At 260×160 — a small chart in a dense
+dashboard — 6px is **5.1%** of plot height, and the faceted 9px is **13.4%** (9 of 67). That is the
+population §2.1 already flagged as "proportionally worse on a small chart in a dense dashboard", now
+with numbers.
+
+**Two setup corrections the probe's own diagnostics forced, recorded so the next person does not repeat
+them.** Axis titles are present on *every* chart by default — `getTitleSpec`'s second branch
+(`GraphGenerator:6243-6256`) derives them from the bound field names — so a test that sets titles
+explicitly is measuring no difference, and both halves of the axis band were in the baseline all along.
+And a long tick label (26 characters) changed nothing, because an x band's height is set by line count,
+not string width.
+
+### 6.3 The decisive argument — it double-counts decision 2's gap scale
+
+`getTextPosition()` (`VLabel:306`) takes its `lheight` from `getTransformedBounds0` and hands it to
+`alignText()`. A taller box therefore distributes its extra ~3px *around* the text according to the
+label's alignment. **That is the same visual outcome the interior gap scale produces** — decision 2's
+4 / 8 / 14(+2), shipped in the card-geometry commit — except the gap scale sets it explicitly, per gap,
+having been calibrated for exactly this. A line height would layer a second, implicit spacing mechanism
+on top of the explicit one, and the two would have to be tuned against each other forever.
+
+This is the general form of a trap §04 sets twice. §04 is drawn in HTML, where `line-height` is free and
+composes naturally with margins. In a server painter it is neither free nor independent: it is one more
+way to spend the same plot area the gaps already spend, and §1.1.1 already recorded the other instance
+— the "graph's own outer margin" that turned out to be the card padding seen from inside an SVG.
+
+### 6.4 And the one thing it would add that is *not* redundant never fires
+
+Advance-only semantics changes nothing except the spacing between lines of a **wrapped** label, and it
+measured **exactly zero** on every case — including 26-character category labels on a 260px canvas.
+Nothing wrapped. Wrapping requires `height > fm.getHeight() * 1.6` on the band (`VLabel:527-537`), which
+a default axis band does not get. So advance-only is free and also inert: it costs nothing and delivers
+nothing on any shape measured.
+
+### Decision: DECLINE, and §04 is closed
+
+Three reasons, in the order they carry weight:
+
+1. **It duplicates a mechanism that shipped**, and the shipped one is explicit and per-gap.
+2. **Its cost is real and lands worst where the product is most constrained** — 13% of plot height on a
+   small faceted chart — against §04's already-unexplained net loss, which §2.1 states and §1.1.1
+   explains has nothing offsetting it.
+3. **Its only non-redundant effect does not occur** on any measured shape.
+
+**§04 is therefore complete.** This was its last item, and it is closed by decision rather than
+deferred — the same disposition §05's legend took, and for the same shape of reason: every mechanical
+item was already in, and what the drawing still asked for was redundant or moot once measured rather
+than read.
+
+**If it is ever reopened, advance-only is the only defensible semantic** — free, and no double-count —
+but whoever reopens it owes a chart on which labels actually wrap, because without one the change is
+provably a no-op.
+
+### 6.5 One thing this decision did not measure
+
+**The colour legend.** A legend requires `getColorField().getRTDataRef()` to be non-null
+(`GraphGenerator:1350`), which is the live `VSChartInfo.update()` path and disproportionate for a probe,
+so no case here had one. From the code its contribution is asymmetric and probably near zero for the
+plot: a legend column's **width** comes from label string width, which a line height does not change, so
+a right-side legend should cost no plot width; its **rows** each grow ~3px, which bites only if the
+legend then overflows the height available to it. That is consistent with decision 3's finding that the
+legend panel gives back ~2px rather than §05's claimed 8–10px, and with the roadmap's note that §04-b's
+legend return does not exist. **It is not a reason to reopen the decision** — the double-count in §6.3
+stands whatever the legend does — but if a future change makes legend rows matter, the number is
+unmeasured and should be measured rather than assumed.
 
 ---
 
