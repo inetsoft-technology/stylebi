@@ -66,6 +66,7 @@ public class BindingAgentController {
                                  TableBindingService tableService,
                                  CalcTableService calcService,
                                  SelectionBindingService selectionService,
+                                 CalcFieldAgentService calcFieldService,
                                  SheetAgentBroadcastService broadcast)
    {
       this.feature = feature;
@@ -79,6 +80,7 @@ public class BindingAgentController {
       this.tableService = tableService;
       this.calcService = calcService;
       this.selectionService = selectionService;
+      this.calcFieldService = calcFieldService;
       this.broadcast = broadcast;
    }
 
@@ -427,6 +429,17 @@ public class BindingAgentController {
                                         request.columns(), request.additionalTables(),
                                         request.measure(), Boolean.TRUE.equals(request.force()),
                                         linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc-field")
+   public void modifyCalcField(@PathVariable String sessionToken,
+                               @RequestBody CalcFieldAgentService.CalcFieldRequest request,
+                               @RequestParam(required = false, defaultValue = "") String linkUri,
+                               Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      calcFieldService.modify(sessionToken, user, request, linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/source")
@@ -789,5 +802,6 @@ public class BindingAgentController {
    private final TableBindingService tableService;
    private final CalcTableService calcService;
    private final SelectionBindingService selectionService;
+   private final CalcFieldAgentService calcFieldService;
    private final SheetAgentBroadcastService broadcast;
 }
