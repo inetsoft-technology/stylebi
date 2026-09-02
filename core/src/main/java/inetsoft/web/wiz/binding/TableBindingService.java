@@ -243,7 +243,14 @@ public class TableBindingService {
       }
    }
 
-   /** The new source table's column names, matching {@link #resolveTable}'s own lookup. */
+   /**
+    * The new source table's column names, matching {@link #resolveTable}'s own lookup. Each
+    * column contributes both its raw name and, when it is qualified ({@code "table.attribute"}),
+    * the unqualified attribute name too -- {@code ColumnSelection} entries for a joined/merged
+    * worksheet table (the common case a repoint targets) commonly carry the qualified form, but
+    * a bound field's own column name is always the simple one, so matching on the raw form alone
+    * would treat every field as unresolved and silently degrade back to discarding everything.
+    */
    private static List<String> columnsOf(BaseTableBindingModel model, String table) {
       List<String> names = new ArrayList<>();
       List<BindingModel.SourceTable> tables = model.getTables();
@@ -252,8 +259,15 @@ public class TableBindingService {
          for(BindingModel.SourceTable candidate : tables) {
             if(table.equalsIgnoreCase(candidate.getName()) && candidate.getColumns() != null) {
                for(BindingModel.SourceTableColumn column : candidate.getColumns()) {
-                  if(column.getName() != null) {
-                     names.add(column.getName());
+                  if(column.getName() == null) {
+                     continue;
+                  }
+
+                  names.add(column.getName());
+                  int dot = column.getName().lastIndexOf('.');
+
+                  if(dot >= 0 && dot < column.getName().length() - 1) {
+                     names.add(column.getName().substring(dot + 1));
                   }
                }
             }
