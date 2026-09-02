@@ -395,6 +395,17 @@ public class RadioButtonVSAssemblyInfo extends ListInputVSAssemblyInfo
       format.getCSSFormat().setCSSType(getObjCSSType());
       getFormatInfo().setFormat(OBJECTPATH, format);
       setCSSDefaults();
+      // this type overrides setDefaultFormat without calling super, so the base's hook call is
+      // unreachable; seed here instead
+      seedChromeDefaults(VizContext.of(this));
+   }
+
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      // returns at the bypass guard - this type owns its object border and radius
+      super.seedChromeDefaults(ctx);
+      seedInputTitleLane(ctx);
+      seedInputValueInk(ctx);
    }
 
    /**

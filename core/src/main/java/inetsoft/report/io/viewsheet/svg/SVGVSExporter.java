@@ -371,7 +371,7 @@ public class SVGVSExporter extends AbstractVSExporter {
          }
 
          format.getUserDefinedFormat().setBackground(
-            ExportUtil.getBackGroundColor(format, info.getFormat(), VizContext.of(info), info));
+            ExportUtil.getBackGroundColor(format, info.getFormat()));
          Rectangle2D bounds = helper.getBounds(assembly, CoordinateHelper.TITLE);
 
          if(bounds == null) {

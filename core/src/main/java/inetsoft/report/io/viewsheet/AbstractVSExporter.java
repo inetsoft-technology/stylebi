@@ -1408,8 +1408,7 @@ public abstract class AbstractVSExporter implements VSExporter {
                      VizContext ctx = VizContext.of(info);
 
                      if(ctx.modern) {
-                        VSCompositeFormat titleFmt = VSTitleChromeDefaults.applyModernDefaults(
-                           info.getFormatInfo().getFormat(tpath, false), ctx, info);
+                        VSCompositeFormat titleFmt = info.getFormatInfo().getFormat(tpath, false);
                         FormatInfo titleFmtInfo = titleInfo.getFormatInfo().clone();
                         VSCompositeFormat objFmt =
                            titleFmtInfo.getFormat(VSAssemblyInfo.OBJECTPATH);
@@ -1793,16 +1792,80 @@ public abstract class AbstractVSExporter implements VSExporter {
          }
       }
 
-      // Modernize the object title-bar default on the export copy (the viewsheet is cloned upstream,
-      // so this mutates nothing persisted). Every per-widget / per-format title draw reads the title
-      // format from this one assembly, so doing it here covers all titled assemblies at once. Gated +
-      // defaults-only: no-op with the gate off, and a user / format.css title color still wins.
+      // A seeded dark neutral assumes a surface behind it. A spreadsheet paints none, so its cells
+      // are unfilled white and the ink has to go back to the legacy near-black. Every per-widget
+      // title draw reads the title format from this one assembly, so doing it here covers all
+      // titled assemblies at once - and the slider joins them because VSSlider paints its labels
+      // from format.getForeground(). The viewsheet is cloned upstream, so nothing persisted moves.
       VSAssemblyInfo vinfo = assembly.getVSAssemblyInfo();
 
-      if(vinfo instanceof TitledVSAssemblyInfo && vinfo.getFormatInfo() != null) {
-         VSTitleChromeDefaults.applyModernDefaultsInPlace(
-            vinfo.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH), VizContext.of(vinfo), vinfo);
+      if(!paintsPageBackground() && vinfo != null && vinfo.getFormatInfo() != null
+         && VizContext.of(vinfo).dark)
+      {
+         if(vinfo instanceof TitledVSAssemblyInfo) {
+            applyDarkOptOutInPlace(vinfo.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH));
+         }
+
+         // the painted sliders: both draw their labels from the object foreground rather than a
+         // cell path
+         if(vinfo instanceof SliderVSAssemblyInfo || vinfo instanceof TimeSliderVSAssemblyInfo) {
+            applyDarkOptOutInPlace(vinfo.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH));
+         }
+
+         // an input widget's item labels, which sit on unfilled white cells like a selection cell
+         if(vinfo instanceof ListInputVSAssemblyInfo linfo) {
+            applyDarkOptOutInPlace(vinfo.getFormatInfo().getFormat(
+               new TableDataPath(-1, TableDataPath.DETAIL)));
+            // the painters read a per-item array built during query execution, not the DETAIL
+            // composite - and clone(shallow) leaves that array pointing at the ORIGINAL formats,
+            // so this must replace it with substituted copies rather than write through it
+            linfo.setFormats(darkOptOutCopy(linfo.getFormats()));
+         }
       }
+   }
+
+   /**
+    * Whether this format paints a surface behind the ink it draws. A PDF page, a PPT slide and a
+    * PNG all do; a spreadsheet does not - its cells are unfilled white, so a seeded dark-mode
+    * neutral is invisible on them and has to be substituted back. Names the distinction rather
+    * than testing for Excel, which is what lets one branch answer for a title cell and a painted
+    * picture alike.
+    */
+   protected boolean paintsPageBackground() {
+      return true;
+   }
+
+   /**
+    * Put the legacy near-black back on a dark-marked format's DEFAULT tier, in place. The export
+    * copy is cloned upstream, so this mutates nothing persisted. A USER or CSS colour outranks the
+    * DEFAULT tier and is therefore untouched by construction.
+    */
+   static void applyDarkOptOutInPlace(VSCompositeFormat format) {
+      if(format != null) {
+         format.getDefaultFormat().setForegroundValue(
+            VSObjectChromeDefaults.legacyCellForegroundValue());
+      }
+   }
+
+   /**
+    * The opt-out over an input widget's per-item format array, as substituted copies. Cloning is
+    * mandatory rather than stylistic: an assembly info's shallow clone shares this array with the
+    * original, so writing through it would reach the live viewsheet's own formats. Returns the
+    * argument untouched when there is nothing to copy.
+    */
+   static VSCompositeFormat[] darkOptOutCopy(VSCompositeFormat[] formats) {
+      if(formats == null || formats.length == 0) {
+         return formats;
+      }
+
+      VSCompositeFormat[] copy = new VSCompositeFormat[formats.length];
+
+      for(int i = 0; i < formats.length; i++) {
+         copy[i] = formats[i] == null ? null : formats[i].clone();
+         applyDarkOptOutInPlace(copy[i]);
+      }
+
+      return copy;
    }
 
    /**
@@ -1888,7 +1951,6 @@ public abstract class AbstractVSExporter implements VSExporter {
     * Get the text format, including highlight.
     */
    protected VSCompositeFormat getTextFormat(VSAssemblyInfo info) {
-      VizContext ctx = VizContext.of(info);
       VSCompositeFormat chartTitleFormat = null;
       FormatInfo formatInfo = info.getFormatInfo();
 
@@ -1898,8 +1960,7 @@ public abstract class AbstractVSExporter implements VSExporter {
 
          if(CSSConstants.CHART.equals(fmt.getCSSFormat().getCSSType())) {
             TableDataPath tpath = new TableDataPath(-1, TableDataPath.TITLE);
-            chartTitleFormat = VSTitleChromeDefaults.applyModernDefaults(
-               formatInfo.getFormat(tpath, false), ctx, info);
+            chartTitleFormat = formatInfo.getFormat(tpath, false);
          }
       }
 
@@ -2687,8 +2748,7 @@ public abstract class AbstractVSExporter implements VSExporter {
       if(finfo != null) {
          VSCompositeFormat oformat = finfo.getFormat(
             new TableDataPath(-1, TableDataPath.OBJECT));
-         format = VSTitleChromeDefaults.applyModernDefaults(finfo.getFormat(
-            new TableDataPath(-1, TableDataPath.TITLE)), VizContext.of(info));
+         format = finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE));
          Insets oborder = oformat.getBorders();
          BorderColors ocolor = oformat.getBorderColors();
          Insets border = format.getBorders();

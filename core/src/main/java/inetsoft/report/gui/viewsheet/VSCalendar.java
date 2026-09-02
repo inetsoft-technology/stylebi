@@ -24,8 +24,6 @@ import inetsoft.report.io.viewsheet.ExportUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalendarUtil;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSCalendarChromeDefaults;
-import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import org.apache.commons.lang3.ArrayUtils;
@@ -731,8 +729,7 @@ public class VSCalendar extends VSFloatable {
       int r = 1, c = 0;
 
       datapath = new TableDataPath(-1, TableDataPath.MONTH_CALENDAR);
-      format = VSCalendarChromeDefaults.applyModernDefaults(
-         info.getFormatInfo().getFormat(datapath, false), VizContext.of(info));
+      format = info.getFormatInfo().getFormat(datapath, false);
       format = format == null ? new VSCompositeFormat() : format;
       VSCompositeFormat grayed = format.clone();
       grayed.getUserDefinedFormat().setForeground(new Color(128, 128, 128));
@@ -953,8 +950,7 @@ public class VSCalendar extends VSFloatable {
       VSCompositeFormat tformat = fmtInfo.getFormat(dataPath, false);
 
       dataPath = new TableDataPath(-1, TableDataPath.YEAR_CALENDAR);
-      VSCompositeFormat format = VSCalendarChromeDefaults.applyModernDefaults(
-         fmtInfo.getFormat(dataPath, false), VizContext.of(info));
+      VSCompositeFormat format = fmtInfo.getFormat(dataPath, false);
 
       format = format == null ? new VSCompositeFormat() : (VSCompositeFormat) format.clone();
       tformat = tformat == null ? new VSCompositeFormat() : (VSCompositeFormat) tformat.clone();
@@ -968,9 +964,7 @@ public class VSCalendar extends VSFloatable {
       String fname = font == null ? StyleFont.DEFAULT_FONT_FAMILY : font.getFamily();
       format.getUserDefinedFormat().setFont(new StyleFont(fname, Font.BOLD, 12));
 
-      if(format.getUserDefinedFormat().getForeground() == null) {
-         format.getUserDefinedFormat().setForeground(new Color(90, 90, 90));
-      }
+      applyYearCellForeground(format);
 
       Date min = getRangeMin(info);
       Date max = getRangeMax(info);
@@ -1007,6 +1001,17 @@ public class VSCalendar extends VSFloatable {
             g.setColor(new Color(128, 128, 128));
             g.drawRect(c * cW + 2, r * rH + titleH + 2, cW - 4, rH - 4);
          }
+      }
+   }
+
+   /**
+    * The year view's month-cell foreground: the format's own colour, or the legacy grey when it
+    * resolves none. Resolves across all three tiers - a seeded body colour lives on DEFAULT, and a
+    * USER-tier grey written here would outrank it and paint dark-on-dark.
+    */
+   static void applyYearCellForeground(VSCompositeFormat format) {
+      if(format != null && format.getForeground() == null) {
+         format.getUserDefinedFormat().setForeground(new Color(90, 90, 90));
       }
    }
 

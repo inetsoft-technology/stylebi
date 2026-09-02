@@ -89,11 +89,147 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       setFormatInfo(normalDefault.clone());
       setCSSDefaults();
       titleInfo.setTitleHeightValue(36);
+      // this type never calls setDefaultFormat, so the base's hook call is unreachable
+      seedChromeDefaults(VizContext.of(this));
    }
 
    @Override
    public int getLegacyTitleHeight() {
       return 36;
+   }
+
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      // returns at the bypass guard - this type installs its own object format and radius
+      super.seedChromeDefaults(ctx);
+      applyCalendarSeed(getFormatInfo(), ctx, prototype(getShowType()));
+   }
+
+   /**
+    * Write the mark-dependent chrome into a calendar's stored DEFAULT tiers. Static and taking the
+    * FormatInfo rather than reading this, because copyViewInfo applies it to cloned prototypes as
+    * well as to the installed format - one decision about what the values are, in one place.
+    *
+    * legacySource is the prototype the legacy branch restores the title chrome from: the two show
+    * types carry different titles, and a gate-off seed has to put back the one that applies.
+    *
+    * The body cells call the table's suppliers rather than carrying their own copy of the palette:
+    * the two were already byte-identical, kept in sync by nothing.
+    */
+   static void applyCalendarSeed(FormatInfo fi, VizContext ctx, FormatInfo legacySource) {
+      if(fi == null) {
+         return;
+      }
+
+      VSCompositeFormat titleFormat = fi.getFormat(TITLEPATH);
+
+      if(titleFormat != null) {
+         LegacyTitle legacy = LegacyTitle.of(legacySource);
+         VSFormat def = titleFormat.getDefaultFormat();
+         def.setBordersValue(ctx.modern
+            ? VSTitleChromeDefaults.titleRuleBorders() : legacy.borders());
+         def.setBorderColorsValue(ctx.modern
+            ? VSTitleChromeDefaults.titleRuleColors(ctx) : legacy.colors());
+         def.setForegroundValue(
+            ctx.modern ? VSTitleChromeDefaults.titleForegroundValue(ctx) : null);
+         // getForeground() falls back to the fg field when fgval yields nothing
+         def.setForeground(null);
+         def.setBackgroundValue(ctx.modern ? null : legacy.background());
+      }
+
+      // the month/year header is a header band above date cells, the relationship a table header
+      // has to its body. Nothing has ever written this path, so a dark calendar drew black ink on
+      // the dark card in every server-painted export. Gated on ctx.modern, not just left to the
+      // suppliers, because the header pair (unlike the body pair) returns a colour in legacy too -
+      // an ungated write would put the modern neutral on a gate-off calendar
+      applyTo(fi, CALENDAR_TITLE_PATH, legacySource,
+              ctx.modern ? VSTableStructureDefaults.headerForeground(ctx) : null,
+              ctx.modern ? VSTableStructureDefaults.headerBackground(ctx) : null);
+
+      // the weekday header and the date cells share one format, so both take body semantics
+      applyTo(fi, CALENDAR_MONTH_PATH, legacySource,
+              ctx.modern ? VSTableStructureDefaults.bodyForeground(ctx) : null,
+              ctx.modern ? VSTableStructureDefaults.bodyBackground(ctx) : null);
+      applyTo(fi, CALENDAR_YEAR_PATH, legacySource,
+              ctx.modern ? VSTableStructureDefaults.bodyForeground(ctx) : null,
+              ctx.modern ? VSTableStructureDefaults.bodyBackground(ctx) : null);
+   }
+
+   /**
+    * Seed one cell path's colours. The dropdown prototype stores no format for these three paths -
+    * the render path synthesises one from the object format when none is stored - so the seed has to
+    * install a composite to have anywhere to write, and to drop one it installed once there is
+    * nothing left to write. Either way a show type keeps exactly the paths a gate-off creation gives
+    * it, which is what copyViewInfo's equality guard compares.
+    */
+   private static void applyTo(FormatInfo fi, TableDataPath path, FormatInfo legacySource,
+                               Color fg, Color bg)
+   {
+      VSCompositeFormat fmt = fi.getFormat(path);
+
+      if(fmt == null) {
+         if(fg == null && bg == null) {
+            return;
+         }
+
+         fmt = new VSCompositeFormat();
+         fi.setFormat(path, fmt);
+      }
+      else if(fg == null && bg == null && !fmt.isDefined() &&
+              (legacySource == null || legacySource.getFormat(path) == null))
+      {
+         // the seed installed this one and has nothing left to hold: this show type's prototype
+         // stores no format here, so a gate-off creation leaves the path unstored. An author's or a
+         // stylesheet's own formatting keeps it - isDefined() covers the USER and CSS tiers
+         fi.setFormat(path, null);
+         return;
+      }
+
+      VSFormat def = fmt.getDefaultFormat();
+      // defined only when a colour is written: a defined null blocks the object format's own black
+      // from copying down through getFormat(path, false), and the year view's grey fallback fires
+      def.setForegroundValue(toValue(fg), fg != null);
+      def.setForeground(null, fg != null);
+      def.setBackgroundValue(toValue(bg), bg != null);
+   }
+
+   private static String toValue(Color c) {
+      return c == null ? null : String.format("0x%06x", c.getRGB() & 0xFFFFFF);
+   }
+
+   /** The prototype a show type starts from. A JVM-wide static - clone before installing. */
+   private static FormatInfo prototype(int showType) {
+      return showType == DROPDOWN_SHOW_TYPE ? dropdownDefault : normalDefault;
+   }
+
+   /**
+    * The title chrome one show type's prototype carries - the three values a gate-off seed puts
+    * back. Read off the prototype rather than duplicated here, so the two cannot drift, and copied
+    * so a later write to a seeded format never reaches the static.
+    */
+   private record LegacyTitle(Insets borders, BorderColors colors, String background) {
+      static LegacyTitle of(FormatInfo source) {
+         VSCompositeFormat fmt = source == null ? null : source.getFormat(TITLEPATH);
+
+         if(fmt == null) {
+            return new LegacyTitle(null, null, null);
+         }
+
+         VSFormat def = fmt.getDefaultFormat();
+         Insets borders = def.getBordersValue();
+         BorderColors colors = def.getBorderColorsValue();
+
+         return new LegacyTitle(borders == null ? null : (Insets) borders.clone(),
+                                colors == null ? null : (BorderColors) colors.clone(),
+                                def.getBackgroundValue());
+      }
+   }
+
+   /** A clone of a static prototype, seeded for the given context. Never returns the static. */
+   private static FormatInfo seededPrototype(FormatInfo proto, VizContext ctx) {
+      FormatInfo copy = proto.clone();
+      applyCalendarSeed(copy, ctx, proto);
+      return copy;
    }
 
    /**
@@ -1057,14 +1193,19 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
 
       if(!typeValue.equals(sinfo.typeValue) ||
          getShowType() != sinfo.getShowType()) {
-         // set the default formatting based on type
+         // set the default formatting based on type. Both prototypes are JVM-wide statics: clone
+         // before installing, or a later format edit on this assembly mutates the prototype and
+         // every calendar created afterwards inherits it. The guard compares against the prototype
+         // as seeded for this assembly's mark, because a seeded format is not equal to a raw one
+         VizContext ctx = VizContext.of(this);
+
          if(getShowType() == CALENDAR_SHOW_TYPE) {
-            if(getFormatInfo().equals(normalDefault)) {
-               setFormatInfo((FormatInfo) dropdownDefault);
+            if(getFormatInfo().equals(seededPrototype(normalDefault, ctx))) {
+               setFormatInfo(seededPrototype(dropdownDefault, ctx));
             }
          }
-         else if(getFormatInfo().equals(dropdownDefault)) {
-            setFormatInfo((FormatInfo) normalDefault);
+         else if(getFormatInfo().equals(seededPrototype(dropdownDefault, ctx))) {
+            setFormatInfo(seededPrototype(normalDefault, ctx));
          }
 
          typeSValid = sinfo.typeSValid;

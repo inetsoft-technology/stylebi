@@ -1370,11 +1370,7 @@ public class VsToReportConverter {
       VSCompositeFormat detailfmt = null;
 
       if(finfo != null) {
-         // print-layout title path (this converter), parallel to AbstractVSExporter.prepareAssembly:
-         // seed the modern title chrome, gated + defaults-only (returns the original when gate off)
-         detailfmt = VSTitleChromeDefaults.applyModernDefaults(
-            finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE), false),
-            VizContext.of(assembly.getVSAssemblyInfo()), assembly.getVSAssemblyInfo());
+         detailfmt = finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE), false);
       }
 
       applyFormat(textbox, objfmt, detailfmt, info, true);
@@ -1509,13 +1505,6 @@ public class VsToReportConverter {
          String title = cinfo.getTitle();
          int theight = cinfo.getTitleHeight();
          TableDataPath tpath = new TableDataPath(-1, TableDataPath.TITLE);
-
-         // print-layout chart title (this converter draws it via addTextBoxElement0, not createTitle):
-         // modernize the cloned chart's title format so the title textbox renders the modern chrome;
-         // gated + defaults-only
-         VSTitleChromeDefaults.applyModernDefaultsInPlace(
-            cinfo.getFormatInfo().getFormat(tpath), VizContext.of(assembly.getVSAssemblyInfo()),
-            assembly.getVSAssemblyInfo());
 
          Rectangle tbounds = new Rectangle(cbounds.x, cbounds.y, cbounds.width - padding.right,
                                            theight);

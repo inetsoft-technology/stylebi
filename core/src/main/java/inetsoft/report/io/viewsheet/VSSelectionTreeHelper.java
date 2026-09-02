@@ -22,8 +22,6 @@ import inetsoft.report.io.viewsheet.excel.ExcelVSUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSTitleChromeDefaults;
-import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 
 import java.awt.*;
@@ -264,8 +262,7 @@ public class VSSelectionTreeHelper extends VSSelectionListHelper {
     */
    protected void writeTitle(SelectionTreeVSAssemblyInfo info) {
       FormatInfo finfo = info.getFormatInfo();
-      VSCompositeFormat format = VSTitleChromeDefaults.applyModernDefaults(
-         finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE), false), VizContext.of(info), info);
+      VSCompositeFormat format = finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE), false);
       Rectangle2D bounds = (Rectangle2D) boundsList.get(0);
       writeText(bounds, format, Tool.localize(info.getTitle()), info.getFormat(),
                 info.getTitlePadding());

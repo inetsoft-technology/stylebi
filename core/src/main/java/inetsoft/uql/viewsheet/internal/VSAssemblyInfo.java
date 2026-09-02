@@ -1243,6 +1243,12 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
     * exists, so it must mutate the composites already installed and never install one - installing
     * a fresh composite leaves the new one's USER tier empty and drops an author's formatting.
     *
+    * One narrow exception, in CalendarVSAssemblyInfo.applyTo: a show type whose prototype stores no
+    * format at a path has no composite to mutate, and the render sites read that path through
+    * getFormat(path, false), which synthesises one. It installs where none is stored and drops what
+    * it installed when the legacy branch leaves no colour to hold, both guarded on isDefined() so a
+    * USER or CSS tier is never touched.
+    *
     * Only gate-dependent values belong here. Unconditional creation defaults stay in
     * setDefaultFormat, or Modernize would reset an author's padding, table style and fonts.
     *
@@ -1345,8 +1351,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
     */
    private boolean installsOwnTitleFormat() {
       return this instanceof ChartVSAssemblyInfo
-         || this instanceof SelectionBaseVSAssemblyInfo
-         || this instanceof TimeSliderVSAssemblyInfo;
+         || this instanceof MaxModeSelectionVSAssemblyInfo;
    }
 
    /**

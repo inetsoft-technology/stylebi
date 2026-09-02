@@ -19,8 +19,6 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.StyleConstants;
 import inetsoft.uql.viewsheet.BorderColors;
-import inetsoft.uql.viewsheet.VSCompositeFormat;
-import inetsoft.uql.viewsheet.VSFormat;
 
 import java.awt.Color;
 import java.awt.Insets;
@@ -33,12 +31,10 @@ import java.awt.Insets;
  * with no browser CSS hook and is re-drawn in export, so it is server-owned. Unlike chart chrome, the
  * title VSFormat's CSS tier is dictionary-backed (VSCSSFormat reads format.css on demand) and has no
  * writable slot, so the modern default cannot be written to the CSS tier the way VSChartChromeDefaults
- * does. Instead applyModernDefaults substitutes the modern neutral on the DEFAULT tier at read time,
- * for the types that have not yet converted to seeding their title chrome at creation. A
- * converted type is skipped here and carries its values in the stored format instead, so they
- * survive an asset export and resolve on bookmark restore. applyModernDefaults returns a clone
- * (never mutates the source); applyModernDefaultsInPlace mutates directly, for the export copy
- * where the viewsheet is already cloned.
+ * does. This class is a pure palette supplier now, not a read-time substituter: every titled type
+ * seeds its own chrome lane at creation, writing these colours into the stored format directly, so
+ * they survive an asset export and resolve on bookmark restore without any resolution step at read
+ * time.
  */
 public final class VSTitleChromeDefaults {
    private VSTitleChromeDefaults() {
@@ -69,8 +65,7 @@ public final class VSTitleChromeDefaults {
    }
 
    /**
-    * The modern title foreground as a stored format value, for the creation seed. A seeded type is
-    * skipped by the read-time substitution, so the colour has to be written rather than resolved.
+    * The modern title foreground as a stored format value, for the creation seed.
     */
    public static String titleForegroundValue(VizContext ctx) {
       return toValue(titleForeground(ctx));
@@ -84,103 +79,6 @@ public final class VSTitleChromeDefaults {
    public static BorderColors titleRuleColors(VizContext ctx) {
       Color c = titleBorderColor(ctx);
       return new BorderColors(c, c, c, c);
-   }
-
-   /**
-    * Return a title format with the modern neutrals substituted, or the original format unchanged
-    * (legacy context, or already customized). Applied to the DEFAULT tier of a clone, so the stored
-    * format is never mutated or serialized and a user (USER tier) or format.css (CSS tier) title color still
-    * wins. Substitution is keyed on whether the user / format.css has set the value — NOT on matching
-    * a specific default color — because legacy title backgrounds vary by widget (white, #f5f5f5,
-    * transparent); modern mode gives them all one consistent title bar.
-    */
-   public static VSCompositeFormat applyModernDefaults(VSCompositeFormat titleFmt, VizContext ctx) {
-      return applyModernDefaults(titleFmt, ctx, null);
-   }
-
-   public static VSCompositeFormat applyModernDefaults(VSCompositeFormat titleFmt, VizContext ctx,
-                                                        VSAssemblyInfo info)
-   {
-      if(!ctx.modern || titleFmt == null || isSeededTitle(info)) {
-         return titleFmt;
-      }
-
-      boolean bg = !isBackgroundCustomized(titleFmt);
-      boolean fg = !isForegroundCustomized(titleFmt);
-
-      if(!bg && !fg) {
-         return titleFmt;
-      }
-
-      VSCompositeFormat clone = titleFmt.clone();
-      applyTo(clone.getDefaultFormat(), bg, fg, ctx);
-      return clone;
-   }
-
-   /**
-    * In-place variant for the export copy (the viewsheet is cloned before export): mutate the title
-    * format's DEFAULT tier to the modern neutrals so every per-widget / per-format export title draw
-    * resolves the modern chrome from the one shared format rather than needing each draw site wrapped.
-    * No-op for a legacy context, or when the value is already user / format.css customized; never
-    * touches a persisted format (export clones upstream).
-    */
-   public static void applyModernDefaultsInPlace(VSCompositeFormat titleFmt, VizContext ctx) {
-      applyModernDefaultsInPlace(titleFmt, ctx, null);
-   }
-
-   public static void applyModernDefaultsInPlace(VSCompositeFormat titleFmt, VizContext ctx,
-                                                  VSAssemblyInfo info)
-   {
-      if(!ctx.modern || titleFmt == null || isSeededTitle(info)) {
-         return;
-      }
-
-      applyTo(titleFmt.getDefaultFormat(),
-              !isBackgroundCustomized(titleFmt), !isForegroundCustomized(titleFmt), ctx);
-   }
-
-   private static void applyTo(VSFormat def, boolean bg, boolean fg, VizContext ctx) {
-      boolean dark = ctx.dark;
-
-      if(bg) {
-         def.setBackgroundValue(toValue(dark ? TITLE_BG_DARK : TITLE_BG));
-      }
-
-      if(fg) {
-         def.setForegroundValue(toValue(dark ? TITLE_FG_DARK : TITLE_FG));
-      }
-   }
-
-   // these types carry their title chrome in the stored format, written by seedChromeDefaults at
-   // creation; checkbox, radio button and calendar are still substituted here. When the last one
-   // converts this is true for every titled type and both entry points, with all their call sites,
-   // can go
-   //
-   // this skip is what makes a seeded value stick: FormatInfo.getFormat(TITLEPATH, false) still
-   // copies the object format down onto the title's DEFAULT tier (copyDefaultFormat), each field
-   // guarded by !tfmt.isXxxValueDefined() - a seeded value survives only because its setter marks
-   // that field defined, setBackgroundValue(null) included. Borders survive because
-   // copyDefaultFormat never copies them at all
-   private static boolean isSeededTitle(VSAssemblyInfo info) {
-      // TimeSliderVSAssemblyInfo is a sibling of SelectionBaseVSAssemblyInfo, not a subclass, so
-      // it needs its own branch; CurrentSelectionVSAssemblyInfo is a container and shares neither
-      return info instanceof ChartVSAssemblyInfo
-         || info instanceof TableDataVSAssemblyInfo
-         || info instanceof SelectionBaseVSAssemblyInfo
-         || info instanceof TimeSliderVSAssemblyInfo
-         || info instanceof CurrentSelectionVSAssemblyInfo;
-   }
-
-   // A title color counts as customized (and is preserved) only when the user picker (USER tier) or a
-   // format.css TITLE class (CSS tier) sets it; a bare default — of any color — is modernized.
-   private static boolean isBackgroundCustomized(VSCompositeFormat f) {
-      return f.getUserDefinedFormat().isBackgroundValueDefined() ||
-         f.getCSSFormat().isBackgroundValueDefined();
-   }
-
-   private static boolean isForegroundCustomized(VSCompositeFormat f) {
-      return f.getUserDefinedFormat().isForegroundValueDefined() ||
-         f.getCSSFormat().isForegroundValueDefined();
    }
 
    private static String toValue(Color c) {
