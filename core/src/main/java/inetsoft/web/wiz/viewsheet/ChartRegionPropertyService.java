@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Stream;
 
 /**
  * Properties of a chart's <b>sub-elements</b>: its axes, legends and titles.
@@ -119,7 +120,7 @@ public class ChartRegionPropertyService {
       }
 
       if("axis".equals(name)) {
-         requireLinearAxisForLinearOnlyKeys(sessionToken, user, assembly, key, properties);
+         requireLinearAxisForLinearOnlyKeys(sessionToken, user, assembly, key, field, properties);
       }
 
       Object model = readModel(sessionToken, user, assembly, name, key, field);
@@ -199,7 +200,7 @@ public class ChartRegionPropertyService {
     */
    private void requireLinearAxisForLinearOnlyKeys(String sessionToken, Principal user,
                                                     String assembly, String axisTarget,
-                                                    Map<String, Object> properties)
+                                                    String field, Map<String, Object> properties)
       throws Exception
    {
       Set<String> requested = new TreeSet<>(properties.keySet());
@@ -216,18 +217,35 @@ public class ChartRegionPropertyService {
          boolean secondary = "y2".equals(canonical) || "x2".equals(canonical);
          boolean onYShelf = "y".equals(canonical) || "y2".equals(canonical);
          ChartRef[] refs = (onYShelf != inverted) ? info.getYFields() : info.getXFields();
+         Stream<ChartRef> candidates = Arrays.stream(refs);
 
-         return Arrays.stream(refs).anyMatch(ref ->
-            ref instanceof ChartAggregateRef aggregate &&
-            (!secondary || aggregate.isSecondaryY()));
+         // A shelf can carry more than one field of the same axis type (the tool's own
+         // vocabulary() note: "to address one of several axes of the same type... pass the
+         // column name as 'field'") -- checking "does ANY field on the shelf happen to be a
+         // measure" instead of the ONE field this call actually addresses would let a write
+         // aimed at a dimension slip through on a mixed dimension+measure shelf. When 'field' is
+         // given, resolve to that specific ref; only fall back to "any measure on the shelf" when
+         // it is not, matching how the rest of this class already treats an absent field as "the
+         // shelf has just the one".
+         if(field != null && !field.isBlank()) {
+            candidates = candidates.filter(ref ->
+               field.equals(ref.getFullName()) || field.equals(ref.getName()));
+         }
+
+         // Exact match, not "secondary implies acceptable, primary accepts anything": a measure
+         // that lives on the OTHER axis of this type must not make this one look linear, in
+         // either direction.
+         return candidates.anyMatch(ref ->
+            ref instanceof ChartAggregateRef aggregate && aggregate.isSecondaryY() == secondary);
       });
 
       if(!linear) {
          throw new IllegalArgumentException(
             "'" + String.join("', '", requested) + "' only apply to a linear (measure) axis. " +
-            "'" + axisTarget + "' on this chart is bound to a dimension, not a measure, so " +
-            "these would be silently ignored — or, on some chart types, corrupt the render " +
-            "instead of being ignored. Omit them for a dimension axis.");
+            "'" + axisTarget + "'" + (field != null && !field.isBlank() ? " ('" + field + "')" : "")
+            + " on this chart is bound to a dimension, not a measure, so these would be " +
+            "silently ignored — or, on some chart types, corrupt the render instead of being " +
+            "ignored. Omit them for a dimension axis.");
       }
    }
 

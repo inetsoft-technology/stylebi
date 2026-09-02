@@ -158,6 +158,104 @@ class ChartRegionPropertyServiceTest {
                                                    any());
    }
 
+   /**
+    * A repair-review catch, live 2026-09-02: the first cut of the linearity check asked "does
+    * ANY field on this shelf happen to be a measure" instead of resolving the specific field this
+    * call addresses. On a shelf carrying both a dimension and a measure of the same axis type —
+    * exactly the case {@code vocabulary()}'s own note describes ("to address one of several axes
+    * of the same type... pass the column name as 'field'") — that let a write aimed at the
+    * dimension slip through because a measure happened to sit on the same shelf, reopening the
+    * exact corruption this fix exists to close.
+    */
+   @Test
+   void refusesLinearOnlyKeysOnADimensionFieldEvenWhenTheShelfAlsoHasAMeasure() {
+      VSChartDimensionRef dimension = mock(VSChartDimensionRef.class);
+      when(dimension.getFullName()).thenReturn("Year(ORDER_DATE)");
+      when(dimension.getName()).thenReturn("ORDER_DATE");
+      VSChartAggregateRef measure = mock(VSChartAggregateRef.class);
+      when(measure.isSecondaryY()).thenReturn(false);
+      when(measure.getFullName()).thenReturn("Sum(Total)");
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { dimension, measure }));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", "Year(ORDER_DATE)",
+                             Map.of("minimum", "5"), ""));
+
+      assertTrue(thrown.getMessage().contains("minimum"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** The measure on that same mixed shelf must still be reachable via its own 'field'. */
+   @Test
+   void stillAcceptsLinearOnlyKeysOnTheMeasureFieldOfAMixedShelf() throws Exception {
+      VSChartDimensionRef dimension = mock(VSChartDimensionRef.class);
+      when(dimension.getFullName()).thenReturn("Year(ORDER_DATE)");
+      VSChartAggregateRef measure = mock(VSChartAggregateRef.class);
+      when(measure.isSecondaryY()).thenReturn(false);
+      when(measure.getFullName()).thenReturn("Sum(Total)");
+      when(measure.getName()).thenReturn("Sum(Total)");
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { dimension, measure }));
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", "Sum(Total)",
+                    Map.of("minimum", "5"), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /**
+    * A repair-review catch, live 2026-09-02: the first cut only required
+    * {@code isSecondaryY()} on the SECONDARY side ({@code !secondary || isSecondaryY()}), which
+    * degrades to "any measure at all" on the PRIMARY side. A chart whose only y-shelf measure is
+    * itself flagged secondary must still refuse a write to the primary 'y' — that primary axis is
+    * a grid-line carrier mirroring the real (secondary) one, per
+    * {@code ChartRegionResolver}'s own documentation, not a genuine linear axis of its own.
+    */
+   @Test
+   void refusesLinearOnlyKeysOnAPrimaryAxisWhoseOnlyMeasureIsFlaggedSecondary() {
+      VSChartAggregateRef onlySecondary = mock(VSChartAggregateRef.class);
+      when(onlySecondary.isSecondaryY()).thenReturn(true);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getXFields()).thenReturn(new ChartRef[] { mock(VSChartDimensionRef.class) });
+      when(info.getYFields()).thenReturn(new ChartRef[] { onlySecondary });
+      when(info.isInvertedGraph()).thenReturn(false);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(chart);
+
+      Harness h = harness(vs);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                             Map.of("minimum", "5"), ""));
+
+      assertTrue(thrown.getMessage().contains("minimum"));
+      verifyNoInteractions(h.regions);
+   }
+
+   private static Viewsheet mixedShelfViewsheet(ChartRef[] xFields) {
+      VSChartAggregateRef y = mock(VSChartAggregateRef.class);
+      when(y.isSecondaryY()).thenReturn(false);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getXFields()).thenReturn(xFields);
+      when(info.getYFields()).thenReturn(new ChartRef[] { y });
+      when(info.isInvertedGraph()).thenReturn(false);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(chart);
+      return vs;
+   }
+
    @Test
    void writesALegendPropertyAddressedByIndex() throws Exception {
       Harness h = harness();
@@ -476,10 +574,12 @@ class ChartRegionPropertyServiceTest {
    }
 
    private static Harness harness(boolean secondaryAxis) {
+      return harness(viewsheet(secondaryAxis));
+   }
+
+   private static Harness harness(Viewsheet vs) {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
-      // Built first: calling viewsheet() inside the when(...) argument is nested stubbing.
-      Viewsheet vs = viewsheet(secondaryAxis);
       when(rvs.getViewsheet()).thenReturn(vs);
 
       try {
