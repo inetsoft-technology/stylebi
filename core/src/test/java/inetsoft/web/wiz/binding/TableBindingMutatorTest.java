@@ -524,6 +524,56 @@ class TableBindingMutatorTest {
       assertEquals("sum(Sales)", model.getRows().get(0).getRankingCol());
    }
 
+   /**
+    * The regression for the repair review's finding on {@code ec48d8d56}: a bound aggregate
+    * whose formula takes a second column or an N (Correlation, Covariance, WeightedAvg,
+    * NthLargest, NthSmallest, PthPercentile) renders a real full name shaped like
+    * {@code "formula(column, extra)"} that {@link TableBindingMutator}'s wire-format {@link
+    * FieldRef} has no way to reconstruct exactly (no second-column/N value carried) -- the
+    * validation must accept a prefix match for these formulas rather than refusing every such
+    * reference as unbound, which would reject a value the real product resolves correctly.
+    */
+   @Test
+   void acceptsATwoColumnAggregatesFullNameByPrefix() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Sales", "measure", "Correlation", null, null)));
+
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
+         new DimensionSortRanking.Ranking("top", 5, "Correlation(Sales, Cost)", null));
+
+      assertEquals("Correlation(Sales, Cost)", model.getRows().get(0).getRankingCol());
+   }
+
+   @Test
+   void acceptsAnNArgAggregatesFullNameByPrefix() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Product", "measure", "NthMostFrequent", null, null)));
+
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
+         new DimensionSortRanking.Ranking("top", 5, "NthMostFrequent(Product, 3)", null));
+
+      assertEquals("NthMostFrequent(Product, 3)", model.getRows().get(0).getRankingCol());
+   }
+
+   @Test
+   void stillRefusesAnUnboundMeasureWhenATwoColumnAggregateIsBound() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Sales", "measure", "Correlation", null, null)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setRanking(model, "rows", "Region", null,
+            new DimensionSortRanking.Ranking("top", 5, "TOTAL_REVENUE", null)));
+
+      assertTrue(thrown.getMessage().contains("TOTAL_REVENUE"));
+   }
+
    @Test
    void refusesSortingByFieldThatIsNotBound() {
       CrosstabBindingModel model = new CrosstabBindingModel();

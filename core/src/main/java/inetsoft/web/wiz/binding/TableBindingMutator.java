@@ -516,14 +516,30 @@ public final class TableBindingMutator {
    }
 
    /**
+    * The {@code getFormulaName()} of every {@code AggregateFormula} whose {@code isTwoColumns()}
+    * or {@code hasN()} is {@code true} (a second column or an N beyond the bound column). Kept
+    * as a literal set rather than calling {@code AggregateFormula.getFormula(String)}/{@code
+    * isTwoColumns()}/{@code hasN()} directly, since touching {@code AggregateFormula} triggers
+    * its static initializer, which depends on {@code Catalog} and is not safe to run from a
+    * plain unit-test context (fails with {@code NoClassDefFoundError} there).
+    */
+   private static final Set<String> MULTI_ARG_FORMULA_NAMES = Set.of(
+      "correlation", "covariance", "weightedaverage", "nthlargest", "nthsmallest",
+      "nthmostfrequent", "pthpercentile");
+
+   /**
     * Refuses a {@code sortByField}/{@code measure} that names no aggregate bound on this
     * assembly's aggregates shelf. Ranking or sorting by an unresolvable measure is accepted
     * silently downstream and renders a plausible-but-arbitrary result (the ranking condition
     * never builds, or a by-value sort falls back to label order) rather than failing loudly --
     * the same bound-reference discipline {@link #setColumnLabels} already applies to column
-    * labels. Both the bare column name (e.g. {@code "QUANTITY"}) and the full aggregate name
-    * (e.g. {@code "Sum(QUANTITY)"}, matching {@code VSAggregateRef.getFullName()}'s own
-    * {@code formula(column)} shape) are accepted, since both forms resolve at render time.
+    * labels. Three shapes are accepted, since all three resolve at render time via {@code
+    * VSAggregateRef.getFullName()}/{@code VSCrosstabInfo.fixCol()}: the bare column name (e.g.
+    * {@code "QUANTITY"}); the single-argument full name (e.g. {@code "Sum(QUANTITY)"}); and, for
+    * a bound aggregate whose formula takes a second column or an N ({@link
+    * #MULTI_ARG_FORMULA_NAMES}), a {@code formula(column, ...)} prefix match, since {@code
+    * FieldRef} carries no second-column or N value to reconstruct the exact full name the
+    * product would render.
     */
    private static void requireKnownMeasure(BaseTableBindingModel model, String measure,
                                            String param)
@@ -535,6 +551,7 @@ public final class TableBindingMutator {
       }
 
       List<String> known = new ArrayList<>();
+      List<String> multiArgPrefixes = new ArrayList<>();
 
       for(FieldRef field : read(model, "aggregates")) {
          if(field.column() == null) {
@@ -545,10 +562,18 @@ public final class TableBindingMutator {
 
          if(field.aggregate() != null) {
             known.add(field.aggregate() + "(" + field.column() + ")");
+
+            if(MULTI_ARG_FORMULA_NAMES.contains(field.aggregate().toLowerCase())) {
+               multiArgPrefixes.add(field.aggregate() + "(" + field.column() + ",");
+            }
          }
       }
 
-      if(known.stream().noneMatch(name -> name.equalsIgnoreCase(measure))) {
+      if(known.stream().noneMatch(name -> name.equalsIgnoreCase(measure)) &&
+         multiArgPrefixes.stream().noneMatch(
+            prefix -> measure != null && measure.regionMatches(true, 0, prefix, 0, prefix.length())
+                      && measure.trim().endsWith(")")))
+      {
          throw new IllegalArgumentException(
             "'" + param + "' is '" + measure + "', which is not a bound aggregate. Ranking or " +
             "sorting by an unbound measure renders an arbitrary result rather than failing, so " +
