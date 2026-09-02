@@ -831,6 +831,89 @@ class SeedChromeDefaultsTest {
                    "initDefaultFormat must not overwrite the seeded ink on repaint");
    }
 
+   // ---- reversibility and restore: the seed can be taken back, and re-seeds by mark ------------
+
+   @Test
+   void revertRestoresTheLegacyGridlineAndInk() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      assertEquals(new Color(0xE8E5DE), plot(info).getYGridColor(), "seeded modern first");
+
+      // Revert clears the mark and re-runs the same hook with an unmarked context
+      info.setVizMark(null);
+      info.initDefaultFormat();
+
+      assertEquals(ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "y"),
+                   plot(info).getYGridColor(), "the legacy branch must write, not skip");
+      assertEquals(GDefaults.DEFAULT_TEXT_COLOR, labelInk(info));
+   }
+
+   @Test
+   void modernizeSeedsAnExistingUnmarkedChart() {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      assertEquals(GDefaults.DEFAULT_LINE_COLOR, plot(info).getFacetGridColor());
+
+      gateOn();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.initDefaultFormat();
+
+      assertEquals(new Color(0xE8E5DE), plot(info).getFacetGridColor());
+   }
+
+   @Test
+   void aReSeedResolvesAgainstTheMarkNotTheGate() {
+      // the bookmark-restore contract: parseState re-seeds, and the mark decides, so a chart
+      // marked light in a dark org must not pick up dark values
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      ChartVSAssemblyInfo info = newChart();
+      assertEquals(new Color(0x3A383D), plot(info).getXGridColor(), "dark org, dark seed");
+
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.initDefaultFormat();
+
+      assertEquals(new Color(0xE8E5DE), plot(info).getXGridColor(),
+                   "the mark decides, not the live org property");
+   }
+
+   @Test
+   void theSeededDataLabelInkTravelsInTheAsset() throws Exception {
+      // the ink survives a round trip because CompositeTextFormat.writeContents (see
+      // CompositeTextFormat:296-301) always serializes deffmt inside <defaultFormat>, unconditionally
+      // - unlike the plot's line colours, which are CompositeValue fields (see
+      // theSeededLineColoursDoNotTravelInTheAssetYet below)
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      ChartVSAssemblyInfo restored = roundTrip(newChart());
+
+      assertEquals(new Color(0xE6E0E9), labelInk(restored),
+                   "the asset itself carries the seeded data-label ink");
+   }
+
+   /**
+    * A known, accepted limitation, not a bug to fix in this task: CompositeValue.toString() only
+    * writes the DEFAULT tier when saveDefault is true, and PlotDescriptor's five line-colour fields
+    * (xGridColor, yGridColor, diagonalColor, quadrantColor, facetColor) are all built with the
+    * two-arg constructor, so saveDefault is false for every one of them. The seed writes at the
+    * DEFAULT tier, so it serializes as an empty attribute and a round trip comes back with the
+    * field initializer's own legacy default rather than the seeded modern colour. This test pins
+    * that as the current, deliberate state of the design, not as a target: if someone later flips
+    * saveDefault to true on these fields, this test is expected to fail, and the design doc must be
+    * updated alongside it.
+    */
+   @Test
+   void theSeededLineColoursDoNotTravelInTheAssetYet() throws Exception {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      ChartVSAssemblyInfo restored = roundTrip(newChart());
+
+      assertEquals(ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "y"),
+                   plot(restored).getYGridColor(),
+                   "the seeded #3A383D is lost on round trip; the field's own legacy default " +
+                   "comes back instead");
+   }
+
    // ---- the hook, called a second time on an assembly that already exists ---------------------
 
    @Test
