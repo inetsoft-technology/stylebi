@@ -394,9 +394,8 @@ public class ChartRegionPropertyService {
          String suppliedValue = String.valueOf(map.get("value"));
          Object rawAlias = map.get("alias");
          ModelAlias resolved = resolveAliasItem(suppliedValue, current, i);
-         String realValue = resolved != null ? resolved.getValue() : suppliedValue;
-         String realLabel = resolved != null ? resolved.getLabel() : suppliedValue;
-         result[i] = new ModelAlias(realLabel, realValue, String.valueOf(rawAlias));
+         result[i] = new ModelAlias(resolved.getLabel(), resolved.getValue(),
+                                    String.valueOf(rawAlias));
       }
 
       return result;
@@ -405,15 +404,30 @@ public class ChartRegionPropertyService {
    /**
     * Finds the {@code current} entry a caller-supplied alias {@code value} means — an exact match
     * on the real value first, then a match on the real display label — and refuses, naming the
-    * real value/label pairs, when {@code current} is non-empty and neither matches. {@code null}
-    * (not a refusal) means {@code current} is empty: this region has no items to check against
-    * yet (an unbound or not-yet-laid-out chart), so there is nothing to validate against and the
-    * caller-supplied value passes through rather than being refused for a reason unrelated to
-    * what they typed.
+    * real value/label pairs, when {@code current} is non-empty and neither matches.
+    *
+    * <p>An empty {@code current} is refused too, rather than passed through unresolved. An
+    * earlier version treated empty as "unbound or not-yet-laid-out, nothing to validate against"
+    * and let the value through as-is — but {@code current} comes from
+    * {@code GraphUtil.getAxisItems}, which reads the <em>executed</em> graph area, not the
+    * binding: a genuinely bound axis reports empty just as easily when the graph has not been
+    * (re-)executed since a binding/filter change, or the active filter currently excludes every
+    * row. Passing the caller's raw value through in that window reproduces the exact silent-no-op
+    * shape {@link #parseAliasEntries}'s javadoc records (a display-text value stored under a key
+    * nothing reads back) for the case that most needs the resolution — a date-grouped or
+    * named-group axis is the one most likely to have just changed. Refusing here costs a
+    * legitimately-unbound region a clear error instead of a silent no-op; the caller is guided to
+    * check {@code list_chart_region_properties} first, which reads the same {@code current}.
     */
    private static ModelAlias resolveAliasItem(String suppliedValue, ModelAlias[] current, int index) {
       if(current == null || current.length == 0) {
-         return null;
+         throw new IllegalArgumentException(
+            "'aliases[" + index + "]' cannot be resolved: this region currently reports no " +
+            "known values (list_chart_region_properties reports the same empty list). This " +
+            "can mean the field is unbound, or the chart has not been (re-)executed since a " +
+            "binding or filter change -- refresh the chart or re-check " +
+            "list_chart_region_properties before retrying, rather than setting an alias whose " +
+            "value cannot be matched against anything and may silently do nothing.");
       }
 
       for(ModelAlias item : current) {

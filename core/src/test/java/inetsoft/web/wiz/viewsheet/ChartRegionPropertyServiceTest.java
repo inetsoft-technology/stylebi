@@ -425,9 +425,14 @@ class ChartRegionPropertyServiceTest {
    @Test
    void writesLegendAliases() throws Exception {
       Harness h = harness();
+      LegendFormatDialogModel model = legendModel();
+      model.getAliasPaneModel().setAliasList(new ModelAlias[] {
+         new ModelAlias("2022", "2022", "2022"),
+         new ModelAlias("2023", "2023", "2023"),
+      });
       when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
                                                 any(Principal.class)))
-         .thenReturn(legendModel());
+         .thenReturn(model);
 
       h.service.set("tok", principal(), "Chart1", "legend", "0", null,
                     Map.of("aliases", List.of(
@@ -452,9 +457,13 @@ class ChartRegionPropertyServiceTest {
    @Test
    void writesAxisAliases() throws Exception {
       Harness h = harness();
+      AxisPropertyDialogModel model = axisModel();
+      model.getAliasPaneModel().setAliasList(new ModelAlias[] {
+         new ModelAlias("West", "West", "West"),
+      });
       when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
                                                 any(), anyString(), any(Principal.class)))
-         .thenReturn(axisModel());
+         .thenReturn(model);
 
       h.service.set("tok", principal(), "Chart1", "axis", "y", null,
                     Map.of("aliases", List.of(Map.of("value", "West", "alias", "Region West"))),
@@ -562,6 +571,36 @@ class ChartRegionPropertyServiceTest {
 
       assertTrue(thrown.getMessage().contains("9999"));
       assertTrue(thrown.getMessage().contains("2022"));
+      verify(h.regions, never()).setAxisPropertyDialogModel(anyString(), anyString(), anyString(),
+                                                            anyInt(), any(), any(), anyString(),
+                                                            any(Principal.class), any());
+   }
+
+   /**
+    * Repair-review finding on the G3-4/G3-7 fix: an empty {@code current} used to pass the
+    * caller's raw value through unresolved on the theory that empty means "unbound, nothing to
+    * validate against." But {@code current} comes from the executed graph area, not the binding
+    * -- a genuinely bound axis reports empty too when the graph has not been (re-)executed since
+    * a binding/filter change, or the active filter currently excludes every row. Passing the
+    * value through in that window reproduces the exact silent-no-op shape this whole feature
+    * exists to close, for the case most likely to have just changed. Refused instead.
+    */
+   @Test
+   void refusesAnAliasWhenTheRegionReportsNoCurrentValues() throws Exception {
+      Harness h = harness();
+      AxisPropertyDialogModel model = axisModel();
+      model.getAliasPaneModel().setAliasList(new ModelAlias[0]);
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("aliases", List.of(Map.of("value", "2022", "alias", "FY22"))),
+                             ""));
+
+      assertTrue(thrown.getMessage().contains("no known values"), thrown.getMessage());
       verify(h.regions, never()).setAxisPropertyDialogModel(anyString(), anyString(), anyString(),
                                                             anyInt(), any(), any(), anyString(),
                                                             any(Principal.class), any());
