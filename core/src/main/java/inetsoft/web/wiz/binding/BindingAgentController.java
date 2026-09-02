@@ -381,13 +381,16 @@ public class BindingAgentController {
                                   request.measure(), linkUri);
    }
 
-   public record TableShelfRequest(String assembly, String shelf, List<FieldRef> fields) {}
+   /** @param table see {@link ShelfRequest#table()}. */
+   public record TableShelfRequest(String assembly, String shelf, List<FieldRef> fields,
+                                   String table) {}
 
    /** {@code force} discards fields already bound to the old source; absent means false. */
    public record ChartSourceRequest(String assembly, String table, Boolean force) {}
    public record TableSourceRequest(String assembly, String table, Boolean force) {}
+   /** @param table see {@link ShelfRequest#table()}. */
    public record TableFieldRequest(String assembly, String shelf, FieldRef field,
-                                   Integer position) {}
+                                   Integer position, String table) {}
    public record TableRemoveRequest(String assembly, String shelf, String column) {}
    public record TableMoveRequest(String assembly, String fromShelf, String toShelf,
                                   String column, Integer position) {}
@@ -409,9 +412,10 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
-      requireBindableColumns(sessionToken, user, request.assembly(), request.fields());
+      String source = resolveSourceTable(sessionToken, user, request.assembly(), request.table(),
+                                         request.fields());
       tableService.setShelf(sessionToken, user, request.assembly(), request.shelf(),
-                            request.fields());
+                            request.fields(), source);
    }
 
    public record SelectionSourceRequest(String assembly, String table, List<String> columns,
@@ -460,9 +464,10 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
-      requireBindableColumns(sessionToken, user, request.assembly(), List.of(request.field()));
+      String source = resolveSourceTable(sessionToken, user, request.assembly(), request.table(),
+                                         List.of(request.field()));
       tableService.addField(sessionToken, user, request.assembly(), request.shelf(),
-                            request.field(), request.position());
+                            request.field(), request.position(), source);
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/remove")
@@ -726,32 +731,6 @@ public class BindingAgentController {
    private final SheetJoinService joinService;
    private final SheetSessionService sessionService;
    private final ViewsheetSessionService sessions;
-   /**
-    * Refuses a field naming a column the assembly cannot bind.
-    *
-    * <p>Such a column bound cleanly and rendered nothing — a crosstab with no rows, which reads as
-    * empty data rather than a bad column name. Checked here because the controller already holds
-    * the field listing; the alternative was injecting it into the service, which would change a
-    * constructor and so require a full reactor build for a validation fix.
-    *
-    * <p>A failure to read the listing is swallowed on purpose: it is a different problem, and
-    * turning it into a refusal would block writes whenever the tree happens to be unreadable.
-    */
-   private void requireBindableColumns(String sessionToken, Principal user, String assembly,
-                                       java.util.Collection<FieldRef> fields)
-   {
-      try {
-         BindableColumns.require(
-            fieldsService.list(sessions.runtimeId(sessionToken, user), assembly, user),
-            assembly, fields);
-      }
-      catch(IllegalArgumentException e) {
-         throw e;
-      }
-      catch(Exception e) {
-         LOG.debug("Could not list bindable columns for {}; skipping the check", assembly, e);
-      }
-   }
 
    /**
     * Validates the columns and answers which table the write is against, in one listing.
@@ -760,9 +739,9 @@ public class BindingAgentController {
     * bindable at all, and — for an assembly with no source yet — which table they come from, so it
     * can be established the way the Composer's drag does.
     *
-    * <p>A listing failure is logged and skipped rather than propagated, matching
-    * {@link #requireBindableColumns}: not being able to read the tree is a different fault, and
-    * refusing the write on the strength of it would turn a read problem into a write problem.
+    * <p>A listing failure is logged and skipped rather than propagated: not being able to read the
+    * tree is a different fault, and refusing the write on the strength of it would turn a read
+    * problem into a write problem.
     *
     * @return the source table to establish, or {@code null} for none
     */
