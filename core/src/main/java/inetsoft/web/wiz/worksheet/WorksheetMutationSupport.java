@@ -1335,6 +1335,13 @@ public final class WorksheetMutationSupport {
       if(type != null) {
          colRef.setDataType(type);
       }
+      else {
+         String inferred = inferNumericExpressionType(t, expression);
+
+         if(inferred != null) {
+            colRef.setDataType(inferred);
+         }
+      }
 
       ColumnSelection cs = t.getColumnSelection(false);
       cs.addAttribute(colRef);
@@ -1370,6 +1377,16 @@ public final class WorksheetMutationSupport {
 
                if(type != null) {
                   cr.setDataType(type);
+               }
+               else if(XSchema.STRING.equals(cr.getDataType())) {
+                  // Only re-infer when the column is still sitting on the untyped
+                  // fallback -- a real, previously-set explicit type (e.g. "integer")
+                  // must be left alone per the "null = leave unchanged" contract above.
+                  String inferred = inferNumericExpressionType(t, expression);
+
+                  if(inferred != null) {
+                     cr.setDataType(inferred);
+                  }
                }
 
                t.setColumnSelection(cs, false);
@@ -1436,6 +1453,18 @@ public final class WorksheetMutationSupport {
    }
 
    private static boolean isDateColumn(ColumnSelection cs, String field) {
+      DataRef ref = resolveColumn(cs, field);
+
+      if(ref == null) {
+         return false;
+      }
+
+      String dtype = ref.getDataType();
+      return XSchema.DATE.equals(dtype) || XSchema.TIME_INSTANT.equals(dtype) ||
+         XSchema.TIME.equals(dtype);
+   }
+
+   private static DataRef resolveColumn(ColumnSelection cs, String field) {
       DataRef ref = cs.getAttribute(field);
 
       if(ref == null) {
@@ -1447,13 +1476,64 @@ public final class WorksheetMutationSupport {
          }
       }
 
-      if(ref == null) {
-         return false;
+      return ref;
+   }
+
+   /** Matches a single {@code field['x']} reference. */
+   private static final java.util.regex.Pattern FIELD_REF_PATTERN =
+      java.util.regex.Pattern.compile("field\\['([^']+)'\\]");
+
+   /**
+    * Infers a numeric data type for an expression column when the caller omits an
+    * explicit {@code type}, instead of leaving it to fall through to the untyped
+    * default of {@link XSchema#STRING} ({@link inetsoft.uql.erm.AbstractDataRef
+    * #getDataType()}).
+    *
+    * <p>Only infers when the intent is unambiguous: every {@code field['x']} reference
+    * in the expression must resolve to an existing numeric column, and everything
+    * outside those references must be pure arithmetic (digits, {@code + - * /},
+    * parentheses, whitespace). Any other shape (string concatenation, comparisons,
+    * unresolvable fields, non-numeric fields) is left alone -- returning {@code null}
+    * preserves the existing string default rather than guessing.</p>
+    *
+    * @return {@link XSchema#DOUBLE}, or {@code null} if the expression's type cannot be
+    *         unambiguously inferred as numeric
+    */
+   private static String inferNumericExpressionType(TableAssembly t, String expression) {
+      if(expression == null || expression.isBlank()) {
+         return null;
       }
 
-      String dtype = ref.getDataType();
-      return XSchema.DATE.equals(dtype) || XSchema.TIME_INSTANT.equals(dtype) ||
-         XSchema.TIME.equals(dtype);
+      ColumnSelection cs = t.getColumnSelection(false);
+
+      if(cs == null) {
+         return null;
+      }
+
+      java.util.regex.Matcher m = FIELD_REF_PATTERN.matcher(expression);
+      StringBuilder remainder = new StringBuilder();
+      int last = 0;
+      int fieldCount = 0;
+
+      while(m.find()) {
+         remainder.append(expression, last, m.start());
+         last = m.end();
+         fieldCount++;
+
+         DataRef ref = resolveColumn(cs, m.group(1));
+
+         if(ref == null || !XSchema.isNumericType(ref.getDataType())) {
+            return null;
+         }
+      }
+
+      remainder.append(expression.substring(last));
+
+      if(fieldCount == 0 || !remainder.toString().matches("[\\s+\\-*/().0-9eE]*")) {
+         return null;
+      }
+
+      return XSchema.DOUBLE;
    }
 
    // =========================================================================
