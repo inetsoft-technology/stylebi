@@ -2448,8 +2448,20 @@ public final class WorksheetMutationSupport {
          }
       }
 
-      if(ws != null && ws.getAssembly(value) instanceof DateRangeAssembly dra) {
-         return dra.getDateRange().clone();
+      if(ws != null) {
+         if(ws.getAssembly(value) instanceof DateRangeAssembly dra) {
+            return dra.getDateRange().clone();
+         }
+
+         // fall back to a case-insensitive scan only when no assembly is named exactly
+         // value, so two assemblies differing only by case never shadow the one the
+         // caller actually named -- mirrors ConditionUtil.fromModelToConditionList's
+         // DATE_IN branch
+         for(Assembly assembly : ws.getAssemblies()) {
+            if(assembly instanceof DateRangeAssembly dra && assembly.getName().equalsIgnoreCase(value)) {
+               return dra.getDateRange().clone();
+            }
+         }
       }
 
       throw new IllegalArgumentException(

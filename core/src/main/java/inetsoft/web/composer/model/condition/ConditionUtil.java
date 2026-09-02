@@ -143,12 +143,21 @@ public class ConditionUtil {
                   if(condition == null && rws != null) {
                      Worksheet ws = rws.getWorksheet();
 
-                     for(Assembly assembly : ws.getAssemblies()) {
-                        if(assembly instanceof DateRangeAssembly &&
-                           assembly.getName().equalsIgnoreCase(value))
-                        {
-                           condition = ((DateRangeAssembly) assembly).getDateRange().clone();
-                           break;
+                     if(ws.getAssembly(value) instanceof DateRangeAssembly) {
+                        condition = ((DateRangeAssembly) ws.getAssembly(value))
+                           .getDateRange().clone();
+                     }
+                     else {
+                        // fall back to a case-insensitive scan only when no assembly is
+                        // named exactly value, so two assemblies differing only by case
+                        // never shadow the one the caller actually named
+                        for(Assembly assembly : ws.getAssemblies()) {
+                           if(assembly instanceof DateRangeAssembly &&
+                              assembly.getName().equalsIgnoreCase(value))
+                           {
+                              condition = ((DateRangeAssembly) assembly).getDateRange().clone();
+                              break;
+                           }
                         }
                      }
                   }
