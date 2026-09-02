@@ -647,8 +647,12 @@ public class WizVsService {
     * distinguishing the two (see the P6 fix-round builder log for why that's the deliberately
     * conservative choice: pack around and refuse to blindly reuse anything not positively known to
     * be this feature's own would need a tagging convention nothing here invents unilaterally).
+    *
+    * <p>Package-private (not private) so {@link WizVisualizationService#saveVisualization} can
+    * reuse this same occupancy detection to carry a chart's filter controls into a saved
+    * visualization (07-fix-r3.md), instead of a second, independently-maintained heuristic.
     */
-   private static List<VSAssembly> findExistingFilterControls(Viewsheet vs, ChartVSAssembly chart) {
+   static List<VSAssembly> findExistingFilterControls(Viewsheet vs, ChartVSAssembly chart) {
       Assembly[] all = vs.getAssemblies();
 
       if(all == null) {
