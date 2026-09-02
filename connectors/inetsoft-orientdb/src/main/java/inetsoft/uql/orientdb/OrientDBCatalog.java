@@ -36,11 +36,11 @@ import java.util.*;
  * separate schema concept. {@code getTables}/{@code getColumns}/{@code getPrimaryKeys} never read
  * their {@code catalog}/{@code schemaPattern} arguments to filter matches, but the three methods
  * don't treat their own {@code TABLE_CAT}/{@code TABLE_SCHEM} output columns the same way.
- * {@code getTables} ({@code OrientJdbcDatabaseMetaData.java} lines 733-734) and {@code getColumns}
- * (via {@code getPropertyAsDocument}, lines 1445-1446) always report both as {@code
- * database.getName()}, independent of what was passed in. {@code getPrimaryKeys} (lines 886-887)
- * instead echoes the passed-in {@code catalog} argument verbatim into both columns rather than
- * substituting {@code database.getName()} -- a difference this class never depends on, since
+ * {@code OrientJdbcDatabaseMetaData.getTables} and {@code getColumns} (the latter via {@code
+ * getPropertyAsDocument}) always report both as {@code database.getName()}, independent of what was
+ * passed in. {@code getPrimaryKeys} instead echoes the passed-in {@code catalog} argument verbatim
+ * into both columns rather than substituting {@code database.getName()} -- a difference this class
+ * never depends on, since
  * {@code primaryKeyColumnNames} below only reads {@code PK_NAME}/{@code COLUMN_NAME}/{@code
  * KEY_SEQ} from that result set. Either way, every call below passes {@code conn.getCatalog()} as
  * catalog and {@code null} as schema purely as a self-documenting, forward-compatible convention --
