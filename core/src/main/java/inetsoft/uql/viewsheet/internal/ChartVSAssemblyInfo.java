@@ -184,13 +184,13 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          plotDesc.setYGridColor(
             ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "y"),
             CompositeValue.Type.DEFAULT);
+         plotDesc.setFacetGridColor(GDefaults.DEFAULT_LINE_COLOR, CompositeValue.Type.DEFAULT);
          plotDesc.setDiagonalColor(
             ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "diagonal"),
             CompositeValue.Type.DEFAULT);
          plotDesc.setQuadrantColor(
             ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "quadrant"),
             CompositeValue.Type.DEFAULT);
-         plotDesc.setFacetGridColor(GDefaults.DEFAULT_LINE_COLOR, CompositeValue.Type.DEFAULT);
 
          plotDesc.getTextFormat().getDefaultFormat().setColor(GDefaults.DEFAULT_TEXT_COLOR);
       }

@@ -102,6 +102,24 @@ The render path takes that value **raw**: `GraphGenerator:2738` and `:2745` for 
 So on a modern-**dark** chart with default settings, horizontal gridlines draw near-white `#eeeeee` on a
 `#252428` card.
 
+**Correction, found only by the final whole-branch review, not by this analysis: the headline is wrong for
+three of the six values.** `CSSChartStyles.apply` (`CSSChartStyles.java:145-156`) writes the modern
+gridline colour into the **CSS tier** of `xGridColor`, `yGridColor` and `facetGridColor` whenever
+`ctx.modern`, and `CompositeValue.get()` resolves USER > CSS > DEFAULT (`CompositeValue.java:41`), so that
+CSS write already outranked the raw legacy DEFAULT this section describes, before any of this design's
+work. So x/y/facet gridlines on a modern-dark chart were **already** `#3A383D`, not `#eeeeee` — the
+default-on defect this section opens with was already fixed for those three. `diagonalColor` and
+`quadrantColor` genuinely had no such mechanism — they are written to the CSS tier only from an explicit
+`format.css` `line_diagonal_color` / `line_quadrant_color` rule (`CSSChartStyles.java:225-229`), not
+unconditionally — so the defect this section describes was real for those two only.
+
+**Why the original analysis missed it, worth recording on its own:** it grepped for
+`resolveGridlineColor` callers, found none on the render path, and concluded the render therefore drew the
+raw legacy value. It never asked whether a *different* mechanism substituted the modern colour before the
+render read it. One did. Absence of the specific mechanism being searched for is not absence of every
+mechanism — the same class of miss group 1's "What the implementation found" already named for a different
+type, and it recurred here despite that precedent being cited at the top of this document.
+
 ### 1.2 And the composer already disagrees with the canvas
 
 `ChartLinePaneModel` resolves these same values through `VSChartChromeDefaults.resolveGridlineColor(…,
@@ -119,6 +137,16 @@ Diagonal and quadrant are the counter-case worth stating: **neither** the render
 resolves them, so they are internally consistent today and merely have no modern or dark treatment. They
 are in scope because they are the same field type on the same descriptor taking the same value — not
 because anything is broken.
+
+**Correction, same source as §1.1: the WYSIWYG break above is not reproducible for x/y/facet.** Both the
+Chart Line pane (via `resolveGridlineColor`) and the canvas (via `CSSChartStyles`'s CSS-tier write) resolved
+through the same modern colour and agreed — there was no disagreement to see for those three. The ten
+resolver calls this section counts were real, but on any already-rendered modern chart they were **no-ops**:
+`resolveGridlineColor` substitutes only when its argument equals the legacy default, which a CSS-tier value
+never does. Deleting them (§5, Task 3) was harmless and is still correct — the pane and the canvas now read
+the same stored value on purpose instead of by two mechanisms coincidentally agreeing — but it closed a
+break that, for x/y/facet, was not actually open. Diagonal and quadrant remain the true WYSIWYG fix: neither
+had a substituting mechanism before this work, so those two are where §1.2's story is accurate as written.
 
 ### 1.3 The tier already exists, for the third time on this branch
 
@@ -211,13 +239,62 @@ two lines apart in `VGraphPair`:
   context's own value on both branches, so a cleared mark restores the legacy label color here on the
   next render."*
 
+**Correction, found by the final whole-branch review: for three of the six values there is a third
+mechanism, and it predates this design.** `CSSChartStyles.apply` (`:145-156`) writes the modern gridline
+colour into the **CSS tier** of `xGridColor`, `yGridColor` and `facetGridColor` whenever `ctx.modern`, on
+every render, after `resetCompositeValues(CSS)` clears the prior CSS tier. This is neither of the two
+mechanisms above — it is not the seed (it writes CSS, not DEFAULT) and it is not `initDefaultFormat`'s
+per-render resolution (it runs in `CSSChartStyles`, keyed off the CSS dictionary path, not the label/title
+lane). Because CSS outranks DEFAULT (`CompositeValue.get()`, USER > CSS > DEFAULT), this render-time write
+is what actually governs x/y/facet gridline colour, seed or no seed, and it is the reason those three
+values needed no seed to already render modern. See §5 for why this write must not be deleted as an
+apparent duplicate of the seed.
+
 **`VSChartChromeDefaults` was never part of the read-time migration.** The roadmap's migration node lists
 five resolvers — `VSTitleChromeDefaults`, `VSCalendarChromeDefaults`,
 `VSObjectChromeDefaults.applyDarkForeground`, `VSOutputChromeDefaults` and
 `VSObjectChromeDefaults.chartPadding` — and the chart chrome resolvers are not among them. So the chart
-interior is now **the only chrome area still computing values at render**, and it carries the portability
-consequence groups 1 and 2 existed to remove: export a dashboard, import it into a build without this
-work, and the axis labels fall back to legacy while the gridlines seeded here render modern.
+interior is now **the only chrome area still computing values at render** for the label and legend
+colours this design leaves alone, and it carries the portability consequence groups 1 and 2 existed to
+remove for those: export a dashboard, import it into a build without this work, and the axis labels fall
+back to legacy.
+
+**Correction, found only once Task 4 tried to test it, not predicted here: the five line colours this
+design seeds do NOT carry that same portability property.** The sentence this replaces originally said
+the gridlines seeded here would render modern on that same import. They do not, and not only into an
+older build — a seeded gridline colour does not survive any save/reload round trip of the asset, in any
+build. `CompositeValue.toString()` (`CompositeValue.java:165-179`) appends the DEFAULT tier to the
+serialised attribute only when `saveDefault` is true; all five of `PlotDescriptor`'s line-colour fields —
+`xGridColor`, `yGridColor`, `diagonalColor`, `quadrantColor`, `facetColor` — are constructed with the
+two-argument constructor (`PlotDescriptor.java:1902-1919`), so `saveDefault` stays at its field default of
+`false` (`CompositeValue.java:261`) for every one of them. A seeded gridline colour therefore serialises
+to an empty attribute and comes back as the field initializer's own legacy value, not the seeded one —
+pinned by `SeedChromeDefaultsTest.theSeededLineColoursDoNotTravelInTheAssetYet`, which is written to fail
+the moment anyone flips `saveDefault` to true without updating this paragraph. The data-label ink is not
+affected: `CompositeTextFormat.writeContents` (`:296-301`) writes `deffmt` inside a `<defaultFormat>`
+element unconditionally, with no `saveDefault` gate, which `theSeededDataLabelInkTravelsInTheAsset` pins
+the other way.
+
+So of this design's three justifications for seeding over read-time resolution (§1.2's WYSIWYG fix, §2's
+Revert correctness, and asset portability), two hold as written and one does not for five of the six
+seeded values: the WYSIWYG fix holds regardless of what reaches the asset, because it is about the
+composer pane and the canvas reading one in-memory stored value, and Task 3 delivered it; Revert
+correctness holds regardless too, because both branches of `seedChromeDefaults` always write, so the mark
+still decides on Modernize and Revert within a live session; but "a read-time value is not in the asset"
+is true only for the data-label ink. For the five line colours, the value is seeded rather than
+read-time, but the seed itself does not yet reach the asset either — a difference of mechanism from the
+resolver problem this design set out to close, arriving at the same practical gap for cross-build export.
+
+**Accepted as a limitation, not fixed here.** The fix would be `saveDefault=true` on the five fields, which
+appears exactly once in the whole codebase today (`StaticSizeFrame.size`) and is a deliberate exception
+rather than a pattern to follow casually: it changes the serialised form of every asset carrying these
+fields, marked or unmarked, and `CompositeValue.parse`'s `readAsDefault` branch (`:131`, guarding Bug
+#55730) exists precisely because migrating an existing field's write semantics this way has bitten this
+class before. That is its own piece of work with its own cohort argument, not a tail-end fix to a plan
+whose binding requirements — the dark-mode legibility defect (§1.1) and the composer/canvas WYSIWYG break
+(§1.2) — are both delivered and untouched by this gap. No section of this design required a gridline
+colour to survive an export into an older build; portability was this design's rationale for seeding the
+line colours, not a requirement it was asked to meet.
 
 **Not fixed here, and it is the natural successor to this piece.** Migrating the chart chrome resolvers is
 group 3 of the same migration, not a detail of this design: it touches every `initDefaultFormat(ctx)` call
@@ -239,6 +316,25 @@ that silently disagrees the first time either side changes.
 `resolveGridlineColor` itself **stays**: `AxisPropertyDialogModel` and `LegendFormatDialogModel` reach
 `resolveAxisLineColor` and `resolveLegendBorderColor`, which share its constants, and the axis-line render
 path at `GraphGenerator:2366`/`:2601` and `RadarGraphGenerator:204` still calls the axis variant.
+`resolveGridlineColor` itself now has **zero production callers** of its own — the ten deleted calls were
+the only ones — and is kept solely for symmetry with those live siblings, not because anything still
+invokes it.
+
+**LOAD-BEARING, DO NOT DELETE: `CSSChartStyles.apply`'s CSS-tier write of `xGridColor`/`yGridColor`/
+`facetGridColor` (`CSSChartStyles.java:145-156`, see §4) is not part of what this section deletes, and must
+never be treated as a redundant second mechanism the way the ten resolver calls above were.** The reasoning
+above — "delete a mechanism once the values agree by construction" — applies to the *dialog's* resolver
+calls, which read a value that is now correct without them. It does **not** apply to `CSSChartStyles`,
+because that write is not redundant with the seed: the seed lands in the DEFAULT tier, and
+`CompositeValue.toString()` only serialises the DEFAULT tier when `saveDefault` is true (`:165-179`), which
+none of these five fields set (§4's correction). A seeded gridline colour does not survive a save/reload
+round trip. `CSSChartStyles.apply` is what re-establishes the modern colour on every render regardless, and
+nothing re-seeds on a plain asset open — `VSEventUtil:2101` calls `initDefaultFormat()`/`seedChromeDefaults`
+only at **creation**; only Modernize, Revert and `AbstractVSAssembly.parseState`'s bookmark-restore re-run
+the hook. Delete the `CSSChartStyles` write and every reopened modern chart goes back to drawing `#eeeeee`
+gridlines on a dark card — the exact defect this design set out to close, reintroduced as a regression by
+a reader who correctly avoids keeping *harmless* duplicate mechanisms but doesn't realise this one is not
+one of them.
 
 ---
 
@@ -292,9 +388,23 @@ W1 and W2 are independent of each other; W3 needs W1.
 
 ## What this closes, and what it does not
 
-**Closes:** a default-on dark legibility defect (near-white gridlines on a dark card, `yGridStyle`
-defaulting to `THIN_LINE`); a composer/canvas WYSIWYG disagreement live in **both** modes; and the
-roadmap's "chart interior dark palette" item, which turns out to need no new colour and no design pass.
+**Corrected by the final whole-branch review — see §1.1, §1.2 and §4/§5:** the line below originally read
+"a default-on dark legibility defect (near-white gridlines on a dark card...)" as this task's first
+closure. That overstated it. `CSSChartStyles.apply`'s CSS-tier write already made x/y/facet gridlines
+render modern before this task touched anything, so those three were not a defect this work fixed. What
+this work actually closes durably is the **data-label ink**: `#4b4b4b` on `#252428` was a genuine
+dark-on-dark defect, the seed for it is real, and — unlike the line colours — it survives a save/reload
+round trip because `CompositeTextFormat` writes its DEFAULT tier unconditionally. Of the five line-colour
+seeds, three (`xGridColor`, `yGridColor`, `facetColor`) were already modern at render via the CSS tier and
+remain so after reload for that same reason, independent of this task's seed; the other two
+(`diagonalColor`, `quadrantColor`) are genuinely newly seeded — a real, previously-unaddressed gap this
+task closes — but that seed does not survive an asset reload (§4), so the closure is durable only within a
+live session (Modernize/Revert), not across export or a plain reopen.
+
+**Closes:** the data-label ink's dark-on-dark legibility defect, durably; the diagonal/quadrant lines'
+previously-nonexistent modern treatment, within a live session; a composer/canvas WYSIWYG disagreement for
+diagonal and quadrant specifically (not x/y/facet, which already agreed — §1.2); and the roadmap's "chart
+interior dark palette" item, which turns out to need no new colour and no design pass.
 
 **Leaves open**, each recorded above with its reason rather than forgotten:
 
@@ -305,3 +415,103 @@ roadmap's "chart interior dark palette" item, which turns out to need no new col
 - **The continuous ramps** — real design, affects data encoding, needs a sign-off (Scope).
 - **The chart chrome resolvers' own read-time migration** — group 3, and now the only chrome area left
   computing at render (§4).
+
+---
+
+## What the implementation found, and what it left open
+
+Recorded 2026-09-02, after the branch shipped four commits — `a784857de4` (the five line colours),
+`a4a679a3d5` (the data-label ink plus §3's removal of the unconditional write), `4c5ccc2b3e` (the ten
+`ChartLinePaneModel` resolver calls deleted) and `9985676905` (the round-trip and change-detection tests
+that found the finding below). Targeted suites green throughout; the full `core` suite ended at 5525
+tests, 0 failures, 0 errors, 72 pre-existing skips. These are the things execution found that this design
+did not predict, kept here so the next person in this area does not rediscover them.
+
+**A second, later correction — from the final whole-branch review, not from execution — lives in §1.1,
+§1.2, §4 and §5, and in "What this closes" above: three of the five line colours were already rendering
+modern before this task, via a `CSSChartStyles` CSS-tier write this design's own analysis missed. Read the
+corrections there rather than here. In one line: the render-path grep that found no `resolveGridlineColor`
+caller was true but incomplete — it did not rule out a different mechanism substituting the modern colour,
+and one existed.**
+
+**The portability claim was wrong for the five line colours, and is corrected in §4 above rather than
+here** — read it there; it is the load-bearing finding of this whole task and is not repeated in full a
+second time. In one line: `CompositeValue.toString()` only serialises the DEFAULT tier when `saveDefault`
+is true, none of the five line-colour fields set it, so a seeded gridline colour does not survive a
+save/reload round trip. The data-label ink is unaffected, because `CompositeTextFormat` writes its
+DEFAULT tier unconditionally. Two of the design's three justifications for seeding survive intact — the
+composer/canvas WYSIWYG fix (§1.2, Task 3) and Revert correctness (§2, both branches always write) — and
+the third, asset portability, is corrected rather than silently believed. Ruled an accepted limitation,
+not a defect to fix inside this task: `saveDefault=true` is a separate migration with its own cohort
+argument, the same kind of thing this branch has repeatedly and correctly split out rather than done
+blind at the tail of an unrelated plan.
+
+**The four questions this design flagged as unverified assumptions, answered:**
+
+1. **Did removing `initDefaultFormat`'s colour write break any render path?** No, and the "no" needed one
+   more grep than the diff showed. Task 2's review could not confirm from the diff alone that nothing
+   reads the plot's text-format colour outside `TextSpec`; a direct grep found
+   `SeparateGraphGenerator:529-530`, which reads `plotdesc.getTextFormat().getColor()` — i.e.
+   `CompositeTextFormat.getColor()`, not `TextSpec` — behind a null guard and pushes it onto the label's
+   own `TextSpec`. Traced through: `CompositeTextFormat.getColor()` resolves USER > CSS > DEFAULT, so it
+   sees the seeded DEFAULT tier and the guard still fires, now with modern ink; on an unseeded chart the
+   guard skips and `TextSpec.getColor()` (`:56`) falls back to `GDefaults.DEFAULT_TEXT_COLOR` — the exact
+   colour the push would otherwise have supplied. No path loses ink, and both mechanisms agree on the same
+   fallback. `TitleScriptable:125` reads a TITLE format via script, not the plot label, and is unrelated.
+   The full core suite (5518 = 5514 + 4 new, then 5520, 5525 across the later tasks) never showed a
+   report-path or exporter regression, which is the same claim verified empirically.
+2. **Did Task 3's change-detection guard keep working, or does an unchanged Apply now write a USER tier?**
+   Verified by automation, not by a human. The GREEN probe (`ChartLinePaneModelTest`) genuinely
+   discriminates — the seed writes DEFAULT and never USER, so a masking USER tier would fail it — and the
+   scoped re-review independently confirmed both write-side guards kept their `Tool.equals` comparison
+   with only the `VizContext` wrapper dropped, no guard logic deleted. **Manual check 5 — an actual
+   Apply-with-no-change in a running composer — has since run and passed (2026-09-10)**, so the guard is
+   confirmed by a human as well as by the probe.
+3. **Were the seven raw render sites the complete set, or did the manual pass find a gridline the design
+   did not enumerate?** **Yes, as far as the matrix reaches.** The manual pass ran on 2026-09-10 and
+   surfaced no eighth gridline across the nine checks — which covered bar, faceted, light, dark, composer,
+   Modernize, Revert and export. That is strong evidence rather than proof: a chart type outside those nine
+   could still carry a plot line this design did not enumerate.
+4. **Was the light-mode shift actually imperceptible at (6, 9, 16) per channel, or is it visible enough for
+   release notes?** **No issue was raised.** Manual check 3 — a light modern chart, gridlines warm and
+   nothing else moved — passed on 2026-09-10. Note what that does and does not establish: nobody reported
+   the shift as visible, which is the practical answer for release notes, but no one was asked to judge
+   perceptibility side by side against the old value either. Treat it as "not noticed", not as "measured
+   imperceptible".
+
+**Two minors deferred rather than fixed, both flagged for final review rather than dropped:**
+
+- The comment added to `PlotDescriptor.initDefaultFormat` runs four sentences against this project's
+  standing preference for concise inline comments. It stayed because it explains a cross-file invariant
+  (why the colour write had to go, and what covers its absence) and trimming it risked losing that, but it
+  is a real style hit rather than reviewer taste — a one-clause version plus a file/line pointer would
+  satisfy both.
+- `ChartLinePaneModelTest`'s read-path test asserts only the Y gridline. Since Task 1 seeds X and Y with
+  the same value, that one test cannot by itself catch an X/Y swap on the *read* path — the write-side
+  pairing was verified separately by reading diff context, not by this test. Left as a question for final
+  review rather than added speculatively: is an explicit X-side read assertion worth the second test.
+
+### Outstanding
+
+**The nine-check manual browser matrix RAN AND PASSED on 2026-09-10.** It needed a running server and a
+human at a browser, which the implementing session could not do; it was run afterwards by the branch
+owner. This work is therefore "shipped and seen" in this branch's own sense, not merely shipped, and
+questions 2, 3 and 4 above are answered accordingly.
+
+**One thing the matrix could not restore, and it is worth stating so the pass is not over-read.** By the
+time it ran, §1.1's correction had already established that x/y/facet gridlines were **already** modern
+before this work, via `CSSChartStyles`' CSS-tier write. So manual check 1 — "a dark chart draws a dark
+hairline, not near-white" — passing does not demonstrate that this change fixed anything for those three:
+it would have passed before the change too. The checks that exercise genuinely new behaviour are 2 (data
+labels light on the dark card) and 8 (that ink surviving to PDF, PNG and Excel), plus 5 for the guard.
+
+**The cross-module `-Pcommunity,enterprise` build could not run**, for a reason unrelated to this work.
+Enterprise `main`'s `LicenseParser` calls `License.Builder.formLicensed(boolean)`, a method that exists on
+the community commit enterprise `main` expects (`dbe6d07143`) but on no branch `viz-updates` descends
+from — confirmed absent from `License.java` on `origin/main`, `origin/epic-74519` and `HEAD`. None of this
+task's four commits touches licensing; the skew is pre-existing branch drift, not a regression here. A
+community-only `clean install -DskipTests` was substituted and passed. This task's own signature changes
+— `ChartLinePaneModel`'s constructor and `updateChartLinePaneModel` — were confirmed to have zero callers
+outside `community/core`, so the specific cross-module risk the fuller gate exists to catch is absent
+here; a rebase of `viz-updates` onto a base carrying the newer `License`, or an enterprise checkout
+matching `epic-74519`, is needed before the fuller gate can run at all, independent of this task.
