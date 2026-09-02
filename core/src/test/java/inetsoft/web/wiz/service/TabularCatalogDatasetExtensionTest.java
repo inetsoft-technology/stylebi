@@ -32,6 +32,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Charter assertion B7, isolated from the rest of {@link TabularCatalogServiceTest}: a METADATA
@@ -94,5 +95,39 @@ class TabularCatalogDatasetExtensionTest {
       OsiCustomExtension ext = dataset.getCustomExtensions().get(0);
       JsonNode data = new ObjectMapper().readTree(ext.getData());
       assertEquals("Products", data.get("params").get("entity").asText());
+   }
+
+   /**
+    * This round's direct analogue of the params presence/absence tests above, for the new
+    * {@code columnsMayBeIncomplete} key: the 4-arg constructor defaults it to false, and false is
+    * omitted entirely rather than written out — same "present only when it says something"
+    * convention as {@code params}, applied to this key too.
+    */
+   @Test
+   void datasetCommonExtensionOmitsColumnsMayBeIncompleteKeyWhenFalse() throws Exception {
+      TabularDatasetSchema schema = new TabularDatasetSchema("Products",
+         List.of(new TabularColumn("ID", XSchema.LONG)), List.of("ID"));
+
+      OsiDataset dataset =
+         TabularCatalogService.toDataset("Rest/Northwind", "OData", schema, new ObjectMapper());
+
+      OsiCustomExtension ext = dataset.getCustomExtensions().get(0);
+      JsonNode data = new ObjectMapper().readTree(ext.getData());
+      assertFalse(data.has("columnsMayBeIncomplete"),
+         "columnsMayBeIncomplete key must be absent, not written as false");
+   }
+
+   @Test
+   void datasetCommonExtensionCarriesColumnsMayBeIncompleteWhenTrue() throws Exception {
+      TabularDatasetSchema schema = new TabularDatasetSchema("Products",
+         List.of(new TabularColumn("ID", XSchema.LONG)), List.of("ID"), Map.of(), true);
+
+      OsiDataset dataset =
+         TabularCatalogService.toDataset("Test/Aerospike", "Aerospike", schema, new ObjectMapper());
+
+      OsiCustomExtension ext = dataset.getCustomExtensions().get(0);
+      JsonNode data = new ObjectMapper().readTree(ext.getData());
+      assertTrue(data.get("columnsMayBeIncomplete").asBoolean(),
+         "columnsMayBeIncomplete must be written as a JSON boolean, not a string");
    }
 }

@@ -75,11 +75,12 @@ public interface TabularCatalogProvider {
     * level, so a per-column marker would just repeat one dataset-wide fact on every row. Record it
     * once, on the dataset.
     *
-    * That dataset-level "this list may be incomplete" signal is NOT implemented yet as of this
-    * writing — nothing currently produces sampled columns through this SPI, so the field would
-    * have no writer. It is meant to land in the same change that ships the first connector whose
-    * columns are actually sampled (a bounded scan over a schema-less or driver-inferred source),
-    * not before.
+    * That dataset-level "this list may be incomplete" signal is {@link TabularDatasetSchema#columnsMayBeIncomplete()}.
+    * Set it true when this method could only infer columns from a bounded scan rather than read
+    * them from the source's own declared metadata — {@code AerospikeCatalog} is the first
+    * implementer to do so. wiz surfaces a true value as one caveat sentence composed into the
+    * annotation prompt, the same way a truncated-sample-rows caveat is already surfaced today, so
+    * an LLM reading this data does not describe an inferred column list as a complete enumeration.
     *
     * Before reaching for sampling, check whether the source already publishes declared metadata —
     * if it does, read that instead of inferring from samples. This is not hypothetical: a

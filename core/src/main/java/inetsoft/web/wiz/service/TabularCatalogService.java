@@ -364,7 +364,8 @@ public class TabularCatalogService {
          null : schema.keyColumns());
       dataset.setFields(fields);
       dataset.setCustomExtensions(
-         List.of(buildDatasetExtension(dsName, datasourceSubtype, schema.params(), objectMapper)));
+         List.of(buildDatasetExtension(dsName, datasourceSubtype, schema.params(),
+            schema.columnsMayBeIncomplete(), objectMapper)));
       return dataset;
    }
 
@@ -396,9 +397,17 @@ public class TabularCatalogService {
     * {@code "params"} key entirely rather than writing it out empty or null, so wiz's reader can't
     * tell "no params" apart from "not implemented yet" — which is exactly the point: both mean the
     * same thing to a consumer that only wants to know whether it has something to bind with.
+    *
+    * {@code columnsMayBeIncomplete} is written only when true, unlike {@code params}' "empty means
+    * absent" convention but for the opposite reason: every dataset that predates this key, and
+    * every dataset from a connector that reads declared metadata, has no way to ever produce it,
+    * and for those ABSENT must mean "complete" — writing it out as {@code false} unconditionally
+    * would say the same thing, so omitting it keeps this method's convention (present only when it
+    * says something) uniform across both keys — see {@link TabularDatasetSchema#columnsMayBeIncomplete()}.
     */
    private static OsiCustomExtension buildDatasetExtension(String dsName, String datasourceSubtype,
                                                             Map<String, String> params,
+                                                            boolean columnsMayBeIncomplete,
                                                             ObjectMapper objectMapper)
    {
       try {
@@ -410,6 +419,10 @@ public class TabularCatalogService {
 
          if(params != null && !params.isEmpty()) {
             extData.put("params", params);
+         }
+
+         if(columnsMayBeIncomplete) {
+            extData.put("columnsMayBeIncomplete", true);
          }
 
          OsiCustomExtension ext = new OsiCustomExtension();

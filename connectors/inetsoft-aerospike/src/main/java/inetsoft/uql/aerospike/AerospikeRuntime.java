@@ -32,7 +32,7 @@ import java.util.Properties;
  * Class that provides Aerospike database connection and query execution utility
  */
 @SuppressWarnings("unused")
-public class AerospikeRuntime extends TabularRuntime {
+public class AerospikeRuntime extends TabularRuntime implements TabularCatalogProvider {
    /**
     * Execute a Aerospike query.
     *
@@ -137,6 +137,43 @@ public class AerospikeRuntime extends TabularRuntime {
       catch (Exception ex){
          LOG.warn("Failed to obtain Aerospike JDBC driver", ex);
          throw ex;
+      }
+   }
+
+   @Override
+   public TabularCatalog listDatasets(TabularDataSource<?> dataSource) throws Exception {
+      AerospikeDataSource ds = (AerospikeDataSource) dataSource;
+      requireNamespace(ds);
+
+      try(Connection conn = getConnection(ds)) {
+         return AerospikeCatalog.listDatasets(conn, ds.getNamespace());
+      }
+   }
+
+   @Override
+   public TabularDatasetSchema describeDataset(TabularDataSource<?> dataSource, String datasetId)
+      throws Exception
+   {
+      AerospikeDataSource ds = (AerospikeDataSource) dataSource;
+      requireNamespace(ds);
+
+      try(Connection conn = getConnection(ds)) {
+         return AerospikeCatalog.describeDataset(conn, ds.getNamespace(), datasetId);
+      }
+   }
+
+   /**
+    * A4: a blank Namespace must throw, not silently enumerate nothing. Checked before
+    * {@link #getConnection} is ever called -- {@link #constructUrl} would otherwise happily build
+    * a "jdbc:aerospike:host:port/" URL from a blank namespace. AerospikeDataSource.namespace
+    * defaults to the non-null string "default", but that default does not close off every path a
+    * blank value could arrive by (an API caller, a deserialized doc, a future editor that allows
+    * clearing the field) -- same reasoning HiveRuntime.requireDbName already applies to dbName.
+    */
+   private static void requireNamespace(AerospikeDataSource ds) throws Exception {
+      if(ds.getNamespace() == null || ds.getNamespace().isBlank()) {
+         throw new Exception("Data source '" + ds.getName() +
+            "' has no namespace configured; cannot enumerate its sets.");
       }
    }
 
