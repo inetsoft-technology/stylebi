@@ -32,6 +32,7 @@ import inetsoft.web.portal.data.CheckDuplicateResponse;
 import inetsoft.web.portal.data.DataSourceBrowserService;
 import inetsoft.web.portal.data.DataSourceConnectionStatusRequest;
 import inetsoft.web.portal.data.DataSourceStatus;
+import inetsoft.web.portal.data.DatasourcesService;
 import inetsoft.web.portal.service.datasource.DataSourceStatusService;
 import inetsoft.web.security.PermissionPath;
 import inetsoft.web.security.RequiredPermission;
@@ -110,7 +111,11 @@ class WizDatabaseControllerSecurityTest {
                 "/api/wiz/databases/test",
                 "/api/wiz/databases/create",
                 "/api/wiz/databases/update",
-                "/api/wiz/datasources/folders/create"),
+                "/api/wiz/datasources/folders/create",
+                "/api/wiz/datasources/delete",
+                "/api/wiz/datasources/move/checkDuplicate",
+                "/api/wiz/datasources/move",
+                "/api/wiz/datasources/checkOuterDependencies"),
          new HashSet<>(mappedPaths()));
    }
 
@@ -642,7 +647,8 @@ class WizDatabaseControllerSecurityTest {
             .when(databaseTypeService).getDatabaseType(MySQLDatabaseType.TYPE);
          controller = new WizDatabaseController(
             dataSourceBrowserService, dataSourceStatusService, databaseDatasourcesService,
-            databaseTypeService, securityEngine, uqlConfig, xrepository, endpointCatalogReader);
+            databaseTypeService, securityEngine, uqlConfig, xrepository, endpointCatalogReader,
+            datasourcesService);
       }
 
       final DataSourceBrowserService dataSourceBrowserService = mock(DataSourceBrowserService.class);
@@ -654,6 +660,7 @@ class WizDatabaseControllerSecurityTest {
       final Config uqlConfig = mock(Config.class);
       final XRepository xrepository = mock(XRepository.class);
       final EndpointCatalogReader endpointCatalogReader = mock(EndpointCatalogReader.class);
+      final DatasourcesService datasourcesService = mock(DatasourcesService.class);
       final Principal principal = mock(Principal.class);
       final WizDatabaseController controller;
    }
