@@ -157,6 +157,11 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          plotDesc.setFacetGridColor(gridline, CompositeValue.Type.DEFAULT);
          plotDesc.setDiagonalColor(gridline, CompositeValue.Type.DEFAULT);
          plotDesc.setQuadrantColor(gridline, CompositeValue.Type.DEFAULT);
+
+         // the data-label ink. Seeded, so PlotDescriptor.initDefaultFormat no longer writes a
+         // colour at all - it ran on every render and overwrote this
+         plotDesc.getTextFormat().getDefaultFormat()
+            .setColor(VSChartChromeDefaults.titleColor(ctx));
       }
       else {
          // Revert calls this with an unmarked context and needs the legacy values written, not
@@ -186,6 +191,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
             ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "quadrant"),
             CompositeValue.Type.DEFAULT);
          plotDesc.setFacetGridColor(GDefaults.DEFAULT_LINE_COLOR, CompositeValue.Type.DEFAULT);
+
+         plotDesc.getTextFormat().getDefaultFormat().setColor(GDefaults.DEFAULT_TEXT_COLOR);
       }
 
       // seedPalette is total across the mark, so no ctx.modern check is needed here

@@ -69,7 +69,11 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    }
 
    public void initDefaultFormat(VizContext ctx) {
-      fmt.getDefaultFormat().setColor(GDefaults.DEFAULT_TEXT_COLOR);
+      // no colour write here: the data-label ink is seeded at creation by
+      // ChartVSAssemblyInfo.seedChromeDefaults, and this method runs on every render
+      // (VGraphPair), so writing one here overwrote the seed on the first repaint. TextSpec
+      // .getColor() falls back to DEFAULT_TEXT_COLOR when null, which is what the report path
+      // and any descriptor that never reaches the seed resolve.
       // font follows "is a viewsheet chart", not the modern gate
       fmt.getDefaultFormat().setFont(ctx != VizContext.LEGACY ?
          VSAssemblyInfo.getDefaultFont(VSUtil.getDefaultFont()) : VSUtil.getDefaultFont());

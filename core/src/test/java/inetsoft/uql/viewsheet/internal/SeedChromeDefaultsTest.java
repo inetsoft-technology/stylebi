@@ -791,6 +791,46 @@ class SeedChromeDefaultsTest {
                    "a USER value outranks the seeded DEFAULT by construction");
    }
 
+   // ---- the plot's data-label ink --------------------------------------------------------------
+
+   private static Color labelInk(ChartVSAssemblyInfo info) {
+      return info.getChartDescriptor().getPlotDescriptor()
+         .getTextFormat().getDefaultFormat().getColor();
+   }
+
+   @Test
+   void aModernChartSeedsTheTitleTierInkOnItsDataLabels() {
+      gateOn();
+      assertEquals(new Color(0x35342F), labelInk(newChart()),
+                   "data labels are primary content, so they take the title tier not the label tier");
+   }
+
+   @Test
+   void aDarkChartSeedsLightInkOnItsDataLabels() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertEquals(new Color(0xE6E0E9), labelInk(newChart()),
+                   "near-black data labels are unreadable on the dark card");
+   }
+
+   @Test
+   void anUnmarkedChartKeepsTheLegacyDataLabelInk() {
+      gateOff();
+      assertEquals(GDefaults.DEFAULT_TEXT_COLOR, labelInk(newChart()));
+   }
+
+   @Test
+   void aSeededDataLabelInkSurvivesARepaint() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      ChartVSAssemblyInfo info = newChart();
+      PlotDescriptor plot = info.getChartDescriptor().getPlotDescriptor();
+      // VGraphPair calls this on every render; before the fix it clobbered the seed
+      plot.initDefaultFormat(VizContext.of(info));
+      assertEquals(new Color(0xE6E0E9), labelInk(info),
+                   "initDefaultFormat must not overwrite the seeded ink on repaint");
+   }
+
    // ---- the hook, called a second time on an assembly that already exists ---------------------
 
    @Test
