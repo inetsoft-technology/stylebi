@@ -26,23 +26,28 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.DependencyException;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.uql.tabular.ScriptedQuery;
 import inetsoft.uql.tabular.SelectableTabularQuery;
 import inetsoft.uql.util.Config;
+import inetsoft.util.MessageException;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.content.database.*;
 import inetsoft.web.admin.content.database.types.*;
 import inetsoft.web.admin.content.repository.DataSourceSettingsModel;
 import inetsoft.web.admin.content.repository.DatabaseDatasourcesService;
+import inetsoft.web.admin.model.NameLabelTuple;
 import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.portal.data.CheckDuplicateResponse;
 import inetsoft.web.portal.data.DataSourceBrowserService;
 import inetsoft.web.portal.data.DataSourceConnectionStatusRequest;
 import inetsoft.web.portal.data.DataSourceInfo;
 import inetsoft.web.portal.data.DataSourceStatus;
+import inetsoft.web.portal.data.DatasourcesService;
 import inetsoft.web.portal.data.ImmutableDataSourceConnectionStatusRequest;
+import inetsoft.web.portal.data.MoveCommand;
 import inetsoft.web.portal.data.PortalDataType;
 import inetsoft.web.portal.service.datasource.DataSourceStatusService;
 import inetsoft.web.security.PermissionPath;
@@ -108,7 +113,8 @@ public class WizDatabaseController {
                                 SecurityEngine securityEngine,
                                 Config uqlConfig,
                                 XRepository xrepository,
-                                EndpointCatalogReader endpointCatalogReader)
+                                EndpointCatalogReader endpointCatalogReader,
+                                DatasourcesService datasourcesService)
    {
       this.dataSourceBrowserService = dataSourceBrowserService;
       this.dataSourceStatusService = dataSourceStatusService;
@@ -118,6 +124,7 @@ public class WizDatabaseController {
       this.uqlConfig = uqlConfig;
       this.xrepository = xrepository;
       this.endpointCatalogReader = endpointCatalogReader;
+      this.datasourcesService = datasourcesService;
    }
 
    /**
@@ -782,6 +789,257 @@ public class WizDatabaseController {
    }
 
    /**
+    * Deletes one or more data sources and/or data source folders in a single call.
+    *
+    * <p>Neither {@code dataSourceBrowserService.deleteDataSourceFolder} nor {@code
+    * datasourcesService.deleteDataSource} performs a permission check anywhere in its own call
+    * chain — the native controller's {@code @Secured} annotation is the only place that check
+    * happens today, and this controller reaches the services directly, bypassing it. The explicit
+    * {@code securityEngine.checkPermission} guard below is this endpoint's own replacement for
+    * that annotation.</p>
+    *
+    * <p>Each item is tried independently: a permission denial, a dependency conflict or an
+    * unexpected exception on one item is reported in that item's own result and does not stop the
+    * rest of the batch from being attempted — unlike the native {@code deleteDataSources}, which
+    * always forces, and unlike a single-item native delete, which has no batch to abort in the
+    * first place.</p>
+    *
+    * @param request   the items to delete and whether to force past a dependency conflict.
+    * @param principal the current user.
+    *
+    * @return one outcome per requested item, in request order.
+    */
+   @PostMapping(value = "/datasources/delete", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WizDatasourceDeleteResult deleteDatasources(
+      @RequestBody WizDatasourceDeleteRequest request, Principal principal)
+      throws Exception
+   {
+      List<WizDatasourceDeleteItemResult> results = new ArrayList<>();
+      List<WizDatasourceRef> items = request == null || request.items() == null
+         ? List.of() : request.items();
+      boolean force = request != null && request.force();
+
+      for(WizDatasourceRef item : items) {
+         try {
+            ResourceType type = item.folder()
+               ? ResourceType.DATA_SOURCE_FOLDER : ResourceType.DATA_SOURCE;
+
+            if(!securityEngine.checkPermission(principal, type, item.path(), ResourceAction.DELETE)) {
+               results.add(new WizDatasourceDeleteItemResult(
+                  item.path(), false, WizDatasourceDeleteItemResult.PERMISSION_DENIED, null));
+               continue;
+            }
+
+            ConnectionStatus status = item.folder()
+               ? dataSourceBrowserService.deleteDataSourceFolder(item.path(),
+                    Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, item.path(), principal),
+                    force, principal)
+               : datasourcesService.deleteDataSource(item.path(),
+                    databaseDatasourcesService.getDataSourceAuditPath(
+                       item.path(), nameOnlyDefinition(item.name()), principal),
+                    force);
+
+            if(status != null) {
+               // A message when force=false hit a dependency conflict (or, for a folder, when a
+               // child datasource lacked DELETE). Both surface the same way here; the portal
+               // cannot and need not distinguish them further than "show me the message".
+               results.add(new WizDatasourceDeleteItemResult(
+                  item.path(), false, WizDatasourceDeleteItemResult.HAS_DEPENDENCIES,
+                  status.getStatus()));
+            }
+            else {
+               results.add(new WizDatasourceDeleteItemResult(item.path(), true, null, null));
+            }
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to delete {}: {}", item.path(), ex.getMessage());
+            results.add(new WizDatasourceDeleteItemResult(
+               item.path(), false, WizDatasourceDeleteItemResult.UNKNOWN, null));
+         }
+      }
+
+      return new WizDatasourceDeleteResult(results);
+   }
+
+   /**
+    * Checks whether moving the given items to a folder would collide with an existing name.
+    *
+    * <p>No permission gate: {@code checkItemsDuplicate} performs none itself, and this is
+    * advisory-only, the same posture as every other duplicate-name pre-check this controller
+    * forwards.</p>
+    *
+    * @param request the items that would move, and the destination folder.
+    *
+    * @return whether at least one item's name is already taken at the destination.
+    */
+   @PostMapping(value = "/datasources/move/checkDuplicate", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WizMoveCheckDuplicateResult checkMoveDuplicate(
+      @RequestBody WizMoveCheckDuplicateRequest request)
+      throws Exception
+   {
+      List<WizDatasourceRef> items = request == null || request.items() == null
+         ? List.of() : request.items();
+      DataSourceInfo[] infos = toDataSourceInfos(items);
+      CheckDuplicateResponse response = dataSourceBrowserService.checkItemsDuplicate(
+         infos, normalizePath(request == null ? null : request.targetPath()));
+
+      return new WizMoveCheckDuplicateResult(response != null && response.isDuplicate());
+   }
+
+   /**
+    * Moves one or more data sources and/or data source folders to a single destination folder.
+    *
+    * <p>{@code moveDataSource} already performs its own full permission check per item — WRITE on
+    * the destination folder, and DELETE on the item's current location — so, unlike delete, this
+    * endpoint adds no permission guard of its own. What it does add:</p>
+    *
+    * <ul>
+    * <li>A self-descendant guard, checked here before the native call at all: {@code
+    * moveDataSource} has no such check, and letting a folder move into its own descendant through
+    * would hand the registry a rename that moves a folder inside itself.</li>
+    * <li>Translating the {@code MessageException} the native call throws on a permission denial
+    * into a reported result instead of an uncaught exception.</li>
+    * <li>Issuing one native call per item instead of one call for the whole array: {@code
+    * moveDataSource} aborts its entire batch on the first exception, so each surviving command is
+    * issued one at a time here specifically so one item's failure does not prevent attempting the
+    * rest.</li>
+    * </ul>
+    *
+    * @param request   the items to move, and the destination folder.
+    * @param principal the current user.
+    *
+    * @return one outcome per requested item, in request order.
+    */
+   @PostMapping(value = "/datasources/move", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WizMoveResult moveDatasources(@RequestBody WizMoveRequest request, Principal principal)
+      throws Exception
+   {
+      String targetPath = normalizePath(request == null ? null : request.targetPath());
+      List<WizDatasourceRef> items = request == null || request.items() == null
+         ? List.of() : request.items();
+      List<WizMoveItemResult> results = new ArrayList<>();
+      List<MoveCommand> commands = new ArrayList<>();
+
+      for(WizDatasourceRef item : items) {
+         String itemName = lastSegment(item.path());
+         String newPath = targetPath == null ? itemName : targetPath + "/" + itemName;
+
+         if(item.folder() && targetPath != null &&
+            (targetPath.equals(item.path()) || targetPath.startsWith(item.path() + "/")))
+         {
+            results.add(new WizMoveItemResult(
+               item.path(), newPath, false, WizMoveItemResult.SELF_DESCENDANT));
+            continue;
+         }
+
+         MoveCommand cmd = new MoveCommand();
+         cmd.setOldPath(item.path());
+         cmd.setPath(newPath);
+         cmd.setName(itemName);
+         cmd.setType(item.folder()
+            ? PortalDataType.DATA_SOURCE_FOLDER.name() : PortalDataType.DATA_SOURCE.name());
+         commands.add(cmd);
+      }
+
+      for(MoveCommand cmd : commands) {
+         try {
+            dataSourceBrowserService.moveDataSource(new MoveCommand[] { cmd }, principal);
+            results.add(new WizMoveItemResult(cmd.getOldPath(), cmd.getPath(), true, null));
+         }
+         catch(MessageException ex) {
+            // Thrown for both the WRITE-on-target and DELETE-on-source permission checks -- both
+            // surface as the same reason code here; the message text itself is not forwarded, it
+            // is an English Catalog string keyed to the server locale.
+            results.add(new WizMoveItemResult(
+               cmd.getOldPath(), cmd.getPath(), false, WizMoveItemResult.PERMISSION_DENIED));
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to move {} -> {}: {}", cmd.getOldPath(), cmd.getPath(), ex.getMessage());
+            results.add(new WizMoveItemResult(
+               cmd.getOldPath(), cmd.getPath(), false, WizMoveItemResult.UNKNOWN));
+         }
+      }
+
+      return new WizMoveResult(results);
+   }
+
+   /**
+    * Reports which of the given items have an outer dependency, and why.
+    *
+    * <p>What the delete confirmation dialog calls before the user confirms, so a conflict can be
+    * shown up front instead of only being discovered from a refused {@code force=false} delete
+    * attempt. Calling this first is optional: the delete endpoint enforces the same rule itself.</p>
+    *
+    * @param items the data sources and/or folders to check.
+    *
+    * @return one message per item that has a conflict, keyed by path. An item with no conflict has
+    *         no entry.
+    */
+   @PostMapping(value = "/datasources/checkOuterDependencies", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WizDependencyCheckResult checkOuterDependencies(@RequestBody WizDatasourceRef[] items) {
+      Map<String, String> messagesByPath = new LinkedHashMap<>();
+
+      for(WizDatasourceRef item : items == null ? new WizDatasourceRef[0] : items) {
+         if(item == null || item.path() == null) {
+            continue;
+         }
+
+         try {
+            if(item.folder()) {
+               datasourcesService.checkDataSourceFolderOuterDependencies(item.path());
+            }
+            else {
+               datasourcesService.checkDataSourceOuterDependencies(item.path());
+            }
+         }
+         catch(DependencyException ex) {
+            messagesByPath.put(item.path(), ex.getMessage(true));
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to check dependencies for {}: {}", item.path(), ex.getMessage());
+            messagesByPath.put(item.path(), ex.getMessage());
+         }
+      }
+
+      return new WizDependencyCheckResult(messagesByPath);
+   }
+
+   /** Builds a definition carrying only a name, matching what {@code getDataSourceAuditPath} needs. */
+   private static DatabaseDefinition nameOnlyDefinition(String name) {
+      DatabaseDefinition definition = new DatabaseDefinition();
+      definition.setName(name);
+      return definition;
+   }
+
+   /**
+    * Builds the minimal {@code DataSourceInfo} array {@code checkItemsDuplicate} needs.
+    *
+    * <p>That call only ever reads {@code path()} from each element, but {@code DataSourceInfo} is
+    * an {@code @Value.Immutable} record, so every other required field still needs some value.
+    * The placeholders below are never read by the call this array is built for.</p>
+    */
+   private static DataSourceInfo[] toDataSourceInfos(List<WizDatasourceRef> items) {
+      DataSourceInfo[] infos = new DataSourceInfo[items.size()];
+
+      for(int i = 0; i < items.size(); i++) {
+         WizDatasourceRef item = items.get(i);
+         String name = item.name() == null ? lastSegment(item.path()) : item.name();
+         infos[i] = DataSourceInfo.builder()
+            .name(name)
+            .path(item.path())
+            .type(NameLabelTuple.builder().name(name).label(name).build())
+            .createdDateLabel("")
+            .dateFormat("")
+            .editable(false)
+            .deletable(false)
+            .hasSubFolder(false)
+            .build();
+      }
+
+      return infos;
+   }
+
+   /**
     * Fails unless the caller holds the action on a data source.
     *
     * <p>Throws {@code java.lang.SecurityException}, which is what {@code SecuredAspect} throws for
@@ -1400,6 +1658,7 @@ public class WizDatabaseController {
    private final Config uqlConfig;
    private final XRepository xrepository;
    private final EndpointCatalogReader endpointCatalogReader;
+   private final DatasourcesService datasourcesService;
 
    /** Annotation classes. See {@link WizDatasourceEntry} for what each one means to the portal. */
    private static final String JDBC = "JDBC";
