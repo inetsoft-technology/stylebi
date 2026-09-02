@@ -20,11 +20,16 @@ package inetsoft.web.binding.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import inetsoft.report.internal.binding.*;
 import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
+import inetsoft.uql.JunctionOperator;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.DateCondition;
 import inetsoft.uql.asset.SNamedGroupInfo;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
@@ -180,8 +185,10 @@ public class NamedGroupInfoModel implements Serializable {
                   continue;
                }
 
-               expertInfo.setGroupCondition(group, ConditionUtil.fromModelToConditionList(
-                  item.getList(), null, null, null));
+               ConditionList conditionList = ConditionUtil.fromModelToConditionList(
+                  item.getList(), null, null, null);
+               normalizeDateInGroupCondition(conditionList);
+               expertInfo.setGroupCondition(group, conditionList);
             }
          }
          else if(getGroups() != null) {
@@ -203,6 +210,66 @@ public class NamedGroupInfoModel implements Serializable {
       }
 
       return null;
+   }
+
+   /**
+    * A date_in-resolved named-group condition comes back from
+    * ConditionUtil.fromModelToConditionList() as a single ConditionItem wrapping a
+    * DateCondition clone (see ConditionUtil.java's DATE_IN branch). NamedRangeRef's
+    * getExpression()/getScriptExpression() only know how to render a plain
+    * GREATER_THAN(>=)/AND/LESS_THAN(<=) range - a DateCondition isn't even a Condition
+    * (they're sibling subclasses of AbstractCondition), so it falls through their
+    * deprecated ConditionItem.getCondition() accessor as a blank, always-empty condition.
+    * Expand the DateCondition into that range shape here, at the point the named group's
+    * condition is constructed, so NamedRangeRef needs no changes.
+    */
+   static void normalizeDateInGroupCondition(ConditionList conditionList) {
+      if(conditionList == null || conditionList.getConditionSize() != 1) {
+         return;
+      }
+
+      ConditionItem item = conditionList.getConditionItem(0);
+
+      if(item == null || !(item.getXCondition() instanceof DateCondition)) {
+         return;
+      }
+
+      DateCondition dateCondition = (DateCondition) item.getXCondition();
+
+      if(dateCondition.isNegated()) {
+         // Negation can't be expressed by the GREATER_THAN/LESS_THAN range shape below
+         // (that would require a NOT/OR-of-two-ranges shape NamedRangeRef doesn't support) -
+         // leave the list alone rather than silently producing the wrong-signed range.
+         return;
+      }
+
+      DataRef attribute = item.getAttribute();
+      // isTimestamp must reflect the bound field's actual data type, not the
+      // DateCondition's own type (every DateCondition ctor hardcodes type = XSchema.DATE),
+      // matching the existing precedent in XUtil.convertDateCondition().
+      boolean isTimestamp = attribute != null && XSchema.TIME_INSTANT.equals(attribute.getDataType());
+      Condition range = dateCondition.toSqlCondition(isTimestamp);
+
+      if(range == null || range.getValueCount() != 2) {
+         return;
+      }
+
+      Condition start = new Condition(dateCondition.getType());
+      start.setOperation(XCondition.GREATER_THAN);
+      start.setEqual(true);
+      start.addValue(range.getValue(0));
+
+      Condition end = new Condition(dateCondition.getType());
+      end.setOperation(XCondition.LESS_THAN);
+      end.setEqual(true);
+      end.addValue(range.getValue(1));
+
+      int level = item.getLevel();
+
+      conditionList.removeAllItems();
+      conditionList.append(new ConditionItem(attribute, start, level));
+      conditionList.append(new JunctionOperator(JunctionOperator.AND, level));
+      conditionList.append(new ConditionItem(attribute, end, level));
    }
 
    public void addOriginalExpertCondition(ConditionExpression conditionExpression) {
