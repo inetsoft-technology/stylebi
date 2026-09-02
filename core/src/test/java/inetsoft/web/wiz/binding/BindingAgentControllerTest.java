@@ -119,7 +119,8 @@ class BindingAgentControllerTest {
                                         mock(ChartBindingService.class),
                                         mock(ChartAestheticAgentService.class),
                                         mock(TableBindingService.class),
-                                        mock(CalcTableService.class), mock(SelectionBindingService.class),
+                                        mock(CalcTableService.class),
+                                        mock(SelectionBindingService.class),
                                         mock(SheetAgentBroadcastService.class));
    }
 
@@ -134,7 +135,8 @@ class BindingAgentControllerTest {
                                         chartService,
                                         mock(ChartAestheticAgentService.class),
                                         mock(TableBindingService.class),
-                                        mock(CalcTableService.class), mock(SelectionBindingService.class),
+                                        mock(CalcTableService.class),
+                                        mock(SelectionBindingService.class),
                                         mock(SheetAgentBroadcastService.class));
    }
 
@@ -271,8 +273,8 @@ class BindingAgentControllerTest {
       BindingAgentController controller = new BindingAgentController(
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), chartService, mock(ChartAestheticAgentService.class),
-         mock(TableBindingService.class), mock(CalcTableService.class), mock(SelectionBindingService.class),
-         mock(SheetAgentBroadcastService.class));
+         mock(TableBindingService.class), mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.ShelfRequest request = new BindingAgentController.ShelfRequest(
          "Chart1", "x", List.of(new FieldRef("Region", "dimension", null, null, null)), "Sales");
@@ -299,8 +301,8 @@ class BindingAgentControllerTest {
       BindingAgentController controller = new BindingAgentController(
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), chartService, mock(ChartAestheticAgentService.class),
-         mock(TableBindingService.class), mock(CalcTableService.class), mock(SelectionBindingService.class),
-         mock(SheetAgentBroadcastService.class));
+         mock(TableBindingService.class), mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.SingleShelfRequest request = new BindingAgentController.SingleShelfRequest(
          "Chart1", "close", new FieldRef("Price", "measure", "Sum", null, null), "Sales");
@@ -326,8 +328,8 @@ class BindingAgentControllerTest {
       BindingAgentController controller = new BindingAgentController(
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), mock(ChartBindingService.class), aestheticService,
-         mock(TableBindingService.class), mock(CalcTableService.class), mock(SelectionBindingService.class),
-         mock(SheetAgentBroadcastService.class));
+         mock(TableBindingService.class), mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.AestheticFieldRequest request =
          new BindingAgentController.AestheticFieldRequest(
@@ -390,8 +392,8 @@ class BindingAgentControllerTest {
       BindingAgentController controller = new BindingAgentController(
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), mock(ChartBindingService.class),
-         mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class), mock(SelectionBindingService.class),
-         mock(SheetAgentBroadcastService.class));
+         mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.TableShelfRequest request =
          new BindingAgentController.TableShelfRequest(
