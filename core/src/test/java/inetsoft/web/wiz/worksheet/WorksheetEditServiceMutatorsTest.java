@@ -4687,6 +4687,29 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
+    * A builtin name in the wrong case (e.g. an LLM normalizing "Last month" to "LAST MONTH")
+    * must still resolve, mirroring ConditionUtil.fromModelToConditionList's now-case-insensitive
+    * builtin lookup -- not fail to match and fall through to an unresolved condition.
+    */
+   @Test
+   void addFilterWithDateInResolvesANameInTheWrongCase() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "LAST MONTH"));
+
+      XCondition xc = firstXCondition(t);
+      assertInstanceOf(DateCondition.MonthCondition.class, xc,
+         "a wrong-cased builtin name must still resolve to a real DateCondition");
+      DateCondition.MonthCondition mc = (DateCondition.MonthCondition) xc;
+      assertEquals(0, mc.getYearN());
+      assertEquals(1, mc.getMonthN());
+   }
+
+   /**
     * An unmatched/typo'd range name must fail loudly, naming the bad value -- not silently
     * substitute the shared rescue mechanism's hardcoded "one year ago" default (see
     * ConditionTest#toSqlConditionSilentlyDefaultsOnAnUnmatchedName for that default's own
@@ -4736,6 +4759,73 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals(2, mc.getMonthN());
       assertNotSame(rangeCondition, xc,
          "must be a clone -- the assembly's own DateRange must not be aliased into the condition");
+   }
+
+   /**
+    * The worksheet DateRangeAssembly name match must not be case-sensitive -- an LLM might pass
+    * the range's name in the wrong case, and it must still resolve via the case-insensitive
+    * fallback scan (only reached once the exact-name lookup above it misses), mirroring
+    * ConditionUtil.fromModelToConditionList's DATE_IN branch.
+    */
+   @Test
+   void addFilterWithDateInResolvesAWorksheetNamedDateRangeInTheWrongCase() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+
+      DateCondition.MonthCondition rangeCondition = new DateCondition.MonthCondition(2, 0);
+      DefaultDateRangeAssembly range = new DefaultDateRangeAssembly(ws, "MyRange");
+      range.setDateRange(rangeCondition);
+      ws.addAssembly(range);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "myrange"));
+
+      XCondition xc = firstXCondition(t);
+      assertInstanceOf(DateCondition.MonthCondition.class, xc,
+         "a wrong-case worksheet DateRangeAssembly name must still resolve to a real " +
+         "DateCondition, not fall through unresolved");
+      DateCondition.MonthCondition mc = (DateCondition.MonthCondition) xc;
+      assertEquals(0, mc.getYearN());
+      assertEquals(2, mc.getMonthN());
+   }
+
+   /**
+    * When two worksheet DateRangeAssemblies differ only by case, an exact-name match must win
+    * over the case-insensitive fallback scan -- otherwise which one resolves depends on
+    * {@code Worksheet#getAssemblies()} iteration order, which callers cannot rely on. This is
+    * the determinism guarantee the exact-match-first ordering in the fix exists to provide.
+    */
+   @Test
+   void addFilterWithDateInPrefersExactNameMatchOverCaseInsensitiveScan() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+
+      DateCondition.MonthCondition exactRange = new DateCondition.MonthCondition(2, 0);
+      DefaultDateRangeAssembly exact = new DefaultDateRangeAssembly(ws, "MyRange");
+      exact.setDateRange(exactRange);
+      ws.addAssembly(exact);
+
+      DateCondition.MonthCondition otherCaseRange = new DateCondition.MonthCondition(5, 1);
+      DefaultDateRangeAssembly otherCase = new DefaultDateRangeAssembly(ws, "MYRANGE");
+      otherCase.setDateRange(otherCaseRange);
+      ws.addAssembly(otherCase);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "MyRange"));
+
+      XCondition xc = firstXCondition(t);
+      assertInstanceOf(DateCondition.MonthCondition.class, xc);
+      DateCondition.MonthCondition mc = (DateCondition.MonthCondition) xc;
+      assertEquals(0, mc.getYearN());
+      assertEquals(2, mc.getMonthN(),
+         "an exact-name match must be used, not whichever case-insensitive candidate the scan " +
+         "happens to hit first");
    }
 
    /** Mirrors addFilter's resolution through set_conditions's separate condition-building path. */
