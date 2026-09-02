@@ -29,6 +29,8 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.*;
 import inetsoft.report.composition.region.ChartArea;
+import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.viewsheet.controller.chart.*;
@@ -99,7 +101,8 @@ public class ChartElementService {
     *                chart title. Null, or blank, means all of that element.
     */
    public void setVisibility(String sessionToken, Principal user, String assemblyName,
-                             String element, String target, boolean visible, String linkUri)
+                             String element, String target, boolean visible, boolean secondary,
+                             String linkUri)
       throws Exception
    {
       String kind = requireElement(element);
@@ -159,8 +162,8 @@ public class ChartElementService {
          switch(kind) {
             case "axis" -> axesService.eventHandler(
                runtimeId,
-               event(Map.of("chartName", assemblyName, "hide", !visible), "columnName", target0,
-                     VSChartAxesVisibilityEvent.class),
+               event(Map.of("chartName", assemblyName, "hide", !visible, "secondary", secondary),
+                     "columnName", target0, VSChartAxesVisibilityEvent.class),
                linkUri, user, dispatcher);
             case "legend" -> legendsService.eventHandler(
                runtimeId, legendEvent, linkUri, user, dispatcher);
@@ -563,6 +566,35 @@ public class ChartElementService {
       out.put("axesMeasured", axes.measured());
       out.put("legends", describe(regions.legends()));
       out.put("legendsMeasured", regions.legends().measured());
+
+      // Which measure(s) are on the secondary axis -- the piece a caller needs to pass
+      // setVisibility's own 'secondary' correctly. Without this, "hide the axis for measure X"
+      // on a dual-Y-axis chart has no way to know whether X is the primary or secondary one; a
+      // wrong guess used to always resolve to the primary axis regardless (parity audit L4,
+      // finding G1-3).
+      List<String> secondaryFields = sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+         List<String> found = new ArrayList<>();
+
+         for(ChartRef ref : info.getXFields()) {
+            if(ref instanceof ChartAggregateRef agg && agg.isSecondaryY()) {
+               found.add(ref.getFullName());
+            }
+         }
+
+         for(ChartRef ref : info.getYFields()) {
+            if(ref instanceof ChartAggregateRef agg && agg.isSecondaryY()) {
+               found.add(ref.getFullName());
+            }
+         }
+
+         return found;
+      });
+
+      if(!secondaryFields.isEmpty()) {
+         out.put("secondaryFields", secondaryFields);
+      }
+
       return out;
    }
 

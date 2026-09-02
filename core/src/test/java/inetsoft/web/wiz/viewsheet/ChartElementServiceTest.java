@@ -70,7 +70,7 @@ class ChartElementServiceTest {
    void hidesOneAxisByColumnName() throws Exception {
       Harness h = harness(mock(ChartVSAssembly.class));
 
-      h.service.setVisibility("tok", principal(), "Chart1", "axis", "Region", false, "");
+      h.service.setVisibility("tok", principal(), "Chart1", "axis", "Region", false, false, "");
 
       ArgumentCaptor<VSChartAxesVisibilityEvent> captor =
          ArgumentCaptor.forClass(VSChartAxesVisibilityEvent.class);
@@ -81,11 +81,46 @@ class ChartElementServiceTest {
       assertTrue(captor.getValue().isHide());
    }
 
+   /**
+    * L4 finding G1-3: on a dual-Y-axis (non-separated) chart, {@code VSChartAxesVisibilityEvent}
+    * resolves which descriptor to touch off {@code isSecondary()}, not off which axis the named
+    * column is actually bound to -- so hiding by a secondary-axis measure's column name always
+    * hit the primary axis, and there was no parameter to say which one was meant. Live-confirmed
+    * 2026-09-02: naming the secondary measure hid the primary axis's labels instead.
+    */
+   @Test
+   void hidesTheSecondaryAxisWhenAskedFor() throws Exception {
+      Harness h = harness(mock(ChartVSAssembly.class));
+
+      h.service.setVisibility("tok", principal(), "Chart1", "axis", "Revenue", false, true, "");
+
+      ArgumentCaptor<VSChartAxesVisibilityEvent> captor =
+         ArgumentCaptor.forClass(VSChartAxesVisibilityEvent.class);
+      verify(h.axes).eventHandler(eq("rt1"), captor.capture(), anyString(),
+                                  any(Principal.class), any());
+      assertEquals("Revenue", captor.getValue().getColumnName());
+      assertTrue(captor.getValue().isSecondary());
+   }
+
+   /** Omitting 'secondary' must still default to the primary axis, unchanged from before. */
+   @Test
+   void defaultsToThePrimaryAxisWhenSecondaryIsOmitted() throws Exception {
+      Harness h = harness(mock(ChartVSAssembly.class));
+
+      h.service.setVisibility("tok", principal(), "Chart1", "axis", "Region", false, false, "");
+
+      ArgumentCaptor<VSChartAxesVisibilityEvent> captor =
+         ArgumentCaptor.forClass(VSChartAxesVisibilityEvent.class);
+      verify(h.axes).eventHandler(eq("rt1"), captor.capture(), anyString(),
+                                  any(Principal.class), any());
+      assertFalse(captor.getValue().isSecondary());
+   }
+
    @Test
    void showsAllAxes() throws Exception {
       Harness h = harness(mock(ChartVSAssembly.class));
 
-      h.service.setVisibility("tok", principal(), "Chart1", "axis", null, true, "");
+      h.service.setVisibility("tok", principal(), "Chart1", "axis", null, true, false, "");
 
       ArgumentCaptor<VSChartAxesVisibilityEvent> captor =
          ArgumentCaptor.forClass(VSChartAxesVisibilityEvent.class);
@@ -107,7 +142,7 @@ class ChartElementServiceTest {
 
       Exception thrown = assertThrows(
          Exception.class,
-         () -> h.service.setVisibility("tok", principal(), "Chart1", "axis", null, false, ""));
+         () -> h.service.setVisibility("tok", principal(), "Chart1", "axis", null, false, false, ""));
 
       assertTrue(thrown.getMessage().contains("no 'target'"));
       verifyNoInteractions(h.axes);
@@ -117,7 +152,7 @@ class ChartElementServiceTest {
    void hidesEveryLegendWhenNoneIsNamed() throws Exception {
       Harness h = harness(mock(ChartVSAssembly.class));
 
-      h.service.setVisibility("tok", principal(), "Chart1", "legend", null, false, "");
+      h.service.setVisibility("tok", principal(), "Chart1", "legend", null, false, false, "");
 
       ArgumentCaptor<VSChartLegendsVisibilityEvent> captor =
          ArgumentCaptor.forClass(VSChartLegendsVisibilityEvent.class);
@@ -141,7 +176,7 @@ class ChartElementServiceTest {
 
       Exception thrown = assertThrows(
          Exception.class,
-         () -> h.service.setVisibility("tok", principal(), "Chart1", "legend", "Category", false,
+         () -> h.service.setVisibility("tok", principal(), "Chart1", "legend", "Category", false, false,
                                        ""));
 
       assertTrue(thrown.getMessage().contains("without 'target'"), "and say what to call instead");
@@ -157,7 +192,7 @@ class ChartElementServiceTest {
    void readsABlankTargetAsNoTarget() throws Exception {
       Harness h = harness(mock(ChartVSAssembly.class));
 
-      h.service.setVisibility("tok", principal(), "Chart1", "legend", "  ", false, "");
+      h.service.setVisibility("tok", principal(), "Chart1", "legend", "  ", false, false, "");
 
       ArgumentCaptor<VSChartLegendsVisibilityEvent> captor =
          ArgumentCaptor.forClass(VSChartLegendsVisibilityEvent.class);
@@ -165,7 +200,7 @@ class ChartElementServiceTest {
                                      any(Principal.class), any());
       assertNull(captor.getValue().getAestheticType(), "which is the event's hide-all");
       assertDoesNotThrow(
-         () -> h.service.setVisibility("tok", principal(), "Chart1", "legend", "", true, ""),
+         () -> h.service.setVisibility("tok", principal(), "Chart1", "legend", "", true, false, ""),
          "and showing with a blank target is showing them all, not a refused single show");
    }
 
@@ -181,7 +216,7 @@ class ChartElementServiceTest {
 
       assertThrows(
          Exception.class,
-         () -> h.service.setVisibility("tok", principal(), "Chart1", "legend", "Category", false,
+         () -> h.service.setVisibility("tok", principal(), "Chart1", "legend", "Category", false, false,
                                        ""));
 
       verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
@@ -239,7 +274,7 @@ class ChartElementServiceTest {
    void hidesAnAxisTitleWithTheDescriptorToken() throws Exception {
       Harness h = harness(mock(ChartVSAssembly.class));
 
-      h.service.setVisibility("tok", principal(), "Chart1", "title", "y", false, "");
+      h.service.setVisibility("tok", principal(), "Chart1", "title", "y", false, false, "");
 
       VSChartTitlesVisibilityEvent event = captureTitle(h);
       assertEquals("y_title", event.getTitleType());
@@ -255,7 +290,7 @@ class ChartElementServiceTest {
    void showsTheChartTitleThroughTheEventsOwnSpecialCase() throws Exception {
       Harness h = harness(mock(ChartVSAssembly.class));
 
-      h.service.setVisibility("tok", principal(), "Chart1", "title", "chart", true, "");
+      h.service.setVisibility("tok", principal(), "Chart1", "title", "chart", true, false, "");
 
       VSChartTitlesVisibilityEvent event = captureTitle(h);
       assertTrue(event.isHide(), "hide=true is how this event says 'show the chart title'");
@@ -266,7 +301,7 @@ class ChartElementServiceTest {
    void hidesTheChartTitle() throws Exception {
       Harness h = harness(mock(ChartVSAssembly.class));
 
-      h.service.setVisibility("tok", principal(), "Chart1", "title", "chart", false, "");
+      h.service.setVisibility("tok", principal(), "Chart1", "title", "chart", false, false, "");
 
       VSChartTitlesVisibilityEvent event = captureTitle(h);
       assertEquals("chart-title", event.getTitleType());
@@ -276,7 +311,7 @@ class ChartElementServiceTest {
    void showsAllTitlesOnlyWhenNoTargetWasNamed() throws Exception {
       Harness h = harness(mock(ChartVSAssembly.class));
 
-      h.service.setVisibility("tok", principal(), "Chart1", "title", null, true, "");
+      h.service.setVisibility("tok", principal(), "Chart1", "title", null, true, false, "");
 
       assertFalse(captureTitle(h).isHide(), "hide=false is the event's show-everything case");
    }
@@ -293,7 +328,7 @@ class ChartElementServiceTest {
 
       Exception thrown = assertThrows(
          Exception.class,
-         () -> h.service.setVisibility("tok", principal(), "Chart1", "title", null, false, ""));
+         () -> h.service.setVisibility("tok", principal(), "Chart1", "title", null, false, false, ""));
 
       assertTrue(thrown.getMessage().contains("no 'target'"));
       verifyNoInteractions(h.titles);
@@ -309,7 +344,7 @@ class ChartElementServiceTest {
 
       Exception thrown = assertThrows(
          Exception.class,
-         () -> h.service.setVisibility("tok", principal(), "Chart1", "title", "y", true, ""));
+         () -> h.service.setVisibility("tok", principal(), "Chart1", "title", "y", true, false, ""));
 
       assertTrue(thrown.getMessage().contains("all titles"));
    }
@@ -320,10 +355,10 @@ class ChartElementServiceTest {
 
       assertThrows(Exception.class,
                    () -> h.service.setVisibility("tok", principal(), "Chart1", "axis", "Region",
-                                                 true, ""));
+                                                 true, false, ""));
       assertThrows(Exception.class,
                    () -> h.service.setVisibility("tok", principal(), "Chart1", "legend", "Cat",
-                                                 true, ""));
+                                                 true, false, ""));
       verifyNoInteractions(h.sessions);
    }
 
@@ -333,7 +368,7 @@ class ChartElementServiceTest {
 
       Exception thrown = assertThrows(
          Exception.class,
-         () -> h.service.setVisibility("tok", principal(), "Chart1", "title", "z", false, ""));
+         () -> h.service.setVisibility("tok", principal(), "Chart1", "title", "z", false, false, ""));
 
       assertTrue(thrown.getMessage().contains("z"));
    }
@@ -344,7 +379,7 @@ class ChartElementServiceTest {
 
       assertThrows(Exception.class,
                    () -> h.service.setVisibility("tok", principal(), "Chart1", "gridline", null,
-                                                 false, ""));
+                                                 false, false, ""));
    }
 
    @Test
@@ -353,7 +388,7 @@ class ChartElementServiceTest {
 
       Exception thrown = assertThrows(
          Exception.class,
-         () -> h.service.setVisibility("tok", principal(), "Text1", "axis", null, true, ""));
+         () -> h.service.setVisibility("tok", principal(), "Text1", "axis", null, true, false, ""));
 
       assertTrue(thrown.getMessage().contains("Text1"));
    }
@@ -497,7 +532,7 @@ class ChartElementServiceTest {
    void eachVisibilityChangeIsOneCheckpoint() throws Exception {
       Harness h = harness(mock(ChartVSAssembly.class));
 
-      h.service.setVisibility("tok", principal(), "Chart1", "axis", "Region", false, "");
+      h.service.setVisibility("tok", principal(), "Chart1", "axis", "Region", false, false, "");
 
       verify(h.sessions, times(1)).mutate(anyString(), any(Principal.class), any());
    }
