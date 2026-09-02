@@ -123,6 +123,31 @@ public class LayoutOptionDialogService {
       }
 
       this.groupingService.groupComponents(rvs, target, object, selection, linkUri, dispatcher);
+
+      // Bug #76403: when several assemblies are dragged together as a multi-selection, only
+      // the one under the pointer is captured as model.getObject(); apply the same placement
+      // to the rest of the selection so they aren't silently left out.
+      if(model.getAdditionalObjects() != null) {
+         for(String additionalName : model.getAdditionalObjects()) {
+            if(additionalName == null || additionalName.equals(target.getAbsoluteName())) {
+               continue;
+            }
+
+            VSAssembly additionalObject = (VSAssembly) viewsheet.getAssembly(additionalName);
+
+            if(additionalObject == null) {
+               continue;
+            }
+
+            if(additionalObject.getContainer() instanceof GroupContainerVSAssembly) {
+               additionalObject = additionalObject.getContainer();
+            }
+
+            this.groupingService.groupComponents(rvs, target, additionalObject, selection,
+                                                  linkUri, dispatcher);
+         }
+      }
+
       VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
       PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
       dispatcher.sendCommand(treeCommand);
