@@ -144,7 +144,7 @@ class AerospikeCatalogTest {
    // ---- describeDataset: A1 (queryString param) -------------------------------------------------
 
    @Test
-   void describeDataset_paramsHasLowercaseQueryStringKey_unqualifiedUnquotedSelect()
+   void describeDataset_paramsHasLowercaseQueryStringKey_unqualifiedQuotedSelect()
       throws Exception
    {
       Connection conn = connectionWithColumns("test", "orders",
@@ -154,7 +154,68 @@ class AerospikeCatalogTest {
 
       // Reverse: not "QueryString", not "sql", not the @Property(label=) text "Enter SQL" -- must
       // be exactly the AerospikeQuery bean property name TabularUtil.getPropertyMap derives.
-      assertEquals(Map.of("queryString", "SELECT * FROM orders"), schema.params());
+      assertEquals(Map.of("queryString", "SELECT * FROM \"orders\""), schema.params());
+   }
+
+   @Test
+   void describeDataset_reservedWordSetName_unconditionalQuoteWrap() throws Exception {
+      // "order" parses as a reserved keyword under the Calcite SQL grammar AerospikeQuery.parse
+      // actually uses -- an unquoted "SELECT * FROM order" fails to parse. This is the
+      // discriminating case that tells an unconditional wrap apart from a "quote only when
+      // necessary" design, mirroring HiveCatalogTest's simple-lowercase-name case.
+      Connection conn = connectionWithColumns("test", "order",
+         List.of(row("COLUMN_NAME", "id", "DATA_TYPE", Types.INTEGER, "ORDINAL_POSITION", 1)));
+
+      TabularDatasetSchema schema = AerospikeCatalog.describeDataset(conn, "test", "order");
+
+      assertEquals("SELECT * FROM \"order\"", schema.params().get("queryString"));
+   }
+
+   @Test
+   void describeDataset_spaceInSetName_wrappedWithoutEscaping() throws Exception {
+      String setName = "my set";
+      Connection conn = connectionWithColumns("test", setName,
+         List.of(row("COLUMN_NAME", "id", "DATA_TYPE", Types.INTEGER, "ORDINAL_POSITION", 1)));
+
+      TabularDatasetSchema schema = AerospikeCatalog.describeDataset(conn, "test", setName);
+
+      assertEquals("SELECT * FROM \"my set\"", schema.params().get("queryString"));
+   }
+
+   @Test
+   void describeDataset_doubleQuoteInSetName_escapesByDoubling() throws Exception {
+      // AerospikeDatabaseMetadata.getIdentifierQuoteString() returns "\"" -- an unescaped wrap
+      // would break out of the identifier quoting after the embedded quote and produce malformed
+      // SQL, the same hazard HiveCatalogTest's embedded-backtick case guards against.
+      String setName = "weird\"set";
+      Connection conn = connectionWithColumns("test", setName,
+         List.of(row("COLUMN_NAME", "id", "DATA_TYPE", Types.INTEGER, "ORDINAL_POSITION", 1)));
+
+      TabularDatasetSchema schema = AerospikeCatalog.describeDataset(conn, "test", setName);
+
+      assertEquals("SELECT * FROM \"weird\"\"set\"", schema.params().get("queryString"));
+   }
+
+   // ---- describeDataset: getColumns tableNamePattern is a driver regex, not a literal -----------
+
+   @Test
+   void describeColumns_regexMetacharacterSetName_passesLiteralPercentNotDatasetId()
+      throws Exception
+   {
+      // The real driver (AerospikeDatabaseMetadata.getColumns) compiles tableNamePattern as a Java
+      // regex and matches it with Matcher.matches() -- a mock that only stubs the return value
+      // would happily return rows regardless of what pattern it was handed and could not catch a
+      // regression here, so this test asserts on the argument actually passed instead.
+      String setName = "orders(2024)";
+      Connection conn = connectionWithColumns("test", setName,
+         List.of(row("COLUMN_NAME", "id", "DATA_TYPE", Types.INTEGER, "ORDINAL_POSITION", 1)));
+
+      AerospikeCatalog.describeDataset(conn, "test", setName);
+
+      DatabaseMetaData meta = conn.getMetaData();
+      ArgumentCaptor<String> tableNamePattern = ArgumentCaptor.forClass(String.class);
+      verify(meta).getColumns(any(), any(), tableNamePattern.capture(), any());
+      assertEquals("%", tableNamePattern.getValue());
    }
 
    // ---- describeDataset: column ordering ---------------------------------------------------------
@@ -326,7 +387,9 @@ class AerospikeCatalogTest {
 
       ArgumentCaptor<String> columnsCatalog = ArgumentCaptor.forClass(String.class);
       ArgumentCaptor<String> columnsSchema = ArgumentCaptor.forClass(String.class);
-      verify(meta).getColumns(columnsCatalog.capture(), columnsSchema.capture(), eq("orders"),
+      // tableNamePattern is "%", not "orders" -- see describeColumns_regexMetacharacterSetName_
+      // passesLiteralPercentNotDatasetId above for why. This test only cares about catalog/schema.
+      verify(meta).getColumns(columnsCatalog.capture(), columnsSchema.capture(), eq("%"),
          any());
       assertEquals("test", columnsCatalog.getValue());
       assertNull(columnsSchema.getValue());

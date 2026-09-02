@@ -30,16 +30,18 @@ import java.util.*;
  * DatabaseMetaData calls. Mirrors HiveCatalog's role: package-private, static methods, no state of
  * its own.
  *
- * ASSUMPTION, not independently confirmed against the driver (no jar available this round): the
- * Aerospike JDBC driver maps namespace to the JDBC catalog argument and set to table, the reverse
- * of Hive's database-as-schema pairing. Every getTables/getColumns/getPrimaryKeys call below passes
- * the configured Namespace as catalog and null as schema on that assumption. If it is wrong, these
- * calls need catalog and schema swapped.
+ * Confirmed against the driver (com.aerospike:aerospike-jdbc:1.10.1): AerospikeDatabaseMetadata.
+ * getCatalogTerm() returns "namespace", getSchemaTerm() returns "", and getTables/getColumns/
+ * getPrimaryKeys never reference their schema/schemaPattern argument. Every call below passes the
+ * configured Namespace as catalog and null as schema.
  *
  * Every DatabaseMetaData row is additionally filtered by an exact match on TABLE_CAT/TABLE_NAME
  * against what the caller asked for, rather than trusting the driver's catalog/schemaPattern/
  * tableNamePattern arguments to have been matched as literal equality: JDBC allows these to be
  * treated as LIKE patterns, and namespace/datasetId are not guaranteed free of underscore/percent.
+ * getColumns goes further than a LIKE-pattern risk: the driver compiles tableNamePattern as a Java
+ * regex (see describeColumns below), so a literal "%" is passed there rather than datasetId itself
+ * and this exact-match filter is what actually narrows the result, not the pattern argument.
  */
 final class AerospikeCatalog {
    private AerospikeCatalog() {
@@ -82,12 +84,20 @@ final class AerospikeCatalog {
       }
 
       List<String> keyColumns = primaryKeyColumnNames(meta, namespace, datasetId);
-      // ASSUMPTION, not independently confirmed against the driver: no quoting is applied to
-      // datasetId. Hive's backtick-wrap was justified by a specific, cited Hive configuration
-      // default; no equivalent citation is available for Aerospike's SQL layer, and set names are
-      // constrained enough by the platform itself that quoting is very unlikely to be load-bearing
-      // even if this guess turns out to be syntactically wrong.
-      String query = "SELECT * FROM " + datasetId;
+      // Confirmed against the driver (com.aerospike:aerospike-jdbc:1.10.1):
+      // AerospikeDatabaseMetadata.getIdentifierQuoteString() returns "\"" -- the driver declares
+      // double quote as its identifier-quoting character -- and the driver's own internal metadata
+      // query construction (AerospikeDatabaseMetadata.getMetadata) uses that exact quoted shape:
+      // format("SELECT * FROM \"%s.%s\" LIMIT 1", namespace, table). The query text is parsed with
+      // a full Calcite SQL grammar (AerospikeQuery.parse -> org.apache.calcite.sql.parser.
+      // SqlParser), which has reserved keywords and requires quoting for identifiers containing
+      // spaces or most special characters. Quoting unconditionally, doubling any embedded double
+      // quote, mirrors the driver's own convention rather than guessing around it.
+      //
+      // This does not solve a set name containing a literal '.': AerospikeQuery.setTable
+      // re-splits the already-parsed identifier text on a literal dot regardless of quoting -- a
+      // driver-level limitation this connector does not attempt to work around.
+      String query = "SELECT * FROM \"" + datasetId.replace("\"", "\"\"") + "\"";
 
       // Every column returned here came from the same bounded scan (AerospikeSchemaBuilder unions
       // bin names across at most 1000 records), never from declared, source-published metadata --
@@ -107,7 +117,15 @@ final class AerospikeCatalog {
       // choice (deterministic given a fixed ResultSet), but not confirmed meaningful.
       TreeMap<Integer, TabularColumn> byPosition = new TreeMap<>();
 
-      try(ResultSet rs = meta.getColumns(namespace, null, datasetId, "%")) {
+      // Confirmed against the driver: AerospikeDatabaseMetadata.getColumns compiles
+      // tableNamePattern as a Java regex (only "%" is translated, to ".*"; every other regex
+      // metacharacter passes through unescaped) and matches it with Matcher.matches() against each
+      // real table name -- not a SQL LIKE pattern. Passing datasetId itself here would silently
+      // drop the one real row for any set name containing an unescaped regex metacharacter (e.g.
+      // "orders(2024)"), even though the row exists and listDatasets would have reported it. Pass
+      // a literal "%" instead, matching every set in the namespace, and rely on the exact-match
+      // filter below (as listDatasets already does for getTables) to narrow it back down.
+      try(ResultSet rs = meta.getColumns(namespace, null, "%", "%")) {
          while(rs.next()) {
             if(!namespace.equalsIgnoreCase(rs.getString("TABLE_CAT")) ||
                !datasetId.equals(rs.getString("TABLE_NAME")))

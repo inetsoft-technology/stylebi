@@ -83,4 +83,19 @@ class AerospikeRuntimeCatalogTest {
 
       assertTrue(ex.getMessage().contains("no namespace configured"));
    }
+
+   @Test
+   void listDatasets_whitespaceOnlyNamespace_throwsBeforeConnecting() {
+      // requireNamespace calls String.isBlank(), not just a null/empty check -- "" and null are
+      // both covered above, but neither exercises the .isBlank() branch specifically.
+      AerospikeDataSource ds = new AerospikeDataSource();
+      ds.setHost(UNROUTABLE_HOST);
+      ds.setNamespace("   ");
+      AerospikeRuntime runtime = new AerospikeRuntime();
+
+      Exception ex = assertTimeout(Duration.ofSeconds(2),
+         () -> assertThrows(Exception.class, () -> runtime.listDatasets(ds)));
+
+      assertTrue(ex.getMessage().contains("no namespace configured"));
+   }
 }
