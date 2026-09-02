@@ -443,6 +443,9 @@
                     <exclude>META-INF/versions/**/*</exclude>
                     <exclude>**/BUILD.bazel</exclude>
                     <exclude>org/apache/batik/util/resources/XMLResourceDescriptor.properties</exclude>
+                    <exclude>org/apache/batik/bridge/*Rhino*</exclude>
+                    <exclude>org/apache/batik/script/rhino/**</exclude>
+                    <exclude>META-INF/services/org.apache.batik.script.InterpreterFactory</exclude>
                     <exclude>org/apache/xml/serializer/output_xml.properties</exclude>
                     <exclude>META-INF/services/javax.xml.datatype.DatatypeFactory</exclude>
                     <exclude>META-INF/services/javax.xml.parsers.DocumentBuilderFactory</exclude>
