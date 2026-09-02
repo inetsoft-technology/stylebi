@@ -100,6 +100,64 @@ class ChartRegionPropertyServiceTest {
                                                             any(Principal.class), any());
    }
 
+   /**
+    * A categorical (dimension) axis given a linear-only property used to be silently accepted:
+    * {@code getAxisPropertyDialogModel} always asked for area index 0, which
+    * {@code ChartRegionHandler.createAxisPropertyDialogModel} used to <em>infer</em> linearity
+    * from whichever leaf area happened to sort first on screen rather than from the bound field,
+    * so an ordinary bottom x-axis came back {@code isLinear: true} regardless of what was bound
+    * to it. Live evidence: {@code minimum:"5"} on a year-grouped date dimension was persisted and
+    * rendered as a fabricated numeric axis, corrupting the chart (2026-09-02). This checks
+    * linearity independently, off the actual bound ref, before the buggy area-index path is ever
+    * reached.
+    */
+   @Test
+   void refusesLinearOnlyAxisPropertiesOnADimensionAxis() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("minimum", "5", "reverse", true), ""));
+
+      assertTrue(thrown.getMessage().contains("minimum"));
+      assertTrue(thrown.getMessage().contains("reverse"));
+      assertTrue(thrown.getMessage().contains("'x'"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** The same categorical axis must still accept properties that apply regardless of type. */
+   @Test
+   void stillAcceptsNonLinearAxisPropertiesOnADimensionAxis() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                    Map.of("showAxisLine", false, "ignoreNull", true), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /** The genuinely linear y-axis (a real measure, per the default harness) must be unaffected. */
+   @Test
+   void stillAcceptsLinearOnlyAxisPropertiesOnAMeasureAxis() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                    Map.of("minimum", "5", "reverse", true), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
    @Test
    void writesALegendPropertyAddressedByIndex() throws Exception {
       Harness h = harness();
@@ -116,6 +174,33 @@ class ChartRegionPropertyServiceTest {
                                                    captor.capture(), anyString(),
                                                    any(Principal.class), any());
       assertFalse(captor.getValue().getLegendFormatGeneralPaneModel().isVisible());
+   }
+
+   /**
+    * The legend's {@code title} property must land on {@code titleValue} — the field
+    * {@code legend-format-general-pane.component.html} actually binds
+    * ({@code [(value)]="model.titleValue"}; {@code title} is only the read-only {@code origValue}
+    * placeholder). Aliasing it onto {@code title} used to return {@code ok:true} and change
+    * nothing, since {@code LegendFormatDialogModel.updateLegendFormatDialogModel} only ever reads
+    * {@code getTitleValue()}. Found live 2026-09-02.
+    */
+   @Test
+   void writesLegendTitleOntoTheEditableTitleValueField() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("title", "Revenue by Year"), "");
+
+      ArgumentCaptor<LegendFormatDialogModel> captor =
+         ArgumentCaptor.forClass(LegendFormatDialogModel.class);
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                   captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals("Revenue by Year",
+                   captor.getValue().getLegendFormatGeneralPaneModel().getTitleValue());
    }
 
    @Test

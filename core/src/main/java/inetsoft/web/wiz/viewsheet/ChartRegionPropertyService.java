@@ -17,6 +17,9 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.composer.vs.dialog.RegionPropertyDialogService;
 import inetsoft.web.graph.model.dialog.AxisPropertyDialogModel;
 import inetsoft.web.graph.model.dialog.LegendFormatDialogModel;
@@ -115,6 +118,10 @@ public class ChartRegionPropertyService {
             "list_chart_region_properties reports the names this region accepts.");
       }
 
+      if("axis".equals(name)) {
+         requireLinearAxisForLinearOnlyKeys(sessionToken, user, assembly, key, properties);
+      }
+
       Object model = readModel(sessionToken, user, assembly, name, key, field);
       Map<String, String> aliases = aliasesFor(name);
       Map<String, Object> resolved = new LinkedHashMap<>();
@@ -161,6 +168,67 @@ public class ChartRegionPropertyService {
             runtimeId, assembly, key, (TitleFormatDialogModel) written, linkUri, user, dispatcher);
          }
       });
+   }
+
+   /** Axis properties that only mean something on a linear (measure) axis. */
+   private static final Set<String> LINEAR_ONLY_AXIS_KEYS =
+      Set.of("reverse", "logarithmicScale", "shared", "minimum", "maximum", "minorIncrement");
+
+   /**
+    * Refuses a linear-only axis property (a numeric range, a log scale, a reversed direction...)
+    * on an axis that is not linear.
+    *
+    * <p>{@code AxisPropertyDialogModel.updateAxisPropertyDialogModel} only applies these under
+    * {@code if(this.linear)} — correct given its input. The bug is upstream: {@link #readModel}
+    * and {@link #set} ask {@code RegionPropertyDialogService.getAxisPropertyDialogModel} for area
+    * index {@code 0} unconditionally, and {@code ChartRegionHandler.createAxisPropertyDialogModel}
+    * uses that index to <em>infer</em> linearity from whichever leaf area happens to sort first on
+    * screen ({@code AxisLineArea} vs. {@code DimensionLabelArea}) — a proxy that is valid for the
+    * real Composer, which derives the index from the user's actual click, and meaningless here,
+    * where there was no click and the index is always {@code 0}. For an ordinary bottom x-axis the
+    * tick/line area sorts before the label area regardless of whether the bound field is a
+    * dimension or a measure, so a purely categorical axis (e.g. a year-grouped date dimension)
+    * silently comes back {@code isLinear: true}. Confirmed live: {@code minimum:"5"} on such an
+    * axis was persisted and rendered as a fabricated numeric range, corrupting the chart.
+    *
+    * <p>This checks linearity independently, the same way {@code ChartRegionHandler}'s own
+    * ref-driven branch does it ({@code ref instanceof ChartAggregateRef}), straight off the
+    * binding rather than off the area sort order — and refuses rather than trying to fix the
+    * shared area-index mechanism in place, which the real UI also depends on for its own,
+    * legitimate click-derived index.
+    */
+   private void requireLinearAxisForLinearOnlyKeys(String sessionToken, Principal user,
+                                                    String assembly, String axisTarget,
+                                                    Map<String, Object> properties)
+      throws Exception
+   {
+      Set<String> requested = new TreeSet<>(properties.keySet());
+      requested.retainAll(LINEAR_ONLY_AXIS_KEYS);
+
+      if(requested.isEmpty()) {
+         return;
+      }
+
+      boolean linear = sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+         String canonical = ChartRegionResolver.canonical(axisTarget);
+         boolean inverted = info.isInvertedGraph();
+         boolean secondary = "y2".equals(canonical) || "x2".equals(canonical);
+         boolean onYShelf = "y".equals(canonical) || "y2".equals(canonical);
+         ChartRef[] refs = (onYShelf != inverted) ? info.getYFields() : info.getXFields();
+
+         return Arrays.stream(refs).anyMatch(ref ->
+            ref instanceof ChartAggregateRef aggregate &&
+            (!secondary || aggregate.isSecondaryY()));
+      });
+
+      if(!linear) {
+         throw new IllegalArgumentException(
+            "'" + String.join("', '", requested) + "' only apply to a linear (measure) axis. " +
+            "'" + axisTarget + "' on this chart is bound to a dimension, not a measure, so " +
+            "these would be silently ignored — or, on some chart types, corrupt the render " +
+            "instead of being ignored. Omit them for a dimension axis.");
+      }
    }
 
    /**
@@ -371,7 +439,13 @@ public class ChartRegionPropertyService {
 
    private static Map<String, String> legend() {
       Map<String, String> aliases = new LinkedHashMap<>();
-      aliases.put("title", "legendFormatGeneralPaneModel.title");
+      // "title" (not titleValue) is the read-only dvalue/default the combo box shows as a
+      // placeholder (legend-format-general-pane.component.html's origValue) -- the field a human
+      // actually edits, and the only one LegendFormatDialogModel.updateLegendFormatDialogModel
+      // ever persists, is titleValue. Aliasing "title" here used to point at the wrong sibling:
+      // set_chart_region_properties({region:"legend", properties:{title:"X"}}) returned ok:true
+      // and silently changed nothing, confirmed live 2026-09-02.
+      aliases.put("title", "legendFormatGeneralPaneModel.titleValue");
       aliases.put("visible", "legendFormatGeneralPaneModel.visible");
       aliases.put("position", "legendFormatGeneralPaneModel.position");
       aliases.put("fillColor", "legendFormatGeneralPaneModel.fillColor");
