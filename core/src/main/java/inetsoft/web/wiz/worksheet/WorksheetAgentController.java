@@ -63,6 +63,7 @@ import inetsoft.uql.util.filereader.TextUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.CoreTool;
 import inetsoft.util.FileSystemService;
+import inetsoft.util.MissingAssetClassNameException;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
@@ -87,6 +88,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import org.xml.sax.SAXParseException;
 
 import java.awt.*;
 import java.io.*;
@@ -923,6 +925,86 @@ public class WorksheetAgentController {
       requireWholeSheetSession(sessionToken, user);
       RuntimeWorksheet rws = editService.resolve(sessionToken, user);
       return previewService.preview(rws, table, Math.min(limit, 200));
+   }
+
+   /**
+    * List the saved assets (viewsheets, other worksheets) that currently depend on the
+    * connected worksheet -- i.e. would need attention or would break if it were removed or
+    * structurally changed.
+    *
+    * <p>Answers "who else uses this worksheet" from the asset repository's own dependency
+    * index rather than from whatever the caller was told: this is the same
+    * {@link AssetRepository#getSheetDependencies} check the Portal's own "remove this
+    * dataset?" dialog runs before a delete ({@code DataSetService.isWorksheetRemoveable}),
+    * not a new dependency-tracking mechanism. It only reports OTHER saved assets that
+    * reference this one -- not the tables/joins/columns inside this worksheet itself.
+    *
+    * <p>An unsaved (temporary-scope) worksheet always reports no dependents: nothing can
+    * point at an asset that was never saved, so {@code saved} is {@code false} and
+    * {@code dependents} is empty rather than the call failing.
+    *
+    * @param sessionToken the token obtained at join time
+    * @param user         the authenticated agent principal
+    * @return whether the worksheet is saved, its path when it is, and every dependent
+    *         asset's path and type
+    * @throws PairingException if the session is invalid/expired or the runtime is not found
+    */
+   @GetMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/dependents")
+   public Map<String, Object> dependents(@PathVariable String sessionToken, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
+      RuntimeWorksheet rws = editService.resolve(sessionToken, user);
+      AssetEntry entry = rws.getEntry();
+
+      Map<String, Object> result = new LinkedHashMap<>();
+
+      if(entry == null || entry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
+         result.put("saved", false);
+         result.put("dependents", List.of());
+         result.put("summary",
+            "This worksheet has never been saved, so nothing else can depend on it.");
+         return result;
+      }
+
+      result.put("saved", true);
+      result.put("path", entry.getPath());
+
+      AssetEntry[] deps;
+
+      try {
+         deps = assetRepository.getSheetDependencies(entry, user);
+      }
+      catch(SAXParseException | MissingAssetClassNameException ex) {
+         // same tolerance as AssetRepository#checkSheetRemoveable: if the sheet can't be
+         // read (corrupted asset XML, or a class from a since-uninstalled plugin), treat
+         // it as having no dependents rather than erroring.
+         deps = new AssetEntry[0];
+      }
+
+      List<Map<String, Object>> dependents = new ArrayList<>();
+      StringBuilder paths = new StringBuilder();
+
+      for(AssetEntry dep : deps) {
+         Map<String, Object> d = new LinkedHashMap<>();
+         d.put("path", dep.getPath());
+         d.put("type", dep.getType().name().toLowerCase());
+         dependents.add(d);
+
+         if(paths.length() > 0) {
+            paths.append(", ");
+         }
+
+         paths.append(dep.getPath());
+      }
+
+      result.put("dependents", dependents);
+      result.put("summary", dependents.isEmpty()
+         ? "No saved asset currently depends on this worksheet."
+         : dependents.size() + " saved asset(s) depend on this worksheet: " + paths);
+
+      return result;
    }
 
    /**
