@@ -129,7 +129,9 @@ public class LayoutOptionDialogService {
       // to the rest of the selection so they aren't silently left out.
       if(model.getAdditionalObjects() != null) {
          for(String additionalName : model.getAdditionalObjects()) {
-            if(additionalName == null || additionalName.equals(target.getAbsoluteName())) {
+            if(additionalName == null || additionalName.equals(target.getAbsoluteName()) ||
+               additionalName.equals(model.getObject()))
+            {
                continue;
             }
 
