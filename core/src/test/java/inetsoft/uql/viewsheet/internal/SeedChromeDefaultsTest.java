@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.graph.internal.GDefaults;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
 import inetsoft.sree.SreeEnv;
@@ -25,7 +26,9 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.ChartLineColor;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
@@ -726,6 +729,66 @@ class SeedChromeDefaultsTest {
                  "round legend corners are unconditional and must stay in setDefaultFormat");
       assertEquals(10, info.getPadding().top,
                    "the inset is a gate-dependent seed now, and the legacy branch writes 10");
+   }
+
+   // ---- the plot's structural line colours -----------------------------------------------------
+
+   private static PlotDescriptor plot(ChartVSAssemblyInfo info) {
+      return info.getChartDescriptor().getPlotDescriptor();
+   }
+
+   @Test
+   void aModernChartSeedsTheWarmGridlineOnAllFiveLines() {
+      gateOn();
+      PlotDescriptor plot = plot(newChart());
+      Color expected = new Color(0xE8E5DE);
+      assertEquals(expected, plot.getXGridColor(), "x gridline");
+      assertEquals(expected, plot.getYGridColor(), "y gridline");
+      assertEquals(expected, plot.getFacetGridColor(), "facet lines");
+      assertEquals(expected, plot.getDiagonalColor(), "scatter-matrix diagonal");
+      assertEquals(expected, plot.getQuadrantColor(), "quadrant lines");
+   }
+
+   @Test
+   void aDarkChartSeedsTheDarkGridlineOnAllFiveLines() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      PlotDescriptor plot = plot(newChart());
+      Color expected = new Color(0x3A383D);
+      assertEquals(expected, plot.getXGridColor(), "x gridline");
+      assertEquals(expected, plot.getYGridColor(), "y gridline");
+      assertEquals(expected, plot.getFacetGridColor(), "facet lines");
+      assertEquals(expected, plot.getDiagonalColor(), "scatter-matrix diagonal");
+      assertEquals(expected, plot.getQuadrantColor(), "quadrant lines");
+   }
+
+   @Test
+   void anUnmarkedChartKeepsTheLegacyGridlineOnAllFiveLines() {
+      gateOff();
+      PlotDescriptor plot = plot(newChart());
+      // the four CSS-looked-up lines and the one plain line, each compared against its own
+      // constructed expression rather than a literal - a format.css rule must still win
+      assertEquals(ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "x"),
+                   plot.getXGridColor(), "x gridline");
+      assertEquals(ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "y"),
+                   plot.getYGridColor(), "y gridline");
+      assertEquals(ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "diagonal"),
+                   plot.getDiagonalColor(), "scatter-matrix diagonal");
+      assertEquals(ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "quadrant"),
+                   plot.getQuadrantColor(), "quadrant lines");
+      assertEquals(GDefaults.DEFAULT_LINE_COLOR, plot.getFacetGridColor(),
+                   "facet lines take DEFAULT_LINE_COLOR with no css lookup");
+   }
+
+   @Test
+   void anAuthorSetGridlineOutranksTheSeed() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      plot(info).setYGridColor(Color.RED, CompositeValue.Type.USER);
+      // re-run the hook the way Modernize does; the USER tier must still win
+      info.initDefaultFormat();
+      assertEquals(Color.RED, plot(info).getYGridColor(),
+                   "a USER value outranks the seeded DEFAULT by construction");
    }
 
    // ---- the hook, called a second time on an assembly that already exists ---------------------

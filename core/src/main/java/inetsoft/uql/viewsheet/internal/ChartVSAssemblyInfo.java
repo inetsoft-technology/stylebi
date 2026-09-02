@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.internal.DimensionD;
+import inetsoft.graph.internal.GDefaults;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.composition.graph.GraphUtil;
@@ -147,6 +148,15 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          if(!isUserSmoothLines()) {
             plotDesc.setSmoothLines(true);
          }
+
+         // the plot's structural lines. Seeded rather than resolved at render so they travel in
+         // an exported asset, and so the composer pane and the canvas read one stored value
+         Color gridline = VSChartChromeDefaults.gridlineColor(ctx);
+         plotDesc.setXGridColor(gridline, CompositeValue.Type.DEFAULT);
+         plotDesc.setYGridColor(gridline, CompositeValue.Type.DEFAULT);
+         plotDesc.setFacetGridColor(gridline, CompositeValue.Type.DEFAULT);
+         plotDesc.setDiagonalColor(gridline, CompositeValue.Type.DEFAULT);
+         plotDesc.setQuadrantColor(gridline, CompositeValue.Type.DEFAULT);
       }
       else {
          // Revert calls this with an unmarked context and needs the legacy values written, not
@@ -160,6 +170,22 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          if(!isUserSmoothLines()) {
             plotDesc.setSmoothLines(legacySmoothLines());
          }
+
+         // each line restores its own constructed default, not a literal: four run a format.css
+         // lookup and the facet does not, so a customer's ChartPlotLine rule survives a Revert
+         plotDesc.setXGridColor(
+            ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "x"),
+            CompositeValue.Type.DEFAULT);
+         plotDesc.setYGridColor(
+            ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "y"),
+            CompositeValue.Type.DEFAULT);
+         plotDesc.setDiagonalColor(
+            ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "diagonal"),
+            CompositeValue.Type.DEFAULT);
+         plotDesc.setQuadrantColor(
+            ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "quadrant"),
+            CompositeValue.Type.DEFAULT);
+         plotDesc.setFacetGridColor(GDefaults.DEFAULT_LINE_COLOR, CompositeValue.Type.DEFAULT);
       }
 
       // seedPalette is total across the mark, so no ctx.modern check is needed here
