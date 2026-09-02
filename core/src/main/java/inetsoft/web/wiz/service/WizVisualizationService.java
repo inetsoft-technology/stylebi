@@ -108,7 +108,10 @@ public class WizVisualizationService {
     *   <li>Remove all worksheet tables NOT required by the target assembly.</li>
     *   <li>Persist the trimmed Worksheet under
     *       {@link GenerateWsService#WORKSHEET_COMPONENTS_FOLDER_PATH}.</li>
-    *   <li>Create a new single-assembly ViewSheet pointing to the new Worksheet.</li>
+    *   <li>Create a new ViewSheet pointing to the new Worksheet, containing the cloned target
+    *       assembly AND (when it is a chart) any sibling filter-control assemblies
+    *       {@code add_visualization_filters} placed below it on the source runtime
+    *       (07-fix-r3.md) -- a saved visualization is no longer necessarily single-assembly.</li>
     *   <li>Set {@code visualizationScope=SHARED}, {@code conversationId}, and
     *       {@code sourceAssemblyName} on the new AssetEntry.</li>
     *   <li>Persist the new ViewSheet under the user-selected folder.</li>
@@ -289,7 +292,7 @@ public class WizVisualizationService {
       AssetEntry newWsEntry = saveWorksheet(
          sourceVs, assembly, targetFolderPath, alias, updateTargetWsEntry, principal);
 
-      // ── Step 5: Build new single-assembly ViewSheet ───────────────────────────
+      // ── Step 5: Build new ViewSheet (target assembly + its filter controls) ──
       Viewsheet newVs = new Viewsheet();
 
       if(newWsEntry != null) {
@@ -302,9 +305,22 @@ public class WizVisualizationService {
 
       VSAssembly cloned = (VSAssembly) assembly.clone();
       cloned.setPrimary(true);
-      // Reset position so the assembly appears at the top-left of the new single-assembly viewsheet.
+      // Reset position so the assembly appears at the top-left of the new viewsheet.
       cloned.setPixelOffset(new Point(24, 24));
       newVs.addAssembly(cloned);
+
+      // Carry over sibling filter-control assemblies (add_visualization_filters places these below
+      // the chart on the SOURCE runtime -- 07-fix-r3.md) so a saved visualization keeps its
+      // interactive controls across save/reopen. Reuses fix round 1's occupancy-detection
+      // (WizVsService.findExistingFilterControls) rather than a second heuristic. Read from
+      // sourceVs (the ORIGINAL runtime), not newVs, which only has the chart clone so far. Unlike
+      // the chart clone above, a control's pixelOffset/pixelSize is preserved as-is: it must stay
+      // positioned relative to the chart it was packed under, not reset to the viewsheet's origin.
+      if(assembly instanceof ChartVSAssembly sourceChart) {
+         for(VSAssembly control : WizVsService.findExistingFilterControls(sourceVs, sourceChart)) {
+            newVs.addAssembly((VSAssembly) control.clone());
+         }
+      }
 
       // Carry over the source viewsheet's calc fields for this chart's source (e.g. a histogram's
       // materialized "Range@<measure>" range field) so the cloned chart's calc-field-backed bindings
@@ -671,8 +687,9 @@ public class WizVisualizationService {
 
    /**
     * Resolves the assembly to render for a saved wiz visualization: the first
-    * {@link ChartVSAssembly}, else the first {@link VSAssembly} — saved wiz visualizations are
-    * single-assembly, so this is unambiguous in practice.
+    * {@link ChartVSAssembly}, else the first {@link VSAssembly} — the chart is always the
+    * intended render target even when the visualization also carries sibling filter-control
+    * assemblies (07-fix-r3.md), so this stays unambiguous in practice.
     */
    private String resolvePrimaryAssemblyName(String runtimeId, Principal principal) {
       try {
