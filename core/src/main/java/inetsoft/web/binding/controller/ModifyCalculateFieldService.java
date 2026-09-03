@@ -65,7 +65,7 @@ import java.util.*;
 public class ModifyCalculateFieldService {
    public ModifyCalculateFieldService(
       VSBindingService bindingFactory,
-      VSBindingTreeController bindingTreeController,
+      VSBindingTreeControllerServiceProxy vsBindingTreeService,
       VSChartHandler chartHandler,
       XRepository xrepository,
       VSWizardBindingHandler wizardBindingHandler,
@@ -75,7 +75,7 @@ public class ModifyCalculateFieldService {
       DataSourceRegistry dataSourceRegistry)
    {
       this.bindingFactory = bindingFactory;
-      this.bindingTreeController = bindingTreeController;
+      this.vsBindingTreeService = vsBindingTreeService;
       this.chartHandler = chartHandler;
       this.xrepository = xrepository;
       this.wizardBindingHandler = wizardBindingHandler;
@@ -354,7 +354,20 @@ public class ModifyCalculateFieldService {
       else {
          RefreshBindingTreeEvent refreshBindingTreeEvent = new RefreshBindingTreeEvent();
          refreshBindingTreeEvent.setName(event.name());
-         bindingTreeController.getBinding(refreshBindingTreeEvent, principal, dispatcher);
+
+         // Was VSBindingTreeController.getBinding(refreshBindingTreeEvent, principal,
+         // dispatcher), which re-derives the runtime id from RuntimeViewsheetRef -- a
+         // WebSocket-session-scoped bean the native Formula Editor dialog's own STOMP session
+         // populates, but which a caller with no live WebSocket session (the wiz agent surface)
+         // never gets to set. That left it null, and VSBindingTreeControllerServiceProxy's own
+         // cluster-affinity routing (keyed on the id) throws NullPointerException("Ouch! Argument
+         // cannot be null: key") before the real method body ever runs -- confirmed live via
+         // CalcFieldAgentService, which calls this method with no session-scoped
+         // RuntimeViewsheetRef bound at all. This call already has the correct, verified-live
+         // runtime id in `id` (this method's own @ClusterProxyKey parameter) -- using it directly
+         // is equivalent for the native flow (RuntimeViewsheetRef.getRuntimeId() and this `id`
+         // are the same value there) and also correct for a session-less caller.
+         vsBindingTreeService.getBinding(id, refreshBindingTreeEvent, principal, dispatcher);
       }
 
       boolean wizardNewVs =
@@ -711,7 +724,7 @@ public class ModifyCalculateFieldService {
    }
 
    private final VSBindingService bindingFactory;
-   private final VSBindingTreeController bindingTreeController;
+   private final VSBindingTreeControllerServiceProxy vsBindingTreeService;
    private final VSRefreshController refreshController;
    private final VSChartHandler chartHandler;
    private final XRepository xrepository;
