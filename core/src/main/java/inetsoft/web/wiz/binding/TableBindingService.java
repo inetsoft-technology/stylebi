@@ -215,11 +215,23 @@ public class TableBindingService {
    }
 
    /**
-    * The {@code force:true} counterpart to {@link #requireNoBoundFields}: actually does the
-    * discard that method only refuses to let happen silently. Without this, a repoint left the
-    * old source's field refs sitting on every shelf {@code force} didn't itself touch, and those
-    * stale refs were written straight back onto the live assembly's design headers by the
-    * factory that follows this mutation.
+    * The {@code force:true} counterpart to {@link #requireNoBoundFields}: discards only the
+    * fields that no longer resolve in the new source, matching the selective-discard intent
+    * documented on the UI's own repoint path ({@code VSAssemblyInfoHandler}: "check the old
+    * binding columns when source changed, if cannot found the columns in the source, just
+    * remove them"). A field whose column name also exists in the new source is kept — a
+    * same-shaped repoint (e.g. a partitioned/monthly table swapped for its sibling) should not
+    * discard bindings a human doing the equivalent repoint would keep. Without this at all, a
+    * repoint left the old source's field refs sitting on every shelf {@code force} didn't itself
+    * touch, and those stale refs were written straight back onto the live assembly's design
+    * headers by the factory that follows this mutation — that failure mode (never discarding
+    * anything) is guarded against by shelves whose fields never resolve in the new source still
+    * being fully cleared here, same as before.
+    *
+    * <p>Known limitation: a kept field's {@code namedGroup} binding is not preserved, because
+    * this path has no {@code RuntimeViewsheet}/{@code DataRefModelFactoryService} context to
+    * re-resolve it against (the same limitation {@link TableBindingMutator}'s context-less
+    * {@code setShelf} overload already has everywhere else it is used).
     */
    private static void discardBoundFields(BaseTableBindingModel model, String table) {
       SourceInfo current = model.getSource();
@@ -233,9 +245,77 @@ public class TableBindingService {
          return;
       }
 
+      List<String> availableColumns = columnsOf(model, table);
+
       for(String shelf : TableBindingMutator.shelvesOf(model)) {
-         TableBindingMutator.setShelf(model, shelf, List.of());
+         List<FieldRef> bound = TableBindingMutator.read(model, shelf);
+         List<FieldRef> stillResolves = new ArrayList<>();
+
+         for(FieldRef field : bound) {
+            if(field.column() != null &&
+               availableColumns.stream().anyMatch(
+                  c -> c.equalsIgnoreCase(field.column()) ||
+                       c.equalsIgnoreCase(unqualified(field.column()))))
+            {
+               stillResolves.add(field);
+            }
+         }
+
+         if(stillResolves.size() != bound.size()) {
+            TableBindingMutator.setShelf(model, shelf, stillResolves);
+         }
       }
+   }
+
+   /**
+    * The new source table's column names, matching {@link #resolveTable}'s own lookup. Each
+    * column contributes both its raw name and, when it is qualified ({@code "table.attribute"}),
+    * the unqualified attribute name too -- {@code ColumnSelection} entries for a joined/merged
+    * worksheet table (the common case a repoint targets) commonly carry the qualified form. An
+    * old bound field's column name can independently be qualified or not (see {@link
+    * #unqualified}), so expanding only this side is not sufficient by itself -- but skipping it
+    * would still treat every field as unresolved whenever the new source itself is qualified and
+    * the old field is not, silently degrading back to discarding everything.
+    */
+   private static List<String> columnsOf(BaseTableBindingModel model, String table) {
+      List<String> names = new ArrayList<>();
+      List<BindingModel.SourceTable> tables = model.getTables();
+
+      if(tables != null) {
+         for(BindingModel.SourceTable candidate : tables) {
+            if(table.equalsIgnoreCase(candidate.getName()) && candidate.getColumns() != null) {
+               for(BindingModel.SourceTableColumn column : candidate.getColumns()) {
+                  if(column.getName() == null) {
+                     continue;
+                  }
+
+                  names.add(column.getName());
+                  String bare = unqualified(column.getName());
+
+                  if(!bare.equals(column.getName())) {
+                     names.add(bare);
+                  }
+               }
+            }
+         }
+      }
+
+      return names;
+   }
+
+   /**
+    * The unqualified suffix of a possibly {@code "table.attribute"}-qualified column name, or
+    * the name itself when it carries no qualifier. Applied to both the new source's column list
+    * and an old bound field's column name in {@link #discardBoundFields}, since either side can
+    * independently be qualified or not depending on whether its own source table is a
+    * joined/merged worksheet table -- comparing only one side's unqualified form would still
+    * miss the {qualified old field, unqualified new source} pairing. Package-private: {@link
+    * TableBindingMutator#dataTypeOf} reuses it for the identical problem (a qualified column
+    * from a joined/merged table not matching a bare field name).
+    */
+   static String unqualified(String name) {
+      int dot = name.lastIndexOf('.');
+      return dot >= 0 && dot < name.length() - 1 ? name.substring(dot + 1) : name;
    }
 
    /** @param sourceTable see {@link #setShelf}. */

@@ -37,6 +37,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
+import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
@@ -297,15 +298,76 @@ class TableBindingMutatorTest {
                    "a rejected move must not have already removed the field");
    }
 
+   /**
+    * The UI's own drag-and-drop pivot (VSCrosstabDndService.dnd() ->
+    * ConvertTableRefService.convertTableRef0()) silently converts a field's kind rather than
+    * refusing the move -- moveField matches that instead of throwing.
+    */
    @Test
-   void movingAMeasureOntoADimensionShelfIsRefusedAndLeavesTheSourceIntact() {
+   void movingAMeasureOntoADimensionShelfConvertsItInstead() {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Sales", "Sum")));
 
-      assertThrows(IllegalArgumentException.class,
-                   () -> TableBindingMutator.moveField(model, "aggregates", "rows", "Sales",
-                                                       null));
+      TableBindingMutator.moveField(model, "aggregates", "rows", "Sales", null);
+
+      assertEquals(0, model.getAggregates().size(),
+                   "the field must actually move, not stay behind");
+      assertEquals(1, model.getRows().size());
+      assertEquals("Sales", model.getRows().get(0).getColumnValue());
+   }
+
+   @Test
+   void movingANumericDimensionOntoAggregatesDefaultsToSum() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "QUANTITY", "integer")));
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("QUANTITY")));
+
+      TableBindingMutator.moveField(model, "rows", "aggregates", "QUANTITY", null);
+
+      assertEquals(0, model.getRows().size());
       assertEquals(1, model.getAggregates().size());
+      assertEquals("Sum", model.getAggregates().get(0).getFormula(),
+                   "a numeric column defaults to Sum, matching AssetUtil.getDefaultFormula()");
+   }
+
+   /**
+    * Claude-review finding on PR #4976: a column from a joined/merged worksheet table can be
+    * reported qualified ({@code "table.attribute"}) while the field naming it on the shelf is
+    * bare, or vice versa -- {@code dataTypeOf}'s lookup must resolve either direction, the same
+    * symmetric matching {@link TableBindingService#unqualified} exists for. Before the fix, this
+    * silently defaulted to Count instead of Sum, since the exact-match-only lookup never found
+    * the qualified column's data type.
+    */
+   @Test
+   void movingANumericDimensionWithAQualifiedSourceNameOntoAggregatesDefaultsToSum() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "Orders.QUANTITY", "integer")));
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("QUANTITY")));
+
+      TableBindingMutator.moveField(model, "rows", "aggregates", "QUANTITY", null);
+
+      assertEquals("Sum", model.getAggregates().get(0).getFormula(),
+                   "a qualified source column name must still resolve the bare field's data type");
+   }
+
+   @Test
+   void movingANonNumericDimensionOntoAggregatesDefaultsToCount() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "REGION", "string")));
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("REGION")));
+
+      TableBindingMutator.moveField(model, "rows", "aggregates", "REGION", null);
+
+      assertEquals("Count", model.getAggregates().get(0).getFormula());
+   }
+
+   private static BindingModel.SourceTable sourceTable(String name, String column,
+                                                        String dataType)
+   {
+      BindingModel.SourceTable table = new BindingModel.SourceTable();
+      table.setName(name);
+      table.setColumns(List.of(new BindingModel.SourceTableColumn(column, dataType)));
+      return table;
    }
 
    // ── preservation ──────────────────────────────────────────────────────────
@@ -315,32 +377,81 @@ class TableBindingMutatorTest {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "cols", List.of(dim("Year")));
       Object colsBefore = model.getCols();
-      model.getSuppressGroupTotal().put("Year", Boolean.TRUE);
+      // "Year:cols0" -- the real composite key VSCrosstabBindingFactory reads/writes
+      // (column + ":" + shelf + position), not the bare column name. A bare-keyed entry is
+      // exactly what the bug this test's sibling below guards against would have accepted and
+      // then silently dropped.
+      model.getSuppressGroupTotal().put("Year:cols0", Boolean.TRUE);
 
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
 
       assertSame(colsBefore, model.getCols());
-      assertEquals(Boolean.TRUE, model.getSuppressGroupTotal().get("Year"),
-                   "suppressGroupTotal is keyed by field name and must survive an unrelated write");
+      assertEquals(Boolean.TRUE, model.getSuppressGroupTotal().get("Year:cols0"),
+                   "suppressGroupTotal is keyed by column+shelf+position and must survive an " +
+                   "unrelated write");
    }
 
    /**
-    * {@code suppressGroupTotal} is a Hashtable keyed by field name that nothing prunes, so a
-    * removed field leaves an entry behind. It grows unboundedly across edits, and can
-    * resurrect suppression if the name is ever reused. See spec 2d risk 1.
+    * {@code suppressGroupTotal} is keyed by {@code "<column>:<shelf><position>"} -- the same
+    * composite form {@link inetsoft.web.binding.service.VSCrosstabBindingFactory} reads and
+    * writes on the real assembly, needed because a column can be bound twice at different date
+    * levels (a Year > Quarter drill) with independent suppression state per occurrence. A key
+    * whose position no longer exists must be pruned, or it grows the map unboundedly across
+    * edits and can resurrect suppression if the same column is ever rebound at that position.
+    * See spec 2d risk 1. (Comparing against *bare* column names here, instead of this composite
+    * form, previously treated every legitimately-keyed entry as an orphan and deleted all of
+    * them on every write -- the exact defect that made {@code suppressGroupTotal} a complete
+    * no-op through the wiz agent surface.)
     */
    @Test
-   void prunesSuppressGroupTotalEntriesForFieldsNoLongerBound() {
+   void prunesSuppressGroupTotalEntriesForPositionsNoLongerBound() {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region"), dim("Year")));
-      model.getSuppressGroupTotal().put("Region", Boolean.TRUE);
-      model.getSuppressGroupTotal().put("Year", Boolean.TRUE);
+      model.getSuppressGroupTotal().put("Region:rows0", Boolean.TRUE);
+      model.getSuppressGroupTotal().put("Year:rows1", Boolean.TRUE);
 
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
 
-      assertEquals(Boolean.TRUE, model.getSuppressGroupTotal().get("Region"));
-      assertNull(model.getSuppressGroupTotal().get("Year"),
-                 "an orphaned suppression entry must be pruned, not left to resurrect later");
+      assertEquals(Boolean.TRUE, model.getSuppressGroupTotal().get("Region:rows0"),
+                   "Region is still bound at rows0, so its suppression entry must survive");
+      assertNull(model.getSuppressGroupTotal().get("Year:rows1"),
+                 "Year is no longer bound at rows1 -- an orphaned suppression entry must be " +
+                 "pruned, not left to resurrect later");
+   }
+
+   /**
+    * The regression for the bug this whole pruning function existed to fix in the first place:
+    * a caller who supplies the exact, correctly-formatted composite key must have it survive --
+    * before this fix, {@code pruneOrphanedSuppression} compared every key (correct format or
+    * not) against bare column names, so even a perfectly-formatted key was deleted as an
+    * "orphan" and the option could never be durably set through this tool at all. Pruning runs
+    * on every shelf write (not only ones that touch {@code suppressGroupTotal}), so re-setting
+    * an unrelated shelf is enough to exercise it -- and is exactly the live-observed trigger
+    * (any {@code set_table_fields}/{@code add_table_field}/{@code move_table_field} call).
+    */
+   @Test
+   void aCorrectlyKeyedSuppressionEntrySurvivesPruning() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "cols", List.of(dim("Region")));
+      model.getSuppressGroupTotal().put("Region:cols0", Boolean.FALSE);
+
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Year")));
+
+      assertEquals(Boolean.FALSE, model.getSuppressGroupTotal().get("Region:cols0"),
+                   "a correctly composite-keyed entry must not be pruned as an orphan");
+   }
+
+   @Test
+   void aBareNameKeyIsPrunedRatherThanSurviving() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "cols", List.of(dim("Region")));
+      model.getSuppressGroupTotal().put("Region", Boolean.TRUE);
+
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Year")));
+
+      assertNull(model.getSuppressGroupTotal().get("Region"),
+                 "a bare column name is not the real key shape and must not masquerade as a " +
+                 "valid entry");
    }
 
    // ── sorting and ranking (2d Phase 2) ──────────────────────────────────────
@@ -436,12 +547,131 @@ class TableBindingMutatorTest {
    void ranksADimensionByAMeasureName() {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
 
       TableBindingMutator.setRanking(model, "rows", "Region", null,
                                      new DimensionSortRanking.Ranking("top", 5, "Sales", null));
 
       assertEquals("5", model.getRows().get(0).getRankingN());
       assertEquals("Sales", model.getRows().get(0).getRankingCol());
+   }
+
+   @Test
+   void refusesRankingByAMeasureThatIsNotBound() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setRanking(model, "rows", "Region", null,
+            new DimensionSortRanking.Ranking("top", 5, "TOTAL_REVENUE", null)));
+
+      assertTrue(thrown.getMessage().contains("TOTAL_REVENUE"));
+      assertTrue(thrown.getMessage().contains("Sales"), "name what is actually bound");
+   }
+
+   @Test
+   void acceptsRankingByAMeasuresFullAggregateName() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
+         new DimensionSortRanking.Ranking("top", 5, "sum(Sales)", null));
+
+      assertEquals("sum(Sales)", model.getRows().get(0).getRankingCol());
+   }
+
+   /**
+    * A bound aggregate whose formula takes a second column or an N (Correlation, Covariance,
+    * WeightedAvg, NthLargest, NthSmallest, PthPercentile) renders a real full name shaped like
+    * {@code "formula(column, extra)"} that {@link TableBindingMutator}'s wire-format {@link
+    * FieldRef} has no way to reconstruct exactly (no second-column/N value carried) -- the
+    * validation must accept a prefix match for these formulas rather than refusing every such
+    * reference as unbound, which would reject a value the real product resolves correctly.
+    */
+   @Test
+   void acceptsATwoColumnAggregatesFullNameByPrefix() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Sales", "measure", "Correlation", null, null)));
+
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
+         new DimensionSortRanking.Ranking("top", 5, "Correlation(Sales, Cost)", null));
+
+      assertEquals("Correlation(Sales, Cost)", model.getRows().get(0).getRankingCol());
+   }
+
+   @Test
+   void acceptsAnNArgAggregatesFullNameByPrefix() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Product", "measure", "NthMostFrequent", null, null)));
+
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
+         new DimensionSortRanking.Ranking("top", 5, "NthMostFrequent(Product, 3)", null));
+
+      assertEquals("NthMostFrequent(Product, 3)", model.getRows().get(0).getRankingCol());
+   }
+
+   /**
+    * Claude-review finding on PR #4976: {@code First}/{@code Last} both override {@code
+    * isTwoColumns()} to {@code true} (confirmed directly in {@code AggregateFormula.java}), are
+    * genuinely user-selectable (the frontend's own formula picker marks both {@code twoColumns:
+    * true}), and render a {@code "formula(column, col2)"} full name via {@code
+    * VSAggregateRef.getFullName()} -- exactly like {@code Correlation}/{@code Covariance}, which
+    * {@link #MULTI_ARG_FORMULA_NAMES} already covers. Before this, {@code requireKnownMeasure}
+    * wrongly refused a sort/ranking reference to an existing {@code First(Sales, OrderDate)}-
+    * style bound aggregate by its real full name.
+    */
+   @Test
+   void acceptsAFirstAggregatesFullNameByPrefix() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Sales", "measure", "First", null, null)));
+
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
+         new DimensionSortRanking.Ranking("top", 5, "First(Sales, OrderDate)", null));
+
+      assertEquals("First(Sales, OrderDate)", model.getRows().get(0).getRankingCol());
+   }
+
+   @Test
+   void stillRefusesAnUnboundMeasureWhenATwoColumnAggregateIsBound() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Sales", "measure", "Correlation", null, null)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setRanking(model, "rows", "Region", null,
+            new DimensionSortRanking.Ranking("top", 5, "TOTAL_REVENUE", null)));
+
+      assertTrue(thrown.getMessage().contains("TOTAL_REVENUE"));
+   }
+
+   @Test
+   void refusesSortingByFieldThatIsNotBound() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setSort(model, "rows", "Region", null,
+            new DimensionSortRanking.Sort("value_desc", "TOTAL_REVENUE", null)));
+
+      assertTrue(thrown.getMessage().contains("TOTAL_REVENUE"));
+      assertTrue(thrown.getMessage().contains("Sales"), "name what is actually bound");
    }
 
    @Test
@@ -474,6 +704,8 @@ class TableBindingMutatorTest {
    void describesTheSortsOnAShelf() {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
       TableBindingMutator.setRanking(model, "rows", "Region", null,
                                      new DimensionSortRanking.Ranking("top", 5, "Sales", null));
 
@@ -581,6 +813,64 @@ class TableBindingMutatorTest {
                                               Map.of("rowTotals", "yes")));
 
       assertTrue(thrown.getMessage().contains("silently turn the setting off"));
+   }
+
+   /**
+    * Finding 10 (parity audit, lane L5): rowTotalVisibleValue/colTotalVisibleValue are genuine
+    * DynamicValue fields on the real assembly (resolved via getRuntimeValue() at render time,
+    * matching the UI's own VALUE|VARIABLE|EXPRESSION dynamic-combo-box) -- a "$(var)" reference
+    * must pass through unresolved rather than being refused as an unrecognized boolean spelling.
+    */
+   @Test
+   void acceptsAVariableReferenceForRowAndColTotals() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      TableBindingMutator.setOptions(model, Map.of("rowTotals", "$(ShowRowTotals)",
+                                                   "colTotals", "$(ShowColTotals)"));
+
+      assertEquals("$(ShowRowTotals)", model.getOption().getRowTotalVisibleValue());
+      assertEquals("$(ShowColTotals)", model.getOption().getColTotalVisibleValue());
+   }
+
+   @Test
+   void acceptsAnExpressionForRowTotals() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      TableBindingMutator.setOptions(model, Map.of("rowTotals", "=Now() > Date(2026,1,1)"));
+
+      assertEquals("=Now() > Date(2026,1,1)", model.getOption().getRowTotalVisibleValue());
+   }
+
+   /**
+    * summarySideBySide is a plain boolean on the real assembly (VSCrosstabInfo.
+    * setSummarySideBySide(boolean)), not a DynamicValue -- unlike rowTotals/colTotals, a
+    * variable reference here must still be refused: Boolean.parseBoolean() would otherwise read
+    * it as false, silently.
+    */
+   @Test
+   void stillRefusesAVariableReferenceForSummarySideBySide() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setOptions(new CrosstabBindingModel(),
+                                              Map.of("summarySideBySide", "$(Foo)")));
+
+      assertTrue(thrown.getMessage().contains("silently turn the setting off"));
+   }
+
+   /**
+    * The shelf-populated guard (col needs a bound cols shelf; row needs a bound rows shelf)
+    * cannot be evaluated for a reference that only resolves to none/row/col at render time, so
+    * it must not fire for one -- confirming the dynamic-reference check runs before, not after,
+    * that validation.
+    */
+   @Test
+   void aVariableReferenceForPercentageByBypassesTheShelfPopulatedGuard() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      TableBindingMutator.setOptions(model, Map.of("percentageBy", "$(PercentMode)"));
+
+      assertEquals("$(PercentMode)", model.getOption().getPercentageByValue(),
+                   "must not throw the 'needs a bound shelf' refusal for an unresolved reference");
    }
 
    @Test

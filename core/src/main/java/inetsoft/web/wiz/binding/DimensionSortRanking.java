@@ -142,7 +142,7 @@ public final class DimensionSortRanking {
       dimension.setRankingCol(ranking.measure());
 
       if(ranking.others() != null) {
-         dimension.setOthers(ranking.others());
+         dimension.setGroupOthers(ranking.others());
       }
    }
 
@@ -160,7 +160,7 @@ public final class DimensionSortRanking {
       out.put("ranking", rankingToken(dimension.getRankingOption()));
       out.put("rankingN", dimension.getRankingN());
       out.put("rankingMeasure", dimension.getRankingCol());
-      out.put("others", dimension.isOthers());
+      out.put("others", dimension.isGroupOthers());
       return out;
    }
 

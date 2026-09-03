@@ -24,6 +24,7 @@ import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
+import inetsoft.web.binding.model.BindingModel;
 import inetsoft.uql.XConstants;
 import inetsoft.web.binding.model.table.BaseTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabOptionInfo;
@@ -228,6 +229,11 @@ public final class TableBindingMutator {
     * common table edit, and two calls would mean two checkpoints and an intermediate state
     * the browser renders. Validation happens before either side is touched, so a rejected
     * move leaves the field where it was rather than dropping it.
+    *
+    * <p>A dimension moved onto {@code aggregates}, or a measure moved off it, is converted
+    * rather than refused -- matching the UI's own drag-and-drop pivot
+    * ({@code VSCrosstabDndService.dnd()} -> {@code ConvertTableRefService.convertTableRef0()}).
+    * See {@link #convertForShelf}.
     */
    public static void moveField(BaseTableBindingModel model, String fromShelf, String toShelf,
                                 String column, Integer position)
@@ -257,6 +263,7 @@ public final class TableBindingMutator {
          .orElseThrow(() -> new IllegalArgumentException(
             "'" + column + "' is not on the " + from + " shelf."));
 
+      field = convertForShelf(model, to, field);
       requireCompatible(to, field);
 
       List<FieldRef> source = new ArrayList<>(read(model, from));
@@ -328,6 +335,83 @@ public final class TableBindingMutator {
             "Field '" + field.column() + "' carries an aggregate, and the details shelf holds " +
             "ungrouped columns. Put it on the aggregates shelf instead.");
       }
+   }
+
+   /**
+    * The numeric {@code SourceTableColumn.getDataType()} values {@code AssetUtil.isNumberType()}
+    * recognizes, kept as a literal set for the same reason {@link #MULTI_ARG_FORMULA_NAMES}
+    * is one: touching {@code AssetUtil}/{@code AggregateFormula} at all from wiz code is unsafe
+    * under plain JUnit (see that field's own javadoc).
+    */
+   private static final Set<String> NUMERIC_TYPES =
+      Set.of("float", "double", "byte", "short", "integer", "long");
+
+   /**
+    * Converts {@code field} to match {@code shelf}'s kind (dimension vs. measure) when they
+    * disagree, rather than leaving {@link #requireCompatible} to refuse the move outright --
+    * mirrors the UI's own drag-and-drop pivot ({@code VSCrosstabDndService.dnd()} -> {@code
+    * ConvertTableRefService.convertTableRef0()} -> {@code VSEventUtil.fixAggInfoByConvertRef()}
+    * -> {@code AssetUtil.getDefaultFormula()}), which silently applies a default aggregate
+    * formula rather than asking the user. A field already of the right kind is returned as-is.
+    */
+   private static FieldRef convertForShelf(BaseTableBindingModel model, String shelf,
+                                           FieldRef field)
+   {
+      boolean wantsMeasure = "aggregates".equals(shelf);
+      boolean isMeasure = FieldRefFactory.MEASURE.equalsIgnoreCase(field.type());
+
+      if(wantsMeasure == isMeasure) {
+         return field;
+      }
+
+      if(wantsMeasure) {
+         String dataType = dataTypeOf(model, field.column());
+         String formula = dataType != null && NUMERIC_TYPES.contains(dataType) ? "Sum" : "Count";
+         return new FieldRef(field.column(), FieldRefFactory.MEASURE, formula, null, null,
+                             field.chartType(), field.runtimeChartType());
+      }
+
+      return new FieldRef(field.column(), FieldRefFactory.DIMENSION, null, null, null,
+                          field.chartType(), field.runtimeChartType());
+   }
+
+   /**
+    * The bound source's own reported data type for {@code column}, or {@code null} if unknown.
+    *
+    * <p>Matches {@code column} against a reported column name either exactly or with either
+    * side's {@code "table.attribute"} qualifier stripped -- the same symmetric matching {@link
+    * TableBindingService#unqualified} exists for, since a column from a joined/merged worksheet
+    * table can be qualified while the field being moved onto {@code aggregates} names it bare
+    * (or vice versa). Without this, a qualified numeric column silently defaulted to {@code
+    * Count} instead of {@code Sum} here, since the exact-match-only lookup never found its data
+    * type.
+    */
+   private static String dataTypeOf(BaseTableBindingModel model, String column) {
+      List<BindingModel.SourceTable> tables = model.getTables();
+
+      if(tables == null || column == null) {
+         return null;
+      }
+
+      String bareColumn = TableBindingService.unqualified(column);
+
+      for(BindingModel.SourceTable table : tables) {
+         if(table.getColumns() == null) {
+            continue;
+         }
+
+         for(BindingModel.SourceTableColumn col : table.getColumns()) {
+            String name = col.getName();
+
+            if(column.equalsIgnoreCase(name) || bareColumn.equalsIgnoreCase(name) ||
+               column.equalsIgnoreCase(TableBindingService.unqualified(name)))
+            {
+               return col.getDataType();
+            }
+         }
+      }
+
+      return null;
    }
 
    // ── conversions ───────────────────────────────────────────────────────────
@@ -441,9 +525,17 @@ public final class TableBindingMutator {
    }
 
    /**
-    * {@code suppressGroupTotal} is keyed by field name and nothing prunes it, so a removed
-    * field leaves an entry that grows the map unboundedly and can resurrect suppression if
-    * the name is ever reused. Every write prunes what is no longer bound.
+    * {@code suppressGroupTotal} is keyed by {@code "<column>:rows<i>"}/{@code "<column>:cols<i>"}
+    * -- the same composite, position-qualified form {@link VSCrosstabBindingFactory} reads and
+    * writes (a column can be bound twice at different date levels, e.g. a Year > Quarter drill,
+    * so a bare column name cannot disambiguate which occurrence a suppression entry belongs to).
+    * Nothing prunes an entry whose shelf position no longer exists, so a removed or reordered
+    * field left a stale entry that grew the map unboundedly and could resurrect suppression if
+    * the same column was ever rebound at that position -- and worse, comparing entries against
+    * *bare* column names here (rather than this composite form) treated every legitimately-keyed
+    * entry as an orphan and deleted it on every single write, which is what let {@code
+    * suppressGroupTotal} regress to a complete no-op. Every write prunes what is no longer bound,
+    * using the real key shape.
     */
    private static void pruneOrphanedSuppression(BaseTableBindingModel model) {
       if(!(model instanceof CrosstabBindingModel crosstab)) {
@@ -456,17 +548,21 @@ public final class TableBindingMutator {
          return;
       }
 
-      Set<String> bound = new HashSet<>();
+      Set<String> valid = new HashSet<>();
 
-      for(String shelf : shelvesOf(model)) {
-         for(FieldRef field : read(model, shelf)) {
+      for(String shelf : List.of("rows", "cols")) {
+         List<FieldRef> fields = read(model, shelf);
+
+         for(int i = 0; i < fields.size(); i++) {
+            FieldRef field = fields.get(i);
+
             if(field.column() != null) {
-               bound.add(field.column());
+               valid.add(field.column() + ":" + shelf + i);
             }
          }
       }
 
-      suppression.keySet().removeIf(key -> !bound.contains(key));
+      suppression.keySet().removeIf(key -> !valid.contains(key));
    }
 
    // ── sorting and ranking (2d Phase 2) ──────────────────────────────────────
@@ -480,13 +576,98 @@ public final class TableBindingMutator {
    public static void setSort(BaseTableBindingModel model, String shelf, String column,
                               Integer index, DimensionSortRanking.Sort sort)
    {
-      DimensionSortRanking.applySort(requireDimension(model, shelf, column, index), sort);
+      BDimensionRefModel dimension = requireDimension(model, shelf, column, index);
+
+      if(sort != null && !blank(sort.sortByField())) {
+         requireKnownMeasure(model, sort.sortByField(), "sortByField");
+      }
+
+      DimensionSortRanking.applySort(dimension, sort);
    }
 
    public static void setRanking(BaseTableBindingModel model, String shelf, String column,
                                  Integer index, DimensionSortRanking.Ranking ranking)
    {
-      DimensionSortRanking.applyRanking(requireDimension(model, shelf, column, index), ranking);
+      BDimensionRefModel dimension = requireDimension(model, shelf, column, index);
+
+      if(ranking != null && !"none".equalsIgnoreCase(ranking.mode()) &&
+         !blank(ranking.measure()))
+      {
+         requireKnownMeasure(model, ranking.measure(), "measure");
+      }
+
+      DimensionSortRanking.applyRanking(dimension, ranking);
+   }
+
+   private static boolean blank(String value) {
+      return value == null || value.isBlank();
+   }
+
+   /**
+    * The {@code getFormulaName()} of every {@code AggregateFormula} whose {@code isTwoColumns()}
+    * or {@code hasN()} is {@code true} (a second column or an N beyond the bound column). Kept
+    * as a literal set rather than calling {@code AggregateFormula.getFormula(String)}/{@code
+    * isTwoColumns()}/{@code hasN()} directly, since touching {@code AggregateFormula} triggers
+    * its static initializer, which depends on {@code Catalog} and is not safe to run from a
+    * plain unit-test context (fails with {@code NoClassDefFoundError} there).
+    */
+   private static final Set<String> MULTI_ARG_FORMULA_NAMES = Set.of(
+      "correlation", "covariance", "weightedaverage", "nthlargest", "nthsmallest",
+      "nthmostfrequent", "pthpercentile", "first", "last");
+
+   /**
+    * Refuses a {@code sortByField}/{@code measure} that names no aggregate bound on this
+    * assembly's aggregates shelf. Ranking or sorting by an unresolvable measure is accepted
+    * silently downstream and renders a plausible-but-arbitrary result (the ranking condition
+    * never builds, or a by-value sort falls back to label order) rather than failing loudly --
+    * the same bound-reference discipline {@link #setColumnLabels} already applies to column
+    * labels. Three shapes are accepted, since all three resolve at render time via {@code
+    * VSAggregateRef.getFullName()}/{@code VSCrosstabInfo.fixCol()}: the bare column name (e.g.
+    * {@code "QUANTITY"}); the single-argument full name (e.g. {@code "Sum(QUANTITY)"}); and, for
+    * a bound aggregate whose formula takes a second column or an N ({@link
+    * #MULTI_ARG_FORMULA_NAMES}), a {@code formula(column, ...)} prefix match, since {@code
+    * FieldRef} carries no second-column or N value to reconstruct the exact full name the
+    * product would render.
+    */
+   private static void requireKnownMeasure(BaseTableBindingModel model, String measure,
+                                           String param)
+   {
+      if(!shelvesOf(model).contains("aggregates")) {
+         throw new IllegalArgumentException(
+            "'" + param + "' requires an aggregates shelf, which this " +
+            (model instanceof CrosstabBindingModel ? "crosstab" : "table") + " does not have.");
+      }
+
+      List<String> known = new ArrayList<>();
+      List<String> multiArgPrefixes = new ArrayList<>();
+
+      for(FieldRef field : read(model, "aggregates")) {
+         if(field.column() == null) {
+            continue;
+         }
+
+         known.add(field.column());
+
+         if(field.aggregate() != null) {
+            known.add(field.aggregate() + "(" + field.column() + ")");
+
+            if(MULTI_ARG_FORMULA_NAMES.contains(field.aggregate().toLowerCase())) {
+               multiArgPrefixes.add(field.aggregate() + "(" + field.column() + ",");
+            }
+         }
+      }
+
+      if(known.stream().noneMatch(name -> name.equalsIgnoreCase(measure)) &&
+         multiArgPrefixes.stream().noneMatch(
+            prefix -> measure != null && measure.regionMatches(true, 0, prefix, 0, prefix.length())
+                      && measure.trim().endsWith(")")))
+      {
+         throw new IllegalArgumentException(
+            "'" + param + "' is '" + measure + "', which is not a bound aggregate. Ranking or " +
+            "sorting by an unbound measure renders an arbitrary result rather than failing, so " +
+            "it is refused instead. Bound: " +
+            (known.isEmpty() ? "(none)" : String.join(", ", known)) + ".");
+      }
    }
 
    /** The sort and ranking on every dimension of a shelf. */
@@ -691,11 +872,13 @@ public final class TableBindingMutator {
                                     "summarySideBySide", "suppressGroupTotal"));
 
       if(options.containsKey("rowTotals")) {
-         info.setRowTotalVisibleValue(stringBoolean(options.get("rowTotals"), "rowTotals"));
+         info.setRowTotalVisibleValue(
+            stringBoolean(options.get("rowTotals"), "rowTotals", true));
       }
 
       if(options.containsKey("colTotals")) {
-         info.setColTotalVisibleValue(stringBoolean(options.get("colTotals"), "colTotals"));
+         info.setColTotalVisibleValue(
+            stringBoolean(options.get("colTotals"), "colTotals", true));
       }
 
       if(options.containsKey("percentageBy")) {
@@ -703,16 +886,20 @@ public final class TableBindingMutator {
       }
 
       if(options.containsKey("summarySideBySide")) {
+         // Unlike rowTotals/colTotals/percentageBy, summarySideBySide is a plain boolean on the
+         // real assembly (VSCrosstabInfo.setSummarySideBySide(boolean)), not a DynamicValue --
+         // so it must NOT accept a "$(var)"/"=expr" string here: Boolean.parseBoolean() on one
+         // would silently read as false, the exact footgun allowDynamic=true exists to avoid.
          info.setSummarySideBySide(
             Boolean.parseBoolean(stringBoolean(options.get("summarySideBySide"),
-                                               "summarySideBySide")));
+                                               "summarySideBySide", false)));
       }
 
       if(options.get("suppressGroupTotal") instanceof Map<?, ?> suppression) {
          for(Map.Entry<?, ?> entry : suppression.entrySet()) {
             model.getSuppressGroupTotal().put(
                String.valueOf(entry.getKey()),
-               Boolean.parseBoolean(stringBoolean(entry.getValue(), "suppressGroupTotal")));
+               Boolean.parseBoolean(stringBoolean(entry.getValue(), "suppressGroupTotal", false)));
          }
 
          pruneOrphanedSuppression(model);
@@ -756,7 +943,17 @@ public final class TableBindingMutator {
    }
 
    private static String percentageBy(Object raw, CrosstabBindingModel model) {
-      String token = raw == null ? "" : String.valueOf(raw).trim().toLowerCase();
+      String token = raw == null ? "" : String.valueOf(raw).trim();
+
+      // A "$(var)"/"=expr" reference resolves to none/row/col only at render time, so neither
+      // the literal-vocabulary parse below nor the shelf-populated checks that follow it can be
+      // evaluated now -- passed through unresolved, matching percentageByValue's own
+      // DynamicValue nature and the UI's VALUE|VARIABLE|EXPRESSION dynamic-combo-box.
+      if(isDynamicReference(token)) {
+         return token;
+      }
+
+      token = token.toLowerCase();
       int value = switch(token) {
          case "none" -> XConstants.PERCENTAGE_NONE;
          case "col", "column", "columns" -> XConstants.PERCENTAGE_BY_COL;
@@ -787,8 +984,16 @@ public final class TableBindingMutator {
    /**
     * A dynamic-value string that StyleBI reads as a boolean. Anything but "true" reads as false,
     * so "yes" would silently turn a total off — refused rather than coerced.
+    *
+    * @param allowDynamic true only for a field that is a genuine {@code DynamicValue} on the
+    *                     real assembly ({@code rowTotalVisibleValue}/{@code colTotalVisibleValue}
+    *                     resolve via {@code getRuntimeValue()} at render time, matching the UI's
+    *                     own VALUE|VARIABLE|EXPRESSION dynamic-combo-box) -- passing true for a
+    *                     plain-boolean field (e.g. {@code summarySideBySide}) would let a
+    *                     "$(var)"/"=expr" string through to {@code Boolean.parseBoolean()},
+    *                     which reads any unrecognized string as {@code false}, silently.
     */
-   private static String stringBoolean(Object raw, String key) {
+   private static String stringBoolean(Object raw, String key, boolean allowDynamic) {
       if(raw instanceof Boolean value) {
          return String.valueOf(value);
       }
@@ -799,10 +1004,27 @@ public final class TableBindingMutator {
          return text.toLowerCase();
       }
 
+      if(allowDynamic && isDynamicReference(text)) {
+         return text;
+      }
+
       throw new IllegalArgumentException(
-         "'" + key + "' must be true or false, got '" + raw + "'. This setting is stored as a " +
-         "string that StyleBI reads as a boolean, so a spelling like \"yes\" would read as " +
-         "false and silently turn the setting off.");
+         "'" + key + "' must be true or false" + (allowDynamic ?
+            ", a \"$(variable)\" reference, or an \"=expression\"" : "") + ", got '" + raw +
+         "'. This setting is stored as a string that StyleBI reads as a boolean, so a spelling " +
+         "like \"yes\" would read as false and silently turn the setting off.");
+   }
+
+   /**
+    * A {@code $(name)} variable reference or an {@code =expression} — the two non-literal shapes
+    * a {@code DynamicValue} field resolves at render time, matching {@code VSUtil.
+    * isVariableValue()}/{@code isScriptValue()}'s own rule. Reimplemented as a literal check
+    * rather than calling {@code VSUtil} itself, for the same reason {@link
+    * #MULTI_ARG_FORMULA_NAMES} avoids {@code AggregateFormula}: a general-purpose utility class
+    * this large is not safe to assume side-effect-free to touch from a plain JUnit context.
+    */
+   private static boolean isDynamicReference(String text) {
+      return (text.startsWith("$(") && text.endsWith(")")) || text.startsWith("=");
    }
 
    private static void requireKnown(Map<String, Object> options, List<String> known) {
