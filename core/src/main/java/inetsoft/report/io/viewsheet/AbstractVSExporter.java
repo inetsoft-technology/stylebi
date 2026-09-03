@@ -3888,8 +3888,9 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
-    * Get the font to use for rendering an input label. The default size 11
-    * matches LabelInfo.getRenderedHeight() so drawing and measurement agree.
+    * Get the font to use for rendering an input label. This is the single font
+    * source for both drawing and measurement (getLabelDimensions), and matches
+    * the fallback used by LabelInfo.getRenderedHeight().
     */
    protected static Font getLabelFont(LabelInfo labelInfo) {
       VSCompositeFormat fmt = labelInfo.getLabelFormat();
@@ -3954,7 +3955,7 @@ public abstract class AbstractVSExporter implements VSExporter {
          // Center the label text vertically relative to the widget height,
          // matching the Angular preview which uses flexbox vertical centering.
          labelBounds = new Rectangle2D.Double(x + fullW - labelW,
-            y + Math.max(0, (fullH - labelH) / 2.0), labelW, labelH);
+            y + (fullH - labelH) / 2.0, labelW, labelH);
          widgetBounds = new Rectangle2D.Double(x, y,
             Math.max(0, fullW - labelW - gap), fullH);
          break;
@@ -3962,7 +3963,7 @@ public abstract class AbstractVSExporter implements VSExporter {
       default:
          // Center the label text vertically relative to the widget height,
          // matching the Angular preview which uses flexbox vertical centering.
-         labelBounds = new Rectangle2D.Double(x, y + Math.max(0, (fullH - labelH) / 2.0),
+         labelBounds = new Rectangle2D.Double(x, y + (fullH - labelH) / 2.0,
             labelW, labelH);
          widgetBounds = new Rectangle2D.Double(x + labelW + gap, y,
             Math.max(0, fullW - labelW - gap), fullH);
@@ -4064,6 +4065,15 @@ public abstract class AbstractVSExporter implements VSExporter {
 
          maxW = Math.max(maxW, (int) Math.ceil(expanded.getMaxX()));
          maxH = Math.max(maxH, (int) Math.ceil(expanded.getMaxY()));
+
+         // A LEFT/RIGHT label taller than the widget row is centered on it and so overhangs
+         // the assembly (splitInputBounds), and those positions are not covered by
+         // expandBoundsForLabel. Include the label box itself so the page is not cut through
+         // it. An overhang above/left of the origin cannot be represented here -- the page
+         // has no room to grow in that direction -- so only the far edges are extended.
+         Rectangle2D labelBounds = splitInputBounds(expanded, labelInfo)[0];
+         maxW = Math.max(maxW, (int) Math.ceil(labelBounds.getMaxX()));
+         maxH = Math.max(maxH, (int) Math.ceil(labelBounds.getMaxY()));
       }
 
       return new Dimension(maxW, maxH);
@@ -4099,12 +4109,23 @@ public abstract class AbstractVSExporter implements VSExporter {
 
    /**
     * Get [width, height] for the label, matching VsToReportConverter.addInputLabel().
+    * The height is derived from the label font (not a fixed grid row height) so the
+    * space reserved for the label tracks the font size, the way the browser does with
+    * line-height on .vs-input-label.
     */
    private static int[] getLabelDimensions(LabelInfo labelInfo) {
       Font font = getLabelFont(labelInfo);
       int labelW = (int) Common.stringWidth(labelInfo.getLabelText(), font) + 6;
-      int labelH = AssetUtil.defh;
+      int labelH = getLabelHeight(font);
       return new int[] { labelW, labelH };
+   }
+
+   /**
+    * Get the rendered height of a label drawn with the given font. Matches
+    * LabelInfo.getRenderedHeight(), which is used by the layout code.
+    */
+   protected static int getLabelHeight(Font font) {
+      return (int) Math.ceil(Common.getHeight(font));
    }
 
    /**

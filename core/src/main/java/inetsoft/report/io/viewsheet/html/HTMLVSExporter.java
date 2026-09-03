@@ -24,12 +24,12 @@ import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.gui.viewsheet.VSGroupContainer;
 import inetsoft.report.gui.viewsheet.VSImage;
-import inetsoft.report.internal.Common;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.report.io.viewsheet.AbstractVSExporter;
 import inetsoft.report.io.viewsheet.ExportUtil;
 import inetsoft.report.io.viewsheet.ShapeShadowUtil;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
@@ -148,11 +148,12 @@ public class HTMLVSExporter extends AbstractVSExporter {
       // so we don't need to materialize a default font (PDF/SVG do, since
       // PDFPrinter.setFont(null) silently keeps a stale printer font). Passing the raw
       // labelFormat lets CSS inherit when no font is set, keeping the label close to
-      // the viewer's rendering (Roboto at the inherited size).
+      // the viewer's rendering (Roboto at the inherited size). splitInputBounds() already
+      // sizes the label box from the label font, so a label that has one needs no further
+      // vertical compensation; one that does not still needs the fallback below.
       VSCompositeFormat labelFormat = labelInfo.getLabelFormat();
-      Rectangle2D labelBounds = adjustLabelBoundsForFont(
-         bounds[0], labelFormat, labelInfo.getLabelPosition());
-      helper.writeText(writer, labelBounds,
+      helper.writeText(writer, adjustLabelBoundsForInheritedFont(bounds[0], labelFormat,
+                                                                labelInfo.getLabelPosition()),
          labelFormat != null ? labelFormat : new VSCompositeFormat(),
          labelInfo.getLabelText(), null, false, null, false, info.getZIndex());
 
@@ -160,35 +161,38 @@ public class HTMLVSExporter extends AbstractVSExporter {
    }
 
    /**
-    * Expand bounds vertically to fit the font (otherwise overflow:hidden clips it)
-    * and shift away from the widget to preserve the label-widget gap.
+    * Keep the label box at least the default row height when the label has no font of its
+    * own. writeText() emits the box height with overflow:hidden, but with no font in the
+    * format it emits no font-size either, so the browser renders the label in its inherited
+    * font -- a size this exporter cannot measure. splitInputBounds() sized the box from the
+    * AWT fallback font instead, which is shorter than the inherited text tends to be, and
+    * the text would then be clipped.
     */
-   private static Rectangle2D adjustLabelBoundsForFont(Rectangle2D labelBounds,
+   private static Rectangle2D adjustLabelBoundsForInheritedFont(Rectangle2D labelBounds,
       VSCompositeFormat labelFormat, String position)
    {
-      if(labelFormat == null || labelFormat.getFont() == null) {
+      if(labelFormat != null && labelFormat.getFont() != null) {
          return labelBounds;
       }
 
-      double fontHeight = Common.getHeight(labelFormat.getFont());
+      double extra = AssetUtil.defh - labelBounds.getHeight();
 
-      if(fontHeight <= labelBounds.getHeight()) {
+      if(extra <= 0) {
          return labelBounds;
       }
 
-      double extra = fontHeight - labelBounds.getHeight();
-      double newY = labelBounds.getY();
+      double y = labelBounds.getY();
 
       if(LabelInfo.LEFT.equals(position) || LabelInfo.RIGHT.equals(position)) {
-         newY -= extra / 2.0;  // recenter on widget
+         y -= extra / 2.0;  // stay centered on the widget
       }
       else if(LabelInfo.TOP.equals(position)) {
-         newY -= extra;  // grow upward; bottom anchored
+         y -= extra;  // grow upward; the widget is anchored below
       }
-      // BOTTOM: grow downward; top anchored
+      // BOTTOM: grow downward, away from the widget
 
-      return new Rectangle2D.Double(
-         labelBounds.getX(), newY, labelBounds.getWidth(), fontHeight);
+      return new Rectangle2D.Double(labelBounds.getX(), y, labelBounds.getWidth(),
+                                    AssetUtil.defh);
    }
 
    /**
