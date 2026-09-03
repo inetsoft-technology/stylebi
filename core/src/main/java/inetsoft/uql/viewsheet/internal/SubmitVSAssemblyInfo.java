@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.Hyperlink.Ref;
 import inetsoft.report.StyleConstants;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.Tool;
@@ -69,10 +70,13 @@ public class SubmitVSAssemblyInfo extends ClickableOutputVSAssemblyInfo {
    }
 
    /**
-    * Seed the modern-gated round corner, overriding the legacy 3px set above. This type
-    * bypasses the base chrome hook (see VSAssemblyInfo.bypassesBaseChrome()) so it seeds its
-    * own — form-input modernization, tracked as its own follow-on project from the card-corner
-    * work.
+    * Seed the modern-gated round corner, overriding the legacy 3px set above, and control height.
+    * This type bypasses the base chrome hook (see VSAssemblyInfo.bypassesBaseChrome()) so it
+    * seeds its own — form-input modernization, tracked as its own follow-on project from the
+    * card-corner work. Unlike CheckBox/RadioButton, Submit has no title lane or data rows - its
+    * inherited default height (AssetUtil.defh, set by AssemblyInfo's constructor since this type
+    * never calls setPixelSize itself) is a single value, so this follows Spinner's simpler
+    * one-value substitution instead of CheckBox's doubled one.
     */
    @Override
    protected void seedChromeDefaults(VizContext ctx) {
@@ -83,6 +87,13 @@ public class SubmitVSAssemblyInfo extends ClickableOutputVSAssemblyInfo {
       if(objFormat != null) {
          objFormat.getDefaultFormat().setRoundCornerValue(
             ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 3);
+      }
+
+      if(ctx.modern && getPixelSize().height == AssetUtil.defh) {
+         setPixelSize(new Dimension(getPixelSize().width, VSDensityDefaults.controlHeight(ctx)));
+      }
+      else if(!ctx.modern && VSDensityDefaults.isControlHeight(getPixelSize().height)) {
+         setPixelSize(new Dimension(getPixelSize().width, AssetUtil.defh));
       }
    }
 

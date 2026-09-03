@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.internal.table.TableFormat;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
@@ -86,6 +87,13 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
       if(objFormat != null) {
          objFormat.getDefaultFormat().setRoundCornerValue(
             ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 0);
+      }
+
+      if(ctx.modern && getPixelSize().height == AssetUtil.defh) {
+         setPixelSize(new Dimension(getPixelSize().width, VSDensityDefaults.controlHeight(ctx)));
+      }
+      else if(!ctx.modern && VSDensityDefaults.isControlHeight(getPixelSize().height)) {
+         setPixelSize(new Dimension(getPixelSize().width, AssetUtil.defh));
       }
    }
 
