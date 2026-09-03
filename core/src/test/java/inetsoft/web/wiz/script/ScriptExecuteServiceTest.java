@@ -110,6 +110,40 @@ class ScriptExecuteServiceTest {
       verify(scriptable).resetUnrecognizedWrites();
    }
 
+   /**
+    * Bug #76104: "position" IS a registered scriptable property (unlike "label" above), so it
+    * must not be reported as "not a recognized scriptable property" -- but its setter silently
+    * declined to apply the value (Composer design-mode session, not a live viewer runtime), so
+    * execute() must still exclude the target from changed via the new rejected-writes tracking,
+    * with wording that doesn't misrepresent the write as unrecognized.
+    */
+   @Test
+   void executeExcludesTargetFromChangedAndDoesNotClaimUnrecognizedForARejectedPositionWrite()
+      throws Exception
+   {
+      String script = "Submit1.position = new Point(180, 100);";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      VSAScriptable scriptable = mock(VSAScriptable.class);
+      when(scriptable.getUnrecognizedWrites()).thenReturn(List.of());
+      when(scriptable.getRejectedWrites()).thenReturn(List.of("position"));
+
+      RuntimeViewsheet rvs = viewsheetWithAssemblyScript(script, scope, scriptable);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1"), false);
+
+      assertTrue(result.ok());
+      assertEquals(List.of(), result.changed());
+      assertEquals(List.of("position"), result.unrecognizedProperties());
+      assertTrue(result.summary().contains("position"), result.summary());
+      assertFalse(result.summary().contains("not a recognized scriptable property"), result.summary());
+      assertFalse(result.summary().contains("not recognized scriptable properties"), result.summary());
+      verify(scriptable).resetUnrecognizedWrites();
+      verify(scriptable).resetRejectedWrites();
+   }
+
    @Test
    void executeReportsRealPropertyWriteNormallyWithNoUnrecognizedProperties() throws Exception {
       String script = "Submit1.enabled = false;";

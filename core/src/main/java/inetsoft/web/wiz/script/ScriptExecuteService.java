@@ -151,11 +151,13 @@ public class ScriptExecuteService {
 
       for(VSAScriptable scriptable : trackedScriptables.values()) {
          scriptable.resetUnrecognizedWrites();
+         scriptable.resetRejectedWrites();
       }
 
       try {
          Object value = scope.execute(text, assemblyName);
          List<String> unrecognized = new ArrayList<>();
+         List<String> rejected = new ArrayList<>();
 
          for(Map.Entry<String, VSAScriptable> entry : trackedScriptables.entrySet()) {
             for(String name : entry.getValue().getUnrecognizedWrites()) {
@@ -165,23 +167,55 @@ public class ScriptExecuteService {
                // e.g. two different assemblies' own unrecognized "label".
                unrecognized.add(assemblyName != null ? name : entry.getKey() + "." + name);
             }
+
+            // Recognized properties (e.g. position/size) whose setter declined to apply the
+            // value -- distinct from "unrecognized" above, which never even matched propmap.
+            for(String name : entry.getValue().getRejectedWrites()) {
+               rejected.add(assemblyName != null ? name : entry.getKey() + "." + name);
+            }
          }
 
-         List<String> changed = unrecognized.isEmpty() ? List.of(target.toString()) : List.of();
-         String summary = unrecognized.isEmpty() ? "Executed " + target + "." :
-            "Executed " + target + ", but assigned " + unrecognized +
-            " which " + (unrecognized.size() == 1 ? "is not a recognized scriptable property" :
-               "are not recognized scriptable properties") +
-            (assemblyName != null ? " for this assembly type (" +
-               assemblyTypeName(rvs, assemblyName) + ")" : "") + " — the value " +
-            (unrecognized.size() == 1 ? "was" : "were") + " NOT applied; " +
-            (unrecognized.size() == 1 ? "it" : "they") + " only became an ad hoc script " +
-            "variable nothing else reads. Call get_script_context for " +
-            (assemblyName != null ? assemblyName + "'s" : "the named assembly's") +
-            " real scriptable properties, or use get_assembly_properties/update_binding if " +
-            "you meant a different, non-scripted property.";
+         List<String> notApplied = new ArrayList<>();
+         notApplied.addAll(unrecognized);
+         notApplied.addAll(rejected);
+
+         List<String> changed = notApplied.isEmpty() ? List.of(target.toString()) : List.of();
+         String summary;
+
+         if(notApplied.isEmpty()) {
+            summary = "Executed " + target + ".";
+         }
+         else {
+            List<String> clauses = new ArrayList<>();
+
+            if(!unrecognized.isEmpty()) {
+               clauses.add("assigned " + unrecognized + " which " +
+                  (unrecognized.size() == 1 ? "is not a recognized scriptable property" :
+                     "are not recognized scriptable properties") +
+                  (assemblyName != null ? " for this assembly type (" +
+                     assemblyTypeName(rvs, assemblyName) + ")" : "") + " — the value " +
+                  (unrecognized.size() == 1 ? "was" : "were") + " NOT applied; " +
+                  (unrecognized.size() == 1 ? "it" : "they") + " only became an ad hoc script " +
+                  "variable nothing else reads");
+            }
+
+            if(!rejected.isEmpty()) {
+               clauses.add("assigned " + rejected + ", " +
+                  (rejected.size() == 1 ? "a recognized property whose value was" :
+                     "recognized properties whose values were") + " NOT applied because the " +
+                  "connected session is a Composer design-mode session, not a live viewer " +
+                  "runtime");
+            }
+
+            summary = "Executed " + target + ", but " + String.join("; and ", clauses) +
+               ". Call get_script_context for " +
+               (assemblyName != null ? assemblyName + "'s" : "the named assembly's") +
+               " real scriptable properties, or use get_assembly_properties/update_binding if " +
+               "you meant a different, non-scripted property.";
+         }
+
          return new ScriptExecResult(true, stringify(value), null, changed, false, null, summary,
-            unrecognized.isEmpty() ? null : unrecognized);
+            notApplied.isEmpty() ? null : notApplied);
       }
       catch(Exception ex) {
          return new ScriptExecResult(false, null, toScriptError(ex), null, false, null, null, null);

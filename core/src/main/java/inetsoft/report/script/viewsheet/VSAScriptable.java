@@ -78,6 +78,26 @@ public class VSAScriptable
    }
 
    /**
+    * Clear the names recorded by {@link #getRejectedWrites()}, so a caller can scope tracking
+    * to a single script execution.
+    */
+   public void resetRejectedWrites() {
+      rejectedWrites.clear();
+   }
+
+   /**
+    * Names passed to {@link #putMember(String, Object)} since the last {@link
+    * #resetRejectedWrites()} that DID match a registered {@code propmap} property, but whose
+    * setter declined to apply the value -- e.g. {@link #setSize}/{@link #setPosition} when
+    * {@code box.isRuntime()} is false, which is always the case for a Composer design-mode
+    * session. Distinct from {@link #getUnrecognizedWrites()}, which is for names that were never
+    * registered as a scriptable property at all.
+    */
+   public List<String> getRejectedWrites() {
+      return new ArrayList<>(rejectedWrites);
+   }
+
+   /**
     * Add properties.
     */
    private void init() {
@@ -453,6 +473,9 @@ public class VSAScriptable
 
          info.setPixelSize(dim);
       }
+      else {
+         rejectedWrites.add("size");
+      }
    }
 
    /**
@@ -493,6 +516,9 @@ public class VSAScriptable
 
       if(box.isRuntime()) {
          setPosition(info, p);
+      }
+      else {
+         rejectedWrites.add("position");
       }
    }
 
@@ -1130,6 +1156,11 @@ public class VSAScriptable
    // Names that missed propmap and fell back to the expando map in putMember(); see
    // resetUnrecognizedWrites()/getUnrecognizedWrites().
    private final List<String> unrecognizedWrites = Collections.synchronizedList(new ArrayList<>());
+
+   // Names that DID match a propmap property but whose setter declined to apply the value
+   // (currently only setSize/setPosition, gated on box.isRuntime()); see
+   // resetRejectedWrites()/getRejectedWrites().
+   private final List<String> rejectedWrites = Collections.synchronizedList(new ArrayList<>());
 
    private static final Logger LOG = LoggerFactory.getLogger(VSAScriptable.class);
 }
