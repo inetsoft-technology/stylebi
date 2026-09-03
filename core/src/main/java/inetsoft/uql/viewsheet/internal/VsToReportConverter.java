@@ -2690,6 +2690,11 @@ public class VsToReportConverter {
 
       rect.setStyle(info.getLineStyle());
       rect.setZIndex(assembly.getZIndex());
+
+      if(info.isShadow()) {
+         rect.setShadow(info.getShadowInfo());
+      }
+
       addShape(rect, sectionName);
    }
 
@@ -2728,6 +2733,11 @@ public class VsToReportConverter {
       oval.setColor(info.getFormat().getForeground());
       oval.setStyle(info.getLineStyle());
       oval.setZIndex(assembly.getZIndex());
+
+      if(info.isShadow()) {
+         oval.setShadow(info.getShadowInfo());
+      }
+
       addShape(oval, sectionName);
    }
 
