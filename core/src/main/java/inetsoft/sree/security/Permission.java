@@ -1134,6 +1134,11 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
          return false;
       }
 
+      @Override
+      public int hashCode() {
+         return Objects.hash(name, organizationID);
+      }
+
       boolean equalsIgnoreCase(PermissionIdentity other) {
          if(other == null) {
             return false;

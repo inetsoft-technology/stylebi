@@ -2646,9 +2646,15 @@ public class IdentityService {
 
       if(orgScopedGrants != null) {
          // remove identity
-         if(newIdentityID == null && orgScopedGrants.contains(oldIdentityID)) {
+         Permission.PermissionIdentity oldPermissionIdentity =
+            oldIdentityID == null ? null : new Permission.PermissionIdentity(oldIdentityID);
+
+         boolean oldIdentityGranted = oldPermissionIdentity != null &&
+            orgScopedGrants.stream().anyMatch(pid -> pid.equals(oldPermissionIdentity));
+
+         if(newIdentityID == null && oldIdentityGranted) {
             orgScopedGrants.stream()
-               .filter(identityID -> !Tool.equals(identityID, oldIdentityID))
+               .filter(identityID -> !identityID.equals(oldPermissionIdentity))
                .forEach(identityID -> grants.add(identityID));
          }
          // sync id
