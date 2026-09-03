@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.io.viewsheet.ShapeShadowUtil;
 import inetsoft.report.script.PropertyDescriptor;
+import inetsoft.uql.viewsheet.internal.LineVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ShapeVSAssemblyInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -296,6 +297,20 @@ class ShapeShadowTest {
       assertEquals(ShapeShadow.NORTH, shadow.getDirection());
       assertEquals(ShapeShadow.DEFAULT_DISTANCE, shadow.getDistance());
       assertEquals(ShapeShadow.DEFAULT_BLUR, shadow.getBlur());
+   }
+
+   @Test
+   void lineIsExcludedFromTheConfigurableShadowGateEvenWithLegacyShadowValueTrue() {
+      // Line predates configurable shadow settings and has no UI/script path
+      // to configure one; a legacy shadowValue="true" asset should keep its
+      // old fixed shadow (VSShape.paintComponent) rather than picking up the
+      // new configurable-shadow insets this gate feeds the exporters.
+      LineVSAssemblyInfo info = Mockito.mock(LineVSAssemblyInfo.class);
+      Mockito.when(info.isShadow()).thenReturn(true);
+      Mockito.when(info.getShadowInfo()).thenReturn(new ShapeShadow());
+
+      assertFalse(ShapeShadowUtil.isShapeShadow(info));
+      assertNoInsets(ShapeShadowUtil.getShadowInsets(info));
    }
 
    private static void assertNoInsets(Insets insets) {
