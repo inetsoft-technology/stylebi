@@ -22,13 +22,17 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HyperlinkDialogModel;
+import inetsoft.web.composer.model.vs.InputParameterDialogModel;
 import inetsoft.web.composer.vs.dialog.HyperlinkDialogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * An assembly's hyperlink.
@@ -349,6 +353,7 @@ public class AssemblyHyperlinkService {
          model.setBookmark(null);
          model.setTargetFrame(null);
          model.setTooltip(null);
+         model.setParamList(null);
          return;
       }
 
@@ -393,6 +398,108 @@ public class AssemblyHyperlinkService {
       if(link.get("disableParameterPrompt") instanceof Boolean disable) {
          model.setDisableParameterPrompt(disable);
       }
+
+      if(link.containsKey("paramList")) {
+         model.setParamList(parseParamList(link.get("paramList"), model));
+      }
+
+      // HyperlinkDialog.submit() (the Angular dialog) treats "self" as pure UI sugar: checking
+      // it rewrites targetFrame to "SELF" right before the model is sent, and
+      // HyperlinkDialogService.setHyperlinkDialogModel only ever reads targetFrame -- it never
+      // reads getSelf(). Without this, a caller sending self:true (and nothing else) gets ok:true
+      // and a link that does nothing when clicked, since the boolean this method stores above is
+      // discarded at persist time. Applying the same rewrite here, unconditionally and after every
+      // other field, is what makes self:true behave the way the checkbox does -- including
+      // overriding an explicit targetFrame in the same call, exactly like the checkbox overrides
+      // the dialog's own free-text field.
+      if(Boolean.TRUE.equals(link.get("self"))) {
+         model.setTargetFrame("SELF");
+      }
+   }
+
+   /**
+    * Maps the agent's {@code paramList} entries -- {@code {name, value, valueSource, type}} --
+    * onto {@link InputParameterDialogModel}, the same shape {@code HyperlinkDialogService} reads
+    * when building the persisted {@link Hyperlink}'s custom parameters.
+    *
+    * <p>Only two {@code valueSource} values exist on the real dialog
+    * ({@code InputParameterDialog.changeValueSource}): {@code constant} (a literal value, typed
+    * by {@code type}) and {@code field} (an existing bindable field's name, matching one of
+    * {@code model.getFields()} by {@link DataRefModel#getName()} -- the same identifier
+    * {@code InputParameterDialog.ok()} matches against). A {@code field} entry naming a column
+    * this assembly cannot actually bind is refused here rather than accepted and silently
+    * producing a parameter with no data behind it.
+    */
+   private static List<InputParameterDialogModel> parseParamList(Object raw,
+                                                                  HyperlinkDialogModel model)
+   {
+      if(!(raw instanceof List<?> rawList)) {
+         throw new IllegalArgumentException(
+            "'paramList' must be an array of {name, value, valueSource, type} objects, got '" +
+            raw + "'.");
+      }
+
+      Set<String> fieldNames = model.getFields().stream()
+         .map(DataRefModel::getName)
+         .collect(Collectors.toSet());
+      List<InputParameterDialogModel> params = new ArrayList<>();
+
+      for(Object entry : rawList) {
+         if(!(entry instanceof Map<?, ?> rawEntry)) {
+            throw new IllegalArgumentException(
+               "Each 'paramList' entry must be an object with 'name' and 'value', got '" + entry +
+               "'.");
+         }
+
+         @SuppressWarnings("unchecked")
+         Map<String, Object> paramMap = (Map<String, Object>) rawEntry;
+         String name = str(paramMap, "name");
+
+         if(name == null) {
+            throw new IllegalArgumentException("Each 'paramList' entry needs a 'name'.");
+         }
+
+         String source = str(paramMap, "valueSource");
+         source = source == null ? "constant" : source.trim().toLowerCase();
+
+         if(!"constant".equals(source) && !"field".equals(source)) {
+            throw new IllegalArgumentException(
+               "paramList entry '" + name + "': 'valueSource' must be 'constant' or 'field', " +
+               "got '" + source + "'.");
+         }
+
+         String value = str(paramMap, "value");
+
+         if(value == null) {
+            throw new IllegalArgumentException("paramList entry '" + name + "' needs a 'value'.");
+         }
+
+         if("field".equals(source) && !fieldNames.contains(value)) {
+            throw new IllegalArgumentException(
+               "paramList entry '" + name + "': 'value' must name a field this assembly can " +
+               "bind (see list_bindable_fields), got '" + value + "'. Known fields: " +
+               new TreeSet<>(fieldNames));
+         }
+
+         InputParameterDialogModel param = new InputParameterDialogModel();
+         param.setName(name);
+         param.setValueSource(source);
+         param.setValue(value);
+
+         // A constant entry always needs a type -- Hyperlink.getParameterType(name) returning
+         // null is how HyperlinkDialogService.getHyperlinkDialogModel's read path infers
+         // valueSource "field" (type == null ? "field" : "constant"). Leaving type null here for
+         // an agent that (naturally) omitted it would round-trip a constant param back as a
+         // "field" one on the very next read, and this class's own field-name validation above
+         // would then refuse it on resubmission -- rejecting a param that worked. XSchema.STRING
+         // matches what the real dialog itself defaults to (InputParameterDialog: every
+         // newly-created or "constant"-switched-to param starts as XSchema.STRING).
+         String type = str(paramMap, "type");
+         param.setType("constant".equals(source) ? (type == null ? XSchema.STRING : type) : null);
+         params.add(param);
+      }
+
+      return params;
    }
 
    private static Map<String, Object> describe(String assemblyName, HyperlinkDialogModel model,
@@ -409,12 +516,19 @@ public class AssemblyHyperlinkService {
       out.put("linkType", tokenOf(model.getLinkType()));
       out.put("webLink", model.getWebLink());
       out.put("assetLinkPath", model.getAssetLinkPath());
+      // The model carries this correctly (HyperlinkDialogService.getHyperlinkDialogModel sets it
+      // on every read), but it was never copied into this response -- a caller could set an
+      // explicit assetLinkId and then never see it come back, unable to confirm which of two
+      // same-named assets across scopes a link actually resolved to.
+      out.put("assetLinkId", model.getAssetLinkId());
       out.put("bookmark", model.getBookmark());
       out.put("targetFrame", model.getTargetFrame());
       out.put("tooltip", model.getTooltip());
       out.put("self", model.isSelf());
+      out.put("disableParameterPrompt", model.isDisableParameterPrompt());
       out.put("sendViewsheetParameters", model.isSendViewsheetParameters());
       out.put("sendSelectionsAsParameters", model.isSendSelectionsAsParameters());
+      out.put("paramList", describeParamList(model.getParamList()));
       out.put("row", model.getRow());
       out.put("col", model.getCol());
       // The dialog service does not echo colName back into the model, so reporting only the model's
@@ -423,6 +537,23 @@ public class AssemblyHyperlinkService {
       // it is the name this read was scoped to, whether or not the model repeats it.
       out.put("colName", model.getColName() != null ? model.getColName()
                  : asked == null ? null : asked.colName());
+      return out;
+   }
+
+   private static List<Map<String, Object>> describeParamList(
+      List<InputParameterDialogModel> paramList)
+   {
+      List<Map<String, Object>> out = new ArrayList<>();
+
+      for(InputParameterDialogModel param : paramList) {
+         Map<String, Object> entry = new LinkedHashMap<>();
+         entry.put("name", param.getName());
+         entry.put("valueSource", param.getValueSource());
+         entry.put("value", param.getValue());
+         entry.put("type", param.getType());
+         out.add(entry);
+      }
+
       return out;
    }
 

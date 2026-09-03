@@ -63,7 +63,7 @@ class WizVsServiceCollectChartFlatBindingMultiStyleTest {
    @Test
    void collectFlatBindingReadsTheDimensionFromAPerMeasureColorAestheticRef() {
       WizVsService service = new WizVsService(
-         mock(ViewsheetService.class), mock(AssetRepository.class), mock(SecurityEngine.class), null, null);
+         mock(ViewsheetService.class), mock(AssetRepository.class), mock(SecurityEngine.class), null, null, null);
 
       VSChartDimensionRef productName = new VSChartDimensionRef();
       productName.setGroupColumnValue("PRODUCT_NAME");
@@ -102,7 +102,7 @@ class WizVsServiceCollectChartFlatBindingMultiStyleTest {
    @Test
    void collectFlatBindingIgnoresAStaleAggregateColorFieldWhenNotMultiStyles() {
       WizVsService service = new WizVsService(
-         mock(ViewsheetService.class), mock(AssetRepository.class), mock(SecurityEngine.class), null, null);
+         mock(ViewsheetService.class), mock(AssetRepository.class), mock(SecurityEngine.class), null, null, null);
 
       VSChartDimensionRef productName = new VSChartDimensionRef();
       productName.setGroupColumnValue("PRODUCT_NAME");

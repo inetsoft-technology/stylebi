@@ -2261,6 +2261,90 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals("field['end_date'] - field['start_date']", expr3);
    }
 
+   @Test
+   void addExpressionColumnInfersNumericTypeForPureArithmeticExpression() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("a")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("b")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // No "type" argument -- a purely-arithmetic expression over numeric columns must
+      // infer numeric instead of silently falling through to the untyped "string"
+      // default.
+      svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("T", "computed", "field['a'] * field['b']", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("computed");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnInfersNumericTypeForThreeFactorExpression() throws Exception {
+      // The three-factor, parenthesized-subtraction shape from the bug doc's G9 case --
+      // must infer the same as the two-factor case above.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b", "c");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("a")).setDataType(XSchema.DOUBLE);
+      ((ColumnRef) cs.getAttribute("b")).setDataType(XSchema.DOUBLE);
+      ((ColumnRef) cs.getAttribute("c")).setDataType(XSchema.DOUBLE);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "computed", "field['a'] * field['b'] * (1 - field['c'])", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("computed");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnLeavesStringDefaultForNonNumericExpression() throws Exception {
+      Worksheet ws = new Worksheet();
+      // "a" and "b" are left at their default (untyped -> string) type.
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Referenced fields are not numeric -- must not guess; the existing "string"
+      // default is preserved.
+      svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("T", "computed", "field['a'] + field['b']", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("computed");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnHonorsExplicitTypeOverInference() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("a")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("b")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Even though the expression would infer as numeric, an explicit "type" argument
+      // must still win over inference (no regression on the existing explicit-type path).
+      svc.apply("TOK", agent, ed ->
+         ed.addExpressionColumn("T", "computed", "field['a'] * field['b']", "integer", false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("computed");
+      assertNotNull(col);
+      assertEquals(XSchema.INTEGER, col.getDataType());
+   }
+
    // =========================================================================
    // Duplicate-name rejection tests — add_column / add_expression_column
    // =========================================================================
@@ -2596,6 +2680,86 @@ class WorksheetEditServiceMutatorsTest {
 
       assertNotNull(t.getColumnSelection(false).getAttribute("newcalc"),
                     "'newcalc' should be added as a new expression column");
+   }
+
+   @Test
+   void editExpressionInfersNumericTypeWhenTypeOmitted() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("a")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("b")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Original add omits "type" against a non-numeric expression, landing on the
+      // untyped "string" default -- same gap as add_expression_column.
+      svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("T", "calc", "'literal'", null, false));
+
+      // A later edit_expression, also omitting "type", switches to a purely-arithmetic
+      // numeric expression -- it must infer numeric instead of keeping the stale string
+      // default.
+      svc.apply("TOK", agent,
+         ed -> ed.editExpression("T", "calc", "field['a'] * field['b']", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("calc");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void editExpressionPreservesExplicitPriorTypeWhenTypeOmitted() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("a")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("b")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.addExpressionColumn("T", "calc", "field['a'] * 1", "integer", false));
+
+      // Omitting "type" on edit_expression must leave a real, previously-set explicit
+      // type alone -- per the "null = leave unchanged" contract -- even though the new
+      // expression would otherwise infer as numeric (double).
+      svc.apply("TOK", agent, ed ->
+         ed.editExpression("T", "calc", "field['a'] * field['b']", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("calc");
+      assertNotNull(col);
+      assertEquals(XSchema.INTEGER, col.getDataType());
+   }
+
+   @Test
+   void editExpressionPreservesExplicitStringPriorTypeWhenTypeOmitted() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("a")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("b")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.addExpressionColumn("T", "calc", "field['a'] * 1", "string", false));
+
+      // An explicit "string" prior type happens to equal the untyped fallback's
+      // *derived* getDataType() value, so a guard that compares against that value
+      // (instead of checking whether a type was ever explicitly set) would wrongly
+      // re-infer here. Omitting "type" on edit_expression must still leave a real,
+      // previously-set explicit "string" type alone, even though the new expression
+      // would otherwise infer as numeric (double).
+      svc.apply("TOK", agent, ed ->
+         ed.editExpression("T", "calc", "field['a'] * field['b']", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("calc");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType());
    }
 
    @Test
@@ -4687,6 +4851,29 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
+    * A builtin name in the wrong case (e.g. an LLM normalizing "Last month" to "LAST MONTH")
+    * must still resolve, mirroring ConditionUtil.fromModelToConditionList's now-case-insensitive
+    * builtin lookup -- not fail to match and fall through to an unresolved condition.
+    */
+   @Test
+   void addFilterWithDateInResolvesANameInTheWrongCase() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "LAST MONTH"));
+
+      XCondition xc = firstXCondition(t);
+      assertInstanceOf(DateCondition.MonthCondition.class, xc,
+         "a wrong-cased builtin name must still resolve to a real DateCondition");
+      DateCondition.MonthCondition mc = (DateCondition.MonthCondition) xc;
+      assertEquals(0, mc.getYearN());
+      assertEquals(1, mc.getMonthN());
+   }
+
+   /**
     * An unmatched/typo'd range name must fail loudly, naming the bad value -- not silently
     * substitute the shared rescue mechanism's hardcoded "one year ago" default (see
     * ConditionTest#toSqlConditionSilentlyDefaultsOnAnUnmatchedName for that default's own
@@ -4736,6 +4923,73 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals(2, mc.getMonthN());
       assertNotSame(rangeCondition, xc,
          "must be a clone -- the assembly's own DateRange must not be aliased into the condition");
+   }
+
+   /**
+    * The worksheet DateRangeAssembly name match must not be case-sensitive -- an LLM might pass
+    * the range's name in the wrong case, and it must still resolve via the case-insensitive
+    * fallback scan (only reached once the exact-name lookup above it misses), mirroring
+    * ConditionUtil.fromModelToConditionList's DATE_IN branch.
+    */
+   @Test
+   void addFilterWithDateInResolvesAWorksheetNamedDateRangeInTheWrongCase() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+
+      DateCondition.MonthCondition rangeCondition = new DateCondition.MonthCondition(2, 0);
+      DefaultDateRangeAssembly range = new DefaultDateRangeAssembly(ws, "MyRange");
+      range.setDateRange(rangeCondition);
+      ws.addAssembly(range);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "myrange"));
+
+      XCondition xc = firstXCondition(t);
+      assertInstanceOf(DateCondition.MonthCondition.class, xc,
+         "a wrong-case worksheet DateRangeAssembly name must still resolve to a real " +
+         "DateCondition, not fall through unresolved");
+      DateCondition.MonthCondition mc = (DateCondition.MonthCondition) xc;
+      assertEquals(0, mc.getYearN());
+      assertEquals(2, mc.getMonthN());
+   }
+
+   /**
+    * When two worksheet DateRangeAssemblies differ only by case, an exact-name match must win
+    * over the case-insensitive fallback scan -- otherwise which one resolves depends on
+    * {@code Worksheet#getAssemblies()} iteration order, which callers cannot rely on. This is
+    * the determinism guarantee the exact-match-first ordering in the fix exists to provide.
+    */
+   @Test
+   void addFilterWithDateInPrefersExactNameMatchOverCaseInsensitiveScan() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+
+      DateCondition.MonthCondition exactRange = new DateCondition.MonthCondition(2, 0);
+      DefaultDateRangeAssembly exact = new DefaultDateRangeAssembly(ws, "MyRange");
+      exact.setDateRange(exactRange);
+      ws.addAssembly(exact);
+
+      DateCondition.MonthCondition otherCaseRange = new DateCondition.MonthCondition(5, 1);
+      DefaultDateRangeAssembly otherCase = new DefaultDateRangeAssembly(ws, "MYRANGE");
+      otherCase.setDateRange(otherCaseRange);
+      ws.addAssembly(otherCase);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "MyRange"));
+
+      XCondition xc = firstXCondition(t);
+      assertInstanceOf(DateCondition.MonthCondition.class, xc);
+      DateCondition.MonthCondition mc = (DateCondition.MonthCondition) xc;
+      assertEquals(0, mc.getYearN());
+      assertEquals(2, mc.getMonthN(),
+         "an exact-name match must be used, not whichever case-insensitive candidate the scan " +
+         "happens to hit first");
    }
 
    /** Mirrors addFilter's resolution through set_conditions's separate condition-building path. */

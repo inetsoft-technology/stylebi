@@ -122,7 +122,7 @@ class WizVsServiceCorrectsWrongGeoMapTypeTest {
    }
 
    private static WizVsService newService() {
-      return new WizVsService(null, null, null, null, null);
+      return new WizVsService(null, null, null, null, null, null);
    }
 
    @Test

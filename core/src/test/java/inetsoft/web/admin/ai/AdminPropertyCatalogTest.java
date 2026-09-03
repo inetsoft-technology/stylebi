@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai;
 
+import java.lang.reflect.Field;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -154,12 +155,19 @@ class AdminPropertyCatalogTest {
 
    @Test
    void classifiesEncryptedCredentialsByTheirWriterNotTheirName() {
-      // The four properties the name predicate does NOT match but which Enterprise Manager writes
-      // with setPassword. Before they were listed, admin-chat wrote them plain and silently
+      // The properties Enterprise Manager writes through an encrypting accessor. Before the four
+      // the name predicate does NOT match were listed, admin-chat wrote them plain and silently
       // downgraded a stored credential to plaintext at rest.
+      //
+      // log.fluentd.security.password is here as of Redmine #76170: Redmine #76051 (dc8877f8a)
+      // moved LogSettingService's write of it onto the same toPassword helper as the shared key,
+      // and the entry that should have followed did not. Unlike the four above, its name matches,
+      // so nothing leaked - the cost was that admin-chat refused to set a property it could have
+      // set correctly.
       for(String name : new String[] { "mail.smtp.pass", "mail.smtp.clientsecret",
                                        "mail.smtp.accesstoken", "mail.smtp.refreshtoken",
                                        "log.fluentd.security.sharedkey",
+                                       "log.fluentd.security.password",
                                        "openid.client.secret",
                                        "stylebi.google.openid.client.secret" })
       {
@@ -171,13 +179,19 @@ class AdminPropertyCatalogTest {
    @Test
    void excludesAdjacentPropertiesWhoseWriterDoesNotEncrypt() {
       // Each of these sits beside a listed property and reads like it belongs. None does.
-      //   mail.smtp.tokenuri              same save block as the four above, plain setProperty
-      //   log.fluentd.security.password   sibling of sharedkey, plain setProperty - its reader
-      //                                   calls decryptPassword, which proves nothing, because
-      //                                   decryptPassword passes plaintext straight through
+      //   mail.smtp.tokenuri              same save block as the four above, plain setProperty -
+      //                                   and it is READ with SreeEnv.getPassword, which decrypts,
+      //                                   so by its reader it looks encrypted. It is not. This is
+      //                                   the standing example of why only the writer settles it,
+      //                                   because decryptPassword passes plaintext straight
+      //                                   through (LocalPasswordEncryption's clear-text branch).
       //   auth0.client.secret             read plain; the legacy migration encrypts on the way out
       //   sso.rsa.public.key              a PUBLIC key
-      for(String name : new String[] { "mail.smtp.tokenuri", "log.fluentd.security.password",
+      //
+      // log.fluentd.security.password used to head this list and no longer belongs to it - see
+      // classifiesEncryptedCredentialsByTheirWriterNotTheirName above. It is the reason this test
+      // asserts against the WRITER and not against a remembered classification.
+      for(String name : new String[] { "mail.smtp.tokenuri",
                                        "auth0.client.secret", "sso.rsa.public.key",
                                        "google.maps.key", "enable.changepassword",
                                        "password.encryption.key", "jwt.signing.key" })
@@ -216,17 +230,104 @@ class AdminPropertyCatalogTest {
 
    @Test
    void keepsWithholdingSecretNamesThatNoWriterEncrypts() {
-      // The union must not have narrowed to the allow-list. Fourteen of the sixteen names
-      // isSecret withheld before #76006 are written by nothing that encrypts, so the writer test
-      // alone would have unmasked them all in order to close the four above. (The sixteenth,
-      // enable.changepassword, moved to CONFIRMED_NOT_SECRET below - see the item-4 fix.)
+      // The union must not have narrowed to the allow-list. Most of the names isSecret withheld
+      // before #76006 are written by nothing that encrypts, so the writer test alone would have
+      // unmasked them all in order to close the four that needed closing.
+      //
+      // Deliberately no count here or in the isSecret javadoc. The javadoc said "fifteen" and this
+      // comment said "fourteen" for the same group, and both were left behind by the three
+      // CONFIRMED_NOT_SECRET carve-outs and again by log.fluentd.security.password moving to the
+      // writer-classified list in #76170. What matters is that the group is non-empty, which the
+      // loop asserts.
       for(String name : new String[] { "license.key", "jwt.signing.key", "password.encryption.key",
-                                       "sso.rsa.private.key", "log.fluentd.security.password" })
+                                       "sso.rsa.private.key" })
       {
          assertFalse(AdminPropertyCatalog.isEncryptedCredential(name),
                      name + ": nothing encrypts this on write, so only the name test can cover it");
          assertTrue(AdminPropertyCatalog.isSecret(name), name + " must stay withheld");
       }
+   }
+
+   @Test
+   void withholdsABearerCredentialThatNeitherItsNameNorItsWriterGivesAway() {
+      // Redmine #76170. A Slack or Google Chat incoming-webhook URL carries its token in the path:
+      // possession is sufficient to post to that channel, with no second factor and no request
+      // signature. Both were returned in full to a caller that relays responses to a model
+      // provider off-host, because the two tests that existed ask about the NAME and about the
+      // STORAGE FORM, and a bearer token can be unremarkable in both.
+      for(String name : new String[] { "share.slack.url", "share.googlechat.url" })
+      {
+         assertFalse(matchesTheNamePattern(name),
+                     name + ": the point of this test is that the NAME does not match - if it now "
+                     + "does, CONFIRMED_SECRET is no longer what covers it");
+         assertFalse(AdminPropertyCatalog.isEncryptedCredential(name),
+                     name + ": nothing encrypts this on write, so the writer test cannot cover it "
+                     + "either - and listing it there would make admin-chat store ciphertext "
+                     + "under a property every reader expects to hold a literal URL");
+         assertTrue(AdminPropertyCatalog.isSecret(name),
+                    name + " grants access to whoever holds it and must not be read back");
+      }
+   }
+
+   @Test
+   void withholdsABearerCredentialWhateverCasingTheCallerUses() {
+      assertTrue(AdminPropertyCatalog.isSecret("Share.Slack.URL"));
+      assertTrue(AdminPropertyCatalog.isSecret("SHARE.GOOGLECHAT.URL"));
+   }
+
+   @Test
+   void withholdsOnlyTheWebhookUrlAndNotTheShareSettingsAroundIt() {
+      // The carve-out must be the two names, not the share.* prefix. An operator needs to see
+      // whether sharing is enabled, and only the URL is the credential.
+      for(String name : new String[] { "share.googlechat.enabled", "share.slack.enabled",
+                                       "share.email.enabled" })
+      {
+         assertFalse(AdminPropertyCatalog.isSecret(name), name + " is not a secret");
+      }
+   }
+
+   @Test
+   void keepsTheHandVerifiedNameListsDisjoint() throws Exception {
+      // isSecret checks CONFIRMED_NOT_SECRET first and returns early, so a name in both sets is
+      // read back in the clear with nothing to indicate the contradiction. The ordering inside
+      // isSecret is only safe while this holds.
+      //
+      // Reflected over the actual fields rather than asserted through isSecret over hardcoded
+      // names. That spelling looked equivalent and was not: adding one of the CONFIRMED_NOT_SECRET
+      // names to CONFIRMED_SECRET leaves assertFalse(isSecret(name)) passing, because the early
+      // return still fires - so the test would have gone green on precisely the contradiction it
+      // claims to catch. Reading the sets is the only way to assert a property OF the sets.
+      //
+      // COMPOSITE_SECRET_PROPERTIES and ENCRYPTED_CREDENTIALS sit in the same union, so the early
+      // return shadows them identically - every positive set is checked here, not just the two
+      // this bug happened to touch. ENCRYPTED_CREDENTIALS matters most of the three: a name in it
+      // AND in CONFIRMED_NOT_SECRET is read back in the clear with no diagnostic at all, which is
+      // exactly the failure this test was written to catch.
+      Set<String> notSecret = nameSet("CONFIRMED_NOT_SECRET");
+
+      assertFalse(notSecret.isEmpty(),
+                  "CONFIRMED_NOT_SECRET is empty - the checks below would be vacuous");
+
+      for(String field :
+          List.of("CONFIRMED_SECRET", "COMPOSITE_SECRET_PROPERTIES", "ENCRYPTED_CREDENTIALS"))
+      {
+         Set<String> secret = nameSet(field);
+         assertFalse(secret.isEmpty(), field + " is empty - the check below would be vacuous");
+
+         Set<String> both = new HashSet<>(secret);
+         both.retainAll(notSecret);
+         assertTrue(both.isEmpty(),
+                    "a name cannot be both a verified secret and a verified non-secret; " +
+                    "CONFIRMED_NOT_SECRET wins silently because isSecret returns early on it: " +
+                    field + " " + both);
+      }
+   }
+
+   @SuppressWarnings("unchecked")
+   private static Set<String> nameSet(String field) throws Exception {
+      Field f = AdminPropertyCatalog.class.getDeclaredField(field);
+      f.setAccessible(true);
+      return (Set<String>) f.get(null);
    }
 
    @Test

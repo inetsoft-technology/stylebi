@@ -120,6 +120,8 @@ class BindingAgentControllerTest {
                                         mock(ChartAestheticAgentService.class),
                                         mock(TableBindingService.class),
                                         mock(CalcTableService.class),
+                                        mock(SelectionBindingService.class),
+                                        mock(CalcFieldAgentService.class),
                                         mock(SheetAgentBroadcastService.class));
    }
 
@@ -135,6 +137,8 @@ class BindingAgentControllerTest {
                                         mock(ChartAestheticAgentService.class),
                                         mock(TableBindingService.class),
                                         mock(CalcTableService.class),
+                                        mock(SelectionBindingService.class),
+                                        mock(CalcFieldAgentService.class),
                                         mock(SheetAgentBroadcastService.class));
    }
 
@@ -272,6 +276,7 @@ class BindingAgentControllerTest {
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), chartService, mock(ChartAestheticAgentService.class),
          mock(TableBindingService.class), mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
          mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.ShelfRequest request = new BindingAgentController.ShelfRequest(
@@ -300,6 +305,7 @@ class BindingAgentControllerTest {
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), chartService, mock(ChartAestheticAgentService.class),
          mock(TableBindingService.class), mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
          mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.SingleShelfRequest request = new BindingAgentController.SingleShelfRequest(
@@ -327,6 +333,7 @@ class BindingAgentControllerTest {
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), mock(ChartBindingService.class), aestheticService,
          mock(TableBindingService.class), mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
          mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.AestheticFieldRequest request =
@@ -341,11 +348,12 @@ class BindingAgentControllerTest {
    }
 
    /**
-    * PCB-004: set_table_fields does not go through resolveSourceTable/BindableColumns.requireSource
-    * like the chart callers above -- its own request carries no {@code table} param to resolve
-    * against, so the guard lives directly in {@link TableBindingService#setShelf}. Driven through
-    * a real (not mocked) {@code TableBindingService} to confirm the exception surfaces through the
-    * controller endpoint the plugin actually calls, not just at the service-unit level.
+    * Drives a real (not mocked) {@code TableBindingService} through the controller endpoint,
+    * unlike the mocked-service tests below. {@code resolveSourceTable} falls back to {@code null}
+    * -- rather than throwing -- when the bindable-fields listing itself fails to read (a
+    * different fault than an inconclusive listing); this confirms that in that case the write
+    * still reaches {@code TableBindingService#setShelf} with no source, and it is that method's
+    * own guard which refuses it, not merely {@code resolveSourceTable}'s.
     */
    @Test
    void setTableFieldsRefusesWhenAssemblyHasNoSource() throws Exception {
@@ -378,30 +386,127 @@ class BindingAgentControllerTest {
          sessions, binding, mock(inetsoft.web.binding.controller.VSBindingModelService.class),
          mock(inetsoft.web.binding.service.DataRefModelFactoryService.class));
 
-      // A plausible column name present on some other worksheet table, with none marked
-      // "current" -- the exact "no source set yet" shape BindableColumns.require() is documented
-      // to let through, so this listing must not be what refuses the write; the assembly's real
-      // SourceInfo is.
+      // A listing failure -- not merely an inconclusive listing -- is what reaches this guard:
+      // resolveSourceTable's own try/catch turns a read failure into a null source rather than a
+      // thrown refusal, so the write proceeds into TableBindingService with nothing established.
       BindableFieldsService fields = mock(BindableFieldsService.class);
-      when(fields.list(eq("rt1"), eq("Crosstab1"), any(Principal.class))).thenReturn(
-         List.of(new inetsoft.web.wiz.binding.model.BindableTable("ORDERS", null,
-            List.of(new inetsoft.web.wiz.binding.model.BindableField("Region", "string", null)))));
+      when(fields.list(eq("rt1"), eq("Crosstab1"), any(Principal.class)))
+         .thenThrow(new RuntimeException("tree read failed"));
 
       BindingAgentController controller = new BindingAgentController(
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), mock(ChartBindingService.class),
          mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
          mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.TableShelfRequest request =
          new BindingAgentController.TableShelfRequest(
-            "Crosstab1", "rows", List.of(new FieldRef("Region", "dimension", null, null, null)));
+            "Crosstab1", "rows", List.of(new FieldRef("Region", "dimension", null, null, null)),
+            null);
 
       IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
          () -> controller.setTableFields("tok", request, principal()));
 
       assertTrue(thrown.getMessage().contains("Crosstab1"), thrown.getMessage());
       assertTrue(thrown.getMessage().contains("set_table_source"), thrown.getMessage());
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #76350, PCB-004: set_table_fields/add_table_field never resolved or established a
+   // source for a sourceless crosstab/table -- unlike the three chart endpoints above, which all
+   // call resolveSourceTable. Reported ok:true and rendered empty, with no error naming the
+   // missing source.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void setTableFieldsRefusesATableTheListingDoesNotHave() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.runtimeId(eq("tok"), any(Principal.class))).thenReturn("rt1");
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+      when(fields.list(eq("rt1"), eq("Crosstab1"), any(Principal.class))).thenReturn(List.of());
+      TableBindingService tableService = mock(TableBindingService.class);
+
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
+         mock(BindingReadService.class), mock(ChartBindingService.class),
+         mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      BindingAgentController.TableShelfRequest request = new BindingAgentController.TableShelfRequest(
+         "Crosstab1", "rows", List.of(new FieldRef("Region", "dimension", null, null, null)),
+         "Sales");
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.setTableFields("tok", request, principal()));
+
+      assertTrue(thrown.getMessage().contains("Sales"), thrown.getMessage());
+      verifyNoInteractions(tableService);
+   }
+
+   /** @see #setTableFieldsRefusesATableTheListingDoesNotHave -- add_table_field shares the gap. */
+   @Test
+   void addTableFieldRefusesATableTheListingDoesNotHave() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.runtimeId(eq("tok"), any(Principal.class))).thenReturn("rt1");
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+      when(fields.list(eq("rt1"), eq("Crosstab1"), any(Principal.class))).thenReturn(List.of());
+      TableBindingService tableService = mock(TableBindingService.class);
+
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
+         mock(BindingReadService.class), mock(ChartBindingService.class),
+         mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      BindingAgentController.TableFieldRequest request = new BindingAgentController.TableFieldRequest(
+         "Crosstab1", "rows", new FieldRef("Region", "dimension", null, null, null), null, "Sales");
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.addTableField("tok", request, principal()));
+
+      assertTrue(thrown.getMessage().contains("Sales"), thrown.getMessage());
+      verifyNoInteractions(tableService);
+   }
+
+   /**
+    * The other half of the fix: when the listing resolves a single unambiguous table, that table
+    * is forwarded to the service to establish as the assembly's source -- not just validated and
+    * discarded, which is what left the assembly sourceless before this fix.
+    */
+   @Test
+   void setTableFieldsForwardsTheResolvedSourceToTheService() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.runtimeId(eq("tok"), any(Principal.class))).thenReturn("rt1");
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+      when(fields.list(eq("rt1"), eq("Crosstab1"), any(Principal.class))).thenReturn(List.of(
+         new inetsoft.web.wiz.binding.model.BindableTable("ORDERS", null, List.of(
+            new inetsoft.web.wiz.binding.model.BindableField("Region", "string", "dimension")))));
+      TableBindingService tableService = mock(TableBindingService.class);
+
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
+         mock(BindingReadService.class), mock(ChartBindingService.class),
+         mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      BindingAgentController.TableShelfRequest request = new BindingAgentController.TableShelfRequest(
+         "Crosstab1", "rows", List.of(new FieldRef("Region", "dimension", null, null, null)),
+         null);
+
+      controller.setTableFields("tok", request, principal());
+
+      verify(tableService).setShelf(eq("tok"), any(Principal.class), eq("Crosstab1"), eq("rows"),
+                                    eq(request.fields()), eq("ORDERS"));
    }
 
    // ---------------------------------------------------------------------------
@@ -421,7 +526,8 @@ class BindingAgentControllerTest {
          mock(ViewsheetSessionService.class), mock(BindableFieldsService.class),
          mock(BindingReadService.class), mock(ChartBindingService.class),
          mock(ChartAestheticAgentService.class), mock(TableBindingService.class),
-         mock(CalcTableService.class), broadcast);
+         mock(CalcTableService.class), mock(SelectionBindingService.class),
+         mock(CalcFieldAgentService.class), broadcast);
 
       controller.detach("my-token", principal());
 
@@ -440,7 +546,8 @@ class BindingAgentControllerTest {
          mock(ViewsheetSessionService.class), mock(BindableFieldsService.class),
          mock(BindingReadService.class), mock(ChartBindingService.class),
          mock(ChartAestheticAgentService.class), mock(TableBindingService.class),
-         mock(CalcTableService.class), broadcast);
+         mock(CalcTableService.class), mock(SelectionBindingService.class),
+         mock(CalcFieldAgentService.class), broadcast);
 
       controller.detach("someone-elses-token", principal());
 

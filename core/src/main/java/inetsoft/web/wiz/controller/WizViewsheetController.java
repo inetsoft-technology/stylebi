@@ -69,6 +69,23 @@ public class WizViewsheetController {
       return run("apply highlight", () -> wizVsService.applyHighlight(model, user));
    }
 
+   @PostMapping(value = "/viewsheet/filters", produces = MediaType.APPLICATION_JSON_VALUE)
+   public ResponseEntity<?> addFilters(@Valid @RequestBody AddFiltersRequest request, Principal user) {
+      return run("add visualization filters", () -> wizVsService.addFilters(request, user));
+   }
+
+   @PostMapping(value = "/viewsheet/filters/remove", produces = MediaType.APPLICATION_JSON_VALUE)
+   public ResponseEntity<?> removeFilter(@Valid @RequestBody RemoveFilterRequest request, Principal user) {
+      return run("remove visualization filter", () -> wizVsService.removeFilter(request, user));
+   }
+
+   @PostMapping(value = "/viewsheet/image", produces = MediaType.APPLICATION_JSON_VALUE)
+   public ResponseEntity<?> getVisualizationImage(@Valid @RequestBody VisualizationImageRequest request,
+                                                  Principal user)
+   {
+      return run("render visualization image", () -> wizVsService.getVisualizationImage(request, user));
+   }
+
    @PostMapping("/viewsheet/validateBinding")
    public void validateBinding(@RequestBody CreateVisualizationModel model,
                                Principal user) throws Exception

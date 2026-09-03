@@ -294,10 +294,18 @@ class AdminChangePlanServiceTest {
    }
 
    @Test void stillRefusesASecretThatIsNotAnAllowListedCredential() {
-      // password.encryption.key is the master key; log.fluentd.security.password is read with a
-      // plain getProperty. Neither may be written here, and the allow-list is why.
+      // password.encryption.key is the master key and sso.rsa.private.key is generated material;
+      // none of these may be written here, and the allow-list is why. sso.rsa.private.key is the
+      // interesting one: LocalPasswordEncryption does write it with SreeEnv.setPassword, so the
+      // writer test would list it, and it is deliberately left off ENCRYPTED_CREDENTIALS anyway
+      // because generated key material must not be settable through admin-chat at all.
+      //
+      // log.fluentd.security.password used to be in this list on the grounds that it is "read with
+      // a plain getProperty" - a reader-based argument, which the class javadoc explains is never
+      // authoritative. Redmine #76051 then made its writer encrypt, and #76170 allow-listed it, so
+      // it is now settable and no longer belongs here.
       for(String prop : new String[] { "password.encryption.key", "jwt.signing.key",
-                                       "log.fluentd.security.password", "license.key" })
+                                       "sso.rsa.private.key", "license.key" })
       {
          IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
             () -> service.resolve(request("try it", prop, "x")));

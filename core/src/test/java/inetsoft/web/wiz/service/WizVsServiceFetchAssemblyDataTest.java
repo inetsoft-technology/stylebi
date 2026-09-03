@@ -53,7 +53,7 @@ class WizVsServiceFetchAssemblyDataTest {
    }
 
    private static WizVsService service(ViewsheetService vsService, SecurityEngine sec) {
-      return new WizVsService(vsService, mock(AssetRepository.class), sec, null, null);
+      return new WizVsService(vsService, mock(AssetRepository.class), sec, null, null, null);
    }
 
    @Test

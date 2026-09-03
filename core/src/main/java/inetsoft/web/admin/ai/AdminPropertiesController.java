@@ -106,6 +106,7 @@ public class AdminPropertiesController {
       AdminRiskClassifier.RiskClassification risk = classifier.classify(name);
       String description = entry == null ? null : entry.description();
       boolean credential = AdminPropertyCatalog.isEncryptedCredential(name.baseName());
+      boolean confirmedSecret = AdminPropertyCatalog.isConfirmedSecret(name.baseName());
       boolean secret = AdminPropertyCatalog.isSecret(name.baseName());
       // A secret's value is not read AT ALL, not merely omitted from the response - see the test
       // that asserts SreeEnv is never called for one. Determining existence by reading it would
@@ -146,6 +147,18 @@ public class AdminPropertiesController {
             + "exactly as the Enterprise Manager field does. You will not be able to verify the "
             + "new value by reading it back.";
       }
+      else if(confirmedSecret) {
+         // The pattern wording below would be false twice over for these: the name does NOT match
+         // the pattern (a test asserts that), and membership in a hand-verified list IS evidence
+         // the property exists. Telling the caller "this says nothing about whether the property
+         // exists" would throw away a true answer, which is the same mistake the credential branch
+         // above was added to stop.
+         description = "This is a bearer credential - possession of the value is enough to use it, "
+            + "so it is not read here, not even to test whether one is set, because this endpoint's "
+            + "caller relays responses to a model provider off-host. The property exists. It cannot "
+            + "be changed here either: nothing in the product encrypts it, so admin-chat will not "
+            + "write it. Configure it through Enterprise Manager.";
+      }
       else if(secret) {
          description = "This name matches admin-chat's secret pattern, so its value is neither "
             + "read nor changed here - not even read to test whether one is present, so this says "
@@ -165,7 +178,15 @@ public class AdminPropertiesController {
       //
       // A name that is secret by PATTERN alone gets no such term and stays unknown. All that is
       // known there is that a string matched, which is exactly what the guidance says.
-      boolean confirmed = entry != null || credential || stored != null;
+      //
+      // CONFIRMED_SECRET needs the same term as the credential list, and for the same reason
+      // (Redmine #76170). Both webhook URLs are declared in defaults.properties, so the defaults
+      // chain made `stored` non-null and they reported confirmed until this path stopped reading
+      // them. Without this term they regress to unknown, whose guidance tells the caller the name
+      // may be a typo and that an unrecognised name is written verbatim and reports success -
+      // three claims that are all false here, since AdminChangePlanService refuses the change.
+      // They are verified against their writer exactly as the credential list is.
+      boolean confirmed = entry != null || credential || confirmedSecret || stored != null;
 
       return new PropertyView(name.key(),
          entry == null ? List.of() : (entry.aliases() == null ? List.of() : entry.aliases()),

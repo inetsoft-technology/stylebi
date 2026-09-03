@@ -114,12 +114,12 @@ public class IntervalPaneModel implements Serializable {
 
    private boolean endDayAsToDate = true;
    private boolean inclusive = true;
-   private DynamicValueModel level = new DynamicValueModel(DateComparisonInfo.YEAR,
+   private DynamicValueModel level = new DynamicValueModel(DateComparisonInfo.ALL,
       DynamicValueModel.VALUE);
    private DynamicValueModel granularity = new DynamicValueModel(DateComparisonInfo.YEAR,
                                                                  DynamicValueModel.VALUE);
    private DynamicValueModel intervalEndDate = new DynamicValueModel(null, DynamicValueModel.VALUE);
-   private DynamicValueModel contextLevel = new DynamicValueModel(DateComparisonInfo.YEAR,
+   private DynamicValueModel contextLevel = new DynamicValueModel(DateComparisonInfo.ALL,
       DynamicValueModel.VALUE);
 
 }

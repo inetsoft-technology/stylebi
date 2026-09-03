@@ -136,9 +136,7 @@ public class PresentationChangePlanService {
             spec = sanitizeLookAndFeelFileNames(label, spec);
          }
 
-         if(subModel == PresentationSubModel.WEB_MAP) {
-            requireNoSecretFields(label, spec);
-         }
+         requireNoSecretFields(label, subModel, spec);
 
          JsonNode mergedNode = PresentationJson.merge(currentNode, spec);
          Object proposedModel;
@@ -323,18 +321,30 @@ public class PresentationChangePlanService {
       return base;
    }
 
-   /** 01-spec.md section 9: {@code webMap.mapboxToken}/{@code googleKey} are treated as
+   /** 01-spec.md section 9: a sub-model's {@link PresentationSubModel#secretFields()} are treated as
     * secret-classified for this area even though the underlying service returns them in the clear --
     * refused outright in a write {@code spec} (matching {@code AdminPropertyCatalog.isSecret}'s own
     * "refuse to change a secret through admin-chat" treatment), masked on every read (see
-    * {@link #projectedValue}). */
-   private static void requireNoSecretFields(String label, JsonNode spec) {
-      for(String secret : PresentationJson.WEB_MAP_SECRET_FIELDS) {
+    * {@link #projectedValue}).
+    *
+    * <p>Called for every sub-model, not just the ones that have secrets -- the set is empty for the
+    * other fourteen, so the loop is a no-op. Guarding the call with a sub-model test is what let
+    * {@code share}'s two webhook URLs stay writable here after the properties path stopped writing
+    * them (Bug #76170), and it would let the next addition do the same.
+    *
+    * <p>Refusing the write is what makes {@code AdminPropertyCatalog}'s guidance for these names
+    * ("admin-chat will not write it ... configure it through Enterprise Manager") true of the whole
+    * admin-chat surface rather than of one endpoint. That string is instruction text read by an
+    * agent, so a sub-model that accepts a value the properties path refuses does not merely leave a
+    * second way in -- it makes the guidance a false statement. */
+   private static void requireNoSecretFields(String label, PresentationSubModel subModel,
+                                             JsonNode spec)
+   {
+      for(String secret : subModel.secretFields()) {
          if(spec.has(secret)) {
             throw new IllegalArgumentException(
-               label + ".spec." + secret + ": secret-classified third-party API keys cannot be " +
-               "set through admin-chat (01-spec.md section 9) -- change it through Enterprise " +
-               "Manager instead");
+               label + ".spec." + secret + ": secret-classified credentials cannot be set through " +
+               "admin-chat (01-spec.md section 9) -- change it through Enterprise Manager instead");
          }
       }
    }
@@ -342,9 +352,7 @@ public class PresentationChangePlanService {
    /** Package-visible so {@link PresentationChangesetApplyService} can compute the identical
     * before/after projection when verifying a write's read-back, instead of re-deriving its own. */
    static String projectedValue(PresentationSubModel subModel, JsonNode node) {
-      JsonNode projected = subModel == PresentationSubModel.WEB_MAP
-         ? PresentationJson.maskWebMapSecrets(node) : node;
-      return PresentationJson.writeString(projected);
+      return PresentationJson.writeString(PresentationJson.maskSecrets(subModel, node));
    }
 
    // ---------------------------------------------------------------- hash

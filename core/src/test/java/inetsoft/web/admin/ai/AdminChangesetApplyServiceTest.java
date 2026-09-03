@@ -361,6 +361,83 @@ class AdminChangesetApplyServiceTest {
       verify(changeService, never()).applyChange(any(), any());
    }
 
+   @Test
+   void masksACredentialsStoredValuesInTheApplyResponse() throws Exception {
+      // Redmine #76170. before/after are the STORED form, justified on the grounds that a
+      // credential is stored as ciphertext and ciphertext is not the secret. Only normally:
+      // Tool.decryptPassword passes plaintext through, so a credential can sit in the store in
+      // the clear. log.fluentd.security.password did exactly that until Redmine #76051, and
+      // INETSOFTENV_* promotion and the raw EM properties page still bypass every encrypting
+      // writer. Echoing it here would hand the old credential to a model provider off-host.
+      stub("log.fluentd.security.password", "old-plaintext-pw");
+      when(changeService.applyChange(any(), eq(principal)))
+         .thenReturn(result("log.fluentd.security.password", "old-plaintext-pw", "ENC(new)",
+                            AdminChangeRecord.STATUS_VERIFIED, null));
+
+      ApplyResult applied = service.apply(
+         request("t", "log.fluentd.security.password", "new-pw"), principal);
+
+      ApplyOutcome outcome = applied.results().get(0);
+      assertEquals("(set)", outcome.before(), "the previous credential must not be echoed");
+      assertEquals("(set)", outcome.after(), "nor the new stored form");
+      assertFalse(String.valueOf(outcome.before()).contains("old-plaintext-pw"));
+   }
+
+   @Test
+   void stillReportsACredentialAsUnsetWhenItHadNoPriorValue() throws Exception {
+      // The mask must not erase the set/unset distinction - an operator reading the outcome needs
+      // to know whether the apply replaced a credential or established one.
+      stub("mail.smtp.pass", null);
+      when(changeService.applyChange(any(), eq(principal)))
+         .thenReturn(result("mail.smtp.pass", null, "ENC(new)",
+                            AdminChangeRecord.STATUS_VERIFIED, null));
+
+      ApplyResult applied = service.apply(request("t", "mail.smtp.pass", "hunter2"), principal);
+
+      ApplyOutcome outcome = applied.results().get(0);
+      assertNull(outcome.before(), "no prior credential must stay distinguishable from one set");
+      assertEquals("(set)", outcome.after());
+   }
+
+   @Test
+   void leavesAnOrdinaryPropertysValuesUnmaskedInTheApplyResponse() throws Exception {
+      // The mask is scoped to credentials. Masking ordinary values would cost the operator the
+      // before/after evidence the review gate exists to show them.
+      stub("query.runtime.maxrow", "100");
+      when(changeService.applyChange(any(), eq(principal)))
+         .thenReturn(result("query.runtime.maxrow", "100", "500",
+                            AdminChangeRecord.STATUS_VERIFIED, null));
+
+      ApplyResult applied = service.apply(request("t", "max.rows", "500"), principal);
+
+      ApplyOutcome outcome = applied.results().get(0);
+      assertEquals("100", outcome.before());
+      assertEquals("500", outcome.after());
+   }
+
+   @Test
+   void rollsBackACredentialWithItsRealStoredValueNotTheMaskedOne() throws Exception {
+      // The masking seam matters: it is in the response DTO, not in AdminChangeResult, because
+      // rollback replays applied.getBeforeValue(). If the mask leaked into that path, a rollback
+      // would write the literal string "(set)" into the credential property.
+      stub("mail.smtp.pass", "ENC(old)");
+      stub("query.runtime.maxrow", "100");
+      when(changeService.applyChange(any(), eq(principal)))
+         .thenReturn(result("mail.smtp.pass", "ENC(old)", "ENC(new)",
+                            AdminChangeRecord.STATUS_VERIFIED, null))
+         .thenReturn(result("query.runtime.maxrow", "100", "100",
+                            AdminChangeRecord.STATUS_FAILED, "did not take"))
+         .thenReturn(result("mail.smtp.pass", "ENC(new)", "ENC(old)",
+                            AdminChangeRecord.STATUS_VERIFIED, null));
+
+      service.apply(request("t", "mail.smtp.pass", "hunter2", "max.rows", "500"), principal);
+
+      verify(changeService).applyChange(argThat(
+         req -> AdminChangeRecord.ACTION_ROLLBACK.equals(req.getAction())
+            && "mail.smtp.pass".equals(req.getProperty())
+            && "ENC(old)".equals(req.getValue())), eq(principal));
+   }
+
    // ── rollback ─────────────────────────────────────────────────────────────
 
    @Test

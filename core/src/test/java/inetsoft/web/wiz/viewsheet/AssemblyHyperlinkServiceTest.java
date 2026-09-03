@@ -24,13 +24,16 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HyperlinkDialogModel;
+import inetsoft.web.composer.model.vs.InputParameterDialogModel;
 import inetsoft.web.composer.vs.dialog.HyperlinkDialogService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -223,6 +226,209 @@ class AssemblyHyperlinkServiceTest {
       verify(h.links).getHyperlinkDialogModel(anyString(), anyString(), eq(0), eq(0),
                                               isNull(), eq(false), eq(false), eq(true),
                                               eq(false), any(Principal.class));
+   }
+
+   // ── alignment with the real hyperlink-dialog UI ─────────────────────────────
+
+   /**
+    * The dialog's "self" checkbox is UI sugar -- {@code HyperlinkDialog.submit()} rewrites
+    * {@code targetFrame} to {@code "SELF"} right before sending, and
+    * {@code HyperlinkDialogService.setHyperlinkDialogModel} only ever reads {@code targetFrame}.
+    * Without the same rewrite here, {@code self:true} alone would be accepted and change nothing.
+    */
+   @Test
+   void selfNormalizesToTargetFrameSelf() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "web", "webLink", "https://example.com", "self", true), "");
+
+      assertEquals("SELF", capture(h.links).getTargetFrame());
+   }
+
+   /**
+    * Mirrors the dialog exactly: checking "self" overrides whatever the free-text target-frame
+    * field held, rather than losing to it. An agent sending both in one call gets the same result
+    * a human checking the box after typing a custom frame would.
+    */
+   @Test
+   void selfOverridesAnExplicitTargetFrameInTheSameCall() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "web", "webLink", "https://example.com",
+                         "targetFrame", "_blank", "self", true), "");
+
+      assertEquals("SELF", capture(h.links).getTargetFrame());
+   }
+
+   @Test
+   void disableParameterPromptIsApplied() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail",
+                         "disableParameterPrompt", true), "");
+
+      assertTrue(capture(h.links).isDisableParameterPrompt());
+   }
+
+   @Test
+   void readBackIncludesAssetLinkIdAndDisableParameterPrompt() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(Hyperlink.VIEWSHEET_LINK);
+      model.setAssetLinkId("1^128^__NULL__^Reports/Detail");
+      model.setDisableParameterPrompt(true);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1", null);
+
+      assertEquals("1^128^__NULL__^Reports/Detail", read.get("assetLinkId"));
+      assertEquals(true, read.get("disableParameterPrompt"));
+   }
+
+   @Test
+   void paramListWithAConstantValueIsApplied() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "web", "webLink", "https://example.com",
+                         "paramList", List.of(Map.of(
+                            "name", "region", "value", "West",
+                            "valueSource", "constant", "type", "string"))),
+                    "");
+
+      List<InputParameterDialogModel> params = capture(h.links).getParamList();
+      assertEquals(1, params.size());
+      assertEquals("region", params.get(0).getName());
+      assertEquals("West", params.get(0).getValue());
+      assertEquals("constant", params.get(0).getValueSource());
+      assertEquals("string", params.get(0).getType());
+   }
+
+   /** Omitting 'valueSource' means constant -- the common case shouldn't need it spelled out. */
+   @Test
+   void paramListEntryDefaultsToConstantValueSource() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "web", "webLink", "https://example.com",
+                         "paramList", List.of(Map.of("name", "region", "value", "West"))),
+                    "");
+
+      assertEquals("constant", capture(h.links).getParamList().get(0).getValueSource());
+   }
+
+   /**
+    * A constant entry with no explicit type must still round-trip as constant.
+    * {@code Hyperlink.getParameterType} returns whatever was stored -- including {@code null} --
+    * and {@code HyperlinkDialogService.getHyperlinkDialogModel}'s read path infers
+    * {@code valueSource} purely from whether that comes back null ({@code "field"}) or not
+    * ({@code "constant"}). Leaving {@code type} null for an omitted-type constant entry would
+    * make it read back as {@code "field"}, and this class's own field-name validation would then
+    * refuse it on the very next {@code set_hyperlink} resubmission of that read-back state.
+    */
+   @Test
+   void paramListEntryWithNoExplicitTypeDefaultsToStringSoItRoundTripsAsConstant()
+      throws Exception
+   {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "web", "webLink", "https://example.com",
+                         "paramList", List.of(Map.of("name", "region", "value", "West"))),
+                    "");
+
+      InputParameterDialogModel param = capture(h.links).getParamList().get(0);
+      assertEquals("string", param.getType(),
+                  "a null type is indistinguishable from a never-set one on read");
+   }
+
+   @Test
+   void paramListWithAFieldValueMustNameARealBindableField() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      DataRefModel state = mock(DataRefModel.class);
+      when(state.getName()).thenReturn("STATE");
+      model.setFields(List.of(state));
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "web", "webLink", "https://example.com",
+                         "paramList", List.of(Map.of(
+                            "name", "region", "value", "STATE", "valueSource", "field"))),
+                    "");
+
+      assertEquals("STATE", capture(h.links).getParamList().get(0).getValue());
+   }
+
+   @Test
+   void paramListRefusesAFieldValueThatIsNotABindableField() {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      DataRefModel state = mock(DataRefModel.class);
+      when(state.getName()).thenReturn("STATE");
+      model.setFields(List.of(state));
+      Harness h = harness(model);
+
+      Exception thrown = assertThrows(Exception.class, () -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "web", "webLink", "https://example.com",
+              "paramList", List.of(Map.of(
+                 "name", "region", "value", "NOT_A_FIELD", "valueSource", "field"))),
+         ""));
+
+      assertTrue(thrown.getMessage().contains("NOT_A_FIELD"));
+   }
+
+   @Test
+   void paramListEntryNeedsAName() {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      assertThrows(Exception.class, () -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "web", "webLink", "https://example.com",
+              "paramList", List.of(Map.of("value", "West"))),
+         ""));
+   }
+
+   @Test
+   void paramListRefusesAnUnknownValueSource() {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      assertThrows(Exception.class, () -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "web", "webLink", "https://example.com",
+              "paramList", List.of(Map.of(
+                 "name", "region", "value", "West", "valueSource", "expression"))),
+         ""));
+   }
+
+   @Test
+   void clearingALinkAlsoClearsTheParamList() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setParamList(new ArrayList<>(List.of(new InputParameterDialogModel())));
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", null, link("linkType", "none"), "");
+
+      assertTrue(capture(h.links).getParamList().isEmpty());
+   }
+
+   @Test
+   void readBackIncludesTheParamList() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      InputParameterDialogModel param = new InputParameterDialogModel();
+      param.setName("region");
+      param.setValueSource("constant");
+      param.setValue("West");
+      param.setType("string");
+      model.setParamList(List.of(param));
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> paramList = (List<Map<String, Object>>) read.get("paramList");
+      assertEquals(1, paramList.size());
+      assertEquals("region", paramList.get(0).get("name"));
+      assertEquals("West", paramList.get(0).get("value"));
    }
 
    // ── the read direction ────────────────────────────────────────────────────
