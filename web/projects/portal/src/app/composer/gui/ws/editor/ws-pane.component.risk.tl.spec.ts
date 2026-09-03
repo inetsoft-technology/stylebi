@@ -60,6 +60,7 @@ import {
    renderComponent,
    makeMocks,
 } from "./ws-pane.component.test-helpers";
+import { ComponentTool } from "../../../../common/util/component-tool";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -202,6 +203,42 @@ describe("WSPaneComponent — processMessageCommand routing", () => {
       } catch { /* processMessageCommand0 may throw in test env — we only care about saving */ }
 
       expect(comp.worksheet.saving).toBe(false);
+   });
+
+   // 🔁 Regression test for Bug #76433: clicking "No" on the MV-confirm dialog left
+   //    worksheet.saving stuck at true forever, since CONFIRM never dispatched through
+   //    processMessageCommand0 (which has no .saving concept) nor cleared it locally.
+   it("should set worksheet.saving=false after a CONFIRM message's No callback resolves (Bug #76433)", async () => {
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("no");
+      const { comp } = await renderComponent();
+      comp.worksheet.saving = true;
+
+      (comp as any).processMessageCommand({
+         type: "CONFIRM", message: "Build MV?", events: {}, noEvents: {},
+      });
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(comp.worksheet.saving).toBe(false);
+   });
+
+   // Round 2: an automated review found the original version of this test asserted
+   // `saving` becomes false on "Yes" too -- but that's wrong. Declining is terminal
+   // (nothing is resent), so clearing there is correct and necessary. Confirming
+   // "Yes" resends the save event; the spinner must stay up until that resend
+   // actually completes (SaveSheetCommand), not clear the instant the button is
+   // clicked -- before the resend is even sent, matching VSPane's equivalent
+   // CONFIRM handling, which never clears `vs.saving` on its own "Yes" path either.
+   it("should NOT clear worksheet.saving on a CONFIRM message's Yes callback -- it stays up until the resent save completes (Bug #76433 round 2)", async () => {
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("yes");
+      const { comp } = await renderComponent();
+      comp.worksheet.saving = true;
+
+      (comp as any).processMessageCommand({
+         type: "CONFIRM", message: "Build MV?", events: {}, noEvents: {},
+      });
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(comp.worksheet.saving).toBe(true);
    });
 });
 
