@@ -160,7 +160,6 @@ export async function renderComponent(
                   { provide: ComposerObjectService, useValue: mocks.composerObjectService },
                   { provide: EventQueueService, useValue: {} },
                   { provide: LineAnchorService, useValue: {} },
-                  { provide: ResizeHandlerService, useValue: mocks.resizeHandlerService },
                   { provide: ClipboardService, useValue: mocks.clipboardService },
                   { provide: ScriptService, useValue: {} },
                   { provide: ShowHyperlinkService, useValue: mocks.hyperLinkService },
@@ -177,6 +176,10 @@ export async function renderComponent(
          });
       },
       providers: [
+         // Provided at module ("route") level, mirroring composer.routes.ts — ComposerMainComponent
+         // no longer declares its own ResizeHandlerService (see bug #76418), so it must resolve the
+         // instance from an ancestor injector just like it does in the real composer route.
+         { provide: ResizeHandlerService, useValue: mocks.resizeHandlerService },
          { provide: NgbModal, useValue: mocks.modalService },
          { provide: ModelService, useValue: mocks.modelService },
          { provide: UIContextService, useValue: mocks.uiContextService },
