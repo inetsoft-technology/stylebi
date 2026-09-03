@@ -59,7 +59,7 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
    protected void setDefaultFormat(boolean border) {
       VSCompositeFormat format = new VSCompositeFormat();
       // avoid text being clipped in default size
-      format.getDefaultFormat().setFontValue(getDefaultFont(Font.PLAIN, 11));
+      format.getDefaultFormat().setFontValue(getDefaultFont(Font.PLAIN, 12));
       format.getCSSFormat().setCSSType(getObjCSSType());
       //Fixed bug #23941 that text assembly's border should have default "border colors".
       BorderColors bcolors = new BorderColors(
