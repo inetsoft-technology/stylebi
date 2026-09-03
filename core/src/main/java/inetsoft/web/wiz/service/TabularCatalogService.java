@@ -361,10 +361,6 @@ public class TabularCatalogService {
             field.setDescription(column.description());
          }
 
-         if(column.isDimension() != null) {
-            field.setIsDimension(column.isDimension());
-         }
-
          field.setCustomExtensions(
             List.of(buildFieldExtension(column.type(), column.isDimension(), objectMapper)));
          fields.add(field);
@@ -386,12 +382,16 @@ public class TabularCatalogService {
     * {@code declaredIsDimension} is the second half of this extension's existing "the column's
     * declared type as the source reports it" role (see {@code "type"} below): written only when
     * the source itself sorted the column into a dimension/measure list ({@code isDimension} is
-    * non-null), never inferred and never defaulted to {@code false}. It is deliberately placed
-    * here, in the field-level COMMON extension, rather than only on {@link OsiField#isDimension},
-    * because the annotation merge overwrites {@code OsiField.isDimension} with the LLM's own
-    * judgment on every run (see {@code applyAnnotationToDoc} in wiz), while this extension's
-    * {@code custom_extensions} survives that merge untouched. A save-time cross-check in wiz reads
-    * this key back to confirm the annotation didn't contradict what the source declared.
+    * non-null), never inferred and never defaulted to {@code false}. It lives ONLY here, in the
+    * field-level COMMON extension — {@link OsiField} has no top-level key for it, and must not:
+    * OSI's {@code Field} schema ({@code core-spec/ossie-schema.json}, {@code $defs/Field}) sets
+    * {@code additionalProperties: false} over a fixed key list that does not include
+    * {@code isDimension}, so a top-level key would make this a non-conformant Field.
+    * {@code custom_extensions} is the spec's own sanctioned extension point, and it is also the
+    * durable one: wiz's annotation merge overwrites a doc field's other properties with the LLM's
+    * own judgment on every run (see {@code applyAnnotationToDoc} in wiz), but leaves
+    * {@code custom_extensions} untouched. A save-time cross-check in wiz reads this key back to
+    * confirm the annotation didn't contradict what the source declared.
     */
    private static OsiCustomExtension buildFieldExtension(String type, Boolean isDimension,
                                                           ObjectMapper objectMapper)

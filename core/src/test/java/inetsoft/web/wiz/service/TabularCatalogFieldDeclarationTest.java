@@ -40,8 +40,12 @@ import static org.mockito.Mockito.when;
  * Covers the field-level part of GA4's contribution to the SPI: {@link TabularColumn}'s three new
  * components (description/label/isDimension), the compatibility constructor that keeps all six
  * pre-existing connectors' construction sites unchanged, and {@link TabularCatalogService}'s
- * projection of those components onto {@link OsiField} and its field-level COMMON extension
- * ({@code declaredIsDimension}). Driven by {@link FakeCatalogRuntime}, the same as
+ * projection of those components onto {@link OsiField} (description/label only) and the
+ * field-level COMMON extension ({@code declaredIsDimension}). {@code isDimension} does NOT get a
+ * top-level {@code OsiField} key: OSI's {@code Field} schema (`core-spec/ossie-schema.json`,
+ * {@code $defs/Field}) sets {@code additionalProperties: false} over a fixed key list that does
+ * not include it, so the declared kind's only conformant home is {@code custom_extensions} — the
+ * spec's own sanctioned extension point. Driven by {@link FakeCatalogRuntime}, the same as
  * {@link TabularCatalogServiceTest} — this is not a GA4-specific test, it verifies the neutral SPI
  * type and the one service that projects it.
  */
@@ -88,14 +92,13 @@ class TabularCatalogFieldDeclarationTest {
       assertNull(column.isDimension());
    }
 
-   // ----- #2: isDimension == null -> neither key written -----
+   // ----- #2: isDimension == null -> the COMMON extension key is omitted -----
 
    @Test
-   void isDimensionNull_omitsBothOsiFieldKeyAndCommonExtensionKey() throws Exception {
+   void isDimensionNull_omitsCommonExtensionKey() throws Exception {
       OsiField field =
          describeSingleField(new TabularColumn("Name", XSchema.STRING, null, null, null));
 
-      assertNull(field.getIsDimension());
       assertFalse(fieldExtensionData(field).has("declaredIsDimension"));
    }
 
@@ -110,34 +113,44 @@ class TabularCatalogFieldDeclarationTest {
       assertNull(field.getLabel());
    }
 
-   // ----- #4: isDimension and the unrelated is_time dimension flag do not collide -----
+   // ----- #4: declaredIsDimension and the unrelated is_time dimension flag do not collide, and
+   //           no top-level "isDimension" key is ever serialized (OSI Field conformance) -----
 
    @Test
-   void isDimensionKey_doesNotCollideWithTimeDimensionKey() throws Exception {
+   void declaredIsDimensionKey_doesNotCollideWithTimeDimensionKey_andNoTopLevelIsDimensionKey()
+      throws Exception
+   {
       OsiField field = describeSingleField(
          new TabularColumn("EventDate", XSchema.DATE, null, null, Boolean.TRUE));
 
-      assertEquals(Boolean.TRUE, field.getIsDimension());
       assertNotNull(field.getDimension());
       assertTrue(field.getDimension().isTime());
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode json = mapper.valueToTree(field);
-      assertTrue(json.get("isDimension").asBoolean());
+      // OSI's Field schema ($defs/Field, additionalProperties: false) does not list "isDimension"
+      // among its allowed keys -- a top-level isDimension key would make this Field
+      // non-conformant. The declared kind must live ONLY in custom_extensions.
+      assertFalse(json.has("isDimension"));
       assertTrue(json.get("dimension").get("is_time").asBoolean());
+
+      JsonNode extData = fieldExtensionData(field);
+      assertTrue(extData.get("declaredIsDimension").asBoolean());
    }
 
-   // ----- #5: declaredIsDimension and OsiField.isDimension are both written -----
+   // ----- #5: declaredIsDimension is written in the COMMON extension, and nowhere else -----
 
    @Test
-   void isDimensionFalse_writesBothOsiFieldKeyAndCommonExtensionKey() throws Exception {
+   void isDimensionFalse_writesDeclaredIsDimensionInCommonExtensionOnly() throws Exception {
       OsiField field = describeSingleField(
          new TabularColumn("activeUsers", XSchema.DOUBLE, "A count.", "Active users",
             Boolean.FALSE));
 
-      assertEquals(Boolean.FALSE, field.getIsDimension());
       assertEquals("A count.", field.getDescription());
       assertEquals("Active users", field.getLabel());
+
+      ObjectMapper mapper = new ObjectMapper();
+      assertFalse(mapper.valueToTree(field).has("isDimension"));
 
       JsonNode extData = fieldExtensionData(field);
       assertEquals(XSchema.DOUBLE, extData.get("type").asText());

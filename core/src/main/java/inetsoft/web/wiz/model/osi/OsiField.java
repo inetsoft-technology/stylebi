@@ -84,31 +84,11 @@ public class OsiField {
       this.customExtensions = customExtensions;
    }
 
-   /**
-    * Whether this column is a dimension, as the data source itself declares it (three-valued:
-    * null means the source did not say). Not to be confused with {@link #getDimension()}, which
-    * carries only the time-dimension flag ({@code is_time}) and is a different JSON key.
-    *
-    * <p>Deliberately named {@code getIsDimension}, not {@code isDimension} — Jackson's is-getter
-    * rule applies to {@code Boolean} the same as {@code boolean}, and {@code isDimension()} would
-    * derive the property name {@code dimension}, colliding with {@link #getDimension()}'s own JSON
-    * key. The explicit {@code @JsonProperty} pins the key regardless of naming strategy.
-    */
-   @JsonProperty("isDimension")
-   public Boolean getIsDimension() {
-      return isDimension;
-   }
-
-   public void setIsDimension(Boolean isDimension) {
-      this.isDimension = isDimension;
-   }
-
    private String name;
    private OsiExpression expression;
    private OsiDimension dimension;
    private String label;
    private String description;
-   private Boolean isDimension;
 
    @JsonProperty("ai_context")
    private Object aiContext;
