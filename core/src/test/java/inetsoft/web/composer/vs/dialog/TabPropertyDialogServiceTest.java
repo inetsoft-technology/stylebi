@@ -324,6 +324,60 @@ class TabPropertyDialogServiceTest {
                    "child scaled position must remain flush with the reconciled tab bar");
    }
 
+   /**
+    * Bug #76407 round 2: the realistic Composer flow -- an automated review found
+    * that {@link #testFlipToBottomTabsReconcilesScaledSpacePosition} above only
+    * proves the reposition math in isolation, by submitting left/top=-1 specifically
+    * to skip {@code setContainerPosition}. In the ordinary "open dialog, toggle
+    * bottomTabs, click OK without touching position" flow, {@code getAssemblyPosition}
+    * (which populates this dialog) prefers the tab's scaled position when one is set,
+    * so left/top come back non-negative -- equal to the CURRENT (stale) scaled
+    * position -- and {@code setContainerPosition} DOES run afterward.
+    *
+    * Before the round-2 fix, that path would collapse the just-reconciled scaled
+    * position back down using the stale submitted value: {@code setContainerPosition}
+    * calls {@code info.setLayoutPosition(pos)}, which unconditionally nulls
+    * {@code scaledPosition} and replaces it with a plain {@code layoutPosition} set to
+    * whatever {@code pos} was -- the STALE value from before this method ran, since
+    * nothing had synced {@code sizePositionPaneModel} to reflect the newly-reconciled
+    * scaled position. Net effect: the fix's own reconciliation was silently undone
+    * within the same request.
+    */
+   @Test
+   void testFlipToBottomTabsReconcilesScaledSpacePositionRealisticFlow() throws Exception {
+      TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
+      // same stale scaled-space layout as the isolated test above.
+      tabInfo.setScaledPosition(new Point(10, 50));
+      tabInfo.setScaledSize(new Dimension(200, 30));
+      child.getVSAssemblyInfo().setScaledPosition(new Point(10, 300));
+      child.getVSAssemblyInfo().setScaledSize(new Dimension(200, 100));
+
+      // Realistic submission: left/top = the tab's CURRENT position as
+      // getAssemblyPosition() would have returned it (scaled-first) when this
+      // dialog was opened -- i.e. the stale scaled Y=50, not -1 and not the
+      // master pixel Y (200). The user did not touch position; only bottomTabs.
+      TabPropertyDialogModel model = buildModel("Tab1", true, 10, 50, 200, 30);
+
+      service.setTabPropertyDialogModel("vs1", "Tab1", model, "", null, commandDispatcher);
+
+      ArgumentCaptor<TabVSAssemblyInfo> captor = ArgumentCaptor.forClass(TabVSAssemblyInfo.class);
+      verify(vsObjectPropertyService).editObjectProperty(
+         any(RuntimeViewsheet.class), captor.capture(), anyString(), anyString(),
+         anyString(), nullable(Principal.class), any(CommandDispatcher.class));
+
+      TabVSAssemblyInfo captured = captor.getValue();
+      assertTrue(captured.getBottomTabsValue(), "bottomTabs must be persisted as true");
+      // The scaled position must survive setContainerPosition's own scaled/master
+      // collapsing behavior: the reconciled value (400) must be what the tab actually
+      // ends up at, not reverted to the stale pre-toggle value (50).
+      assertEquals(400, captured.getLayoutPosition(true).y,
+                   "scaled-space tab bar must remain flush after the full method call, " +
+                   "including setContainerPosition -- not reverted to the stale pre-toggle value");
+      assertEquals(300, child.getVSAssemblyInfo().getLayoutPosition(true).y,
+                   "child scaled position must remain flush with the reconciled tab bar " +
+                   "after the full method call");
+   }
+
    // -------------------------------------------------------------------------
    // Helpers
    // -------------------------------------------------------------------------
