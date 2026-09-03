@@ -128,7 +128,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Package community examples
-        run: (cd community-examples && zip -r ../community-examples.zip .)
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          sed -i "s|stylebi-community:latest|stylebi-community:${version}|" community-examples/docker-compose.yaml community-examples/.env
+          (cd community-examples && zip -r ../community-examples.zip .)
 
       - name: Create GitHub release
         run: >
