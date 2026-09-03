@@ -1032,6 +1032,8 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
 
       if(isConfirm) {
          this.confirm(command.message).then((ok: boolean) => {
+            this.worksheet.saving = false;
+
             if(ok) {
                // process confirm
                for(let key in command.events) {

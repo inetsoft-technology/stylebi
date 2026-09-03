@@ -47,6 +47,7 @@
 
 import { of } from "rxjs";
 import { makeMocks, renderComponent } from "./viewsheet-pane.component.test-helpers";
+import { ComponentTool } from "../../../../common/util/component-tool";
 import { Status } from "../../../../status-bar/status";
 import { DataTipService } from "../../../../vsobjects/objects/data-tip/data-tip.service";
 import { TestUtils } from "../../../../common/test/test-utils";
@@ -321,6 +322,60 @@ describe("VSPane — addConsoleMessage", () => {
       (comp as any).addConsoleMessage({ message: null, type: "INFO" });
 
       expect((comp as any).consoleMessages).toHaveLength(0);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 4b: processMessageCommand CONFIRM routing (Bug #76433)
+// ---------------------------------------------------------------------------
+
+describe("VSPane — processMessageCommand CONFIRM routing (Bug #76433)", () => {
+
+   // 🔁 Regression test: clicking "No" on the MV-confirm dialog left vs.saving stuck at
+   //    true forever, because CONFIRM fell into the generic else branch which delegates to
+   //    processMessageCommand0 — a shared method with no .saving concept.
+   it("should set vs.saving=false after a CONFIRM message's No callback resolves", async () => {
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("no");
+      const { comp } = await renderComponent();
+      comp.vs.saving = true;
+
+      (comp as any).processMessageCommand({
+         type: "CONFIRM", message: "Build MV?", events: {}, noEvents: {},
+      });
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(comp.vs.saving).toBe(false);
+   });
+
+   it("should set vs.saving=false after a CONFIRM message's Yes callback resolves", async () => {
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("yes");
+      const { comp, mocks } = await renderComponent();
+      comp.vs.saving = true;
+
+      (comp as any).processMessageCommand({
+         type: "CONFIRM", message: "Build MV?", events: { evt1: {} }, noEvents: {},
+      });
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(mocks.vsClient.sendEvent).toHaveBeenCalledWith(
+         "evt1", expect.objectContaining({ confirmed: true }));
+   });
+
+   // 🔁 Regression guard: the CONFIRM-specific branch must not swallow other MessageCommand
+   //    types. PROGRESS (and OVERRIDE) rely on the generic else branch's unconditional call
+   //    to processMessageCommand0 — this is the exact mistake flagged during refutation of
+   //    the fix for Bug #76433 (copying WSPaneComponent's switch-with-no-fallback shape onto
+   //    VSPane would have silently broken the PROGRESS dialog during composer saves/loads).
+   it("should still route PROGRESS-type messages to processMessageCommand0", async () => {
+      const { comp } = await renderComponent();
+      const spy = vi.spyOn(comp as any, "processMessageCommand0").mockImplementation(() => {});
+
+      (comp as any).processMessageCommand({ type: "PROGRESS", message: "Working..." });
+
+      expect(spy).toHaveBeenCalledWith(
+         expect.objectContaining({ type: "PROGRESS" }),
+         expect.anything(),
+         expect.anything());
    });
 });
 
