@@ -56,6 +56,8 @@ export class VSSubmit extends NavigationComponent<VSSubmitModel> implements OnCh
 
    vAlign: string;
    private padding: number = 8;
+   // legacy (gate-off) focus ring only — modern uses the shell's --inet-focus-ring via
+   // :focus-visible in vs-submit.component.scss instead.
    focusColor: string = "rgba(218,218,218,0.5)";
    focus: boolean = false;
 

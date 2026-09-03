@@ -23,6 +23,7 @@
     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
     [popZIndex]="model.objectFormat.zIndex"
     class="vs-group-container"
+    [class.vs-group-container--no-default-border]="hasAnyBorder()"
     [class.disable-actions-fade]="!model.enabled"
     [class.move-handle]="selected && !viewer"
     [style.display]="getVisible() ? null : 'none'"

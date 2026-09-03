@@ -202,10 +202,15 @@ class VSObjectChromeDefaultsTest {
 
    @Test
    void cardCornerNotSeededForExcludedTypesUnderGate() {
+      // ComboBox and the other five form-input types (CheckBox, RadioButton, Spinner, Submit,
+      // TextInput) used to be excluded here too; they now seed their own modern-gated round
+      // corner directly (form-input modernization, the follow-on project from card-corner work)
+      // — see SeedChromeDefaultsTest for their coverage. TimeSlider (the range slider) is a
+      // genuinely different, still-excluded type: its corner is drawn into bitmap PNGs server-side,
+      // not CSS, so it has nothing for this seed to bind to.
       withGate("true", () -> {
          assertEquals(0, seededRadius(new GaugeVSAssemblyInfo()), "gauge stays square");
          assertEquals(0, seededRadius(new TextVSAssemblyInfo()), "text stays square");
-         assertEquals(0, seededRadius(new ComboBoxVSAssemblyInfo()), "inputs stay square");
          assertEquals(0, seededRadius(new TimeSliderVSAssemblyInfo()), "range slider stays square");
          assertEquals(0, seededRadius(new RectangleVSAssemblyInfo()), "shapes own their radius");
          // TabVSAssemblyInfo:65 unconditionally sets its own roundCorner of 4; the point is that it is

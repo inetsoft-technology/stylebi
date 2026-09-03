@@ -49,6 +49,13 @@ input {
   height: 100%;
 }
 
+// .form-control sets a 30px min-height/height floor (--inet-control-height-md); without this,
+// enabling modern would grow every existing text input past its author-set height.
+.TextInputEntryArea.form-control {
+  min-height: 0;
+  height: 100%;
+}
+
 .disable-input {
   pointer-events: none;
 }
