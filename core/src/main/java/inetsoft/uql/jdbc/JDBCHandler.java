@@ -35,6 +35,8 @@ import inetsoft.uql.table.XObjectColumn;
 import inetsoft.uql.table.XTableColumnCreator;
 import inetsoft.uql.util.*;
 import inetsoft.util.*;
+import inetsoft.util.credential.CloudCredential;
+import inetsoft.util.credential.PasswordCredential;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.admin.monitoring.MonitorLevelService;
 import org.slf4j.Logger;
@@ -1487,6 +1489,9 @@ public class JDBCHandler extends XHandler {
    public void testDataSource(XDataSource datasource,
                               VariableTable params) throws Exception
    {
+      // clone() deep copies the credential, so the retry has to happen on the original for the
+      // cached data source to be healed rather than a throwaway copy
+      refreshUnavailableCredential((JDBCDataSource) datasource);
       Connection conn = connect((JDBCDataSource) datasource.clone(), params);
 
       if(conn == null) {
@@ -3364,9 +3369,52 @@ public class JDBCHandler extends XHandler {
             Tool.refreshDatabaseCredentials(xds);
             conn = connect0(xds, params);
          }
+         else if(e instanceof MessageException) {
+            // there is no retry for this, and the message is the actionable reason for the
+            // failure, so propagate it instead of letting the caller report a generic error
+            // against a null connection
+            throw e;
+         }
       }
 
       return conn;
+   }
+
+   /**
+    * Re-fetches a cloud credential whose previous resolution failed. Called once per connection
+    * attempt, before the user and password are read from the data source.
+    */
+   private static void refreshUnavailableCredential(JDBCDataSource xds) {
+      PasswordCredential credential = xds == null ? null : xds.getCredential();
+
+      if(credential instanceof CloudCredential cloudCredential &&
+         !Tool.isEmptyString(credential.getId()))
+      {
+         cloudCredential.ensureCredentialAvailable();
+      }
+   }
+
+   /**
+    * Fails with an actionable message when the data source references a secret that could not be
+    * resolved from the secrets manager. This must only be called after the per-user and
+    * parameterized logins have been resolved, so that those flows are not affected.
+    */
+   private static void checkCredentialAvailable(JDBCDataSource xds) {
+      PasswordCredential credential = xds == null ? null : xds.getCredential();
+
+      if(credential instanceof CloudCredential cloudCredential &&
+         !Tool.isEmptyString(credential.getId()) && cloudCredential.isCredentialUnavailable())
+      {
+         // the secret id is an internal reference and may carry deployment detail, so it is kept
+         // out of the message shown to whoever runs the dashboard. this fires on every attempt,
+         // so it is logged at debug level, the actionable error is logged by the secrets manager
+         // when the fetch itself fails.
+         LOG.debug("Data source \"{}\" cannot be used, its secret \"{}\" could not be resolved " +
+                   "from the secrets manager", xds.getFullName(), credential.getId());
+
+         throw new SecretsUnavailableException(Catalog.getCatalog().getString(
+            "common.datasource.credentialUnavailable", xds.getFullName()));
+      }
    }
 
    /**
@@ -3380,6 +3428,10 @@ public class JDBCHandler extends XHandler {
          throw new ClassNotFoundException(Catalog.getCatalog().getString(
             "common.datasource.classNotFound" ,xds.getDriver()));
       }
+
+      // retry a secret that failed to resolve when the data source was loaded, so that a
+      // corrected secret is picked up without reloading the data source
+      refreshUnavailableCredential(xds);
 
       String url = xds.getURL();
       String user = xds.isRequireLogin() ? xds.getUser() : null;
@@ -3402,6 +3454,12 @@ public class JDBCHandler extends XHandler {
          if(passwd == null) {
             passwd = "";
          }
+      }
+
+      // only fail here when nothing else supplied a login, so that prompted and parameterized
+      // logins still work for a data source whose stored secret is unavailable
+      if(xds.isRequireLogin() && user.isEmpty() && passwd.isEmpty()) {
+         checkCredentialAvailable(xds);
       }
 
       Connection conn = null;
@@ -3496,7 +3554,14 @@ public class JDBCHandler extends XHandler {
       throws Exception
    {
       Connection connection;
-      xds = (JDBCDataSource) ConnectionProcessor.getInstance().getDatasource(user, xds, additional).clone();
+      // an additional connection resolves to a different data source with its own credential, so
+      // the retry must happen after the resolution. it is done before the clone so that the
+      // cached data source is healed as well, and before the connection pool key, which includes
+      // the user, is computed.
+      JDBCDataSource resolved =
+         (JDBCDataSource) ConnectionProcessor.getInstance().getDatasource(user, xds, additional);
+      refreshUnavailableCredential(resolved);
+      xds = (JDBCDataSource) resolved.clone();
 
       if(xds.isRequireLogin()) {
          if(StringUtils.isEmpty(xds.getUser())) {
@@ -3523,6 +3588,11 @@ public class JDBCHandler extends XHandler {
             }
 
             xds.setPassword(password);
+         }
+
+         // only fail here when nothing else supplied a login
+         if(StringUtils.isEmpty(xds.getUser()) && StringUtils.isEmpty(xds.getPassword())) {
+            checkCredentialAvailable(xds);
          }
       }
 

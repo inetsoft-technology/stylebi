@@ -50,29 +50,76 @@ public abstract class AbstractSecretsManager extends AbstractPasswordEncryption 
       }
 
       String id = credential.getId();
-      ObjectMapper mapper = new ObjectMapper();
+      String dbType = credential.getDBType();
+      String result;
 
       try {
-         String dbType = credential.getDBType();
-         String result = null;
-
          if(Tool.isVaultDatabaseSecretsEngine(dbType)) {
             result = decryptDBPassword(id, dbType);
          }
          else {
             result = decryptPassword(id);
          }
+      }
+      catch(Exception ex) {
+         String message = "Failed to read secret \"" + id + "\" for " +
+            describeCredential(credential) + " from " + getClass().getSimpleName();
+         LOG.error(message, ex);
 
+         throw new SecretsUnavailableException(message, ex);
+      }
+
+      // the secrets manager implementations log and return null when the fetch fails
+      if(result == null || result.isBlank()) {
+         String message = "Secret \"" + id + "\" could not be retrieved from " +
+            getClass().getSimpleName() + " for " + describeCredential(credential) +
+            "; the secrets manager returned " + (result == null ? "no value" : "an empty value");
+         LOG.error(message);
+
+         throw new SecretsUnavailableException(message);
+      }
+
+      try {
+         // never log the result itself, it is the secret payload
+         ObjectMapper mapper = new ObjectMapper();
          Credential converted = mapper.convertValue(mapper.readTree(result), credential.getClass());
+
+         // checked before the id is set, so that isEmpty() reports on the values that were
+         // actually carried by the secret. a secret that parses but holds nothing usable, such
+         // as an empty object or fields that do not match this credential type, is no more
+         // usable than one that could not be read at all.
+         if(converted == null || converted.isEmpty()) {
+            String message = "Secret \"" + id + "\" retrieved from " + getClass().getSimpleName() +
+               " does not contain any value for " + describeCredential(credential);
+            LOG.error(message);
+
+            throw new SecretsUnavailableException(message);
+         }
+
          converted.setId(id);
 
          return converted;
       }
-      catch(Exception ex) {
-         LOG.error("Failed to decrypt password", ex);
+      catch(SecretsUnavailableException ex) {
+         throw ex;
       }
+      catch(Exception ex) {
+         String message = "Secret \"" + id + "\" retrieved from " + getClass().getSimpleName() +
+            " is not a valid " + describeCredential(credential) + " payload";
+         LOG.error(message, ex);
 
-      return null;
+         throw new SecretsUnavailableException(message, ex);
+      }
+   }
+
+   /**
+    * Describes a credential for a log or error message, without exposing any secret value.
+    */
+   private static String describeCredential(Credential credential) {
+      String dbType = credential.getDBType();
+
+      return credential.getClass().getSimpleName() +
+         (dbType == null || dbType.isEmpty() ? "" : " (dbType=" + dbType + ")");
    }
 
    public String encryptCredential(Credential credential) {
