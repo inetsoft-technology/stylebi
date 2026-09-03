@@ -84,12 +84,25 @@ public class LayoutOptionDialogModel {
       this.columns = columns;
    }
 
+   /**
+    * Names of additional assemblies that were part of the same multi-selection as
+    * {@link #getObject()} and should be grouped into the same target. (Bug #76403)
+    */
+   public List<String> getAdditionalObjects() {
+      return additionalObjects;
+   }
+
+   public void setAdditionalObjects(List<String> additionalObjects) {
+      this.additionalObjects = additionalObjects;
+   }
+
    @Override
    public String toString() {
       return "LayoutOptionDialogModel{" +
          " selectedValue=" + selectedValue +
          ", object=" + object +
          ", target=" + target +
+         ", additionalObjects=" + additionalObjects +
          '}';
    }
 
@@ -100,4 +113,5 @@ public class LayoutOptionDialogModel {
    private int newObjectType;
    private AssetEntry vsEntry;
    private List<AssetEntry> columns;
+   private List<String> additionalObjects;
 }
