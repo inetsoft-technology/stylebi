@@ -774,6 +774,11 @@ public class VSFrameVisitor {
       */
 
       for(Map.Entry<String, Color> entry : dimensionColors.entrySet()) {
+         // don't clobber a color explicitly set by script. (76111)
+         if(frame.isScripted(entry.getKey())) {
+            continue;
+         }
+
          final Color color = entry.getValue();
          frame.setColor(entry.getKey(), new Color(color.getRGB()));
       }
