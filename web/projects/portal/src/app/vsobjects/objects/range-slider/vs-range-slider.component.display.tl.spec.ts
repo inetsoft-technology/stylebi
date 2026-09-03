@@ -519,5 +519,14 @@ describe("VSRangeSlider – display / rendering (P3)", () => {
          expect(maxValue.style["top"]).toBe("46px");
          expect(minValue.style["top"]).toBe("46px");
       });
+
+      // Bug: thumb-middle aria-label rendered the literal untranslated "_#(to)" key
+      // (embedding it inside a bound [attr.aria-label] JS expression bypassed StyleBI's
+      // i18n resolution). The "to" separator must sit in static interpolated template
+      // text, not inside a JS string-concatenation expression, so it's resolvable.
+      it("should render the thumb-middle aria-label with the selected labels around a static '_#(to)' separator", () => {
+         const middle = fixture.nativeElement.querySelector("div.thumb-middle");
+         expect(middle.getAttribute("aria-label")).toBe("B _#(to) D");
+      });
    });
 });
