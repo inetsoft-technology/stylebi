@@ -83,6 +83,19 @@ export class VSDataTipDirective implements DoCheck, OnInit, OnDestroy {
       return this.dataTipService.isCurrentDataTip(this.dataTipName, this.popContainerName);
    }
 
+   /**
+    * Whether this directive instance currently owns (imperatively writes) the position of
+    * its host element, i.e. whether it is the active, visible data tip. Used by MiniToolbar
+    * (see mini-toolbar.component.ts) to suppress its own static top/left template bindings
+    * on the same element while this is true, so there is exactly one writer of those style
+    * properties at any given time -- see the two-writer note above ngDoCheck's setStyle calls.
+    */
+   isActiveDataTipOwner(): boolean {
+      return this.isCurrentDataTip() &&
+         (this.dataTipService.isDataTipVisible(this.dataTipName) ||
+          this.dataTipService.isDataTipVisible(this.popContainerName));
+   }
+
    get dataTipClass(): string {
       const name = this.dataTipService.dataTipName;
       return "current-datatip-" + (name || "none").replace(/ /g, "_");
@@ -103,9 +116,7 @@ export class VSDataTipDirective implements DoCheck, OnInit, OnDestroy {
       if(this.dataTipService.isDataTip(this.dataTipName) ||
          this.dataTipService.isDataTip(this.popContainerName))
       {
-         if(this.isCurrentDataTip() &&
-            (this.dataTipService.isDataTipVisible(this.dataTipName) ||
-             this.dataTipService.isDataTipVisible(this.popContainerName)))
+         if(this.isActiveDataTipOwner())
          {
             // cancel existing hide events
             this.debounceService.cancel(DataTipService.DEBOUNCE_KEY);
