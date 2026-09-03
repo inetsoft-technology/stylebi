@@ -24,6 +24,8 @@ import inetsoft.uql.viewsheet.SubmitVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.SubmitVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
+import java.awt.Dimension;
+import java.awt.Point;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -136,5 +138,52 @@ public class SubmitVSAScriptableTest {
 
       assertEquals(List.of("myScratchFlag"), submitVSAScriptable.getUnrecognizedWrites());
       assertEquals(true, submitVSAScriptable.getMember("myScratchFlag"));
+   }
+
+   /**
+    * Bug #76104: "position"/"size" ARE registered propmap properties (dispatched to
+    * VSAScriptable's own setPosition/setSize), so a write to them never falls into
+    * putMember()'s unrecognized-write branch above -- but the setters themselves silently no-op
+    * when box.isRuntime() is false (viewsheetSandbox is a bare Mockito mock here, so
+    * isRuntime() defaults to false, matching every Composer-paired agent session). The write
+    * must not silently look like it applied: it should be recorded as rejected (recognized, but
+    * not applied) rather than being untracked.
+    */
+   @Test
+   void testPutMemberOnPositionNotAppliedAndRecordedAsRejectedWhenNotRuntime() {
+      Point original = submitVSAssemblyInfo.getPixelOffset();
+
+      vsaScriptable.putMember("position", new Point(180, 100));
+
+      assertEquals(original, submitVSAssemblyInfo.getPixelOffset());
+      assertEquals(List.of(), vsaScriptable.getUnrecognizedWrites());
+      assertEquals(List.of("position"), vsaScriptable.getRejectedWrites());
+   }
+
+   @Test
+   void testPutMemberOnSizeNotAppliedAndRecordedAsRejectedWhenNotRuntime() {
+      Dimension original = submitVSAssemblyInfo.getPixelSize();
+
+      vsaScriptable.putMember("size", new Dimension(200, 150));
+
+      assertEquals(original, submitVSAssemblyInfo.getPixelSize());
+      assertEquals(List.of(), vsaScriptable.getUnrecognizedWrites());
+      assertEquals(List.of("size"), vsaScriptable.getRejectedWrites());
+   }
+
+   /**
+    * Regression guard for the currently-working runtime-viewer case: when box.isRuntime() is
+    * true, position/size writes must still apply normally and must NOT be recorded as rejected.
+    */
+   @Test
+   void testPutMemberOnPositionAndSizeAppliesAndNotRejectedWhenRuntime() {
+      when(viewsheetSandbox.isRuntime()).thenReturn(true);
+
+      vsaScriptable.putMember("position", new Point(180, 100));
+      vsaScriptable.putMember("size", new Dimension(200, 150));
+
+      assertEquals(new Point(180, 100), submitVSAssemblyInfo.getPixelOffset());
+      assertEquals(new Dimension(200, 150), submitVSAssemblyInfo.getPixelSize());
+      assertEquals(List.of(), vsaScriptable.getRejectedWrites());
    }
 }
