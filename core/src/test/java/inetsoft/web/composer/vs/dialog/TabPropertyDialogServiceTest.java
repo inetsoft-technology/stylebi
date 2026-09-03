@@ -43,6 +43,7 @@ import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -88,7 +89,8 @@ class TabPropertyDialogServiceTest {
 
       when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(realVS);
-      when(rvs.getID()).thenReturn("vs1");
+      // lenient: only consumed when the container-position sync path runs (left/top >= 0)
+      lenient().when(rvs.getID()).thenReturn("vs1");
       when(vsObjectTreeService.getObjectTree(any(RuntimeViewsheet.class)))
          .thenReturn(new VSObjectTreeNode());
    }
@@ -275,6 +277,51 @@ class TabPropertyDialogServiceTest {
 
       assertEquals(530, child.getVSAssemblyInfo().getPixelOffset().y,
                    "child top edge (530) must be flush with tab bottom");
+   }
+
+   /**
+    * Bug #76407: flipping to bottom-tabs must reconcile the scaled/mobile-layout
+    * position too, not just the master-pixel position -- otherwise a distinct,
+    * previously-computed scaled-space child position is left stale and can overlap
+    * the tab bar in mobile/responsive preview, exactly like the reported symptom
+    * ("radio button bottom edge extends beyond the tab boundary"), just in scaled
+    * space rather than the master view.
+    *
+    * left/top are submitted as -1 so {@code VSDialogService.setContainerPosition}
+    * (an unrelated, pre-existing position-sync path with its own scaled/master
+    * coordinate-mixing quirk -- see 03-fix.md) does not run and confound the
+    * assertions; this isolates exactly the effect of the new scaled-space
+    * reposition call added to this method.
+    */
+   @Test
+   void testFlipToBottomTabsReconcilesScaledSpacePosition() throws Exception {
+      TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
+      // stale scaled-space layout: tab bar sits at scaled Y=50 while the child's
+      // scaled bottom edge (300 + 100 = 400) is far below it -- a large overlap.
+      tabInfo.setScaledPosition(new Point(10, 50));
+      tabInfo.setScaledSize(new Dimension(200, 30));
+      child.getVSAssemblyInfo().setScaledPosition(new Point(10, 300));
+      child.getVSAssemblyInfo().setScaledSize(new Dimension(200, 100));
+
+      TabPropertyDialogModel model = buildModel("Tab1", true, -1, -1, 200, 30);
+
+      service.setTabPropertyDialogModel("vs1", "Tab1", model, "", null, commandDispatcher);
+
+      ArgumentCaptor<TabVSAssemblyInfo> captor = ArgumentCaptor.forClass(TabVSAssemblyInfo.class);
+      verify(vsObjectPropertyService).editObjectProperty(
+         any(RuntimeViewsheet.class), captor.capture(), anyString(), anyString(),
+         anyString(), nullable(Principal.class), any(CommandDispatcher.class));
+
+      TabVSAssemblyInfo captured = captor.getValue();
+      assertTrue(captured.getBottomTabsValue(), "bottomTabs must be persisted as true");
+      // scaled tab bar reconciled to the child's scaled bottom edge (300 + 100 = 400),
+      // eliminating the overlap -- was left stale at 50 before this fix.
+      assertEquals(400, captured.getLayoutPosition(true).y,
+                   "scaled-space tab bar must move flush with the child's scaled bottom edge");
+      // child's scaled position already defined the extent -- stays flush at 300,
+      // now genuinely flush against the reconciled tab bar (400 - 100 = 300).
+      assertEquals(300, child.getVSAssemblyInfo().getLayoutPosition(true).y,
+                   "child scaled position must remain flush with the reconciled tab bar");
    }
 
    // -------------------------------------------------------------------------
