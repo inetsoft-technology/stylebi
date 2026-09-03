@@ -613,7 +613,7 @@ public final class TableBindingMutator {
     */
    private static final Set<String> MULTI_ARG_FORMULA_NAMES = Set.of(
       "correlation", "covariance", "weightedaverage", "nthlargest", "nthsmallest",
-      "nthmostfrequent", "pthpercentile");
+      "nthmostfrequent", "pthpercentile", "first", "last");
 
    /**
     * Refuses a {@code sortByField}/{@code measure} that names no aggregate bound on this

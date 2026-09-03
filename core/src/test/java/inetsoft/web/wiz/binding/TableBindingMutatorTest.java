@@ -620,6 +620,29 @@ class TableBindingMutatorTest {
       assertEquals("NthMostFrequent(Product, 3)", model.getRows().get(0).getRankingCol());
    }
 
+   /**
+    * Claude-review finding on PR #4976: {@code First}/{@code Last} both override {@code
+    * isTwoColumns()} to {@code true} (confirmed directly in {@code AggregateFormula.java}), are
+    * genuinely user-selectable (the frontend's own formula picker marks both {@code twoColumns:
+    * true}), and render a {@code "formula(column, col2)"} full name via {@code
+    * VSAggregateRef.getFullName()} -- exactly like {@code Correlation}/{@code Covariance}, which
+    * {@link #MULTI_ARG_FORMULA_NAMES} already covers. Before this, {@code requireKnownMeasure}
+    * wrongly refused a sort/ranking reference to an existing {@code First(Sales, OrderDate)}-
+    * style bound aggregate by its real full name.
+    */
+   @Test
+   void acceptsAFirstAggregatesFullNameByPrefix() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Sales", "measure", "First", null, null)));
+
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
+         new DimensionSortRanking.Ranking("top", 5, "First(Sales, OrderDate)", null));
+
+      assertEquals("First(Sales, OrderDate)", model.getRows().get(0).getRankingCol());
+   }
+
    @Test
    void stillRefusesAnUnboundMeasureWhenATwoColumnAggregateIsBound() {
       CrosstabBindingModel model = new CrosstabBindingModel();
