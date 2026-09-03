@@ -307,7 +307,9 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    private draggableRestrictionRects: Map<any, {left: number, top: number, right: number, bottom: number}>;
    draggableSnapGuides: {horizontal: number[], vertical: number[]} = {horizontal: [], vertical: []};
    currentSnapGuides: {x: number, y: number} = null;
-   selectionBorderOffset: number = 2;
+   // the object's selection/highlight ring is drawn with outline (not border), so it
+   // takes up no layout space and no position compensation is needed. see bd-highlight-med-filler.
+   selectionBorderOffset: number = 0;
    snapOffset = 0;
    consoleMessages: ConsoleMessage[] = [];
    newInfoConsoleMessages: boolean = false;

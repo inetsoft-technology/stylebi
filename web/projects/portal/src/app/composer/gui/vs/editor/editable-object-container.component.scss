@@ -107,7 +107,10 @@
   position: absolute;
   top: 1px;
   left: 22px;
-  z-index: 9999;
+  // must sit above the embedded viewsheet's composer overlay (99997/99998), which
+  // covers the whole assembly and would otherwise swallow the click. Matches the
+  // .icon-container of the adjacent embedded-viewsheet link icon.
+  z-index: 99999;
 }
 
 .object-editor:hover .script-icon.embedded-vs-script {
@@ -134,12 +137,12 @@
 }
 
 .txt-primary .object  {
-  border: 2px dotted;
+  outline: 2px dotted;
 }
 
 .drop-target {
   &:not(.object-editor) {
-    border: 2px dotted;
+    outline: 2px dotted;
   }
 }
 
@@ -174,7 +177,7 @@
 }
 
 .search-result {
-  border: 2px solid !important;
+  outline: 2px solid !important;
 }
 
 .search-no-match {

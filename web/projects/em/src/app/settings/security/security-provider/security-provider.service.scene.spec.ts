@@ -49,6 +49,7 @@ import { MatDialog } from "@angular/material/dialog";
 import { Router } from "@angular/router";
 import { EMPTY, NEVER, of } from "rxjs";
 import { ErrorHandlerService } from "../../../common/util/error/error-handler.service";
+import { OrganizationDropdownService } from "../../../navbar/organization-dropdown.service";
 import { SecurityProviderService } from "./security-provider.service";
 import { SecurityProviderType } from "./security-provider-model/security-provider-type.enum";
 
@@ -82,12 +83,16 @@ describe("SecurityProviderService — scene layer", () => {
    let dialogSpy: { open: Mock };
    let bottomSheetSpy: { open: Mock };
    let errorServiceSpy: { showSnackBar: Mock };
+   let orgDropdownSpy: { refreshProviders: Mock };
 
    beforeEach(() => {
       routerSpy = { navigate: vi.fn() };
       dialogSpy = { open: vi.fn() };
       bottomSheetSpy = { open: vi.fn() };
       errorServiceSpy = { showSnackBar: vi.fn() };
+      // stubbed out: the real service opens a STOMP connection and pulls in
+      // SsoHeartbeatService, none of which this scene exercises
+      orgDropdownSpy = { refreshProviders: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [HttpClientTestingModule],
@@ -96,7 +101,8 @@ describe("SecurityProviderService — scene layer", () => {
             { provide: Router, useValue: routerSpy },
             { provide: MatDialog, useValue: dialogSpy },
             { provide: MatBottomSheet, useValue: bottomSheetSpy },
-            { provide: ErrorHandlerService, useValue: errorServiceSpy }
+            { provide: ErrorHandlerService, useValue: errorServiceSpy },
+            { provide: OrganizationDropdownService, useValue: orgDropdownSpy }
          ]
       });
 
@@ -189,6 +195,22 @@ describe("SecurityProviderService — scene layer", () => {
          req.flush({});
 
          expect(routerSpy.navigate).toHaveBeenCalledWith(["/settings/security/provider"]);
+      });
+
+      // 🔁 Regression-sensitive: the Users tab and page header read the provider list cached
+      //    on OrganizationDropdownService for the whole browser session. Without this refresh an
+      //    added or renamed provider is invisible there, and a stale cached name stays selected —
+      //    get-security-tree-root then fails on a null provider until the user logs out and in.
+      it("[Risk 3] should refresh the cached provider list on success but not on error", () => {
+         service.updateAuthenticationProvider("", makeFileAuthnForm());
+         httpMock.expectOne("../api/em/security/add-authentication-provider").flush({});
+         expect(orgDropdownSpy.refreshProviders).toHaveBeenCalledTimes(1);
+
+         errorServiceSpy.showSnackBar.mockReturnValue(EMPTY);
+         service.updateAuthenticationProvider("existingProvider", makeFileAuthnForm());
+         httpMock.expectOne("../api/em/security/edit-authentication-provider/existingProvider")
+            .flush("Server Error", { status: 500, statusText: "Server Error" });
+         expect(orgDropdownSpy.refreshProviders).toHaveBeenCalledTimes(1);
       });
    });
 

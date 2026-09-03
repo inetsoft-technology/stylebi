@@ -53,7 +53,6 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.util.DataSpace;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -68,16 +67,6 @@ import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-// Disabled: all four tests intermittently fail (~1 in 3-4 runs, direction varies) due to a real,
-// pre-existing production race in PortalThemesManager.save()'s change-listener self-notification
-// suppression -- confirmed via DEBUG logging that the changeListener fires asynchronously on a
-// BlobStorageEvent background thread, sometimes landing between two of copyOrganizationInternal()'s
-// several sequential addXxxEntry()+save() calls and reloading a stale on-disk snapshot over a
-// not-yet-persisted in-memory mutation. All four tests share the same singleton PortalThemesManager
-// and the same multi-save() call sequence, so all four are equally exposed even though only the
-// rename_* tests have been observed to fail in practice so far. Re-enable once Issue #76393 is
-// fixed; do not re-enable by just retrying or adding a delay, that would hide the race, not fix it.
-@Disabled("Issue #76393 -- PortalThemesManager.save() change-listener self-notification race")
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class,
                                   OrgLifecyclePortalBrandingDataSpaceIntegrationTest.RealPortalThemesManagerConfig.class },

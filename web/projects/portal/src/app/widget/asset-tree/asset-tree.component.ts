@@ -146,9 +146,16 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    ngOnInit() {
       this.setupAssetClientService();
 
-      this.subscriptions.add(this.currentUserService.getPortalCurrentUser().subscribe((user) => {
-         this.currOrgID = user?.name?.orgID ?? "";
-         this.loadAssetTree();
+      this.subscriptions.add(this.currentUserService.getPortalCurrentUser().subscribe({
+         next: (user) => {
+            this.currOrgID = user?.name?.orgID ?? "";
+            this.loadAssetTree();
+         },
+         error: () => {
+            // if the current-user call fails (e.g. during pod restart / cluster
+            // rebalancing), fall through with defaults so the tree still renders
+            this.loadAssetTree();
+         }
       }));
    }
 

@@ -642,8 +642,24 @@ public class DateComparisonUtil {
 
          // Compute which part cells have data from the most recent (current) year.
          // Orphaned cells — those with only comparison-year data — should be excluded
-         // from the x-axis scale so they don't produce spurious labels.
-         final Set<Object> validParts = computeValidParts(data, periodCol, partCol, startDate);
+         // from the x-axis scale so they don't produce spurious labels. Skip this in facet
+         // mode: there, "part" identifies the facet itself (e.g. DayOfWeek), and the
+         // heuristic's sort-order-based "hasn't chronologically reached this part yet" test
+         // is meaningless for a facet dimension — a facet with no row in the most recent
+         // period isn't a future bucket, it's a facet whose most recent period happens to be
+         // absent (see Bug #76388: DayOfWeek facets 5-7 have real data for every period
+         // except the last, and excluding them entirely from every period is wrong; the
+         // per-facet sub-chart already correctly shows only the periods that actually have
+         // data for it once this exclusion doesn't run first). Also skip this for
+         // "Compare Data Of: All" (isCompareAll()) -- that mode intentionally shows every
+         // part of each comparison period unclipped, so a part the in-progress current
+         // period hasn't reached yet (e.g. December while the current year is only a few
+         // months in) is not an orphan -- it's real historical data for the prior periods
+         // and must still render. Applying the heuristic there silently dropped whole
+         // weeks/months of valid comparison-year data. (Bug #76389)
+         final Set<Object> validParts = info.isFacet() || dcInfo.isCompareAll() ?
+            Collections.emptySet() :
+            computeValidParts(data, periodCol, partCol, startDate);
 
          for(Scale scale : egraph.getCoordinate().getScales()) {
             String[] fields = scale.getFields();
@@ -694,15 +710,15 @@ public class DateComparisonUtil {
    }
 
    /**
-    * Find which part cells (x-axis positions) have data from the most recent year.
-    * Cells without current-year data are orphaned and should be excluded from the axis.
-    * Returns the set of valid part cells (those with current-year data), or an empty set
-    * when the data is not in year-bucket layout (per-part real dates, or no repeated period
-    * value). An empty return means "no orphan filtering should be applied."
-    *
-    * This method is also used by DateComparisonFormat.initPartDate() to drive the same
-    * heuristic at the pre-aggregated partDates level — both callers rely on this single
-    * implementation so the logic stays in sync.
+    * Find which part cells (x-axis positions) have data from the most recent year, or sort
+    * at or before the last part that year's own rows reach. Cells beyond that point are
+    * orphaned (the most recent, possibly in-progress, period hasn't chronologically reached
+    * them yet) and should be excluded from the axis. Returns the set of valid part cells, or
+    * an empty set when the data is not in year-bucket layout (per-part real dates, or no
+    * repeated period value). An empty return means "no orphan filtering should be applied."
+    * A part is not treated as orphaned merely because the most recent year's own rows have
+    * no match for it -- that is ordinary data sparsity, not an unreached future bucket, and
+    * older periods' real data for it must still render (Bug #76391).
     */
    static Set<Object> computeValidParts(DataSet data, String periodCol,
                                         String partCol, Date startDate)
@@ -739,16 +755,94 @@ public class DateComparisonUtil {
 
       Set<Object> validParts = new HashSet<>();
       final Date max = maxYearDate;
+      Object maxPart = null;
 
       for(int i = 0; i < data.getRowCount(); i++) {
          Date date = toPeriodDate(data.getData(periodCol, i));
 
          if(max.equals(date)) {
-            validParts.add(data.getData(partCol, i));
+            Object part = data.getData(partCol, i);
+            validParts.add(part);
+
+            if(maxPart == null || Tool.compare(part, maxPart) > 0) {
+               maxPart = part;
+            }
+         }
+      }
+
+      // The most recent period doesn't necessarily carry a row for every part it has
+      // chronologically reached -- ordinary data sparsity (e.g. a week with no matching
+      // records) is not the same as a part the period genuinely hasn't happened yet (the
+      // "future bucket" case this heuristic exists to suppress, Bug #75152/#76389). Treat
+      // any part that sorts at or before the latest part the most recent period's own rows
+      // do reach as valid too, so an older period's real data for it isn't dropped just
+      // because the most recent period happens to have no row there. A part that sorts
+      // strictly after that point is left excluded, preserving the future-bucket
+      // suppression this method was introduced for. Scoped by the same startDate condition
+      // as the first pass, so a part appearing only in a row before startDate can't leak in
+      // here -- this loop's result should mean the same thing the first pass's scope means,
+      // not rely on every caller happening to already exclude those rows via a separate
+      // selector. (Bug #76391)
+      //
+      // For a MergePartCell (e.g. "12-1", "12-2" -- a month plus a tie-breaking sub-bucket
+      // for a week that spans two months), a strict tuple compare against maxPart is too
+      // narrow at the trailing edge: if the most recent period's own data reaches "12-1" but
+      // that year's calendar simply never produces a "12-2" split, "12-2" sorts after "12-1"
+      // and would stay excluded even though the most recent period plainly did reach month
+      // 12 -- the missing sub-bucket is calendar variation, not an unreached future month.
+      // Every family strictly before maxPart's own family is already fully valid from the
+      // plain tuple compare above (the leading component alone decides it), so only
+      // maxPart's own family can have this trailing-edge gap: also accept a part that
+      // shares maxPart's leading components (everything but the final, tie-breaking one),
+      // whatever its own trailing value. (Bug #76391)
+      List<Object> maxPartPrefix = mergePartCellPrefix(maxPart);
+
+      if(maxPart != null) {
+         for(int i = 0; i < data.getRowCount(); i++) {
+            Date date = toPeriodDate(data.getData(periodCol, i));
+
+            if(date == null || (startDate != null && date.before(startDate))) {
+               continue;
+            }
+
+            Object part = data.getData(partCol, i);
+
+            if(Tool.compare(part, maxPart) <= 0 ||
+               (maxPartPrefix != null && maxPartPrefix.equals(mergePartCellPrefix(part))))
+            {
+               validParts.add(part);
+            }
          }
       }
 
       return validParts;
+   }
+
+   /**
+    * A MergePartCell's own values, minus the final (tie-breaking sub-bucket) value -- e.g.
+    * ["12"] for both "12-1" and "12-2". Returns null for anything that isn't a MergePartCell
+    * with at least two component values, so callers can distinguish "no prefix to compare"
+    * from "empty prefix."
+    */
+   private static List<Object> mergePartCellPrefix(Object part) {
+      if(!(part instanceof MergePartCell)) {
+         return null;
+      }
+
+      MergePartCell cell = (MergePartCell) part;
+      int size = cell.getMergedRefs().size();
+
+      if(size < 2) {
+         return null;
+      }
+
+      List<Object> prefix = new ArrayList<>(size - 1);
+
+      for(int i = 0; i < size - 1; i++) {
+         prefix.add(cell.getValue(i));
+      }
+
+      return prefix;
    }
 
    /** Extract a comparable Date from a period column value (raw Date or MergePartCell). */

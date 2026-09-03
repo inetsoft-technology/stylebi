@@ -895,8 +895,13 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
          getSubscribers().stream()
             .filter(sub -> sub.getUser() instanceof XPrincipal)
             .forEach(sub -> {
-               this.debouncer.debounce(((XPrincipal) sub.getUser()).getSessionID(), 1L, TimeUnit.SECONDS,
-                                       () -> sendToSubscriber(sub));
+               // key on the subscriber, not just the user session: a user with more than one
+               // live subscription (two EM tabs, or a reconnected socket whose old subscriber
+               // has not been removed yet) would otherwise collapse into a single debounce
+               // entry and only one arbitrarily-chosen subscriber would be notified
+               String key = ((XPrincipal) sub.getUser()).getSessionID() + ":" +
+                  sub.getSessionId() + ":" + sub.getSubscriptionId();
+               this.debouncer.debounce(key, 1L, TimeUnit.SECONDS, () -> sendToSubscriber(sub));
             });
       }
    }

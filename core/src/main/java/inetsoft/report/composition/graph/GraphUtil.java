@@ -905,6 +905,13 @@ public class GraphUtil {
       DataRef dref = ref.getDataRef();
 
       if(type == ChartConstants.AESTHETIC_COLOR) {
+         // the user explicitly opted into using the column values as colors. this is a
+         // valid ColorFrame for both dimension and measure refs, so don't normalize it
+         // away, otherwise the option is discarded as soon as it's applied.
+         if(frame instanceof ColorValueColorFrame) {
+            return false;
+         }
+
          if(isCategorical(dref)) {
             if(!(frame instanceof CategoricalFrame)) {
                String col = dref instanceof VSDimensionRef ?

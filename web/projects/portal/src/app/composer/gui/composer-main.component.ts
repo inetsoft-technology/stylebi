@@ -243,7 +243,6 @@ const CONFIRM_MESSAGE = {
         ComposerObjectService,
         EventQueueService,
         LineAnchorService,
-        ResizeHandlerService,
         ClipboardService,
         ScriptService,
         ShowHyperlinkService,

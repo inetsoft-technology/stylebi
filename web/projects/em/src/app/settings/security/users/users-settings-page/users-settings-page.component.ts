@@ -20,7 +20,7 @@ import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import {MatSnackBar} from "@angular/material/snack-bar";
-import { EMPTY, Observable, of, Subject } from "rxjs";
+import { EMPTY, Observable, of, Subject, Subscription } from "rxjs";
 import {catchError, finalize, map, tap} from "rxjs/operators";
 import {IdentityType} from "../../../../../../../shared/data/identity-type";
 import {Tool} from "../../../../../../../shared/util/tool";
@@ -89,6 +89,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    currOrg: string;
    loading: boolean = false;
    private selfRefreshing = false;
+   private subscriptions = new Subscription();
    newUserIdentity: IdentityId | null = null;
 
    get hasIncompleteNewUser(): boolean {
@@ -106,16 +107,14 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                private orgDropDownService: OrganizationDropdownService,
                private orgBusy: SecurityBusyService)
    {
-      orgDropdownService.onRefresh.subscribe(res => {
+      this.subscriptions.add(orgDropdownService.onRefresh.subscribe(res => {
          if(this.selfRefreshing) {
             return;
          }
 
          this.selectedProvider = res.provider;
          this.refreshProvider(this.selectedProvider, res.providerChanged)
-      });
-
-      this.refreshProvider(orgDropdownService.getProvider(), false);
+      }));
    }
 
    get authenticationProviders(): string[] {
@@ -142,6 +141,13 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
 
       this.http.get<string>("../api/em/navbar/organization")
          .subscribe((org) => this.currOrg = org);
+
+      // Reload the provider list rather than trusting the copy cached on
+      // OrganizationDropdownService: it can be stale (a provider added, renamed or removed
+      // since this page was loaded), and the cached selection can name a provider that no
+      // longer exists, which makes get-security-tree-root fail. refreshProviders() re-emits
+      // through onRefresh with a validated provider name, which drives the initial tree load.
+      this.orgDropdownService.refreshProviders();
    }
 
    refreshProvider(provider: string, providerChanged: boolean = true) {
@@ -695,6 +701,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    }
 
    ngOnDestroy(): void {
+      this.subscriptions.unsubscribe();
       this.identityEditable.complete();
    }
 }

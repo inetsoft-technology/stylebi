@@ -915,8 +915,10 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
          throw new RuntimeException("Unsupported order found: " + order);
       }
 
-      if(comparator != null && sortOthersLast && isRankingGroupOthers()) {
-         return new CombinedDataSetComparator(getFullName(), comparator, new OthersComparator());
+      if(sortOthersLast && isRankingGroupOthers()) {
+         return comparator == null
+            ? new OthersComparator()
+            : new CombinedDataSetComparator(getFullName(), comparator, new OthersComparator());
       }
 
       return comparator;

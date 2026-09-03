@@ -22,8 +22,10 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ViewsheetVSAssemblyInfo;
+import inetsoft.util.*;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.viewsheet.service.*;
@@ -52,11 +54,17 @@ public class ViewsheetObjectPropertyDialogService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
-      Viewsheet embeddedVs = (Viewsheet) vs.getAssembly(objectId);
-      ViewsheetVSAssemblyInfo info = (ViewsheetVSAssemblyInfo) embeddedVs.getVSAssemblyInfo();
 
       ViewsheetObjectPropertyDialogModel.Builder model =
          ViewsheetObjectPropertyDialogModel.builder();
+
+      // the assembly may be gone (deleted/renamed) or, for a name containing a dot,
+      // may resolve to something that is not an embedded viewsheet
+      if(!(vs.getAssembly(objectId) instanceof Viewsheet embeddedVs)) {
+         return model.build();
+      }
+
+      ViewsheetVSAssemblyInfo info = (ViewsheetVSAssemblyInfo) embeddedVs.getVSAssemblyInfo();
 
       GeneralPropPaneModel generalPropPaneModel = new GeneralPropPaneModel();
       SizePositionPaneModel sizePositionPaneModel = new SizePositionPaneModel();
@@ -99,7 +107,14 @@ public class ViewsheetObjectPropertyDialogService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
-      Viewsheet embeddedVs = (Viewsheet) vs.getAssembly(objectId);
+
+      if(!(vs.getAssembly(objectId) instanceof Viewsheet embeddedVs)) {
+         Tool.addUserMessage(new UserMessage(
+            Catalog.getCatalog().getString("viewer.viewsheet.editPropertyFailed"),
+            ConfirmException.ERROR, objectId));
+         return null;
+      }
+
       ViewsheetVSAssemblyInfo info = (ViewsheetVSAssemblyInfo) embeddedVs.getVSAssemblyInfo();
 
       GeneralPropPaneModel generalPropPaneModel = model.generalPropPaneModel();
