@@ -128,16 +128,8 @@ public class AIAssistantController {
    }
 
    @GetMapping("/api/assistant/ai-assistant-visible")
-   public boolean isAiAssistantVisible() {
-      if(!"true".equalsIgnoreCase(SreeEnv.getProperty(AI_ASSISTANT_VISIBLE, "false"))) {
-         return false;
-      }
-
-      // Visible only when at least one assistant URL is configured (proxy or direct mode).
-      String internalUrl = SreeEnv.getProperty(CHAT_APP_INTERNAL_URL);
-      String serverUrl = SreeEnv.getProperty(CHAT_APP_SERVER_URL);
-      return (internalUrl != null && !internalUrl.trim().isEmpty())
-         || (serverUrl != null && !serverUrl.trim().isEmpty());
+   public boolean getAiAssistantVisible() {
+      return isAiAssistantVisible();
    }
 
    /**
@@ -172,6 +164,33 @@ public class AIAssistantController {
     */
    public static boolean isSslVerifyEnabled() {
       return "true".equalsIgnoreCase(SreeEnv.getProperty("chat.app.server.ssl.verify", "false"));
+   }
+
+   /**
+    * Returns {@code true} if the AI assistant should be shown in the UI.
+    *
+    * <p>Requires {@code ai.assistant.visible} to be enabled <em>and</em> at least one assistant
+    * URL to be configured -- {@code chat.app.internal.url} (proxy mode) or
+    * {@code chat.app.server.url} (direct mode). Enabling the flag without a URL would surface an
+    * assistant panel that cannot reach a server.
+    *
+    * <p>Public and static so this is the single definition of the rule. {@code AISettingsService}
+    * delegates here rather than repeating it; the three callers that gate on assistant visibility
+    * (EmNavBarController, PortalController, SetPrincipalCommand) go through that service. Note
+    * this is the visibility rule only -- every one of those callers also checks
+    * {@code ResourceType.AI_ASSISTANT} permission separately.
+    *
+    * @return whether the assistant is both enabled and reachable-in-principle.
+    */
+   public static boolean isAiAssistantVisible() {
+      if(!"true".equalsIgnoreCase(SreeEnv.getProperty(AI_ASSISTANT_VISIBLE, "false"))) {
+         return false;
+      }
+
+      String internalUrl = SreeEnv.getProperty(CHAT_APP_INTERNAL_URL);
+      String serverUrl = SreeEnv.getProperty(CHAT_APP_SERVER_URL);
+      return (internalUrl != null && !internalUrl.trim().isEmpty())
+         || (serverUrl != null && !serverUrl.trim().isEmpty());
    }
 
    /**

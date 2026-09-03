@@ -54,6 +54,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -123,7 +124,7 @@ class OrgLifecyclePortalBrandingTest {
       verify(portalThemesManager).removeCSSEntry(fromOrgId);
    }
 
-   // ── TC-01/TC-02: logoEntries copy/rename (Risk 1, PR #4469's actual new code path) ──
+   // ── TC-01/TC-02: logoEntries copy/rename (PR #4469's actual new code path) ──
 
    @Test
    void copy_logoEntrySynced_newOrgGetsMapEntry_sourceEntryNotRemoved() {
@@ -155,7 +156,7 @@ class OrgLifecyclePortalBrandingTest {
       verify(portalThemesManager).removeLogoEntry(fromOrgId);
    }
 
-   // ── TC-03/TC-04: faviconEntries copy/rename (Risk 1, mirrors logo) ──
+   // ── TC-03/TC-04: faviconEntries copy/rename (mirrors logo) ──
 
    @Test
    void copy_faviconEntrySynced_newOrgGetsMapEntry_sourceEntryNotRemoved() {
@@ -217,7 +218,7 @@ class OrgLifecyclePortalBrandingTest {
       verify(portalThemesManager).removeWelcomePage(fromOrgId);
    }
 
-   // ── TC-10: empty-org baseline (Risk 4's null-guard path; recommended smoke check) ──
+   // ── TC-10: empty-org baseline (null-guard path smoke check) ──
 
    @Test
    void copyAndRename_emptyOrg_noBrandingEntriesCreated() {
@@ -225,29 +226,23 @@ class OrgLifecyclePortalBrandingTest {
       // defaults, and getWelcomePage(fromOrgId) is left unstubbed (returns null) -- exercising
       // every one of the four `if (x != null)` guards' "nothing to do" branch on the add/copy side.
       //
-      // Deviation #1 from the plan: the plan's draft asserted these with a blanket
-      // never().addLogoEntry(any(), any()) etc. Because @DirtiesContext is not used on this class,
-      // Spring/JUnit5 caches and reuses the same ApplicationContext (and therefore the same
-      // singleton mock PortalThemesManager bean) across every test method in this class, so an
-      // unscoped any()/any() "never called" assertion is actually checking the mock's cumulative
-      // invocation history across the whole class run, not just this test -- it would pass or fail
+      // A blanket never().addLogoEntry(any(), any()) etc. would be wrong here: @DirtiesContext is
+      // not used on this class, so Spring/JUnit5 caches and reuses the same ApplicationContext (and
+      // therefore the same singleton mock PortalThemesManager bean) across every test method in this
+      // class. An unscoped any()/any() "never called" assertion would check the mock's cumulative
+      // invocation history across the whole class run, not just this test, and would pass or fail
       // depending on method execution order relative to the other tests above that DO call
       // addLogoEntry/addFaviconEntry/etc. with different org ids. Scoping every assertion to this
       // test's own from/to org ids (as the pre-existing CSS tests already do for their never()
       // checks) avoids that order-dependent flakiness.
       //
-      // Deviation #2 from the plan (found by actually running this test, not just reading the
-      // diff): the plan assumed removeCSSEntry/removeLogoEntry/removeFaviconEntry/
-      // removeWelcomePage(fromOrgId) are gated by the same per-type `if (x != null)` conditionals
-      // as their add-side counterparts, so an empty-org rename would call none of them either. In
-      // the real code (AbstractEditableAuthenticationProvider.java:333-336) all four remove* calls
-      // run unconditionally inside `if(replace)`, regardless of whether that org ever had a
-      // corresponding entry -- confirmed by actually running the original never()-on-rename
-      // assertion, which failed with `removeCSSEntry("empty_orch_rename_from")` invoked. This is
+      // The rename side asserts the remove* calls WERE made, not never() -- confirmed by actually
+      // running this test: removeCSSEntry/removeLogoEntry/removeFaviconEntry/removeWelcomePage
+      // (AbstractEditableAuthenticationProvider.java:333-336) run unconditionally inside
+      // `if(replace)`, regardless of whether that org ever had a corresponding entry. This is
       // correct, intentional cleanup behavior (ConcurrentHashMap.remove() on an absent key is a
-      // harmless no-op), not a product bug -- so the rename side of this test asserts the remove*
-      // calls WERE made (unconditional cleanup), while only the copy side (replace=false, where
-      // the whole `if(replace)` block is skipped entirely) asserts they were never called.
+      // harmless no-op), not a product bug -- so only the copy side (replace=false, where the whole
+      // `if(replace)` block is skipped entirely) asserts the remove* calls were never made.
       String copyFrom = "empty_orch_copy_from";
       String copyTo = "empty_orch_copy_to";
       String renameFrom = "empty_orch_rename_from";
@@ -278,9 +273,8 @@ class OrgLifecyclePortalBrandingTest {
       verify(portalThemesManager).removeWelcomePage(renameFrom);
    }
 
-   // ── TC-11: map entry present but no backing file on disk (Risk 2's documented intentional
-   // design -- map bookkeeping and file copy are decoupled, per commit c01225758's revert of
-   // 269bcf3bd) ──
+   // ── TC-11: map entry present but no backing file on disk (intentional design -- map
+   // bookkeeping and file copy are decoupled, per commit c01225758's revert of 269bcf3bd) ──
 
    @Test
    void copy_logoEntry_missingBackingFile_mapEntryStillAdded() {
@@ -335,11 +329,42 @@ class OrgLifecyclePortalBrandingTest {
          .addLogoEntry(toOrgId, "portal/" + toOrgId + "/logo.png");
    }
 
-   // Shared invocation helper for the new logo/favicon/welcome-page/edge-case tests above --
-   // mirrors the mockStatic(CustomThemesManager.class) + copyOrganization(...) boilerplate common
-   // to both existing CSS tests, factored out to avoid repeating the same 10-argument call and
-   // try-with-resources block across a dozen new test methods.
-   private static void invokeCopyOrganization(String fromOrgId, String toOrgId, boolean replace) {
+   // -- TC-14: a branding step that fails partway must leave the shared PortalThemesManager
+   // untouched. The four branding writes are batched behind one save() (bug #76393), so mutating
+   // the manager as each copy completes would leave entries for toOrgId in memory that were never
+   // persisted -- readable via getCssEntries()/getLogoEntries() on this node, and silently written
+   // out by whatever calls save() next, for an org whose copy actually failed. --
+
+   @Test
+   void copy_laterBrandingStepFails_earlierEntriesNotAddedToManager() {
+      String fromOrgId = "branding_fail_from";
+      String toOrgId = "branding_fail_to";
+
+      when(portalThemesManager.getCssEntries())
+         .thenReturn(Map.of(fromOrgId, fromOrgId + "/brand.css"));
+      when(portalThemesManager.getLogoEntries())
+         .thenReturn(Map.of(fromOrgId, "portal/" + fromOrgId + "/logo.png"));
+      // fails after the css and logo copies have run, standing in for any of the
+      // IOException -> RuntimeException throws in the copy steps
+      when(portalThemesManager.getWelcomePage(fromOrgId))
+         .thenThrow(new RuntimeException("branding copy failed"));
+
+      assertThrows(RuntimeException.class,
+                   () -> invokeCopyOrganization(fromOrgId, toOrgId, false));
+
+      // scoped to toOrgId, not blanket never() -- the mock is shared across the class, see the
+      // note on the rename cleanup test above
+      verify(portalThemesManager, never()).addCSSEntry(eq(toOrgId), any());
+      verify(portalThemesManager, never()).addLogoEntry(eq(toOrgId), any());
+      verify(portalThemesManager, never()).setWelcomePage(eq(toOrgId), any());
+   }
+
+   // Shared invocation helper for the logo/favicon/welcome-page/edge-case tests above -- mirrors
+   // the mockStatic(CustomThemesManager.class) + copyOrganization(...) boilerplate common to both
+   // existing CSS tests, factored out to avoid repeating the same 10-argument call and
+   // try-with-resources block across a dozen test methods. Package-private (not private) so
+   // OrgLifecyclePortalBrandingDataSpaceIntegrationTest, in the same package, can reuse it too.
+   static void invokeCopyOrganization(String fromOrgId, String toOrgId, boolean replace) {
       StubProvider provider = new StubProvider();
       CustomThemesManager noopThemesManager = noopThemesManager();
 

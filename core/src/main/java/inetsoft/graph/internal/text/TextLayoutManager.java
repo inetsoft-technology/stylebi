@@ -173,10 +173,26 @@ public class TextLayoutManager {
       helper.setCheckVO(vo instanceof TagFormVO);
       helper.setInPlot(inPlot && forceInPlot);
 
-      // restrict the movement so the label is not too far from the point
+      // restrict the movement so the label is not too far from the point. this covers every
+      // VOText (its constructor sets MOVE_FREE) and every tag form, so bound the coordinate's
+      // budget by an operator-set graph.textlayout.maxstep instead of replacing it outright,
+      // or the property has no effect on these labels at all. taking the smaller of the two
+      // keeps GeoCoord's tighter clamp for maps. (76291)
       if((vo instanceof VOText || vo instanceof TagFormVO) && collision == VLabel.MOVE_FREE) {
          String[] lines = text.getDisplayLabel();
-         helper.setMaxSteps(vgraph.getCoordinate().getMaxSteps(lines));
+         int[] steps = vgraph.getCoordinate().getMaxSteps(lines);
+
+         if(helper.isMaxStepsFromProperty()) {
+            int[] max = helper.getMaxSteps();
+            // getMaxSteps() is overridable and the loop below mutates in place
+            steps = steps.clone();
+
+            for(int i = 0; i < steps.length; i++) {
+               steps[i] = Math.min(steps[i], max[i]);
+            }
+         }
+
+         helper.setMaxSteps(steps);
       }
 
       return helper;

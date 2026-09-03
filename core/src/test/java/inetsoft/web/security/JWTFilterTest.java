@@ -210,6 +210,22 @@ class JWTFilterTest {
          "ThreadContext must be restored to null after filter completes");
    }
 
+   // ---- valid token → principal.setIgnoreLogin(true) so isLogin() is not consulted (Bug #73926) ----
+
+   @Test
+   void doFilter_validToken_marksPrincipalIgnoreLogin() throws Exception {
+      MockHttpServletRequest request = apiRequest("GET", "/api/public/data");
+      request.addHeader("X-Inetsoft-Api-Token", "valid.token");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+      SRPrincipal principal = mock(SRPrincipal.class);
+      when(principal.getLocale()).thenReturn(Locale.ENGLISH);
+      when(jwtService.getPrincipal(anyString(), eq("valid.token"))).thenReturn(principal);
+
+      filter.doFilter(request, response, chain);
+
+      verify(principal).setIgnoreLogin(true);
+   }
+
    // ---- team websocket endpoint without token → 401 ----
 
    @Test

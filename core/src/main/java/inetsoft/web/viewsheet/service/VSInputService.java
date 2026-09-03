@@ -25,7 +25,6 @@ import inetsoft.cluster.*;
 import inetsoft.report.*;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.*;
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.script.viewsheet.*;
 import inetsoft.sree.security.ResourceAction;
@@ -62,6 +61,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.awt.*;
 import java.security.Principal;
 import java.text.Format;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
@@ -162,7 +162,12 @@ public class VSInputService {
       Object selectedValue = event.value();
 
       try {
-         if(info.isCalendar() && selectedValue != null && !"".equals(selectedValue)) {
+         // a date is sent as a wall clock date string instead of an instant, and is
+         // converted in applySelection0() so that the submit button path gets it too
+         if(info.isCalendar() && isWallClockDate(info.getDataType(), selectedValue)) {
+            // not an instant, leave it alone
+         }
+         else if(info.isCalendar() && selectedValue != null && !"".equals(selectedValue)) {
             try {
                selectedValue = new Date(Long.parseLong(selectedValue.toString()));
             }
@@ -191,6 +196,39 @@ public class VSInputService {
       singleApplySelection(vsId, assemblyName, selectedValue, principal, dispatcher, linkUri);
 
       return null;
+   }
+
+   /**
+    * Check if the value is a wall clock date (yyyy-MM-dd), which is how the client sends the
+    * value of a date combobox. Such a value carries no time of day and no time zone, so it
+    * must not be treated as an instant.
+    */
+   private static boolean isWallClockDate(String dataType, Object value) {
+      return XSchema.DATE.equals(dataType) && value instanceof String &&
+         WALL_CLOCK_DATE.matcher((String) value).matches();
+   }
+
+   /**
+    * Convert a wall clock date string into the date it names, keeping the day exactly as
+    * picked. Both of the alternatives shift the day for a date inside a zone's Local Mean
+    * Time era: the browser resolves a zone offset through ICU, which models LMT, while
+    * java.util.Date reports a whole hour offset for the same instant, and CoreTool.parseDate
+    * splits the difference by parsing with LMT and truncating without it.
+    *
+    * @return the converted value, or the value unchanged if it is not a wall clock date.
+    */
+   private static Object convertWallClockDate(String dataType, Object value) {
+      if(!isWallClockDate(dataType, value)) {
+         return value;
+      }
+
+      try {
+         return java.sql.Date.valueOf(LocalDate.parse(value.toString()));
+      }
+      catch(Exception ex) {
+         LOG.debug("Not a valid date: {}", value, ex);
+         return value;
+      }
    }
 
    @ClusterWriteMethod
@@ -2658,7 +2696,7 @@ public class VSInputService {
    }
 
    private boolean hasFormScript(String script, String name) {
-      if(!LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM)) {
+      if(!FormUtil.isFormEnabled()) {
          return false;
       }
 
@@ -2805,7 +2843,15 @@ public class VSInputService {
 
       InputVSAssemblyInfo info = (InputVSAssemblyInfo) assembly.getVSAssemblyInfo();
       String type = assembly.getDataType();
-      Object obj = values == null || values.length == 0 ? null : Tool.getData(type, values[0]);
+
+      // don't write back into values[], it may alias the caller's array
+      Object firstValue = values == null || values.length == 0 ? null : values[0];
+
+      if(firstValue != null && info instanceof ComboBoxVSAssemblyInfo cinfo && cinfo.isCalendar()) {
+         firstValue = convertWallClockDate(type, firstValue);
+      }
+
+      Object obj = firstValue == null ? null : Tool.getData(type, firstValue);
 
       if(values !=null && values.length > 0 && obj == null && type.equals(CoreTool.BOOLEAN) && values[0].equals("")) {
          obj = "";
@@ -3852,5 +3898,6 @@ public class VSInputService {
    private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private final VSColumnHandler vsColumnHandler;
+   private static final Pattern WALL_CLOCK_DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
    private static final Logger LOG = LoggerFactory.getLogger(VSInputService.class);
 }

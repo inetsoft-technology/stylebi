@@ -39,9 +39,12 @@ import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.util.log.LogLevel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.*;
 
 /**
@@ -423,7 +426,9 @@ public class SeparateGraphGenerator extends GraphGenerator {
             coord.setLayout(TreemapCoord.Layout.SQUARE);
          }
          else if(info.getRTChartType() == GraphTypes.CHART_CIRCLE_PACKING) {
-            switch(SreeEnv.getProperty("graph.circle.packing", "circle").toLowerCase()) {
+            String packing = SreeEnv.getProperty("graph.circle.packing", "circle");
+
+            switch(packing.toLowerCase(Locale.ROOT)) {
             case "circle":
                coord.setLayout(TreemapCoord.Layout.SQUARE);
                break;
@@ -432,6 +437,18 @@ public class SeparateGraphGenerator extends GraphGenerator {
                break;
             case "fill":
                coord.setLayout(TreemapCoord.Layout.FILL);
+               break;
+            default:
+               // TreemapCoord's field initializer is FILL, which is the right default for
+               // treemap/sunburst but the layout furthest from circle packing's default.
+               // Fall back to the unset behavior instead of silently selecting fill.
+               // this runs per chart per refresh, so warn once for each bad value
+               if(loggedPackingValues.add(packing)) {
+                  LOG.warn("Unrecognized graph.circle.packing value \"{}\", expected one of " +
+                              "circle, fill_x or fill. Using circle.", packing);
+               }
+
+               coord.setLayout(TreemapCoord.Layout.SQUARE);
                break;
             }
          }
@@ -656,4 +673,7 @@ public class SeparateGraphGenerator extends GraphGenerator {
    }
 
    private boolean scatter_matrix = false;
+
+   private static final Set<String> loggedPackingValues = ConcurrentHashMap.newKeySet();
+   private static final Logger LOG = LoggerFactory.getLogger(SeparateGraphGenerator.class);
 }

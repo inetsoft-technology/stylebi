@@ -772,16 +772,16 @@ public abstract class GraphElement extends Graphable {
             String msg = GTool.getString("viewer.viewsheet.chart.shapeCountMax", mcount) +
                ": " + Arrays.toString(elem.getDims()) + "," + Arrays.toString(elem.getVars());
 
-            // showing a warning to end user is more distractive than
-            // helpful. if max is very large, when the max is reached, the graph
-            // is generally so over crowed that any truncation is unlikely
-            // noticeable or significant
-            if(mcount > 100000) {
-               LOG.debug(msg);
-            }
-            else {
-               CoreTool.addUserMessage(msg);
-            }
+            // truncation is always reported. this used to be suppressed above a fixed
+            // threshold of 100000, on the reasoning that a graph that crowded is past the
+            // point where truncation is noticeable. but the shipped graph.point.maxcount
+            // (10000000) sits above that threshold, so the suppression hid row loss at a
+            // shipped default, on the one chart type most likely to be plotting a large row
+            // count -- a reader could not tell whether they were seeing all their data.
+            // CoreTool.addUserMessage de-duplicates, so the repeated calls made while
+            // building geometry still raise a single message.
+            LOG.debug(msg);
+            CoreTool.addUserMessage(msg);
 
             rcount = mcount;
          }

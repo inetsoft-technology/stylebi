@@ -1012,6 +1012,11 @@ public final class AnnotationVSUtil {
          "true".equals(UserEnv.getProperty(rvs.getUser(), "annotation", "true"));
       VSAssemblyInfo viewsheetInfo = vs.getVSAssemblyInfo();
 
+      // the Bookmark check reads a dashboard toolbar action: its visibility comes from the
+      // vs.bookmark.button server property, applied by VSEventUtil.setActionVisible(). Hiding
+      // that toolbar button therefore also folds chart data annotations into the tooltip here,
+      // the same result the user gets by turning annotations off. Bookmark is the only toolbar
+      // action id read outside the toolbar -- see SUtil.ToolBarElement.VSTOOLBAR_ELEMENTS.
       if((!showAnnotations || !viewsheetInfo.isActionVisible("Bookmark"))
          && !notesMap.isEmpty())
       {

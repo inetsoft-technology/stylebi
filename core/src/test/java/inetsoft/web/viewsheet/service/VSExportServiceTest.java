@@ -102,6 +102,53 @@ class VSExportServiceTest {
          "non-VSO export formats must be redirected to the real host-org entry, not denied");
    }
 
+   // -- getContentDisposition(): shared by the viewer (VSExportService) and Composer
+   // (ExportControllerService.exportViewsheet) export paths. Before the two were unified, the
+   // Composer path hardcoded "attachment" and ignored "pdf.output.attachment" entirely, so the
+   // same viewsheet downloaded from Composer but opened in-browser from the viewer.
+   //
+   // The rule parses as ((!preview && PDF == format && embedded) || print), so "print" forces
+   // "inline" on its own and every other case needs all three of the first three terms.
+
+   @Test
+   void getContentDisposition_pdfEmbeddedNotPreview_isInline() {
+      assertEquals("inline", VSExportService.getContentDisposition(
+                      FileFormatInfo.EXPORT_TYPE_PDF, false, true, false),
+                   "a non-preview PDF export with pdf.output.attachment=embed must open in " +
+                   "the browser -- this is the ordinary Composer export that used to download");
+   }
+
+   @Test
+   void getContentDisposition_pdfNotEmbedded_isAttachment() {
+      assertEquals("attachment", VSExportService.getContentDisposition(
+                      FileFormatInfo.EXPORT_TYPE_PDF, false, false, false),
+                   "the default pdf.output.attachment setting must still download");
+   }
+
+   @Test
+   void getContentDisposition_pdfEmbeddedButPreview_isAttachment() {
+      assertEquals("attachment", VSExportService.getContentDisposition(
+                      FileFormatInfo.EXPORT_TYPE_PDF, true, true, false),
+                   "a preview export must not go inline even when embedding is enabled");
+   }
+
+   @ParameterizedTest
+   @ValueSource(ints = {FileFormatInfo.EXPORT_TYPE_EXCEL, FileFormatInfo.EXPORT_TYPE_CSV,
+                        FileFormatInfo.EXPORT_TYPE_POWERPOINT, FileFormatInfo.EXPORT_TYPE_HTML,
+                        FileFormatInfo.EXPORT_TYPE_PNG, FileFormatInfo.EXPORT_TYPE_SNAPSHOT})
+   void getContentDisposition_nonPdfFormats_areAttachmentEvenWhenEmbedded(int format) {
+      assertEquals("attachment", VSExportService.getContentDisposition(format, false, true, false),
+                   "pdf.output.attachment=embed must not affect non-PDF formats");
+   }
+
+   @ParameterizedTest
+   @ValueSource(ints = {FileFormatInfo.EXPORT_TYPE_PDF, FileFormatInfo.EXPORT_TYPE_EXCEL,
+                        FileFormatInfo.EXPORT_TYPE_CSV})
+   void getContentDisposition_print_isInlineRegardlessOfEverythingElse(int format) {
+      assertEquals("inline", VSExportService.getContentDisposition(format, true, false, true),
+                   "print forces inline on its own, independent of format/preview/embedded");
+   }
+
    private VSExportService newServiceWithResolvableSharedEntries() throws Exception {
       OrganizationContextHolder.setCurrentOrgId(VIEWER_ORG);
 

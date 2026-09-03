@@ -17,11 +17,11 @@
  */
 package inetsoft.web.portal.controller;
 
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.portal.model.SignupResponseModel;
@@ -35,6 +35,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.servlet.view.RedirectView;
 
 import java.util.Date;
 import java.util.Objects;
@@ -43,11 +44,22 @@ import java.util.Objects;
 public class SignupController {
    public SignupController(UserSignupService userSignupService,
                            CustomThemesManager customThemesManager,
-                           PortalThemesManager portalThemesManager)
+                           PortalThemesManager portalThemesManager,
+                           SecurityEngine securityEngine)
    {
       this.userSignupService = userSignupService;
       this.customThemesManager = customThemesManager;
       this.portalThemesManager = portalThemesManager;
+      this.securityEngine = securityEngine;
+   }
+
+   /**
+    * Checks whether self signup is enabled. The login page only hides the sign up link when this
+    * is off, so every signup endpoint has to enforce it as well; otherwise the flow stays reachable
+    * for anyone who knows the URLs.
+    */
+   private boolean isSelfSignupEnabled() {
+      return securityEngine.isSelfSignupEnabled();
    }
 
    /**
@@ -57,6 +69,10 @@ public class SignupController {
     */
    @GetMapping("/signup.html")
    public ModelAndView showSignUpPage(HttpServletResponse response, @LinkUri String linkUri) {
+      if(!isSelfSignupEnabled()) {
+         return new ModelAndView(new RedirectView("login.html"));
+      }
+
       ModelAndView model = new ModelAndView("signup");
 
       boolean customLogo = portalThemesManager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID());
@@ -66,13 +82,10 @@ public class SignupController {
                               !"default".equals(customThemesManager.getSelectedTheme());
       model.addObject("customTheme", isCustomTheme);
 
-      boolean googleSignInEnabled = SreeEnv.getBooleanProperty("security.googleSignIn.enabled");
-
-      if(googleSignInEnabled) {
-         model.addObject("gClientId", SreeEnv.getProperty("styleBI.google.openid.client.id"));
+      if(GoogleSignInSupport.isEnabled()) {
+         model.addObject("gClientId", GoogleSignInSupport.getClientId());
          model.addObject("gLoginUri", linkUri + "login/googleSSO");
-         model.addObject("gScopes",
-            SreeEnv.getProperty("styleBI.google.openid.scopes", "openid email profile"));
+         model.addObject("gScopes", GoogleSignInSupport.getScopes());
       }
 
       String header = CacheControl.noCache()
@@ -93,6 +106,10 @@ public class SignupController {
    public ModelAndView showSignUpDetailPage(
       HttpServletRequest request, HttpServletResponse response, @LinkUri String linkUri)
    {
+      if(!isSelfSignupEnabled()) {
+         return new ModelAndView(new RedirectView("login.html"));
+      }
+
       HttpSession session = request.getSession(false);
       Object emailObj = session.getAttribute(SIGNUP_USER_EMAIL);
       Object codeObj = session.getAttribute(SIGNUP_EMAIL_CODE);
@@ -130,7 +147,12 @@ public class SignupController {
    @ResponseBody
    public SignupResponseModel signupWithEmail(@RequestParam(name = "email") String signupEmail,
                                                HttpServletRequest request)
+      throws SecurityException
    {
+      if(!isSelfSignupEnabled()) {
+         throw new SecurityException("Self signup is not enabled");
+      }
+
       SignupResponseModel result = new SignupResponseModel();
       Catalog catalog = Catalog.getCatalog();
 
@@ -186,7 +208,11 @@ public class SignupController {
                                                  @RequestParam(name = "password") String password,
                                                  @RequestParam(name = "code") String code,
                                                  HttpServletRequest request)
+      throws SecurityException
    {
+      if(!isSelfSignupEnabled()) {
+         throw new SecurityException("Self signup is not enabled");
+      }
 
       SignupResponseModel result = new SignupResponseModel();
       HttpSession session = request.getSession(false);
@@ -294,7 +320,13 @@ public class SignupController {
     */
    @GetMapping("/signup/resendEmailCode")
    @ResponseBody
-   public SignupResponseModel resendEmailCode(HttpServletRequest request) {
+   public SignupResponseModel resendEmailCode(HttpServletRequest request)
+      throws SecurityException
+   {
+      if(!isSelfSignupEnabled()) {
+         throw new SecurityException("Self signup is not enabled");
+      }
+
       HttpSession session = request.getSession(false);
       SignupResponseModel responseModel = new SignupResponseModel();
 
@@ -347,6 +379,7 @@ public class SignupController {
    private final UserSignupService userSignupService;
    private final CustomThemesManager customThemesManager;
    private final PortalThemesManager portalThemesManager;
+   private final SecurityEngine securityEngine;
 
    private final static String SIGNUP_USER_EMAIL = "SIGNUP_USER_EMAIL";
    private final static String SIGNUP_EMAIL_CODE = "SIGNUP_EMAIL_CODE";

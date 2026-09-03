@@ -84,6 +84,14 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
       return impl.getOrgSelectedTheme();
    }
 
+   /**
+    * Gets the selected theme of the specified organization, rather than of the org that is
+    * current on this thread. Returns "default" when the organization has no theme selected.
+    */
+   public String getOrgSelectedTheme(String orgID) {
+      return impl.getOrgSelectedTheme(orgID);
+   }
+
    public void setGlobalSelectedTheme(String selectedTheme) {
       impl.setGlobalSelectedTheme(selectedTheme);
    }

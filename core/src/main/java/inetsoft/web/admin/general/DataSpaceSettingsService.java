@@ -97,6 +97,9 @@ public class DataSpaceSettingsService extends BackupSupport {
          ActionRecord.ACTION_STATUS_FAILURE, "");
 
       try {
+         // clear any pre-existing surplus first; this does not touch the current backup
+         // count when it is already at or under the limit, so a failure below never loses
+         // more backups than were already surplus
          deleteRedundantBackupFiles();
 
          // For the same backup, use the same timestamp
@@ -109,6 +112,10 @@ public class DataSpaceSettingsService extends BackupSupport {
 
          String path = getBackFile(model != null ? model.dataspace() : null, stamp);
          this.externalStorageService.write(path, file.toPath(), null);
+
+         // the new backup is safely on disk, so it is now safe to trim the oldest file
+         // back down to the configured count
+         deleteRedundantBackupFiles();
 
          status = catalog.getString("Success");
          record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
@@ -132,9 +139,12 @@ public class DataSpaceSettingsService extends BackupSupport {
    }
 
    /**
-    * backup count control by property "asset.backup.count",
+    * Deletes the oldest backup files down to the count of "asset.backup.count", if surplus
+    * files exist. Called both before a new backup is written, to clear any pre-existing
+    * surplus, and again after a successful write, to trim the file just added back down to
+    * the configured count.
     */
-   private void deleteRedundantBackupFiles() {
+   void deleteRedundantBackupFiles() {
       String backupCountProp = SreeEnv.getProperty("asset.backup.count");
       int backupCount = -1;
 
@@ -154,7 +164,7 @@ public class DataSpaceSettingsService extends BackupSupport {
             long z1Time = getTimestamp(z1);
             long z2Time = getTimestamp(z2);
 
-            return (int) (z1Time - z2Time);
+            return Long.compare(z1Time, z2Time);
          })
          .toList();
 
@@ -165,7 +175,7 @@ public class DataSpaceSettingsService extends BackupSupport {
 
       int deleteCount = zips.size() - backupCount;
 
-      for(int i = 0; i <= deleteCount; i++) {
+      for(int i = 0; i < deleteCount; i++) {
          try {
             this.externalStorageService.delete(BACKUP_FOLDER + File.separator + zips.get(i));
          }

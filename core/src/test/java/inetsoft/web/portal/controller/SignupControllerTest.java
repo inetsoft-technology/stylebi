@@ -35,13 +35,16 @@ package inetsoft.web.portal.controller;
  *
  * Cases deferred — need SreeEnv / OrganizationManager / HttpServletResponse:
  *
- * showSignUpPage() / showSignUpDetailPage() ModelAndView and cache headers
+ * showSignUpPage() / showSignUpDetailPage() ModelAndView and cache headers for the enabled path.
+ * The disabled path is covered by SelfSignupDisabled, which only asserts on the redirect view and
+ * so needs no theme/org stubbing.
  */
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.portal.model.SignupResponseModel;
 import inetsoft.web.portal.service.UserSignupService;
 import jakarta.mail.MessagingException;
@@ -54,6 +57,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.servlet.view.RedirectView;
 
 import javax.naming.NamingException;
 
@@ -71,19 +77,25 @@ class SignupControllerTest {
    private static final String SIGNUP_EMAIL = "user@example.com";
    private static final String VALID_CODE = "Ab12Cd";
    private static final String VALID_PASSWORD = "Password1!";
+   private static final String LINK_URI = "http://localhost:8080/";
 
    @Mock private UserSignupService userSignupService;
    @Mock private CustomThemesManager customThemesManager;
    @Mock private PortalThemesManager portalThemesManager;
+   @Mock private SecurityEngine securityEngine;
    @Mock private HttpServletRequest request;
    @Mock private HttpSession session;
+   @Mock private HttpServletResponse response;
 
    private SignupController signupController;
 
    @BeforeEach
    void setUp() {
       SUtil.setMultiTenant(true);
-      signupController = new SignupController(userSignupService, customThemesManager, portalThemesManager);
+      // every endpoint gates on this; the disabled case is overridden in SelfSignupDisabled
+      lenient().when(securityEngine.isSelfSignupEnabled()).thenReturn(true);
+      signupController = new SignupController(userSignupService, customThemesManager,
+                                             portalThemesManager, securityEngine);
    }
 
    // -------------------------------------------------------------------------
@@ -94,7 +106,7 @@ class SignupControllerTest {
    class SignupWithEmail {
 
       @Test
-      void invalidEmail_returnsFailure() {
+      void invalidEmail_returnsFailure() throws Exception {
          SignupResponseModel result = signupController.signupWithEmail("not-an-email", request);
 
          assertFalse(result.isSuccess());
@@ -182,7 +194,7 @@ class SignupControllerTest {
    class SubmitSignupDetail {
 
       @Test
-      void missingSessionEmail_redirectsToSignupPage() {
+      void missingSessionEmail_redirectsToSignupPage() throws Exception {
          when(request.getSession(false)).thenReturn(session);
          when(session.getAttribute("SIGNUP_EMAIL_CODE")).thenReturn(null);
          when(session.getAttribute("SIGNUP_USER_EMAIL")).thenReturn(null);
@@ -194,7 +206,7 @@ class SignupControllerTest {
       }
 
       @Test
-      void invalidUserName_returnsFailure() {
+      void invalidUserName_returnsFailure() throws Exception {
          stubSessionWithEmail();
          when(userSignupService.validUserName(SIGNUP_EMAIL)).thenReturn(false);
 
@@ -206,7 +218,7 @@ class SignupControllerTest {
       }
 
       @Test
-      void invalidPassword_returnsFailure() {
+      void invalidPassword_returnsFailure() throws Exception {
          stubSessionWithEmail();
          when(userSignupService.validUserName(SIGNUP_EMAIL)).thenReturn(true);
          when(userSignupService.validPassword(VALID_PASSWORD)).thenReturn(false);
@@ -219,7 +231,7 @@ class SignupControllerTest {
       }
 
       @Test
-      void expiredVerificationCode_returnsFailure() {
+      void expiredVerificationCode_returnsFailure() throws Exception {
          stubValidSession();
          when(userSignupService.validUserName(SIGNUP_EMAIL)).thenReturn(true);
          when(userSignupService.validPassword(VALID_PASSWORD)).thenReturn(true);
@@ -234,7 +246,7 @@ class SignupControllerTest {
       }
 
       @Test
-      void wrongVerificationCode_returnsFailure() {
+      void wrongVerificationCode_returnsFailure() throws Exception {
          stubValidSession();
          when(userSignupService.validUserName(SIGNUP_EMAIL)).thenReturn(true);
          when(userSignupService.validPassword(VALID_PASSWORD)).thenReturn(true);
@@ -248,7 +260,7 @@ class SignupControllerTest {
       }
 
       @Test
-      void userAlreadyExists_returnsFailure() {
+      void userAlreadyExists_returnsFailure() throws Exception {
          stubValidSession();
          stubValidSignupFields();
          when(userSignupService.existAuthenticationChain()).thenReturn(true);
@@ -262,7 +274,7 @@ class SignupControllerTest {
       }
 
       @Test
-      void createUserSuccess_clearsSessionAttributes() {
+      void createUserSuccess_clearsSessionAttributes() throws Exception {
          stubValidSession();
          stubValidSignupFields();
          when(userSignupService.existAuthenticationChain()).thenReturn(true);
@@ -307,7 +319,7 @@ class SignupControllerTest {
    class ResendEmailCode {
 
       @Test
-      void missingSession_returnsFailure() {
+      void missingSession_returnsFailure() throws Exception {
          when(request.getSession(false)).thenReturn(null);
 
          SignupResponseModel result = signupController.resendEmailCode(request);
@@ -362,6 +374,63 @@ class SignupControllerTest {
          when(session.getAttribute("SIGNUP_EMAIL_CODE")).thenReturn(VALID_CODE);
          when(session.getAttribute("SIGNUP_EMAIL_CODE_TIME"))
             .thenReturn(System.currentTimeMillis() - 120_000L);
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // self signup disabled — security.selfSignUp.enabled off must close the flow,
+   // not just hide the login-page link
+   // -------------------------------------------------------------------------
+
+   @Nested
+   class SelfSignupDisabled {
+      @BeforeEach
+      void disableSelfSignup() {
+         when(securityEngine.isSelfSignupEnabled()).thenReturn(false);
+      }
+
+      @Test
+      void showSignUpPage_redirectsToLogin() {
+         ModelAndView model = signupController.showSignUpPage(response, LINK_URI);
+
+         assertRedirectsToLogin(model);
+         verifyNoInteractions(userSignupService);
+      }
+
+      @Test
+      void showSignUpDetailPage_redirectsToLogin() {
+         ModelAndView model = signupController.showSignUpDetailPage(request, response, LINK_URI);
+
+         assertRedirectsToLogin(model);
+         verifyNoInteractions(userSignupService, request);
+      }
+
+      @Test
+      void signupWithEmail_isForbidden() {
+         assertThrows(SecurityException.class,
+                      () -> signupController.signupWithEmail(SIGNUP_EMAIL, request));
+         verifyNoInteractions(userSignupService);
+      }
+
+      @Test
+      void submitSignupDetail_isForbidden() {
+         assertThrows(SecurityException.class,
+                      () -> signupController.submitSignupDetail("First", "Last", VALID_PASSWORD,
+                                                                VALID_CODE, request));
+         verifyNoInteractions(userSignupService);
+      }
+
+      @Test
+      void resendEmailCode_isForbidden() {
+         assertThrows(SecurityException.class,
+                      () -> signupController.resendEmailCode(request));
+         verifyNoInteractions(userSignupService);
+      }
+
+      private void assertRedirectsToLogin(ModelAndView model) {
+         assertNotNull(model);
+         assertInstanceOf(RedirectView.class, model.getView());
+         assertEquals("login.html", ((RedirectView) model.getView()).getUrl());
       }
    }
 }

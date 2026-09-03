@@ -63,6 +63,9 @@
     flex-grow: 1;
     //height: 100%;
     padding-left: 4px;
+    // disable scroll anchoring so resizing the virtual-scroll spacer divs on scroll doesn't
+    // trigger the browser to auto-adjust scrollTop, which caused runaway scroll jumps (76005)
+    overflow-anchor: none;
 
     &.vscrollable-always {
       overflow-y: auto;

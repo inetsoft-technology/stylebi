@@ -18,8 +18,8 @@
 package inetsoft.sree.security;
 
 /*
- * P1 (test plan, reports/test-team/2026-08-25_bug-75800/plan.md) -- real-DataSpace companion to
- * OrgLifecyclePortalBrandingTest's mock-only logo/favicon copy/rename tests (TC-01..TC-04). Those
+ * Real-DataSpace companion to OrgLifecyclePortalBrandingTest's mock-only logo/favicon copy/rename
+ * tests (TC-01..TC-04). Those
  * mock-based tests can only prove that addLogoEntry/addFaviconEntry/removeLogoEntry/
  * removeFaviconEntry were *invoked* with the expected map-value strings; they cannot prove actual
  * bytes land at the destination path the map value claims, because dataSpace.getInputStream()/
@@ -47,21 +47,15 @@ package inetsoft.sree.security;
  */
 
 import inetsoft.sree.RepletRegistryManager;
-import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.PortalThemesManager;
-import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.util.DataSpace;
-import inetsoft.web.admin.security.IdentityService;
-import inetsoft.web.admin.security.user.IdentityThemeService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -70,13 +64,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.security.Principal;
-import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class,
@@ -116,7 +105,7 @@ class OrgLifecyclePortalBrandingDataSpaceIntegrationTest {
    }
 
    // ── TC-06: rename -- bytes relocated, source gone (relies on copyDataSpace()'s earlier blanket
-   // rename of the whole portal/{orgId} subtree -- Risk 2 from the analysis) ──
+   // rename of the whole portal/{orgId} subtree) ──
 
    @Test
    void rename_logoFile_bytesRelocatedToDestination_sourceGone() throws Exception {
@@ -141,8 +130,7 @@ class OrgLifecyclePortalBrandingDataSpaceIntegrationTest {
                  "source org's map entry must be removed after rename");
    }
 
-   // ── Bonus favicon variants (plan's "optional but recommended", same mechanism, low
-   // incremental cost -- closing the symmetric gap the plan flagged) ──
+   // ── Bonus favicon variants (same mechanism as logo, closing the symmetric gap) ──
 
    @Test
    void copy_faviconFile_bytesPresentAtDestination() throws Exception {
@@ -201,28 +189,11 @@ class OrgLifecyclePortalBrandingDataSpaceIntegrationTest {
       }
    }
 
-   // Same mockStatic(CustomThemesManager.class) + copyOrganization(...) shape as
-   // OrgLifecyclePortalBrandingTest.invokeCopyOrganization(); duplicated rather than shared because
-   // that method is `private` on its own class and this integration test intentionally keeps its
-   // collaborator mocks/real-bean wiring separate from the pure-mock class.
+   // Package-private in OrgLifecyclePortalBrandingTest specifically so this integration test can
+   // reuse it instead of duplicating the same mockStatic(CustomThemesManager.class) +
+   // copyOrganization(...) boilerplate.
    private void invokeCopyOrganization(String fromOrgId, String toOrgId, boolean replace) {
-      OrgLifecyclePortalBrandingTest.StubProvider provider =
-         new OrgLifecyclePortalBrandingTest.StubProvider();
-
-      CustomThemesManager noopThemesManager = mock(CustomThemesManager.class);
-      when(noopThemesManager.getCustomThemes()).thenReturn(Collections.emptySet());
-
-      FSOrganization fromOrganization = new FSOrganization(fromOrgId);
-      fromOrganization.setName(fromOrgId);
-
-      try(MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
-         ctm.when(CustomThemesManager::getManager).thenReturn(noopThemesManager);
-
-         provider.copyOrganization(fromOrganization, toOrgId,
-            mock(IdentityService.class), mock(IdentityThemeService.class),
-            mock(DashboardRegistryManager.class), mock(DataCycleManager.class),
-            mock(Principal.class), replace, null);
-      }
+      OrgLifecyclePortalBrandingTest.invokeCopyOrganization(fromOrgId, toOrgId, replace);
    }
 
    @Configuration

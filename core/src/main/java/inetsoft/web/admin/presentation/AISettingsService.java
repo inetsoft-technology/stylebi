@@ -101,15 +101,13 @@ public class AISettingsService {
       SreeEnv.save();
    }
 
+   /**
+    * Returns {@code true} if the AI assistant should be shown in the UI. Delegates to
+    * {@link AIAssistantController#isAiAssistantVisible()}, which owns the rule and the
+    * properties it reads.
+    */
    public boolean isAiAssistantVisible() {
-      if(!"true".equalsIgnoreCase(SreeEnv.getProperty(AIAssistantController.AI_ASSISTANT_VISIBLE, "false"))) {
-         return false;
-      }
-
-      String internalUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_INTERNAL_URL);
-      String serverUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
-      return (internalUrl != null && !internalUrl.trim().isEmpty())
-         || (serverUrl != null && !serverUrl.trim().isEmpty());
+      return AIAssistantController.isAiAssistantVisible();
    }
 
    @Audited(

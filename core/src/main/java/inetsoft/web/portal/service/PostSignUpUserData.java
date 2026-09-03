@@ -20,6 +20,7 @@ package inetsoft.web.portal.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.Tool;
 import jakarta.servlet.http.Cookie;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +29,7 @@ import java.io.IOException;
 import java.net.*;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.*;
 
 public class PostSignUpUserData {
@@ -42,17 +44,32 @@ public class PostSignUpUserData {
    public void sendUserData() {
       String postURL = SreeEnv.getProperty("selfSignUpPost.url");
       String postUsername = SreeEnv.getProperty("selfSignUpPost.username");
-      String postPassword = SreeEnv.getProperty("selfSignUpPost.password");
       String postHeader = SreeEnv.getProperty("selfSignUpPost.header");
-      String postSecret = SreeEnv.getProperty("selfSignUpPost.secretKey");
 
-      HttpClient client = HttpClient.newHttpClient();
+      // Nothing in the product writes these two, so they are set by hand in the property store or
+      // through INETSOFTENV_*. Decrypt on read so an operator who does not want a credential
+      // sitting in the clear can store Tool.encryptPassword output instead: decryptPassword
+      // returns an unrecognised value unchanged (LocalPasswordEncryption's clear-text branch), so
+      // a plaintext value keeps working exactly as before.
+      //
+      // Deliberately not SreeEnv.getPassword. Under cloud secrets that treats the stored string as
+      // a secret-manager reference and would resolve a literal to null, and its hardcoded name
+      // switch reads a "password" field out of the JSON for anything outside the OpenID names -
+      // the wrong field for selfSignUpPost.secretKey.
+      String postPassword = Tool.decryptPassword(SreeEnv.getProperty("selfSignUpPost.password"));
+      String postSecret = Tool.decryptPassword(SreeEnv.getProperty("selfSignUpPost.secretKey"));
 
       if(postURL != null) {
-         try {
+         try(HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(CONNECT_TIMEOUT)
+                .build())
+         {
+            String userData = parseUserData();
+
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                .uri(URI.create(postURL))
-               .method("POST", HttpRequest.BodyPublishers.ofString(parseUserData(), StandardCharsets.UTF_8))
+               .timeout(RESPONSE_TIMEOUT)
+               .method("POST", HttpRequest.BodyPublishers.ofString(userData, StandardCharsets.UTF_8))
                .header("Content-Type", "application/json; charset=UTF-8");
 
             if(postUsername != null && postPassword != null) {
@@ -70,7 +87,7 @@ public class PostSignUpUserData {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             int statusCode = response.statusCode();
 
-            LOG.debug("Writing PostSignUp User: (" + parseUserData() + ") to <" + postURL + "> returned code: " + statusCode);
+            LOG.debug("Writing PostSignUp User: (" + userData + ") to <" + postURL + "> returned code: " + statusCode);
 
             if(statusCode < 200 || statusCode >= 300) {
                if(statusCode >= 500) {
@@ -155,6 +172,9 @@ public class PostSignUpUserData {
    private String firstName = "";
    private String lastName = "";
    private String cookies = null;
+
+   private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+   private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(20);
 
    private static final Logger LOG =
       LoggerFactory.getLogger(PostSignUpUserData.class);

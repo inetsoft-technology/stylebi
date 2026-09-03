@@ -21,6 +21,8 @@ import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.region.ChartConstants;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Catalog;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
@@ -820,64 +822,127 @@ public class GraphTypes {
     * Get geometry max count.
     */
    public static int getGeomMaxCount(int type) {
-      String mstr = null;
+      String prop = null;
 
+      // is3DBar must be tested before isBar: isBar() returns true for CHART_3D_BAR and
+      // CHART_3D_BAR_STACK too, so reordering these two branches -- or inserting a new one
+      // between them -- would silently retire graph.3dbar.maxcount and move 3D bars onto
+      // graph.bar.maxcount. GraphTypesTest locks this.
       if(GraphTypes.is3DBar(type)) {
-         mstr = SreeEnv.getProperty("graph.3dbar.maxcount");
+         prop = "graph.3dbar.maxcount";
       }
       else if(GraphTypes.isBar(type)) {
-         mstr = SreeEnv.getProperty("graph.bar.maxcount");
+         prop = "graph.bar.maxcount";
       }
       else if(type == GraphTypes.CHART_PIE || type == GraphTypes.CHART_DONUT) {
-         mstr = SreeEnv.getProperty("graph.pie.maxcount");
+         prop = "graph.pie.maxcount";
       }
       else if(type == GraphTypes.CHART_SUNBURST) {
-         mstr = SreeEnv.getProperty("graph.pie.maxcount");
+         prop = "graph.pie.maxcount";
       }
       else if(type == GraphTypes.CHART_TREEMAP) {
-         mstr = SreeEnv.getProperty("graph.pie.maxcount");
+         prop = "graph.pie.maxcount";
       }
       else if(type == GraphTypes.CHART_CIRCLE_PACKING) {
-         mstr = SreeEnv.getProperty("graph.pie.maxcount");
+         prop = "graph.pie.maxcount";
       }
       else if(type == GraphTypes.CHART_ICICLE) {
-         mstr = SreeEnv.getProperty("graph.pie.maxcount");
+         prop = "graph.pie.maxcount";
       }
       else if(type == GraphTypes.CHART_3D_PIE) {
-         mstr = SreeEnv.getProperty("graph.3dpie.maxcount");
+         prop = "graph.3dpie.maxcount";
       }
       else if(GraphTypes.isArea(type)) {
-         mstr = SreeEnv.getProperty("graph.area.maxcount");
+         prop = "graph.area.maxcount";
       }
       else if(GraphTypes.isLine(type)) {
-         mstr = SreeEnv.getProperty("graph.line.maxcount");
+         prop = "graph.line.maxcount";
       }
       else if(GraphTypes.isPoint(type)) {
-         mstr = SreeEnv.getProperty("graph.point.maxcount");
+         prop = "graph.point.maxcount";
       }
       else if(GraphTypes.isRadar(type)) {
-         mstr = SreeEnv.getProperty("graph.radar.maxcount");
+         prop = "graph.radar.maxcount";
       }
       else if(GraphTypes.isCandle(type)) {
-         mstr = SreeEnv.getProperty("graph.candle.maxcount");
+         prop = "graph.candle.maxcount";
       }
       else if(GraphTypes.isStock(type)) {
-         mstr = SreeEnv.getProperty("graph.stock.maxcount");
+         prop = "graph.stock.maxcount";
       }
       else if(GraphTypes.isWaterfall(type)) {
-         mstr = SreeEnv.getProperty("graph.waterfall.maxcount");
+         prop = "graph.waterfall.maxcount";
       }
       else if(GraphTypes.isPareto(type)) {
-         mstr = SreeEnv.getProperty("graph.pareto.maxcount");
+         prop = "graph.pareto.maxcount";
       }
 
-      if(mstr != null) {
-         return Integer.parseInt(mstr);
+      if(prop != null) {
+         return getMaxCount(prop);
       }
 
       return -1;
    }
 
+   /**
+    * Gets a graph.*.maxcount property. A non-numeric value logs a warning naming the
+    * property and falls back to the value shipped in defaults.properties, so an admin typo
+    * degrades the limit instead of failing chart generation with an opaque
+    * NumberFormatException out of GraphGenerator.createElement.
+    *
+    * <p>The fallback is the shipped default rather than any site-wide value: when an
+    * org-scoped override (inetsoft.org.&lt;id&gt;.graph.*.maxcount) is the value that fails to
+    * parse, the limit drops to what defaults.properties ships, not to a site-wide setting in
+    * sree.properties. That keeps the fallback predictable, and the warning names the property
+    * so the bad override can be corrected.
+    *
+    * <p>A null value means the property is not configured at all, which is not an admin
+    * error and so is not warned about. In practice it does not arise for these properties:
+    * PropertiesEngine chains internalProperties to defaults.properties, and all of the
+    * graph.*.maxcount names ship a default there.
+    *
+    * <p>A negative value is returned as configured; -1 is the "no limit" sentinel this
+    * method already returns for a chart type that matches no property.
+    *
+    * @param name the property name.
+    *
+    * @return the configured max count, or -1 for no limit.
+    */
+   private static int getMaxCount(String name) {
+      String value = SreeEnv.getProperty(name);
+      Integer count = parseCount(value);
+
+      if(count != null) {
+         return count;
+      }
+
+      Properties defaults = SreeEnv.getDefaultProperties();
+      Integer def = defaults != null ? parseCount(defaults.getProperty(name)) : null;
+      int applied = def != null ? def : -1;
+
+      if(value != null) {
+         LOG.warn("Invalid {} value \"{}\", using {}", name, value,
+                  applied < 0 ? "no limit" : applied);
+      }
+
+      return applied;
+   }
+
+   /**
+    * Parses a max count property value.
+    *
+    * @return the parsed value, or null if it is missing or not a number.
+    */
+   private static Integer parseCount(String value) {
+      try {
+         return Integer.parseInt(value);
+      }
+      catch(NumberFormatException e) {
+         return null;
+      }
+   }
+
    private static final HashMap map = new LinkedHashMap();
    private static final HashMap chartTypes = new LinkedHashMap();
+   private static final Logger LOG = LoggerFactory.getLogger(GraphTypes.class);
 }
