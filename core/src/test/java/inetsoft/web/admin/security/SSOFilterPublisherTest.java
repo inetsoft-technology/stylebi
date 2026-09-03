@@ -59,6 +59,9 @@ class SSOFilterPublisherTest {
    void changeSSOFilterType_clusterSendFails_localEventStillPublished_exceptionSwallowed()
       throws Exception
    {
+      // Bug #72373 verified against commit 3bf25021e's own message ("fix Bug #72373, correct
+      // handle ChangeSSOFilterMessage to ensure the sso type can be changed successfully.") --
+      // not an assumed/guessed ticket number.
       doThrow(new RuntimeException("cluster unreachable")).when(cluster).sendMessage(any());
 
       assertDoesNotThrow(() -> filterPublisher.changeSSOFilterType(SSOType.OPENID),
