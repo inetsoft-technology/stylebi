@@ -82,6 +82,30 @@ public class ClientInfo implements Cloneable, Serializable, XMLSerializable {
    }
 
    /**
+    * Gets a key identifying this user's login, for use as the key of the cluster-wide map of
+    * logged-in principals.
+    *
+    * <p>Unlike {@link #getCacheKey()} this omits the locale, and omits the client address when a
+    * session id is present. Both are part of {@link #equals(Object)} and {@link #hashCode()}, and
+    * both can differ between the node where the user logged in and a node that receives the same
+    * principal after it has been serialized across the cluster. A real login is already uniquely
+    * identified by the user identity plus the session id, so including the other two fields only
+    * makes the lookup miss and the user appear to be logged out.
+    *
+    * <p>The address is retained when the session id is empty. Several callers build a
+    * {@code ClientInfo} with no session at all (the two-argument constructor normalizes it to
+    * {@code ""}); for those the address is the only thing distinguishing two otherwise identical
+    * entries, and dropping it would collapse them into one — so one caller would receive another's
+    * principal, and a logout by either would deregister both.
+    *
+    * @return the login key.
+    */
+   public ClientInfo getLoginKey() {
+      return new ClientInfo(userID, session == null || session.isEmpty() ? addr : null,
+                            session, null);
+   }
+
+   /**
     * Returns the user name.
     *
     * @return the user name.

@@ -53,6 +53,7 @@ package inetsoft.util;
  */
 
 import com.nimbusds.jose.*;
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import org.junit.jupiter.api.*;
@@ -238,6 +239,50 @@ class FipsPasswordEncryptionTest {
          assertTrue(jws.verify(encryption.createJwsVerifier(key)));
       }
 
+      // Clustered cold start: the cluster lock serializes nodes, but SreeEnv.getProperty() reads
+      // this node's in-memory snapshot, which is refreshed asynchronously from key-value storage.
+      // A node could therefore hold the lock, read a stale null for a key another node had
+      // already persisted, and generate and store a second one — leaving each pod signing JWTs
+      // with a different key. getJwtSigningKey() must consult the backing store before deciding
+      // that no key exists.
+      // Setup: persist a key, then evict it from the in-memory properties only, simulating the
+      // node whose snapshot has not caught up yet.
+      @Test
+      void getJwtSigningKey_staleInMemoryCache_readsStorageInsteadOfRegenerating() throws Exception {
+         SecretKey original = encryption.getJwtSigningKey();
+         String persisted = SreeEnv.getProperty("jwt.signing.key");
+         assertNotNull(persisted, "precondition: a key must have been persisted");
+
+         try {
+            evictFromInMemoryProperties("jwt.signing.key");
+            Assumptions.assumeTrue(SreeEnv.getProperty("jwt.signing.key") == null,
+               "could not simulate a stale in-memory property snapshot");
+            Assumptions.assumeTrue(SreeEnv.getPropertyFromStorage("jwt.signing.key") != null,
+               "the backing store is not readable in this test environment");
+
+            SecretKey reread = encryption.getJwtSigningKey();
+
+            assertArrayEquals(original.getEncoded(), reread.getEncoded(),
+               "a stale in-memory null must not cause a second signing key to be generated");
+         }
+         finally {
+            // Undo the in-memory eviction first so the property is in a known state, then clear
+            // it the same way the sibling test does.
+            SreeEnv.setProperty("jwt.signing.key", persisted);
+            SreeEnv.remove("jwt.signing.key");
+         }
+      }
+
+      // Removes a property from the in-memory snapshot without touching the backing store, so the
+      // node looks like one whose asynchronous property refresh has not arrived yet.
+      private void evictFromInMemoryProperties(String name) throws Exception {
+         PropertiesEngine engine = PropertiesEngine.getInstance();
+         java.lang.reflect.Method method =
+            PropertiesEngine.class.getDeclaredMethod("getInternalProperties");
+         method.setAccessible(true);
+         ((java.util.Properties) method.invoke(engine)).remove(name);
+      }
+
       // Bug #75541: self-heal path — an upgraded FIPS deployment with a persisted 128-bit
       // key must have getJwtSigningKey() regenerate and re-persist a 512-bit (64-byte) key.
       @Test
@@ -245,6 +290,10 @@ class FipsPasswordEncryptionTest {
          SecretKey legacyKey = new SecretKeySpec(new byte[16], "HmacSHA512");
          byte[] encrypted = encryption.encryptJwtSigningKey(legacyKey, encryption.getMasterKey());
          SreeEnv.setProperty("jwt.signing.key", Base64.getEncoder().encodeToString(encrypted));
+         // save() as well as setProperty: in the scenario this covers, an older build had
+         // *persisted* the undersized key, and getJwtSigningKey() reads the backing store rather
+         // than the in-memory snapshot so that a stale snapshot cannot drive key regeneration.
+         SreeEnv.save();
 
          try {
             SecretKey healed = encryption.getJwtSigningKey();
