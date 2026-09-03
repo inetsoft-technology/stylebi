@@ -25,6 +25,7 @@ import { NEVER, Observable, of, of as observableOf } from "rxjs";
 import { catchError, map, switchMap } from "rxjs/operators";
 import { MapModel } from "../../../../../../portal/src/app/common/data/map-model";
 import { ErrorHandlerService } from "../../../common/util/error/error-handler.service";
+import { OrganizationDropdownService } from "../../../navbar/organization-dropdown.service";
 import { convertToKey, IdentityId } from "../users/identity-id";
 import { BaseQueryResult } from "./base-query-result/base-query-result.component";
 import { InputQueryParamsDialogComponent } from "./input-query-params-dialog/input-query-params-dialog.component";
@@ -51,7 +52,8 @@ export class SecurityProviderService {
                private http: HttpClient,
                private dialog: MatDialog,
                private bottomSheet: MatBottomSheet,
-               private errorService: ErrorHandlerService)
+               private errorService: ErrorHandlerService,
+               private orgDropdownService: OrganizationDropdownService)
    {
    }
 
@@ -130,7 +132,13 @@ export class SecurityProviderService {
 
       return this.http.post(url, model).pipe(
          catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error, this.defaultErrMsg))
-      ).subscribe(() => this.routeToListView());
+      ).subscribe(() => {
+         // the Users tab and page header read the provider list cached on
+         // OrganizationDropdownService; without this an added or renamed provider stays
+         // invisible (and a stale name stays selected) for the whole browser session
+         this.orgDropdownService.refreshProviders();
+         this.routeToListView();
+      });
    }
 
    testConnection(authenticationForm: UntypedFormGroup) {

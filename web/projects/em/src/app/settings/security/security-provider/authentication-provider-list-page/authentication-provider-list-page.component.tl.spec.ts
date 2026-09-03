@@ -156,6 +156,27 @@ describe("AuthenticationProviderViewComponent — removeProvider(): stale-index 
       expect(windowOpenSpy).not.toHaveBeenCalled();
    });
 
+   // 🔁 Regression-sensitive: same stale-cache contract as copyProvider above -- a removed
+   // provider must disappear from the shared list too, otherwise it stays selectable on the
+   // Users tab and the tree request 500s
+   it("should refresh the shared provider list when a non-current provider is removed", async () => {
+      server.use(
+         http.delete("*/api/em/security/remove-authentication-provider/1", () => HttpResponse.json({})),
+      );
+
+      const { comp, dialogSpy, orgDropdownSpy } = await renderComponent({
+         initialProviders: [makeProvider("A"), makeProvider("B")],
+      });
+      await waitForProviderNames(comp, ["A", "B"]);
+      comp["currentProvider"] = "A";
+      dialogSpy.open.mockReturnValue({ afterClosed: () => of(true) });
+      orgDropdownSpy.refreshProviders.mockClear();
+
+      comp.removeProvider(1);
+
+      await waitFor(() => expect(orgDropdownSpy.refreshProviders).toHaveBeenCalled());
+   });
+
    // 🔁 Regression-sensitive: logout must fire whenever the active provider is deleted
    it("should call window.open to force logout when the currently-active provider is removed", async () => {
       server.use(
@@ -393,6 +414,28 @@ describe("AuthenticationProviderViewComponent — copyProvider(): duplicate-name
       await waitFor(() =>
          expect(comp.authenticationProviders.map(p => p.name)).toEqual(["A", "A_copy"]),
       );
+   });
+
+   // 🔁 Regression-sensitive: the Users tab and page header read the provider list cached on
+   // OrganizationDropdownService, not this page's local array. Without a refresh the copy is
+   // invisible there for the rest of the browser session and selecting a stale name makes
+   // get-security-tree-root fail (NPE on a null provider).
+   it("should refresh the shared provider list after a successful copy", async () => {
+      server.use(
+         http.get("*/api/em/security/copy-authentication-provider/A", () =>
+            HttpResponse.json(makeProvider("A_copy")),
+         ),
+      );
+
+      const { comp, orgDropdownSpy } = await renderComponent({
+         initialProviders: [makeProvider("A")],
+      });
+      await waitForProviderNames(comp, ["A"]);
+      orgDropdownSpy.refreshProviders.mockClear();
+
+      comp.copyProvider(0);
+
+      await waitFor(() => expect(orgDropdownSpy.refreshProviders).toHaveBeenCalled());
    });
 
    // 🔁 Regression-sensitive: two rows with the same name break reorder and remove index arithmetic
