@@ -330,6 +330,26 @@ class TableBindingMutatorTest {
                    "a numeric column defaults to Sum, matching AssetUtil.getDefaultFormula()");
    }
 
+   /**
+    * Claude-review finding on PR #4976: a column from a joined/merged worksheet table can be
+    * reported qualified ({@code "table.attribute"}) while the field naming it on the shelf is
+    * bare, or vice versa -- {@code dataTypeOf}'s lookup must resolve either direction, the same
+    * symmetric matching {@link TableBindingService#unqualified} exists for. Before the fix, this
+    * silently defaulted to Count instead of Sum, since the exact-match-only lookup never found
+    * the qualified column's data type.
+    */
+   @Test
+   void movingANumericDimensionWithAQualifiedSourceNameOntoAggregatesDefaultsToSum() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "Orders.QUANTITY", "integer")));
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("QUANTITY")));
+
+      TableBindingMutator.moveField(model, "rows", "aggregates", "QUANTITY", null);
+
+      assertEquals("Sum", model.getAggregates().get(0).getFormula(),
+                   "a qualified source column name must still resolve the bare field's data type");
+   }
+
    @Test
    void movingANonNumericDimensionOntoAggregatesDefaultsToCount() {
       CrosstabBindingModel model = new CrosstabBindingModel();

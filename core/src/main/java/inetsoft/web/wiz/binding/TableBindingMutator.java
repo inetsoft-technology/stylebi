@@ -375,7 +375,17 @@ public final class TableBindingMutator {
                           field.chartType(), field.runtimeChartType());
    }
 
-   /** The bound source's own reported data type for {@code column}, or {@code null} if unknown. */
+   /**
+    * The bound source's own reported data type for {@code column}, or {@code null} if unknown.
+    *
+    * <p>Matches {@code column} against a reported column name either exactly or with either
+    * side's {@code "table.attribute"} qualifier stripped -- the same symmetric matching {@link
+    * TableBindingService#unqualified} exists for, since a column from a joined/merged worksheet
+    * table can be qualified while the field being moved onto {@code aggregates} names it bare
+    * (or vice versa). Without this, a qualified numeric column silently defaulted to {@code
+    * Count} instead of {@code Sum} here, since the exact-match-only lookup never found its data
+    * type.
+    */
    private static String dataTypeOf(BaseTableBindingModel model, String column) {
       List<BindingModel.SourceTable> tables = model.getTables();
 
@@ -383,13 +393,19 @@ public final class TableBindingMutator {
          return null;
       }
 
+      String bareColumn = TableBindingService.unqualified(column);
+
       for(BindingModel.SourceTable table : tables) {
          if(table.getColumns() == null) {
             continue;
          }
 
          for(BindingModel.SourceTableColumn col : table.getColumns()) {
-            if(column.equalsIgnoreCase(col.getName())) {
+            String name = col.getName();
+
+            if(column.equalsIgnoreCase(name) || bareColumn.equalsIgnoreCase(name) ||
+               column.equalsIgnoreCase(TableBindingService.unqualified(name)))
+            {
                return col.getDataType();
             }
          }

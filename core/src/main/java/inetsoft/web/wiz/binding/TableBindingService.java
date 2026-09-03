@@ -309,9 +309,11 @@ public class TableBindingService {
     * and an old bound field's column name in {@link #discardBoundFields}, since either side can
     * independently be qualified or not depending on whether its own source table is a
     * joined/merged worksheet table -- comparing only one side's unqualified form would still
-    * miss the {qualified old field, unqualified new source} pairing.
+    * miss the {qualified old field, unqualified new source} pairing. Package-private: {@link
+    * TableBindingMutator#dataTypeOf} reuses it for the identical problem (a qualified column
+    * from a joined/merged table not matching a bare field name).
     */
-   private static String unqualified(String name) {
+   static String unqualified(String name) {
       int dot = name.lastIndexOf('.');
       return dot >= 0 && dot < name.length() - 1 ? name.substring(dot + 1) : name;
    }
