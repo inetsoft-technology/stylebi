@@ -26,5 +26,33 @@ package inetsoft.uql.tabular;
  *             not exhaustive: the actual, closed vocabulary is every {@code public static final
  *             String} constant {@code XSchema} itself declares. The connector maps its own native
  *             type onto this vocabulary; the native type name does not cross this boundary.
+ * @param description the column's own description as the source declares it, verbatim — not a
+ *                     sentence the connector composes. {@code null} when the source declares
+ *                     nothing, never an empty string standing in for "nothing". Where "nothing" is
+ *                     represented is source-specific (a protobuf getter never returns null, so a
+ *                     connector reading one must translate its own empty string to {@code null}
+ *                     here); that translation belongs to the connector, which is the only party
+ *                     that knows its source's convention.
+ * @param label the column's own display name as the source declares it. {@code null} when blank.
+ *              May equal {@code name} — that is still a true statement about the source.
+ * @param isDimension three-valued. {@code TRUE}/{@code FALSE} only when the source itself sorts
+ *                    this column into one of two disjoint dimension/measure lists; {@code null}
+ *                    when the source does not say. Deliberately not an inference: a connector must
+ *                    not guess from the column's type (numeric therefore a measure, or similar).
+ *                    The three-valued form is required, not merely cautious — {@code FALSE} ("the
+ *                    source says this is a measure") and {@code null} ("the source did not say")
+ *                    are different facts downstream.
  */
-public record TabularColumn(String name, String type) {}
+public record TabularColumn(String name, String type, String description, String label,
+                             Boolean isDimension)
+{
+   /**
+    * Compatibility constructor for callers written before description/label/isDimension existed —
+    * every existing connector's construction site. All three default to null, which
+    * {@code TabularCatalogService} treats identically to "the connector said nothing": the key is
+    * omitted from the projection entirely, not written empty or false.
+    */
+   public TabularColumn(String name, String type) {
+      this(name, type, null, null, null);
+   }
+}

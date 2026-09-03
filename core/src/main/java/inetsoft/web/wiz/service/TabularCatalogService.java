@@ -353,7 +353,20 @@ public class TabularCatalogService {
             field.setDimension(new OsiDimension(true));
          }
 
-         field.setCustomExtensions(List.of(buildFieldExtension(column.type(), objectMapper)));
+         if(column.label() != null && !column.label().isBlank()) {
+            field.setLabel(column.label());
+         }
+
+         if(column.description() != null && !column.description().isBlank()) {
+            field.setDescription(column.description());
+         }
+
+         if(column.isDimension() != null) {
+            field.setIsDimension(column.isDimension());
+         }
+
+         field.setCustomExtensions(
+            List.of(buildFieldExtension(column.type(), column.isDimension(), objectMapper)));
          fields.add(field);
       }
 
@@ -369,10 +382,27 @@ public class TabularCatalogService {
       return dataset;
    }
 
-   private static OsiCustomExtension buildFieldExtension(String type, ObjectMapper objectMapper) {
+   /**
+    * {@code declaredIsDimension} is the second half of this extension's existing "the column's
+    * declared type as the source reports it" role (see {@code "type"} below): written only when
+    * the source itself sorted the column into a dimension/measure list ({@code isDimension} is
+    * non-null), never inferred and never defaulted to {@code false}. It is deliberately placed
+    * here, in the field-level COMMON extension, rather than only on {@link OsiField#isDimension},
+    * because the annotation merge overwrites {@code OsiField.isDimension} with the LLM's own
+    * judgment on every run (see {@code applyAnnotationToDoc} in wiz), while this extension's
+    * {@code custom_extensions} survives that merge untouched. A save-time cross-check in wiz reads
+    * this key back to confirm the annotation didn't contradict what the source declared.
+    */
+   private static OsiCustomExtension buildFieldExtension(String type, Boolean isDimension,
+                                                          ObjectMapper objectMapper)
+   {
       try {
          Map<String, Object> extData = new LinkedHashMap<>();
          extData.put("type", type);
+
+         if(isDimension != null) {
+            extData.put("declaredIsDimension", isDimension);
+         }
 
          OsiCustomExtension ext = new OsiCustomExtension();
          ext.setVendorName("COMMON");
