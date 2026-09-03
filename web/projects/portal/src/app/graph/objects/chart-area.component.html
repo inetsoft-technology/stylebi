@@ -133,49 +133,11 @@
               [container]="container">
             </chart-facet-area>
           }
-          @for (axis of model.axes; track trackByFn($index, axis)) {
-            <chart-axis-area
-              [wTooltip]="tooltipString"
-              [tooltipCSS]="tooltipCSS"
-              [followCursor]="true"
-              [waitTime]="0"
-              [disableTooltipOnMousedown]="false"
-              [chartSelection]="model.chartSelection"
-              [model]="model"
-              [id]="axis.areaName"
-              [chartObject]="axis"
-              [maxMode]="model.maxMode"
-              [isDataTip]="isDataTip"
-              [genTime]="model.genTime"
-              [urlPrefix]="urlPrefix"
-              [scrollLeft]="scrollLeft"
-              [scrollTop]="scrollTop"
-              [scrollbarWidth]="scrollbarWidth"
-              [hideSortIcon]="hideSortIcon"
-              [dateComparisonDefined]="dateComparisonDefined"
-              [links]="links" [onTitle]="onTitle"
-              [flyover]="model.hasFlyovers"
-              [flyOnClick]="model.flyOnClick"
-              [dataTip]="vsChartModel.dataTip"
-              [dataTipOnClick]="model.dataTipOnClick"
-              (selectRegion)="selectRegion($event)"
-              (changeCursor)="changeCursor($event)"
-              (showTooltip)="showTooltip($event)"
-              (showHyperlink)="showHyperlink($event)"
-              (startAxisResize)="startAxisResize($event)"
-              (drill)="drill($event)"
-              (sortAxis)="sortAxis(axis)"
-              (brushChart)="onBrushChart.emit()"
-              (scrollAxis)="onScrollAxis($event, axis)"
-              (sendFlyover)="sendFlyover($event)"
-              (showDataTip)="showDataTip($event)"
-              (onLoad)="axisLoaded($event, axis.areaName)"
-              (onLoading)="axisLoading(axis.areaName)"
-              [supportHyperlink]="supportHyperlink"
-              [container]="container"
-              [resizeEnable]="!isResizeVisible || isResizeVisible('AxisResize')">
-            </chart-axis-area>
-          }
+          <!-- The plot is rendered before the axes: both regions are sized bounds + 1
+               (see VGraphPair.getSubGraphic) so they share one pixel at the plot boundary,
+               and DOM order decides which tile paints on top. Keeping the axes last leaves
+               the axis line above the plot grid lines, matching AXIS_Z_INDEX >
+               GRIDLINE_Z_INDEX in GDefaults. (Bug #76428) -->
           @if (model.plot) {
             <chart-plot-area
               #chartPlotArea
@@ -221,6 +183,49 @@
               (changeCursor)="changeCursor($event)"
               [container]="container">
             </chart-plot-area>
+          }
+          @for (axis of model.axes; track trackByFn($index, axis)) {
+            <chart-axis-area
+              [wTooltip]="tooltipString"
+              [tooltipCSS]="tooltipCSS"
+              [followCursor]="true"
+              [waitTime]="0"
+              [disableTooltipOnMousedown]="false"
+              [chartSelection]="model.chartSelection"
+              [model]="model"
+              [id]="axis.areaName"
+              [chartObject]="axis"
+              [maxMode]="model.maxMode"
+              [isDataTip]="isDataTip"
+              [genTime]="model.genTime"
+              [urlPrefix]="urlPrefix"
+              [scrollLeft]="scrollLeft"
+              [scrollTop]="scrollTop"
+              [scrollbarWidth]="scrollbarWidth"
+              [hideSortIcon]="hideSortIcon"
+              [dateComparisonDefined]="dateComparisonDefined"
+              [links]="links" [onTitle]="onTitle"
+              [flyover]="model.hasFlyovers"
+              [flyOnClick]="model.flyOnClick"
+              [dataTip]="vsChartModel.dataTip"
+              [dataTipOnClick]="model.dataTipOnClick"
+              (selectRegion)="selectRegion($event)"
+              (changeCursor)="changeCursor($event)"
+              (showTooltip)="showTooltip($event)"
+              (showHyperlink)="showHyperlink($event)"
+              (startAxisResize)="startAxisResize($event)"
+              (drill)="drill($event)"
+              (sortAxis)="sortAxis(axis)"
+              (brushChart)="onBrushChart.emit()"
+              (scrollAxis)="onScrollAxis($event, axis)"
+              (sendFlyover)="sendFlyover($event)"
+              (showDataTip)="showDataTip($event)"
+              (onLoad)="axisLoaded($event, axis.areaName)"
+              (onLoading)="axisLoading(axis.areaName)"
+              [supportHyperlink]="supportHyperlink"
+              [container]="container"
+              [resizeEnable]="!isResizeVisible || isResizeVisible('AxisResize')">
+            </chart-axis-area>
           }
           @for (title of model.titles; track trackByFn($index, title)) {
             <chart-title-area
