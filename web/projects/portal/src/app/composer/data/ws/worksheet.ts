@@ -35,6 +35,9 @@ export class Worksheet extends Sheet {
    public autoSaveFile: string;
    public closeProhibited: boolean = false;
    public singleQuery: boolean;
+   // runtime id of the viewsheet this worksheet was opened from (e.g. the base
+   // worksheet link in the composer's bottom status bar), if any.
+   public vsId: string;
    private _callback?: () => any;
 
    constructor(sheet: Worksheet = null) {
