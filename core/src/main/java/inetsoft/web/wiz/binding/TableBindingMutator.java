@@ -232,9 +232,8 @@ public final class TableBindingMutator {
     *
     * <p>A dimension moved onto {@code aggregates}, or a measure moved off it, is converted
     * rather than refused -- matching the UI's own drag-and-drop pivot
-    * ({@code VSCrosstabDndService.dnd()} -> {@code ConvertTableRefService.convertTableRef0()}),
-    * per the operator's decision to match that behavior rather than require a separate
-    * remove-then-add with an explicit type declared up front. See {@link #convertForShelf}.
+    * ({@code VSCrosstabDndService.dnd()} -> {@code ConvertTableRefService.convertTableRef0()}).
+    * See {@link #convertForShelf}.
     */
    public static void moveField(BaseTableBindingModel model, String fromShelf, String toShelf,
                                 String column, Integer position)
@@ -561,23 +560,27 @@ public final class TableBindingMutator {
    public static void setSort(BaseTableBindingModel model, String shelf, String column,
                               Integer index, DimensionSortRanking.Sort sort)
    {
+      BDimensionRefModel dimension = requireDimension(model, shelf, column, index);
+
       if(sort != null && !blank(sort.sortByField())) {
          requireKnownMeasure(model, sort.sortByField(), "sortByField");
       }
 
-      DimensionSortRanking.applySort(requireDimension(model, shelf, column, index), sort);
+      DimensionSortRanking.applySort(dimension, sort);
    }
 
    public static void setRanking(BaseTableBindingModel model, String shelf, String column,
                                  Integer index, DimensionSortRanking.Ranking ranking)
    {
+      BDimensionRefModel dimension = requireDimension(model, shelf, column, index);
+
       if(ranking != null && !"none".equalsIgnoreCase(ranking.mode()) &&
          !blank(ranking.measure()))
       {
          requireKnownMeasure(model, ranking.measure(), "measure");
       }
 
-      DimensionSortRanking.applyRanking(requireDimension(model, shelf, column, index), ranking);
+      DimensionSortRanking.applyRanking(dimension, ranking);
    }
 
    private static boolean blank(String value) {

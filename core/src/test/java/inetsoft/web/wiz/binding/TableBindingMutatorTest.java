@@ -299,10 +299,9 @@ class TableBindingMutatorTest {
    }
 
    /**
-    * Findings 1 (parity audit, lane L5): the UI's own drag-and-drop pivot
-    * (VSCrosstabDndService.dnd() -> ConvertTableRefService.convertTableRef0()) silently converts
-    * a field's kind rather than refusing the move -- moveField now matches that instead of
-    * throwing, per the operator's decision to follow UI behavior for this finding.
+    * The UI's own drag-and-drop pivot (VSCrosstabDndService.dnd() ->
+    * ConvertTableRefService.convertTableRef0()) silently converts a field's kind rather than
+    * refusing the move -- moveField matches that instead of throwing.
     */
    @Test
    void movingAMeasureOntoADimensionShelfConvertsItInstead() {
@@ -568,9 +567,8 @@ class TableBindingMutatorTest {
    }
 
    /**
-    * The regression for the repair review's finding on {@code ec48d8d56}: a bound aggregate
-    * whose formula takes a second column or an N (Correlation, Covariance, WeightedAvg,
-    * NthLargest, NthSmallest, PthPercentile) renders a real full name shaped like
+    * A bound aggregate whose formula takes a second column or an N (Correlation, Covariance,
+    * WeightedAvg, NthLargest, NthSmallest, PthPercentile) renders a real full name shaped like
     * {@code "formula(column, extra)"} that {@link TableBindingMutator}'s wire-format {@link
     * FieldRef} has no way to reconstruct exactly (no second-column/N value carried) -- the
     * validation must accept a prefix match for these formulas rather than refusing every such
