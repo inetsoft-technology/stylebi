@@ -41,6 +41,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -96,9 +97,17 @@ class SSOSettingsServiceTest {
          .openIdAttributesModel(new OpenIdAttributesModel.Builder().build()) // every field blank
          .build();
 
-      service.updateSSOSettings(model);
+      // the OPENID branch calls Tool.isCloudSecrets() (-> InetsoftConfig.getInstance()) to decide
+      // between the secretId and clientId/clientSecret fields -- pinned explicitly to the LOCAL
+      // (non-cloud-secrets) branch so this test doesn't depend on the ambient InetsoftConfig
+      // default; either branch is a no-op for the assertion below, but only one is exercised.
+      try(MockedStatic<Tool> toolMock = mockStatic(Tool.class)) {
+         toolMock.when(Tool::isCloudSecrets).thenReturn(false);
 
-      verify(publisher).changeSSOFilterType(SSOType.OPENID);
+         service.updateSSOSettings(model);
+
+         verify(publisher).changeSSOFilterType(SSOType.OPENID);
+      }
    }
 
    @Test
