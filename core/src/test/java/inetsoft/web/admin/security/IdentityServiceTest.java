@@ -20,7 +20,10 @@ package inetsoft.web.admin.security;
 import inetsoft.sree.security.AuthenticationProvider;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.IdentityInfo;
+import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.sree.security.Permission;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
@@ -215,5 +218,84 @@ class IdentityServiceTest {
       Method m = IdentityService.class.getDeclaredMethod("removeUserFavorites", Collection.class);
       m.setAccessible(true);
       m.invoke(service, ids);
+   }
+
+   // Bug 76448: deleting one identity (USER/GROUP/ROLE) was wiping every other identity's
+   // grant for the same action, because the delete-case guard compared a plain IdentityID
+   // against a Set<Permission.PermissionIdentity> -- a cross-type comparison that always
+   // returns false, so the "keep everyone but the deleted identity" branch never ran and an
+   // empty grant set was installed instead.
+   @Test
+   void updateIdentityPermission_deleteRole_keepsOtherRoleGrant() throws Exception {
+      IdentityID roleA = new IdentityID("RoleA", "org1");
+      IdentityID roleB = new IdentityID("RoleB", "org1");
+
+      Permission permission = new Permission();
+      permission.setRoleGrants(ResourceAction.READ, new HashSet<>(Set.of(
+         new Permission.PermissionIdentity(roleA), new Permission.PermissionIdentity(roleB))));
+
+      invokeUpdateIdentityPermission(Identity.ROLE, null, roleA, permission, ResourceAction.READ);
+
+      Set<Permission.PermissionIdentity> remaining = permission.getAllRoleGrants(ResourceAction.READ);
+      assertFalse(remaining.contains(new Permission.PermissionIdentity(roleA)),
+                  "deleted role's own grant should be removed");
+      assertTrue(remaining.contains(new Permission.PermissionIdentity(roleB)),
+                 "co-granted role's grant must survive the delete");
+   }
+
+   @Test
+   void updateIdentityPermission_deleteUser_keepsOtherUserGrant() throws Exception {
+      IdentityID alice = new IdentityID("alice", "org1");
+      IdentityID bob = new IdentityID("bob", "org1");
+
+      Permission permission = new Permission();
+      permission.setUserGrants(ResourceAction.READ, new HashSet<>(Set.of(
+         new Permission.PermissionIdentity(alice), new Permission.PermissionIdentity(bob))));
+
+      invokeUpdateIdentityPermission(Identity.USER, null, alice, permission, ResourceAction.READ);
+
+      Set<Permission.PermissionIdentity> remaining = permission.getAllUserGrants(ResourceAction.READ);
+      assertFalse(remaining.contains(new Permission.PermissionIdentity(alice)),
+                  "deleted user's own grant should be removed");
+      assertTrue(remaining.contains(new Permission.PermissionIdentity(bob)),
+                 "co-granted user's grant must survive the delete");
+   }
+
+   @Test
+   void updateIdentityPermission_deleteGroup_keepsOtherGroupGrant() throws Exception {
+      IdentityID groupA = new IdentityID("GroupA", "org1");
+      IdentityID groupB = new IdentityID("GroupB", "org1");
+
+      Permission permission = new Permission();
+      permission.setGroupGrants(ResourceAction.READ, new HashSet<>(Set.of(
+         new Permission.PermissionIdentity(groupA), new Permission.PermissionIdentity(groupB))));
+
+      invokeUpdateIdentityPermission(Identity.GROUP, null, groupA, permission, ResourceAction.READ);
+
+      Set<Permission.PermissionIdentity> remaining = permission.getAllGroupGrants(ResourceAction.READ);
+      assertFalse(remaining.contains(new Permission.PermissionIdentity(groupA)),
+                  "deleted group's own grant should be removed");
+      assertTrue(remaining.contains(new Permission.PermissionIdentity(groupB)),
+                 "co-granted group's grant must survive the delete");
+   }
+
+   @Test
+   void permissionIdentity_hashCode_matchesEqualsContract() {
+      Permission.PermissionIdentity a = new Permission.PermissionIdentity("RoleA", "org1");
+      Permission.PermissionIdentity b = new Permission.PermissionIdentity("RoleA", "org1");
+
+      assertEquals(a, b);
+      assertEquals(a.hashCode(), b.hashCode());
+      assertTrue(new HashSet<>(Set.of(a)).contains(b),
+                 "field-equal PermissionIdentity instances must collide in a HashSet");
+   }
+
+   private void invokeUpdateIdentityPermission(int type, IdentityID newIdentityID, IdentityID oldIdentityID,
+                                                Permission permission, ResourceAction action) throws Exception {
+      Method m = IdentityService.class.getDeclaredMethod("updateIdentityPermission", int.class,
+         IdentityID.class, IdentityID.class, Organization.class, String.class, Permission.class,
+         ResourceAction.class);
+      m.setAccessible(true);
+      m.invoke(service, type, newIdentityID, oldIdentityID, null, null, permission, action);
    }
 }
