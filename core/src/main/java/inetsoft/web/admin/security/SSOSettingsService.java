@@ -261,7 +261,7 @@ public class SSOSettingsService {
 
          if(ssoType != activeFilterType) {
             try {
-               cluster.sendMessage(new SSOTypeChangedMessage(activeFilterType, ssoType));
+               cluster.sendMessage(new SSOTypeChangedMessage(ssoType, activeFilterType));
             }
             catch(Exception ex) {
                LOG.debug("Failed to send sso type changed message", ex);
