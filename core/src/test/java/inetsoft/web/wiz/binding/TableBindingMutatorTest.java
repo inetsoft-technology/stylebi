@@ -37,6 +37,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
+import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
@@ -297,15 +298,57 @@ class TableBindingMutatorTest {
                    "a rejected move must not have already removed the field");
    }
 
+   /**
+    * Findings 1 (parity audit, lane L5): the UI's own drag-and-drop pivot
+    * (VSCrosstabDndService.dnd() -> ConvertTableRefService.convertTableRef0()) silently converts
+    * a field's kind rather than refusing the move -- moveField now matches that instead of
+    * throwing, per the operator's decision to follow UI behavior for this finding.
+    */
    @Test
-   void movingAMeasureOntoADimensionShelfIsRefusedAndLeavesTheSourceIntact() {
+   void movingAMeasureOntoADimensionShelfConvertsItInstead() {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Sales", "Sum")));
 
-      assertThrows(IllegalArgumentException.class,
-                   () -> TableBindingMutator.moveField(model, "aggregates", "rows", "Sales",
-                                                       null));
+      TableBindingMutator.moveField(model, "aggregates", "rows", "Sales", null);
+
+      assertEquals(0, model.getAggregates().size(),
+                   "the field must actually move, not stay behind");
+      assertEquals(1, model.getRows().size());
+      assertEquals("Sales", model.getRows().get(0).getColumnValue());
+   }
+
+   @Test
+   void movingANumericDimensionOntoAggregatesDefaultsToSum() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "QUANTITY", "integer")));
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("QUANTITY")));
+
+      TableBindingMutator.moveField(model, "rows", "aggregates", "QUANTITY", null);
+
+      assertEquals(0, model.getRows().size());
       assertEquals(1, model.getAggregates().size());
+      assertEquals("Sum", model.getAggregates().get(0).getFormula(),
+                   "a numeric column defaults to Sum, matching AssetUtil.getDefaultFormula()");
+   }
+
+   @Test
+   void movingANonNumericDimensionOntoAggregatesDefaultsToCount() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "REGION", "string")));
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("REGION")));
+
+      TableBindingMutator.moveField(model, "rows", "aggregates", "REGION", null);
+
+      assertEquals("Count", model.getAggregates().get(0).getFormula());
+   }
+
+   private static BindingModel.SourceTable sourceTable(String name, String column,
+                                                        String dataType)
+   {
+      BindingModel.SourceTable table = new BindingModel.SourceTable();
+      table.setName(name);
+      table.setColumns(List.of(new BindingModel.SourceTableColumn(column, dataType)));
+      return table;
    }
 
    // ── preservation ──────────────────────────────────────────────────────────
@@ -729,6 +772,64 @@ class TableBindingMutatorTest {
                                               Map.of("rowTotals", "yes")));
 
       assertTrue(thrown.getMessage().contains("silently turn the setting off"));
+   }
+
+   /**
+    * Finding 10 (parity audit, lane L5): rowTotalVisibleValue/colTotalVisibleValue are genuine
+    * DynamicValue fields on the real assembly (resolved via getRuntimeValue() at render time,
+    * matching the UI's own VALUE|VARIABLE|EXPRESSION dynamic-combo-box) -- a "$(var)" reference
+    * must pass through unresolved rather than being refused as an unrecognized boolean spelling.
+    */
+   @Test
+   void acceptsAVariableReferenceForRowAndColTotals() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      TableBindingMutator.setOptions(model, Map.of("rowTotals", "$(ShowRowTotals)",
+                                                   "colTotals", "$(ShowColTotals)"));
+
+      assertEquals("$(ShowRowTotals)", model.getOption().getRowTotalVisibleValue());
+      assertEquals("$(ShowColTotals)", model.getOption().getColTotalVisibleValue());
+   }
+
+   @Test
+   void acceptsAnExpressionForRowTotals() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      TableBindingMutator.setOptions(model, Map.of("rowTotals", "=Now() > Date(2026,1,1)"));
+
+      assertEquals("=Now() > Date(2026,1,1)", model.getOption().getRowTotalVisibleValue());
+   }
+
+   /**
+    * summarySideBySide is a plain boolean on the real assembly (VSCrosstabInfo.
+    * setSummarySideBySide(boolean)), not a DynamicValue -- unlike rowTotals/colTotals, a
+    * variable reference here must still be refused: Boolean.parseBoolean() would otherwise read
+    * it as false, silently.
+    */
+   @Test
+   void stillRefusesAVariableReferenceForSummarySideBySide() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setOptions(new CrosstabBindingModel(),
+                                              Map.of("summarySideBySide", "$(Foo)")));
+
+      assertTrue(thrown.getMessage().contains("silently turn the setting off"));
+   }
+
+   /**
+    * The shelf-populated guard (col needs a bound cols shelf; row needs a bound rows shelf)
+    * cannot be evaluated for a reference that only resolves to none/row/col at render time, so
+    * it must not fire for one -- confirming the dynamic-reference check runs before, not after,
+    * that validation.
+    */
+   @Test
+   void aVariableReferenceForPercentageByBypassesTheShelfPopulatedGuard() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      TableBindingMutator.setOptions(model, Map.of("percentageBy", "$(PercentMode)"));
+
+      assertEquals("$(PercentMode)", model.getOption().getPercentageByValue(),
+                   "must not throw the 'needs a bound shelf' refusal for an unresolved reference");
    }
 
    @Test

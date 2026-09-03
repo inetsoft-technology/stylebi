@@ -24,6 +24,7 @@ import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
+import inetsoft.web.binding.model.BindingModel;
 import inetsoft.uql.XConstants;
 import inetsoft.web.binding.model.table.BaseTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabOptionInfo;
@@ -228,6 +229,12 @@ public final class TableBindingMutator {
     * common table edit, and two calls would mean two checkpoints and an intermediate state
     * the browser renders. Validation happens before either side is touched, so a rejected
     * move leaves the field where it was rather than dropping it.
+    *
+    * <p>A dimension moved onto {@code aggregates}, or a measure moved off it, is converted
+    * rather than refused -- matching the UI's own drag-and-drop pivot
+    * ({@code VSCrosstabDndService.dnd()} -> {@code ConvertTableRefService.convertTableRef0()}),
+    * per the operator's decision to match that behavior rather than require a separate
+    * remove-then-add with an explicit type declared up front. See {@link #convertForShelf}.
     */
    public static void moveField(BaseTableBindingModel model, String fromShelf, String toShelf,
                                 String column, Integer position)
@@ -257,6 +264,7 @@ public final class TableBindingMutator {
          .orElseThrow(() -> new IllegalArgumentException(
             "'" + column + "' is not on the " + from + " shelf."));
 
+      field = convertForShelf(model, to, field);
       requireCompatible(to, field);
 
       List<FieldRef> source = new ArrayList<>(read(model, from));
@@ -328,6 +336,67 @@ public final class TableBindingMutator {
             "Field '" + field.column() + "' carries an aggregate, and the details shelf holds " +
             "ungrouped columns. Put it on the aggregates shelf instead.");
       }
+   }
+
+   /**
+    * The numeric {@code SourceTableColumn.getDataType()} values {@code AssetUtil.isNumberType()}
+    * recognizes, kept as a literal set for the same reason {@link #MULTI_ARG_FORMULA_NAMES}
+    * is one: touching {@code AssetUtil}/{@code AggregateFormula} at all from wiz code is unsafe
+    * under plain JUnit (see that field's own javadoc).
+    */
+   private static final Set<String> NUMERIC_TYPES =
+      Set.of("float", "double", "byte", "short", "integer", "long");
+
+   /**
+    * Converts {@code field} to match {@code shelf}'s kind (dimension vs. measure) when they
+    * disagree, rather than leaving {@link #requireCompatible} to refuse the move outright --
+    * mirrors the UI's own drag-and-drop pivot ({@code VSCrosstabDndService.dnd()} -> {@code
+    * ConvertTableRefService.convertTableRef0()} -> {@code VSEventUtil.fixAggInfoByConvertRef()}
+    * -> {@code AssetUtil.getDefaultFormula()}), which silently applies a default aggregate
+    * formula rather than asking the user. A field already of the right kind is returned as-is.
+    */
+   private static FieldRef convertForShelf(BaseTableBindingModel model, String shelf,
+                                           FieldRef field)
+   {
+      boolean wantsMeasure = "aggregates".equals(shelf);
+      boolean isMeasure = FieldRefFactory.MEASURE.equalsIgnoreCase(field.type());
+
+      if(wantsMeasure == isMeasure) {
+         return field;
+      }
+
+      if(wantsMeasure) {
+         String dataType = dataTypeOf(model, field.column());
+         String formula = dataType != null && NUMERIC_TYPES.contains(dataType) ? "Sum" : "Count";
+         return new FieldRef(field.column(), FieldRefFactory.MEASURE, formula, null, null,
+                             field.chartType(), field.runtimeChartType());
+      }
+
+      return new FieldRef(field.column(), FieldRefFactory.DIMENSION, null, null, null,
+                          field.chartType(), field.runtimeChartType());
+   }
+
+   /** The bound source's own reported data type for {@code column}, or {@code null} if unknown. */
+   private static String dataTypeOf(BaseTableBindingModel model, String column) {
+      List<BindingModel.SourceTable> tables = model.getTables();
+
+      if(tables == null || column == null) {
+         return null;
+      }
+
+      for(BindingModel.SourceTable table : tables) {
+         if(table.getColumns() == null) {
+            continue;
+         }
+
+         for(BindingModel.SourceTableColumn col : table.getColumns()) {
+            if(column.equalsIgnoreCase(col.getName())) {
+               return col.getDataType();
+            }
+         }
+      }
+
+      return null;
    }
 
    // ── conversions ───────────────────────────────────────────────────────────
@@ -784,11 +853,13 @@ public final class TableBindingMutator {
                                     "summarySideBySide", "suppressGroupTotal"));
 
       if(options.containsKey("rowTotals")) {
-         info.setRowTotalVisibleValue(stringBoolean(options.get("rowTotals"), "rowTotals"));
+         info.setRowTotalVisibleValue(
+            stringBoolean(options.get("rowTotals"), "rowTotals", true));
       }
 
       if(options.containsKey("colTotals")) {
-         info.setColTotalVisibleValue(stringBoolean(options.get("colTotals"), "colTotals"));
+         info.setColTotalVisibleValue(
+            stringBoolean(options.get("colTotals"), "colTotals", true));
       }
 
       if(options.containsKey("percentageBy")) {
@@ -796,16 +867,20 @@ public final class TableBindingMutator {
       }
 
       if(options.containsKey("summarySideBySide")) {
+         // Unlike rowTotals/colTotals/percentageBy, summarySideBySide is a plain boolean on the
+         // real assembly (VSCrosstabInfo.setSummarySideBySide(boolean)), not a DynamicValue --
+         // so it must NOT accept a "$(var)"/"=expr" string here: Boolean.parseBoolean() on one
+         // would silently read as false, the exact footgun allowDynamic=true exists to avoid.
          info.setSummarySideBySide(
             Boolean.parseBoolean(stringBoolean(options.get("summarySideBySide"),
-                                               "summarySideBySide")));
+                                               "summarySideBySide", false)));
       }
 
       if(options.get("suppressGroupTotal") instanceof Map<?, ?> suppression) {
          for(Map.Entry<?, ?> entry : suppression.entrySet()) {
             model.getSuppressGroupTotal().put(
                String.valueOf(entry.getKey()),
-               Boolean.parseBoolean(stringBoolean(entry.getValue(), "suppressGroupTotal")));
+               Boolean.parseBoolean(stringBoolean(entry.getValue(), "suppressGroupTotal", false)));
          }
 
          pruneOrphanedSuppression(model);
@@ -849,7 +924,17 @@ public final class TableBindingMutator {
    }
 
    private static String percentageBy(Object raw, CrosstabBindingModel model) {
-      String token = raw == null ? "" : String.valueOf(raw).trim().toLowerCase();
+      String token = raw == null ? "" : String.valueOf(raw).trim();
+
+      // A "$(var)"/"=expr" reference resolves to none/row/col only at render time, so neither
+      // the literal-vocabulary parse below nor the shelf-populated checks that follow it can be
+      // evaluated now -- passed through unresolved, matching percentageByValue's own
+      // DynamicValue nature and the UI's VALUE|VARIABLE|EXPRESSION dynamic-combo-box.
+      if(isDynamicReference(token)) {
+         return token;
+      }
+
+      token = token.toLowerCase();
       int value = switch(token) {
          case "none" -> XConstants.PERCENTAGE_NONE;
          case "col", "column", "columns" -> XConstants.PERCENTAGE_BY_COL;
@@ -880,8 +965,16 @@ public final class TableBindingMutator {
    /**
     * A dynamic-value string that StyleBI reads as a boolean. Anything but "true" reads as false,
     * so "yes" would silently turn a total off — refused rather than coerced.
+    *
+    * @param allowDynamic true only for a field that is a genuine {@code DynamicValue} on the
+    *                     real assembly ({@code rowTotalVisibleValue}/{@code colTotalVisibleValue}
+    *                     resolve via {@code getRuntimeValue()} at render time, matching the UI's
+    *                     own VALUE|VARIABLE|EXPRESSION dynamic-combo-box) -- passing true for a
+    *                     plain-boolean field (e.g. {@code summarySideBySide}) would let a
+    *                     "$(var)"/"=expr" string through to {@code Boolean.parseBoolean()},
+    *                     which reads any unrecognized string as {@code false}, silently.
     */
-   private static String stringBoolean(Object raw, String key) {
+   private static String stringBoolean(Object raw, String key, boolean allowDynamic) {
       if(raw instanceof Boolean value) {
          return String.valueOf(value);
       }
@@ -892,10 +985,27 @@ public final class TableBindingMutator {
          return text.toLowerCase();
       }
 
+      if(allowDynamic && isDynamicReference(text)) {
+         return text;
+      }
+
       throw new IllegalArgumentException(
-         "'" + key + "' must be true or false, got '" + raw + "'. This setting is stored as a " +
-         "string that StyleBI reads as a boolean, so a spelling like \"yes\" would read as " +
-         "false and silently turn the setting off.");
+         "'" + key + "' must be true or false" + (allowDynamic ?
+            ", a \"$(variable)\" reference, or an \"=expression\"" : "") + ", got '" + raw +
+         "'. This setting is stored as a string that StyleBI reads as a boolean, so a spelling " +
+         "like \"yes\" would read as false and silently turn the setting off.");
+   }
+
+   /**
+    * A {@code $(name)} variable reference or an {@code =expression} — the two non-literal shapes
+    * a {@code DynamicValue} field resolves at render time, matching {@code VSUtil.
+    * isVariableValue()}/{@code isScriptValue()}'s own rule. Reimplemented as a literal check
+    * rather than calling {@code VSUtil} itself, for the same reason {@link
+    * #MULTI_ARG_FORMULA_NAMES} avoids {@code AggregateFormula}: a general-purpose utility class
+    * this large is not safe to assume side-effect-free to touch from a plain JUnit context.
+    */
+   private static boolean isDynamicReference(String text) {
+      return (text.startsWith("$(") && text.endsWith(")")) || text.startsWith("=");
    }
 
    private static void requireKnown(Map<String, Object> options, List<String> known) {
