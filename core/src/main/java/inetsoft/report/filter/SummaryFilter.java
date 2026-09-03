@@ -1762,8 +1762,11 @@ public class SummaryFilter extends AbstractGroupedTable
    public void setTopN(int col, int scol, int topn, boolean reverse,
                        boolean kept, boolean others)
    {
-      if(col >= 0 && col < cols.length && scol >= 0 && scol < sums.length && topn >= 1) {
-         InnerTopNInfo info = new InnerTopNInfo(scol, topn, reverse, kept, others);
+      if(col >= 0 && col < cols.length && scol >= 0 && scol < sums.length) {
+         // n <= 0 (e.g. a bound variable resolving to 0) means "keep nothing";
+         // clamp to 0 so it's still registered and applied instead of being
+         // silently dropped as if no ranking had been requested at all (PC-002).
+         InnerTopNInfo info = new InnerTopNInfo(scol, Math.max(topn, 0), reverse, kept, others);
          topnmap.put(col, info);
       }
    }

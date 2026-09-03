@@ -116,6 +116,57 @@ public class SummaryFilterTest {
       });
    }
 
+   // PC-002: n<=0 with groupOthers must collapse every row into "Others" rather than
+   // silently no-op (the topn>=1 guard in setTopN used to drop the ranking entirely).
+   @Test
+   public void rankZeroAndOthers_collapsesAllRowsToOthers() {
+      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", 1, 5},
+         {"a", 1, 2},
+         {"b", 1, 2.5},
+         {"b", 3, 10},
+         {"c", 1, 1},
+         {"d", 2, 2},
+         {"e", 1, 3}
+      });
+
+      final SummaryFilter summary =
+         new SummaryFilter(tbl1, new int[] {0, 1}, new int[] {2}, new SumFormula(), null);
+      summary.setTopN(0, 0, 0, false, true, true);
+      summary.moreRows(Integer.MAX_VALUE);
+
+      XTableUtil.assertEquals(summary, new Object[][] {
+         {"col1", "col2", "col3"},
+         {"Others", 1, 13.5},
+         {"Others", 2, 2.0},
+         {"Others", 3, 10.0},
+      });
+   }
+
+   // n<=0 without groupOthers keeps the same "keep top N" semantics extended to N=0:
+   // no rows survive, rather than the pre-fix no-op that returned the unranked table.
+   @Test
+   public void rankZeroWithoutOthers_keepsNoRows() {
+      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", 1, 5},
+         {"a", 1, 2},
+         {"b", 1, 2.5},
+         {"b", 3, 10},
+         {"c", 1, 1}
+      });
+
+      final SummaryFilter summary =
+         new SummaryFilter(tbl1, new int[] {0, 1}, new int[] {2}, new SumFormula(), null);
+      summary.setTopN(0, 0, 0, false);
+      summary.moreRows(Integer.MAX_VALUE);
+
+      XTableUtil.assertEquals(summary, new Object[][] {
+         {"col1", "col2", "col3"},
+      });
+   }
+
    @Test
    public void grandTotal() {
       DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
