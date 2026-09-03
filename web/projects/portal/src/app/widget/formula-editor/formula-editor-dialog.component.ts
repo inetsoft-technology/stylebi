@@ -739,6 +739,9 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
             this.isCondition).subscribe((data: TreeNodeModel) => {
                this._columnTreeRoot = this.getColumnTree(data);
                this.keepNodeExpands(oldRoot, this._columnTreeRoot);
+            },
+            (error) => {
+               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", error);
             });
       }
       else {
