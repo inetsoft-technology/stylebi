@@ -81,6 +81,45 @@ public class GDataQuery extends TabularQuery {
       this.spreadsheet = spreadsheet;
    }
 
+   /**
+    * The selected spreadsheet's Drive file id, for a caller that fills this query through its bean
+    * properties rather than through the Google Picker dialog. Its picker counterpart,
+    * {@link #getSpreadsheet()}, cannot be filled that way at all: {@code GooglePicker} is a plain
+    * bean, so {@code TabularUtil.compositeElementsOf} yields null and
+    * {@code buildCompositeFragment} takes the skeleton branch, omitting {@code spreadsheet} from
+    * the query schema entirely.
+    *
+    * <p>Deliberately outside this class's {@code @View} and carrying no {@code tagsMethod}: the
+    * dialog already edits the same state through the picker, and reflection -- not the layout --
+    * decides which properties are settable ({@code TabularSchemaExtractor}: "properties the
+    * {@code @View} annotation never mentions are still settable").
+    *
+    * <p>Reads and writes the {@code spreadsheet} FIELD, never {@link #getSpreadsheet()}, which
+    * refreshes the OAuth token and throws when the data source is null.
+    *
+    * <p>Stored verbatim: no trim, no case change, no validation, so reading this property back
+    * returns exactly the string that was written -- {@code applyQueryContract} writes a property
+    * and reads it back to confirm the write, and normalizing here would be reported as a write
+    * that silently had no effect.
+    */
+   @Property(label = "Spreadsheet ID")
+   public String getSpreadsheetId() {
+      return spreadsheet == null || spreadsheet.getSelectedFile() == null
+         ? null : spreadsheet.getSelectedFile().getId();
+   }
+
+   public void setSpreadsheetId(String spreadsheetId) {
+      if(spreadsheet == null) {
+         spreadsheet = new GooglePicker();
+      }
+
+      if(spreadsheet.getSelectedFile() == null) {
+         spreadsheet.setSelectedFile(new GoogleFile());
+      }
+
+      spreadsheet.getSelectedFile().setId(spreadsheetId);
+   }
+
    @Property(label = "Worksheet")
    @PropertyEditor(tagsMethod = "getWorksheets", dependsOn = { "spreadsheet" })
    public String getWorksheetId() {
