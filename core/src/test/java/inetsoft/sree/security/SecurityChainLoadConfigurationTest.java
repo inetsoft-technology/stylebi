@@ -94,4 +94,32 @@ class SecurityChainLoadConfigurationTest {
          chain.loadConfiguration();
       }
    }
+
+   // [Scenario: malformed config] the stream is readable but the parsed JSON has no
+   // "providers" array (e.g. an empty object, or a config file damaged some other way).
+   // loadConfiguration() must not throw an uncaught exception out of the constructor,
+   // matching the null-stream race's recovery behavior.
+   @Test
+   void loadConfiguration_configMissingProvidersArray_doesNotThrowAndLeavesChainUsable()
+      throws Exception
+   {
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class)) {
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+
+         when(mockDs.exists(null, "authc-chain.json")).thenReturn(true);
+         when(mockDs.getLastModified(null, "authc-chain.json")).thenReturn(1000L);
+         when(mockDs.getInputStream(null, "authc-chain.json"))
+            .thenReturn(new java.io.ByteArrayInputStream("{}".getBytes()));
+
+         ThrowingSupplier<AuthenticationChain> construct = AuthenticationChain::new;
+         AuthenticationChain chain =
+            assertDoesNotThrow(construct,
+                                "a config with no \"providers\" array must not propagate an " +
+                                "uncaught exception from the constructor");
+
+         assertTrue(chain.getProviderList().isEmpty(),
+                    "no providers were ever successfully loaded, so the list should be empty");
+      }
+   }
 }
