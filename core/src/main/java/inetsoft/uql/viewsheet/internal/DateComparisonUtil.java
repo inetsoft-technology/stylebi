@@ -650,8 +650,15 @@ public class DateComparisonUtil {
          // absent (see Bug #76388: DayOfWeek facets 5-7 have real data for every period
          // except the last, and excluding them entirely from every period is wrong; the
          // per-facet sub-chart already correctly shows only the periods that actually have
-         // data for it once this exclusion doesn't run first).
-         final Set<Object> validParts = info.isFacet() ? Collections.emptySet() :
+         // data for it once this exclusion doesn't run first). Also skip this for
+         // "Compare Data Of: All" (isCompareAll()) -- that mode intentionally shows every
+         // part of each comparison period unclipped, so a part the in-progress current
+         // period hasn't reached yet (e.g. December while the current year is only a few
+         // months in) is not an orphan -- it's real historical data for the prior periods
+         // and must still render. Applying the heuristic there silently dropped whole
+         // weeks/months of valid comparison-year data. (Bug #76389)
+         final Set<Object> validParts = info.isFacet() || dcInfo.isCompareAll() ?
+            Collections.emptySet() :
             computeValidParts(data, periodCol, partCol, startDate);
 
          for(Scale scale : egraph.getCoordinate().getScales()) {
