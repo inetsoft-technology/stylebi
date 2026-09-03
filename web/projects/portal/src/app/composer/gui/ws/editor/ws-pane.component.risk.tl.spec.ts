@@ -221,7 +221,14 @@ describe("WSPaneComponent — processMessageCommand routing", () => {
       expect(comp.worksheet.saving).toBe(false);
    });
 
-   it("should set worksheet.saving=false after a CONFIRM message's Yes callback resolves (Bug #76433)", async () => {
+   // Round 2: an automated review found the original version of this test asserted
+   // `saving` becomes false on "Yes" too -- but that's wrong. Declining is terminal
+   // (nothing is resent), so clearing there is correct and necessary. Confirming
+   // "Yes" resends the save event; the spinner must stay up until that resend
+   // actually completes (SaveSheetCommand), not clear the instant the button is
+   // clicked -- before the resend is even sent, matching VSPane's equivalent
+   // CONFIRM handling, which never clears `vs.saving` on its own "Yes" path either.
+   it("should NOT clear worksheet.saving on a CONFIRM message's Yes callback -- it stays up until the resent save completes (Bug #76433 round 2)", async () => {
       vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("yes");
       const { comp } = await renderComponent();
       comp.worksheet.saving = true;
@@ -231,7 +238,7 @@ describe("WSPaneComponent — processMessageCommand routing", () => {
       });
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(comp.worksheet.saving).toBe(false);
+      expect(comp.worksheet.saving).toBe(true);
    });
 });
 
