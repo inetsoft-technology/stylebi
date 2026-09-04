@@ -19,7 +19,13 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.CellBinding;
 import inetsoft.report.GroupableCellBinding;
+import inetsoft.report.TableCellBinding;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.XCondition;
+import inetsoft.uql.asset.AggregateRef;
 import inetsoft.web.binding.model.table.CellBindingInfo;
+import inetsoft.web.binding.model.table.OrderModel;
+import inetsoft.web.binding.model.table.TopNModel;
 
 import java.util.*;
 
@@ -62,6 +68,33 @@ public final class CalcCellVocabulary {
       "horizontal", GroupableCellBinding.EXPAND_H,
       "h", GroupableCellBinding.EXPAND_H);
 
+   /**
+    * A group cell's sort direction ({@code OrderModel.type}). {@code "manual"} requires
+    * {@code manualOrder} alongside it. {@code "value_asc"}/{@code "value_desc"} sort by a
+    * specific in-scope summary cell's value rather than the group's own label, and require
+    * {@code rankBy} alongside them -- resolved to {@code OrderModel.sortByCol} by
+    * {@code CalcTableService}, which has the runtime access this stateless vocabulary does not.
+    * Token spelling matches {@code DimensionSortRanking} (the equivalent for chart/crosstab
+    * dimensions), so an agent that has driven that surface does not have to relearn it here.
+    */
+   private static final Map<String, Integer> SORT_DIRECTION = Map.of(
+      "none", XConstants.SORT_NONE,
+      "asc", XConstants.SORT_ASC,
+      "desc", XConstants.SORT_DESC,
+      "manual", XConstants.SORT_SPECIFIC,
+      "value_asc", XConstants.SORT_VALUE_ASC,
+      "value_desc", XConstants.SORT_VALUE_DESC);
+
+   /**
+    * A group cell's ranking mode ({@code TopNModel.type}). Values match {@code StyleConstants}
+    * exactly (confirmed identical to {@code XCondition.NONE}/{@code TOP_N}/{@code BOTTOM_N}: 0,
+    * 9, 10) -- the UI's own dropdown and this vocabulary resolve to the same wire values.
+    */
+   private static final Map<String, Integer> TOPN_MODE = Map.of(
+      "none", XCondition.NONE,
+      "top", XCondition.TOP_N,
+      "bottom", XCondition.BOTTOM_N);
+
    /** Keys that mean something else here, mapped to the key the caller meant. */
    private static final Map<String, String> REJECTED = Map.of(
       "type", "content",
@@ -82,6 +115,14 @@ public final class CalcCellVocabulary {
 
    public static int expand(String token) {
       return resolve(EXPAND, token, "expand");
+   }
+
+   public static int sortDirection(String token) {
+      return resolve(SORT_DIRECTION, token, "sort.direction");
+   }
+
+   public static int topnMode(String token) {
+      return resolve(TOPN_MODE, token, "topn.mode");
    }
 
    /** Whether a resolved grouping constant is the aggregating one. */
@@ -131,6 +172,10 @@ public final class CalcCellVocabulary {
             "nothing renders blank, which reads as missing data rather than a binding error.");
       }
 
+      if(type == CellBinding.BIND_COLUMN && cell.get("field") instanceof Map<?, ?> fieldMap) {
+         validateInlineNamedGroup(fieldMap);
+      }
+
       if(type == CellBinding.BIND_FORMULA && str(cell, "formula") == null &&
          str(cell, "value") == null)
       {
@@ -143,10 +188,221 @@ public final class CalcCellVocabulary {
          throw new IllegalArgumentException(
             "A cell with content 'text' needs a 'value' — the literal text to show.");
       }
+
+      if(cell.get("name") != null && !(cell.get("name") instanceof String)) {
+         throw new IllegalArgumentException("'name' must be a string — the cell's own name.");
+      }
+
+      validateSort(asMap(cell.get("sort")));
+      validateTopn(asMap(cell.get("topn")));
+
+      for(String key : List.of("mergeRowGroup", "mergeColGroup")) {
+         if(cell.get(key) != null && !(cell.get(key) instanceof String)) {
+            throw new IllegalArgumentException(
+               "'" + key + "' must be a string (another group cell's name), '" +
+               TableCellBinding.DEFAULT_GROUP + "' to inherit the nearest enclosing group, or " +
+               "null for the grand total.");
+         }
+      }
+
+      if(cell.get("timeSeries") != null && !(cell.get("timeSeries") instanceof Boolean)) {
+         throw new IllegalArgumentException("'timeSeries' must be true or false.");
+      }
+   }
+
+   /**
+    * A group cell's sort direction. {@code manual} requires {@code manualOrder} alongside it,
+    * since a manual order with nothing to order is not meaningfully different from no order at
+    * all. {@code value_asc}/{@code value_desc} require {@code rankBy} -- {@code {column,
+    * formula}} naming one of this table's summary cells -- since sorting "by value" with nothing
+    * to sort by would otherwise silently fall back to sorting by the label, which looks like the
+    * request was honoured. This only checks the shape; resolving {@code rankBy} against the
+    * table's actual summary cells happens in {@code CalcTableService}, which has the runtime
+    * access this stateless vocabulary does not.
+    */
+   private static void validateSort(Map<String, Object> sort) {
+      if(sort == null) {
+         return;
+      }
+
+      String direction = str(sort, "direction");
+
+      if(direction == null) {
+         throw new IllegalArgumentException(
+            "'sort' needs a 'direction' of " + tokens(SORT_DIRECTION) + ".");
+      }
+
+      int resolved = sortDirection(direction);
+
+      if(resolved == XConstants.SORT_SPECIFIC) {
+         Object manual = sort.get("manualOrder");
+
+         if(!(manual instanceof List) || ((List<?>) manual).isEmpty()) {
+            throw new IllegalArgumentException(
+               "sort.direction 'manual' needs a non-empty 'manualOrder' array of values — " +
+               "otherwise there is nothing to order by.");
+         }
+      }
+
+      if(resolved == XConstants.SORT_VALUE_ASC || resolved == XConstants.SORT_VALUE_DESC) {
+         requireRankBy(sort.get("rankBy"), "sort.direction '" + direction + "'");
+      }
+   }
+
+   /**
+    * A group cell's ranking. {@code rankBy} ({@code {column, formula}}, naming the summary cell
+    * to rank by) is optional: with exactly one summary cell in scope -- the common case --
+    * {@code CalcTableService} defaults to it, matching what the Composer's own Top-N pane falls
+    * back to. With more than one, {@code CalcTableService} refuses rather than guessing, since a
+    * wrong guess would silently rank by the wrong column instead of failing loud. This only
+    * checks the shape of a given {@code rankBy}; resolving it happens in {@code CalcTableService}.
+    */
+   private static void validateTopn(Map<String, Object> topn) {
+      if(topn == null) {
+         return;
+      }
+
+      String mode = str(topn, "mode");
+
+      if(mode == null) {
+         throw new IllegalArgumentException("'topn' needs a 'mode' of " + tokens(TOPN_MODE) + ".");
+      }
+
+      topnMode(mode);
+      Object n = topn.get("n");
+
+      if(n != null && (!(n instanceof Number) || ((Number) n).intValue() < 1)) {
+         throw new IllegalArgumentException("'topn.n' must be a positive integer, got " + n + ".");
+      }
+
+      if(topn.get("rankBy") != null) {
+         requireRankBy(topn.get("rankBy"), "'topn.rankBy'");
+      }
+   }
+
+   /**
+    * The shape of an inline ('Customize') {@code field.namedGroup} -- {@code {groups: [{name,
+    * conditions}], others?}} -- checked here, before the runtime is touched, for the same reason
+    * {@link #validateSort}/{@link #validateTopn} are: an invalid shape costs nothing to reject
+    * before {@code sessions.mutate} opens a checkpoint the caller then has to undo. A string
+    * {@code namedGroup} (the by-name form) is untouched -- resolving whether that name exists is
+    * {@code CalcTableService}'s job, since it needs runtime session state this stateless
+    * vocabulary does not have. Building the actual {@code ConditionVocabulary.Clause} list is
+    * likewise left to {@code CalcTableService.applyInlineNamedGroup}; this only checks the shape
+    * is well-formed enough that building it cannot fail on a null/malformed input.
+    */
+   @SuppressWarnings("unchecked")
+   private static void validateInlineNamedGroup(Map<?, ?> field) {
+      Object namedGroup = field.get("namedGroup");
+
+      if(!(namedGroup instanceof Map)) {
+         return;
+      }
+
+      Map<String, Object> spec = (Map<String, Object>) namedGroup;
+      Object rawGroups = spec.get("groups");
+
+      if(!(rawGroups instanceof List<?> groups) || groups.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'field.namedGroup.groups' needs at least one {name, conditions} group -- a named " +
+            "group with no groups in it buckets nothing.");
+      }
+
+      String column = str((Map<String, Object>) field, "column");
+
+      for(int i = 0; i < groups.size(); i++) {
+         Object g = groups.get(i);
+
+         if(!(g instanceof Map<?, ?> groupSpec)) {
+            throw new IllegalArgumentException(
+               "'field.namedGroup.groups[" + i + "]' must be an object.");
+         }
+
+         Object name = groupSpec.get("name");
+
+         if(!(name instanceof String text) || text.isBlank()) {
+            throw new IllegalArgumentException(
+               "Every group in 'field.namedGroup.groups' needs a non-blank 'name'.");
+         }
+
+         Object rawConditions = groupSpec.get("conditions");
+
+         if(!(rawConditions instanceof List<?> conditions) || conditions.isEmpty()) {
+            throw new IllegalArgumentException(
+               "Every group in 'field.namedGroup.groups' needs at least one condition.");
+         }
+
+         for(int c = 0; c < conditions.size(); c++) {
+            Object condition = conditions.get(c);
+
+            if(!(condition instanceof Map<?, ?> clause)) {
+               throw new IllegalArgumentException(
+                  "Every condition in 'field.namedGroup.groups[].conditions' must be an object " +
+                  "such as {operator: \"one_of\", values: [...]}, got " + condition + ".");
+            }
+
+            Object conditionField = clause.get("field");
+
+            if(conditionField != null && column != null && !column.equals(String.valueOf(conditionField))) {
+               throw new IllegalArgumentException(
+                  "'field.namedGroup.groups[" + i + "].conditions[" + c + "]' names field '" +
+                  conditionField + "', but a named group only conditions on the column it is " +
+                  "grouping ('" + column + "'). Omit 'field' or set it to '" + column + "'.");
+            }
+         }
+      }
+   }
+
+   /** The {@code {column, formula}} shape both {@code sort.rankBy} and {@code topn.rankBy} use. */
+   private static void requireRankBy(Object rankBy, String forWhat) {
+      if(!(rankBy instanceof Map)) {
+         throw new IllegalArgumentException(
+            forWhat + " needs a 'rankBy' of {column, formula} -- naming the summary cell to " +
+            "rank by. Without it the sort/ranking would silently fall back to a default column " +
+            "instead of failing loud.");
+      }
+
+      Map<?, ?> map = (Map<?, ?>) rankBy;
+
+      if(!(map.get("column") instanceof String text) || text.isBlank()) {
+         throw new IllegalArgumentException(forWhat + "'s 'rankBy' needs a non-blank 'column'.");
+      }
+
+      if(!(map.get("formula") instanceof String formulaText) || formulaText.isBlank()) {
+         throw new IllegalArgumentException(
+            forWhat + "'s 'rankBy' needs a non-blank 'formula' (e.g. \"Sum\") -- " +
+            "list_cell_vocabulary's 'aggregateFormulas' lists the accepted names.");
+      }
+   }
+
+   @SuppressWarnings("unchecked")
+   private static Map<String, Object> asMap(Object value) {
+      if(value == null) {
+         return null;
+      }
+
+      if(!(value instanceof Map)) {
+         throw new IllegalArgumentException("expected an object, got " + value);
+      }
+
+      return (Map<String, Object>) value;
    }
 
    /** Renders a cell binding back in tokens. Never emits an integer constant or an alias key. */
    public static Map<String, Object> describe(CellBindingInfo info) {
+      return describe(info, null);
+   }
+
+   /**
+    * Same as {@link #describe(CellBindingInfo)}, additionally resolving a {@code value_asc}/
+    * {@code value_desc} sort's or a ranking's {@code sortByCol}/{@code sumCol} index back to the
+    * {@code {column, formula}} it names. {@code aggregates} is the same in-scope summary-cell
+    * list {@code CalcTableService} resolved {@code rankBy} against on write -- pass {@code null}
+    * only when that context is unavailable (the index is then omitted rather than reported bare,
+    * since a bare index is exactly the brittle-under-reorder shape this vocabulary avoids
+    * elsewhere).
+    */
+   public static Map<String, Object> describe(CellBindingInfo info, AggregateRef[] aggregates) {
       if(info == null) {
          return null;
       }
@@ -162,6 +418,61 @@ public final class CalcCellVocabulary {
       out.put("colGroup", info.getColGroup());
       out.put("name", info.getName());
       out.put("runtimeName", info.getRuntimeName());
+      out.put("mergeRowGroup", info.getMergeRowGroup());
+      out.put("mergeColGroup", info.getMergeColGroup());
+      out.put("timeSeries", info.isTimeSeries());
+
+      // sort/topn/dateLevel only mean something on a group cell -- reporting OrderModel's
+      // default (SORT_ASC, option YEAR_DATE_GROUP) on every detail/summary/text cell as well
+      // would read as "this cell is sorted/date-grouped" when nothing was ever set on it.
+      if(info.getBtype() == CellBinding.GROUP) {
+         OrderModel order = info.getOrder();
+         Map<String, Object> sort = new LinkedHashMap<>();
+         sort.put("direction", tokenOf(SORT_DIRECTION, order.getType()));
+
+         if(order.getType() == XConstants.SORT_SPECIFIC) {
+            sort.put("manualOrder", order.getManualOrder());
+         }
+         else if(order.getType() == XConstants.SORT_VALUE_ASC ||
+                 order.getType() == XConstants.SORT_VALUE_DESC)
+         {
+            sort.put("rankBy", rankByOf(aggregates, order.getSortCol()));
+         }
+
+         out.put("sort", sort);
+         // DateLevels.name() takes the STORED numeric-string form; a group cell whose field
+         // isn't a date/time column simply carries the unused OrderModel default (YEAR_DATE_GROUP)
+         // here, same as the write side leaves it unless the caller sets 'field.dateLevel' -- so a
+         // caller should read this as meaningful only when the bound field is itself a date/time
+         // column.
+         out.put("dateLevel", DateLevels.name(String.valueOf(order.getOption())));
+         out.put("dateInterval", order.getInterval());
+
+         TopNModel topn = info.getTopn();
+         Map<String, Object> topnOut = new LinkedHashMap<>();
+         topnOut.put("mode", tokenOf(TOPN_MODE, topn.getType()));
+
+         if(topn.getType() != XCondition.NONE) {
+            topnOut.put("n", topn.getTopn());
+            topnOut.put("rankBy", rankByOf(aggregates, topn.getSumCol()));
+         }
+
+         out.put("topn", topnOut);
+      }
+
+      return out;
+   }
+
+   /** Resolves a {@code sortByCol}/{@code sumCol} index back to the summary cell it names. */
+   private static Map<String, Object> rankByOf(AggregateRef[] aggregates, int index) {
+      if(aggregates == null || index < 0 || index >= aggregates.length) {
+         return null;
+      }
+
+      AggregateRef agg = aggregates[index];
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("column", agg.getDataRef() == null ? null : agg.getDataRef().getName());
+      out.put("formula", agg.getFormulaName());
       return out;
    }
 
@@ -175,6 +486,14 @@ public final class CalcCellVocabulary {
 
    public static List<String> expandTokens() {
       return List.of("none", "vertical", "horizontal");
+   }
+
+   public static List<String> sortDirectionTokens() {
+      return sorted(SORT_DIRECTION);
+   }
+
+   public static List<String> topnModeTokens() {
+      return sorted(TOPN_MODE);
    }
 
    // ── helpers ───────────────────────────────────────────────────────────────

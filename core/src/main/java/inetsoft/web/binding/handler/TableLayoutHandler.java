@@ -37,8 +37,25 @@ import java.util.Map;
 
 @Component
 public class TableLayoutHandler {
+   /**
+    * The Composer's own Insert Rows/Columns dialog caps its own count field at this many
+    * ({@code insert-row-col-dialog.component.ts} / {@code b-calctable-action-handler.directive.ts}
+    * silently falls back to 1 above it) -- enforced only in that one Angular directive until now,
+    * so any other caller of this shared handler (the wiz agent path among them) could grow a
+    * table's row/column count without bound in a single call.
+    */
+   private static final int MAX_INSERT_COUNT = 1000;
+
    /** TableTool insertrow/column */
    public void doOperation(CalcTableVSAssemblyInfo info, String op, Rectangle rect, int n) {
+      if(("insertRow".equals(op) || "appendRow".equals(op) || "insertCol".equals(op) ||
+          "appendCol".equals(op)) && n > MAX_INSERT_COUNT)
+      {
+         throw new IllegalArgumentException(
+            "Cannot insert " + n + " row(s)/column(s) in one operation -- the limit is " +
+            MAX_INSERT_COUNT + ".");
+      }
+
       int r = (int) rect.getY();
       int c = (int) rect.getX();
       int w = (int) rect.getWidth();
