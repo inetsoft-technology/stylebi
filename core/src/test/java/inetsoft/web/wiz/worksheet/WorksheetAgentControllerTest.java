@@ -185,7 +185,8 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.web.portal.controller.database.DataSourceService.class),
                                           mock(inetsoft.sree.security.SecurityEngine.class),
                                           renameTransformHandler,
-                                          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class));
+                                          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
+                                          mock(inetsoft.report.composition.execution.AssetDataCache.class));
    }
 
    /** Like the 6-arg {@code controller}, but lets a {@code dependents} test control the
@@ -209,7 +210,34 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.web.portal.controller.database.DataSourceService.class),
                                           mock(inetsoft.sree.security.SecurityEngine.class),
                                           mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
-                                          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class));
+                                          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
+                                          mock(inetsoft.report.composition.execution.AssetDataCache.class));
+   }
+
+   /** Like the 6-arg {@code controller}, but lets a {@code refresh_data} test observe/stub the
+    *  {@link inetsoft.report.composition.execution.AssetDataCache} instead of getting an
+    *  unstubbed mock. */
+   private static WorksheetAgentController controller(SheetAgentFeature feature,
+                                                       SheetJoinService join,
+                                                       SheetSessionService sessions,
+                                                       WorksheetReadService read,
+                                                       WorksheetEditService edit,
+                                                       WorksheetService ws,
+                                                       inetsoft.report.composition.execution.AssetDataCache assetDataCache)
+   {
+      return new WorksheetAgentController(feature, join, sessions, read, edit, ws,
+                                          mock(WorksheetPreviewService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(inetsoft.uql.XRepository.class),
+                                          mock(inetsoft.uql.asset.AssetRepository.class),
+                                          mock(inetsoft.web.wiz.service.MetadataApiService.class),
+                                          mock(inetsoft.web.portal.controller.database.QueryManagerService.class),
+                                          mock(inetsoft.web.composer.ws.LayoutGraphService.class),
+                                          mock(inetsoft.web.portal.controller.database.DataSourceService.class),
+                                          mock(inetsoft.sree.security.SecurityEngine.class),
+                                          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
+                                          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
+                                          assetDataCache);
    }
 
    private static SheetAgentFeature featureOn() {
@@ -244,7 +272,8 @@ class WorksheetAgentControllerTest {
          queryManagerService, mock(LayoutGraphService.class),
          dataSourceService, securityEngine,
          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
-         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class));
+         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
+         mock(inetsoft.report.composition.execution.AssetDataCache.class));
    }
 
    /** Builds an {@code add_table} EditRequest that routes to addBoundTable() (no logicalModel). */
@@ -869,12 +898,22 @@ class WorksheetAgentControllerTest {
       TableAssembly crosstab = TestWorksheets.withGroupSumAndSort(
          TestWorksheets.nonEmbeddedTableWithColumns(ws, "Crosstab1", "cust", "amount"),
          "cust", "amount");
+      // Parity audit L10 Group C #8's new checkValidity() call needs a real-looking source --
+      // nonEmbeddedTableWithColumns leaves SourceInfo unset, which used to be invisible here
+      // because neither refreshColumnSelection nor loadTableData's own internal checkValidity()
+      // (which swallows the failure) ever surfaced it.
+      ((BoundTableAssembly) crosstab).setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
       ws.addAssembly(crosstab);
 
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(rws.getAssetQuerySandbox()).thenReturn(box);
+      // Parity audit L10 Group C #7's new AssetQuery.createAssetQuery(...) call (mirroring
+      // WSQueryService.runQuery) needs the sandbox's own getWorksheet()/getVariableTable() to be
+      // real, not an unstubbed mock, or it NPEs deep inside query construction.
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
       doAnswer(invocation -> {
          Thread.sleep(3_000);
          return null;
@@ -905,12 +944,16 @@ class WorksheetAgentControllerTest {
       TableAssembly crosstab = TestWorksheets.withGroupSumAndSort(
          TestWorksheets.nonEmbeddedTableWithColumns(ws, "Crosstab1", "cust", "amount"),
          "cust", "amount");
+      // See the sibling "Slow" test above for why this is needed now.
+      ((BoundTableAssembly) crosstab).setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
       ws.addAssembly(crosstab);
 
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
 
       SheetSessionService sessions = mock(SheetSessionService.class);
       SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
@@ -927,6 +970,166 @@ class WorksheetAgentControllerTest {
       ctrl.edit("TOK-RD2", refreshDataRequest("Crosstab1"), agent);
 
       verify(box, atLeastOnce()).refreshColumnSelection(eq("Crosstab1"), anyBoolean());
+   }
+
+   // ---------------------------------------------------------------------------
+   // refresh_data -- parity audit L10 Group C #7/#8/#9/#11: WSQueryService.runQuery (the UI's own
+   // "Run Query" action this tool mirrors) clears more cache layers, checks validity, removes the
+   // row cap, and discovers tabular columns -- none of which the agent path used to do.
+   // ---------------------------------------------------------------------------
+
+   /** #7: a single-table refresh must clear the cached query result, not just resetTableLens. */
+   @Test
+   void refreshDataClearsTheAssetDataCacheEntry() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD3"), any())).thenReturn(session("TOK-RD3"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      inetsoft.report.composition.execution.AssetDataCache assetDataCache =
+         mock(inetsoft.report.composition.execution.AssetDataCache.class);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), assetDataCache);
+
+      ctrl.edit("TOK-RD3", refreshDataRequest("Table1"), agent);
+
+      verify(assetDataCache).remove(any());
+   }
+
+   /**
+    * #8: an invalid table (here, the same missing-SourceInfo shape the sibling tests above now
+    * avoid) must refuse loudly instead of silently proceeding -- mirrors
+    * {@code WorksheetEventUtil.refreshAssembly}'s own {@code checkValidity()} gate, which the UI's
+    * "Run Query" reaches and the agent path previously never called at all.
+    */
+   @Test
+   void refreshDataRefusesAnInvalidTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      // Deliberately no setSourceInfo -- SourceInfo.checkValidity() throws "Prefix is null!".
+      TableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD4"), any())).thenReturn(session("TOK-RD4"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-RD4", refreshDataRequest("Table1"), agent));
+      assertTrue(ex.getMessage().contains("Cannot refresh"), ex.getMessage());
+      verify(box, never()).resetTableLens(anyString(), anyInt());
+   }
+
+   /** #9: RUNTIME_MODE must drop the row cap before re-running the query, same as Run Query. */
+   @Test
+   void refreshDataRemovesRowCapInRuntimeMode() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      table.setRuntime(true);
+      ws.addAssembly(table);
+
+      VariableTable vars = new VariableTable();
+      vars.put(inetsoft.uql.XQuery.HINT_MAX_ROWS, "100");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(vars);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD5"), any())).thenReturn(session("TOK-RD5"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      assertNotNull(vars.get(inetsoft.uql.XQuery.HINT_MAX_ROWS), "sanity: cap set before refresh");
+
+      ctrl.edit("TOK-RD5", refreshDataRequest("Table1"), agent);
+
+      assertNull(vars.get(inetsoft.uql.XQuery.HINT_MAX_ROWS),
+         "Run Query's own row-cap removal must be mirrored for RUNTIME_MODE tables");
+   }
+
+   /** #11: a not-yet-run tabular query must have its columns discovered, same as Run Query. */
+   @Test
+   void refreshDataDiscoversColumnsForANeverRunTabularQuery() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly table = spy(new TabularTableAssembly(ws, "Table1"));
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      doNothing().when(table).loadColumnSelection(any(), anyBoolean(), any());
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD6"), any())).thenReturn(session("TOK-RD6"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.edit("TOK-RD6", refreshDataRequest("Table1"), agent);
+
+      verify(table).loadColumnSelection(any(), eq(true), any());
    }
 
    /**
@@ -2715,7 +2918,8 @@ class WorksheetAgentControllerTest {
          mock(inetsoft.web.portal.controller.database.DataSourceService.class),
          mock(inetsoft.sree.security.SecurityEngine.class),
          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
-         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class));
+         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
+         mock(inetsoft.report.composition.execution.AssetDataCache.class));
 
       ctrl.detach("TOK-D", agent);
 
@@ -2752,7 +2956,8 @@ class WorksheetAgentControllerTest {
          mock(inetsoft.web.portal.controller.database.DataSourceService.class),
          mock(inetsoft.sree.security.SecurityEngine.class),
          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
-         openService);
+         openService,
+         mock(inetsoft.report.composition.execution.AssetDataCache.class));
    }
 
    @Test

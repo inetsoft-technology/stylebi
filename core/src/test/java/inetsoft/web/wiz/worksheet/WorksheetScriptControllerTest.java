@@ -135,7 +135,8 @@ class WorksheetScriptControllerTest {
          mock(QueryManagerService.class), mock(LayoutGraphService.class),
          mock(DataSourceService.class), securityEngine,
          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
-         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class));
+         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
+         mock(inetsoft.report.composition.execution.AssetDataCache.class));
 
       WorksheetScriptService scriptService =
          new WorksheetScriptService(editService, worksheetController);
