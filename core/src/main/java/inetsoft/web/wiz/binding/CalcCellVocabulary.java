@@ -172,6 +172,10 @@ public final class CalcCellVocabulary {
             "nothing renders blank, which reads as missing data rather than a binding error.");
       }
 
+      if(type == CellBinding.BIND_COLUMN && cell.get("field") instanceof Map<?, ?> fieldMap) {
+         validateInlineNamedGroup(fieldMap);
+      }
+
       if(type == CellBinding.BIND_FORMULA && str(cell, "formula") == null &&
          str(cell, "value") == null)
       {
@@ -273,6 +277,79 @@ public final class CalcCellVocabulary {
 
       if(topn.get("rankBy") != null) {
          requireRankBy(topn.get("rankBy"), "'topn.rankBy'");
+      }
+   }
+
+   /**
+    * The shape of an inline ('Customize') {@code field.namedGroup} -- {@code {groups: [{name,
+    * conditions}], others?}} -- checked here, before the runtime is touched, for the same reason
+    * {@link #validateSort}/{@link #validateTopn} are: an invalid shape costs nothing to reject
+    * before {@code sessions.mutate} opens a checkpoint the caller then has to undo. A string
+    * {@code namedGroup} (the by-name form) is untouched -- resolving whether that name exists is
+    * {@code CalcTableService}'s job, since it needs runtime session state this stateless
+    * vocabulary does not have. Building the actual {@code ConditionVocabulary.Clause} list is
+    * likewise left to {@code CalcTableService.applyInlineNamedGroup}; this only checks the shape
+    * is well-formed enough that building it cannot fail on a null/malformed input.
+    */
+   @SuppressWarnings("unchecked")
+   private static void validateInlineNamedGroup(Map<?, ?> field) {
+      Object namedGroup = field.get("namedGroup");
+
+      if(!(namedGroup instanceof Map)) {
+         return;
+      }
+
+      Map<String, Object> spec = (Map<String, Object>) namedGroup;
+      Object rawGroups = spec.get("groups");
+
+      if(!(rawGroups instanceof List<?> groups) || groups.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'field.namedGroup.groups' needs at least one {name, conditions} group -- a named " +
+            "group with no groups in it buckets nothing.");
+      }
+
+      String column = str((Map<String, Object>) field, "column");
+
+      for(int i = 0; i < groups.size(); i++) {
+         Object g = groups.get(i);
+
+         if(!(g instanceof Map<?, ?> groupSpec)) {
+            throw new IllegalArgumentException(
+               "'field.namedGroup.groups[" + i + "]' must be an object.");
+         }
+
+         Object name = groupSpec.get("name");
+
+         if(!(name instanceof String text) || text.isBlank()) {
+            throw new IllegalArgumentException(
+               "Every group in 'field.namedGroup.groups' needs a non-blank 'name'.");
+         }
+
+         Object rawConditions = groupSpec.get("conditions");
+
+         if(!(rawConditions instanceof List<?> conditions) || conditions.isEmpty()) {
+            throw new IllegalArgumentException(
+               "Every group in 'field.namedGroup.groups' needs at least one condition.");
+         }
+
+         for(int c = 0; c < conditions.size(); c++) {
+            Object condition = conditions.get(c);
+
+            if(!(condition instanceof Map<?, ?> clause)) {
+               throw new IllegalArgumentException(
+                  "Every condition in 'field.namedGroup.groups[].conditions' must be an object " +
+                  "such as {operator: \"one_of\", values: [...]}, got " + condition + ".");
+            }
+
+            Object conditionField = clause.get("field");
+
+            if(conditionField != null && column != null && !column.equals(String.valueOf(conditionField))) {
+               throw new IllegalArgumentException(
+                  "'field.namedGroup.groups[" + i + "].conditions[" + c + "]' names field '" +
+                  conditionField + "', but a named group only conditions on the column it is " +
+                  "grouping ('" + column + "'). Omit 'field' or set it to '" + column + "'.");
+            }
+         }
       }
    }
 

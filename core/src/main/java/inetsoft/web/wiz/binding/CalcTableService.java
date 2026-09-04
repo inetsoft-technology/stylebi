@@ -542,7 +542,20 @@ public class CalcTableService {
       }
 
       order.setInfo(ngInfoModel);
-      order.setOthers(!"leave".equals(spec.get("others")));
+      order.setOthers(!isLeaveOthers(spec.get("others")));
+   }
+
+   /**
+    * {@code field.namedGroup.others} in the tool's own string vocabulary ({@code "group"}/
+    * {@code "leave"}), but also accepts the plain {@code Boolean} this same concept uses
+    * elsewhere in {@code inetsoft.web.wiz} ({@code DimensionSortRanking.Ranking.others},
+    * {@code EditRequest.groupOthers} -- both {@code true} = group, {@code false} = leave). A
+    * caller reasonably following that sibling convention and sending {@code others: false} here
+    * would otherwise silently get {@code GROUP_OTHERS} instead of the requested "leave ungrouped"
+    * behavior, since only the exact string {@code "leave"} was ever recognized.
+    */
+   private static boolean isLeaveOthers(Object others) {
+      return Boolean.FALSE.equals(others) || "leave".equalsIgnoreCase(String.valueOf(others));
    }
 
    /**
@@ -676,6 +689,12 @@ public class CalcTableService {
       List<ConditionVocabulary.Clause> clauses = new ArrayList<>();
 
       for(Object c : list) {
+         if(!(c instanceof Map<?, ?>)) {
+            throw new IllegalArgumentException(
+               "Every condition in 'field.namedGroup.groups[].conditions' must be an object " +
+               "such as {operator: \"one_of\", values: [...]}, got " + c + ".");
+         }
+
          Map<String, Object> clause = (Map<String, Object>) c;
          Object field = clause.get("field");
 
