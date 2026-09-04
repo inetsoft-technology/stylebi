@@ -95,9 +95,14 @@ public class BindingAgentController {
     * @param sheetLabel    best-effort human-readable label for the sheet (e.g. its Composer tab
     *                      title), sourced from {@code AssetEntry.toView()} — {@code null} if it
     *                      could not be resolved
+    * @param concurrentSessionCount how many sessions (including this one) are live on the exact
+    *                      same runtime right now (PSM-001 Change B) — self-inclusive, so a solo
+    *                      join reports {@code 1}, never {@code 0}; advisory only, never a reason
+    *                      this join itself would be refused
     */
    public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
-                              String sheetType, EditorContext editorContext, String sheetLabel) {}
+                              String sheetType, EditorContext editorContext, String sheetLabel,
+                              Integer concurrentSessionCount) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/join")
    public JoinResponse join(@RequestBody JoinRequest body, Principal user) throws PairingException {
@@ -106,7 +111,7 @@ public class BindingAgentController {
       JoinSession session = outcome.session();
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
                               session.sheetType().name().toLowerCase(), session.editorContext(),
-                              outcome.sheetLabel());
+                              outcome.sheetLabel(), outcome.concurrentSessionCount());
    }
 
    @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/fields")
