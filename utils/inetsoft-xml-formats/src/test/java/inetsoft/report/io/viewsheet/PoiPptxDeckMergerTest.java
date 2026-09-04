@@ -342,6 +342,72 @@ class PoiPptxDeckMergerTest {
       }
    }
 
+   /**
+    * bug-76110: an insight bullet whose text contained an emoji rendered as a missing-glyph box
+    * in the exported PPTX, because no run this merger creates ever set an explicit font family —
+    * without one, OOXML falls back to the deck's theme font (Calibri) by inheritance. The fix
+    * sets an explicit family ({@link inetsoft.report.StyleFont#getDefaultFontFamily()}, "Roboto"
+    * outside a live server context — same default the PDF export path resolves to) on every run,
+    * matching this codebase's own PPTX-export convention ({@code PPTValueHelper}, bug #75992) of
+    * never leaving typeface resolution to the reader. This does not by itself guarantee the
+    * emoji glyph renders (that depends on whether the resolved family has emoji coverage on the
+    * machine that opens the deck); it only guarantees every run carries an explicit,
+    * intentional typeface instead of an inherited one.
+    */
+   @Test
+   void everyRunCarriesAnExplicitFontFamilyInsteadOfThemeInheritance() throws Exception {
+      byte[] chart1 = oneSlideDeckWithText("CHART_MARKER");
+      List<PptxDeckMerger.ChartSlide> slides = List.of(
+         new PptxDeckMerger.ChartSlide("Revenue by Region", "cap", chart1, false,
+            "**Growth accelerating.**\n- 📈 Premium pricing drives most of the revenue.")
+      );
+
+      byte[] merged = merger.mergeSlides("Q39 Board", "Premium units run the business.", slides);
+
+      try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
+         // Title slide: exercises styleBox() (title box) and appendBlock()'s recap paragraph.
+         XSLFTextBox titleBox = result.getSlides().get(0).getShapes().stream()
+            .filter(sh -> sh instanceof XSLFTextBox tb && "Q39 Board".equals(tb.getText()))
+            .map(sh -> (XSLFTextBox) sh)
+            .findFirst().orElseThrow();
+         assertEquals("Roboto",
+            titleBox.getTextParagraphs().get(0).getTextRuns().get(0).getFontFamily(),
+            "styleBox() must set an explicit family instead of leaving the title run to theme "
+               + "inheritance");
+
+         // Insights slide: exercises appendBlock()'s bullet-marker run and appendSpans()'s span
+         // run (the run that would actually carry the emoji-containing text).
+         XSLFSlide insightsSlide = result.getSlides().get(2);
+         boolean sawBulletMarkerFamily = false;
+         boolean sawEmojiSpanFamily = false;
+
+         for(var shape : insightsSlide.getShapes()) {
+            if(shape instanceof XSLFTextBox tb) {
+               for(var paragraph : tb.getTextParagraphs()) {
+                  for(var run : paragraph.getTextRuns()) {
+                     String t = run.getRawText();
+
+                     if(t.contains("•")) {
+                        assertEquals("Roboto", run.getFontFamily(),
+                           "bullet-marker run in appendBlock() must set an explicit family");
+                        sawBulletMarkerFamily = true;
+                     }
+
+                     if(t.contains("Premium pricing")) {
+                        assertEquals("Roboto", run.getFontFamily(),
+                           "span run in appendSpans() must set an explicit family");
+                        sawEmojiSpanFamily = true;
+                     }
+                  }
+               }
+            }
+         }
+
+         assertTrue(sawBulletMarkerFamily, "expected to find the bullet-marker run");
+         assertTrue(sawEmojiSpanFamily, "expected to find the emoji-adjacent span run");
+      }
+   }
+
    @Test
    void continuationInsightsSlidesMarkedContd() throws Exception {
       byte[] chart1 = oneSlideDeckWithText("CHART_MARKER");
