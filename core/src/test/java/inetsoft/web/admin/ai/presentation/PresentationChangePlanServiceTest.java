@@ -510,6 +510,19 @@ class PresentationChangePlanServiceTest {
       assertFalse(proposed.emailEnabled());
    }
 
+   // ---------------------------------------------------------------- hash: task is audit-only, not part of the plan identity
+
+   @Test
+   void hashIsUnaffectedByDifferentTaskStrings() throws Exception {
+      stub(PresentationSubModel.FORMATS, currentFor(PresentationSubModel.FORMATS));
+      PresentationChangeRequest raw = change("formats", "organization", specFor(PresentationSubModel.FORMATS));
+
+      var planA = service.resolve(request("Update date format to ISO", raw), PRINCIPAL);
+      var planB = service.resolve(request("Change the date format to ISO 8601", raw), PRINCIPAL);
+
+      assertEquals(planA.planHash(), planB.planHash());
+   }
+
    // ---------------------------------------------------------------- secretFields is per sub-model
 
    @Test
