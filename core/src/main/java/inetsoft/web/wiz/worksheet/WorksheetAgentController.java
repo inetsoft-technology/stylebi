@@ -76,6 +76,7 @@ import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.RenderWaitSupport;
 import inetsoft.web.wiz.service.TabularEndpointBindingSupport;
 import inetsoft.web.wiz.script.PaneScopeService;
+import inetsoft.web.wiz.viewsheet.SheetOpenService;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.slf4j.Logger;
@@ -128,7 +129,8 @@ public class WorksheetAgentController {
                                    LayoutGraphService layoutGraphService,
                                    DataSourceService dataSourceService,
                                    SecurityEngine securityEngine,
-                                   RenameTransformHandler renameTransformHandler)
+                                   RenameTransformHandler renameTransformHandler,
+                                   SheetOpenService openService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -146,6 +148,7 @@ public class WorksheetAgentController {
       this.dataSourceService = dataSourceService;
       this.securityEngine = securityEngine;
       this.renameTransformHandler = renameTransformHandler;
+      this.openService = openService;
    }
 
    // ---------------------------------------------------------------------------
@@ -173,6 +176,50 @@ public class WorksheetAgentController {
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
                               session.sheetType().name().toLowerCase(), session.editorContext(),
                               outcome.sheetLabel());
+   }
+
+   /**
+    * Request body for the create-worksheet endpoint.
+    *
+    * @param fromSessionToken the already-paired session (worksheet or viewsheet) whose browser
+    *                         connection the new session reuses
+    */
+   public record CreateWorksheetRequest(String fromSessionToken) {}
+
+   /**
+    * {@code create_worksheet}. Mints a brand-new, blank worksheet runtime and pairs the caller to
+    * it directly -- no new pairing code needed, and the browser visually follows along in the
+    * currently-open Composer window -- by reusing the ALREADY-PAIRED session named by
+    * {@code fromSessionToken} (worksheet or viewsheet, either is accepted). {@link SheetOpenService}
+    * performs every guard and the browser broadcast; this endpoint only translates its
+    * {@link JoinSession} into the same join shape {@link #join} returns.
+    *
+    * <p>The worksheet this mints is always blank -- no table, no source. Design it with the
+    * existing add_table/add_join/add_calc_field family of tools, then save_worksheet to persist
+    * it. If the acting session is a viewsheet with no source of its own, attach_base_worksheet is
+    * the tool that connects the saved worksheet back to it.
+    *
+    * @throws PairingException naming the specific problem: no acting session, no live browser
+    *                          connection on it, or a permission failure.
+    */
+   @PostMapping("/api/wiz/v1/agent/worksheet/create")
+   public JoinResponse createWorksheet(@RequestBody CreateWorksheetRequest body, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+
+      JoinSession session;
+
+      try {
+         session = openService.createWorksheet(body == null ? null : body.fromSessionToken(), user);
+      }
+      catch(IllegalArgumentException e) {
+         throw new PairingException(e.getMessage(), e);
+      }
+
+      return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
+                              session.sheetType().name().toLowerCase(), session.editorContext(),
+                              null);
    }
 
    /**
@@ -3606,6 +3653,7 @@ public class WorksheetAgentController {
    private final DataSourceService dataSourceService;
    private final SecurityEngine securityEngine;
    private final RenameTransformHandler renameTransformHandler;
+   private final SheetOpenService openService;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetAgentController.class);
 
    // Mirrors ViewsheetEditService.TABLE_WARM_MAX_ATTEMPTS/TABLE_WARM_RETRY_SLEEP_MS: the same
