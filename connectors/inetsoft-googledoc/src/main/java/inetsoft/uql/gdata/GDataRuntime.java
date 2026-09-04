@@ -229,7 +229,13 @@ public class GDataRuntime extends TabularRuntime implements TabularCatalogProvid
       getDrive(gdataDs).about().get().setFields("user").execute();
    }
 
-   private static Sheets getSheets(GDataDataSource ds, boolean saveTokens) {
+   // Package-private (not private), same reason and same seam as getDrive below: it lets
+   // GDataCatalogTest mockStatic(GDataRuntime.class) with CALLS_REAL_METHODS for
+   // listSheetProperties/fetchSampleRows while stubbing only this method, so a test can execute
+   // those two methods' REAL bodies -- including their field-mask strings -- rather than mocking
+   // them out entirely (P6 fix round 1, item 1: A5's guarantee that gridProperties is never
+   // requested rests on listSheetProperties' own field mask, which no test executed before this).
+   static Sheets getSheets(GDataDataSource ds, boolean saveTokens) {
       return new Sheets.Builder(HTTP_TRANSPORT, JSON_FACTORY, createInitializer(ds, saveTokens))
          .setApplicationName(APPLICATION_ID)
          .build();

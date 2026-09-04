@@ -20,6 +20,7 @@ package inetsoft.uql.gdata;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.File;
 import com.google.api.services.drive.model.FileList;
+import com.google.api.services.sheets.v4.Sheets;
 import com.google.api.services.sheets.v4.model.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.tabular.PropertyMeta;
@@ -30,6 +31,7 @@ import inetsoft.uql.tabular.TabularDatasetSchema;
 import inetsoft.uql.tabular.TabularUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
 import java.util.Arrays;
@@ -39,6 +41,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -317,10 +320,23 @@ class GDataCatalogTest {
 
    @Test
    void describeDataset_columnCountWiderThanData_reportsDataWidth() throws Exception {
-      // A5/T1: gridProperties.columnCount is never even fetched (the field mask omits it, on
-      // purpose) -- the reported width can only ever come from the widest sampled row, never a
-      // grid dimension. Three header cells here; a trusting implementation that somehow injected
-      // a 26-wide grid dimension would report 26.
+      // A5/T1, but read this docstring before trusting the test name: this test alone does NOT
+      // structurally pin "gridProperties.columnCount is never trusted". P6 fix round 1's mutation
+      // test proved that -- widening `width` to `Math.max(width, 26)` after the real
+      // width-from-sampled-rows loop leaves this test GREEN, because the resulting 23 phantom
+      // columns fall through cellAt's bounds check (headerCell == null for c >= 3), headerName()
+      // returns null for a null cell, and the drop logic removes all 23 of them -- the column
+      // count "self-heals" back to 3 through the header-drop mechanism, a completely different
+      // code path than the one this test's name claims to guard.
+      //
+      // What this test DOES pin: three header cells, however that number reaches describeDataset,
+      // produce three columns -- not some other count derived from the row data's shape (e.g. the
+      // longest data row, or a hardcoded constant).
+      //
+      // The STRUCTURAL guarantee -- that GDataRuntime.listSheetProperties' field mask never even
+      // requests gridProperties, so there is no columnCount available to trust in the first place
+      // -- is pinned by listSheetProperties_realBody_fieldMaskRequestsPropertiesButNotGridProperties
+      // below, which executes the real method body and asserts on the actual field-mask string.
       stubDescribe(0, "Sheet1", List.of(
          row(stringCell("A"), stringCell("B"), stringCell("C")),
          row(stringCell("a1"), stringCell("b1"), stringCell("c1"))));
@@ -328,6 +344,84 @@ class GDataCatalogTest {
       TabularDatasetSchema schema = GDataCatalog.describeDataset(fakeDataSource(), id(0));
 
       assertEquals(3, schema.columns().size());
+   }
+
+   @Test
+   void listSheetProperties_realBody_fieldMaskRequestsPropertiesButNotGridProperties()
+      throws Exception
+   {
+      // A5/T1, the structural half. Every other test in this class mocks listSheetProperties
+      // itself, so nothing until now has executed its REAL body or its own field-mask string --
+      // that gap is exactly what let the mutation above pass undetected (see the docstring on
+      // describeDataset_columnCountWiderThanData_reportsDataWidth). This test runs the real body
+      // via CALLS_REAL_METHODS, mocking only getSheets (the seam, widened package-private for
+      // this test the same way getDrive already was for listSpreadsheetFiles' A3 test), and
+      // captures the exact string passed to setFields.
+      //
+      // Rejects two different wrong implementations: one that ADDS "gridProperties" to the mask
+      // (T1's trap made reachable again -- verified by hand: adding
+      // ".gridProperties(columnCount)" to the mask string in listSheetProperties turns this RED),
+      // and one that DROPS "sheetId"/"title"/"sheetType" (the fields describeDataset actually
+      // needs -- X6's title resolution and A18's non-GRID filter would silently stop working).
+      Sheets.Spreadsheets.Get getRequest = mock(Sheets.Spreadsheets.Get.class, RETURNS_SELF);
+      Spreadsheet response = new Spreadsheet().setSheets(
+         List.of(new Sheet().setProperties(sheetProps(0, "Sheet1"))));
+      when(getRequest.execute()).thenReturn(response);
+
+      Sheets.Spreadsheets spreadsheetsResource = mock(Sheets.Spreadsheets.class);
+      when(spreadsheetsResource.get(any())).thenReturn(getRequest);
+
+      Sheets sheetsMock = mock(Sheets.class);
+      when(sheetsMock.spreadsheets()).thenReturn(spreadsheetsResource);
+
+      runtimeStatic = mockStatic(GDataRuntime.class, CALLS_REAL_METHODS);
+      runtimeStatic.when(() -> GDataRuntime.getSheets(any(), anyBoolean())).thenReturn(sheetsMock);
+
+      GDataRuntime.listSheetProperties(fakeDataSource(), "SS1");
+
+      ArgumentCaptor<String> fieldsCaptor = ArgumentCaptor.forClass(String.class);
+      verify(getRequest).setFields(fieldsCaptor.capture());
+      String mask = fieldsCaptor.getValue();
+
+      assertTrue(mask.contains("sheetId"), mask);
+      assertTrue(mask.contains("title"), mask);
+      assertTrue(mask.contains("sheetType"), mask);
+      assertFalse(mask.contains("gridProperties"), mask);
+   }
+
+   @Test
+   void fetchSampleRows_realBody_fieldMaskRequestsEffectiveValueAndNumberFormat() throws Exception {
+      // Reviewer nit 3's other half, added on judgement (not instructed): fetchSampleRows' own
+      // real body and field mask were equally unexecuted by any test before this -- every other
+      // test mocks it out entirely, and A17 only verifies the a1Range ARGUMENT passed to the
+      // mocked method, never the field mask inside the real implementation. Unlike
+      // listSheetProperties there is no "must never request X" trap here (Part D.3 of
+      // 01-design.md never names one for this call) -- this pins the ordinary completeness
+      // guarantee that the sample actually asks for cell values and their number format, not that
+      // it must exclude something.
+      Sheets.Spreadsheets.Get getRequest = mock(Sheets.Spreadsheets.Get.class, RETURNS_SELF);
+      Spreadsheet response = new Spreadsheet().setSheets(List.of(new Sheet()
+         .setData(List.of(new GridData().setRowData(List.of(row(stringCell("A"))))))));
+      when(getRequest.execute()).thenReturn(response);
+
+      Sheets.Spreadsheets spreadsheetsResource = mock(Sheets.Spreadsheets.class);
+      when(spreadsheetsResource.get(any())).thenReturn(getRequest);
+
+      Sheets sheetsMock = mock(Sheets.class);
+      when(sheetsMock.spreadsheets()).thenReturn(spreadsheetsResource);
+
+      runtimeStatic = mockStatic(GDataRuntime.class, CALLS_REAL_METHODS);
+      runtimeStatic.when(() -> GDataRuntime.getSheets(any(), anyBoolean())).thenReturn(sheetsMock);
+
+      GDataRuntime.fetchSampleRows(fakeDataSource(), "SS1", "'Sheet1'!1:4");
+
+      verify(getRequest).setRanges(List.of("'Sheet1'!1:4"));
+      ArgumentCaptor<String> fieldsCaptor = ArgumentCaptor.forClass(String.class);
+      verify(getRequest).setFields(fieldsCaptor.capture());
+      String mask = fieldsCaptor.getValue();
+
+      assertTrue(mask.contains("effectiveValue"), mask);
+      assertTrue(mask.contains("numberFormat"), mask);
    }
 
    @Test
