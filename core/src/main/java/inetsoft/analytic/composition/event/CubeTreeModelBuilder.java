@@ -127,6 +127,14 @@ public class CubeTreeModelBuilder extends BaseTreeModelBuilder {
             // worksheet has changed
             if(nw != null && nw.getLastModified() > baseWS.getLastModified()) {
                processor.baseWorksheetChanged();
+
+               // baseWorksheetChanged() (RuntimeViewsheet.resetRuntime()) reloads vs's base
+               // worksheet in place, but baseWS/baseEntry here were snapshotted from vs before
+               // this check ran (CubeTreeModelBuilder.getBuilder()). Without re-reading them,
+               // every downstream tree read (getModel/getBaseModel/appendColumnNodes) would keep
+               // using the pre-reset worksheet for the rest of this call, one refresh behind.
+               baseWS = vs.getBaseWorksheet();
+               baseEntry = (AssetEntry) Tool.clone(vs.getBaseEntry());
             }
          }
       }
