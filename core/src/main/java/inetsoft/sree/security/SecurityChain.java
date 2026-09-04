@@ -172,6 +172,20 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
                   ObjectNode root;
 
                   try(InputStream input = dataSpace.getInputStream(null, configFile)) {
+                     if(input == null) {
+                        // The exists() check above raced with a concurrent delete/rewrite of
+                        // the config file; DataSpace.getInputStream() treats a missing file as
+                        // a soft null rather than throwing. Treat this exactly like the
+                        // "temporarily unreadable config" case below: keep the existing runtime
+                        // providers and do not advance timestamp, so the next dataChanged()
+                        // retries once the transient condition clears.
+                        LOG.warn(
+                           "Security chain configuration file '{}' could not be read (removed " +
+                           "or rewritten concurrently); retaining existing providers",
+                           configFile);
+                        return;
+                     }
+
                      root = (ObjectNode) mapper.readTree(input);
                   }
 
