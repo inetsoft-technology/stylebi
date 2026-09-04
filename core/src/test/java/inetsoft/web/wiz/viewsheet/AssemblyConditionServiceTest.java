@@ -54,7 +54,7 @@ class AssemblyConditionServiceTest {
    private static ConditionVocabulary.Clause clause(String f, String op, List<Object> v,
                                                     String junction)
    {
-      return new ConditionVocabulary.Clause(f, op, v, junction, false);
+      return new ConditionVocabulary.Clause(f, op, v, junction, false, false, 0);
    }
 
    @Test

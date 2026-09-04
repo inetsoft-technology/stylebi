@@ -61,14 +61,14 @@ class AssemblyHighlightServiceTest {
    private static AssemblyHighlightService.Highlight highlight(String name) {
       return new AssemblyHighlightService.Highlight(
          name, null, "#ff0000",
-         List.of(new ConditionVocabulary.Clause("Revenue", ">", List.of(1000), null, false)),
+         List.of(new ConditionVocabulary.Clause("Revenue", ">", List.of(1000), null, false, false, 0)),
          false);
    }
 
    private static AssemblyHighlightService.Highlight highlightApplyRow(String name) {
       return new AssemblyHighlightService.Highlight(
          name, null, "#ff0000",
-         List.of(new ConditionVocabulary.Clause("Revenue", ">", List.of(1000), null, false)),
+         List.of(new ConditionVocabulary.Clause("Revenue", ">", List.of(1000), null, false, false, 0)),
          true);
    }
 
@@ -182,7 +182,8 @@ class AssemblyHighlightServiceTest {
                              new AssemblyHighlightService.Highlight(
                                 "Bad", null, "#fff",
                                 List.of(new ConditionVocabulary.Clause("Profit", ">",
-                                                                       List.of(1), null, false)),
+                                                                       List.of(1), null, false,
+                                                                       false, 0)),
                                 false),
                              false, ""));
 

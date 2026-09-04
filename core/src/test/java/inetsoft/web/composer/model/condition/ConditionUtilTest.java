@@ -60,7 +60,7 @@ class ConditionUtilTest {
 
       Object[] model = ConditionVocabulary.toConditionList(
          List.of(new ConditionVocabulary.Clause(
-            "OrderDate", "date_in", List.of(builtinName), null, false)),
+            "OrderDate", "date_in", List.of(builtinName), null, false, false, 0)),
          new DataRefModel[]{ field });
 
       Principal principal = () -> "admin";
@@ -88,11 +88,11 @@ class ConditionUtilTest {
 
       Object[] correctModel = ConditionVocabulary.toConditionList(
          List.of(new ConditionVocabulary.Clause(
-            "OrderDate", "date_in", List.of(correctlyCasedName), null, false)),
+            "OrderDate", "date_in", List.of(correctlyCasedName), null, false, false, 0)),
          new DataRefModel[]{ field });
       Object[] wrongCaseModel = ConditionVocabulary.toConditionList(
          List.of(new ConditionVocabulary.Clause(
-            "OrderDate", "date_in", List.of(wrongCasedName), null, false)),
+            "OrderDate", "date_in", List.of(wrongCasedName), null, false, false, 0)),
          new DataRefModel[]{ field });
 
       Principal principal = () -> "admin";
@@ -118,7 +118,7 @@ class ConditionUtilTest {
 
       Object[] model = ConditionVocabulary.toConditionList(
          List.of(new ConditionVocabulary.Clause(
-            "OrderDate", "date_in", List.of("Last Decade"), null, false)),
+            "OrderDate", "date_in", List.of("Last Decade"), null, false, false, 0)),
          new DataRefModel[]{ field });
 
       Principal principal = () -> "admin";
@@ -151,7 +151,7 @@ class ConditionUtilTest {
 
       Object[] model = ConditionVocabulary.toConditionList(
          List.of(new ConditionVocabulary.Clause(
-            "OrderDate", "date_in", List.of("myrange"), null, false)),
+            "OrderDate", "date_in", List.of("myrange"), null, false, false, 0)),
          new DataRefModel[]{ field });
 
       Principal principal = () -> "admin";
@@ -193,7 +193,7 @@ class ConditionUtilTest {
 
       Object[] model = ConditionVocabulary.toConditionList(
          List.of(new ConditionVocabulary.Clause(
-            "OrderDate", "date_in", List.of("MyRange"), null, false)),
+            "OrderDate", "date_in", List.of("MyRange"), null, false, false, 0)),
          new DataRefModel[]{ field });
 
       Principal principal = () -> "admin";
