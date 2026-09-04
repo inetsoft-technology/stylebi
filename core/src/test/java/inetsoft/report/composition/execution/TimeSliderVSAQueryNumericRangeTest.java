@@ -47,6 +47,7 @@ import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * VSFILT-009 part 2: a real (non-mocked) execution of {@link TimeSliderVSAQuery#getData()} for
@@ -109,6 +110,88 @@ class TimeSliderVSAQueryNumericRangeTest {
       Object[] range = (Object[]) data;
       assertEquals(0.00, ((Number) range[0]).doubleValue(), 0.0001, "min");
       assertEquals(0.20, ((Number) range[1]).doubleValue(), 0.0001, "max");
+   }
+
+   /**
+    * VSFILT-009 (round 2): a numeric TimeSlider's {@code SingleTimeInfo.rangeSize} is persisted
+    * the first time it successfully computes a tick step (see
+    * {@code TimeSliderVSAQuery.refreshSingleSelectionValue}'s NUMBER branch). If the column's
+    * live data range later shrinks well below that persisted step size -- e.g. after a reload,
+    * once the bound column's real range no longer resembles the one that produced the original
+    * step -- the "only grow, never shrink" comparison at that branch's
+    * {@code if(rsize0 > tinfo.getRangeSizeValue())} check always keeps the stale, oversized
+    * step, collapsing {@code getPreferredTicks} down to its 2-point (min/max only) fallback --
+    * a slider with no real granularity to drag, i.e. exactly the reported "doesn't filter"
+    * symptom.
+    */
+   @Test
+   void staleRangeSizeIsRecomputedWhenDataRangeShrinks() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      TimeSliderVSAssembly slider = new TimeSliderVSAssembly(vs, "RangeSlider1");
+      slider.setTableName("Query1");
+
+      ColumnRef discountRef = new ColumnRef(new AttributeRef("DISCOUNT"));
+      discountRef.setDataType(XSchema.DOUBLE);
+      SingleTimeInfo tinfo = new SingleTimeInfo();
+      tinfo.setDataRef(discountRef);
+      tinfo.setRangeTypeValue(TimeInfo.NUMBER);
+      slider.setTimeInfo(tinfo);
+      vs.addAssembly(slider);
+
+      // Pass 1: a wide range lets the NUMBER branch auto-compute and persist a rangeSize
+      // (SingleTimeInfo.rangeSizeValue, the "D" value) sized for 0..20 -- this is what a real
+      // control does the first time it successfully renders.
+      Object[][] wideRows = new Object[][] {
+         { "DISCOUNT" },
+         { 0.0 }, { 5.0 }, { 10.0 }, { 15.0 }, { 20.0 },
+      };
+      runOnePass(vs, wideRows);
+      assertTrue(slider.getSelectionList().getSelectionValueCount() > 0,
+         "sanity: the first pass over the wide range must itself produce a non-empty " +
+         "selection list");
+      double persistedRangeSize = tinfo.getRangeSizeValue();
+      assertTrue(persistedRangeSize > 0, "first pass must persist a non-zero rangeSize");
+
+      // Pass 2: simulates a reload -- reuses the same assembly/tinfo, so the persisted
+      // rangeSize carries over exactly as SingleTimeInfo's D-value/R-value split makes it
+      // across a real save/reopen -- but the column's live data range has since shrunk well
+      // below the persisted step size.
+      Object[][] narrowRows = new Object[][] {
+         { "DISCOUNT" },
+         { 0.00 }, { 0.05 }, { 0.10 }, { 0.15 }, { 0.20 },
+      };
+      runOnePass(vs, narrowRows);
+
+      // With the bug, the persisted (too-large) rangeSize is kept unconditionally, so
+      // getPreferredTicks collapses to its 2-point (min/max only) fallback -- no usable
+      // granularity to drag. A correctly-recomputed step for a 0..0.20 range should produce
+      // several intermediate ticks.
+      assertTrue(slider.getSelectionList().getSelectionValueCount() > 2,
+         "a stale persisted rangeSize (" + persistedRangeSize + ") from a wider prior data " +
+         "range must not be kept once the live data range has shrunk below it -- got only " +
+         slider.getSelectionList().getSelectionValueCount() + " selection value(s)");
+   }
+
+   private static void runOnePass(Viewsheet vs, Object[][] rows) throws Exception {
+      Worksheet ws = new Worksheet();
+      buildEmbeddedTable(ws, "Query1", rows, true);
+      buildEmbeddedTable(ws, "S_Query1", rows, false);
+
+      Method setBaseWorksheet = Viewsheet.class.getDeclaredMethod("setBaseWorksheet", Worksheet.class);
+      setBaseWorksheet.setAccessible(true);
+      setBaseWorksheet.invoke(vs, ws);
+
+      ViewsheetSandbox box = new ViewsheetSandbox(vs, AbstractSheet.SHEET_RUNTIME_MODE, null, false, null);
+      AssetQuerySandbox wbox = new AssetQuerySandbox(ws, null, new VariableTable());
+      Field wboxField = ViewsheetSandbox.class.getDeclaredField("wbox");
+      wboxField.setAccessible(true);
+      wboxField.set(box, wbox);
+
+      TimeSliderVSAQuery query = new TimeSliderVSAQuery(box, "RangeSlider1");
+      Object data = query.getData();
+      assertNotNull(data, "getData() must resolve a real min/max range for a populated " +
+         "numeric column, not silently return null");
+      query.refreshSelectionValue(data);
    }
 
    private static void buildEmbeddedTable(
