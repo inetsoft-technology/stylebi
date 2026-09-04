@@ -48,8 +48,11 @@ import inetsoft.web.binding.event.ModifyTableLayoutEvent;
 import inetsoft.web.binding.event.SetCellBindingEvent;
 import inetsoft.web.binding.model.table.CellBindingInfo;
 import inetsoft.web.binding.model.table.TableCell;
+import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -75,11 +78,13 @@ import java.util.List;
 public class CalcTableService {
    @Autowired
    public CalcTableService(ViewsheetSessionService sessions, VSTableLayoutService layoutService,
-                           DataRefModelFactoryService refModelService)
+                           DataRefModelFactoryService refModelService,
+                           BindableFieldsService fieldsService)
    {
       this.sessions = sessions;
       this.layoutService = layoutService;
       this.refModelService = refModelService;
+      this.fieldsService = fieldsService;
    }
 
    /**
@@ -271,6 +276,11 @@ public class CalcTableService {
          requireInGrid(layoutOf(assembly), row, col);
 
          CellBindingInfo cellBindingInfo = toCellBindingInfo(binding);
+
+         if(cellBindingInfo.getType() == CellBinding.BIND_COLUMN) {
+            requireBindableColumn(runtimeId, user, assemblyName, cellBindingInfo.getValue());
+         }
+
          String namedGroup = cellBindingInfo.getType() == CellBinding.BIND_COLUMN
             ? namedGroupOf(binding.get("field")) : null;
 
@@ -286,6 +296,34 @@ public class CalcTableService {
          event.setBinding(cellBindingInfo);
          layoutService.setCellBinding(runtimeId, event, user, dispatcher);
       });
+   }
+
+   /**
+    * Checks that a column cell's {@code field.column} is actually reachable from the calc
+    * table's current {@code set_table_source} target, the same check
+    * {@code BindingAgentController.resolveSourceTable} already makes for chart/table/crosstab
+    * writes via {@link BindableColumns#require}. Without it, a column that is a real column —
+    * just on a different table than this assembly's source — bound cleanly and rendered a
+    * silently blank cell (CLAUDE.md's tool-misuse-accepted-silently class).
+    *
+    * <p>A listing failure is logged and skipped rather than propagated, matching
+    * {@code resolveSourceTable}'s own reasoning: not being able to read the tree is a different
+    * fault than a bad column, and refusing the write on the strength of it would turn a read
+    * problem into a write problem.
+    */
+   private void requireBindableColumn(String runtimeId, Principal user, String assemblyName,
+                                      String column)
+   {
+      try {
+         List<BindableTable> tables = fieldsService.list(runtimeId, assemblyName, user);
+         BindableColumns.require(tables, assemblyName, new FieldRef(column, null, null, null, null));
+      }
+      catch(IllegalArgumentException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         LOG.debug("Could not list bindable columns for {}; skipping the check", assemblyName, e);
+      }
    }
 
    /**
@@ -570,6 +608,12 @@ public class CalcTableService {
       int type = CalcCellVocabulary.content(str(binding, "content"));
       info.setType(type);
 
+      String name = str(binding, "name");
+
+      if(name != null) {
+         info.setName(name);
+      }
+
       if(binding.get("grouping") != null) {
          info.setBtype(CalcCellVocabulary.grouping(str(binding, "grouping")));
       }
@@ -738,7 +782,10 @@ public class CalcTableService {
       return text.isEmpty() ? null : text;
    }
 
+   private static final Logger LOG = LoggerFactory.getLogger(CalcTableService.class);
+
    private final ViewsheetSessionService sessions;
    private final VSTableLayoutService layoutService;
    private final DataRefModelFactoryService refModelService;
+   private final BindableFieldsService fieldsService;
 }
