@@ -219,7 +219,7 @@ public class WorksheetAgentController {
 
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
                               session.sheetType().name().toLowerCase(), session.editorContext(),
-                              null);
+                              null, null);
    }
 
    /**
