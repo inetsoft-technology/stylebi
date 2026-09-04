@@ -602,13 +602,20 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          return this.zIndex(vsObject);
       }
 
-      // An active Data Tip (or an embedded viewsheet containing one) must always render above
-      // a merely-max-mode (or pop-component) boosted sibling, regardless of either assembly's
-      // own server-assigned base z-index -- otherwise "Show Maximized" on one assembly can hide
-      // a completely different assembly's Data Tip popup behind it (#76461, #76458). Doubling
-      // the boost for this case mirrors the existing extra "+1000 while popShowing" tier already
-      // applied on top of this same constant in VSDataTipDirective.ngDoCheck().
-      return this.isActiveDataTipBoost(vsObject)
+      const isDataTipBoost = this.isActiveDataTipBoost(vsObject);
+
+      // An active Data Tip (or an embedded viewsheet containing one) must render above a
+      // merely-max-mode (or pop-component) boosted sibling -- otherwise "Show Maximized" on one
+      // assembly can hide a completely different assembly's Data Tip popup behind it (#76461,
+      // #76458). Doubling the boost for this case mirrors the existing extra "+1000 while
+      // popShowing" tier already applied on top of this same constant in
+      // VSDataTipDirective.ngDoCheck(). This wins as long as the two assemblies' own base
+      // zIndex() values differ by less than popUpContentBoostZIndex (99999) -- true for any
+      // realistic nesting depth given this codebase's z-index gaps (Viewsheet.NORMAL_ZINDEX_GAP/
+      // CONTAINER_ZINDEX_GAP/VIEWSHEET_ZINDEX_GAP are 1/50/1000), but not an absolute guarantee:
+      // zIndex() can add +5000 for an assembly with annotations or +getPopUpContentBoostZIndex()
+      // for an adhoc filter, which does eat into that margin.
+      return isDataTipBoost
          ? this.zIndex(vsObject) + this.popUpContentBoostZIndex * 2
          : this.zIndex(vsObject) + this.popUpContentBoostZIndex;
    }
