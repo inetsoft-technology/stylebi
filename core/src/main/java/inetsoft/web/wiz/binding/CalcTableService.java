@@ -861,10 +861,22 @@ public class CalcTableService {
       // an Nth/Pth parameter for the formulas that take one (append '(N)') -- exactly the syntax
       // the Composer's own aggregate-option pane builds. Neither the percentage encoding nor
       // which formulas take an N/second-column argument is enumerated here yet.
+      //
+      // AggregateFormula's static initializer reads a property via SreeEnv, which throws
+      // ShutdownException outside a running Spring context (server startup/shutdown, or a unit
+      // test with no Spring context at all) -- degrade this one enrichment to an empty list
+      // rather than losing the rest of vocabulary()'s response over it.
       List<String> aggregateFormulas = new ArrayList<>();
 
-      for(inetsoft.uql.asset.AggregateFormula formula : inetsoft.uql.asset.AggregateFormula.getFormulas()) {
-         aggregateFormulas.add(formula.getFormulaName());
+      try {
+         for(inetsoft.uql.asset.AggregateFormula formula :
+            inetsoft.uql.asset.AggregateFormula.getFormulas())
+         {
+            aggregateFormulas.add(formula.getFormulaName());
+         }
+      }
+      catch(Throwable e) {
+         LOG.debug("Could not list aggregate formulas; reporting none", e);
       }
 
       out.put("aggregateFormulas", aggregateFormulas);

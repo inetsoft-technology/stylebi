@@ -46,6 +46,8 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.web.binding.controller.VSTableLayoutService;
 import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.handler.TableLayoutHandler;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.binding.event.CopyCutCalcCellEvent;
 import inetsoft.web.binding.event.ModifyTableLayoutEvent;
 import inetsoft.web.binding.event.SetCellBindingEvent;
@@ -472,9 +474,20 @@ class CalcTableServiceTest {
          throw new IllegalStateException(e);
       }
 
+      VSColumnHandler columnsHandler = mock(VSColumnHandler.class);
+      TableLayoutHandler layoutHandler = mock(TableLayoutHandler.class);
+
+      // Default fixture: no summary cells in scope. Mockito's default answer for an array
+      // return type is null, not empty -- aggregatesOf()'s "new AggregateRef[aggs.length]" NPEs
+      // on that for every test that never bound a summary cell, not just the ones that care
+      // about rankBy/sort-by-value.
+      when(layoutHandler.getCalcAggregateFields(any(), any()))
+         .thenReturn(new inetsoft.uql.erm.CalcAggregate[0]);
+
       return new Harness(
-         new CalcTableService(sessions, layoutService, refModelService, fieldsService), sessions,
-         layoutService, vs, info, refModelService, fieldsService);
+         new CalcTableService(sessions, layoutService, refModelService, fieldsService,
+                              columnsHandler, layoutHandler),
+         sessions, layoutService, vs, info, refModelService, fieldsService);
    }
 
    private static Principal principal() {
@@ -669,9 +682,13 @@ class CalcTableServiceTest {
    /**
     * The confirmed silent-drop defect: {@code field.namedGroup} naming a worksheet-local group
     * created via {@code add_named_group} must land on {@code CellBindingInfo.order} as an
-    * {@code EXPERT_NAMEDGROUP_INFO} built from that assembly's own per-group conditions, with
-    * {@code order.type == SORT_SPECIFIC} -- the bit {@code OrderInfo.isSpecific()} gates before
-    * a named group's conditions are ever folded into the actual grouping order.
+    * {@code EXPERT_NAMEDGROUP_INFO} built from that assembly's own per-group conditions --
+    * {@code order.info} only. {@code order.type} is untouched (stays at {@code OrderModel}'s
+    * default) when the call gives no {@code sort}: a named group and a sort direction are
+    * independent settings on a real cell (confirmed live -- a Composer cell can carry
+    * {@code Sort: Manual} or even {@code Sort: By Value (Asc)} together with a named group), and
+    * {@code CalcNamedGroupDialog.apply()}, the Composer's own commit path for a named group,
+    * never assigns {@code order.type} either.
     */
    @Test
    void bindsAWorksheetLocalNamedGroupAsAnExpertOrder() throws Exception {
@@ -709,7 +726,10 @@ class CalcTableServiceTest {
       verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class),
                                              any());
       inetsoft.web.binding.model.table.OrderModel order = captor.getValue().getBinding().getOrder();
-      assertEquals(XConstants.SORT_SPECIFIC, order.getType());
+      // No 'sort' was given, so order.type stays at its OrderModel default (SORT_ASC) --
+      // resolving a named group only ever sets order.info, never order.type (see the class
+      // comment above).
+      assertEquals(XConstants.SORT_ASC, order.getType());
       assertEquals(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO, order.getInfo().getType());
       List<inetsoft.web.composer.model.condition.ConditionExpression> conds =
          order.getInfo().getConditions();
@@ -748,7 +768,9 @@ class CalcTableServiceTest {
       verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class),
                                              any());
       inetsoft.web.binding.model.table.OrderModel order = captor.getValue().getBinding().getOrder();
-      assertEquals(XConstants.SORT_SPECIFIC, order.getType());
+      // Same reasoning as bindsAWorksheetLocalNamedGroupAsAnExpertOrder above: no 'sort' was
+      // given, so order.type stays at its default rather than being forced by the named group.
+      assertEquals(XConstants.SORT_ASC, order.getType());
       assertEquals(XNamedGroupInfo.ASSET_NAMEDGROUP_INFO, order.getInfo().getType());
       assertEquals("Tiers", order.getInfo().getName());
    }
