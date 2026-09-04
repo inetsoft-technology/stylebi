@@ -25,6 +25,7 @@ import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
 import org.junit.jupiter.api.Tag;
@@ -67,7 +68,7 @@ class DateComparisonServiceTest {
 
    private static DateComparisonService.Comparison comparison(String endDate, boolean endToday) {
       return new DateComparisonService.Comparison(4, "year", endDate, endToday, null, null, null,
-                                                  null);
+                                                  null, null, null, null);
    }
 
    /**
@@ -105,12 +106,13 @@ class DateComparisonServiceTest {
    }
 
    private static DateComparisonService.Comparison facetOnly() {
-      return new DateComparisonService.Comparison(null, null, null, false, null, true, null, null);
+      return new DateComparisonService.Comparison(null, null, null, false, null, true, null, null,
+                                                   null, null, null);
    }
 
    private static DateComparisonService.Comparison comparisonOptionOnly(String comparisonOption) {
       return new DateComparisonService.Comparison(null, null, null, false, null, null, null,
-                                                  comparisonOption);
+                                                  comparisonOption, null, null, null);
    }
 
    // ── the recorded defect ───────────────────────────────────────────────────
@@ -178,7 +180,7 @@ class DateComparisonServiceTest {
       assertThrows(IllegalArgumentException.class,
                    () -> DateComparisonService.requireEndAnchor(
                       new DateComparisonService.Comparison(0, "year", null, true, null, null,
-                                                           null, null)));
+                                                           null, null, null, null, null)));
    }
 
    @Test
@@ -229,7 +231,7 @@ class DateComparisonServiceTest {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison =
          new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null,
-                                              null);
+                                              null, null, null, null);
 
       harness(model).service.set("tok", principal(), "Chart1", comparison, "");
 
@@ -244,13 +246,174 @@ class DateComparisonServiceTest {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison =
          new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null,
-                                              null);
+                                              null, null, null, null);
 
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
          () -> harness(model).service.set("tok", principal(), "Chart1", comparison, ""));
 
       assertTrue(thrown.getMessage().contains("level"), thrown.getMessage());
+   }
+
+   // ── comparisonOption ─────────────────────────────────────────────────────
+
+   /**
+    * The Angular dialog shows 5 options — Value Only / Change / Change and Value / Percent
+    * Change / Percent Change and Value — as one flat int each: {@link Calculator}'s
+    * VALUE/CHANGE/PERCENT for the first three, {@link DateComparisonInfo}'s
+    * CHANGE_VALUE/PERCENT_VALUE (101/102) for the combined two. Confirms all 5 actually reach
+    * {@code model.setComparisonOption}, not just the 3 {@code Calculator} defines.
+    */
+   @ParameterizedTest
+   @CsvSource({
+      "value, 6",
+      "change, 2",
+      "percentChange, 1",
+      "changeAndValue, 101",
+      "percentChangeAndValue, 102",
+      "VALUE, 6",
+      "PercentChange, 1"
+   })
+   void setsTheComparisonOptionForAllFiveUiValues(String word, int code) throws Exception {
+      DateComparisonPaneModel model = model();
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         null, null, null, false, null, null, null, word, null, null, null);
+
+      harness(model).service.set("tok", principal(), "Chart1", comparison, "");
+
+      assertEquals(code, model.getComparisonOption());
+   }
+
+   @Test
+   void readsTheComparisonOptionAsAName() throws Exception {
+      DateComparisonPaneModel model = model();
+      when(model.getComparisonOption()).thenReturn(DateComparisonInfo.CHANGE_VALUE);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1");
+
+      assertEquals("changeAndValue", read.get("comparisonOption"));
+   }
+
+   // ── shareAssembly ─────────────────────────────────────────────────────────
+
+   @Test
+   void threadsTheShareAssemblyThroughToSetDateComparison() throws Exception {
+      Harness h = harness(model());
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         4, "year", "2026-03-31", false, null, null, null, null, "Chart2", null, null);
+
+      h.service.set("tok", principal(), "Chart1", comparison, "");
+
+      verify(h.comparisons).setDateComparison(eq("rt1"), eq("Chart1"), any(), eq("Chart2"),
+                                              anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void reportsTheShareFromAssemblyOnRead() throws Exception {
+      Harness h = harness(model());
+      DateComparisonDialogModel shareModel = new DateComparisonDialogModel();
+      shareModel.setShareFromAssembly("Chart2");
+      when(h.comparisons().getShare(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(shareModel);
+
+      Map<String, Object> read = h.service.read("tok", principal(), "Chart1");
+
+      assertEquals("Chart2", read.get("shareFrom"));
+   }
+
+   @Test
+   void omitsShareFromWhenThereIsNone() throws Exception {
+      Map<String, Object> read = harness(model()).service.read("tok", principal(), "Chart1");
+
+      assertFalse(read.containsKey("shareFrom"));
+   }
+
+   // ── toDate / inclusive (period level) ────────────────────────────────────
+
+   @Test
+   void setsToDateAndInclusiveOnTheStandardPeriod() throws Exception {
+      DateComparisonPaneModel model = model();
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         4, "year", "2026-03-31", false, null, null, null, null, null, true, false);
+
+      harness(model).service.set("tok", principal(), "Chart1", comparison, "");
+
+      StandardPeriodPaneModel standard =
+         model.getPeriodPaneModel().getStandardPeriodPaneModel();
+      assertTrue(standard.isToDate());
+      assertFalse(standard.isInclusive());
+   }
+
+   /**
+    * toDate/inclusive live on the same standard-period pane as preCount/dateLevel, whose write
+    * path unconditionally re-sets (or blanks) the end day once it runs — so touching them alone
+    * needs the same end-anchor guard as touching periods/level does.
+    */
+   @Test
+   void settingOnlyToDateStillNeedsAnEndAnchor() {
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         null, null, null, false, null, null, null, null, null, true, null);
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> DateComparisonService.requireEndAnchor(comparison));
+   }
+
+   @Test
+   void readsToDateAlongsidePeriod() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.getPeriodPaneModel().getStandardPeriodPaneModel().setToDate(true);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1");
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> period = (Map<String, Object>) read.get("period");
+      assertEquals(true, period.get("toDate"));
+   }
+
+   // ── interval-level normalization ─────────────────────────────────────────
+
+   /**
+    * {@code interval.getLevel()} is read as a {@code DateComparisonInfo} bitmask, the same way
+    * {@code standard.getDateLevel()} is read as an {@code XConstants} group code — writing the
+    * raw agent-vocabulary word through untranslated is the same class of defect
+    * {@link #translatesThePeriodLevelWordToTheNumericGroupCode} guards for the period level.
+    */
+   @ParameterizedTest
+   @CsvSource({
+      "all, 0",
+      "yearToDate, 48",
+      "quarterToDate, 40",
+      "monthToDate, 36",
+      "weekToDate, 34",
+      "sameQuarter, 72",
+      "sameMonth, 68",
+      "sameWeek, 66",
+      "sameDay, 65",
+      "YearToDate, 48",
+      "SAMEDAY, 65",
+      "Same Day, 65"
+   })
+   void translatesTheIntervalWordToTheBitmaskCode(String word, String code) throws Exception {
+      DateComparisonPaneModel model = model();
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         null, null, null, true, word, null, null, null, null, null, null);
+
+      harness(model).service.set("tok", principal(), "Chart1", comparison, "");
+
+      assertEquals(code, model.getIntervalPaneModel().getLevel().getValue());
+   }
+
+   @Test
+   void refusesAnUnrecognizedInterval() {
+      DateComparisonPaneModel model = model();
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         null, null, null, true, "bogus", null, null, null, null, null, null);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(model).service.set("tok", principal(), "Chart1", comparison, ""));
+
+      assertTrue(thrown.getMessage().contains("interval"), thrown.getMessage());
    }
 
    @Test
@@ -688,6 +851,8 @@ class DateComparisonServiceTest {
             .thenReturn(model);
          when(comparisons.isDateComparisonEnabled(anyString(), anyString(), any(Principal.class)))
             .thenReturn(model != null);
+         when(comparisons.getShare(anyString(), anyString(), any(Principal.class)))
+            .thenReturn(new DateComparisonDialogModel());
       }
       catch(Exception e) {
          throw new IllegalStateException(e);
