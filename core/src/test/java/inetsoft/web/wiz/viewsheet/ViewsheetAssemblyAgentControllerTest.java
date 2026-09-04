@@ -323,6 +323,27 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    /**
+    * {@code get_hyperlink}'s {@code axis}/{@code emptyPlotLink} query params reach the
+    * {@code Region} the service reads with — the same two fields {@code set_hyperlink}'s
+    * {@code HyperlinkRequest.region()} already threads through, previously missing only from this
+    * GET mapping (parity audit L7, Group F).
+    */
+   @Test
+   void getHyperlinkThreadsAxisAndEmptyPlotLinkIntoTheRegion() throws Exception {
+      AssemblyHyperlinkService hyperlinkService = mock(AssemblyHyperlinkService.class);
+      Map<String, Object> expected = Map.of("linkType", "web");
+      when(hyperlinkService.read(eq("tok"), any(Principal.class), eq("Chart1"),
+         eq(new AssemblyHyperlinkService.Region(
+            null, null, null, true, false, false, true))))
+         .thenReturn(expected);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(hyperlinkService);
+
+      assertSame(expected, controller.getHyperlink(
+         "tok", "Chart1", null, null, null, true, false, true, principal()));
+   }
+
+   /**
     * A refused patch (a bad key, or the {@code vsScriptPane} refusal) must surface as the same
     * named-field {@code IllegalArgumentException} the global {@code WizControllerErrorHandler}
     * turns into a 400 — never a bare 500 that reads as a server bug.
