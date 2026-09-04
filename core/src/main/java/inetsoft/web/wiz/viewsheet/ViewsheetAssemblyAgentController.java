@@ -19,7 +19,9 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.model.LayoutModel;
 import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
@@ -36,6 +38,8 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.MessageException;
+import inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService;
 import inetsoft.web.wiz.script.ScriptImageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -386,14 +390,17 @@ public class ViewsheetAssemblyAgentController {
                                            @RequestParam(required = false) Integer row,
                                            @RequestParam(required = false) Integer col,
                                            @RequestParam(required = false) String colName,
+                                           @RequestParam(required = false) boolean axis,
                                            @RequestParam(required = false) boolean titleLink,
+                                           @RequestParam(required = false) boolean emptyPlotLink,
                                            Principal user)
       throws Exception
    {
       requireEnabled();
       return hyperlinkService.read(
          sessionToken, user, assembly,
-         new AssemblyHyperlinkService.Region(row, col, colName, false, false, titleLink, false));
+         new AssemblyHyperlinkService.Region(
+            row, col, colName, axis, false, titleLink, emptyPlotLink));
    }
 
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/hyperlink/types")
@@ -1042,13 +1049,39 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
-      AssetEntry entry = rvs.getEntry();
+      AssetEntry oldEntry = rvs.getEntry();
+      AssetEntry entry = oldEntry;
       String name = body != null && body.name() != null ? body.name().trim() : null;
 
-      if(entry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
+      // Mirrors save-viewsheet-dialog.component.ts's own client-only validators
+      // (FormValidators.assetEntryBannedCharacters / assetNameStartWithCharDigit) -- a
+      // pre-existing gap on both the UI's own Java submit path and this agent path, since
+      // neither validator exists server-side anywhere. Validated before the runtime is touched,
+      // like every other check in this class.
+      //
+      // Only the LAST path segment is validated: unlike the dialog's own leaf-only alias field
+      // (the folder is chosen separately there via selectFolder()), this endpoint's 'name' is
+      // documented to accept a full "My Folder/agent_vs_1" path, where '/' is a legal separator
+      // rather than a banned character. Reuses WorksheetPropertyDialogService.requireValidAlias
+      // rather than a second drifting copy of the same regexes (see its own javadoc); that method
+      // already treats null/empty as "not this check's concern", so the more helpful
+      // "Viewsheet is unsaved... Provide a 'name'" message below still fires first for that case.
+      String leaf = name != null && name.contains("/")
+         ? name.substring(name.lastIndexOf('/') + 1) : name;
+
+      try {
+         WorksheetPropertyDialogService.requireValidAlias(leaf);
+      }
+      catch(MessageException e) {
+         throw new PairingException(e.getMessage());
+      }
+
+      boolean wasTemporary = oldEntry.getScope() == AssetRepository.TEMPORARY_SCOPE;
+
+      if(wasTemporary) {
          if(name == null || name.isEmpty()) {
             throw new PairingException(
-               "Viewsheet is unsaved (\"" + entry.toView() + "\"). Provide a 'name' to save it " +
+               "Viewsheet is unsaved (\"" + oldEntry.toView() + "\"). Provide a 'name' to save it " +
                "(e.g. \"agent_vs_1\").");
          }
       }
@@ -1071,6 +1104,12 @@ public class ViewsheetAssemblyAgentController {
          viewsheetService.setViewsheet(rvs.getViewsheet(), entry, xp, true, true);
          rvs.setEntry(entry);
          rvs.setSavePoint(rvs.getCurrent());
+
+         // Mirrors SaveViewsheetDialogService.saveViewsheet(): the old entry's autosave draft is
+         // orphaned once this (its first real save) lands, since nothing else ever cleans it up.
+         if(wasTemporary) {
+            AutoSaveUtils.deleteAutoSaveFile(oldEntry, user);
+         }
       }
       catch(Exception e) {
          throw new PairingException("Failed to save viewsheet: " + e.getMessage(), e);
@@ -1114,6 +1153,11 @@ public class ViewsheetAssemblyAgentController {
     * type. Shared by {@link #attachBaseWorksheet} and {@code create_viewsheet} — do not duplicate
     * this resolution logic elsewhere.
     *
+    * <p>A caller-supplied {@code path} (the {@code worksheet}/{@code logicalModel} branches) is
+    * refused if it contains a caret, right after that branch's own null/empty check — see
+    * {@link WizUtil#requireNoCaret}. The {@code physicalTable} branch does not take a raw path
+    * (it resolves by {@code datasource}/{@code table} name instead), so it needs no such check.
+    *
     * @throws PairingException naming the specific missing/invalid field or resolution failure —
     *                          never a generic message.
     */
@@ -1131,6 +1175,8 @@ public class ViewsheetAssemblyAgentController {
                "Provide a 'path' naming the worksheet asset to attach " +
                "(e.g. \"Sample Queries/customers\").");
          }
+
+         WizUtil.requireNoCaret(path, "path");
 
          int assetScope = "user".equalsIgnoreCase(scope)
             ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
@@ -1175,6 +1221,8 @@ public class ViewsheetAssemblyAgentController {
             throw new PairingException(
                "Provide a 'path' naming the logical model, e.g. \"MyDataSource/MyModel\".");
          }
+
+         WizUtil.requireNoCaret(path, "path");
 
          AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
                                            path.trim(), null, uname.orgID);
@@ -1333,14 +1381,19 @@ public class ViewsheetAssemblyAgentController {
                                     "XPrincipal (" + user.getClass().getName() + ")");
       }
 
-      AssetRepository rep = rvs.getAssetRepository();
+      // The caret check on 'path' lives in resolveDataSourceEntry itself (shared with
+      // create_viewsheet), not here -- see that method's javadoc. rep is resolved lazily
+      // (only once resolveDataSourceEntry's own field checks pass) so a refusal on a bad field
+      // never triggers a real getAssetRepository() call, matching create_viewsheet's own supplier
+      // contract for this same shared method.
+      AssetRepository[] repHolder = new AssetRepository[1];
       AssetEntry entry;
 
       try {
          entry = resolveDataSourceEntry(body == null ? null : body.type(),
             body == null ? null : body.path(), body == null ? null : body.scope(),
             body == null ? null : body.datasource(), body == null ? null : body.table(), xp,
-            () -> rep);
+            () -> repHolder[0] = rvs.getAssetRepository());
       }
       catch(PairingException e) {
          throw e;
@@ -1348,6 +1401,8 @@ public class ViewsheetAssemblyAgentController {
       catch(Exception e) {
          throw new PairingException("Failed to attach base worksheet: " + e.getMessage(), e);
       }
+
+      AssetRepository rep = repHolder[0];
 
       try {
          vs.setBaseEntry(entry);

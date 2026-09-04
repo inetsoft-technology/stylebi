@@ -184,6 +184,19 @@ public class TableViewPropertyDialogService {
       TipPaneModel tipPaneModel = tableAdvancedPaneModel.getTipPaneModel();
       VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
 
+      if(tableViewGeneralPaneModel.getMaxRows() < 0) {
+         throw new IllegalArgumentException(
+            "'maxRows' must be 0 or greater; " + tableViewGeneralPaneModel.getMaxRows() +
+            " is not a valid row limit.");
+      }
+
+      if(tableAdvancedPaneModel.isForm() && tableAdvancedPaneModel.isEnableAdhoc()) {
+         throw new IllegalArgumentException(
+            "'form' and 'enableAdhoc' cannot both be true on a table: enabling form input " +
+            "turns off ad hoc editing in the Composer UI, and enabling ad hoc editing turns " +
+            "off form input. Set at most one of them.");
+      }
+
       if(tableViewGeneralPaneModel.isShowSubmitOnChange()) {
          ((EmbeddedTableVSAssemblyInfo) tableAssemblyInfo).setSubmitOnChangeValue(
             tableViewGeneralPaneModel.isSubmitOnChange());

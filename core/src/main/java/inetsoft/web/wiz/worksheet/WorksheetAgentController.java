@@ -72,6 +72,7 @@ import inetsoft.web.composer.ws.command.WSCollectVariablesCommand;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.composer.ws.service.SaveWorksheetService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.RenderWaitSupport;
 import inetsoft.web.wiz.service.TabularEndpointBindingSupport;
@@ -1110,6 +1111,8 @@ public class WorksheetAgentController {
       // trimmed surrounding whitespace, so an embedded control character (e.g. a literal tab)
       // passed straight through into the saved asset's name.
       String name = body.name() != null ? SUtil.removeControlChars(body.name().trim()) : null;
+
+      WizUtil.requireNoCaret(name, "name");
 
       if(entry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
          if(name == null || name.isEmpty()) {

@@ -323,6 +323,27 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    /**
+    * {@code get_hyperlink}'s {@code axis}/{@code emptyPlotLink} query params reach the
+    * {@code Region} the service reads with — the same two fields {@code set_hyperlink}'s
+    * {@code HyperlinkRequest.region()} already threads through, previously missing only from this
+    * GET mapping (parity audit L7, Group F).
+    */
+   @Test
+   void getHyperlinkThreadsAxisAndEmptyPlotLinkIntoTheRegion() throws Exception {
+      AssemblyHyperlinkService hyperlinkService = mock(AssemblyHyperlinkService.class);
+      Map<String, Object> expected = Map.of("linkType", "web");
+      when(hyperlinkService.read(eq("tok"), any(Principal.class), eq("Chart1"),
+         eq(new AssemblyHyperlinkService.Region(
+            null, null, null, true, false, false, true))))
+         .thenReturn(expected);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(hyperlinkService);
+
+      assertSame(expected, controller.getHyperlink(
+         "tok", "Chart1", null, null, null, true, false, true, principal()));
+   }
+
+   /**
     * A refused patch (a bad key, or the {@code vsScriptPane} refusal) must surface as the same
     * named-field {@code IllegalArgumentException} the global {@code WizControllerErrorHandler}
     * turns into a 400 — never a bare 500 that reads as a server bug.
@@ -894,6 +915,30 @@ class ViewsheetAssemblyAgentControllerTest {
       verifyNoInteractions(openService);
    }
 
+   /**
+    * Regression: the caret check on {@code path} lives in resolveDataSourceEntry() itself
+    * (shared by both endpoints) precisely so create_viewsheet also gets it -- it used to be
+    * checked only inside attach_base_worksheet's own body, leaving this sibling endpoint able to
+    * build an AssetEntry whose orgID would be corrupted on any later
+    * AssetEntry.createAssetEntry(identifier) round-trip. See the caret test alongside
+    * attach_base_worksheet's own tests for the corruption mechanism.
+    */
+   @Test
+   void createViewsheetRefusesAPathContainingACaretBeforeCallingSheetOpenService() {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SheetOpenService openService = mock(SheetOpenService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(openService);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.createViewsheet(
+            new ViewsheetAssemblyAgentController.CreateViewsheetRequest(
+               "tok-acting", "Sample^WS", null, "worksheet", null, null),
+            agent));
+      assertTrue(ex.getMessage().contains("path"));
+      verifyNoInteractions(openService);
+   }
+
    @Test
    void createViewsheetWrapsAnIllegalArgumentExceptionFromSheetOpenServiceAsPairingException()
       throws Exception
@@ -946,17 +991,89 @@ class ViewsheetAssemblyAgentControllerTest {
       ViewsheetAssemblyAgentController controller =
          controllerWith(sessions, viewsheetService, broadcast);
 
-      controller.save("tok",
-         new ViewsheetAssemblyAgentController.SaveRequest("agent_vs_1", null), agent);
+      try(org.mockito.MockedStatic<inetsoft.web.AutoSaveUtils> autoSave =
+             mockStatic(inetsoft.web.AutoSaveUtils.class))
+      {
+         controller.save("tok",
+            new ViewsheetAssemblyAgentController.SaveRequest("agent_vs_1", null), agent);
 
-      ArgumentCaptor<AssetEntry> captor = ArgumentCaptor.forClass(AssetEntry.class);
-      verify(viewsheetService).setViewsheet(any(), captor.capture(), any(), eq(true), eq(true));
-      assertEquals(AssetRepository.GLOBAL_SCOPE, captor.getValue().getScope());
-      assertEquals(AssetEntry.Type.VIEWSHEET, captor.getValue().getType());
-      assertEquals("agent_vs_1", captor.getValue().getPath());
-      verify(rvs).setEntry(captor.getValue());
-      verify(rvs).setSavePoint(3);
-      verify(broadcast).broadcastSave(eq(rvs), eq("rt-vs-1"), eq(agent));
+         ArgumentCaptor<AssetEntry> captor = ArgumentCaptor.forClass(AssetEntry.class);
+         verify(viewsheetService).setViewsheet(any(), captor.capture(), any(), eq(true), eq(true));
+         assertEquals(AssetRepository.GLOBAL_SCOPE, captor.getValue().getScope());
+         assertEquals(AssetEntry.Type.VIEWSHEET, captor.getValue().getType());
+         assertEquals("agent_vs_1", captor.getValue().getPath());
+         verify(rvs).setEntry(captor.getValue());
+         verify(rvs).setSavePoint(3);
+         verify(broadcast).broadcastSave(eq(rvs), eq("rt-vs-1"), eq(agent));
+      }
+   }
+
+   /**
+    * Regression for the autosave-orphan gap the audit flagged: {@code SaveViewsheetDialogService
+    * .saveViewsheet} (the UI's own commit path) deletes the pre-save entry's autosave draft
+    * whenever that entry was still {@code TEMPORARY_SCOPE} -- this agent path never did, leaving
+    * an orphaned draft file behind on every first save.
+    */
+   @Test
+   void saveOutOfTemporaryScopeDeletesTheOldEntrysAutosaveDraft() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "__TEMPORARY__/vs-1", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(tempEntry);
+      when(rvs.getCurrent()).thenReturn(3);
+      when(rvs.getID()).thenReturn("rt-vs-1");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions, viewsheetService,
+         mock(SheetAgentBroadcastService.class));
+
+      try(org.mockito.MockedStatic<inetsoft.web.AutoSaveUtils> autoSave =
+             mockStatic(inetsoft.web.AutoSaveUtils.class))
+      {
+         controller.save("tok",
+            new ViewsheetAssemblyAgentController.SaveRequest("agent_vs_1", null), agent);
+
+         autoSave.verify(() -> inetsoft.web.AutoSaveUtils.deleteAutoSaveFile(tempEntry, agent));
+      }
+   }
+
+   /** Companion negative case: an ordinary re-save of an already-permanent entry must not touch
+    *  the autosave draft -- there is no first-save transition to clean up after. */
+   @Test
+   void saveOnAnAlreadyPermanentEntryDoesNotDeleteAnAutosaveDraft() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry savedEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "Existing VS", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(savedEntry);
+      when(rvs.getCurrent()).thenReturn(1);
+      when(rvs.getID()).thenReturn("rt-vs-2");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions, viewsheetService,
+         mock(SheetAgentBroadcastService.class));
+
+      try(org.mockito.MockedStatic<inetsoft.web.AutoSaveUtils> autoSave =
+             mockStatic(inetsoft.web.AutoSaveUtils.class))
+      {
+         controller.save("tok",
+            new ViewsheetAssemblyAgentController.SaveRequest(null, null), agent);
+
+         autoSave.verifyNoInteractions();
+      }
    }
 
    /** Companion negative case: the original refusal must survive when no name is supplied. */
@@ -1006,6 +1123,140 @@ class ViewsheetAssemblyAgentControllerTest {
 
       verify(viewsheetService).setViewsheet(any(), eq(savedEntry), any(), eq(true), eq(true));
       verify(rvs).setEntry(savedEntry);
+   }
+
+   /**
+    * Regression: {@code name} is documented (this class's own javadoc, and the plugin's
+    * {@code viewsheetTools.ts} description) to accept a full folder path like
+    * {@code "My Folder/agent_vs_1"} -- {@code '/'} is a legal, expected separator here, unlike
+    * the Composer's own save dialog, whose alias field only ever sees the LEAF name (the folder
+    * is chosen separately there via {@code selectFolder()}). Only the leaf segment is validated
+    * for banned characters/start character; the path separator itself must not be refused.
+    */
+   @Test
+   void saveAcceptsALegalFolderPath() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "__TEMPORARY__/vs-1", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(tempEntry);
+      when(rvs.getCurrent()).thenReturn(3);
+      when(rvs.getID()).thenReturn("rt-vs-1");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions, viewsheetService,
+         mock(SheetAgentBroadcastService.class));
+
+      try(org.mockito.MockedStatic<inetsoft.web.AutoSaveUtils> autoSave =
+             mockStatic(inetsoft.web.AutoSaveUtils.class))
+      {
+         controller.save("tok",
+            new ViewsheetAssemblyAgentController.SaveRequest("My Folder/agent_vs_1", null), agent);
+
+         ArgumentCaptor<AssetEntry> captor = ArgumentCaptor.forClass(AssetEntry.class);
+         verify(viewsheetService).setViewsheet(any(), captor.capture(), any(), eq(true), eq(true));
+         assertEquals("My Folder/agent_vs_1", captor.getValue().getPath());
+      }
+   }
+
+   /**
+    * Regression for the missing-server-side-validation gap the audit flagged:
+    * {@code save-viewsheet-dialog.component.ts} applies {@code FormValidators
+    * .assetEntryBannedCharacters} client-side, but nothing enforced it server-side on this agent
+    * path (or on the UI's own Java submit path either -- a pre-existing, StyleBI-wide gap). Only
+    * the leaf segment is checked, so the banned character must be in the leaf, not the folder.
+    */
+   @Test
+   void saveRefusesANameWhoseLeafContainsABannedCharacter() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "__TEMPORARY__/vs-1", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(tempEntry);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions, viewsheetService,
+         mock(SheetAgentBroadcastService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () -> controller.save("tok",
+         new ViewsheetAssemblyAgentController.SaveRequest("My Folder/bad<name", null), agent));
+      assertTrue(ex.getMessage().contains("name"));
+
+      verifyNoInteractions(viewsheetService);
+   }
+
+   /**
+    * Regression for the missing-server-side-validation gap the audit flagged:
+    * {@code save-viewsheet-dialog.component.ts} also applies {@code FormValidators
+    * .assetNameStartWithCharDigit} client-side (the name must START with an alphanumeric or CJK
+    * character) -- likewise never enforced server-side.
+    */
+   @Test
+   void saveRefusesANameNotStartingWithAnAlnumOrCjkCharacter() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "__TEMPORARY__/vs-1", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(tempEntry);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions, viewsheetService,
+         mock(SheetAgentBroadcastService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () -> controller.save("tok",
+         new ViewsheetAssemblyAgentController.SaveRequest("-agent_vs_1", null), agent));
+      assertTrue(ex.getMessage().contains("start with a letter or digit"));
+
+      verifyNoInteractions(viewsheetService);
+   }
+
+   /** A name starting with a letter/digit is accepted -- companion positive case. */
+   @Test
+   void saveAcceptsANameStartingWithALetterOrDigit() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "__TEMPORARY__/vs-1", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(tempEntry);
+      when(rvs.getCurrent()).thenReturn(3);
+      when(rvs.getID()).thenReturn("rt-vs-1");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions, viewsheetService,
+         mock(SheetAgentBroadcastService.class));
+
+      try(org.mockito.MockedStatic<inetsoft.web.AutoSaveUtils> autoSave =
+             mockStatic(inetsoft.web.AutoSaveUtils.class))
+      {
+         controller.save("tok",
+            new ViewsheetAssemblyAgentController.SaveRequest("agent_vs_1", null), agent);
+
+         verify(viewsheetService).setViewsheet(any(), any(), any(), eq(true), eq(true));
+      }
    }
 
    // ---------------------------------------------------------------------------
@@ -1256,6 +1507,41 @@ class ViewsheetAssemblyAgentControllerTest {
       assertThrows(PairingException.class, () ->
          controller.attachBaseWorksheet("tok",
             new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest("  ", null), agent));
+   }
+
+   /**
+    * Regression: {@code AssetEntry.toIdentifier()} joins its fields with a literal, unescaped
+    * '^', and {@code createAssetEntry(identifier)} recovers {@code orgID} using the FIRST '^'
+    * after the user field rather than the last -- so a caret embedded in {@code path} corrupts
+    * the orgID recovered on any later round-trip. Refused before any {@link AssetEntry} is built
+    * or the repository is touched, mirroring the Composer's own asset-picker dialogs
+    * (new-viewsheet-dialog, select-data-source-dialog, new-visualization-dialog), which reject
+    * the same character client-side.
+    */
+   @Test
+   void attachBaseWorksheetRefusesAPathContainingACaret() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.attachBaseWorksheet("tok",
+            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest("Sample^WS", null),
+            agent));
+      assertTrue(ex.getMessage().contains("path"));
+
+      verify(vs, never()).setBaseEntry(any());
+      verify(rvs, never()).getAssetRepository();
    }
 
    /** Still behaves exactly as before when type is omitted -- backward compatible default. */

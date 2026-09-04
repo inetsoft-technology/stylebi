@@ -364,6 +364,26 @@ public class ChartPropertyDialogService {
          throw e;
       }
 
+      // Normalized before anything is applied. These mirror Angular disabled-checkbox
+      // conditions (chart-advanced-pane.component.html) whose bound model can still carry a
+      // stale "true" once disabled -- since a human can never actually express these
+      // combinations through the UI, silently correcting them (rather than throwing) matches
+      // what the disabled checkbox itself means: "this value doesn't apply here".
+      ChartAdvancedPaneModel advancePaneCheck = value == null ? null : value.getChartAdvancedPaneModel();
+
+      if(advancePaneCheck != null) {
+         if(advancePaneCheck.isGlossyEffect() &&
+            (!this.chartPropertyService.isSupported(vsChartInfo, "effectEnabled", false) ||
+               (advancePaneCheck.isSparklineSupported() && advancePaneCheck.isSparkline())))
+         {
+            advancePaneCheck.setGlossyEffect(false);
+         }
+
+         if(GraphTypes.isMekko(vsChartInfo.getChartType())) {
+            advancePaneCheck.setEnableDrilling(false);
+         }
+      }
+
       ChartGeneralPaneModel chartGeneralPaneModel = value.getChartGeneralPaneModel();
       GeneralPropPaneModel generalPropPaneModel = chartGeneralPaneModel.getGeneralPropPaneModel();
       BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();

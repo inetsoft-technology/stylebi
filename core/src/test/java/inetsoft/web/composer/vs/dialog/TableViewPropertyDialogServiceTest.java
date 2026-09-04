@@ -40,6 +40,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -98,6 +99,73 @@ class TableViewPropertyDialogServiceTest {
          service.getTableViewPropertyDialogModel("Viewsheet1", "Table1", null);
 
       assertEquals(7, result.getRevision());
+   }
+
+   // ── maxRows / form+enableAdhoc validation (parity audit L7) ────────────────
+
+   @Test
+   void refusesANegativeMaxRows() throws Exception {
+      when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(tableAssembly);
+      when(tableAssembly.getVSAssemblyInfo()).thenReturn(new TableVSAssemblyInfo());
+
+      TableViewPropertyDialogModel model = new TableViewPropertyDialogModel();
+      model.getTableViewGeneralPaneModel().setMaxRows(-1);
+      model.setVsAssemblyScriptPaneModel(
+         VSAssemblyScriptPaneModel.builder().scriptEnabled(false).expression("").build());
+
+      Exception thrown = org.junit.jupiter.api.Assertions.assertThrows(
+         IllegalArgumentException.class,
+         () -> service.setTablePropertyModel(
+            "Viewsheet1", "Table1", model, "", null, commandDispatcher));
+
+      assertTrue(thrown.getMessage().contains("maxRows"));
+      org.mockito.Mockito.verifyNoInteractions(vsObjectPropertyService);
+   }
+
+   @Test
+   void refusesFormAndEnableAdhocBothTrue() throws Exception {
+      when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(tableAssembly);
+      when(tableAssembly.getVSAssemblyInfo()).thenReturn(new TableVSAssemblyInfo());
+
+      TableViewPropertyDialogModel model = new TableViewPropertyDialogModel();
+      model.getTableAdvancedPaneModel().setForm(true);
+      model.getTableAdvancedPaneModel().setEnableAdhoc(true);
+      model.setVsAssemblyScriptPaneModel(
+         VSAssemblyScriptPaneModel.builder().scriptEnabled(false).expression("").build());
+
+      Exception thrown = org.junit.jupiter.api.Assertions.assertThrows(
+         IllegalArgumentException.class,
+         () -> service.setTablePropertyModel(
+            "Viewsheet1", "Table1", model, "", null, commandDispatcher));
+
+      assertTrue(thrown.getMessage().contains("form"));
+      assertTrue(thrown.getMessage().contains("enableAdhoc"));
+      org.mockito.Mockito.verifyNoInteractions(vsObjectPropertyService);
+   }
+
+   @Test
+   void acceptsFormAloneWithoutEnableAdhoc() throws Exception {
+      when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(tableAssembly);
+      when(tableAssembly.getVSAssemblyInfo()).thenReturn(new TableVSAssemblyInfo());
+
+      TableViewPropertyDialogModel model = new TableViewPropertyDialogModel();
+      model.getTableAdvancedPaneModel().setForm(true);
+      model.getTableAdvancedPaneModel().setEnableAdhoc(false);
+      model.setVsAssemblyScriptPaneModel(
+         VSAssemblyScriptPaneModel.builder().scriptEnabled(false).expression("").build());
+
+      service.setTablePropertyModel("Viewsheet1", "Table1", model, "", null, commandDispatcher);
+
+      verify(vsObjectPropertyService).editObjectProperty(
+         any(RuntimeViewsheet.class), any(TableVSAssemblyInfo.class), eq("Table1"),
+         nullable(String.class), any(String.class), nullable(Principal.class),
+         any(CommandDispatcher.class), eq(true), any());
    }
 
    @Mock VSObjectPropertyService vsObjectPropertyService;

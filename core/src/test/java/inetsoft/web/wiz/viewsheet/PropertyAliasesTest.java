@@ -511,4 +511,165 @@ class PropertyAliasesTest {
       assertFalse(resolved.equals("dataInputPaneModel.table"),
                   "combobox's 'table' alias must not point at the row/column write-back target");
    }
+
+   // ── parity audit L7: new aliases round-trip ────────────────────────────────
+
+   @Test
+   void newChartAliasesResolveAndRoundTrip() {
+      assertEquals("chartAdvancedPaneModel.sortOthersLast",
+                   PropertyAliases.resolveForWrite("chart", "sortOthersLast"));
+      assertEquals("chartAdvancedPaneModel.chartPlotOptionsPaneModel.showValues",
+                   PropertyAliases.resolveForWrite("chart", "showValues"));
+
+      inetsoft.web.composer.model.vs.ChartPropertyDialogModel model =
+         new inetsoft.web.composer.model.vs.ChartPropertyDialogModel();
+      inetsoft.web.composer.model.vs.ChartAdvancedPaneModel advancedPane =
+         new inetsoft.web.composer.model.vs.ChartAdvancedPaneModel();
+      advancedPane.setChartPlotOptionsPaneModel(
+         new inetsoft.web.graph.model.dialog.ChartPlotOptionsPaneModel());
+      model.setChartAdvancedPaneModel(advancedPane);
+      String path = PropertyAliases.resolve("chart", "showValues");
+      Object result = PropertyPath.set(model, path, true);
+
+      assertEquals(true, PropertyPath.get(result, path));
+   }
+
+   @Test
+   void newTableAndCrosstabAliasesRoundTrip() {
+      assertEquals("tableAdvancedPaneModel.insert",
+                   PropertyAliases.resolveForWrite("table", "insert"));
+      assertEquals("crosstabAdvancedPaneModel.enableAdhoc",
+                   PropertyAliases.resolveForWrite("crosstab", "enableAdhoc"));
+
+      inetsoft.web.composer.model.vs.TableViewPropertyDialogModel model =
+         new inetsoft.web.composer.model.vs.TableViewPropertyDialogModel();
+      String path = PropertyAliases.resolve("table", "insert");
+      Object result = PropertyPath.set(model, path, true);
+
+      assertEquals(true, PropertyPath.get(result, path));
+   }
+
+   // ── parity audit L7: dead-field refusals ────────────────────────────────────
+
+   @Test
+   void refusesTableDeadFields() {
+      for(String field : java.util.List.of("shadow", "editable")) {
+         assertThrows(
+            IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite("table",
+               "tableViewGeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel." + field),
+            field + " has no effect on write for table");
+      }
+
+      // shrinkEnabled/formVisible sit directly on tableAdvancedPaneModel, not the basic pane.
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("table",
+                      "tableAdvancedPaneModel.shrinkEnabled"));
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("table",
+                      "tableAdvancedPaneModel.formVisible"));
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("table",
+                      "tableViewGeneralPaneModel.sizePositionPaneModel.container"));
+   }
+
+   @Test
+   void refusesCrosstabDeadFields() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("crosstab",
+                      "crosstabAdvancedPaneModel.crosstabInfoNull"));
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("crosstab",
+                      "crosstabAdvancedPaneModel.sortOthersLastEnabled"));
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("crosstab",
+                      "crosstabAdvancedPaneModel.dateComparisonSupport"));
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("crosstab",
+                      "tableViewGeneralPaneModel.sizePositionPaneModel.container"));
+   }
+
+   /**
+    * {@code refresh} is real for the input assemblies/submit (aliased through the same shared
+    * {@code basicGeneral()} helper) but dead for these four -- their apply methods never read
+    * {@code basicGeneralPaneModel.refresh} back.
+    */
+   @Test
+   void refusesRefreshOnlyOnTheTypesWhereItIsDead() {
+      for(String type : java.util.List.of("table", "crosstab", "text", "selectionlist")) {
+         assertTrue(PropertyAliases.forType(type).aliases().containsKey("refresh"),
+                    type + " should still list 'refresh' as readable");
+         assertThrows(IllegalArgumentException.class,
+                      () -> PropertyAliases.resolveForWrite(type, "refresh"),
+                      "refresh has no effect on write for " + type);
+      }
+
+      assertEquals("comboboxGeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel.refresh",
+                   PropertyAliases.resolveForWrite("combobox", "refresh"),
+                   "refresh is real for combobox and must stay writable");
+   }
+
+   @Test
+   void refusesTheNewChartDerivedFlags() {
+      for(String flag : java.util.List.of("adhocVisible", "glossyEffectSupported",
+                                          "sortOthersLastEnabled", "rankPerGroupLabel"))
+      {
+         assertThrows(IllegalArgumentException.class,
+                      () -> PropertyAliases.resolveForWrite("chart",
+                         "chartAdvancedPaneModel." + flag),
+                      flag + " should be refused if reachable as a raw path");
+      }
+
+      for(String flag : java.util.List.of("showValuesVisible", "hasXDimension", "wordCloud")) {
+         assertThrows(IllegalArgumentException.class,
+                      () -> PropertyAliases.resolveForWrite("chart",
+                         "chartAdvancedPaneModel.chartPlotOptionsPaneModel." + flag),
+                      flag + " should be refused if reachable as a raw path");
+      }
+
+      // rankPerGroupLabel is readable, like projectForwardEnabled.
+      assertEquals("chartAdvancedPaneModel.rankPerGroupLabel",
+                   PropertyAliases.resolve("chart", "rankPerGroupLabel"));
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("chart", "rankPerGroupLabel"));
+   }
+
+   /**
+    * Regression: {@code SizePositionPaneModel.isLocked()} has zero consumers anywhere in
+    * {@code core/src/main/java} outside test/model code -- no {@code *PropertyDialogService}
+    * apply method ever reads it back on write, for any type. Before this fix,
+    * {@code set_assembly_properties({locked:true})} on a non-Image/Shape type returned
+    * {@code ok:true} and silently changed nothing; it must now be refused like the other dead
+    * fields, pointing the caller at {@code edit(op:"set_lock")} instead.
+    */
+   @Test
+   void refusesLockedOnTypesWhereItIsDead() {
+      for(String type : java.util.List.of("table", "crosstab", "chart", "gauge", "text",
+                                          "selectionlist", "selectiontree", "checkbox",
+                                          "combobox", "radiobutton", "slider", "spinner",
+                                          "textinput", "timeslider", "calendar", "tab",
+                                          "calctable", "groupcontainer", "selectioncontainer",
+                                          "submit"))
+      {
+         assertTrue(PropertyAliases.forType(type).aliases().containsKey("locked"),
+                    type + " should still list 'locked' as readable");
+         assertThrows(IllegalArgumentException.class,
+                      () -> PropertyAliases.resolveForWrite(type, "locked"),
+                      "'locked' has no effect on write for " + type);
+      }
+   }
+
+   /**
+    * Image and the three Shape types (line/oval/rectangle) are deliberately excluded from the
+    * {@code locked} dead-field refusal -- they are the types {@code edit(op:"set_lock")} (the
+    * real lock mechanism, gated on {@code LockableVSAssembly}) actually applies to, unlike every
+    * other type covered above.
+    */
+   @Test
+   void doesNotRefuseLockedOnImageOrShapeTypes() {
+      for(String type : java.util.List.of("image", "line", "oval", "rectangle")) {
+         assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(type, "locked"),
+                            "'locked' must stay writable for " + type);
+      }
+   }
 }
