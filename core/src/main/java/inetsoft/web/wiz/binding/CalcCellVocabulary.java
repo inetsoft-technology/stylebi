@@ -104,7 +104,7 @@ public final class CalcCellVocabulary {
                "'" + rejected.getKey() + "' is not a calc-table cell key — it means something " +
                "else elsewhere in this plugin, which is exactly why it is refused here. Use '" +
                rejected.getValue() + "'. Cell keys are: content, grouping, expand, field, " +
-               "value, formula.");
+               "value, formula, name.");
          }
       }
 
@@ -160,6 +160,7 @@ public final class CalcCellVocabulary {
       out.put("mergeCells", info.getMergeCells());
       out.put("rowGroup", info.getRowGroup());
       out.put("colGroup", info.getColGroup());
+      out.put("name", info.getName());
       out.put("runtimeName", info.getRuntimeName());
       return out;
    }

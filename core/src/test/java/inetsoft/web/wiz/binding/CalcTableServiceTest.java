@@ -51,6 +51,8 @@ import inetsoft.web.binding.event.ModifyTableLayoutEvent;
 import inetsoft.web.binding.event.SetCellBindingEvent;
 import inetsoft.web.binding.model.table.CellBindingInfo;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
+import inetsoft.web.wiz.binding.model.BindableField;
+import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -112,6 +114,42 @@ class CalcTableServiceTest {
       assertEquals("group", binding.get("grouping"));
       assertEquals("vertical", binding.get("expand"));
       assertEquals("SomeName", binding.get("runtimeName"));
+   }
+
+   /**
+    * Regression test for the cross-cell-formula gap: {@code CellBindingInfo} already round-trips
+    * a cell's explicit {@code name} ({@code setName}/{@code getName}) into
+    * {@code TableCellBinding.cellName}, which {@code CalcTableScope.initRuntimeReferences}
+    * registers at runtime as {@code "$" + name} so another formula cell can reference this one's
+    * computed value. Before this fix, {@code CalcTableService.toCellBindingInfo} never called
+    * {@code setName}, so there was no way to name a cell through this tool at all.
+    */
+   @Test
+   void readsCellNameBackAfterDescribing() {
+      CellBindingInfo info = new CellBindingInfo();
+      info.setType(CellBinding.BIND_COLUMN);
+      info.setName("OrderTotal");
+
+      Map<String, Object> described = CalcCellVocabulary.describe(info);
+
+      assertEquals("OrderTotal", described.get("name"));
+   }
+
+   /** @see #readsCellNameBackAfterDescribing() -- the write side of the same gap. */
+   @Test
+   void namesACellSoAnotherFormulaCellCanReferenceItAsADollarName() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+                               spec("content", "column", "grouping", "summary", "expand", "none",
+                                    "formula", "Sum", "name", "OrderTotal",
+                                    "field", Map.of("column", "PAID", "type", "measure")));
+
+      ArgumentCaptor<SetCellBindingEvent> captor =
+         ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class),
+                                             any());
+      assertEquals("OrderTotal", captor.getValue().getBinding().getName());
    }
 
    @Test
@@ -197,6 +235,35 @@ class CalcTableServiceTest {
                                              "field", Map.of("column", "PAID",
                                                              "type", "measure"))));
       assertTrue(thrown.getMessage().contains("formula"));
+   }
+
+   /**
+    * Regression test for the secondary finding: a {@code field.column} that is a real column --
+    * just on a different table than the calc table's current {@code set_table_source} target --
+    * used to be accepted without error and rendered a silently blank cell
+    * (CLAUDE.md's tool-misuse-accepted-silently class). {@code BindableColumns.require} is the
+    * same check {@code BindingAgentController.resolveSourceTable} already applies to
+    * chart/table/crosstab writes; this is the first time a calc-table cell write applies it too.
+    */
+   @Test
+   void refusesAColumnNotOnTheAssemblysCurrentSource() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class))).thenReturn(
+         List.of(new BindableTable("OrderAmountTotal", true,
+                                   List.of(new BindableField("TOTAL_ORDER_AMOUNT", "double",
+                                                             "measure")))));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.setCellBinding(
+            "tok", principal(), "Calc1", 1, 1,
+            spec("content", "column", "grouping", "summary", "expand", "none", "formula", "Sum",
+                 "field", Map.of("column", "TOTAL_RETURN_AMOUNT", "type", "measure"))));
+
+      assertTrue(thrown.getMessage().contains("TOTAL_RETURN_AMOUNT"));
+      assertTrue(thrown.getMessage().contains("OrderAmountTotal"));
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(), any(Principal.class),
+                                                       any());
    }
 
    @Test
@@ -329,7 +396,8 @@ class CalcTableServiceTest {
    private record Harness(CalcTableService service, ViewsheetSessionService sessions,
                           VSTableLayoutService layoutService, Viewsheet viewsheet,
                           CalcTableVSAssemblyInfo assemblyInfo,
-                          DataRefModelFactoryService refModelService) {}
+                          DataRefModelFactoryService refModelService,
+                          BindableFieldsService fieldsService) {}
 
    private static Harness harness(int rows, int cols) {
       CalcTableVSAssembly assembly = mock(CalcTableVSAssembly.class);
@@ -387,8 +455,26 @@ class CalcTableServiceTest {
       VSTableLayoutService layoutService = mock(VSTableLayoutService.class);
       DataRefModelFactoryService refModelService = mock(DataRefModelFactoryService.class);
       when(refModelService.createDataRefModel(any())).thenReturn(mock(DataRefModel.class));
-      return new Harness(new CalcTableService(sessions, layoutService, refModelService), sessions,
-                         layoutService, vs, info, refModelService);
+
+      // Default fixture: a single "current" source table carrying every column the existing
+      // test suite binds. Individual tests that need to exercise the column-existence check
+      // itself stub fieldsService.list(...) again with a narrower fixture.
+      BindableFieldsService fieldsService = mock(BindableFieldsService.class);
+
+      try {
+         when(fieldsService.list(anyString(), anyString(), any(Principal.class))).thenReturn(
+            List.of(new BindableTable("Query1", true, List.of(
+               new BindableField("Region", "string", "dimension"),
+               new BindableField("REGION", "string", "dimension"),
+               new BindableField("PAID", "double", "measure")))));
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return new Harness(
+         new CalcTableService(sessions, layoutService, refModelService, fieldsService), sessions,
+         layoutService, vs, info, refModelService, fieldsService);
    }
 
    private static Principal principal() {
