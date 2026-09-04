@@ -232,3 +232,7 @@ terraform.rc
 # is a review artifact, never applied automatically. Same reasoning as docs/properties/properties.json
 # in the stylebi-enterprise superproject: untracked rather than committed-and-stale.
 core/tools/admin-property-catalog/catalog-promotion-proposals.json
+
+# Local git worktrees created for isolated feature branches (using-git-worktrees convention) --
+# lives at the repo root, sibling to the checkouts it holds; never meant to be tracked.
+.worktrees/
