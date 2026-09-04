@@ -135,7 +135,8 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.web.composer.ws.LayoutGraphService.class),
                                           mock(inetsoft.web.portal.controller.database.DataSourceService.class),
                                           mock(inetsoft.sree.security.SecurityEngine.class),
-                                          renameTransformHandler);
+                                          renameTransformHandler,
+                                          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class));
    }
 
    /** Like the 6-arg {@code controller}, but lets a {@code dependents} test control the
@@ -158,7 +159,8 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.web.composer.ws.LayoutGraphService.class),
                                           mock(inetsoft.web.portal.controller.database.DataSourceService.class),
                                           mock(inetsoft.sree.security.SecurityEngine.class),
-                                          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class));
+                                          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
+                                          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class));
    }
 
    private static SheetAgentFeature featureOn() {
@@ -192,7 +194,8 @@ class WorksheetAgentControllerTest {
          xrepository, mock(AssetRepository.class), metadataApiService,
          queryManagerService, mock(LayoutGraphService.class),
          dataSourceService, securityEngine,
-         mock(inetsoft.uql.asset.sync.RenameTransformHandler.class));
+         mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
+         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class));
    }
 
    /** Builds an {@code add_table} EditRequest that routes to addBoundTable() (no logicalModel). */
@@ -2689,11 +2692,98 @@ class WorksheetAgentControllerTest {
          mock(inetsoft.web.composer.ws.LayoutGraphService.class),
          mock(inetsoft.web.portal.controller.database.DataSourceService.class),
          mock(inetsoft.sree.security.SecurityEngine.class),
-         mock(inetsoft.uql.asset.sync.RenameTransformHandler.class));
+         mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
+         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class));
 
       ctrl.detach("TOK-D", agent);
 
       verify(broadcast).sendAgentInactive(s);
+   }
+
+   // ---------------------------------------------------------------------------
+   // create_worksheet -- mints a blank worksheet runtime by reusing an already-paired
+   // session's browser connection. Symmetric to
+   // ViewsheetAssemblyAgentController.createViewsheet; SheetOpenService.createWorksheet performs
+   // every guard, this endpoint only translates its result into the same JoinResponse shape join
+   // already returns.
+   // ---------------------------------------------------------------------------
+
+   /** Feature enabled, only {@code openService} wired -- for the create_worksheet tests. */
+   private static WorksheetAgentController controllerWithOpenService(
+      inetsoft.web.wiz.viewsheet.SheetOpenService openService)
+   {
+      return controllerWithOpenService(featureOn(), openService);
+   }
+
+   private static WorksheetAgentController controllerWithOpenService(
+      SheetAgentFeature feature, inetsoft.web.wiz.viewsheet.SheetOpenService openService)
+   {
+      return new WorksheetAgentController(feature,
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class),
+         mock(WorksheetService.class), mock(WorksheetPreviewService.class),
+         mock(SheetAgentBroadcastService.class), mock(inetsoft.uql.XRepository.class),
+         mock(inetsoft.uql.asset.AssetRepository.class),
+         mock(inetsoft.web.wiz.service.MetadataApiService.class),
+         mock(inetsoft.web.portal.controller.database.QueryManagerService.class),
+         mock(inetsoft.web.composer.ws.LayoutGraphService.class),
+         mock(inetsoft.web.portal.controller.database.DataSourceService.class),
+         mock(inetsoft.sree.security.SecurityEngine.class),
+         mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
+         openService);
+   }
+
+   @Test
+   void createWorksheetReturnsTheNewlyMintedWorksheetSession() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      JoinSession created = new JoinSession("tok-ws-new", "ws-runtime-new", "alice~;~host-org",
+         SheetType.WORKSHEET, 0L, SheetSessionService.TTL_MILLIS,
+         JoinSession.ConnectionMode.PAIRED, "sock-1", "alice-browser", null);
+
+      inetsoft.web.wiz.viewsheet.SheetOpenService openService =
+         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class);
+      when(openService.createWorksheet(eq("tok-acting"), eq(agent))).thenReturn(created);
+
+      WorksheetAgentController ctrl = controllerWithOpenService(openService);
+
+      WorksheetAgentController.JoinResponse response = ctrl.createWorksheet(
+         new WorksheetAgentController.CreateWorksheetRequest("tok-acting"), agent);
+
+      assertEquals("worksheet", response.sheetType());
+      assertEquals("ws-runtime-new", response.runtimeId());
+      verify(openService).createWorksheet(eq("tok-acting"), eq(agent));
+   }
+
+   @Test
+   void createWorksheetWrapsAnIllegalArgumentExceptionFromSheetOpenServiceAsPairingException()
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      inetsoft.web.wiz.viewsheet.SheetOpenService openService =
+         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class);
+      when(openService.createWorksheet(any(), any()))
+         .thenThrow(new IllegalArgumentException("invalid or expired session"));
+
+      WorksheetAgentController ctrl = controllerWithOpenService(openService);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         ctrl.createWorksheet(
+            new WorksheetAgentController.CreateWorksheetRequest("tok-acting"), agent));
+      assertTrue(ex.getMessage().contains("invalid or expired session"));
+   }
+
+   @Test
+   void createWorksheetRefusesWhenTheFeatureIsDisabled() {
+      inetsoft.web.wiz.viewsheet.SheetOpenService openService =
+         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class);
+      WorksheetAgentController ctrl = controllerWithOpenService(featureOff(), openService);
+
+      assertThrows(org.springframework.web.server.ResponseStatusException.class, () ->
+         ctrl.createWorksheet(new WorksheetAgentController.CreateWorksheetRequest("tok-acting"),
+            TestPrincipals.user("alice", "host-org")));
+      verifyNoInteractions(openService);
    }
 
    // ---------------------------------------------------------------------------
