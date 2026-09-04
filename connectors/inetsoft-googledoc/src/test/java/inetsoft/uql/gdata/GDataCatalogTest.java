@@ -49,9 +49,10 @@ import static org.mockito.Mockito.*;
  * Covers {@link GDataCatalog}, driven off {@link GDataRuntime}'s three extracted static fetch
  * methods ({@code listSpreadsheetFiles}/{@code listSheetProperties}/{@code fetchSampleRows})
  * mocked via {@code MockedStatic} -- the same pattern {@code AnalyticsCatalogTest} uses for
- * {@code AnalyticsRuntime}. There is no live Google account in this environment; this is the
- * honest ceiling described in 00-charter.md section 10 (contract correct, unit tests
- * discriminating, degradations recorded).
+ * {@code AnalyticsRuntime}. There is no live Google account in this environment; the honest
+ * ceiling this suite holds to is contract correct, unit tests discriminating, degradations
+ * recorded -- the first two are what this file provides, and the degradations are recorded in
+ * stylebi-wiz {@code docs/tabular/stylebi-tabular-wiz-integration.md} §5.3 nos. 37-47.
  */
 class GDataCatalogTest {
    private MockedStatic<GDataRuntime> runtimeStatic;
@@ -432,10 +433,9 @@ class GDataCatalogTest {
       // real body and field mask were equally unexecuted by any test before this -- every other
       // test mocks it out entirely, and A17 only verifies the a1Range ARGUMENT passed to the
       // mocked method, never the field mask inside the real implementation. Unlike
-      // listSheetProperties there is no "must never request X" trap here (Part D.3 of
-      // 01-design.md never names one for this call) -- this pins the ordinary completeness
-      // guarantee that the sample actually asks for cell values and their number format, not that
-      // it must exclude something.
+      // listSheetProperties there is no "must never request X" trap here -- this pins the ordinary
+      // completeness guarantee that the sample actually asks for cell values and their number
+      // format, not that it must exclude something.
       Sheets.Spreadsheets.Get getRequest = mock(Sheets.Spreadsheets.Get.class, RETURNS_SELF);
       Spreadsheet response = new Spreadsheet().setSheets(List.of(new Sheet()
          .setData(List.of(new GridData().setRowData(List.of(row(stringCell("A"))))))));
@@ -591,9 +591,11 @@ class GDataCatalogTest {
 
    @Test
    void describeDataset_sampledRowShorterThanWidth_noIndexError() throws Exception {
-      // The single most likely defect in this implementation per 01-design.md: a row shorter than
-      // the reported width (Sheets truncates trailing empties) must not throw
-      // IndexOutOfBoundsException.
+      // The bounds check in GDataCatalog.cellAt is what prevents this: a data row can legitimately
+      // be shorter than the reported width (Sheets truncates trailing empty cells from
+      // rowData.values), so a blind row.getValues().get(c) would throw
+      // IndexOutOfBoundsException the first time a real spreadsheet has a short row -- the single
+      // most likely defect in an implementation that reads sampled cells by column index.
       stubDescribe(0, "Sheet1", List.of(
          row(stringCell("A"), stringCell("B"), stringCell("C")),
          row(stringCell("onlyOneCell"))));

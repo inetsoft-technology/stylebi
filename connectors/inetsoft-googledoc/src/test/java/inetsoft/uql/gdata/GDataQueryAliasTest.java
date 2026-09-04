@@ -32,12 +32,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * value, is absent from {@code @View}, carries no {@code tagsMethod}, and does not delegate to the
  * side-effecting {@link GDataQuery#getSpreadsheet()}.
  *
- * <p><b>Construction risk (01-design.md Part D.15):</b> {@code new GDataQuery()} runs
- * {@code TabularQuery(String)} -> {@code XQuery(String)}, which calls
- * {@code OrganizationManager.getInstance().getCurrentOrgID()} -- a live singleton. Tried first
- * because a test against the real constructor is more honest; it worked standalone in this
- * environment (no fallback to {@code mock(GDataQuery.class, CALLS_REAL_METHODS)} was needed -- see
- * 04-build.md section 4 for the record of that attempt).
+ * <p><b>Construction risk:</b> {@code new GDataQuery()} runs {@code TabularQuery(String)} ->
+ * {@code XQuery(String)}, which calls {@code OrganizationManager.getInstance().getCurrentOrgID()}
+ * -- a live singleton. Tried first because a test against the real constructor is more honest; it
+ * worked standalone in this environment, so no fallback to
+ * {@code mock(GDataQuery.class, CALLS_REAL_METHODS)} was needed.
  */
 class GDataQueryAliasTest {
    @Test

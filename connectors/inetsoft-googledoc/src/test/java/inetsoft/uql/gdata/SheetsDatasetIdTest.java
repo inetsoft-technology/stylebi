@@ -54,7 +54,7 @@ class SheetsDatasetIdTest {
    @Test
    void composeRoundTripsNonAsciiComponent() {
       // Non-ASCII is not part of today's Drive file id grammar either, but the escaping/round-trip
-      // discipline must not assume ASCII -- G2 in 03-reconcile.md.
+      // discipline must not assume ASCII.
       String spreadsheetId = "驱动文件Id-1";
       String sheetId = "999";
       String id = SheetsDatasetId.compose(spreadsheetId, sheetId);
@@ -67,8 +67,8 @@ class SheetsDatasetIdTest {
    @Test
    void sheetIdZeroRoundTrips() {
       // "sheetId = 0" is Sheets' real default first sheet -- the first falsy-but-valid identity
-      // component any connector on this SPI has had (03-reconcile.md D3). A blank check on the raw
-      // string, not a truthiness check, must be what parse() uses -- "0" is non-blank.
+      // component any connector on this SPI has had. A blank check on the raw string, not a
+      // truthiness check, must be what parse() uses -- "0" is non-blank.
       String id = SheetsDatasetId.compose("1AbCdEf", "0");
       SheetsDatasetId.Parsed parsed = SheetsDatasetId.parse(id);
 

@@ -27,9 +27,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code UnsupportedDatasourceException} for a {@code "GoogleDocs"} data source, i.e.
  * {@code GDataRuntime} must implement {@link TabularCatalogProvider}.
  *
- * <p>Uses {@code Class.isAssignableFrom}, not {@code new GDataRuntime() instanceof ...}
- * (01-design.md Part D.1 / D.15's ruling): {@code new GDataRuntime()} would not run any
- * constructor logic of consequence, but the class-literal form additionally avoids ever needing
+ * <p>Uses {@code Class.isAssignableFrom}, not {@code new GDataRuntime() instanceof ...}:
+ * {@code new GDataRuntime()} would not run any constructor logic of consequence, but the
+ * class-literal form additionally avoids ever needing
  * to INITIALIZE {@code GDataRuntime} (a class-literal reference does not trigger static
  * initialization), which matters here because {@code GDataRuntime}'s static initializer runs
  * {@code GoogleNetHttpTransport.newTrustedTransport()} -- a gate traded, not dropped: the same
