@@ -172,12 +172,39 @@ public class TabPropertyDialogService {
          int originalTop = tabAssemblyInfo.getPixelOffset() != null
             ? tabAssemblyInfo.getPixelOffset().y : -1;
 
+         // getAssemblyPosition() (which populated this dialog, in getTabPropertyDialogModel
+         // above) prefers the tab's scaled position over its master pixel position whenever
+         // one is set -- so if this tab has a scaled position, the value the client actually
+         // submitted back in sizePositionPaneModel is the ORIGINAL SCALED top, not the master
+         // top captured above. Capture it before reposition so the sync check below compares
+         // against the coordinate space the model's value actually came from (Bug #76407
+         // round 2 -- without this, the sync below never fires for a scaled-position tab,
+         // sizePositionPaneModel keeps the stale scaled top, and setContainerPosition's own
+         // scaled/master-collapsing behavior a few lines down overwrites the scaled position
+         // we're about to reconcile with that stale value, undoing this fix within the same
+         // request).
+         Point originalScaledPos = tabAssemblyInfo.getLayoutPosition(true);
+         boolean hasScaledPos = originalScaledPos != tabAssemblyInfo.getLayoutPosition(false);
+         int originalScaledTop = hasScaledPos ? originalScaledPos.y : -1;
+
          TabVSAssemblyInfo.repositionForBottomTabs(tabAssemblyInfo, vs,
+                                                   tabGeneralPaneModel.getBottomTabs());
+         // scaled space: keep mobile/responsive layout preview flush too (Bug #76407)
+         TabVSAssemblyInfo.repositionForBottomTabsInScaledSpace(tabAssemblyInfo, vs,
                                                    tabGeneralPaneModel.getBottomTabs());
 
          // sync position model only when the user didn't explicitly change the position;
          // if they did, let setContainerPosition translate the whole group to the new Y
-         if(sizePositionPaneModel.getTop() == originalTop) {
+         if(hasScaledPos) {
+            if(sizePositionPaneModel.getTop() == originalScaledTop) {
+               Point newScaledPos = tabAssemblyInfo.getLayoutPosition(true);
+
+               if(newScaledPos != null) {
+                  sizePositionPaneModel.setTop(newScaledPos.y);
+               }
+            }
+         }
+         else if(sizePositionPaneModel.getTop() == originalTop) {
             Point newTabPos = tabAssemblyInfo.getPixelOffset();
 
             if(newTabPos != null) {
