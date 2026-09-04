@@ -722,7 +722,7 @@ class ViewsheetAssemblyAgentControllerTest {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
 
-      controller.listHighlights("tok", "Table1", null, null, null, principal());
+      controller.listHighlights("tok", "Table1", null, null, null, null, null, principal());
 
       verify(highlightService).list(eq("tok"), any(Principal.class), eq("Table1"),
                                     isNull());
@@ -733,10 +733,29 @@ class ViewsheetAssemblyAgentControllerTest {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
 
-      controller.listHighlights("tok", "Table1", 1, 1, null, principal());
+      controller.listHighlights("tok", "Table1", 1, 1, null, null, null, principal());
 
       verify(highlightService).list(eq("tok"), any(Principal.class), eq("Table1"),
                                     eq(new AssemblyHighlightService.Region(1, 1, null, false,
+                                                                          false)));
+   }
+
+   /**
+    * {@code axis}/{@code text} were hardcoded {@code false} regardless of the caller's request —
+    * the Region/service layer already supported them, but the wiz REST wire layer never forwarded
+    * them (L8 parity finding 2).
+    */
+   @Test
+   void listHighlightsPassesAxisAndTextRegionFlagsThrough() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+
+      controller.listHighlights("tok", "Chart1", null, null, "Sum(Sales)", true, false,
+                                principal());
+
+      verify(highlightService).list(eq("tok"), any(Principal.class), eq("Chart1"),
+                                    eq(new AssemblyHighlightService.Region(null, null,
+                                                                          "Sum(Sales)", true,
                                                                           false)));
    }
 
@@ -752,7 +771,8 @@ class ViewsheetAssemblyAgentControllerTest {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
 
-      controller.listHighlights("tok", "Chart1", null, null, "Sum(Sales)", principal());
+      controller.listHighlights("tok", "Chart1", null, null, "Sum(Sales)", null, null,
+                                principal());
 
       verify(highlightService).list(eq("tok"), any(Principal.class), eq("Chart1"),
                                     eq(new AssemblyHighlightService.Region(null, null,
@@ -766,7 +786,8 @@ class ViewsheetAssemblyAgentControllerTest {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
-         "Table1", null, null, null, "HighRevenue", null, "#FFDDDD", List.of(), false, false);
+         "Table1", null, null, null, null, null, "HighRevenue", null, "#FFDDDD", null, List.of(),
+         false, false);
 
       controller.setHighlight("tok", request, "", principal());
 
@@ -779,7 +800,8 @@ class ViewsheetAssemblyAgentControllerTest {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
-         "Table1", 0, 0, null, "HighRevenue", null, "#FFDDDD", List.of(), false, false);
+         "Table1", 0, 0, null, null, null, "HighRevenue", null, "#FFDDDD", null, List.of(), false,
+         false);
 
       controller.setHighlight("tok", request, "", principal());
 
@@ -787,6 +809,50 @@ class ViewsheetAssemblyAgentControllerTest {
                                    eq(new AssemblyHighlightService.Region(0, 0, null, false,
                                                                           false)),
                                    any(), eq(false), eq(""));
+   }
+
+   /** Same wiring for {@code set}, reached through {@code HighlightRequest.region()}. */
+   @Test
+   void setHighlightPassesAxisAndTextRegionFlagsThrough() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+      var request = new ViewsheetAssemblyAgentController.HighlightRequest(
+         "Chart1", null, null, "Sum(Sales)", false, true, "HighRevenue", null, "#FFDDDD", null,
+         List.of(), false, false);
+
+      controller.setHighlight("tok", request, "", principal());
+
+      verify(highlightService).set(eq("tok"), any(Principal.class), eq("Chart1"),
+                                   eq(new AssemblyHighlightService.Region(null, null, "Sum(Sales)",
+                                                                          false, true)),
+                                   any(), eq(false), eq(""));
+   }
+
+   /** L8 parity finding 1: a {@code fontInfo} on the request reaches the built {@code Highlight}. */
+   @Test
+   void setHighlightBuildsTheHighlightsFontFromTheRequest() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+      var font = new ViewsheetAssemblyAgentController.FontRequest(
+         "Arial", 12, true, false, true, false);
+      var request = new ViewsheetAssemblyAgentController.HighlightRequest(
+         "Table1", null, null, null, null, null, "HighRevenue", null, "#FFDDDD", font, List.of(),
+         false, false);
+
+      controller.setHighlight("tok", request, "", principal());
+
+      ArgumentCaptor<AssemblyHighlightService.Highlight> captor =
+         ArgumentCaptor.forClass(AssemblyHighlightService.Highlight.class);
+      verify(highlightService).set(eq("tok"), any(Principal.class), eq("Table1"), isNull(),
+                                   captor.capture(), eq(false), eq(""));
+      inetsoft.web.adhoc.model.FontInfo built = captor.getValue().font();
+      assertNotNull(built);
+      assertEquals("Arial", built.getFontFamily());
+      assertEquals("12", built.getFontSize());
+      assertEquals("bold", built.getFontWeight());
+      assertEquals("normal", built.getFontStyle());
+      assertEquals("underline", built.getFontUnderline());
+      assertEquals("normal", built.getFontStrikethrough());
    }
 
    /** Feature enabled, only {@code highlightService} wired -- for the highlight-region tests. */
