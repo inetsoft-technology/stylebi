@@ -132,7 +132,7 @@ public class LicenseChangePlanService {
 
       String task = req.getTask().trim();
       return new ResolvedPlan(task, Collections.unmodifiableList(changes), true, true,
-                              hash(task, changes, installed.size()));
+                              hash(changes, installed.size()));
    }
 
    // ---------------------------------------------------------------- add
@@ -252,10 +252,18 @@ public class LicenseChangePlanService {
     * section 5) -- the de-licensing warning depends on the WHOLE deployment's installed count, not
     * only the keys this plan touches, so a concurrent add/remove of a key this plan never mentions
     * must still perturb the hash.
+    *
+    * <p>Deliberately does NOT fold {@code task} into the canonical string: {@code task} is
+    * caller-supplied free-text narrative, not an opaque token the caller is required to echo
+    * verbatim between {@code preview} and {@code apply}. Its only downstream use after {@code
+    * resolve()} returns is {@code LicenseChangesetApplyService.writeAudit}'s
+    * {@code record.setTaskDescription(task)} -- an audit label, never compared, parsed, or used to
+    * gate a mutation -- so a caller paraphrasing {@code task} between {@code preview} and {@code
+    * apply} must not change the hash and trip a false-positive {@code PlanHashMismatchException}.
     */
-   private static String hash(String task, List<PlanChange> changes, int installedCount) {
-      StringBuilder canonical = new StringBuilder(task).append('\n')
-         .append("installedCount:").append(installedCount).append(SEP);
+   private static String hash(List<PlanChange> changes, int installedCount) {
+      StringBuilder canonical = new StringBuilder("installedCount:")
+         .append(installedCount).append(SEP);
 
       for(PlanChange change : changes) {
          canonical.append(change.property()).append(SEP)

@@ -274,4 +274,18 @@ class LicenseChangePlanServiceTest {
 
       assertNotEquals(before.planHash(), after.planHash());
    }
+
+   /** stylebi#76472 -- {@code task} is caller-supplied free-text narrative that an LLM caller may
+    * paraphrase between {@code preview} and {@code apply}; it must not perturb the hash, or a
+    * paraphrase alone would trip a false-positive {@code PlanHashMismatchException} at apply time
+    * even though {@code changes}/{@code installedCount} (the actual plan) are unchanged. */
+   @Test void hashIsUnaffectedByDifferentTaskStrings() {
+      License installed = license("K1", LicenseType.CPU, LocalDateTime.now().plusYears(1));
+      stubInstalled(installed);
+
+      ResolvedPlan preview = service.resolve(request("remove the old K1 key", List.of(remove("K1"))));
+      ResolvedPlan apply = service.resolve(request("please remove license K1", List.of(remove("K1"))));
+
+      assertEquals(preview.planHash(), apply.planHash());
+   }
 }
