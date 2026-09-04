@@ -21,11 +21,13 @@ import inetsoft.report.CellBinding;
 import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.DataVSAssembly;
@@ -36,8 +38,10 @@ import inetsoft.report.internal.binding.AssetNamedGroupInfo;
 import inetsoft.web.binding.command.GetCellScriptCommand;
 import inetsoft.web.binding.command.GetPredefinedNamedGroupCommand;
 import inetsoft.web.binding.controller.VSTableLayoutService;
+import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.event.GetCellScriptEvent;
 import inetsoft.web.binding.event.GetPredefinedNamedGroupEvent;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.table.OrderModel;
 import inetsoft.web.binding.model.table.TopNModel;
@@ -52,6 +56,7 @@ import inetsoft.web.binding.model.table.CellBindingInfo;
 import inetsoft.web.binding.model.table.TableCell;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.binding.model.FieldRef;
+import inetsoft.web.wiz.viewsheet.ConditionVocabulary;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,12 +86,14 @@ public class CalcTableService {
    @Autowired
    public CalcTableService(ViewsheetSessionService sessions, VSTableLayoutService layoutService,
                            DataRefModelFactoryService refModelService,
-                           BindableFieldsService fieldsService)
+                           BindableFieldsService fieldsService,
+                           VSColumnHandler columnsHandler)
    {
       this.sessions = sessions;
       this.layoutService = layoutService;
       this.refModelService = refModelService;
       this.fieldsService = fieldsService;
+      this.columnsHandler = columnsHandler;
    }
 
    /**
@@ -273,17 +280,6 @@ public class CalcTableService {
       // reject here, and opens no checkpoint the caller then has to undo.
       CalcCellVocabulary.validate(binding);
 
-      // Both 'sort' and a resolved 'field.namedGroup' end up setting the same OrderModel --
-      // namedGroup forces SORT_SPECIFIC with the group's own conditions as the order. Accepting
-      // both silently would mean one wins and the caller never learns which; refusing is cheap
-      // and this runs before the runtime is touched, so it costs no checkpoint to reject.
-      if(binding.get("sort") != null && namedGroupOf(binding.get("field")) != null) {
-         throw new IllegalArgumentException(
-            "A cell can't have both 'sort' and 'field.namedGroup' -- resolving a named group " +
-            "sets its own order (SORT_SPECIFIC, ordered by the group's own conditions), which " +
-            "would silently override whatever 'sort' asked for. Send one or the other.");
-      }
-
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          requireInGrid(layoutOf(assembly), row, col);
@@ -294,13 +290,39 @@ public class CalcTableService {
             requireBindableColumn(runtimeId, user, assemblyName, cellBindingInfo.getValue());
          }
 
+         Object field = binding.get("field");
          String namedGroup = cellBindingInfo.getType() == CellBinding.BIND_COLUMN
-            ? namedGroupOf(binding.get("field")) : null;
+            ? namedGroupOf(field) : null;
+         Map<String, Object> inlineNamedGroup = cellBindingInfo.getType() == CellBinding.BIND_COLUMN
+            ? inlineNamedGroupOf(field) : null;
 
+         // 'sort' and 'field.namedGroup' are independent: a named group only changes which raw
+         // values collapse into which labelled bucket (OrderModel.info), while 'sort' (any
+         // direction, including manual) orders the resulting labels same as any other value
+         // (see LayoutTool.createGroupExpression -- it reads order.info and order.type/asc
+         // separately when building the cell's mapList()/toList() expression). So this only
+         // adds the group's own conditions onto whatever OrderModel 'sort' already built above,
+         // rather than replacing it.
          if(namedGroup != null) {
-            cellBindingInfo.setOrder(resolveNamedGroupOrder(
+            resolveNamedGroupOrder(cellBindingInfo.getOrder(),
                rvs, assembly, runtimeId, user, dispatcher, cellBindingInfo.getValue(),
-               namedGroup));
+               namedGroup);
+         }
+         else if(inlineNamedGroup != null) {
+            applyInlineNamedGroup(cellBindingInfo.getOrder(), inlineNamedGroup, rvs, assembly,
+               cellBindingInfo.getValue());
+         }
+         else {
+            // toCellBindingInfo builds a brand-new OrderModel every call, whose 'info' defaults
+            // to an empty-but-non-null NamedGroupInfoModel (type 0) -- VSTableLayoutService
+            // .setNamedGroupInfo only clears the persisted named group for an explicit null,
+            // not for that default object, so omitting 'field.namedGroup' silently left a prior
+            // write's named group in place (live-confirmed: set one, then write the same cell
+            // without 'namedGroup', and the old group kept rendering). The Composer's own UI
+            // never hits this branch: it loads the real OrderModel once and mutates it in
+            // place, so clearing there always means an explicit null. Explicit null here makes
+            // this match this tool's own documented contract -- 'field' is not preserved.
+            cellBindingInfo.getOrder().setInfo(null);
          }
 
          SetCellBindingEvent event = new SetCellBindingEvent();
@@ -385,22 +407,28 @@ public class CalcTableService {
    }
 
    /**
-    * Resolves a cell's {@code field.namedGroup} to the {@code OrderModel}
-    * {@code VSTableLayoutService.setNamedGroupInfo} actually knows how to apply -- worksheet-local
-    * first (an {@code EXPERT_NAMEDGROUP_INFO} built from the assembly's own per-group
-    * conditions), then the repository-registered asset kind. Neither matching is a hard failure:
-    * a name that resolves to nothing would otherwise silently render without any grouping at
-    * all, which is the defect this fixes.
+    * Resolves a cell's {@code field.namedGroup} onto the given {@code OrderModel}'s {@code info}
+    * -- worksheet-local first (an {@code EXPERT_NAMEDGROUP_INFO} built from the assembly's own
+    * per-group conditions), then the repository-registered asset kind. Neither matching is a
+    * hard failure: a name that resolves to nothing would otherwise silently render without any
+    * grouping at all, which is the defect this fixes.
+    *
+    * <p>Only {@code order.info} is touched here -- {@code order.type} (sort direction/manual
+    * order) is whatever 'sort' already set it to (or the default, if 'sort' was omitted). The
+    * two are independent inputs to the same {@code mapList()}/{@code toList()} expression
+    * {@code LayoutTool.createGroupExpression} builds; forcing a direction here would silently
+    * discard what 'sort' asked for.
     */
-   private OrderModel resolveNamedGroupOrder(RuntimeViewsheet rvs, CalcTableVSAssembly assembly,
-                                             String runtimeId, Principal user,
-                                             CapturingCommandDispatcher dispatcher,
-                                             String column, String namedGroup)
+   private void resolveNamedGroupOrder(OrderModel order, RuntimeViewsheet rvs,
+                                       CalcTableVSAssembly assembly, String runtimeId,
+                                       Principal user, CapturingCommandDispatcher dispatcher,
+                                       String column, String namedGroup)
       throws Exception
    {
       for(DefaultNamedGroupAssembly ngAssembly : worksheetNamedGroups(rvs, assembly, column)) {
          if(namedGroup.equals(ngAssembly.getName())) {
-            return worksheetLocalOrder(ngAssembly);
+            worksheetLocalOrder(order, ngAssembly);
+            return;
          }
       }
 
@@ -411,10 +439,8 @@ public class CalcTableService {
          NamedGroupInfoModel ngInfoModel = new NamedGroupInfoModel();
          ngInfoModel.setType(XNamedGroupInfo.ASSET_NAMEDGROUP_INFO);
          ngInfoModel.setName(namedGroup);
-         OrderModel orderModel = new OrderModel();
-         orderModel.setType(XConstants.SORT_SPECIFIC);
-         orderModel.setInfo(ngInfoModel);
-         return orderModel;
+         order.setInfo(ngInfoModel);
+         return;
       }
 
       throw new IllegalArgumentException(
@@ -426,7 +452,7 @@ public class CalcTableService {
    /**
     * Converts a worksheet-local {@code DefaultNamedGroupAssembly}'s per-group conditions into
     * the {@code EXPERT_NAMEDGROUP_INFO} shape {@code VSTableLayoutService.setNamedGroupInfo}
-    * consumes.
+    * consumes, and sets it onto the given {@code OrderModel}'s {@code info}.
     *
     * <p>This cannot reuse {@code NamedGroupInfoModel.fixNamedGroupInfoModel} -- that method skips
     * anything whose {@code getType()} isn't {@code EXPERT}/{@code SIMPLE}, and a worksheet-local
@@ -434,12 +460,16 @@ public class CalcTableService {
     * though it holds inline per-group {@code ConditionList}s. The conversion itself is the same
     * technique that method uses.
     *
-    * <p>{@code SORT_SPECIFIC} on the order is not optional decoration: {@code OrderInfo.isSpecific()}
-    * -- which reads this exact bit -- gates whether {@code OrderInfo.createSortOrder} ever folds
-    * the named-group conditions into the {@code SortOrder} StyleBI actually groups by. Without
-    * it the named group is attached but never takes effect.
+    * <p>Only {@code order.info} is set here, deliberately -- {@code order.type} is not touched.
+    * {@code LayoutTool.createGroupExpression} reads {@code order.getRealNamedGroupInfo()} (the
+    * group mapping) and {@code order.getType()}/{@code isAsc()} (the resulting sort) as two
+    * independent inputs to the same generated {@code mapList()} expression; the Composer's own
+    * {@code CalcNamedGroupDialog.apply()} likewise only ever assigns {@code order.info}/
+    * {@code order.others}, never {@code order.type}.
     */
-   private OrderModel worksheetLocalOrder(DefaultNamedGroupAssembly ngAssembly) throws Exception {
+   private void worksheetLocalOrder(OrderModel order, DefaultNamedGroupAssembly ngAssembly)
+      throws Exception
+   {
       NamedGroupInfoModel ngInfoModel = new NamedGroupInfoModel();
       ngInfoModel.setType(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO);
 
@@ -452,10 +482,124 @@ public class CalcTableService {
          ngInfoModel.addCondition(conditionExpression);
       }
 
-      OrderModel orderModel = new OrderModel();
-      orderModel.setType(XConstants.SORT_SPECIFIC);
-      orderModel.setInfo(ngInfoModel);
-      return orderModel;
+      order.setInfo(ngInfoModel);
+   }
+
+   /**
+    * Builds an inline ('Customize') named group straight from the caller's own conditions --
+    * {@code {groups: [{name, conditions}], others?}} -- rather than looking one up by name. This
+    * is the mechanism most calc-table named groups actually use: the Composer's own Named Group
+    * Definition dialog ({@code ExpertNamedGroupDialog}) always builds one of these, on the fly,
+    * scoped to the one cell being edited -- unlike {@link #resolveNamedGroupOrder}'s two lookups,
+    * neither of which is what "Customize" itself is.
+    *
+    * <p>Each group's {@code conditions} reuses {@link ConditionVocabulary}'s own flat,
+    * junction-chained vocabulary -- the same one {@code set_condition} uses -- so this does not
+    * grow a second condition-shape for an agent to learn.
+    *
+    * <p>Sets both {@code order.info} and {@code order.others}, matching
+    * {@code CalcNamedGroupDialog.apply()} exactly: {@code order.type} is untouched, for the same
+    * reason {@link #worksheetLocalOrder} leaves it alone.
+    */
+   private void applyInlineNamedGroup(OrderModel order, Map<String, Object> spec,
+                                      RuntimeViewsheet rvs, CalcTableVSAssembly assembly,
+                                      String column) throws Exception
+   {
+      Object rawGroups = spec.get("groups");
+      List<?> groups = rawGroups instanceof List<?> list ? list : List.of();
+
+      if(groups.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'field.namedGroup.groups' needs at least one {name, conditions} group -- a named " +
+            "group with no groups in it buckets nothing.");
+      }
+
+      DataRefModel fieldModel = refModelService.createDataRefModel(columnRef(rvs, assembly, column));
+      NamedGroupInfoModel ngInfoModel = new NamedGroupInfoModel();
+      ngInfoModel.setType(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO);
+
+      for(Object g : groups) {
+         Map<?, ?> groupSpec = g instanceof Map<?, ?> map ? map : Map.of();
+         Object name = groupSpec.get("name");
+
+         if(!(name instanceof String text) || text.isBlank()) {
+            throw new IllegalArgumentException(
+               "Every group in 'field.namedGroup.groups' needs a non-blank 'name'.");
+         }
+
+         Object[] conditionArray = ConditionVocabulary.toConditionList(
+            clausesOf(groupSpec.get("conditions"), column), new DataRefModel[]{ fieldModel });
+         ConditionExpression expr = new ConditionExpression();
+         expr.setName(text);
+         expr.setList(conditionArray);
+         ngInfoModel.addCondition(expr);
+      }
+
+      order.setInfo(ngInfoModel);
+      order.setOthers(!"leave".equals(spec.get("others")));
+   }
+
+   /**
+    * The real, properly-typed {@code DataRef} for a bound column -- needed so
+    * {@link ConditionVocabulary#toConditionList} parses each condition's values against the
+    * column's actual data type (a date column's values need {@code dataType}, or they parse as
+    * plain strings and never match). Mirrors {@code VSTableLayoutService.getPredefinedNamedGroup}'s
+    * own column resolution.
+    */
+   private DataRef columnRef(RuntimeViewsheet rvs, CalcTableVSAssembly assembly, String column)
+      throws Exception
+   {
+      SourceInfo source = assembly.getSourceInfo();
+      ColumnSelection cols = columnsHandler.getColumnSelection(
+         rvs, assembly.getAbsoluteName(), source == null ? null : source.getSource(),
+         null, false, true, false, false, false, false);
+      DataRef field = cols == null ? null : cols.getAttribute(column);
+
+      if(field == null) {
+         throw new IllegalArgumentException(
+            "'" + column + "' is not a bindable column on this table -- list_bindable_fields " +
+            "reports what is available.");
+      }
+
+      return field;
+   }
+
+   /**
+    * One named group's conditions, in {@link ConditionVocabulary}'s flat clause shape. A
+    * condition's own {@code field} defaults to the column being grouped -- the only one a named
+    * group can meaningfully condition on -- and naming a different one is refused rather than
+    * silently ignored.
+    */
+   @SuppressWarnings("unchecked")
+   private static List<ConditionVocabulary.Clause> clausesOf(Object rawConditions, String column) {
+      if(!(rawConditions instanceof List<?> list) || list.isEmpty()) {
+         throw new IllegalArgumentException(
+            "Every group in 'field.namedGroup.groups' needs at least one condition.");
+      }
+
+      List<ConditionVocabulary.Clause> clauses = new ArrayList<>();
+
+      for(Object c : list) {
+         Map<String, Object> clause = (Map<String, Object>) c;
+         Object field = clause.get("field");
+
+         if(field != null && !column.equals(String.valueOf(field))) {
+            throw new IllegalArgumentException(
+               "A named-group condition's 'field' must be the column being grouped ('" + column +
+               "'), got '" + field + "'. Omit 'field' or set it to '" + column + "'.");
+         }
+
+         Object rawValues = clause.get("values");
+         List<Object> values = rawValues instanceof List<?> valueList
+            ? new ArrayList<>(valueList) : List.of();
+         Object junction = clause.get("junction");
+         clauses.add(new ConditionVocabulary.Clause(
+            column, String.valueOf(clause.get("operator")), values,
+            junction == null ? null : String.valueOf(junction),
+            Boolean.TRUE.equals(clause.get("negated"))));
+      }
+
+      return clauses;
    }
 
    /**
@@ -709,12 +853,6 @@ public class CalcTableService {
       info.setMergeColGroup(binding.containsKey("mergeColGroup") ?
                              mergeColGroup : TableCellBinding.DEFAULT_GROUP);
 
-      String name = str(binding, "name");
-
-      if(name != null) {
-         info.setName(name);
-      }
-
       if(binding.get("timeSeries") instanceof Boolean timeSeries) {
          info.setTimeSeries(timeSeries);
       }
@@ -843,12 +981,32 @@ public class CalcTableService {
          "A cell's 'field' must be an object such as {column: \"Region\", type: \"dimension\"}.");
    }
 
-   /** A field's named-group name, if it carries one. {@code null} means none was given. */
+   /**
+    * A field's by-name named-group reference, if it carries one. {@code null} means none was
+    * given, or it was given inline (a {@code Map} -- see {@link #inlineNamedGroupOf}) rather
+    * than by name.
+    */
    private static String namedGroupOf(Object field) {
       Object namedGroup = field instanceof FieldRef ref ? ref.namedGroup()
          : field instanceof Map<?, ?> map ? map.get("namedGroup") : null;
+
+      if(namedGroup instanceof Map<?, ?>) {
+         return null;
+      }
+
       String text = namedGroup == null ? "" : String.valueOf(namedGroup).trim();
       return text.isEmpty() ? null : text;
+   }
+
+   /**
+    * A field's inline ('Customize') named-group definition, if it carries one --
+    * {@code {groups: [{name, conditions}], others?}}. {@code null} means none was given, or it
+    * was given by name (a plain string -- see {@link #namedGroupOf}) instead.
+    */
+   @SuppressWarnings("unchecked")
+   private static Map<String, Object> inlineNamedGroupOf(Object field) {
+      Object namedGroup = field instanceof Map<?, ?> map ? map.get("namedGroup") : null;
+      return namedGroup instanceof Map<?, ?> ? (Map<String, Object>) namedGroup : null;
    }
 
    private static TableCell cellAt(int row, int col) {
@@ -930,4 +1088,5 @@ public class CalcTableService {
    private final VSTableLayoutService layoutService;
    private final DataRefModelFactoryService refModelService;
    private final BindableFieldsService fieldsService;
+   private final VSColumnHandler columnsHandler;
 }

@@ -291,7 +291,6 @@ public final class CalcCellVocabulary {
       out.put("colGroup", info.getColGroup());
       out.put("name", info.getName());
       out.put("runtimeName", info.getRuntimeName());
-      out.put("name", info.getName());
       out.put("mergeRowGroup", info.getMergeRowGroup());
       out.put("mergeColGroup", info.getMergeColGroup());
       out.put("timeSeries", info.isTimeSeries());
