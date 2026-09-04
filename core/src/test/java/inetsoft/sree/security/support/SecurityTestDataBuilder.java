@@ -22,6 +22,7 @@ import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.Identity;
+import inetsoft.util.DataSpace;
 import org.mindrot.BCrypt;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -224,12 +225,24 @@ public class SecurityTestDataBuilder {
       authzProvider.setProviderName("Primary");
 
       // setProviders() persists the chain to storage as a side effect;
-      // SecurityEngine.init() (line below) reads it to discover provider types.
+      // SecurityEngine.init() (line below) reads it to discover provider types. The chain's
+      // constructor registers a DataChangeListener on a JVM-wide-constant config file
+      // ("authc-chain.json"/"authz-chain.json"); since Surefire reuses one JVM across all test
+      // classes, a leaked listener here accumulates across the whole suite and every later
+      // saveConfiguration() write to that file re-entrantly re-triggers loadConfiguration() on
+      // each stale instance, racing on the file (intermittent
+      // "IllegalArgumentException: argument \"in\" is null" from Jackson, worse the later a
+      // test class happens to run). Remove it once setProviders() has run -- NOT via
+      // authcChain.tearDown()/authzChain.tearDown(), which cascade into disposing every
+      // provider in the chain (calls provider.tearDown()) and would tear down
+      // authcProvider/authzProvider themselves, still needed below.
       AuthenticationChain authcChain = new AuthenticationChain();
       authcChain.setProviders(Collections.singletonList(authcProvider));
+      DataSpace.getDataSpace().removeChangeListener(null, "authc-chain.json", authcChain);
 
       AuthorizationChain authzChain = new AuthorizationChain();
       authzChain.setProviders(Collections.singletonList(authzProvider));
+      DataSpace.getDataSpace().removeChangeListener(null, "authz-chain.json", authzChain);
 
       // Surefire reuses one JVM across Spring test contexts. A prior class's
       // SreeHomeExtension.afterAll nulls ConfigurationContext while PropertiesEngine's
