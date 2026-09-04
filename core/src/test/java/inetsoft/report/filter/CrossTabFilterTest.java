@@ -113,4 +113,114 @@ public class CrossTabFilterTest {
                               "Others should sum the merged NY+TX+WA rows (3+2+1=6), " +
                               "not just the last-processed row's raw value");
    }
+
+   /**
+    * Regression test for bug #76470: setRowTopN's registration guard used to require
+    * topn >= 1, silently dropping a ranking whose n resolves to 0 (e.g. via a bound
+    * variable) instead of treating n=0/groupOthers=true as "collapse everything into
+    * Others", the same semantics PC-002 established for SummaryFilter.setTopN.
+    */
+   @Test
+   public void rowTopNZeroWithOthers_collapsesAllRowsToOthers() {
+      Object[][] data = new Object[][]{
+         { "STATE", "CUSTOMER_COUNT" },
+         { "NJ", 6 },
+         { "CA", 4 },
+         { "MA", 4 },
+         { "NY", 3 },
+         { "TX", 2 },
+         { "WA", 1 },
+      };
+
+      int[] rowh = new int[]{ 0 };
+      int[] colh = new int[0];
+      int[] dcol = new int[]{ 1 };
+      Formula[] formulas = new Formula[]{ new NoneFormula() };
+
+      CrossTabFilter table = new CrossTabFilter(new DefaultTableLens(data), rowh, colh, dcol,
+                                                formulas);
+      table.setRowTopN(0, 0, 0, false, true);
+
+      int headerRows = table.getHeaderRowCount();
+      int dataRowCount = table.getRowCount() - headerRows;
+      Assertions.assertEquals(1, dataRowCount,
+                              "n=0 with groupOthers=true should collapse every row into a " +
+                              "single Others row, not keep any original rows");
+      Assertions.assertEquals("Others", table.getObject(headerRows, 0));
+      Assertions.assertEquals(20.0, ((Number) table.getObject(headerRows, 1)).doubleValue(),
+                              0.0001,
+                              "Others should sum all merged rows " +
+                              "(6+4+4+3+2+1=20), not come out blank/zero/stale");
+   }
+
+   /**
+    * Regression test for bug #76470: setRowTopN with n=0 and groupOthers=false should
+    * keep zero rows (mirrors the n>=1 semantics of "keep nothing outside the top N"),
+    * not silently no-op and keep every row.
+    */
+   @Test
+   public void rowTopNZeroWithoutOthers_keepsNoRows() {
+      Object[][] data = new Object[][]{
+         { "STATE", "CUSTOMER_COUNT" },
+         { "NJ", 6 },
+         { "CA", 4 },
+         { "MA", 4 },
+         { "NY", 3 },
+         { "TX", 2 },
+         { "WA", 1 },
+      };
+
+      int[] rowh = new int[]{ 0 };
+      int[] colh = new int[0];
+      int[] dcol = new int[]{ 1 };
+      Formula[] formulas = new Formula[]{ new NoneFormula() };
+
+      CrossTabFilter table = new CrossTabFilter(new DefaultTableLens(data), rowh, colh, dcol,
+                                                formulas);
+      table.setRowTopN(0, 0, 0, false, false);
+
+      Assertions.assertEquals(table.getHeaderRowCount(), table.getRowCount(),
+                              "n=0 with groupOthers=false should keep zero data rows");
+   }
+
+   /**
+    * Regression test for bug #76470: setColTopN mirror of
+    * rowTopNZeroWithOthers_collapsesAllRowsToOthers -- col-header ranking is a
+    * structurally separate array/guard (coltopns vs rowtopns) from row-header ranking
+    * and must not be assumed fixed just because the row-header case passes.
+    */
+   @Test
+   public void colTopNZeroWithOthers_collapsesAllColsToOthers() {
+      Object[][] data = new Object[][]{
+         { "GROUP", "STATE", "CUSTOMER_COUNT" },
+         { "ALL", "NJ", 6 },
+         { "ALL", "CA", 4 },
+         { "ALL", "MA", 4 },
+         { "ALL", "NY", 3 },
+         { "ALL", "TX", 2 },
+         { "ALL", "WA", 1 },
+      };
+
+      int[] rowh = new int[]{ 0 };
+      int[] colh = new int[]{ 1 };
+      int[] dcol = new int[]{ 2 };
+      Formula[] formulas = new Formula[]{ new NoneFormula() };
+
+      CrossTabFilter table = new CrossTabFilter(new DefaultTableLens(data), rowh, colh, dcol,
+                                                formulas);
+      table.setColTopN(0, 0, 0, false, true);
+
+      int headerCols = table.getHeaderColCount();
+      int headerRows = table.getHeaderRowCount();
+      int dataColCount = table.getColCount() - headerCols;
+      Assertions.assertEquals(1, dataColCount,
+                              "n=0 with groupOthers=true should collapse every column into " +
+                              "a single Others column, not keep any original columns");
+      Assertions.assertEquals("Others", table.getObject(headerRows - 1, headerCols));
+      Assertions.assertEquals(20.0,
+                              ((Number) table.getObject(headerRows, headerCols)).doubleValue(),
+                              0.0001,
+                              "Others should sum all merged columns " +
+                              "(6+4+4+3+2+1=20), not come out blank/zero/stale");
+   }
 }
