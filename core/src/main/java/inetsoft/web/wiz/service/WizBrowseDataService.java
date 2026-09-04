@@ -21,9 +21,8 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
 import inetsoft.uql.asset.ColumnRef;
-import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.viewsheet.DataVSAssembly;
+import inetsoft.uql.viewsheet.BindableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.DataRefModel;
@@ -114,20 +113,21 @@ public class WizBrowseDataService {
     * Resolves the worksheet table name that {@code assemblyName} (the VS chart's own presentation
     * name, e.g. "Chart1") is bound to. {@link BrowseDataController#process} looks its {@code name}
     * up against the base WORKSHEET's own assemblies — a different namespace — so passing the chart
-    * name through unresolved always misses (silently: it returns null instead of erroring). Mirrors
-    * the same {@code DataVSAssembly} → {@code SourceInfo} → {@code getSource()} resolution
-    * {@code WizVsService} does for aggregate-condition handling. Package-private for unit testing.
+    * name through unresolved always misses (silently: it returns null instead of erroring). Gates on
+    * {@code BindableVSAssembly} (not {@code DataVSAssembly}) so Output assemblies (Text/Gauge — a
+    * sibling hierarchy that never {@code instanceof DataVSAssembly}) resolve too, mirroring the same
+    * widening {@code WizVsService} already applies for {@code applyConditionModel} and its own
+    * {@code wsTableName} lookup. Package-private for unit testing.
     */
    String resolveWorksheetTableName(Viewsheet vs, String assemblyName) {
       VSAssembly chartAssembly = vs != null ? vs.getAssembly(assemblyName) : null;
 
-      if(!(chartAssembly instanceof DataVSAssembly dataAssembly)) {
+      if(!(chartAssembly instanceof BindableVSAssembly bindableAssembly)) {
          throw new IllegalArgumentException(
             "No chart assembly named '" + assemblyName + "' found in the viewsheet");
       }
 
-      SourceInfo sourceInfo = dataAssembly.getSourceInfo();
-      String wsTableName = sourceInfo != null ? sourceInfo.getSource() : null;
+      String wsTableName = bindableAssembly.getTableName();
 
       if(wsTableName == null) {
          throw new IllegalStateException(
