@@ -38,6 +38,8 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.MessageException;
+import inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService;
 import inetsoft.web.wiz.script.ScriptImageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1068,9 +1070,9 @@ public class ViewsheetAssemblyAgentController {
          ? name.substring(name.lastIndexOf('/') + 1) : name;
 
       try {
-         inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService.requireValidAlias(leaf);
+         WorksheetPropertyDialogService.requireValidAlias(leaf);
       }
-      catch(inetsoft.util.MessageException e) {
+      catch(MessageException e) {
          throw new PairingException(e.getMessage());
       }
 

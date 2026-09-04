@@ -372,8 +372,9 @@ public class ChartPropertyDialogService {
       ChartAdvancedPaneModel advancePaneCheck = value == null ? null : value.getChartAdvancedPaneModel();
 
       if(advancePaneCheck != null) {
-         if(advancePaneCheck.isGlossyEffect() && advancePaneCheck.isSparklineSupported() &&
-            advancePaneCheck.isSparkline())
+         if(advancePaneCheck.isGlossyEffect() &&
+            (!this.chartPropertyService.isSupported(vsChartInfo, "effectEnabled", false) ||
+               (advancePaneCheck.isSparklineSupported() && advancePaneCheck.isSparkline())))
          {
             advancePaneCheck.setGlossyEffect(false);
          }

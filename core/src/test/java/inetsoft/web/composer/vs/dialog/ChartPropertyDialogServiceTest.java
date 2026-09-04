@@ -48,7 +48,9 @@ import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.when;
 
@@ -86,6 +88,10 @@ class ChartPropertyDialogServiceTest {
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssembly(anyString())).thenReturn(chartAssembly);
       when(chartAssembly.getVSAssemblyInfo()).thenReturn(info);
+      // Isolate the sparkline clause under test: glossyEffectSupported=true so the sibling
+      // !glossyEffectSupported clause (added later, see normalizesGlossyEffectWhenNotSupported
+      // below) never fires here.
+      when(chartPropertyService.isSupported(any(), eq("effectEnabled"), eq(false))).thenReturn(true);
 
       ChartPropertyDialogModel model = new ChartPropertyDialogModel();
       ChartAdvancedPaneModel advancedPane = new ChartAdvancedPaneModel();
@@ -121,6 +127,9 @@ class ChartPropertyDialogServiceTest {
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssembly(anyString())).thenReturn(chartAssembly);
       when(chartAssembly.getVSAssemblyInfo()).thenReturn(info);
+      // Isolate the sparkline clause: glossyEffectSupported=true so this test's negative result
+      // is actually exercising the sparkline gate, not the sibling !glossyEffectSupported clause.
+      when(chartPropertyService.isSupported(any(), eq("effectEnabled"), eq(false))).thenReturn(true);
 
       ChartPropertyDialogModel model = new ChartPropertyDialogModel();
       ChartAdvancedPaneModel advancedPane = new ChartAdvancedPaneModel();
@@ -140,6 +149,45 @@ class ChartPropertyDialogServiceTest {
 
       assertTrue(advancedPane.isGlossyEffect(),
                   "glossyEffect must not be normalized when sparklineSupported is false");
+   }
+
+   /**
+    * Mirrors the other half of chart-advanced-pane.component.html's disabled condition:
+    * {@code [disabled]="!model.glossyEffectSupported || (model.sparklineSupported && model.sparkline)"}.
+    * A stale glossyEffect=true left over from a chart-type change that dropped support (e.g.
+    * effectEnabled no longer applicable to the new chart style) must be normalized even when the
+    * sparkline clause never fires.
+    */
+   @Test
+   void normalizesGlossyEffectWhenNotSupported() throws Exception {
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setVSChartInfo(new VSChartInfo());
+
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(chartAssembly);
+      when(chartAssembly.getVSAssemblyInfo()).thenReturn(info);
+      when(chartPropertyService.isSupported(any(), eq("effectEnabled"), eq(false))).thenReturn(false);
+
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      ChartAdvancedPaneModel advancedPane = new ChartAdvancedPaneModel();
+      advancedPane.setSortOthersLast(true);
+      advancedPane.setRankPerGroup(true);
+      advancedPane.setGlossyEffect(true);
+      advancedPane.setSparklineSupported(false);
+      advancedPane.setSparkline(false);
+      model.setChartAdvancedPaneModel(advancedPane);
+
+      try {
+         service.setChartPropertyModel("Viewsheet1", "Chart1", model, "", null, commandDispatcher);
+      }
+      catch(Exception ignoredUnrelatedApplyPathFailure) {
+         // Out of scope for this test; see class javadoc.
+      }
+
+      assertFalse(advancedPane.isGlossyEffect(),
+                   "glossyEffect must be normalized to false when glossyEffectSupported is false, " +
+                   "even with the sparkline clause never firing");
    }
 
    @Test
