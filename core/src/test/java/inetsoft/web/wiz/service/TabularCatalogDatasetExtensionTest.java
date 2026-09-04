@@ -32,6 +32,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -129,5 +130,71 @@ class TabularCatalogDatasetExtensionTest {
       JsonNode data = new ObjectMapper().readTree(ext.getData());
       assertTrue(data.get("columnsMayBeIncomplete").asBoolean(),
          "columnsMayBeIncomplete must be written as a JSON boolean, not a string");
+   }
+
+   /**
+    * B3: unlike {@code params}/{@code columnsMayBeIncomplete} above, {@code description} is a
+    * top-level {@link OsiDataset} field, not a COMMON-extension key — this reads it directly off
+    * the returned dataset rather than parsing the extension JSON.
+    */
+   @Test
+   void toDatasetWritesDescriptionWhenPresent() {
+      TabularDatasetSchema schema = new TabularDatasetSchema("Products",
+         List.of(new TabularColumn("ID", XSchema.LONG)), List.of("ID"), Map.of(), false,
+         "Order line items from the Northwind sample database.");
+
+      OsiDataset dataset =
+         TabularCatalogService.toDataset("Rest/Northwind", "OData", schema, new ObjectMapper());
+
+      assertEquals("Order line items from the Northwind sample database.",
+         dataset.getDescription());
+   }
+
+   /**
+    * Two absence cases, not one: a single null case would still pass against a guard that only
+    * checked null and let a blank/whitespace-only string through — the same reasoning
+    * {@code column.description()}'s existing guard at the field level was written to satisfy.
+    */
+   @Test
+   void toDatasetOmitsDescriptionWhenNull() {
+      TabularDatasetSchema schema = new TabularDatasetSchema("Products",
+         List.of(new TabularColumn("ID", XSchema.LONG)), List.of("ID"), Map.of(), false, null);
+
+      OsiDataset dataset =
+         TabularCatalogService.toDataset("Rest/Northwind", "OData", schema, new ObjectMapper());
+
+      assertNull(dataset.getDescription());
+   }
+
+   @Test
+   void toDatasetOmitsDescriptionWhenBlank() {
+      TabularDatasetSchema schema = new TabularDatasetSchema("Products",
+         List.of(new TabularColumn("ID", XSchema.LONG)), List.of("ID"), Map.of(), false, "   ");
+
+      OsiDataset dataset =
+         TabularCatalogService.toDataset("Rest/Northwind", "OData", schema, new ObjectMapper());
+
+      assertNull(dataset.getDescription());
+   }
+
+   /**
+    * The 3/4/5-arg compatibility constructors all predate {@code description} and must leave it
+    * null -- "the connector said nothing" is the true state of every existing construction site
+    * until it opts in, not a value this schema invents on their behalf.
+    */
+   @Test
+   void compatibilityConstructorsLeaveDescriptionNull() {
+      TabularColumn column = new TabularColumn("ID", XSchema.LONG);
+
+      TabularDatasetSchema threeArg = new TabularDatasetSchema("Products", List.of(column),
+         List.of("ID"));
+      TabularDatasetSchema fourArg = new TabularDatasetSchema("Products", List.of(column),
+         List.of("ID"), Map.of("entity", "Products"));
+      TabularDatasetSchema fiveArg = new TabularDatasetSchema("Products", List.of(column),
+         List.of("ID"), Map.of("entity", "Products"), true);
+
+      assertNull(threeArg.description());
+      assertNull(fourArg.description());
+      assertNull(fiveArg.description());
    }
 }
