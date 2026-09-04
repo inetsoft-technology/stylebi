@@ -400,6 +400,16 @@ class ProviderChangePlanServiceTest {
       assertEquals(first.planHash(), second.planHash());
    }
 
+   @Test void hashIsUnaffectedByDifferentTaskStrings() throws Exception {
+      stubHealthyAuthenticationChainOf("p1", "p2");
+      when(authenticationProviderService.getAuthenticationProvider("p2")).thenReturn(fileModel("p2"));
+
+      ResolvedPlan first = service.resolve(request("delete p2", List.of(deleteAuth("p2"))), user);
+      ResolvedPlan second = service.resolve(
+         request("please remove provider p2", List.of(deleteAuth("p2"))), user);
+      assertEquals(first.planHash(), second.planHash());
+   }
+
    @Test void hashChangesWhenProviderOrderChangesButMembershipDoesNot() throws Exception {
       // A create -- no preflight involved -- isolates the whole-chain projection's own order
       // sensitivity (section 5) from the delete preflight's own membership requirements.
