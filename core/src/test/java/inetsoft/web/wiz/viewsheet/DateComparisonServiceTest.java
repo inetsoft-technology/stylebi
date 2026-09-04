@@ -25,6 +25,7 @@ import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
 import org.junit.jupiter.api.Tag;
@@ -251,6 +252,45 @@ class DateComparisonServiceTest {
          () -> harness(model).service.set("tok", principal(), "Chart1", comparison, ""));
 
       assertTrue(thrown.getMessage().contains("level"), thrown.getMessage());
+   }
+
+   // ── comparisonOption ─────────────────────────────────────────────────────
+
+   /**
+    * The Angular dialog shows 5 options — Value Only / Change / Change and Value / Percent
+    * Change / Percent Change and Value — as one flat int each: {@link Calculator}'s
+    * VALUE/CHANGE/PERCENT for the first three, {@link DateComparisonInfo}'s
+    * CHANGE_VALUE/PERCENT_VALUE (101/102) for the combined two. Confirms all 5 actually reach
+    * {@code model.setComparisonOption}, not just the 3 {@code Calculator} defines.
+    */
+   @ParameterizedTest
+   @CsvSource({
+      "value, 6",
+      "change, 2",
+      "percentChange, 1",
+      "changeAndValue, 101",
+      "percentChangeAndValue, 102",
+      "VALUE, 6",
+      "PercentChange, 1"
+   })
+   void setsTheComparisonOptionForAllFiveUiValues(String word, int code) throws Exception {
+      DateComparisonPaneModel model = model();
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         null, null, null, false, null, null, null, word);
+
+      harness(model).service.set("tok", principal(), "Chart1", comparison, "");
+
+      assertEquals(code, model.getComparisonOption());
+   }
+
+   @Test
+   void readsTheComparisonOptionAsAName() throws Exception {
+      DateComparisonPaneModel model = model();
+      when(model.getComparisonOption()).thenReturn(DateComparisonInfo.CHANGE_VALUE);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1");
+
+      assertEquals("changeAndValue", read.get("comparisonOption"));
    }
 
    @Test
