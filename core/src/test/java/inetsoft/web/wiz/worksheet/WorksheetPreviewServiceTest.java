@@ -20,8 +20,10 @@ package inetsoft.web.wiz.worksheet;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -37,6 +39,14 @@ import static org.mockito.Mockito.*;
 class WorksheetPreviewServiceTest {
 
    private final WorksheetPreviewService service = new WorksheetPreviewService();
+
+   @AfterEach
+   void clearFailedQueryMessage() {
+      // Guard against test-order pollution: LAST_FAILED_QUERY_MESSAGE is a real, shared
+      // ThreadLocal (production field, not a test double), and JUnit within a class typically
+      // reuses the same thread across tests.
+      XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
+   }
 
    // ---------------------------------------------------------------------------
    // Helpers
@@ -91,8 +101,46 @@ class WorksheetPreviewServiceTest {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(null);
 
-      assertThrows(PairingException.class,
-                   () -> service.preview(rws(box), "T", 10));
+      PairingException ex = assertThrows(PairingException.class,
+                                          () -> service.preview(rws(box), "T", 10));
+      assertEquals("Table not found or produced no data: T", ex.getMessage(),
+                   "with no captured query-failure cause, the generic message is unchanged");
+   }
+
+   // Bug #76449 (WBS-005): a SQL-bound table whose query fails during RUNTIME_MODE execution
+   // (e.g. a JDBC driver rejecting an unsupported SQL feature) is swallowed by
+   // AssetQuery.getPreBaseTableLens's catch(SQLExpressionFailedException) into a plain null
+   // TableLens - indistinguishable, at this layer, from a genuinely missing table - except that
+   // it leaves the real driver message behind in XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE. These
+   // tests exercise WorksheetPreviewService.preview's consumer side of that hand-off directly via
+   // the real (production) ThreadLocal field, since reproducing the producer side would require a
+   // live JDBC datasource whose driver rejects a specific SQL construct.
+   @Test
+   void surfacesCapturedQueryFailureCauseInsteadOfGenericMessage() throws Exception {
+      XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set(
+         "[Vendor] window functions are not supported by this driver");
+
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(null);
+
+      PairingException ex = assertThrows(PairingException.class,
+                                          () -> service.preview(rws(box), "T", 10));
+      assertEquals("Failed to execute worksheet query for 'T': " +
+                   "[Vendor] window functions are not supported by this driver",
+                   ex.getMessage());
+   }
+
+   @Test
+   void consumesAndClearsCapturedQueryFailureCauseAfterSurfacingIt() throws Exception {
+      XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set("driver says no");
+
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(null);
+
+      assertThrows(PairingException.class, () -> service.preview(rws(box), "T", 10));
+      assertNull(XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get(),
+                 "captured cause must be consumed (removed) once surfaced, matching " +
+                 "AssetQuery.getDesignTableLens's existing consume-and-clear reader");
    }
 
    @Test

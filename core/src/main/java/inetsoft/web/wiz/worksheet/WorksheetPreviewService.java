@@ -20,6 +20,7 @@ package inetsoft.web.wiz.worksheet;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.web.wiz.pairing.PairingException;
 import org.springframework.stereotype.Service;
 
@@ -83,6 +84,18 @@ public class WorksheetPreviewService {
       }
 
       if(lens == null) {
+         // RUNTIME_MODE execution of a SQL-bound table whose query fails leaves this thread-local
+         // set (AssetQuery.getPreBaseTableLens's catch(SQLExpressionFailedException) branch) rather
+         // than throwing, so lens == null here is ambiguous between "genuinely missing table" and
+         // "query executed and failed." Prefer the captured cause when present.
+         String cause = XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get();
+
+         if(cause != null && !cause.isBlank()) {
+            XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
+            throw new PairingException("Failed to execute worksheet query for '"
+                                       + tableName + "': " + cause);
+         }
+
          throw new PairingException("Table not found or produced no data: " + tableName);
       }
 
