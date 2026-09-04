@@ -38,6 +38,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.web.composer.ws.dialog.ExpressionDialogService;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.*;
@@ -94,6 +95,38 @@ class WorksheetEditServiceMutatorsTest {
          .thenReturn(rws);
 
       return new WorksheetEditService(sessions, runtimeAccess, broadcast, securityEngine, mock(InnerJoinService.class));
+   }
+
+   /**
+    * Same as {@link #service(RuntimeWorksheet, String, Principal, String)} but wires a real
+    * {@link ExpressionDialogService} mock through, so {@code editExpression}'s syntax-validation
+    * gate is actually exercised -- every other {@code service(...)} overload builds a
+    * {@code WorksheetEditService} via the 5-arg legacy constructor, which deliberately skips
+    * that validation (see the constructor's own javadoc).
+    */
+   private WorksheetEditService serviceWithExpressionValidation(
+      RuntimeWorksheet rws, String runtimeId, Principal agent, String token,
+      ExpressionDialogService expressionDialogService)
+      throws PairingException, inetsoft.sree.security.SecurityException
+   {
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(
+         any(), any(ResourceType.class), any(String.class), any(ResourceAction.class)))
+         .thenReturn(true);
+
+      SheetSessionService sessions       = mock(SheetSessionService.class);
+      SheetRuntimeAccess  runtimeAccess  = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      JoinSession s = new JoinSession(token, runtimeId, "alice~;~host-org",
+                                      SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq(token), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq(runtimeId), eq(agent)))
+         .thenReturn(rws);
+
+      return new WorksheetEditService(sessions, runtimeAccess, broadcast, securityEngine,
+         mock(InnerJoinService.class), expressionDialogService);
    }
 
    private RuntimeWorksheet rws(Worksheet ws) {
@@ -2722,6 +2755,62 @@ class WorksheetEditServiceMutatorsTest {
       ColumnRef cr = (ColumnRef) ref;
       assertInstanceOf(ExpressionRef.class, cr.getDataRef());
       assertEquals("field['a'] * 2", ((ExpressionRef) cr.getDataRef()).getExpression());
+   }
+
+   /**
+    * Before this fix, `editExpression` never validated the new text at all -- an uncompilable
+    * expression was persisted silently ({@code {ok:true}}), only surfacing later as a broken
+    * render. Mirrors the native "Edit Expression" dialog's own gate
+    * (ExpressionDialogService.check), which the wiz agent path simply never called.
+    */
+   @Test
+   void editExpressionRejectsAnUncompilableScriptRatherThanStoringIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      ExpressionDialogService dialogService = mock(ExpressionDialogService.class);
+      doThrow(new Exception("missing ) after argument list"))
+         .when(dialogService).check(anyString(), any(), eq(false));
+
+      WorksheetEditService svc = serviceWithExpressionValidation(
+         rws(ws), "Worksheet/ws1", agent, "TOK", dialogService);
+
+      svc.apply("TOK", agent, ed ->
+         ed.addExpressionColumn("T", "calc", "field['a'] * 1", "integer", false));
+
+      assertThrows(PairingException.class, () -> svc.apply("TOK", agent, ed ->
+         ed.editExpression("T", "calc", "field['a'] - (", "integer", false)));
+
+      // The rejected write must not have taken -- the original expression survives.
+      ColumnRef cr = (ColumnRef) t.getColumnSelection(false).getAttribute("calc");
+      assertEquals("field['a'] * 1", ((ExpressionRef) cr.getDataRef()).getExpression());
+   }
+
+   /** A SQL-mode edit is routed to the SQL branch of the same validation gate, not skipped. */
+   @Test
+   void editExpressionValidatesSqlModeTextTooNotJustJavaScript() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      ExpressionDialogService dialogService = mock(ExpressionDialogService.class);
+      doThrow(new Exception("Unexpected token: )"))
+         .when(dialogService).check(anyString(), any(), eq(true));
+
+      WorksheetEditService svc = serviceWithExpressionValidation(
+         rws(ws), "Worksheet/ws1", agent, "TOK", dialogService);
+
+      svc.apply("TOK", agent, ed ->
+         ed.addExpressionColumn("T", "calc", "1", "integer", true));
+
+      assertThrows(PairingException.class, () -> svc.apply("TOK", agent, ed ->
+         ed.editExpression("T", "calc", "a b c )", "integer", true)));
+
+      verify(dialogService).check(anyString(), any(), eq(true));
+      verify(dialogService, never()).check(anyString(), any(), eq(false));
    }
 
    @Test
