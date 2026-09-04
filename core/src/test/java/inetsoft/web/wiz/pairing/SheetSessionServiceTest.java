@@ -21,6 +21,8 @@ import inetsoft.web.wiz.script.PaneScopeService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -41,6 +43,9 @@ import static org.mockito.Mockito.verify;
  * [Socket close: pane]    socketClosed expires a pane-scoped session on that socket
  * [Socket close: toolbar] socketClosed leaves a whole-sheet session's TTL behaviour alone
  * [Detach]                detach ends the one session matching socket + editorContext
+ * [findAllOnRuntime]      returns every unexpired session on a runtimeId across owners/tokens,
+ *                         self-inclusive for a solo session, excludes expired ones, empty for an
+ *                         unknown runtime (PSM-001 Change B)
  *
  * Follow Focus (retarget/popFocus/setFollowFocus):
  * [Follow focus: default off]     a freshly opened session has followFocusEnabled == false
@@ -300,6 +305,51 @@ class SheetSessionServiceTest {
          () -> FIXED_NOW + SheetSessionService.TTL_MILLIS + 1, svc);
       assertNull(svcLater.findOpen("frank~;~org", SheetType.WORKSHEET),
                  "an expired session must not be reported as held");
+   }
+
+   // ---- findAllOnRuntime (PSM-001 Change B) ---------------------------------------------------
+
+   @Test
+   void findAllOnRuntimeReturnsEveryUnexpiredSessionOnThatRuntimeAcrossOwnersAndTokens() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession first = svc.open("vs-1", "alice~;~org", SheetType.VIEWSHEET, "sock-1", "alice", null);
+      JoinSession second = svc.open("vs-1", "bob~;~org", SheetType.VIEWSHEET, "sock-2", "bob", null);
+      // A different runtime must not be counted.
+      svc.open("vs-2", "carol~;~org", SheetType.VIEWSHEET, "sock-3", "carol", null);
+
+      List<JoinSession> found = svc.findAllOnRuntime("vs-1");
+
+      assertEquals(2, found.size());
+      assertTrue(found.stream().anyMatch(s -> s.sessionToken().equals(first.sessionToken())));
+      assertTrue(found.stream().anyMatch(s -> s.sessionToken().equals(second.sessionToken())));
+   }
+
+   @Test
+   void findAllOnRuntimeIsSelfInclusiveForASoloSession() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession solo = svc.open("vs-3", "dave~;~org", SheetType.VIEWSHEET, null, null, null);
+
+      List<JoinSession> found = svc.findAllOnRuntime("vs-3");
+
+      assertEquals(1, found.size(), "a solo join must report 1 (itself), never 0");
+      assertEquals(solo.sessionToken(), found.get(0).sessionToken());
+   }
+
+   @Test
+   void findAllOnRuntimeExcludesExpiredSessions() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      svc.open("vs-4", "erin~;~org", SheetType.VIEWSHEET, null, null, null);
+
+      SheetSessionService svcLater = new SheetSessionService(
+         () -> FIXED_NOW + SheetSessionService.TTL_MILLIS + 1, svc);
+
+      assertEquals(0, svcLater.findAllOnRuntime("vs-4").size());
+   }
+
+   @Test
+   void findAllOnRuntimeReturnsEmptyForARuntimeWithNoSessions() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      assertTrue(svc.findAllOnRuntime("no-such-runtime").isEmpty());
    }
 
    // ---- Follow Focus: retarget / popFocus / setFollowFocus -----------------------------------

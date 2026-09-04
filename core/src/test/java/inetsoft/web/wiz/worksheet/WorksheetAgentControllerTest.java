@@ -355,6 +355,30 @@ class WorksheetAgentControllerTest {
       assertEquals(ctx, resp.editorContext());
    }
 
+   /**
+    * PSM-001 Change B: the service-layer concurrentSessionCount must reach the actual HTTP-facing
+    * JoinResponse DTO, not just JoinOutcome -- this is the controller-level test §7 of the design
+    * calls for, since a unit test on SheetJoinService alone would not catch a field dropped while
+    * building the response.
+    */
+   @Test
+   void joinResponseCarriesTheConcurrentSessionCount() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = session("TOK-2");
+
+      SheetJoinService joinSvc = mock(SheetJoinService.class);
+      when(joinSvc.join(eq("CODE"), eq(agent)))
+         .thenReturn(new SheetJoinService.JoinOutcome(s, "Sales Analysis", 3));
+
+      WorksheetAgentController ctrl = controller(featureOn(), joinSvc,
+         mock(SheetSessionService.class), mock(WorksheetReadService.class),
+         mock(WorksheetEditService.class), mock(WorksheetService.class));
+
+      WorksheetAgentController.JoinResponse resp = ctrl.join(new WorksheetAgentController.JoinRequest("CODE"), agent);
+
+      assertEquals(3, resp.concurrentSessionCount());
+   }
+
    @Test
    void joinRejectsFlagOff() {
       WorksheetAgentController ctrl = controller(featureOff(),

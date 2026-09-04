@@ -249,6 +249,35 @@ public class SheetSessionService {
    }
 
    /**
+    * Returns every unexpired session bound to {@code runtimeId}, across every owner and token --
+    * advisory only (PSM-001 Change B), used to warn a joining agent when it has landed on a
+    * document someone (possibly the same agent, via a different session) already has open. Unlike
+    * {@link #findOpen}, which is scoped to one {@code (ownerIdentity, sheetType)} and used to
+    * refuse a silent replace, this scans by runtime alone and is never a refusal ground -- it
+    * exists purely to report a count.
+    *
+    * <p>Self-inclusive by construction: called from {@link SheetJoinService#join} right after
+    * {@link #open} has already put the new session into {@link #sessions}, so a solo join returns
+    * a list of size 1, not 0 -- there is no separate "am I the only one" branch to keep in sync.
+    */
+   public List<JoinSession> findAllOnRuntime(String runtimeId) {
+      if(runtimeId == null) {
+         return List.of();
+      }
+
+      long now = clock.getAsLong();
+      List<JoinSession> result = new ArrayList<>();
+
+      for(JoinSession s : sessions.values()) {
+         if(!s.isExpired(now) && runtimeId.equals(s.runtimeId())) {
+            result.add(s);
+         }
+      }
+
+      return result;
+   }
+
+   /**
     * Returns the unexpired session bound to both {@code socketSessionId} and {@code runtimeId},
     * or {@code null} if none is held.
     *
