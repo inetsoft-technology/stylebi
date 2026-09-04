@@ -78,10 +78,17 @@ public class DateComparisonService {
     * @param endToday         anchor the range on today instead of an explicit end
     * @param comparisonOption what the numbers mean — value, change, percentChange,
     *                        changeAndValue, or percentChangeAndValue
+    * @param shareAssembly   another DateCompareAble assembly to share this assembly's
+    *                        date-comparison config from, instead of setting its own
+    * @param toDate    whether the period's range runs only up to the same point-in-time as
+    *                  today, within its level (e.g. Jan 1 - Mar 15 for a quarter, not the whole
+    *                  quarter) — the standard period pane's own "to date" checkbox
+    * @param inclusive whether the period's end date is included in its range
     */
    public record Comparison(Integer periods, String level, String endDate, boolean endToday,
                             String interval, Boolean useFacet, Boolean onlyShowMostRecentDate,
-                            String comparisonOption) {}
+                            String comparisonOption, String shareAssembly, Boolean toDate,
+                            Boolean inclusive) {}
 
    /** The current settings, normalized. Never echoes the raw cell format. */
    public Map<String, Object> read(String sessionToken, Principal user, String assemblyName)
@@ -100,8 +107,20 @@ public class DateComparisonService {
       boolean enabled = model != null &&
          comparisonService.isDateComparisonEnabled(runtimeId, assemblyName, user);
 
+      // The share-from assembly is worth reporting even when this assembly's own comparison
+      // reads as disabled — sharing is exactly the case where this assembly has no comparison
+      // of its own and relies entirely on another assembly's.
+      String shareFrom = model == null ? null :
+         comparisonService.getShare(runtimeId, assemblyName, user).getShareFromAssembly();
+      boolean hasShareFrom = shareFrom != null && !shareFrom.isBlank();
+
       if(!enabled) {
          out.put("enabled", false);
+
+         if(hasShareFrom) {
+            out.put("shareFrom", shareFrom);
+         }
+
          return out;
       }
 
@@ -111,6 +130,11 @@ public class DateComparisonService {
       out.put("onlyShowMostRecentDate", model.isOnlyShowMostRecentDate());
       out.put("period", describePeriod(model.getPeriodPaneModel()));
       out.put("interval", describeInterval(model.getIntervalPaneModel()));
+
+      if(hasShareFrom) {
+         out.put("shareFrom", shareFrom);
+      }
+
       return out;
    }
 
@@ -145,7 +169,8 @@ public class DateComparisonService {
 
          apply(model, comparison);
          comparisonService.setDateComparison(runtimeId, assemblyName,
-                                            model.toDateComparisonInfo(), null, linkUri, user,
+                                            model.toDateComparisonInfo(),
+                                            comparison.shareAssembly(), linkUri, user,
                                             dispatcher);
          result.putAll(describeRetargetedDimension(rvs, assemblyName));
          result.putAll(describeChartTypeOverride(rvs, assemblyName, beforeChartType));
@@ -353,7 +378,9 @@ public class DateComparisonService {
          || comparison.level() != null
          || (comparison.endDate() != null && !comparison.endDate().isBlank())
          || comparison.endToday()
-         || comparison.interval() != null;
+         || comparison.interval() != null
+         || comparison.toDate() != null
+         || comparison.inclusive() != null;
    }
 
    private static void apply(DateComparisonPaneModel model, Comparison comparison) {
@@ -406,6 +433,14 @@ public class DateComparisonService {
          setDynamic(standard.getDateLevel(), normalizeLevel(comparison.level()));
       }
 
+      if(comparison.toDate() != null) {
+         standard.setToDate(comparison.toDate());
+      }
+
+      if(comparison.inclusive() != null) {
+         standard.setInclusive(comparison.inclusive());
+      }
+
       // Setting the end date clears the today anchor, because leaving it set is what discarded
       // the date.
       if(comparison.endToday()) {
@@ -419,7 +454,7 @@ public class DateComparisonService {
       IntervalPaneModel interval = model.getIntervalPaneModel();
 
       if(comparison.interval() != null && interval != null) {
-         setDynamic(interval.getLevel(), comparison.interval());
+         setDynamic(interval.getLevel(), normalizeInterval(comparison.interval()));
       }
    }
 
@@ -511,6 +546,36 @@ public class DateComparisonService {
       return COMPARISON_OPTION_NAMES.get(comparisonOption);
    }
 
+   private static final Map<String, Integer> INTERVAL_WORDS = Map.of(
+      "all", DateComparisonInfo.ALL,
+      "yeartodate", DateComparisonInfo.YEAR_TO_DATE,
+      "quartertodate", DateComparisonInfo.QUARTER_TO_DATE,
+      "monthtodate", DateComparisonInfo.MONTH_TO_DATE,
+      "weektodate", DateComparisonInfo.WEEK_TO_DATE,
+      "samequarter", DateComparisonInfo.SAME_QUARTER,
+      "samemonth", DateComparisonInfo.SAME_MONTH,
+      "sameweek", DateComparisonInfo.SAME_WEEK,
+      "sameday", DateComparisonInfo.SAME_DAY
+   );
+
+   /**
+    * Translates the agent vocabulary's interval-level word to the {@code DateComparisonInfo}
+    * bitmask {@code date-comparison-interval-pane.component.ts}'s {@code intervalLevels} dropdown
+    * sends. Mirrors {@link #normalizeLevel(String)} — writing the raw word through untranslated
+    * is the same class of defect that method exists to prevent.
+    */
+   private static String normalizeInterval(String interval) {
+      Integer code = INTERVAL_WORDS.get(interval.trim().toLowerCase().replace(" ", ""));
+
+      if(code == null) {
+         throw new IllegalArgumentException(
+            "'interval' must be one of: all, yearToDate, quarterToDate, monthToDate, " +
+            "weekToDate, sameQuarter, sameMonth, sameWeek, sameDay. Got '" + interval + "'.");
+      }
+
+      return code.toString();
+   }
+
    private static void setDynamic(DynamicValueModel target, String value) {
       if(target == null) {
          throw new IllegalArgumentException(
@@ -538,6 +603,7 @@ public class DateComparisonService {
          out.put("endToday", standard.isToDayAsEndDay());
          out.put("endDate", standard.isToDayAsEndDay() ? null : value(standard.getEndDay()));
          out.put("inclusive", standard.isInclusive());
+         out.put("toDate", standard.isToDate());
       }
 
       return out;
