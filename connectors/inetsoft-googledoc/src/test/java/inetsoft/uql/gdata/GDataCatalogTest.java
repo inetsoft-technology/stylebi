@@ -205,6 +205,43 @@ class GDataCatalogTest {
    }
 
    @Test
+   void listSpreadsheetFiles_realBody_fieldMaskRequestsIdAndPageTokenButNotName() throws Exception {
+      // P6 review round 2, item 1: listSpreadsheetFiles' own field mask -- unlike
+      // listSheetProperties' and fetchSampleRows' (P6 round 1) -- had no real-body test at all,
+      // which is exactly why the mask requesting `name` (a field File.getName() is never read
+      // anywhere in this connector) drifted past four readings unnoticed. Runs the real body via
+      // CALLS_REAL_METHODS with only getDrive stubbed (the same wiring
+      // listDatasets_pagesDriveToExhaustion above uses), and captures the string passed to
+      // setFields.
+      //
+      // Rejects two different wrong implementations: one that DROPS "nextPageToken" (without it
+      // in the mask the field filter strips it from the response, and the paging loop terminates
+      // after page one -- the exact silent truncation X3 forbids), and one that ADDS "name" back
+      // (dead weight nothing reads -- verified by hand: both mutations turn this test RED, see
+      // 07-fix-r2.md §3).
+      FileList page = new FileList().setFiles(List.of(file("F1"))).setNextPageToken(null);
+      Drive.Files.List listRequest = mock(Drive.Files.List.class, RETURNS_SELF);
+      when(listRequest.execute()).thenReturn(page);
+      Drive.Files filesMock = mock(Drive.Files.class);
+      when(filesMock.list()).thenReturn(listRequest);
+      Drive driveMock = mock(Drive.class);
+      when(driveMock.files()).thenReturn(filesMock);
+
+      runtimeStatic = mockStatic(GDataRuntime.class, CALLS_REAL_METHODS);
+      runtimeStatic.when(() -> GDataRuntime.getDrive(any())).thenReturn(driveMock);
+
+      GDataRuntime.listSpreadsheetFiles(fakeDataSource());
+
+      ArgumentCaptor<String> fieldsCaptor = ArgumentCaptor.forClass(String.class);
+      verify(listRequest).setFields(fieldsCaptor.capture());
+      String mask = fieldsCaptor.getValue();
+
+      assertTrue(mask.contains("nextPageToken"), mask);
+      assertTrue(mask.contains("id"), mask);
+      assertFalse(mask.contains("name"), mask);
+   }
+
+   @Test
    void listDatasets_dropsNonGridSheets() throws Exception {
       // F4/A18: a chart-only OBJECT sheet has no grid and can only ever fail describeDataset.
       runtimeStatic = mockStatic(GDataRuntime.class);

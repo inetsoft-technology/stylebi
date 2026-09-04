@@ -243,8 +243,8 @@ public class GDataRuntime extends TabularRuntime implements TabularCatalogProvid
 
    // Package-private (not private) so GDataCatalogTest can mockStatic(GDataRuntime.class) and stub
    // this one method for listSpreadsheetFiles' own unit test (the paging loop lives INSIDE
-   // listSpreadsheetFiles, i.e. behind the seam every other catalog test mocks -- see
-   // 01-design.md Part D.15 / 03-reconcile.md D6). Never called directly by GDataCatalog.
+   // listSpreadsheetFiles, i.e. behind the seam every other catalog test mocks). Never called
+   // directly by GDataCatalog.
    static Drive getDrive(GDataDataSource ds) {
       return new Drive.Builder(HTTP_TRANSPORT, JSON_FACTORY, createInitializer(ds, true))
          .setApplicationName(APPLICATION_ID)
@@ -261,6 +261,12 @@ public class GDataRuntime extends TabularRuntime implements TabularCatalogProvid
     * condition -- the loop stops on {@code nextPageToken == null}, so a large page size cannot
     * become a silent truncation cap (X3).
     *
+    * <p>The field mask requests only {@code id} (and {@code nextPageToken}) -- {@code name} is
+    * deliberately NOT fetched. Nothing in this connector reads {@code File.getName()}: a level-2
+    * failure for one spreadsheet propagates rather than being caught and logged per spreadsheet
+    * (A11 requires the propagation), so there is no per-spreadsheet log message that would need a
+    * human-readable handle.
+    *
     * <p>{@code setIncludeItemsFromAllDrives}/{@code setSupportsAllDrives} must be set together:
     * without both, a shared-drive spreadsheet is invisible, which is exactly the kind of silent
     * partial listing X3 forbids.
@@ -270,8 +276,8 @@ public class GDataRuntime extends TabularRuntime implements TabularCatalogProvid
     * because one shared drive was momentarily unreachable. There is no SPI-level slot for "the
     * dataset list itself may be incomplete" -- {@code TabularDatasetSchema.columnsMayBeIncomplete}
     * is documented about one dataset's column list, not the catalog's dataset list -- so a WARN
-    * plus a design-doc record (03-reconcile.md / 01-design.md Part G.2 #5) is the whole of what is
-    * available this round.
+    * plus a record in stylebi-wiz {@code docs/tabular/stylebi-tabular-wiz-integration.md} §5.3
+    * no. 45 is the whole of what is available this round.
     */
    static List<File> listSpreadsheetFiles(GDataDataSource ds) throws IOException {
       List<File> files = new ArrayList<>();
@@ -281,7 +287,7 @@ public class GDataRuntime extends TabularRuntime implements TabularCatalogProvid
       do {
          FileList response = drive.files().list()
             .setQ("mimeType='application/vnd.google-apps.spreadsheet' and trashed=false")
-            .setFields("nextPageToken,files(id,name)")
+            .setFields("nextPageToken,files(id)")
             .setPageSize(1000)
             .setSpaces("drive")
             .setIncludeItemsFromAllDrives(true)
@@ -350,7 +356,7 @@ public class GDataRuntime extends TabularRuntime implements TabularCatalogProvid
     * {@code A1:<cols><rowCount>}, i.e. the entire sheet, and this method must not copy that
     * (Part D.14).
     *
-    * <p>[assumption, per 01-design.md Part D.3] that a row-only A1 range is accepted by
+    * <p>[assumption] that a row-only A1 range is accepted by
     * {@code spreadsheets().get().setRanges(...)} -- this is A1 notation's documented form but
     * could not be exercised against a live server in this environment. If a live call ever rejects
     * it: add {@code gridProperties.columnCount} to {@link #listSheetProperties}'s field mask, build

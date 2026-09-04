@@ -34,8 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * cell, not the column ({@code GDataRuntime.java:127-180} derives a value, never a type). This
  * class is the reusable half of that logic, re-targeted at {@code XSchema} instead of the runtime
  * value classes ({@code java.sql.Date}/{@code Timestamp}/{@code Time}/{@code Double}/
- * {@code Boolean}/{@code String}) {@code runQuery} actually puts in the table -- see
- * {@code 01-design.md} Part D.4 for the full branch-by-branch mapping table.
+ * {@code Boolean}/{@code String}) {@code runQuery} actually puts in the table.
  */
 final class GDataColumnTypes {
    private GDataColumnTypes() {
@@ -55,10 +54,11 @@ final class GDataColumnTypes {
    }
 
    /**
-    * The mapping table from {@code 01-design.md} Part D.4, on the enum above. {@code DATE_TIME}
-    * maps to {@link XSchema#TIME_INSTANT}, not {@link XSchema#DATE}: {@code XSchema.isDateType}
-    * drives {@code TabularCatalogService.toDataset}'s dimension marking, and a datetime column
-    * genuinely is a time dimension.
+    * The DATE/DATE_TIME/TIME/other-numeric-or-absent-format mapping onto {@link XSchema}, on the
+    * enum above. {@code DATE_TIME} maps to {@link XSchema#TIME_INSTANT}, not
+    * {@link XSchema#DATE}: {@code XSchema.isDateType} drives
+    * {@code TabularCatalogService.toDataset}'s dimension marking, and a datetime column genuinely
+    * is a time dimension.
     */
    static String xschemaTypeOf(SheetsNumberFormat format) {
       return switch(format) {                        // exhaustive over OUR enum -- no default

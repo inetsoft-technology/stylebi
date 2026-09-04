@@ -28,9 +28,10 @@ import java.util.*;
 
 /**
  * Assembles {@link GDataRuntime}'s {@link TabularCatalogProvider} answers out of the connector's
- * own Drive/Sheets API calls (via {@link GDataRuntime}'s package-private static fetch methods --
- * the mocking seam, 01-design.md Part D.15). Mirrors {@code AnalyticsCatalog}'s role:
- * package-private, static methods, no state of its own.
+ * own Drive/Sheets API calls, via {@link GDataRuntime}'s package-private static fetch methods --
+ * kept on {@code GDataRuntime} rather than here so {@code GDataCatalogTest} can
+ * {@code mockStatic(GDataRuntime.class)} without touching a line of the code under test. Mirrors
+ * {@code AnalyticsCatalog}'s role: package-private, static methods, no state of its own.
  *
  * No caching: the two SPI phases share nothing that stays fresh across calls. A sheet's TITLE
  * (fetched by {@code listDatasets}) goes stale the moment a user renames it, and X6 (a
@@ -41,9 +42,11 @@ import java.util.*;
  * Sheets is the first connector on this SPI where "a column has a type" is not a source concept:
  * types live on CELLS, not columns (a date is a number plus a number format). The column *list*
  * comes from the header row (a declaration, per {@link TabularCatalogProvider#describeDataset}'s
- * own javadoc); the column *types* come from sampling 3 data rows (charter Q4). See
- * 01-design.md Part D.9 for why {@link TabularDatasetSchema#columnsMayBeIncomplete()} can only
- * express the list half of that split, not the type half.
+ * own javadoc); the column *types* come from sampling 3 data rows below it. That split means
+ * {@link TabularDatasetSchema#columnsMayBeIncomplete()} can only express one half of it -- a
+ * dropped column really is "the list may be missing something", but a sampled TYPE is a different
+ * kind of fact than an incomplete list, and this flag has no separate slot for it. See stylebi-wiz
+ * {@code docs/tabular/stylebi-tabular-wiz-integration.md} §5.3 no. 38.
  */
 final class GDataCatalog {
    private GDataCatalog() {
@@ -91,9 +94,9 @@ final class GDataCatalog {
     *
     * Exactly two Google API calls: {@link GDataRuntime#listSheetProperties} resolves the dataset
     * id's numeric {@code sheetId} to the sheet's current title (required because
-    * {@code spreadsheets().get().setRanges(...)} addresses a sheet by title, never by id -- see
-    * 01-design.md Part D.3) and, by failing to find that id, enforces X6; then
-    * {@link GDataRuntime#fetchSampleRows} reads the 4-row range. There cannot be a single call:
+    * {@code spreadsheets().get().setRanges(...)} addresses a sheet by title, never by id) and, by
+    * failing to find that id, enforces X6; then {@link GDataRuntime#fetchSampleRows} reads the
+    * 4-row range. There cannot be a single call:
     * {@code Spreadsheets$Get}'s whole parameter surface is {@code setRanges}/{@code setFields}/
     * {@code setIncludeGridData} -- nothing accepts a sheet id.
     */
@@ -132,9 +135,9 @@ final class GDataCatalog {
          String raw = headerName(headerCell);
 
          if(raw == null) {
-            // charter T2 (empty header cell) + F5 (error-valued header cell) + a non-string
-            // header cell (headerName() below returns null for all three): a synthesized name
-            // would claim a column runQuery names null, i.e. one nothing can bind to.
+            // T2 (empty header cell) + F5 (error-valued header cell) + a non-string header cell
+            // (headerName() below returns null for all three): a synthesized name would claim a
+            // column runQuery names null, i.e. one nothing can bind to.
             droppedCount++;
             continue;
          }
@@ -151,11 +154,12 @@ final class GDataCatalog {
          }
 
          if(!seenNames.add(name)) {
-            // F1/Q3 (the licensed deviation, 03-reconcile.md D1): keep the FIRST occurrence of a
-            // duplicate trimmed name, drop every later one. First wins because
-            // applyAnnotationToDoc's `find` (wiz) resolves to the first match, so keeping the
-            // first occurrence is the only choice under which the surviving catalog column and
-            // the column the merge actually annotates are the same column.
+            // F1/Q3, the licensed deviation: keep the FIRST occurrence of a duplicate trimmed
+            // name, drop every later one. First wins because applyAnnotationToDoc's `find` (wiz)
+            // resolves to the first match, so keeping the first occurrence is the only choice
+            // under which the surviving catalog column and the column the merge actually
+            // annotates are the same column. See stylebi-wiz
+            // `docs/tabular/stylebi-tabular-wiz-integration.md` §5.3 no. 40.
             droppedCount++;
             continue;
          }
@@ -215,8 +219,9 @@ final class GDataCatalog {
     * embedded {@code '} -- "always" rather than "only when needed" because "when needed" is a
     * second grammar to get wrong, and a quoted title is valid A1 notation unconditionally. This
     * makes {@code describeDataset} strictly more capable than {@code runQuery} for such a title;
-    * that asymmetry is recorded (X4, see 01-design.md Part D.3 and the class javadoc above), not
-    * levelled -- N2 forbids touching {@code runQuery} this round.
+    * that asymmetry (X4) is recorded, not levelled, in stylebi-wiz
+    * {@code docs/tabular/stylebi-tabular-wiz-integration.md} §5.3 no. 41 -- N2 forbids touching
+    * {@code runQuery} this round.
     */
    private static String quoteTitle(String title) {
       return "'" + title.replace("'", "''") + "'";
