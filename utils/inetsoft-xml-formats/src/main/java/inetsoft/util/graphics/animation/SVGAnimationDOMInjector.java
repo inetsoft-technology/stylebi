@@ -532,6 +532,12 @@ public class SVGAnimationDOMInjector {
          return;
       }
 
+      // Pair each fill path with the wedge-border path(s) Batik emits alongside it when the pie
+      // has a slice border, so the outline sweeps in with its slice instead of showing the pie's
+      // whole group structure from the first paint.  Built here, before any "d" is rewritten,
+      // because "d" is the pairing key.
+      Map<Element, List<Element>> companions = buildSliceCompanions(slices);
+
       // Detect and reclassify donut center-hole overlays; a faceted donut has one per panel.
       List<double[]> holes = preprocessDonutHoles(svgRoot);
 
@@ -560,7 +566,7 @@ public class SVGAnimationDOMInjector {
          // that, so fall back to the opacity fade.  All panels begin at t=0 (facets in parallel).
          boolean tiled = isPanelTiled(panel, viewport);
          double endTime = animatePiePanel(panel.slices, panel.center, hole, tiled,
-                                          cssKeyframes, kfCounter);
+                                          cssKeyframes, kfCounter, companions);
          maxEndTime = Math.max(maxEndTime, endTime);
       }
 
@@ -665,11 +671,17 @@ public class SVGAnimationDOMInjector {
     * <p>@keyframes rules are appended to the shared {@code cssKeyframes} buffer (flushed once by
     * the caller) and named via the shared {@code kfCounter} so names stay unique across panels.
     *
+    * <p>{@code slices} holds only the fill paths, so all the grouping and timing below sees the
+    * same input it always has.  A slice's border path, if it has one, rides along via
+    * {@code companions} — see {@link #buildSliceCompanions}.
+    *
+    * @param companions slice -&gt; border path(s) to animate in lockstep with it.
     * @return the time (seconds) at which this panel's last slice finishes animating.
     */
    private static double animatePiePanel(List<Element> slices, double[] pieCenter,
                                          double[] holeParams, boolean tiled,
-                                         StringBuilder cssKeyframes, int[] kfCounter)
+                                         StringBuilder cssKeyframes, int[] kfCounter,
+                                         Map<Element, List<Element>> companions)
    {
       final double SLICE_DUR = AnimationConstants.PIE_SLICE_DURATION;
       // Tolerance (radians, ~0.06°) for treating two arc start angles as the same logical slice.
@@ -729,9 +741,10 @@ public class SVGAnimationDOMInjector {
       // the pie is clipped across tiles where the sweep's rewritten "d" would not survive.
       if(numArcGroups == 0 || tiled) {
          for(int si = 0; si < slices.size(); si++) {
-            mergeStyle(slices.get(si), String.format(java.util.Locale.US,
+            styleSlice(slices.get(si), String.format(java.util.Locale.US,
                "opacity:0;animation:inetsoft-pie-fade %.2fs %s %.2fs both",
-               AnimationConstants.PIE_FADE_DURATION, AnimationConstants.PIE_FADE_EASING, si * SLICE_DUR));
+               AnimationConstants.PIE_FADE_DURATION, AnimationConstants.PIE_FADE_EASING, si * SLICE_DUR),
+               companions);
          }
 
          return slices.size() * SLICE_DUR;
@@ -808,9 +821,9 @@ public class SVGAnimationDOMInjector {
                ? groupBegin[myArcIdx]
                : findDepthFaceDelay(d, groupKeys, groupBegin);
             if(snapDelay >= 0) {
-               mergeStyle(slice, String.format(java.util.Locale.US,
+               styleSlice(slice, String.format(java.util.Locale.US,
                   "opacity:0;animation:inetsoft-pie-fade 0.001s steps(1,start) %.3fs both",
-                  snapDelay));
+                  snapDelay), companions);
             }
             continue;
          }
@@ -836,9 +849,9 @@ public class SVGAnimationDOMInjector {
 
                if(isDepthFace) {
                   // Arc depth face: snap to full opacity when this slice's sweep begins.
-                  mergeStyle(slice, String.format(java.util.Locale.US,
+                  styleSlice(slice, String.format(java.util.Locale.US,
                      "opacity:0;animation:inetsoft-pie-fade 0.001s steps(1,start) %.3fs both",
-                     delay));
+                     delay), companions);
                   continue;
                }
 
@@ -908,7 +921,7 @@ public class SVGAnimationDOMInjector {
                   : String.format(java.util.Locale.US,
                      "M%.4f %.4f A%.4f %.4f %.0f 0 %.0f %.4f %.4f L%.4f %.4f Z",
                      sx, sy, rx, ry, xrot, sw, sx, sy, cx, cy);
-               slice.setAttribute("d", fromD);
+               setSliceD(slice, fromD, companions);
 
                // Build a unique @keyframes rule for this slice's sweep path sequence.
                // CSS d-property animation requires path() wrapper around each SVG path string.
@@ -925,16 +938,16 @@ public class SVGAnimationDOMInjector {
                }
 
                cssKeyframes.append("}");
-               mergeStyle(slice, String.format(java.util.Locale.US,
-                  "animation:%s %.3fs linear %.3fs forwards", kfName, sliceDur, delay));
+               styleSliceSweep(slice, kfName, sliceDur, delay, companions);
                continue;
             }
          }
 
          // No center available: opacity fade.
-         mergeStyle(slice, String.format(java.util.Locale.US,
+         styleSlice(slice, String.format(java.util.Locale.US,
             "opacity:0;animation:inetsoft-pie-fade %.2fs %s %.2fs both",
-            AnimationConstants.PIE_FADE_DURATION, AnimationConstants.PIE_FADE_EASING, delay));
+            AnimationConstants.PIE_FADE_DURATION, AnimationConstants.PIE_FADE_EASING, delay),
+            companions);
       }
 
       return totalAnimEndTime;
@@ -1748,15 +1761,191 @@ public class SVGAnimationDOMInjector {
             // are never treated as pie slices.
             textGroups.add(c);
          }
-         // Pie slices from Batik are rendered with stroke="none" by default.
-         // If a chart is configured with a visible slice border/stroke, getAttribute("stroke")
-         // won't return "none" and those slices will be silently skipped (no animation).
+         // Batik writes stroke="none" on the path it emits for a fill() call, so this predicate
+         // picks out the filled wedge and skips the separate stroked path that BarVO.paintLine
+         // draws over the same shape when the slice has a border.  Those border paths are paired
+         // back to their fill by buildSliceCompanions() and animated alongside it.
          else if("path".equals(c.getLocalName()) && "none".equals(c.getAttribute("stroke"))) {
             slices.add(c);
          }
          else {
             collectSlicesAndText(c, slices, textGroups);
          }
+      }
+   }
+
+   /**
+    * Pair each collected pie slice fill path with the border path(s) that trace the same geometry.
+    *
+    * <p>A pie whose binding has a group dimension gets a slice border: {@code GraphGenerator}
+    * gives the IntervalElement a {@code StaticLineFrame(new GLine(1))} so adjacent slices stay
+    * distinguishable.  {@code BarVO.paintBar} then fills the wedge and strokes the SAME
+    * {@code Shape}, so Batik writes two sibling {@code <path>} elements with an identical
+    * {@code d} inside the one {@code <g class="inetsoft-bar">} annotation group:
+    *
+    * <pre>
+    * &lt;g class="inetsoft-bar" data-row=".." data-col=".."&gt;
+    *   &lt;g fill="red" stroke="red"&gt;
+    *     &lt;path d="M93.3 25 A50 50 0 0 0 25 6.7L 50 50 Z" stroke="none"/&gt;   &lt;!-- fill   --&gt;
+    *     &lt;path fill="none" d="M93.3 25 A50 50 0 0 0 25 6.7L 50 50 Z" stroke="black"/&gt; &lt;!-- border --&gt;
+    *   &lt;/g&gt;
+    * &lt;/g&gt;
+    * </pre>
+    *
+    * {@link #collectSlicesAndText} takes the fill (it carries {@code stroke="none"}) and skips the
+    * border (it carries {@code fill="none"}), so before this pairing the complete set of wedge
+    * outlines — the pie's group boundaries — was painted at full geometry in the very first frame
+    * while only the fills swept in.
+    *
+    * <p>Matching on the identical {@code d} within the enclosing annotation group is exact and is
+    * robust against Batik hoisting fill/stroke onto an intermediate {@code <g>} (see
+    * {@link #firstDescendantPath}) and against a group holding more than one wedge geometry.  A
+    * slice with no enclosing {@code inetsoft-bar} group simply has no companions, which preserves
+    * the previous behaviour.
+    *
+    * <p>A border is claimed by the first slice that matches it.  With the "apply effect" (shine)
+    * option {@code BarVO.applyEffect} fills the very same wedge path twice more with gradients,
+    * and those two extra paths also carry {@code stroke="none"} and so are collected as slices
+    * too — without the claim check the one border would accumulate three stacked
+    * {@code animation} declarations and only the last would take effect.
+    *
+    * <p>Only {@code inetsoft-bar} groups are considered, which is all a pie needs: a 3D pie
+    * ({@code Pie3DVO}, which annotates with {@code inetsoft-pie} instead) never reaches here at
+    * all, because {@code VGraphPair.hasPieVO} skips {@code Pie3DVO} and so no animation hint is
+    * ever set for it.
+    *
+    * <p>Must be called BEFORE any {@code d} is rewritten, since {@code d} is the pairing key.
+    *
+    * @param slices the collected fill paths, in DOM order.
+    * @return slice -&gt; its border path(s); slices with no companion are absent from the map.
+    */
+   private static Map<Element, List<Element>> buildSliceCompanions(List<Element> slices) {
+      Set<Element> sliceSet = Collections.newSetFromMap(new IdentityHashMap<>());
+      sliceSet.addAll(slices);
+      // Borders already paired to an earlier slice, so a duplicated fill cannot re-claim them.
+      Set<Element> claimed = Collections.newSetFromMap(new IdentityHashMap<>());
+      Map<Element, List<Element>> companions = new IdentityHashMap<>();
+
+      for(Element slice : slices) {
+         Element annot = enclosingAnnotationGroup(slice, SVGSupport.ANNOTATION_BAR);
+         String d = slice.getAttribute("d");
+
+         if(annot == null || d.isEmpty()) {
+            continue;
+         }
+
+         List<Element> paths = new ArrayList<>();
+         collectDescendantPaths(annot, paths);
+         List<Element> borders = paths.stream()
+            .filter(p -> !sliceSet.contains(p) && !claimed.contains(p)
+               && d.equals(p.getAttribute("d")))
+            .collect(Collectors.toList());
+
+         if(!borders.isEmpty()) {
+            claimed.addAll(borders);
+            companions.put(slice, borders);
+         }
+      }
+
+      return companions;
+   }
+
+   /** The nearest ancestor-or-self {@code <g class="cssClass">} of {@code el}, or null. */
+   private static Element enclosingAnnotationGroup(Element el, String cssClass) {
+      for(Node n = el; n instanceof Element e; n = n.getParentNode()) {
+         if(cssClass.equals(e.getAttribute("class"))) {
+            return e;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Collect the {@code <path>} descendants of {@code root}, in DOM order.
+    *
+    * <p>Only {@code <g>} children are descended into — the same restriction
+    * {@link #firstDescendantPath} uses, since Batik's only nesting inside an annotation group is
+    * the intermediate {@code <g>} it emits for a fill/stroke state change.  This keeps
+    * {@code <defs>}, {@code <clipPath>} and {@code <pattern>} content out of the results, so a
+    * referenced shape can never be mistaken for a wedge outline and have its geometry rewritten.
+    */
+   private static void collectDescendantPaths(Element root, List<Element> out) {
+      NodeList children = root.getChildNodes();
+
+      for(int i = 0; i < children.getLength(); i++) {
+         if(!(children.item(i) instanceof Element c)) {
+            continue;
+         }
+
+         if("path".equals(c.getLocalName())) {
+            out.add(c);
+         }
+         else if("g".equals(c.getLocalName())) {
+            collectDescendantPaths(c, out);
+         }
+      }
+   }
+
+   /** Set the {@code d} attribute on a slice and, in lockstep, on each of its border companions. */
+   private static void setSliceD(Element slice, String d,
+                                 Map<Element, List<Element>> companions)
+   {
+      slice.setAttribute("d", d);
+
+      for(Element border : companions.getOrDefault(slice, List.of())) {
+         border.setAttribute("d", d);
+      }
+   }
+
+   /**
+    * Merge {@code style} into a slice and, in lockstep, into each of its border companions.
+    *
+    * <p>Used for every styling outcome whose style already gates opacity
+    * ({@code opacity:0;animation:inetsoft-pie-fade ... both}): the staggered fade fallback, the 3D
+    * depth-face snap and the no-center fade.  The border is then hidden for exactly the same
+    * interval and revealed on exactly the same timeline as its fill.
+    */
+   private static void styleSlice(Element slice, String style,
+                                  Map<Element, List<Element>> companions)
+   {
+      mergeStyle(slice, style);
+
+      for(Element border : companions.getOrDefault(slice, List.of())) {
+         mergeStyle(border, style);
+      }
+   }
+
+   /**
+    * Apply the arc-sweep animation to a slice and, in lockstep, to its border companions.
+    *
+    * <p>The fill gets the sweep alone: its from-state {@code d} encloses zero area, so it is
+    * invisible throughout the delay without any opacity handling and {@code forwards} suffices.
+    *
+    * <p>A border cannot rely on that.  The from-state {@code M sx sy A ... sx sy L cx cy Z} is a
+    * degenerate arc, which SVG treats as omitted (SVG 1.1 §8.3.8), leaving
+    * {@code moveto -> lineto(hub) -> closepath}: zero area when filled, but a 1px radial hairline
+    * from the rim to the hub when STROKED.  Ungated, every slice's border would draw a visible
+    * spoke at t=0 — an asterisk across the whole pie.  So a companion also gets
+    * {@code inetsoft-pie-fade} as a {@code steps(1,start)} snap at the same delay: the backwards
+    * fill holds {@code opacity:0} through the delay and flips it to 1 exactly when the sweep
+    * begins.  Same idiom as the 3D depth faces below.
+    *
+    * <p>The sweep keyframes themselves are shared rather than duplicated: {@code @keyframes} have
+    * no element affinity, and identical geometry means the fill and its outline interpolate
+    * identically with no chance of drift.
+    */
+   private static void styleSliceSweep(Element slice, String kfName, double sliceDur,
+                                       double delay, Map<Element, List<Element>> companions)
+   {
+      mergeStyle(slice, String.format(java.util.Locale.US,
+         "animation:%s %.3fs linear %.3fs forwards", kfName, sliceDur, delay));
+
+      for(Element border : companions.getOrDefault(slice, List.of())) {
+         mergeStyle(border, String.format(java.util.Locale.US,
+            "opacity:0;animation:%s %.3fs linear %.3fs forwards,"
+               + "inetsoft-pie-fade 0.001s steps(1,start) %.3fs both",
+            kfName, sliceDur, delay, delay));
       }
    }
 
