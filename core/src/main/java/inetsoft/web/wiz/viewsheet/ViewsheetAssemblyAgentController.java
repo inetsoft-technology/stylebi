@@ -696,12 +696,18 @@ public class ViewsheetAssemblyAgentController {
    /**
     * One clause in the flat condition vocabulary. {@code junction} joins it to the NEXT clause,
     * so the last clause must not carry one — {@link ConditionVocabulary} enforces that.
+    *
+    * <p>{@code equal} turns {@code less_than}/{@code greater_than} into their "or equal to" form.
+    * {@code level} is the clause's nesting depth for parenthesization — omitted or {@code null}
+    * means flat (level 0), matching the historical behavior.
     */
    public record ConditionClause(String field, String operator, List<Object> values,
-                                 String junction, Boolean negated) {
+                                 String junction, Boolean negated, Boolean equal, Integer level) {
       ConditionVocabulary.Clause toClause() {
          return new ConditionVocabulary.Clause(field, operator, values, junction,
-                                               Boolean.TRUE.equals(negated));
+                                               Boolean.TRUE.equals(negated),
+                                               Boolean.TRUE.equals(equal),
+                                               level == null ? 0 : level);
       }
    }
 
