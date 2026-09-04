@@ -19,7 +19,12 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.CellBinding;
 import inetsoft.report.GroupableCellBinding;
+import inetsoft.report.TableCellBinding;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.XCondition;
 import inetsoft.web.binding.model.table.CellBindingInfo;
+import inetsoft.web.binding.model.table.OrderModel;
+import inetsoft.web.binding.model.table.TopNModel;
 
 import java.util.*;
 
@@ -62,6 +67,29 @@ public final class CalcCellVocabulary {
       "horizontal", GroupableCellBinding.EXPAND_H,
       "h", GroupableCellBinding.EXPAND_H);
 
+   /**
+    * A group cell's sort direction ({@code OrderModel.type}). {@code "manual"} requires
+    * {@code manualOrder} alongside it. Sorting by a specific aggregate's value
+    * ({@code XConstants.SORT_VALUE_ASC}/{@code SORT_VALUE_DESC}) is not exposed here yet -- it
+    * needs the same in-scope-aggregate resolution {@link #TOPN_MODE} deliberately does not
+    * expose either; see the note on {@code topn.mode}.
+    */
+   private static final Map<String, Integer> SORT_DIRECTION = Map.of(
+      "none", XConstants.SORT_NONE,
+      "asc", XConstants.SORT_ASC,
+      "desc", XConstants.SORT_DESC,
+      "manual", XConstants.SORT_SPECIFIC);
+
+   /**
+    * A group cell's ranking mode ({@code TopNModel.type}). Values match {@code StyleConstants}
+    * exactly (confirmed identical to {@code XCondition.NONE}/{@code TOP_N}/{@code BOTTOM_N}: 0,
+    * 9, 10) -- the UI's own dropdown and this vocabulary resolve to the same wire values.
+    */
+   private static final Map<String, Integer> TOPN_MODE = Map.of(
+      "none", XCondition.NONE,
+      "top", XCondition.TOP_N,
+      "bottom", XCondition.BOTTOM_N);
+
    /** Keys that mean something else here, mapped to the key the caller meant. */
    private static final Map<String, String> REJECTED = Map.of(
       "type", "content",
@@ -82,6 +110,14 @@ public final class CalcCellVocabulary {
 
    public static int expand(String token) {
       return resolve(EXPAND, token, "expand");
+   }
+
+   public static int sortDirection(String token) {
+      return resolve(SORT_DIRECTION, token, "sort.direction");
+   }
+
+   public static int topnMode(String token) {
+      return resolve(TOPN_MODE, token, "topn.mode");
    }
 
    /** Whether a resolved grouping constant is the aggregating one. */
@@ -143,6 +179,99 @@ public final class CalcCellVocabulary {
          throw new IllegalArgumentException(
             "A cell with content 'text' needs a 'value' — the literal text to show.");
       }
+
+      if(cell.get("name") != null && !(cell.get("name") instanceof String)) {
+         throw new IllegalArgumentException("'name' must be a string — the cell's own name.");
+      }
+
+      validateSort(asMap(cell.get("sort")));
+      validateTopn(asMap(cell.get("topn")));
+
+      for(String key : List.of("mergeRowGroup", "mergeColGroup")) {
+         if(cell.get(key) != null && !(cell.get(key) instanceof String)) {
+            throw new IllegalArgumentException(
+               "'" + key + "' must be a string (another group cell's name), '" +
+               TableCellBinding.DEFAULT_GROUP + "' to inherit the nearest enclosing group, or " +
+               "null for the grand total.");
+         }
+      }
+
+      if(cell.get("timeSeries") != null && !(cell.get("timeSeries") instanceof Boolean)) {
+         throw new IllegalArgumentException("'timeSeries' must be true or false.");
+      }
+   }
+
+   /**
+    * A group cell's sort direction. Deliberately narrower than {@code OrderModel}: sorting by a
+    * specific aggregate's value ({@code SORT_VALUE_ASC}/{@code SORT_VALUE_DESC}) needs the same
+    * in-scope-aggregate resolution {@code topn.mode: "top"/"bottom"} would need for
+    * {@code rankBy} and neither is exposed yet — see the class-level note on {@code TOPN_MODE}.
+    * {@code manual} requires {@code manualOrder} alongside it, since a manual order with nothing
+    * to order is not meaningfully different from no order at all.
+    */
+   private static void validateSort(Map<String, Object> sort) {
+      if(sort == null) {
+         return;
+      }
+
+      String direction = str(sort, "direction");
+
+      if(direction == null) {
+         throw new IllegalArgumentException(
+            "'sort' needs a 'direction' of " + tokens(SORT_DIRECTION) + ".");
+      }
+
+      int resolved = sortDirection(direction);
+
+      if(resolved == XConstants.SORT_SPECIFIC) {
+         Object manual = sort.get("manualOrder");
+
+         if(!(manual instanceof List) || ((List<?>) manual).isEmpty()) {
+            throw new IllegalArgumentException(
+               "sort.direction 'manual' needs a non-empty 'manualOrder' array of values — " +
+               "otherwise there is nothing to order by.");
+         }
+      }
+   }
+
+   /**
+    * A group cell's ranking. {@code rankBy} (choosing a specific aggregate to rank by, when a
+    * group has more than one) is not exposed yet: the UI resolves it against a server-pushed,
+    * cell-selection-scoped aggregate list this seam does not have access to, and guessing an
+    * index wrong would silently rank by the wrong column rather than fail loud. With exactly one
+    * aggregate in scope -- the common case -- StyleBI's own default (index 0) applies, matching
+    * what the Composer's own "Aggregate" dropdown defaults to when nothing else is selected.
+    */
+   private static void validateTopn(Map<String, Object> topn) {
+      if(topn == null) {
+         return;
+      }
+
+      String mode = str(topn, "mode");
+
+      if(mode == null) {
+         throw new IllegalArgumentException("'topn' needs a 'mode' of " + tokens(TOPN_MODE) + ".");
+      }
+
+      topnMode(mode);
+      Object n = topn.get("n");
+
+      if(n != null && (!(n instanceof Number) || ((Number) n).intValue() < 1)) {
+         throw new IllegalArgumentException("'topn.n' must be a positive integer, got " + n + ".");
+      }
+   }
+
+   @SuppressWarnings("unchecked")
+   private static Map<String, Object> asMap(Object value) {
+      if(value == null) {
+         return null;
+      }
+
+      if(!(value instanceof Map)) {
+         throw new IllegalArgumentException("expected an object, got " + value);
+      }
+
+      return (Map<String, Object>) value;
    }
 
    /** Renders a cell binding back in tokens. Never emits an integer constant or an alias key. */
@@ -162,6 +291,43 @@ public final class CalcCellVocabulary {
       out.put("colGroup", info.getColGroup());
       out.put("name", info.getName());
       out.put("runtimeName", info.getRuntimeName());
+      out.put("name", info.getName());
+      out.put("mergeRowGroup", info.getMergeRowGroup());
+      out.put("mergeColGroup", info.getMergeColGroup());
+      out.put("timeSeries", info.isTimeSeries());
+
+      // sort/topn/dateLevel only mean something on a group cell -- reporting OrderModel's
+      // default (SORT_ASC, option YEAR_DATE_GROUP) on every detail/summary/text cell as well
+      // would read as "this cell is sorted/date-grouped" when nothing was ever set on it.
+      if(info.getBtype() == CellBinding.GROUP) {
+         OrderModel order = info.getOrder();
+         Map<String, Object> sort = new LinkedHashMap<>();
+         sort.put("direction", tokenOf(SORT_DIRECTION, order.getType()));
+
+         if(order.getType() == XConstants.SORT_SPECIFIC) {
+            sort.put("manualOrder", order.getManualOrder());
+         }
+
+         out.put("sort", sort);
+         // DateLevels.name() takes the STORED numeric-string form; a group cell whose field
+         // isn't a date/time column simply carries the unused OrderModel default (YEAR_DATE_GROUP)
+         // here, same as the write side leaves it unless the caller sets 'field.dateLevel' -- so a
+         // caller should read this as meaningful only when the bound field is itself a date/time
+         // column.
+         out.put("dateLevel", DateLevels.name(String.valueOf(order.getOption())));
+         out.put("dateInterval", order.getInterval());
+
+         TopNModel topn = info.getTopn();
+         Map<String, Object> topnOut = new LinkedHashMap<>();
+         topnOut.put("mode", tokenOf(TOPN_MODE, topn.getType()));
+
+         if(topn.getType() != XCondition.NONE) {
+            topnOut.put("n", topn.getTopn());
+         }
+
+         out.put("topn", topnOut);
+      }
+
       return out;
    }
 
@@ -175,6 +341,14 @@ public final class CalcCellVocabulary {
 
    public static List<String> expandTokens() {
       return List.of("none", "vertical", "horizontal");
+   }
+
+   public static List<String> sortDirectionTokens() {
+      return sorted(SORT_DIRECTION);
+   }
+
+   public static List<String> topnModeTokens() {
+      return sorted(TOPN_MODE);
    }
 
    // ── helpers ───────────────────────────────────────────────────────────────

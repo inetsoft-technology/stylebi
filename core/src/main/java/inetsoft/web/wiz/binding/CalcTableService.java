@@ -22,6 +22,7 @@ import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.Worksheet;
@@ -39,6 +40,7 @@ import inetsoft.web.binding.event.GetCellScriptEvent;
 import inetsoft.web.binding.event.GetPredefinedNamedGroupEvent;
 import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.table.OrderModel;
+import inetsoft.web.binding.model.table.TopNModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.condition.ConditionExpression;
 import inetsoft.web.composer.model.condition.ConditionUtil;
@@ -270,6 +272,17 @@ public class CalcTableService {
       // Validated before the runtime is touched: an incomplete binding costs nothing to
       // reject here, and opens no checkpoint the caller then has to undo.
       CalcCellVocabulary.validate(binding);
+
+      // Both 'sort' and a resolved 'field.namedGroup' end up setting the same OrderModel --
+      // namedGroup forces SORT_SPECIFIC with the group's own conditions as the order. Accepting
+      // both silently would mean one wins and the caller never learns which; refusing is cheap
+      // and this runs before the runtime is touched, so it costs no checkpoint to reject.
+      if(binding.get("sort") != null && namedGroupOf(binding.get("field")) != null) {
+         throw new IllegalArgumentException(
+            "A cell can't have both 'sort' and 'field.namedGroup' -- resolving a named group " +
+            "sets its own order (SORT_SPECIFIC, ordered by the group's own conditions), which " +
+            "would silently override whatever 'sort' asked for. Send one or the other.");
+      }
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
@@ -593,12 +606,30 @@ public class CalcTableService {
 
    /** The tokens this build accepts, so an agent can discover rather than guess. */
    public Map<String, Object> vocabulary() {
-      return Map.of(
-         "content", CalcCellVocabulary.contentTokens(),
-         "grouping", CalcCellVocabulary.groupingTokens(),
-         "expand", CalcCellVocabulary.expandTokens(),
-         "layoutOps", new TreeSet<>(LAYOUT_OPS.values()),
-         "copyOps", List.of("copy", "cut", "remove"));
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("content", CalcCellVocabulary.contentTokens());
+      out.put("grouping", CalcCellVocabulary.groupingTokens());
+      out.put("expand", CalcCellVocabulary.expandTokens());
+      out.put("layoutOps", new TreeSet<>(LAYOUT_OPS.values()));
+      out.put("copyOps", List.of("copy", "cut", "remove"));
+      out.put("sortDirections", CalcCellVocabulary.sortDirectionTokens());
+      out.put("topnModes", CalcCellVocabulary.topnModeTokens());
+      // The names a 'summary' cell's 'formula' accepts. The string itself can also carry a
+      // percentage-of-group mode (append '<N>', N = one of the PERCENTAGE_* values a caller
+      // would otherwise have to read off StyleConstants), a second column for a two-column
+      // formula (append '(ColumnName)' -- Correlation/Covariance/WeightedAverage/First/Last), or
+      // an Nth/Pth parameter for the formulas that take one (append '(N)') -- exactly the syntax
+      // the Composer's own aggregate-option pane builds. Neither the percentage encoding nor
+      // which formulas take an N/second-column argument is enumerated here yet.
+      List<String> aggregateFormulas = new ArrayList<>();
+
+      for(inetsoft.uql.asset.AggregateFormula formula : inetsoft.uql.asset.AggregateFormula.getFormulas()) {
+         aggregateFormulas.add(formula.getFormulaName());
+      }
+
+      out.put("aggregateFormulas", aggregateFormulas);
+      out.put("dateLevels", DateLevels.names());
+      return out;
    }
 
    // ── conversions ───────────────────────────────────────────────────────────
@@ -667,9 +698,120 @@ public class CalcTableService {
       info.setRowGroup(rowGroup != null ? rowGroup : TableCellBinding.DEFAULT_GROUP);
       String colGroup = str(binding, "colGroup");
       info.setColGroup(colGroup != null ? colGroup : TableCellBinding.DEFAULT_GROUP);
-      info.setMergeRowGroup(TableCellBinding.DEFAULT_GROUP);
-      info.setMergeColGroup(TableCellBinding.DEFAULT_GROUP);
+
+      // Same "inherit by default" reasoning as rowGroup/colGroup above, extended to the merge-
+      // specific pair: a caller who never mentions these means "leave the default ancestor",
+      // not "clear it" -- so the sentinel, not null, is what an omitted key produces.
+      String mergeRowGroup = str(binding, "mergeRowGroup");
+      info.setMergeRowGroup(binding.containsKey("mergeRowGroup") ?
+                             mergeRowGroup : TableCellBinding.DEFAULT_GROUP);
+      String mergeColGroup = str(binding, "mergeColGroup");
+      info.setMergeColGroup(binding.containsKey("mergeColGroup") ?
+                             mergeColGroup : TableCellBinding.DEFAULT_GROUP);
+
+      String name = str(binding, "name");
+
+      if(name != null) {
+         info.setName(name);
+      }
+
+      if(binding.get("timeSeries") instanceof Boolean timeSeries) {
+         info.setTimeSeries(timeSeries);
+      }
+
+      applySort(info, asMap(binding.get("sort")));
+      applyTopn(info, asMap(binding.get("topn")));
+
+      if(type == CellBinding.BIND_COLUMN) {
+         applyDateGroup(info, asMap(binding.get("field")));
+      }
+
       return info;
+   }
+
+   /**
+    * A group cell's sort direction/manual order. Deliberately does not touch
+    * {@code sortByCol}/{@code sortByValue} (sort-by-a-specific-aggregate's-value) -- see
+    * {@link CalcCellVocabulary#validateSort} for why that is not exposed yet.
+    */
+   private static void applySort(CellBindingInfo info, Map<String, Object> sort) {
+      if(sort == null) {
+         return;
+      }
+
+      OrderModel order = info.getOrder();
+      order.setType(CalcCellVocabulary.sortDirection(str(sort, "direction")));
+
+      if(order.getType() == XConstants.SORT_SPECIFIC) {
+         List<?> manual = (List<?>) sort.get("manualOrder");
+         List<String> values = new ArrayList<>();
+
+         for(Object value : manual) {
+            values.add(value == null ? null : String.valueOf(value));
+         }
+
+         order.setManualOrder(values);
+      }
+   }
+
+   /**
+    * A group cell's ranking. {@code sumCol} defaults to 0 -- the same default the Composer's own
+    * Top-N pane falls back to when exactly one aggregate is in scope (see
+    * {@code CalcGroupOption.changeTopnType}) -- since choosing a specific aggregate by name needs
+    * the same in-scope-aggregate resolution {@link CalcCellVocabulary#validateTopn} does not
+    * expose yet.
+    */
+   private static void applyTopn(CellBindingInfo info, Map<String, Object> topn) {
+      if(topn == null) {
+         return;
+      }
+
+      TopNModel model = info.getTopn();
+      model.setType(CalcCellVocabulary.topnMode(str(topn, "mode")));
+
+      if(model.getType() != XCondition.NONE) {
+         Object n = topn.get("n");
+         model.setTopn(n == null ? 3 : ((Number) n).intValue());
+         model.setSumCol(0);
+      }
+   }
+
+   /**
+    * Wires {@code field.dateLevel}/{@code field.dateInterval} into the OrderModel that actually
+    * drives calc-table date grouping ({@code order.option}/{@code order.interval} --
+    * {@code CalcGroupOption.levelChanged} on the UI side). Earlier, 'field.dateLevel' was declared
+    * on this tool's schema and forwarded over the wire, but nothing on this path ever read it back
+    * off the map -- it validated cleanly and was silently discarded. Fixed here rather than left
+    * as a validated-but-inert field, per this plugin's stated position on a declared parameter
+    * that does not do what its description says.
+    */
+   private static void applyDateGroup(CellBindingInfo info, Map<String, Object> field) {
+      if(field == null) {
+         return;
+      }
+
+      String dateLevel = str(field, "dateLevel");
+
+      if(dateLevel != null) {
+         String normalized = DateLevels.normalize(dateLevel);
+         info.getOrder().setOption(Integer.parseInt(normalized));
+      }
+
+      Object interval = field.get("dateInterval");
+
+      if(interval != null) {
+         if(!(interval instanceof Number) || ((Number) interval).intValue() < 1) {
+            throw new IllegalArgumentException(
+               "'field.dateInterval' must be a positive integer, got " + interval + ".");
+         }
+
+         info.getOrder().setInterval(((Number) interval).intValue());
+      }
+   }
+
+   @SuppressWarnings("unchecked")
+   private static Map<String, Object> asMap(Object value) {
+      return value instanceof Map ? (Map<String, Object>) value : null;
    }
 
    /**
