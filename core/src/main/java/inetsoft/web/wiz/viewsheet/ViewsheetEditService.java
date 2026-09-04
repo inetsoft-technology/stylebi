@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.viewsheet.LockableVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.TitledVSAssembly;
@@ -215,8 +216,11 @@ public class ViewsheetEditService {
             "Edit op 'resize_title' requires 'height' — the new title-bar height in pixels.");
       }
 
+      requirePositive(request.op(), "height", request.height());
+
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          AssemblyNode current = requireExisting(rvs, request.assembly());
+         requireTitled(rvs, request.assembly(), request.op());
 
          ResizeVSObjectTitleEvent event = new ResizeVSObjectTitleEvent();
          event.setName(request.assembly());
@@ -403,6 +407,7 @@ public class ViewsheetEditService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
+         requireLockable(rvs, request.assembly());
 
          LockVSObjectEvent event = new LockVSObjectEvent();
          event.setName(request.assembly());
@@ -422,7 +427,7 @@ public class ViewsheetEditService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
-         requireTitled(rvs, request.assembly());
+         requireTitled(rvs, request.assembly(), request.op());
 
          ChangeVSObjectTextEvent event = new ChangeVSObjectTextEvent();
          event.setName(request.assembly());
@@ -631,9 +636,43 @@ public class ViewsheetEditService {
             targets.add(node);
          }
 
+         // Mirrors composer-toolbar.component.ts's layoutAlign/layoutDistribute, which filter
+         // out `locked === true` objects AND objects with a non-null `container` (a Tab/
+         // GroupContainer member) BEFORE computing the reference edge (align's base position,
+         // distribute's topLeft/bottomRight bounds) from what remains -- so a locked or
+         // grouped/tabbed assembly is excluded from both the moved set and the target the others
+         // align/distribute against, not merely left unmoved while still anchoring everyone else.
+         Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+         List<AssemblyNode> unlocked = new ArrayList<>();
+
+         for(AssemblyNode node : targets) {
+            VSAssembly assembly = vs == null ? null : vs.getAssembly(node.name());
+
+            boolean locked = assembly instanceof LockableVSAssembly lockable &&
+               Boolean.TRUE.equals(lockable.islocked());
+            boolean inContainer = assembly != null && assembly.getContainer() != null;
+
+            if(!locked && !inContainer) {
+               unlocked.add(node);
+            }
+         }
+
+         // composer-toolbar.component.ts's own enablement getters require align at >= 2 but
+         // distribute at > 2 (i.e. >= 3) -- at exactly 2, the UI's Distribute button is disabled,
+         // since "evenly distribute" between exactly two items is a degenerate, UI-forbidden
+         // operation.
+         int required = "distribute".equals(op) ? 3 : 2;
+
+         if(unlocked.size() < required) {
+            throw new IllegalArgumentException(
+               "Edit op '" + op + "' needs at least " + required + " unlocked, non-grouped " +
+               "assemblies among " + names + ", but only " + unlocked.size() + " of " +
+               targets.size() + " qualify.");
+         }
+
          MoveVSObjectEvent[] moves = "align".equals(op)
-            ? alignMoves(targets, axis)
-            : distributeMoves(targets, axis);
+            ? alignMoves(unlocked, axis)
+            : distributeMoves(unlocked, axis);
 
          // Same two-step contract as move(): moveObject actually repositions each assembly,
          // moveObjects afterwards only fixes up anchored lines. Calling the fix-up alone made
@@ -752,26 +791,53 @@ public class ViewsheetEditService {
     * "ok" on every op. Nothing downstream will ever complain, so we complain here.
     */
    /**
-    * Refuses set_title on an assembly that has no title bar.
+    * Refuses an op that needs a title bar (currently {@code set_title} and {@code resize_title})
+    * on an assembly that has none.
     *
     * <p>{@code ComposerObjectService.changeTitle} casts to {@code TitledVSAssembly}, so a Text or
     * a shape produced a raw {@code ClassCastException} as a bare 500 — an internal type name, with
-    * no hint that the op simply does not apply here.
+    * no hint that the op simply does not apply here. {@code resizeObjectTitle} does not cast, but
+    * silently no-ops the title-height write for the same assemblies, which is just as misleading
+    * since the op still reports success.
     *
     * <p>Tested with {@code instanceof} rather than a list of type names so it cannot drift from
     * whatever actually implements the interface. Charts, tables, crosstabs, selections and
     * calendars have titles; text, images and shapes do not — they ARE their content, so what
     * looks like a title on a Text is set through its own value, not this op.
     */
-   private void requireTitled(RuntimeViewsheet rvs, String name) {
+   private void requireTitled(RuntimeViewsheet rvs, String name, String op) {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(name);
 
       if(assembly != null && !(assembly instanceof TitledVSAssembly)) {
          throw new IllegalArgumentException(
-            "'" + name + "' has no title bar, so 'set_title' does not apply to it. Charts, " +
+            "'" + name + "' has no title bar, so '" + op + "' does not apply to it. Charts, " +
             "tables, crosstabs, selections and calendars have titles; text, images and shapes " +
             "do not — a text assembly's visible text is its own content, not a title.");
+      }
+   }
+
+   /**
+    * Refuses set_lock on an assembly that cannot actually be locked.
+    *
+    * <p>{@code ComposerObjectService.changeLockState} tests {@code instanceof ImageVSAssembly} /
+    * {@code instanceof ShapeVSAssembly} with no {@code else} branch, so a Chart, Table, Crosstab,
+    * Text, Gauge, CalcTable, etc. fell through every check and the lock write was silently
+    * dropped while the op still reported success.
+    *
+    * <p>Tested against {@code LockableVSAssembly}, the marker interface both
+    * {@code ImageVSAssembly} and {@code ShapeVSAssembly} implement, so this cannot drift from
+    * whichever types the Composer's own lock control actually applies to.
+    */
+   private void requireLockable(RuntimeViewsheet rvs, String name) {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(name);
+
+      if(assembly != null && !(assembly instanceof LockableVSAssembly)) {
+         throw new IllegalArgumentException(
+            "'" + name + "' is a " + assembly.getClass().getSimpleName() + ", so 'set_lock' " +
+            "does not apply to it. Locking only applies to images and shapes (lines, " +
+            "rectangles, ovals).");
       }
    }
 
@@ -805,6 +871,15 @@ public class ViewsheetEditService {
             "Edit op '" + op + "' requires '" + firstName + "' and '" + secondName +
             "' to be greater than zero — got " + first + " and " + second +
             ". Non-positive sizes are clamped to 1x1 rather than refused.");
+      }
+   }
+
+   /** Single-value sibling of the pair check above, for ops like resize_title with one field. */
+   private static void requirePositive(String op, String fieldName, Integer value) {
+      if(value != null && value <= 0) {
+         throw new IllegalArgumentException(
+            "Edit op '" + op + "' requires '" + fieldName + "' to be greater than zero — got " +
+            value + ". Non-positive sizes are clamped to 1x1 rather than refused.");
       }
    }
 

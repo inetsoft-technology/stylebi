@@ -33,6 +33,8 @@ import inetsoft.web.viewsheet.controller.VSRefreshService;
 import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.ImageVSAssembly;
+import inetsoft.uql.viewsheet.ShapeVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
@@ -589,6 +591,242 @@ class ViewsheetEditServiceTest {
       assertTrue(captor.getValue().isLocked());
    }
 
+   /**
+    * {@code ComposerObjectService.changeLockState} tests {@code instanceof ImageVSAssembly} /
+    * {@code instanceof ShapeVSAssembly} with no {@code else} branch -- a Chart (or Table,
+    * Crosstab, Text, Gauge, CalcTable, ...) fell through both checks, so the lock write was
+    * silently dropped while set_lock still reported success.
+    */
+   @Test
+   void setLockOnANonLockableAssemblyFailsLoud() {
+      RuntimeViewsheet rvs = runtimeWith("Chart1", mock(ChartVSAssembly.class));
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Chart1", "Chart", 240, 100, 400, 240, 0, null, true)));
+
+      EditRequest request = new EditRequest("set_lock", "Chart1", null, null, null, null, null,
+                                            null, Boolean.TRUE, null, null, null, null, null);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request, ""));
+      assertTrue(thrown.getMessage().contains("Chart1"));
+   }
+
+   /** An Image assembly -- one of the two lockable types -- still goes through. */
+   @Test
+   void setLockStillWorksOnAnImageAssembly() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = runtimeWith("Image1", mock(ImageVSAssembly.class));
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Image1", "Image", 10, 10, 80, 40, 0, null, true)), objects);
+
+      EditRequest request = new EditRequest("set_lock", "Image1", null, null, null, null, null,
+                                            null, Boolean.TRUE, null, null, null, null, null);
+      service.apply("tok", principal(), request, "");
+
+      verify(objects).changeLockState(eq("rt1"), any(), any(Principal.class), any());
+   }
+
+   /** A Shape assembly -- the other lockable type -- still goes through. */
+   @Test
+   void setLockStillWorksOnAShapeAssembly() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = runtimeWith("Rect1", mock(ShapeVSAssembly.class));
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Rect1", "Rectangle", 10, 10, 80, 40, 0, null, true)), objects);
+
+      EditRequest request = new EditRequest("set_lock", "Rect1", null, null, null, null, null,
+                                            null, Boolean.TRUE, null, null, null, null, null);
+      service.apply("tok", principal(), request, "");
+
+      verify(objects).changeLockState(eq("rt1"), any(), any(Principal.class), any());
+   }
+
+   /**
+    * Mirrors composer-toolbar.component.ts's layoutAlign, which filters {@code locked === true}
+    * assemblies out BEFORE computing the reference edge from what's left -- so a locked assembly
+    * is excluded from the moved set AND cannot skew where the unlocked ones land, even though its
+    * own position (x=5) would otherwise be the leftmost edge.
+    */
+   @Test
+   void alignExcludesALockedAssemblyFromBothTheMovedSetAndTheReferenceEdge() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("A", "Text", 50, 10, 100, 20, 0, null, true),
+         new AssemblyNode("B", "Rectangle", 5, 60, 100, 20, 0, null, true),
+         new AssemblyNode("C", "Text", 20, 110, 100, 20, 0, null, true));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      VSAssembly a = mock(TextVSAssembly.class);
+      ShapeVSAssembly lockedB = mock(ShapeVSAssembly.class);
+      VSAssembly c = mock(TextVSAssembly.class);
+      when(lockedB.islocked()).thenReturn(true);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("A")).thenReturn(a);
+      when(vs.getAssembly("B")).thenReturn(lockedB);
+      when(vs.getAssembly("C")).thenReturn(c);
+
+      ViewsheetEditService service = serviceWithRuntime(rvs, reader, objects);
+
+      service.apply("tok", principal(), arrange("align", List.of("A", "B", "C"), "left"), "");
+
+      ArgumentCaptor<MoveVSObjectEvent> captor = ArgumentCaptor.forClass(MoveVSObjectEvent.class);
+      verify(objects, times(2)).moveObject(eq("rt1"), captor.capture(), any(Principal.class),
+                                           any(), anyString());
+      List<MoveVSObjectEvent> moves = captor.getAllValues();
+      assertTrue(moves.stream().noneMatch(m -> "B".equals(m.getName())),
+                 "the locked assembly must not move");
+      assertTrue(moves.stream().allMatch(m -> m.getxOffset() == 20),
+                 "the reference edge must be A/C's own leftmost (20), not B's x=5 -- a locked " +
+                 "assembly must not skew the edge the others align to");
+   }
+
+   /**
+    * Same exclusion for distribute's bounding box (topLeft/bottomRight/totalSize). Uses four
+    * assemblies (one locked) so the three remaining unlocked ones still satisfy distribute's own
+    * minimum of 3 -- see {@link #distributeRejectsWhenOnlyTwoUnlockedAssembliesRemain}.
+    */
+   @Test
+   void distributeExcludesALockedAssemblyFromBothTheMovedSetAndTheBoundingBox() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("A", "Text", 0, 0, 10, 10, 0, null, true),
+         new AssemblyNode("B", "Rectangle", 100, 0, 10, 10, 0, null, true),
+         new AssemblyNode("C", "Text", 40, 0, 10, 10, 0, null, true),
+         new AssemblyNode("D", "Text", 70, 0, 10, 10, 0, null, true));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      VSAssembly a = mock(TextVSAssembly.class);
+      ShapeVSAssembly lockedB = mock(ShapeVSAssembly.class);
+      VSAssembly c = mock(TextVSAssembly.class);
+      VSAssembly d = mock(TextVSAssembly.class);
+      when(lockedB.islocked()).thenReturn(true);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("A")).thenReturn(a);
+      when(vs.getAssembly("B")).thenReturn(lockedB);
+      when(vs.getAssembly("C")).thenReturn(c);
+      when(vs.getAssembly("D")).thenReturn(d);
+
+      ViewsheetEditService service = serviceWithRuntime(rvs, reader, objects);
+
+      service.apply("tok", principal(),
+                    arrange("distribute", List.of("A", "B", "C", "D"), "horizontal"), "");
+
+      ArgumentCaptor<MoveVSObjectEvent> captor = ArgumentCaptor.forClass(MoveVSObjectEvent.class);
+      verify(objects, times(3)).moveObject(eq("rt1"), captor.capture(), any(Principal.class),
+                                           any(), anyString());
+      List<MoveVSObjectEvent> moves = captor.getAllValues();
+      assertTrue(moves.stream().noneMatch(m -> "B".equals(m.getName())),
+                 "the locked assembly must not move");
+      assertTrue(moves.stream().anyMatch(m -> "A".equals(m.getName()) && m.getxOffset() == 0));
+      assertTrue(moves.stream().anyMatch(m -> "D".equals(m.getName()) && m.getxOffset() == 70),
+                 "with B excluded, D is the last (rightmost) unlocked assembly and stays put " +
+                 "at its own edge (70), not B's x=100");
+   }
+
+   /** Excluding locked assemblies must not silently proceed with fewer than 2 to arrange. */
+   @Test
+   void alignRejectsWhenLockingLeavesFewerThanTwoUnlockedAssemblies() {
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("A", "Text", 50, 10, 100, 20, 0, null, true),
+         new AssemblyNode("B", "Rectangle", 5, 60, 100, 20, 0, null, true));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      VSAssembly a = mock(TextVSAssembly.class);
+      ShapeVSAssembly lockedB = mock(ShapeVSAssembly.class);
+      when(lockedB.islocked()).thenReturn(true);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("A")).thenReturn(a);
+      when(vs.getAssembly("B")).thenReturn(lockedB);
+
+      ViewsheetEditService service =
+         serviceWithRuntime(rvs, reader, mock(ComposerObjectService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), arrange("align", List.of("A", "B"), "left"), ""));
+      assertTrue(thrown.getMessage().contains("unlocked"), thrown.getMessage());
+   }
+
+   /**
+    * Regression: composer-toolbar.component.ts's own layoutDistributeEnabled getter requires
+    * MORE than 2 qualifying objects (i.e. >= 3) -- unlike layoutAlignEnabled/layoutResizeEnabled,
+    * which only require >= 2. At exactly 2 unlocked assemblies, the UI's Distribute button is
+    * disabled; the agent path must refuse the same "evenly distribute between exactly two items"
+    * request rather than silently allowing it.
+    */
+   @Test
+   void distributeRejectsWhenOnlyTwoUnlockedAssembliesRemain() {
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("A", "Text", 0, 0, 10, 10, 0, null, true),
+         new AssemblyNode("B", "Rectangle", 100, 0, 10, 10, 0, null, true),
+         new AssemblyNode("C", "Text", 40, 0, 10, 10, 0, null, true));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      VSAssembly a = mock(TextVSAssembly.class);
+      ShapeVSAssembly lockedB = mock(ShapeVSAssembly.class);
+      VSAssembly c = mock(TextVSAssembly.class);
+      when(lockedB.islocked()).thenReturn(true);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("A")).thenReturn(a);
+      when(vs.getAssembly("B")).thenReturn(lockedB);
+      when(vs.getAssembly("C")).thenReturn(c);
+
+      ViewsheetEditService service =
+         serviceWithRuntime(rvs, reader, mock(ComposerObjectService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(),
+                             arrange("distribute", List.of("A", "B", "C"), "horizontal"), ""));
+      assertTrue(thrown.getMessage().contains("3"), thrown.getMessage());
+   }
+
+   /**
+    * Regression: composer-toolbar.component.ts's alignObjects filter is
+    * {@code (obj) => !obj.container && obj.locked !== true} -- it excludes a Tab/GroupContainer
+    * member the same way it excludes a locked assembly, not merely the locked ones. Before this
+    * fix, a grouped/tabbed assembly still participated in align/distribute via the agent path.
+    */
+   @Test
+   void alignExcludesAContainerMemberFromBothTheMovedSetAndTheReferenceEdge() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("A", "Text", 50, 10, 100, 20, 0, null, true),
+         new AssemblyNode("B", "Text", 5, 60, 100, 20, 0, "Tab1", true),
+         new AssemblyNode("C", "Text", 20, 110, 100, 20, 0, null, true));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      VSAssembly a = mock(TextVSAssembly.class);
+      VSAssembly groupedB = mock(TextVSAssembly.class);
+      VSAssembly c = mock(TextVSAssembly.class);
+      TabVSAssembly tab = mock(TabVSAssembly.class);
+      when(groupedB.getContainer()).thenReturn(tab);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("A")).thenReturn(a);
+      when(vs.getAssembly("B")).thenReturn(groupedB);
+      when(vs.getAssembly("C")).thenReturn(c);
+
+      ViewsheetEditService service = serviceWithRuntime(rvs, reader, objects);
+
+      service.apply("tok", principal(), arrange("align", List.of("A", "B", "C"), "left"), "");
+
+      ArgumentCaptor<MoveVSObjectEvent> captor = ArgumentCaptor.forClass(MoveVSObjectEvent.class);
+      verify(objects, times(2)).moveObject(eq("rt1"), captor.capture(), any(Principal.class),
+                                           any(), anyString());
+      List<MoveVSObjectEvent> moves = captor.getAllValues();
+      assertTrue(moves.stream().noneMatch(m -> "B".equals(m.getName())),
+                 "the container-member assembly must not move");
+      assertTrue(moves.stream().allMatch(m -> m.getxOffset() == 20),
+                 "the reference edge must be A/C's own leftmost (20), not B's x=5 -- a " +
+                 "container-member assembly must not skew the edge the others align to");
+   }
+
    @Test
    void ungroupDelegatesTheContainerName() throws Exception {
       ComposerGroupService groups = mock(ComposerGroupService.class);
@@ -746,6 +984,65 @@ class ViewsheetEditServiceTest {
       assertEquals(240, captor.getValue().getHeight(), "resize_title must preserve height");
       assertEquals(240, captor.getValue().getxOffset(), "resize_title must preserve x");
       assertEquals(100, captor.getValue().getyOffset(), "resize_title must preserve y");
+   }
+
+   /**
+    * {@code resizeObjectTitle} delegates to {@code resizeObject}, which silently no-ops the
+    * title-height write for a non-titled assembly (Text/Image/Shape) rather than casting -- so
+    * the op reported success while quietly doing an ordinary geometric resize instead of the
+    * title-bar resize the caller actually asked for. Mirrors set_title's own
+    * ClassCastException-turned-clear-error guard.
+    */
+   @Test
+   void resizeTitleOnANonTitledAssemblyFailsLoud() {
+      RuntimeViewsheet rvs = runtimeWith("Text1", mock(TextVSAssembly.class));
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Text1", "Text", 140, 440, 100, 20, 0, null, true)));
+
+      EditRequest request = new EditRequest("resize_title", "Text1", null, null, null, 40, null,
+                                            null, null, null, null, null, null, null);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request, ""));
+      assertTrue(thrown.getMessage().contains("Text1"));
+      assertTrue(thrown.getMessage().contains("resize_title"),
+                 "the error should name the actual op, got: " + thrown.getMessage());
+   }
+
+   /** A titled assembly still goes through resize_title. */
+   @Test
+   void resizeTitleStillWorksOnATitledAssembly() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = runtimeWith("Chart1", mock(ChartVSAssembly.class));
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Chart1", "Chart", 240, 100, 400, 240, 0, null, true)), objects);
+
+      EditRequest request = new EditRequest("resize_title", "Chart1", null, null, null, 40, null,
+                                            null, null, null, null, null, null, null);
+      service.apply("tok", principal(), request, "");
+
+      verify(objects).resizeObjectTitle(eq("rt1"), any(), any(Principal.class), any(),
+                                        anyString());
+   }
+
+   /**
+    * Only {@code height == null} was rejected -- {@code resize -50} on the title bar clamped to
+    * 1x1 like resize()'s own bug, and reported success. Mirrors resize()'s requirePositive guard.
+    */
+   @Test
+   void resizeTitleRejectsNonPositiveHeightRatherThanCollapsingTheAssembly() {
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("Chart1", "Chart", 240, 100, 400, 240, 0, null, true));
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class), reader);
+
+      EditRequest request = new EditRequest("resize_title", "Chart1", null, null, null, -10,
+                                            null, null, null, null, null, null, null, null);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request, ""));
+      assertTrue(thrown.getMessage().contains("height"));
    }
 
    @Test
