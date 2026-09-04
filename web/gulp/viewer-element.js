@@ -36,7 +36,7 @@ const scriptFiles = [
 
 const cssFiles = [
    "target/generated-resources/gulp/inetsoft/web/resources/app/global.css",
-   "target/generated-resources/ng/inetsoft/web/resources/viewer-element/styles.*.css"
+   "target/generated-resources/ng/inetsoft/web/resources/viewer-element/styles-*.css"
 ];
 
 gulp.task("viewer-element:scripts", function () {
