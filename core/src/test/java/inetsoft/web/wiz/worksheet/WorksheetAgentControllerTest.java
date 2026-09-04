@@ -4207,6 +4207,41 @@ class WorksheetAgentControllerTest {
          "the control character must be stripped from the saved name");
    }
 
+   /**
+    * Regression: {@code AssetEntry.toIdentifier()} joins its fields with a literal, unescaped
+    * '^', and {@code createAssetEntry(identifier)} recovers {@code orgID} using the FIRST '^'
+    * after the user field rather than the last -- so a caret embedded in {@code name} corrupts
+    * the orgID recovered on any later round-trip. Refused before any {@link AssetEntry} is built
+    * or the repository is touched, mirroring the identical fix in
+    * {@code ViewsheetAssemblyAgentController.attachBaseWorksheet}.
+    */
+   @Test
+   void saveRefusesANameContainingACaret() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.WORKSHEET, "__TEMPORARY__/ws-1", null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(tempEntry);
+      when(rws.getWorksheet()).thenReturn(new Worksheet());
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-SAVE-CARET"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-caret"));
+
+      WorksheetService ws = mock(WorksheetService.class);
+
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.save("TOK-SAVE-CARET",
+         new WorksheetAgentController.SaveRequest("Sample^WS", null), agent));
+      assertTrue(ex.getMessage().contains("name"));
+
+      verifyNoInteractions(ws);
+   }
+
    // ---------------------------------------------------------------------------
    // save -- PVA-002: a plain re-save must proactively invalidate a connected viewsheet's
    // stale bindable-fields cache instead of relying on the lazy timestamp check
