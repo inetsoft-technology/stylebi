@@ -36,6 +36,8 @@ import org.springframework.stereotype.Service;
 
 import java.awt.*;
 import java.security.Principal;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -314,6 +316,7 @@ public class CalendarPropertyDialogService {
       info.setDaySelectionValue(calendarAdvancedPaneModel.isDaySelection());
       info.setSingleSelectionValue(calendarAdvancedPaneModel.isSingleSelection());
       info.setSubmitOnChangeValue(calendarAdvancedPaneModel.isSubmitOnChange());
+      requireMinBeforeMax(calendarAdvancedPaneModel.getMin(), calendarAdvancedPaneModel.getMax());
       info.setMinValue(calendarAdvancedPaneModel.getMin().convertToValue());
       info.setMaxValue(calendarAdvancedPaneModel.getMax().convertToValue());
 
@@ -332,6 +335,43 @@ public class CalendarPropertyDialogService {
       return null;
    }
 
+
+   /**
+    * Mirrors {@code calendar-advanced-pane.component.ts}'s {@code minGreaterThanMaxValidator}:
+    * refuses a static min that is not strictly before a static max. Skipped -- same as the
+    * Angular validator -- when either side is a variable/expression (no static value to
+    * compare) or empty, and when a static value does not parse as a plain date: this check adds
+    * only the min/max ordering rule, not date well-formedness, which is out of scope here.
+    */
+   private void requireMinBeforeMax(DynamicValueModel min, DynamicValueModel max) {
+      if(min == null || max == null || !DynamicValueModel.VALUE.equals(min.getType()) ||
+         !DynamicValueModel.VALUE.equals(max.getType()))
+      {
+         return;
+      }
+
+      String minValue = min.convertToValue();
+      String maxValue = max.convertToValue();
+
+      if(minValue == null || minValue.isEmpty() || maxValue == null || maxValue.isEmpty()) {
+         return;
+      }
+
+      SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
+
+      try {
+         if(!format.parse(minValue).before(format.parse(maxValue))) {
+            throw new IllegalArgumentException(
+               "Calendar 'min' (" + minValue + ") must be before 'max' (" + maxValue + "). " +
+               "The Composer UI refuses this the same way: a calendar cannot show a range that " +
+               "starts on or after its own end.");
+         }
+      }
+      catch(ParseException e) {
+         // Not a plain yyyy-MM-dd date -- leave it to the write itself, which is where date
+         // well-formedness is already handled.
+      }
+   }
 
    private final VSObjectPropertyService vsObjectPropertyService;
    private final VSOutputService vsOutputService;
