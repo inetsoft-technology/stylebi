@@ -115,6 +115,12 @@ public class MockCluster implements Cluster {
    }
 
    @Override
+   public void clearLocalNodeProperty(String name) {
+      clusterNodeProperties.computeIfAbsent(
+         getLocalMember(), k -> new ConcurrentHashMap<>()).remove(name);
+   }
+
+   @Override
    public boolean isMaster() {
       return true;
    }
