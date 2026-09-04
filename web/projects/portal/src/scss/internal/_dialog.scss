@@ -237,6 +237,18 @@ div.ws-grouping-property-dialog.slide-out-content-container {
   z-index: 999901!important;
 }
 
+// Bug #76453: the single-bookmark delete Confirm dialog is opened from inside the still-open
+// Bookmark panel (.fixed-dropdown, z-index 999900 -- see scss/internal/_directives.scss),
+// which otherwise paints over the generic .modal (z-index 10500). Same fix as
+// .remove-bookmarks-dialog above, for the single-delete path.
+.delete-bookmark-confirm-dialog {
+  z-index: 999902!important;
+}
+
+.delete-bookmark-confirm-dialog-backdrop {
+  z-index: 999901!important;
+}
+
 .data-auto-drill-dialog.modal-content {
   height: 750px;
 }
