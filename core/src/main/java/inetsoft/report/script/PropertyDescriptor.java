@@ -28,6 +28,7 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.util.XTableDataSet;
 import inetsoft.uql.viewsheet.BorderColors;
 import inetsoft.uql.viewsheet.GradientColor;
+import inetsoft.uql.viewsheet.ShapeShadow;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptValueConverter;
 import org.graalvm.polyglot.Value;
@@ -541,6 +542,38 @@ public class PropertyDescriptor {
                gradientColor.setColors(colors.toArray(new GradientColor.ColorStop[colors.size()]));
 
                return gradientColor;
+            }
+         }
+         else if(type == ShapeShadow.class) {
+            if(JSObject.isObject(val)) {
+               ShapeShadow shadow = new ShapeShadow();
+               Object color = JSObject.get(val, "color");
+               Object alpha = JSObject.get(val, "alpha");
+               Object direction = JSObject.get(val, "direction");
+               Object distance = JSObject.get(val, "distance");
+               Object blur = JSObject.get(val, "blur");
+
+               if(color != null) {
+                  shadow.setColor(color.toString());
+               }
+
+               if(alpha instanceof Number) {
+                  shadow.setAlpha(((Number) alpha).intValue());
+               }
+
+               if(direction != null) {
+                  shadow.setDirection(direction.toString());
+               }
+
+               if(distance instanceof Number) {
+                  shadow.setDistance(((Number) distance).intValue());
+               }
+
+               if(blur instanceof Number) {
+                  shadow.setBlur(((Number) blur).intValue());
+               }
+
+               return shadow;
             }
          }
       }

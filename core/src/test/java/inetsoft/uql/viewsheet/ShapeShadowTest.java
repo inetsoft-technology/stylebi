@@ -19,6 +19,8 @@ package inetsoft.uql.viewsheet;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.io.viewsheet.ShapeShadowUtil;
+import inetsoft.report.script.PropertyDescriptor;
+import inetsoft.uql.viewsheet.internal.LineVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ShapeVSAssemblyInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mockito;
 
 import java.awt.*;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -259,6 +263,54 @@ class ShapeShadowTest {
       Insets insets = ShapeShadowUtil.getShadowInsets(info);
       assertEquals(0, insets.top);
       assertEquals(4, insets.bottom);
+   }
+
+   @Test
+   void propertyDescriptorConvertsAnObjectLiteralToAShapeShadow() {
+      Map<String, Object> literal = new HashMap<>();
+      literal.put("color", "#ff0000");
+      literal.put("alpha", 40);
+      literal.put("direction", ShapeShadow.WEST);
+      literal.put("distance", 20);
+      literal.put("blur", 8);
+
+      Object converted = PropertyDescriptor.convert(literal, ShapeShadow.class);
+
+      assertTrue(converted instanceof ShapeShadow, "expected a ShapeShadow, got " + converted);
+      ShapeShadow shadow = (ShapeShadow) converted;
+      assertEquals("#ff0000", shadow.getColor());
+      assertEquals(40, shadow.getAlpha());
+      assertEquals(ShapeShadow.WEST, shadow.getDirection());
+      assertEquals(20, shadow.getDistance());
+      assertEquals(8, shadow.getBlur());
+   }
+
+   @Test
+   void propertyDescriptorConvertLeavesDefaultsWhenFieldsAreMissing() {
+      Map<String, Object> literal = new HashMap<>();
+      literal.put("direction", ShapeShadow.NORTH);
+
+      ShapeShadow shadow = (ShapeShadow) PropertyDescriptor.convert(literal, ShapeShadow.class);
+
+      assertEquals(ShapeShadow.DEFAULT_COLOR, shadow.getColor());
+      assertEquals(ShapeShadow.DEFAULT_ALPHA, shadow.getAlpha());
+      assertEquals(ShapeShadow.NORTH, shadow.getDirection());
+      assertEquals(ShapeShadow.DEFAULT_DISTANCE, shadow.getDistance());
+      assertEquals(ShapeShadow.DEFAULT_BLUR, shadow.getBlur());
+   }
+
+   @Test
+   void lineIsExcludedFromTheConfigurableShadowGateEvenWithLegacyShadowValueTrue() {
+      // Line predates configurable shadow settings and has no UI/script path
+      // to configure one; a legacy shadowValue="true" asset should keep its
+      // old fixed shadow (VSShape.paintComponent) rather than picking up the
+      // new configurable-shadow insets this gate feeds the exporters.
+      LineVSAssemblyInfo info = Mockito.mock(LineVSAssemblyInfo.class);
+      Mockito.when(info.isShadow()).thenReturn(true);
+      Mockito.when(info.getShadowInfo()).thenReturn(new ShapeShadow());
+
+      assertFalse(ShapeShadowUtil.isShapeShadow(info));
+      assertNoInsets(ShapeShadowUtil.getShadowInsets(info));
    }
 
    private static void assertNoInsets(Insets insets) {
