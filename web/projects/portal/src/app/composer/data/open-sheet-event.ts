@@ -20,5 +20,9 @@ import { SheetType } from "./sheet";
 export interface OpenSheetEvent {
    type: SheetType;
    assetId: string;
-   meta?: boolean
+   meta?: boolean;
+   // runtime id of the viewsheet a worksheet is being opened from (e.g. the
+   // base worksheet link in the composer's bottom status bar), so the new
+   // worksheet's sandbox can be linked back to the viewsheet's sandbox.
+   vsId?: string;
 }

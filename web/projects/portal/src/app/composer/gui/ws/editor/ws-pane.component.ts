@@ -784,6 +784,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
    private openExistingWorksheet(): void {
       const event = new OpenWorksheetEvent();
       event.setId(this.worksheet.id);
+      event.setVsId(this.worksheet.vsId);
 
       if(this.worksheet.gettingStarted) {
          event.setGettingStartedWs(true);
