@@ -22,6 +22,7 @@ import inetsoft.report.GroupableCellBinding;
 import inetsoft.report.TableCellBinding;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.XCondition;
+import inetsoft.uql.asset.AggregateRef;
 import inetsoft.web.binding.model.table.CellBindingInfo;
 import inetsoft.web.binding.model.table.OrderModel;
 import inetsoft.web.binding.model.table.TopNModel;
@@ -69,16 +70,20 @@ public final class CalcCellVocabulary {
 
    /**
     * A group cell's sort direction ({@code OrderModel.type}). {@code "manual"} requires
-    * {@code manualOrder} alongside it. Sorting by a specific aggregate's value
-    * ({@code XConstants.SORT_VALUE_ASC}/{@code SORT_VALUE_DESC}) is not exposed here yet -- it
-    * needs the same in-scope-aggregate resolution {@link #TOPN_MODE} deliberately does not
-    * expose either; see the note on {@code topn.mode}.
+    * {@code manualOrder} alongside it. {@code "value_asc"}/{@code "value_desc"} sort by a
+    * specific in-scope summary cell's value rather than the group's own label, and require
+    * {@code rankBy} alongside them -- resolved to {@code OrderModel.sortByCol} by
+    * {@code CalcTableService}, which has the runtime access this stateless vocabulary does not.
+    * Token spelling matches {@code DimensionSortRanking} (the equivalent for chart/crosstab
+    * dimensions), so an agent that has driven that surface does not have to relearn it here.
     */
    private static final Map<String, Integer> SORT_DIRECTION = Map.of(
       "none", XConstants.SORT_NONE,
       "asc", XConstants.SORT_ASC,
       "desc", XConstants.SORT_DESC,
-      "manual", XConstants.SORT_SPECIFIC);
+      "manual", XConstants.SORT_SPECIFIC,
+      "value_asc", XConstants.SORT_VALUE_ASC,
+      "value_desc", XConstants.SORT_VALUE_DESC);
 
    /**
     * A group cell's ranking mode ({@code TopNModel.type}). Values match {@code StyleConstants}
@@ -202,12 +207,14 @@ public final class CalcCellVocabulary {
    }
 
    /**
-    * A group cell's sort direction. Deliberately narrower than {@code OrderModel}: sorting by a
-    * specific aggregate's value ({@code SORT_VALUE_ASC}/{@code SORT_VALUE_DESC}) needs the same
-    * in-scope-aggregate resolution {@code topn.mode: "top"/"bottom"} would need for
-    * {@code rankBy} and neither is exposed yet — see the class-level note on {@code TOPN_MODE}.
-    * {@code manual} requires {@code manualOrder} alongside it, since a manual order with nothing
-    * to order is not meaningfully different from no order at all.
+    * A group cell's sort direction. {@code manual} requires {@code manualOrder} alongside it,
+    * since a manual order with nothing to order is not meaningfully different from no order at
+    * all. {@code value_asc}/{@code value_desc} require {@code rankBy} -- {@code {column,
+    * formula}} naming one of this table's summary cells -- since sorting "by value" with nothing
+    * to sort by would otherwise silently fall back to sorting by the label, which looks like the
+    * request was honoured. This only checks the shape; resolving {@code rankBy} against the
+    * table's actual summary cells happens in {@code CalcTableService}, which has the runtime
+    * access this stateless vocabulary does not.
     */
    private static void validateSort(Map<String, Object> sort) {
       if(sort == null) {
@@ -232,15 +239,19 @@ public final class CalcCellVocabulary {
                "otherwise there is nothing to order by.");
          }
       }
+
+      if(resolved == XConstants.SORT_VALUE_ASC || resolved == XConstants.SORT_VALUE_DESC) {
+         requireRankBy(sort.get("rankBy"), "sort.direction '" + direction + "'");
+      }
    }
 
    /**
-    * A group cell's ranking. {@code rankBy} (choosing a specific aggregate to rank by, when a
-    * group has more than one) is not exposed yet: the UI resolves it against a server-pushed,
-    * cell-selection-scoped aggregate list this seam does not have access to, and guessing an
-    * index wrong would silently rank by the wrong column rather than fail loud. With exactly one
-    * aggregate in scope -- the common case -- StyleBI's own default (index 0) applies, matching
-    * what the Composer's own "Aggregate" dropdown defaults to when nothing else is selected.
+    * A group cell's ranking. {@code rankBy} ({@code {column, formula}}, naming the summary cell
+    * to rank by) is optional: with exactly one summary cell in scope -- the common case --
+    * {@code CalcTableService} defaults to it, matching what the Composer's own Top-N pane falls
+    * back to. With more than one, {@code CalcTableService} refuses rather than guessing, since a
+    * wrong guess would silently rank by the wrong column instead of failing loud. This only
+    * checks the shape of a given {@code rankBy}; resolving it happens in {@code CalcTableService}.
     */
    private static void validateTopn(Map<String, Object> topn) {
       if(topn == null) {
@@ -259,6 +270,32 @@ public final class CalcCellVocabulary {
       if(n != null && (!(n instanceof Number) || ((Number) n).intValue() < 1)) {
          throw new IllegalArgumentException("'topn.n' must be a positive integer, got " + n + ".");
       }
+
+      if(topn.get("rankBy") != null) {
+         requireRankBy(topn.get("rankBy"), "'topn.rankBy'");
+      }
+   }
+
+   /** The {@code {column, formula}} shape both {@code sort.rankBy} and {@code topn.rankBy} use. */
+   private static void requireRankBy(Object rankBy, String forWhat) {
+      if(!(rankBy instanceof Map)) {
+         throw new IllegalArgumentException(
+            forWhat + " needs a 'rankBy' of {column, formula} -- naming the summary cell to " +
+            "rank by. Without it the sort/ranking would silently fall back to a default column " +
+            "instead of failing loud.");
+      }
+
+      Map<?, ?> map = (Map<?, ?>) rankBy;
+
+      if(!(map.get("column") instanceof String text) || text.isBlank()) {
+         throw new IllegalArgumentException(forWhat + "'s 'rankBy' needs a non-blank 'column'.");
+      }
+
+      if(!(map.get("formula") instanceof String formulaText) || formulaText.isBlank()) {
+         throw new IllegalArgumentException(
+            forWhat + "'s 'rankBy' needs a non-blank 'formula' (e.g. \"Sum\") -- " +
+            "list_cell_vocabulary's 'aggregateFormulas' lists the accepted names.");
+      }
    }
 
    @SuppressWarnings("unchecked")
@@ -276,6 +313,19 @@ public final class CalcCellVocabulary {
 
    /** Renders a cell binding back in tokens. Never emits an integer constant or an alias key. */
    public static Map<String, Object> describe(CellBindingInfo info) {
+      return describe(info, null);
+   }
+
+   /**
+    * Same as {@link #describe(CellBindingInfo)}, additionally resolving a {@code value_asc}/
+    * {@code value_desc} sort's or a ranking's {@code sortByCol}/{@code sumCol} index back to the
+    * {@code {column, formula}} it names. {@code aggregates} is the same in-scope summary-cell
+    * list {@code CalcTableService} resolved {@code rankBy} against on write -- pass {@code null}
+    * only when that context is unavailable (the index is then omitted rather than reported bare,
+    * since a bare index is exactly the brittle-under-reorder shape this vocabulary avoids
+    * elsewhere).
+    */
+   public static Map<String, Object> describe(CellBindingInfo info, AggregateRef[] aggregates) {
       if(info == null) {
          return null;
       }
@@ -306,6 +356,11 @@ public final class CalcCellVocabulary {
          if(order.getType() == XConstants.SORT_SPECIFIC) {
             sort.put("manualOrder", order.getManualOrder());
          }
+         else if(order.getType() == XConstants.SORT_VALUE_ASC ||
+                 order.getType() == XConstants.SORT_VALUE_DESC)
+         {
+            sort.put("rankBy", rankByOf(aggregates, order.getSortCol()));
+         }
 
          out.put("sort", sort);
          // DateLevels.name() takes the STORED numeric-string form; a group cell whose field
@@ -322,11 +377,25 @@ public final class CalcCellVocabulary {
 
          if(topn.getType() != XCondition.NONE) {
             topnOut.put("n", topn.getTopn());
+            topnOut.put("rankBy", rankByOf(aggregates, topn.getSumCol()));
          }
 
          out.put("topn", topnOut);
       }
 
+      return out;
+   }
+
+   /** Resolves a {@code sortByCol}/{@code sumCol} index back to the summary cell it names. */
+   private static Map<String, Object> rankByOf(AggregateRef[] aggregates, int index) {
+      if(aggregates == null || index < 0 || index >= aggregates.length) {
+         return null;
+      }
+
+      AggregateRef agg = aggregates[index];
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("column", agg.getDataRef() == null ? null : agg.getDataRef().getName());
+      out.put("formula", agg.getFormulaName());
       return out;
    }
 

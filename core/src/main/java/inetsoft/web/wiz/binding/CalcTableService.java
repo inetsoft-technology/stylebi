@@ -24,6 +24,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.XCondition;
+import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.Worksheet;
@@ -35,12 +36,14 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.report.internal.binding.AssetNamedGroupInfo;
+import inetsoft.uql.erm.CalcAggregate;
 import inetsoft.web.binding.command.GetCellScriptCommand;
 import inetsoft.web.binding.command.GetPredefinedNamedGroupCommand;
 import inetsoft.web.binding.controller.VSTableLayoutService;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.event.GetCellScriptEvent;
 import inetsoft.web.binding.event.GetPredefinedNamedGroupEvent;
+import inetsoft.web.binding.handler.TableLayoutHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.table.OrderModel;
@@ -87,13 +90,14 @@ public class CalcTableService {
    public CalcTableService(ViewsheetSessionService sessions, VSTableLayoutService layoutService,
                            DataRefModelFactoryService refModelService,
                            BindableFieldsService fieldsService,
-                           VSColumnHandler columnsHandler)
+                           VSColumnHandler columnsHandler, TableLayoutHandler layoutHandler)
    {
       this.sessions = sessions;
       this.layoutService = layoutService;
       this.refModelService = refModelService;
       this.fieldsService = fieldsService;
       this.columnsHandler = columnsHandler;
+      this.layoutHandler = layoutHandler;
    }
 
    /**
@@ -109,6 +113,7 @@ public class CalcTableService {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
       TableLayout layout = layoutOf(assembly);
+      AggregateRef[] aggregates = aggregatesOf(rvs, assembly);
       List<Map<String, Object>> cells = new ArrayList<>();
 
       for(int row = 0; row < layout.getRowCount(); row++) {
@@ -125,7 +130,7 @@ public class CalcTableService {
 
             cell.put("binding",
                      CalcCellVocabulary.describe(
-                        layoutService.getCellBindingInfo(assembly, row, col)));
+                        layoutService.getCellBindingInfo(assembly, row, col), aggregates));
             cells.add(cell);
          }
       }
@@ -151,7 +156,8 @@ public class CalcTableService {
       out.put("row", row);
       out.put("col", col);
       out.put("binding",
-              CalcCellVocabulary.describe(layoutService.getCellBindingInfo(assembly, row, col)));
+              CalcCellVocabulary.describe(layoutService.getCellBindingInfo(assembly, row, col),
+                                          aggregatesOf(rvs, assembly)));
       return out;
    }
 
@@ -284,7 +290,7 @@ public class CalcTableService {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          requireInGrid(layoutOf(assembly), row, col);
 
-         CellBindingInfo cellBindingInfo = toCellBindingInfo(binding);
+         CellBindingInfo cellBindingInfo = toCellBindingInfo(binding, rvs, assembly);
 
          if(cellBindingInfo.getType() == CellBinding.BIND_COLUMN) {
             requireBindableColumn(runtimeId, user, assemblyName, cellBindingInfo.getValue());
@@ -549,10 +555,7 @@ public class CalcTableService {
    private DataRef columnRef(RuntimeViewsheet rvs, CalcTableVSAssembly assembly, String column)
       throws Exception
    {
-      SourceInfo source = assembly.getSourceInfo();
-      ColumnSelection cols = columnsHandler.getColumnSelection(
-         rvs, assembly.getAbsoluteName(), source == null ? null : source.getSource(),
-         null, false, true, false, false, false, false);
+      ColumnSelection cols = columnSelectionOf(rvs, assembly);
       DataRef field = cols == null ? null : cols.getAttribute(column);
 
       if(field == null) {
@@ -562,6 +565,99 @@ public class CalcTableService {
       }
 
       return field;
+   }
+
+   private ColumnSelection columnSelectionOf(RuntimeViewsheet rvs, CalcTableVSAssembly assembly)
+      throws Exception
+   {
+      SourceInfo source = assembly.getSourceInfo();
+      return columnsHandler.getColumnSelection(
+         rvs, assembly.getAbsoluteName(), source == null ? null : source.getSource(),
+         null, false, true, false, false, false, false);
+   }
+
+   /**
+    * Every distinct summary ({@code grouping: "summary"}) cell in this calc table, deduplicated
+    * by column+formula identity -- the same list {@code sort.rankBy}/{@code topn.rankBy} are
+    * resolved against on write, and the read side reports {@code rankBy} from
+    * ({@link CalcCellVocabulary#describe(CellBindingInfo, AggregateRef[])}). Order matters: it is
+    * the same order {@code OrderModel.sortByCol}/{@code TopNModel.sumCol} index into, mirroring
+    * {@code VSTableLayoutService.getAggregates}.
+    */
+   private AggregateRef[] aggregatesOf(RuntimeViewsheet rvs, CalcTableVSAssembly assembly)
+      throws Exception
+   {
+      ColumnSelection cols = columnSelectionOf(rvs, assembly);
+      CalcAggregate[] aggs = layoutHandler.getCalcAggregateFields(assembly, cols);
+      AggregateRef[] out = new AggregateRef[aggs.length];
+
+      for(int i = 0; i < aggs.length; i++) {
+         out[i] = (AggregateRef) aggs[i];
+      }
+
+      return out;
+   }
+
+   /**
+    * Resolves a {@code {column, formula}} rank-by reference to its index in
+    * {@link #aggregatesOf}'s list -- the same index {@code OrderModel.sortByCol}/
+    * {@code TopNModel.sumCol} actually store. {@code rankBy == null} is only valid with exactly
+    * one summary cell in scope, matching what the Composer's own Top-N pane defaults to; with
+    * zero or more than one, guessing would silently rank by the wrong column, so this refuses
+    * instead.
+    */
+   private int resolveRankBy(RuntimeViewsheet rvs, CalcTableVSAssembly assembly,
+                             Map<String, Object> rankBy, String forWhat) throws Exception
+   {
+      AggregateRef[] aggs = aggregatesOf(rvs, assembly);
+
+      if(rankBy == null) {
+         if(aggs.length == 1) {
+            return 0;
+         }
+
+         throw new IllegalArgumentException(
+            forWhat + " needs a 'rankBy' of {column, formula} -- this table has " + aggs.length +
+            " summary cell(s) in scope (" + describeAggs(aggs) + "), so which one to use is " +
+            "ambiguous." + (aggs.length == 0 ?
+               " Add a summary cell first." : " Name one with 'rankBy'."));
+      }
+
+      String column = str(rankBy, "column");
+      String formula = str(rankBy, "formula");
+
+      for(int i = 0; i < aggs.length; i++) {
+         AggregateRef agg = aggs[i];
+         String aggColumn = agg.getDataRef() == null ? null : agg.getDataRef().getName();
+
+         if(Objects.equals(aggColumn, column) && Objects.equals(agg.getFormulaName(), formula)) {
+            return i;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         forWhat + "'s 'rankBy' names " + formula + "(" + column + "), which isn't one of this " +
+         "table's summary cells (" + describeAggs(aggs) + ").");
+   }
+
+   private static String describeAggs(AggregateRef[] aggs) {
+      if(aggs.length == 0) {
+         return "none";
+      }
+
+      StringBuilder out = new StringBuilder();
+
+      for(int i = 0; i < aggs.length; i++) {
+         if(i > 0) {
+            out.append(", ");
+         }
+
+         AggregateRef agg = aggs[i];
+         out.append(agg.getFormulaName()).append("(")
+            .append(agg.getDataRef() == null ? "?" : agg.getDataRef().getName()).append(")");
+      }
+
+      return out.toString();
    }
 
    /**
@@ -778,7 +874,9 @@ public class CalcTableService {
 
    // ── conversions ───────────────────────────────────────────────────────────
 
-   static CellBindingInfo toCellBindingInfo(Map<String, Object> binding) {
+   private CellBindingInfo toCellBindingInfo(Map<String, Object> binding, RuntimeViewsheet rvs,
+                                             CalcTableVSAssembly assembly) throws Exception
+   {
       CellBindingInfo info = new CellBindingInfo();
       int type = CalcCellVocabulary.content(str(binding, "content"));
       info.setType(type);
@@ -857,8 +955,8 @@ public class CalcTableService {
          info.setTimeSeries(timeSeries);
       }
 
-      applySort(info, asMap(binding.get("sort")));
-      applyTopn(info, asMap(binding.get("topn")));
+      applySort(info, asMap(binding.get("sort")), rvs, assembly);
+      applyTopn(info, asMap(binding.get("topn")), rvs, assembly);
 
       if(type == CellBinding.BIND_COLUMN) {
          applyDateGroup(info, asMap(binding.get("field")));
@@ -868,11 +966,14 @@ public class CalcTableService {
    }
 
    /**
-    * A group cell's sort direction/manual order. Deliberately does not touch
-    * {@code sortByCol}/{@code sortByValue} (sort-by-a-specific-aggregate's-value) -- see
-    * {@link CalcCellVocabulary#validateSort} for why that is not exposed yet.
+    * A group cell's sort direction/manual order, or -- for {@code value_asc}/{@code value_desc}
+    * -- which summary cell to sort by. {@code sort.rankBy} is resolved against
+    * {@link #aggregatesOf} at write time, the same list the Composer's own Sort dropdown resolves
+    * its selection against when the human clicks save.
     */
-   private static void applySort(CellBindingInfo info, Map<String, Object> sort) {
+   private void applySort(CellBindingInfo info, Map<String, Object> sort, RuntimeViewsheet rvs,
+                          CalcTableVSAssembly assembly) throws Exception
+   {
       if(sort == null) {
          return;
       }
@@ -890,16 +991,23 @@ public class CalcTableService {
 
          order.setManualOrder(values);
       }
+      else if(order.getType() == XConstants.SORT_VALUE_ASC ||
+              order.getType() == XConstants.SORT_VALUE_DESC)
+      {
+         order.setSortCol(resolveRankBy(rvs, assembly, asMap(sort.get("rankBy")),
+                                        "sort.direction '" + str(sort, "direction") + "'"));
+      }
    }
 
    /**
-    * A group cell's ranking. {@code sumCol} defaults to 0 -- the same default the Composer's own
-    * Top-N pane falls back to when exactly one aggregate is in scope (see
-    * {@code CalcGroupOption.changeTopnType}) -- since choosing a specific aggregate by name needs
-    * the same in-scope-aggregate resolution {@link CalcCellVocabulary#validateTopn} does not
-    * expose yet.
+    * A group cell's ranking, including which summary cell to rank by. {@code topn.rankBy} is
+    * resolved against {@link #aggregatesOf} at write time; omitted, it defaults to the sole
+    * in-scope summary cell (matching the Composer's own Top-N pane) or refuses when that is
+    * ambiguous.
     */
-   private static void applyTopn(CellBindingInfo info, Map<String, Object> topn) {
+   private void applyTopn(CellBindingInfo info, Map<String, Object> topn, RuntimeViewsheet rvs,
+                          CalcTableVSAssembly assembly) throws Exception
+   {
       if(topn == null) {
          return;
       }
@@ -910,7 +1018,7 @@ public class CalcTableService {
       if(model.getType() != XCondition.NONE) {
          Object n = topn.get("n");
          model.setTopn(n == null ? 3 : ((Number) n).intValue());
-         model.setSumCol(0);
+         model.setSumCol(resolveRankBy(rvs, assembly, asMap(topn.get("rankBy")), "'topn'"));
       }
    }
 
@@ -1089,4 +1197,5 @@ public class CalcTableService {
    private final DataRefModelFactoryService refModelService;
    private final BindableFieldsService fieldsService;
    private final VSColumnHandler columnsHandler;
+   private final TableLayoutHandler layoutHandler;
 }
