@@ -218,6 +218,95 @@ class VSTreeHandlerCrossRuntimeStalenessTest {
       }
    }
 
+   /**
+    * Fixture for the "no {@code save_worksheet} ever happens" scenario (bug PWA-010, see
+    * {@code docs/teams/2026-09-05-bug-pwa-010/} in the stylebi-wiz repo): the worksheet-editing
+    * session's {@code set_group_aggregate} is applied only to that session's own in-memory
+    * {@code RuntimeWorksheet} and never persisted, so the {@code AssetRepository}/
+    * {@code IndexedStorage} this viewsheet's engine reads from never changes and
+    * {@code store.lastModified()} never exceeds {@code rvs.getLastReset()} -- the exact inverse of
+    * {@link Fixture}'s one load-bearing precondition (there, {@code store.lastModified()} is bumped
+    * past {@code lastReset} to simulate a save that landed). Everything else (assembly wiring,
+    * engine/store/rvs mocks, principal) mirrors {@link Fixture} exactly.
+    */
+   private static final class NoSaveFixture {
+      final AssetEntry wsEntry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "ws2", null);
+      final Viewsheet vs = new Viewsheet(wsEntry);
+      final ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      final AssetRepository engine = mock(AssetRepository.class);
+      final IndexedStorage store = mock(IndexedStorage.class);
+      final RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      final Principal principal = TestPrincipals.user("alice", "host-org");
+      final VSTreeHandler handler = new VSTreeHandler(
+         mock(VSChartHandler.class), mock(inetsoft.sree.security.SecurityEngine.class));
+
+      NoSaveFixture() throws Exception {
+         chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, TABLE_NAME));
+         vs.addAssembly(chart);
+
+         // Connect: load the STALE (pre-aggregation) worksheet. Unlike Fixture, the repository
+         // never advances beyond this -- set_group_aggregate is applied only in the separate
+         // worksheet-editing session's own in-memory RuntimeWorksheet, with no save_worksheet ever
+         // persisting it here, so every subsequent engine.getSheet call keeps returning the same
+         // pre-aggregation snapshot.
+         when(engine.getSheet(any(AssetEntry.class), any(), anyBoolean(), any(AssetContent.class)))
+            .thenReturn(staleWorksheet());
+         vs.reloadBaseWorksheet(engine, principal);
+
+         when(engine.getStorage(any(AssetEntry.class))).thenReturn(store);
+         // The inverse of Fixture's precondition: store.lastModified() never exceeds lastReset,
+         // because nothing was ever persisted after the viewsheet connected.
+         when(store.lastModified()).thenReturn(T_STALE);
+         when(rvs.getLastReset()).thenReturn(T_FRESH);
+
+         when(rvs.getViewsheet()).thenReturn(vs);
+         when(rvs.isRuntime()).thenReturn(true);
+         when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+      }
+
+      AssetTreeModel getChartTree() throws Exception {
+         ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+         return handler.getChartTreeModel(engine, rvs, info, false, principal);
+      }
+   }
+
+   /**
+    * Pins CURRENT, BY-DESIGN behavior of the worksheet/viewsheet runtime-separation boundary --
+    * this is not an invariant a future cross-runtime live-bridge feature (e.g. one built on
+    * {@code WorksheetEngine#getAllRuntimeWorksheetSheets()}, see
+    * {@code docs/teams/2026-09-05-bug-pwa-010/PWA-010/01-diagnosis.md}'s "Revised proposed fix")
+    * would be "breaking" if it deliberately changed this assertion -- it documents what happens
+    * today, absent any such bridge, so a future change in this area is a deliberate design decision
+    * rather than an accidental regression. Confirmed against the live product (not just this mock
+    * fixture) in {@code docs/teams/2026-09-05-bug-pwa-010/PWA-010/02b-live-check-lead.md}'s "Check 1":
+    * {@code set_group_aggregate} -> {@code list_bindable_fields} -> {@code list_bindable_fields}
+    * again, no {@code save_worksheet} anywhere in between, returned the identical raw
+    * pre-aggregation column list on both calls.
+    */
+   @Test
+   void noSaveEverLeavesColumnsStaleOnEveryCall() throws Exception {
+      NoSaveFixture fx = new NoSaveFixture();
+
+      List<String> firstCall = leafColumnNames(fx.getChartTree());
+      List<String> secondCall = leafColumnNames(fx.getChartTree());
+
+      // The staleness check must never fire resetRuntime() -- store.lastModified() never exceeds
+      // rvs.getLastReset() because nothing was ever persisted.
+      verify(fx.rvs, org.mockito.Mockito.never()).resetRuntime();
+
+      for(List<String> columns : List.of(firstCall, secondCall)) {
+         assertTrue(columns.stream().anyMatch(c -> c.contains("REGION")),
+            "absent a save, the viewsheet's base worksheet must keep reporting the raw, " +
+            "pre-aggregation column shape on every call -- this is the two-runtimes-don't-" +
+            "share-state boundary, not a bug in the CubeTreeModelBuilder read path itself");
+         assertTrue(columns.stream().noneMatch(c -> c.contains("TOTAL_SALES")),
+            "the post-aggregation TOTAL_SALES alias must never appear -- it exists only in the " +
+            "separate worksheet-editing session's own in-memory state, which this viewsheet " +
+            "session has no live (non-persisted) way to observe");
+      }
+   }
+
    @Test
    void firstCallAfterSaveReturnsFreshColumns() throws Exception {
       Fixture fx = new Fixture();
