@@ -18,8 +18,7 @@
 .default-border {
   position: absolute;
   width: 100%;
-  height: calc(100% - 1em / 2);
-  margin-top: calc(1em / 2);
+  height: 100%;
   z-index: 1;
   pointer-events: none;
 }
