@@ -22,24 +22,76 @@ const sass = require("gulp-dart-sass");
 const postcss = require("gulp-postcss");
 const replace = require("gulp-replace");
 const cssnano = require("cssnano");
+const glob = require("glob");
+const path = require("path");
+const requireNonEmptyStream = require("./require-non-empty-stream");
+const { verifyClassicScriptBundle } = require("./verify-classic-script");
+const { rebundleMainForClassicScript } = require("./esbuild-classic-script-rebundle");
+
+// The esbuild @angular/build:application builder (in use for this project since the
+// Angular 17->18/esbuild migration) hashes output filenames as "<name>-<HASH>.js" and does
+// not emit a separate runtime chunk -- unlike the older Webpack builder's "<name>.<hash>.js"
+// convention these patterns used to target.
+const ngOutputDir = "target/generated-resources/ng/inetsoft/web/resources/viewer-element";
+const rebundleDir = "target/generated-resources/gulp/tmp/viewer-element";
+const appDir = "target/generated-resources/gulp/inetsoft/web/resources/app";
 
 const scriptFiles = [
-   "target/generated-resources/ng/inetsoft/web/resources/viewer-element/runtime.*.js",
-   "target/generated-resources/ng/inetsoft/web/resources/viewer-element/polyfills.*.js",
-   "target/generated-resources/ng/inetsoft/web/resources/viewer-element/scripts.*.js",
-   "target/generated-resources/ng/inetsoft/web/resources/viewer-element/main.*.js"
+   path.join(ngOutputDir, "polyfills-*.js"),
+   path.join(ngOutputDir, "scripts-*.js"),
+   // Bug #76473: this is the esbuild-rebundled (format=iife, import.meta.url captured via
+   // ESM_SCRIPT_URL_BANNER) copy of Angular's main-*.js, not the raw ng build output -- see
+   // esbuild-classic-script-rebundle.js and docs/teams/2026-09-04-bug-76473/02b-fix-approach-decision.md.
+   path.join(rebundleDir, "main-*.js")
 ];
 
 const cssFiles = [
    "target/generated-resources/gulp/inetsoft/web/resources/app/global.css",
-   "target/generated-resources/ng/inetsoft/web/resources/viewer-element/styles.*.css"
+   "target/generated-resources/ng/inetsoft/web/resources/viewer-element/styles-*.css"
 ];
 
-gulp.task("viewer-element:scripts", function () {
-   return gulp.src(scriptFiles)
-      .pipe(concat("viewer-element.js"))
-      .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/app/"));
+// Bug #76473, piece 1+2 -- see elements.js's identical task for the full explanation.
+gulp.task("viewer-element:scripts:bundle-main", function (callback) {
+   rebundleMainForClassicScript(ngOutputDir, rebundleDir);
+   callback();
 });
+
+// Bug #76473, piece 3 -- see elements.js's identical task for the full explanation.
+gulp.task("viewer-element:scripts:copy-worker", function () {
+   const workerFiles = glob.sync(path.join(ngOutputDir, "worker-*.js"));
+
+   if(workerFiles.length === 0) {
+      return Promise.reject(new Error(
+         `viewer-element:scripts:copy-worker found no worker-*.js in ${ngOutputDir} -- ` +
+         "expected Angular's production build to emit HeartbeatWorkerService's worker chunk."));
+   }
+
+   return gulp.src(workerFiles)
+      .pipe(gulp.dest(appDir));
+});
+
+gulp.task("viewer-element:scripts:concat", function () {
+   return gulp.src(scriptFiles)
+      .pipe(requireNonEmptyStream("viewer-element:scripts"))
+      .pipe(concat("viewer-element.js"))
+      .pipe(gulp.dest(appDir));
+});
+
+// Bug #76473: fail the build loudly if the concatenated bundle regresses back to being
+// unparseable as a classic script, or silently degrades via esbuild's import.meta stub --
+// same discipline as requireNonEmptyStream() above (added for Bug #76468), for a different
+// check.
+gulp.task("viewer-element:scripts:verify", function (callback) {
+   verifyClassicScriptBundle(path.join(appDir, "viewer-element.js"));
+   callback();
+});
+
+gulp.task("viewer-element:scripts", gulp.series([
+   "viewer-element:scripts:bundle-main",
+   "viewer-element:scripts:copy-worker",
+   "viewer-element:scripts:concat",
+   "viewer-element:scripts:verify"
+]));
 
 gulp.task("viewer-element:concat-css", function () {
    return gulp.src(cssFiles)
