@@ -32,7 +32,7 @@ describe("VSObjectContainer z-index boost tiering", () => {
       const { comp } = makeComponent({ dataTipSvc });
 
       const maxModeChart = makeVSObject({
-         absoluteName: "Chart1", objectFormat: { zIndex: 10 } as any, sheetMaxMode: true,
+         absoluteName: "Chart1", objectFormat: { zIndex: 10 } as any,
          ...( { maxMode: true } as any),
       });
       const dataTipTarget = makeVSObject({ absoluteName: "Chart2", objectFormat: { zIndex: 5 } as any });
