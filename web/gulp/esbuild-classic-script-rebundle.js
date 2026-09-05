@@ -59,6 +59,14 @@ function rebundleMainForClassicScript(ngOutputDir, rebundleDir) {
 
    const mainFile = matches[0];
    const outFile = path.join(rebundleDir, path.basename(mainFile));
+
+   // Angular's output filename is content-hashed, so on a workspace that isn't freshly cleaned
+   // between builds a code change produces a new hash and this would otherwise leave the
+   // previous run's main-<oldHash>.js sitting alongside it -- elements.js/viewer-element.js's
+   // scriptFiles glob (main-*.js against this same directory) would then match both, and
+   // gulp-concat would silently concatenate both into the final bundle (duplicate
+   // customElements.define(...) calls at runtime). Clear any stale content first.
+   fs.rmSync(rebundleDir, { recursive: true, force: true });
    fs.mkdirSync(rebundleDir, { recursive: true });
 
    esbuild.buildSync({
