@@ -21,21 +21,26 @@ const sass = require("gulp-dart-sass");
 const postcss = require("gulp-postcss");
 const replace = require("gulp-replace");
 const cssnano = require("cssnano");
+const requireNonEmptyStream = require("./require-non-empty-stream");
 
+// The esbuild @angular/build:application builder (in use for this project since the
+// migration away from the older Webpack-based builder) hashes output filenames as
+// "<name>-<HASH>.js" and does not emit a separate runtime chunk -- unlike that older builder's
+// "<name>.<hash>.js" convention these patterns used to target.
 const scriptFiles = [
-   "target/generated-resources/ng/inetsoft/web/resources/elements/runtime.*.js",
-   "target/generated-resources/ng/inetsoft/web/resources/elements/polyfills.*.js",
-   "target/generated-resources/ng/inetsoft/web/resources/elements/scripts.*.js",
-   "target/generated-resources/ng/inetsoft/web/resources/elements/main.*.js"
+   "target/generated-resources/ng/inetsoft/web/resources/elements/polyfills-*.js",
+   "target/generated-resources/ng/inetsoft/web/resources/elements/scripts-*.js",
+   "target/generated-resources/ng/inetsoft/web/resources/elements/main-*.js"
 ];
 
 const cssFiles = [
    "target/generated-resources/gulp/inetsoft/web/resources/app/global.css",
-   "target/generated-resources/ng/inetsoft/web/resources/elements/styles.*.css"
+   "target/generated-resources/ng/inetsoft/web/resources/elements/styles-*.css"
 ];
 
 gulp.task("elements:scripts", function () {
    return gulp.src(scriptFiles)
+      .pipe(requireNonEmptyStream("elements:scripts"))
       .pipe(concat("elements.js"))
       .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/app/"));
 });
