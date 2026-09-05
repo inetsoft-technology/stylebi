@@ -551,18 +551,8 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          return true;
       }
 
-      if(this.dataTipService.dataTipName) {
-         if(this.dataTipService.isCurrentDataTip(vsObject.absoluteName, vsObject.container)) {
-            return true;
-         }
-
-         // Boost the z-index of any embedded viewsheet that contains the active datatip so
-         // the popup and its overflow content render above the dim canvas
-         if(vsObject.objectType === "VSViewsheet" &&
-            this.dataTipService.dataTipName.startsWith(vsObject.absoluteName + "."))
-         {
-            return true;
-         }
+      if(this.isActiveDataTipBoost(vsObject)) {
+         return true;
       }
 
       // Boost the z-index of any embedded viewsheet that contains the active pop component
@@ -578,6 +568,25 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       return false;
    }
 
+   // True when vsObject is boosted specifically because it is the active Data Tip's own
+   // content (or an embedded viewsheet containing it) -- split out from needsZIndexBoost()
+   // so getContainerZIndex() can give this case a strictly higher tier than a merely-max-mode
+   // (or pop-component) boost. Independent of whether vsObject also happens to be max-mode.
+   private isActiveDataTipBoost(vsObject: VSObjectModel): boolean {
+      if(!this.dataTipService.dataTipName) {
+         return false;
+      }
+
+      if(this.dataTipService.isCurrentDataTip(vsObject.absoluteName, vsObject.container)) {
+         return true;
+      }
+
+      // Any embedded viewsheet that contains the active datatip, so the popup and its
+      // overflow content render above the dim canvas.
+      return vsObject.objectType === "VSViewsheet" &&
+         this.dataTipService.dataTipName.startsWith(vsObject.absoluteName + ".");
+   }
+
    getPopUpContentBoostZIndex(): number {
       return DateTipHelper.getPopUpContentBoostZIndex();
    }
@@ -589,9 +598,26 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    // -- assembly z-index values are server-assigned and can be arbitrarily large (e.g. for
    // embedded-viewsheet or max-mode assemblies), easily exceeding any hardcoded CSS z-index.
    getContainerZIndex(vsObject: VSObjectModel): number {
-      return this.isActivePopComponent(vsObject) || this.needsZIndexBoost(vsObject)
-         ? this.zIndex(vsObject) + this.popUpContentBoostZIndex
-         : this.zIndex(vsObject);
+      if(!this.isActivePopComponent(vsObject) && !this.needsZIndexBoost(vsObject)) {
+         return this.zIndex(vsObject);
+      }
+
+      const isDataTipBoost = this.isActiveDataTipBoost(vsObject);
+
+      // An active Data Tip (or an embedded viewsheet containing one) must render above a
+      // merely-max-mode (or pop-component) boosted sibling -- otherwise "Show Maximized" on one
+      // assembly can hide a completely different assembly's Data Tip popup behind it (#76461,
+      // #76458). Doubling the boost for this case mirrors the existing extra "+1000 while
+      // popShowing" tier already applied on top of this same constant in
+      // VSDataTipDirective.ngDoCheck(). This wins as long as the two assemblies' own base
+      // zIndex() values differ by less than popUpContentBoostZIndex (99999) -- true for any
+      // realistic nesting depth given this codebase's z-index gaps (Viewsheet.NORMAL_ZINDEX_GAP/
+      // CONTAINER_ZINDEX_GAP/VIEWSHEET_ZINDEX_GAP are 1/50/1000), but not an absolute guarantee:
+      // zIndex() can add +5000 for an assembly with annotations or +getPopUpContentBoostZIndex()
+      // for an adhoc filter, which does eat into that margin.
+      return isDataTipBoost
+         ? this.zIndex(vsObject) + this.popUpContentBoostZIndex * 2
+         : this.zIndex(vsObject) + this.popUpContentBoostZIndex;
    }
 
    // The mini-toolbar's z-index (see [zIndex] binding on <mini-toolbar> in the template) is
