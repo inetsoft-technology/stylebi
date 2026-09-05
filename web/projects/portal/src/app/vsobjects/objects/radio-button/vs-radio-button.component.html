@@ -43,10 +43,7 @@
     [style.height.px]="model.objectFormat.height"
     [style.z-index]="viewer ? model.objectFormat.zIndex : null">
     @if (defaultBorder) {
-      <div class="default-border vs-radio-button__default-border"
-        [style.margin-top]="model.titleVisible ? null : 0"
-        [style.height]="model.titleVisible ? null : '100%'"
-      ></div>
+      <div class="default-border vs-radio-button__default-border"></div>
     }
     @if (model.titleVisible) {
       <vs-title
@@ -55,10 +52,9 @@
         [titleSelected]="isTitleSelected()"
         [titleVisible]="model.titleVisible"
         [titleWidth]="model.titleFormat.width"
-        [textBackground]="model.objectFormat.background || 'white'"
         [selected]="selected"
         [formatPainterMode]="vsInfo?.formatPainterMode"
-        [floating]="defaultBorder"
+        [insetHeader]="defaultBorder"
         (selectTitle)="selectTitle($event)"
         (changeTitle)="changeTitle($event)"
         (titleResizeMove)="titleResizeMove($event)"
