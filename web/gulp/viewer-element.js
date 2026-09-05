@@ -25,9 +25,9 @@ const cssnano = require("cssnano");
 const requireNonEmptyStream = require("./require-non-empty-stream");
 
 // The esbuild @angular/build:application builder (in use for this project since the
-// Angular 17->18/esbuild migration) hashes output filenames as "<name>-<HASH>.js" and does
-// not emit a separate runtime chunk -- unlike the older Webpack builder's "<name>.<hash>.js"
-// convention these patterns used to target.
+// migration away from the older Webpack-based builder) hashes output filenames as
+// "<name>-<HASH>.js" and does not emit a separate runtime chunk -- unlike that older builder's
+// "<name>.<hash>.js" convention these patterns used to target.
 const scriptFiles = [
    "target/generated-resources/ng/inetsoft/web/resources/viewer-element/polyfills-*.js",
    "target/generated-resources/ng/inetsoft/web/resources/viewer-element/scripts-*.js",

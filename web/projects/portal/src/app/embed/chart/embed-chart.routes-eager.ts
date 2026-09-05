@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Route, Routes } from "@angular/router";
+import { Routes } from "@angular/router";
 import { canDeactivateGuard } from "../../common/services/can-deactivate-guard.service";
 import { EMBED_CHART_URL_MATCHER } from "./embed-chart-url-matcher";
 import { EMBED_CHART_ROUTE_PROVIDERS } from "./embed-chart.route-providers";
@@ -43,5 +43,5 @@ export const embedChartRoutesEager: Routes = [
       canDeactivate: [canDeactivateGuard],
       matcher: EMBED_CHART_URL_MATCHER,
       providers: EMBED_CHART_ROUTE_PROVIDERS
-   } as Route
+   }
 ];
