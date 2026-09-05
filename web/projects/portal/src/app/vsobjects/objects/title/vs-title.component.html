@@ -60,9 +60,9 @@
       [style.padding-left.px]="insetHeader ? 8 : titleFormat?.padding?.left"
       [style.padding-right.px]="titleFormat?.padding?.right"
       [class.wrapped]="titleFormat.wrapping.whiteSpace != 'nowrap'"
-      [innerHTML]="htmlText"
       [class.cursor-pointer]="cursorPointer"
       (dblclick)="editingTitle = (!viewer || binding) && !preview">
+      <div class="title-text" [innerHTML]="htmlText"></div>
     </div>
     @if (!editingTitle && !viewer && !preview && (selected || formatPainterMode)) {
       <div

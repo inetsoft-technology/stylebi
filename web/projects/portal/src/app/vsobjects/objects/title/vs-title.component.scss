@@ -28,8 +28,17 @@
     top: 0;
     left: 0;
     text-decoration: inherit;
-    overflow: hidden;
-    text-overflow: ellipsis;
+
+    // text-overflow is only spec-guaranteed on a block container box, not a flex container, so the
+    // truncation lives on this nested block-level child rather than on the flex row itself.
+    // min-width: 0 overrides the flex item's default auto min-width (its content's natural size),
+    // which would otherwise prevent it from ever shrinking enough to overflow.
+    .title-text {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
 
     span {
       display: table-cell;
