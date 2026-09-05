@@ -167,16 +167,23 @@ public class AdminChangePlanService {
          .anyMatch(c -> AdminChangeRecord.RISK_HIGH.equals(c.risk()));
 
       return new ResolvedPlan(req.getTask().trim(), Collections.unmodifiableList(changes),
-                              backup, signoff, hash(req.getTask().trim(), changes));
+                              backup, signoff, hash(changes));
    }
 
    /**
     * SHA-256 over the canonical plan. Field order and the record separators are part of the
     * contract: changing them invalidates every outstanding preview, which is safe (an apply is
     * refused with 409) but forces operators to re-review.
+    *
+    * <p>{@code task} is deliberately excluded: it is a free-text narrative that is never compared
+    * or parsed, only carried through to {@code AdminChangesetApplyService}'s {@code writeAudit}
+    * call as {@link AdminChangeRecord#setTaskDescription}, a write-only audit label. Including it
+    * here would let two equivalent narratives describing the identical change list hash
+    * differently, forcing a spurious re-review (a false {@code PlanHashMismatchException}) even
+    * though nothing the gate actually protects has changed.
     */
-   private static String hash(String task, List<PlanChange> changes) {
-      StringBuilder canonical = new StringBuilder(task).append('\n');
+   private static String hash(List<PlanChange> changes) {
+      StringBuilder canonical = new StringBuilder();
 
       for(PlanChange change : changes) {
          canonical.append(change.property()).append(SEP)
