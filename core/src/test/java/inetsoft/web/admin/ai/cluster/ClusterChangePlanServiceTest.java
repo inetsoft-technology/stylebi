@@ -242,6 +242,19 @@ class ClusterChangePlanServiceTest {
       assertEquals(hash1, hash2);
    }
 
+   // stylebi#76472: task is a free-text, audit-only label -- paraphrasing it between preview and
+   // apply must not change the plan's identity hash, or apply falsely refuses with a plan-drift 409
+   // even though nothing about the actual plan changed.
+   @Test void hashIsUnaffectedByDifferentTaskStrings() {
+      stubConfigured("s1");
+      stubStatus("s1", ServerClusterStatus.Status.OK, false);
+      String hash1 = service.resolve(request("pause server s1 for maintenance",
+                                              List.of(pause("s1")))).planHash();
+      String hash2 = service.resolve(request("pausing s1 to do maintenance work",
+                                              List.of(pause("s1")))).planHash();
+      assertEquals(hash1, hash2);
+   }
+
    // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------

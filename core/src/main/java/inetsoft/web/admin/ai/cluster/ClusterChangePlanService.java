@@ -119,7 +119,7 @@ public class ClusterChangePlanService {
 
       String task = req.getTask().trim();
       return new ResolvedPlan(task, Collections.unmodifiableList(changes), false, true,
-                              hash(task, changes));
+                              hash(changes));
    }
 
    private PlanChange resolveOne(String server, String verb) {
@@ -222,17 +222,22 @@ public class ClusterChangePlanService {
    // ---------------------------------------------------------------- hash
 
    /**
-    * SHA-256 over the canonical plan: task text, plus per-entry (server, currentValue, proposedValue,
-    * risk, snapshotScope) -- same field set and control-character canonicalization convention every
+    * SHA-256 over the canonical plan: per-entry (server, currentValue, proposedValue, risk,
+    * snapshotScope) -- same field set and control-character canonicalization convention every
     * prior area's own {@code hash} method uses (03-reconcile.md's precision line; no whole-chain
     * projection input, unlike providers -- cluster has no "chain" concept). Because
     * {@code currentValue} is captured live at preview time, a node that changes status between
     * preview and apply (crashes, or another admin/EM session pauses or resumes it) produces a
     * different hash on apply's fresh re-resolve, refused via the existing
     * {@code AdminChangesetApplyService.PlanHashMismatchException}/HTTP 409 path.
+    * <p>{@code task} is deliberately excluded from this canonical string: it is a free-text,
+    * audit-only label that flows only to {@code AdminChangeRecord.setTaskDescription} via
+    * {@code ClusterChangesetApplyService.writeAudit()}, never compared, parsed, or used to gate a
+    * mutation, so paraphrasing it between {@code preview} and {@code apply} must not change the
+    * plan's identity or trigger a false plan-drift refusal.
     */
-   private static String hash(String task, List<PlanChange> changes) {
-      StringBuilder canonical = new StringBuilder(task).append('\n');
+   private static String hash(List<PlanChange> changes) {
+      StringBuilder canonical = new StringBuilder();
 
       for(PlanChange change : changes) {
          canonical.append(change.property()).append(SEP)
