@@ -47,8 +47,6 @@
     >
     @if (defaultBorder) {
       <div class="default-border vs-check-box__default-border"
-        [style.margin-top]="model.titleVisible ? null : 0"
-        [style.height]="model.titleVisible ? null : '100%'"
         [style.border-radius.px]="model.objectFormat.roundCorner"
       ></div>
     }
@@ -59,10 +57,9 @@
         [titleSelected]="isTitleSelected()"
         [titleVisible]="model.titleVisible"
         [titleWidth]="model.titleFormat.width"
-        [textBackground]="model.objectFormat.background || 'white'"
         [selected]="selected"
         [formatPainterMode]="vsInfo?.formatPainterMode"
-        [floating]="defaultBorder"
+        [insetHeader]="defaultBorder"
         (selectTitle)="selectTitle($event)"
         (changeTitle)="changeTitle($event)"
         (titleResizeMove)="titleResizeMove($event)"

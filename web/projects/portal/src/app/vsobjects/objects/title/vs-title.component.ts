@@ -42,9 +42,8 @@ export class VSTitle implements OnChanges {
    @Input() selected: boolean;
    @Input() titleVisible: boolean;
    @Input() zIndex: number;
-   @Input() floating: boolean;
+   @Input() insetHeader: boolean;
    @Input() formatPainterMode: boolean;
-   @Input() textBackground: string = "white";
    @Input() cursorPointer: boolean;
    @Output() selectTitle = new EventEmitter<MouseEvent>();
    @Output() changeTitle = new EventEmitter<string>();

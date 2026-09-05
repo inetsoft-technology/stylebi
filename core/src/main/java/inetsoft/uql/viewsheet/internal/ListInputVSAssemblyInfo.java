@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -708,6 +709,15 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
       }
 
       VSFormat def = titleFormat.getDefaultFormat();
+      // Modern vertically centers the title text instead of the base VSFormat's H_LEFT|V_TOP
+      // fallback, which leaves visible dead space once the row is sized to match the form-input
+      // control height (density seed). Legacy writes that same H_LEFT|V_TOP explicitly, matching
+      // every other line below: this runs on every restore (VizModernizeUtil.reseedAfterRestore),
+      // not only at creation, so an unconditional write here would silently re-modernize an
+      // unmarked legacy title's stored format on every reload.
+      def.setAlignmentValue(ctx.modern
+         ? (StyleConstants.H_LEFT | StyleConstants.V_CENTER)
+         : (StyleConstants.H_LEFT | StyleConstants.V_TOP));
       def.setBordersValue(ctx.modern
          ? VSTitleChromeDefaults.titleRuleBorders() : new Insets(0, 0, 0, 0));
       def.setBorderColorsValue(ctx.modern ? VSTitleChromeDefaults.titleRuleColors(ctx) : null);
