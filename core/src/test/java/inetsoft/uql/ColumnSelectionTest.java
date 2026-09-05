@@ -18,6 +18,7 @@
 package inetsoft.uql;
 
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import org.junit.jupiter.api.BeforeEach;
@@ -201,6 +202,80 @@ class ColumnSelectionTest {
          // entity itself contains a dot: full "entity.attribute" name is looked up
          Arguments.of(new AttributeRef("a.b", "c"), "a.b.c")
       );
+   }
+
+   // ---- join-collision alias resolution (bug 76449 WBS-004 settling test) ----
+
+   /*
+    * Reproduces JoinQuery.getDefaultColumnSelection0()'s exact per-table merge sequence
+    * (AssetUtil.getOuterAttribute wraps each side's column with the join member's table
+    * name as entity, then AssetUtil.fixAlias runs after each table is merged in) so this
+    * exercises the real production code path that builds a join's persisted column
+    * selection, not a hand-rolled substitute.
+    */
+   @Nested
+   class JoinCollisionAliasResolutionTests {
+      @Test
+      void fixAliasSuffixesTheSecondTablesCollidingColumn() {
+         ColumnSelection joined = new ColumnSelection();
+         ColumnRef ordersOrderId = new ColumnRef(
+            AssetUtil.getOuterAttribute("ORDERS", new ColumnRef(new AttributeRef(null, "ORDER_ID"))));
+         joined.addAttribute(ordersOrderId);
+         AssetUtil.fixAlias(joined);
+
+         ColumnRef returnsOrderId = new ColumnRef(
+            AssetUtil.getOuterAttribute("RETURNS", new ColumnRef(new AttributeRef(null, "ORDER_ID"))));
+         joined.addAttribute(returnsOrderId);
+         AssetUtil.fixAlias(joined);
+
+         assertNull(ordersOrderId.getAlias());
+         assertEquals("ORDER_ID_1", returnsOrderId.getAlias());
+      }
+
+      @Test
+      void getAttributeByDisambiguatingAliasResolvesToCorrectSide() {
+         ColumnSelection joined = new ColumnSelection();
+         ColumnRef ordersOrderId = new ColumnRef(
+            AssetUtil.getOuterAttribute("ORDERS", new ColumnRef(new AttributeRef(null, "ORDER_ID"))));
+         joined.addAttribute(ordersOrderId);
+         AssetUtil.fixAlias(joined);
+
+         ColumnRef returnsOrderId = new ColumnRef(
+            AssetUtil.getOuterAttribute("RETURNS", new ColumnRef(new AttributeRef(null, "ORDER_ID"))));
+         joined.addAttribute(returnsOrderId);
+         AssetUtil.fixAlias(joined);
+
+         // This is the exact lookup WorksheetMutationSupport.resolveField()/fieldExists()
+         // perform for set_conditions: ColumnSelection.getAttribute(field), i.e. the one-arg
+         // overload, which delegates to getAttribute(field, true).
+         DataRef resolved = joined.getAttribute("ORDER_ID_1");
+         assertSame(returnsOrderId, resolved);
+      }
+
+      @Test
+      void getAttributeByQualifiedNameResolvesToCorrectSide() {
+         // Regression test for the CONFIRMED half of bug 76449 WBS-004: a table-qualified
+         // reference ("RETURNS.ORDER_ID") used to miss both exact-match loops (ColumnRef
+         // .getName() returns the alias, never the entity-qualified form, once an alias is
+         // set) and fall into the fuzzy fallback, which strips the "RETURNS." prefix and
+         // returns the FIRST bare-attribute match in the whole selection -- the ORDERS-side
+         // column, not the RETURNS-side one it actually named. Fixed by matching the
+         // qualified form directly before the fuzzy fallback runs.
+         ColumnSelection joined = new ColumnSelection();
+         ColumnRef ordersOrderId = new ColumnRef(
+            AssetUtil.getOuterAttribute("ORDERS", new ColumnRef(new AttributeRef(null, "ORDER_ID"))));
+         joined.addAttribute(ordersOrderId);
+         AssetUtil.fixAlias(joined);
+
+         ColumnRef returnsOrderId = new ColumnRef(
+            AssetUtil.getOuterAttribute("RETURNS", new ColumnRef(new AttributeRef(null, "ORDER_ID"))));
+         joined.addAttribute(returnsOrderId);
+         AssetUtil.fixAlias(joined);
+
+         DataRef resolved = joined.getAttribute("RETURNS.ORDER_ID");
+         assertSame(returnsOrderId, resolved);
+         assertNotSame(ordersOrderId, resolved);
+      }
    }
 
    // ---- findAttribute ----
