@@ -207,6 +207,63 @@ class WorksheetEditServiceMutatorsTest {
       assertFalse(t.getPreConditionList().isEmpty());
    }
 
+   // VBS-009: removeColumn/renameColumn/setColumnVisibility had the identical bare
+   // ColumnSelection.getAttribute(col) resolution weakness as add_filter's pre-fix
+   // requireColumn -- these three mirror addFilterAcceptsAColumnMatchedOnlyByItsUnappliedAlias
+   // above, pinning the defect class (a column reachable only via an unapplied alias) for each
+   // mutator now routed through WorksheetMutationSupport.resolveFieldOrNull.
+
+   @Test
+   void removeColumnAcceptsAColumnMatchedOnlyByItsUnappliedAlias() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ColumnRef aliased = (ColumnRef) t.getColumnSelection(false).getAttribute("a");
+      aliased.setAlias("aliasA");
+      aliased.setApplyingAlias(false);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.removeColumn("T", "aliasA"));
+
+      assertNull(t.getColumnSelection(false).getAttribute("a"),
+         "the column must actually be removed when addressed by its unapplied alias");
+   }
+
+   @Test
+   void renameColumnAcceptsAColumnMatchedOnlyByItsUnappliedAlias() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ColumnRef aliased = (ColumnRef) t.getColumnSelection(false).getAttribute("a");
+      aliased.setAlias("aliasA");
+      aliased.setApplyingAlias(false);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("T", "aliasA", "renamed"));
+
+      assertEquals("renamed", aliased.getAlias(),
+         "the column must actually be renamed when addressed by its unapplied alias");
+   }
+
+   @Test
+   void setColumnVisibilityAcceptsAColumnMatchedOnlyByItsUnappliedAlias() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ColumnRef aliased = (ColumnRef) t.getColumnSelection(false).getAttribute("a");
+      aliased.setAlias("aliasA");
+      aliased.setApplyingAlias(false);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setColumnVisibility("T", "aliasA", false));
+
+      assertFalse(aliased.isVisible(),
+         "the column's visibility must actually change when addressed by its unapplied alias");
+   }
+
    @Test
    void addFilterRejectsEmbeddedTable() throws Exception {
       Worksheet ws = new Worksheet();
