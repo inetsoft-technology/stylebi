@@ -271,6 +271,27 @@ class AssemblyPropertyServiceTest {
                  "must name the blank index: " + thrown.getMessage());
    }
 
+   /**
+    * VBM-006 review round 1: the interior-gap guard must only fire for a patch that actually
+    * touches {@code gaugeAdvancedPaneModel.rangePaneModel}. A gauge can already have an interior
+    * {@code rangeValues} gap saved from a source the guard does not cover (the human Composer
+    * GUI, or a call made before this guard existed); an unrelated later patch (here, {@code max})
+    * must still succeed instead of being blocked by state it never touched.
+    */
+   @Test
+   void ignoresAPreExistingInteriorGapWhenThePatchDoesNotTouchRanges() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      model.getGaugeAdvancedPaneModel().getRangePaneModel()
+         .setRangeValues(new String[]{ "60", "", "150" });
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1",
+         Map.of("max", "999"), ""));
+
+      assertEquals("999", model.getGaugeGeneralPaneModel().getNumberRangePaneModel().getMax(),
+                   "the unrelated property must still have been written");
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static AssemblyPropertyService serviceWith(VSAssembly assembly, Object model) {

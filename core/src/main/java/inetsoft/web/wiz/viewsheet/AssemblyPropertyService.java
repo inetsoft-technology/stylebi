@@ -246,7 +246,9 @@ public class AssemblyPropertyService {
             model = PropertyPath.set(model, entry.getValue(), patch.get(entry.getKey()));
          }
 
-         if(type.equals("gauge")) {
+         if(type.equals("gauge") && resolved.values().stream()
+            .anyMatch(path -> path.startsWith("gaugeAdvancedPaneModel.rangePaneModel")))
+         {
             requireNoInteriorGapInGaugeRangeValues(model);
          }
 
@@ -262,6 +264,12 @@ public class AssemblyPropertyService {
     * is genuinely ambiguous -- the renderer has no principled way to resolve it and would
     * silently collapse that band to nothing -- so that shape is refused here instead of
     * being allowed to reach a plausible-but-wrong render.
+    *
+    * <p>Only invoked by the caller when this call's own patch touches
+    * {@code gaugeAdvancedPaneModel.rangePaneModel}. The human Composer GUI has no equivalent
+    * validation, so a gauge can already have an interior gap saved from that path (or from a
+    * call before this guard existed); an unrelated later patch (e.g. {@code max}) must not be
+    * blocked by state it never touched.
     */
    private void requireNoInteriorGapInGaugeRangeValues(Object model) {
       Object rangePane = PropertyPath.get(model, "gaugeAdvancedPaneModel.rangePaneModel");
