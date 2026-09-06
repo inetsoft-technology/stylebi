@@ -206,6 +206,19 @@ public class DefaultVSGauge extends VSGauge {
          double rangeBegin = info.getMin();
          double rangeEnd = 0.0;
 
+         // index of the last non-NaN boundary; any NaN entry beyond it is a trailing,
+         // unset boundary (e.g. rangeValues=[60,90,"",""]) that should extend to the
+         // gauge's own max rather than collapse to a zero-width band. A NaN entry at or
+         // before this index is an interior gap (a genuinely malformed config) and keeps
+         // the prior, pre-existing behavior of collapsing to a zero-width band.
+         int lastBoundaryIndex = -1;
+
+         for(int i = 0; i < ranges.length; i++) {
+            if(!Double.isNaN(ranges[i])) {
+               lastBoundaryIndex = i;
+            }
+         }
+
          Loop:
          for(int i = 0; i < ranges.length; i++) {
             for(int k = i - 1; i != 0 && k >= 0; k--) {
@@ -225,8 +238,11 @@ public class DefaultVSGauge extends VSGauge {
             {
                rangeEnd = info.getMax();
             }
+            else if(Double.isNaN(ranges[i])) {
+               rangeEnd = i > lastBoundaryIndex ? info.getMax() : rangeEnd;
+            }
             else {
-               rangeEnd = !Double.isNaN(ranges[i]) ? ranges[i] : rangeEnd;
+               rangeEnd = ranges[i];
             }
 
             double rangeDelta = rangeEnd - rangeBegin;
