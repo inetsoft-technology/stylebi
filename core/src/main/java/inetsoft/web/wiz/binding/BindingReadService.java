@@ -88,6 +88,12 @@ public class BindingReadService {
          shelves.put("y", refs(chart.getYFields(), perField));
          shelves.put("group", refs(chart.getGroupFields()));
 
+         // A map's geo dimension lives on its own list, separate from x/y/group — surface it
+         // so a caller doesn't mistake x/y (lat/lon measures on a map) for "nothing is bound".
+         if(GraphTypes.isGeo(chart.getChartType()) || !chart.getGeoFields().isEmpty()) {
+            shelves.put("geo", refs(chart.getGeoFields()));
+         }
+
          for(String shelf : ChartBindingMutator.SHELVES) {
             sorts.putAll(ChartBindingMutator.describeSorts(chart, shelf));
          }
