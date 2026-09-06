@@ -765,7 +765,9 @@ public class AssemblyImageService {
 
                try {
                   if(assembly instanceof GaugeVSAssembly) {
-                     buf = getGaugeSVG(assembly, (int) width, (int) height, principal);
+                     if(svg) {
+                        buf = getGaugeSVG(assembly, (int) width, (int) height, principal);
+                     }
 
                      if(buf == null) {
                         image = getGaugeImage(assembly, (int) width, (int) height, principal);
