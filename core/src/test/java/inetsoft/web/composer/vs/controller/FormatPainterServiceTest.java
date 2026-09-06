@@ -168,6 +168,12 @@ class FormatPainterServiceTest {
    void refusesATextFieldThatDoesNotResolveToAnyBoundField() {
       when(viewsheet.getLayoutInfo()).thenReturn(new LayoutInfo());
 
+      // PlotDescriptor always starts with its own fresh default CompositeTextFormat (never
+      // null) — the prior bug replaced this exact instance via plot.setTextFormat(fmt), so the
+      // regression check is identity, not nullity.
+      CompositeTextFormat originalPlotFormat =
+         chart.getChartDescriptor().getPlotDescriptor().getTextFormat();
+
       VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
       format.setFormat("currency");
       format.setFormatSpec("$#,##0");
@@ -184,8 +190,9 @@ class FormatPainterServiceTest {
          () -> service.setFormat("Viewsheet1", event, null, dispatcher, ""));
       assertTrue(thrown.getMessage().contains("NOT_A_REAL_FIELD"), thrown.getMessage());
       assertTrue(thrown.getMessage().contains("Chart1"), thrown.getMessage());
-      assertNull(chart.getChartDescriptor().getPlotDescriptor().getTextFormat(),
-                "the plot's shared default text format must not be mutated by a bogus field");
+      assertSame(originalPlotFormat,
+                chart.getChartDescriptor().getPlotDescriptor().getTextFormat(),
+                "the plot's shared default text format must not be replaced by a bogus field");
    }
 
    /**
@@ -199,6 +206,9 @@ class FormatPainterServiceTest {
    @Test
    void resolvesATextFieldThroughTheDateComparisonRuntimeFallback() throws Exception {
       when(viewsheet.getLayoutInfo()).thenReturn(new LayoutInfo());
+
+      CompositeTextFormat originalPlotFormat =
+         chart.getChartDescriptor().getPlotDescriptor().getTextFormat();
 
       ChartRef dcOnlyField = mock(ChartRef.class);
       when(dcOnlyField.getFullName()).thenReturn("DC_ONLY_FIELD");
@@ -221,7 +231,8 @@ class FormatPainterServiceTest {
 
       assertDoesNotThrow(() -> service.setFormat("Viewsheet1", event, null, dispatcher, ""));
       verify(dcOnlyField).setTextFormat(any());
-      assertNull(chart.getChartDescriptor().getPlotDescriptor().getTextFormat(),
+      assertSame(originalPlotFormat,
+                chart.getChartDescriptor().getPlotDescriptor().getTextFormat(),
                 "a resolved field must write its own text format, not the plot's shared default");
    }
 
