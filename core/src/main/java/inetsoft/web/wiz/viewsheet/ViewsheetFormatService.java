@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.web.adhoc.model.chart.ChartFormatConstants;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
@@ -57,16 +58,27 @@ public class ViewsheetFormatService {
     * @param reset      clear formatting back to the default rather than applying {@code format}
     * @param target     {@code "object"} (default, when null/blank) formats the whole assembly;
     *                   {@code "title"} formats only that assembly's own title-bar text, distinct
-    *                   from a chart's axis titles or any other sub-region
+    *                   from a chart's axis titles or any other sub-region; {@code "text"} formats
+    *                   a single chart's {@code text}-aesthetic-bound field (its data labels)
+    * @param field      required when {@code target} is {@code "text"} — the column currently
+    *                   bound to the chart's text aesthetic channel
     */
    public record FormatRequest(List<String> assemblies,
                                VSObjectFormatInfoModel format,
                                boolean reset,
-                               String target)
+                               String target,
+                               String field)
    {
-      /** Kept for existing callers that predate {@code target} — defaults it to whole-object. */
+      /** Kept for existing callers that predate {@code target}/{@code field} — defaults both. */
       public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset) {
-         this(assemblies, format, reset, null);
+         this(assemblies, format, reset, null, null);
+      }
+
+      /** Kept for existing callers that predate {@code field} — defaults it to null. */
+      public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset,
+                           String target)
+      {
+         this(assemblies, format, reset, target, null);
       }
 
       /**
@@ -88,9 +100,10 @@ public class ViewsheetFormatService {
       public static FormatRequest fromJson(@JsonProperty("assemblies") List<String> assemblies,
                                            @JsonProperty("format") JsonNode format,
                                            @JsonProperty("reset") boolean reset,
-                                           @JsonProperty("target") String target)
+                                           @JsonProperty("target") String target,
+                                           @JsonProperty("field") String field)
       {
-         return new FormatRequest(assemblies, toModel(format), reset, target);
+         return new FormatRequest(assemblies, toModel(format), reset, target, field);
       }
 
       private static VSObjectFormatInfoModel toModel(JsonNode format) {
@@ -314,32 +327,58 @@ public class ViewsheetFormatService {
 
       String target = requireTarget(request.target());
 
+      if("text".equals(target)) {
+         if(request.assemblies().size() != 1) {
+            throw new IllegalArgumentException(
+               "set_format: target 'text' formats a single chart's aesthetic-bound field at a " +
+               "time; got " + request.assemblies().size() + " assemblies.");
+         }
+
+         if(request.field() == null || request.field().isBlank()) {
+            throw new IllegalArgumentException(
+               "set_format: target 'text' requires 'field' — the column bound to the chart's " +
+               "text aesthetic channel.");
+         }
+      }
+
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          FormatVSObjectEvent event = new FormatVSObjectEvent();
-         event.setObjects(request.assemblies().toArray(new String[0]));
          event.setFormat(request.format());
          event.setReset(request.reset());
-         // FormatPainterService iterates `event.getCharts().length` unguarded, so a null here is an
-         // immediate NPE — every set_format call, format or reset alike, failed with a 500. An
-         // empty array is the correct value for assembly-level formatting: the chart-region
-         // branches that read getColumnNames()/getIndexes()/getRegions() all live inside that
-         // loop, so they never execute for these requests.
-         event.setCharts(new String[0]);
 
-         // TITLEPATH is FormatPainterService's own per-assembly TableDataPath[] mechanism
-         // (event.getData(), indexed 1:1 with event.getObjects()) — the same generic slot every
-         // titled assembly (table, gauge, crosstab, chart, ...) already stores its own title-bar
-         // format in, entirely separate from a chart's axis/legend descriptors. Leaving data null
-         // (the default) falls through to a whole-OBJECT write, same as before this parameter
-         // existed.
-         if("title".equals(target)) {
-            ArrayList<TableDataPath[]> data = new ArrayList<>();
+         if("text".equals(target)) {
+            // Routes through FormatPainterService's per-chart loop instead of the whole-object
+            // path: a single named field on the chart's text aesthetic, all points (-1).
+            event.setObjects(new String[0]);
+            event.setCharts(request.assemblies().toArray(new String[0]));
+            event.setRegions(new String[]{ ChartFormatConstants.TEXT });
+            event.setColumnNames(new String[][]{ { request.field() } });
+            event.setIndexes(new int[][]{ { -1 } });
+         }
+         else {
+            event.setObjects(request.assemblies().toArray(new String[0]));
+            // FormatPainterService iterates `event.getCharts().length` unguarded, so a null here
+            // is an immediate NPE — every set_format call, format or reset alike, failed with a
+            // 500. An empty array is the correct value for assembly-level formatting: the
+            // chart-region branches that read getColumnNames()/getIndexes()/getRegions() all live
+            // inside that loop, so they never execute for these requests.
+            event.setCharts(new String[0]);
 
-            for(int i = 0; i < request.assemblies().size(); i++) {
-               data.add(new TableDataPath[]{ VSAssemblyInfo.TITLEPATH });
+            // TITLEPATH is FormatPainterService's own per-assembly TableDataPath[] mechanism
+            // (event.getData(), indexed 1:1 with event.getObjects()) — the same generic slot
+            // every titled assembly (table, gauge, crosstab, chart, ...) already stores its own
+            // title-bar format in, entirely separate from a chart's axis/legend descriptors.
+            // Leaving data null (the default) falls through to a whole-OBJECT write, same as
+            // before this parameter existed.
+            if("title".equals(target)) {
+               ArrayList<TableDataPath[]> data = new ArrayList<>();
+
+               for(int i = 0; i < request.assemblies().size(); i++) {
+                  data.add(new TableDataPath[]{ VSAssemblyInfo.TITLEPATH });
+               }
+
+               event.setData(data);
             }
-
-            event.setData(data);
          }
 
          painter.setFormat(runtimeId, event, user, dispatcher, linkUri);
@@ -350,13 +389,14 @@ public class ViewsheetFormatService {
    private static String requireTarget(String target) {
       String name = target == null || target.isBlank() ? "object" : target.trim().toLowerCase();
 
-      if(!"object".equals(name) && !"title".equals(name)) {
+      if(!"object".equals(name) && !"title".equals(name) && !"text".equals(name)) {
          throw new IllegalArgumentException(
-            "set_format 'target' must be 'object' or 'title', got '" + target + "'. 'object' " +
-            "(the default) formats the whole assembly, including — for a chart — the default " +
-            "text style that unstyled axis titles and tick labels fall back to. 'title' formats " +
-            "only that assembly's own title-bar text; for a chart's x/y axis titles, use " +
-            "set_chart_region_properties with region 'title' instead.");
+            "set_format 'target' must be 'object', 'title' or 'text', got '" + target + "'. " +
+            "'object' (the default) formats the whole assembly, including — for a chart — the " +
+            "default text style that unstyled axis titles and tick labels fall back to. 'title' " +
+            "formats only that assembly's own title-bar text; for a chart's x/y axis titles, use " +
+            "set_chart_region_properties with region 'title' instead. 'text' formats a single " +
+            "chart's text-aesthetic-bound field (its data labels) — requires 'field'.");
       }
 
       return name;

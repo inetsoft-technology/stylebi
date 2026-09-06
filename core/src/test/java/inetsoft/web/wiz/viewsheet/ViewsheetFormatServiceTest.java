@@ -419,7 +419,7 @@ class ViewsheetFormatServiceTest {
    }
 
    @Test
-   void refusesATargetThatIsNeitherObjectNorTitle() {
+   void refusesATargetThatIsNeitherObjectNorTitleNorText() {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
          () -> serviceWith(mock(FormatPainterService.class)).setFormat(
@@ -428,6 +428,61 @@ class ViewsheetFormatServiceTest {
                List.of("Chart1"), new VSObjectFormatInfoModel(), false, "axis"), ""));
       assertTrue(thrown.getMessage().contains("target"), thrown.getMessage());
       assertTrue(thrown.getMessage().contains("axis"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("text"), thrown.getMessage());
+   }
+
+   /**
+    * `target: "text"` routes a chart's aesthetic-bound field format through the same
+    * `event.getCharts()`/`getRegions()`/`getColumnNames()`/`getIndexes()` mechanism the
+    * interactive Composer's own "aggregate text format" editor already drives
+    * ({@code vs-binding-pane.component.ts}'s {@code createUpdateFormatEvent()}) — previously
+    * dead for the wiz-agent path because {@code event.setCharts(new String[0])} was hardcoded.
+    */
+   @Test
+   void targetTextRoutesThroughTheChartsArrayWithTheNamedField() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("currency");
+      format.setFormatSpec("$#,##0");
+
+      serviceWith(painter).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Chart1"), format, false, "text", "NET_REVENUE_SUM"), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      FormatVSObjectEvent event = captor.getValue();
+      assertArrayEquals(new String[0], event.getObjects());
+      assertArrayEquals(new String[]{ "Chart1" }, event.getCharts());
+      assertArrayEquals(new String[]{ "text" }, event.getRegions());
+      assertArrayEquals(new String[][]{ { "NET_REVENUE_SUM" } }, event.getColumnNames());
+      assertArrayEquals(new int[][]{ { -1 } }, event.getIndexes());
+   }
+
+   @Test
+   void targetTextRequiresExactlyOneAssembly() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Chart1", "Chart2"), new VSObjectFormatInfoModel(), false, "text",
+               "NET_REVENUE_SUM"), ""));
+      assertTrue(thrown.getMessage().contains("2"), thrown.getMessage());
+   }
+
+   @Test
+   void targetTextRequiresField() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Chart1"), new VSObjectFormatInfoModel(), false, "text", null), ""));
+      assertTrue(thrown.getMessage().contains("field"), thrown.getMessage());
    }
 
    private static ViewsheetFormatService serviceWith(FormatPainterService painter) {

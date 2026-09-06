@@ -1628,6 +1628,22 @@ public class FormatPainterService {
             ref = (ChartRef) info.getDCBIndingRef(columnName);
          }
 
+         // getDCBIndingRef() only searches getRuntimeDateComparisonRefs() (date-comparison-
+         // specific), not the full runtime-field lookup getChartBindable() itself falls back to
+         // below — replicate that fallback here too, or a legitimately-bound runtime-only field
+         // on a date-comparison chart would incorrectly fail the unresolved-field check just below.
+         if(ref == null && chartInfo.isAppliedDateComparison()) {
+            ref = chartInfo.getFieldByName(columnName, true);
+         }
+
+         if(ref == null && (region.equals(ChartFormatConstants.TEXT) ||
+            region.equals(ChartFormatConstants.TEXT_FIELD)))
+         {
+            throw new IllegalArgumentException(
+               "set_format: '" + columnName + "' is not bound to chart '" + name + "'s " + region +
+               " aesthetic (or any other field on this chart) — nothing to format.");
+         }
+
          if(!(GraphTypes.isRadarN(chartInfo) && GraphUtil.isMeasure(ref) ||
             GraphTypes.isRadarOne(chartInfo)) ||
             region.equals(ChartFormatConstants.TEXT) ||
