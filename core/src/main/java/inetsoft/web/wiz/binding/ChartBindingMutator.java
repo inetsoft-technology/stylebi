@@ -106,6 +106,7 @@ public final class ChartBindingMutator {
       }
 
       requireColumnLimit(chartInfo, readShelf(model, name).size(), fields == null ? 0 : fields.size());
+      requireNoMapDimensionOnXY(chartInfo, name, fields);
 
       List<ChartRefModel> refs = new ArrayList<>();
 
@@ -220,6 +221,33 @@ public final class ChartBindingMutator {
 
       if(total > Util.getOrganizationMaxColumn()) {
          throw new IllegalArgumentException(Util.getColumnLimitMessage());
+      }
+   }
+
+   /**
+    * On a map, {@code x}/{@code y} hold lat/lon measures ({@code MapInfo.isLat}/{@code isLon}),
+    * not a dimension shelf — a map's geo dimension lives on {@code geoFields}, a 4th list this
+    * class does not write, and {@code set_chart_type(type: "map")} already populates it
+    * automatically on retype. A dimension bound here has no valid interpretation: it silently
+    * flips {@code VSMapInfo.isFacet()} via {@code MapInfo.hasXYDimension()}, splitting the map
+    * into one tiny facet panel per value instead of rendering it as a single map.
+    */
+   private static void requireNoMapDimensionOnXY(VSChartInfo chartInfo, String shelf,
+                                                  List<FieldRef> fields)
+   {
+      if(!(chartInfo instanceof VSMapInfo) || fields == null ||
+         !("x".equals(shelf) || "y".equals(shelf)))
+      {
+         return;
+      }
+
+      for(FieldRef field : fields) {
+         if("dimension".equalsIgnoreCase(field.type())) {
+            throw new IllegalArgumentException(
+               "'" + shelf + "' holds lat/lon measures on a map, not dimensions. The geo " +
+               "dimension is set automatically by set_chart_type and reads back on the 'geo' " +
+               "shelf; bind any other dimension to 'group' instead.");
+         }
       }
    }
 

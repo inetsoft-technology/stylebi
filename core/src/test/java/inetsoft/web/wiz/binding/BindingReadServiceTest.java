@@ -258,6 +258,32 @@ class BindingReadServiceTest {
                  "a single-field shelf carries no chart type");
    }
 
+   /**
+    * A map's geo dimension lives on {@code geoFields}, a 4th list fully separate from
+    * x/y/group — surfacing it here is the read-side half of VBS-007, closing the
+    * discoverability gap that led a caller to rebind the dimension onto x (see
+    * {@link ChartBindingMutator} for the write-side refusal).
+    */
+   @Test
+   void surfacesAMapsGeoFieldsAsTheGeoShelf() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_MAP);
+      model.setGeoFields(List.of(new ChartDimensionRefModel() {{
+         setColumnValue("STATE");
+      }}));
+
+      AssemblyBinding result = read(model);
+
+      assertTrue(result.shelves().containsKey("geo"), "a map must expose a geo shelf");
+      assertEquals("STATE", result.shelves().get("geo").get(0).column());
+   }
+
+   /** Only a map exposes the geo shelf — every other chart type keeps reporting x/y/group only. */
+   @Test
+   void doesNotAdvertiseAGeoShelfForANonMapChart() {
+      assertFalse(read(new ChartBindingModel()).shelves().containsKey("geo"));
+   }
+
    private AssemblyBinding read(ChartBindingModel model) {
       VSBindingService binding = mock(VSBindingService.class);
       when(binding.createModel(any())).thenReturn(model);

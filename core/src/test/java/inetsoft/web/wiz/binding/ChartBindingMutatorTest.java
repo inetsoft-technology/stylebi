@@ -541,8 +541,11 @@ class ChartBindingMutatorTest {
          chartInfo.addGeoField(new VSChartGeoRef());
          ChartBindingModel model = new ChartBindingModel();
 
+         // A measure here, not a dimension -- x/y hold lat/lon measures on a map, so this
+         // exercises the column-limit logic (1 y + 1 geo + 1 new x = 3, within the limit of 3)
+         // without tripping the dimension-on-x/y guard below.
          ChartBindingMutator.setShelf(
-            model, "x", List.of(new FieldRef("Region", "dimension", null, null, null)),
+            model, "x", List.of(new FieldRef("Longitude", "measure", "Sum", null, null)),
             null, null, null, chartInfo);
 
          assertEquals(1, model.getXFields().size());
@@ -550,5 +553,50 @@ class ChartBindingMutatorTest {
       finally {
          SreeEnv.setProperty("max.col.count", original);
       }
+   }
+
+   // ── dimension-on-x/y refused for a map (VBS-007) ──────────────────────────
+
+   @Test
+   void refusesADimensionOnXForAMapChart() {
+      VSMapInfo chartInfo = new VSMapInfo();
+      ChartBindingModel model = new ChartBindingModel();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setShelf(
+            model, "x", List.of(new FieldRef("State", "dimension", null, null, null)),
+            null, null, null, chartInfo));
+
+      assertTrue(thrown.getMessage().contains("x"), thrown.getMessage());
+      assertTrue(thrown.getMessage().toLowerCase().contains("map"), thrown.getMessage());
+   }
+
+   @Test
+   void refusesADimensionOnYForAMapChart() {
+      VSMapInfo chartInfo = new VSMapInfo();
+      ChartBindingModel model = new ChartBindingModel();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setShelf(
+            model, "y", List.of(new FieldRef("State", "dimension", null, null, null)),
+            null, null, null, chartInfo));
+
+      assertTrue(thrown.getMessage().contains("y"), thrown.getMessage());
+      assertTrue(thrown.getMessage().toLowerCase().contains("map"), thrown.getMessage());
+   }
+
+   @Test
+   void allowsADimensionOnGroupForAMapChart() throws Exception {
+      VSMapInfo chartInfo = new VSMapInfo();
+      ChartBindingModel model = new ChartBindingModel();
+
+      ChartBindingMutator.setShelf(
+         model, "group", List.of(new FieldRef("Category", "dimension", null, null, null)),
+         null, null, null, chartInfo);
+
+      assertEquals(1, model.getGroupFields().size());
+      assertInstanceOf(ChartDimensionRefModel.class, model.getGroupFields().get(0));
    }
 }
