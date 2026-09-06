@@ -2329,6 +2329,18 @@ public final class WorksheetMutationSupport {
          }
       }
 
+      DataRef col = resolveFieldOrNull(t, field, post);
+      return col != null ? col : new AttributeRef(null, field);
+   }
+
+   /**
+    * Resolves a field name against the table's column selection only (no AggregateInfo/HAVING
+    * lookup -- callers that need that should go through {@link #resolveField}), returning
+    * {@code null} on a true miss instead of {@link #resolveField}'s {@code AttributeRef}
+    * not-found placeholder. Column mutators (remove/rename/visibility) need a real miss to stay
+    * distinguishable from a match, which the placeholder does not allow.
+    */
+   static DataRef resolveFieldOrNull(TableAssembly t, String field, boolean post) {
       ColumnSelection cs = t.getColumnSelection(post);
 
       if(cs != null && field != null) {
@@ -2351,7 +2363,7 @@ public final class WorksheetMutationSupport {
          }
       }
 
-      return new AttributeRef(null, field);
+      return null;
    }
 
    /**
