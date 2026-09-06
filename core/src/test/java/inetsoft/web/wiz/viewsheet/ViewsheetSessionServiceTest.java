@@ -19,10 +19,12 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.Test;
 
 import java.security.Principal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -94,6 +96,71 @@ class ViewsheetSessionServiceTest {
       }));
 
       verify(rvs).bumpWriteRevision();
+   }
+
+   /**
+    * VBS-003 review round 1 (important, confidence 85): a caught post-write refresh failure
+    * dispatches a {@code MessageCommand} of {@code Type.WARNING}, but {@code mutate} discarded
+    * whatever the dispatcher captured -- so a wiz-agent call that hit one of those guarded
+    * failures returned a clean success indistinguishable from one where nothing degraded.
+    * Drives the REAL {@link inetsoft.web.wiz.dispatch.CapturingCommandDispatcher} {@code mutate}
+    * constructs internally (not a mock), so this proves the wiring, not just that some method
+    * was called.
+    */
+   @Test
+   void mutateReturnsTheDispatchersCapturedWarnings() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+                                      SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(rvs);
+
+      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast);
+
+      List<String> warnings = svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {
+         MessageCommand warning = new MessageCommand();
+         warning.setType(MessageCommand.Type.WARNING);
+         warning.setMessage("Crosstab1: could not refresh the crosstab's aggregate info after " +
+                            "the write; the calc field was saved");
+         dispatcher.sendCommand(warning);
+      });
+
+      assertEquals(List.of("Crosstab1: could not refresh the crosstab's aggregate info after " +
+                            "the write; the calc field was saved"), warnings);
+   }
+
+   /** A mutation that dispatches nothing must not report a phantom warning. */
+   @Test
+   void mutateReturnsAnEmptyListWhenNothingWarned() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+                                      SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(rvs);
+
+      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast);
+
+      List<String> warnings = svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {});
+
+      assertTrue(warnings.isEmpty());
    }
 
    /**

@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.List;
 
 /**
  * Resolves a pairing session to a live viewsheet runtime and runs mutations against it.
@@ -139,12 +140,23 @@ public class ViewsheetSessionService {
     *
     * <p>One checkpoint per call, matching what a single Composer dialog OK does, so the
     * human's Ctrl+Z steps back through agent edits one at a time.
+    *
+    * @return the messages of any {@code MessageCommand}s of {@code Type.WARNING} the mutation
+    *         dispatched -- e.g. a best-effort post-write refresh step that was contained rather
+    *         than allowed to fail the whole call. Empty when nothing warned. Unlike an ERROR
+    *         (which fails the call via {@link CommandErrorException}), a WARNING does not stop
+    *         the write from being reported as a success; the caller decides whether/how to
+    *         surface these to the agent.
     */
-   public void mutate(String sessionToken, Principal agent, Mutation mutation) throws Exception {
+   public List<String> mutate(String sessionToken, Principal agent, Mutation mutation)
+      throws Exception
+   {
       JoinSession session = requireSession(sessionToken, agent);
       RuntimeViewsheet rvs = (RuntimeViewsheet) runtimeAccess.getSheetForPairing(
          SheetType.VIEWSHEET, session.runtimeId(), agent);
       applySocketSession(rvs, session);
+
+      List<String> warnings = List.of();
 
       // The checkpoint and the broadcast happen even when the mutation fails. A composer service
       // partially applies before it ERRORs -- that is precisely why it ERRORs rather than throwing
@@ -154,9 +166,9 @@ public class ViewsheetSessionService {
       // no step for the partial change. The partial edit is real, so it gets an undo step and the
       // browser is told about it.
       try {
-         CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
+         warnings = CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
             mutation.run(rvs, session.runtimeId(), dispatcher);
-            return null;
+            return dispatcher.getWarnings();
          });
       }
       catch(CommandErrorException e) {
@@ -187,6 +199,8 @@ public class ViewsheetSessionService {
 
          broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent);
       }
+
+      return warnings;
    }
 
    /**

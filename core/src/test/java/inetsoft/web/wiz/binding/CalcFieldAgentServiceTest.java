@@ -383,6 +383,44 @@ class CalcFieldAgentServiceTest {
       assertEquals("double", calc.getDataType(), "dataType must be preserved when omitted");
    }
 
+   /**
+    * VBS-003 review round 1 (important, confidence 85): {@code sessions.mutate} now returns any
+    * warnings its dispatcher captured (a caught post-write refresh failure inside
+    * {@code ModifyCalculateFieldService}), but nothing forwarded them out of {@code modify} --
+    * so the wiz agent got a clean, indistinguishable-from-success return for a call that
+    * actually degraded. This asserts {@code modify} returns exactly what {@code mutate} reports,
+    * not that {@code mutate} was merely called.
+    */
+   @Test
+   void modifyReturnsTheWarningsMutateCaptured() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      List<String> expectedWarnings = List.of(
+         "Crosstab1: could not refresh the crosstab's aggregate info after the write; the " +
+         "calc field was saved");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.mutate(anyString(), any(Principal.class), any())).thenAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return expectedWarnings;
+      });
+
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessions, fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", "Crosstab1", "NetTotal", null, "field['Total']", "double", false, true, false,
+         true);
+
+      List<String> warnings = service.modify("tok", principal(), req, "");
+
+      assertEquals(expectedWarnings, warnings);
+   }
+
    @Test
    void baseOnDetailFalseIsPreserved() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);

@@ -92,7 +92,14 @@ public class CalcFieldAgentService {
                                   String expression, String dataType, Boolean sql,
                                   Boolean baseOnDetail, boolean remove, boolean create) {}
 
-   public void modify(String sessionToken, Principal agent, CalcFieldRequest req, String linkUri)
+   /**
+    * @return the messages of any warnings the write's post-write shelf-metadata refresh steps
+    *         caught rather than propagated (see {@code ModifyCalculateFieldService}'s guarded
+    *         refresh steps) -- empty when nothing warned. The write itself has already committed
+    *         either way; these are advisory, not an error.
+    */
+   public List<String> modify(String sessionToken, Principal agent, CalcFieldRequest req,
+                              String linkUri)
       throws Exception
    {
       // ModifyCalculateFieldService.modifyCalculateField itself performs no permission check --
@@ -125,7 +132,7 @@ public class CalcFieldAgentService {
       String newName = req.newName() != null && !req.newName().isBlank()
          ? req.newName() : req.name();
 
-      sessions.mutate(sessionToken, agent, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, agent, (rvs, runtimeId, dispatcher) -> {
          String tableName = requireBindableTable(runtimeId, req.table(), agent);
 
          CalculateRefModel model = null;
