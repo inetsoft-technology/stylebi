@@ -17,7 +17,12 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.viewsheet.AbstractSelectionVSAssembly;
+import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
+import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.TitledVSAssembly;
@@ -35,6 +40,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.web.viewsheet.controller.VSRefreshService;
 import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.RenderWaitSupport;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
@@ -42,6 +48,8 @@ import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.awt.Dimension;
+import java.awt.Point;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -66,7 +74,8 @@ public class ViewsheetEditService {
                                ViewsheetReadService reader,
                                ComposerGroupService groups,
                                GroupingService grouping,
-                               VSRefreshService refreshService)
+                               VSRefreshService refreshService,
+                               CoreLifecycleService coreLifecycleService)
    {
       this.sessions = sessions;
       this.objects = objects;
@@ -76,13 +85,15 @@ public class ViewsheetEditService {
       this.groups = groups;
       this.grouping = grouping;
       this.refreshService = refreshService;
+      this.coreLifecycleService = coreLifecycleService;
    }
 
    /** Ops this service understands, named in the error when an unknown one arrives. */
    static final List<String> OPS = List.of(
       "move", "resize", "resize_title", "add", "remove", "rename", "copy", "cut", "paste",
-      "set_z_index", "set_lock", "set_title", "group", "group_as_tab", "ungroup",
-      "move_from_container", "align", "distribute", "refresh", "refresh_viewsheet");
+      "set_z_index", "set_lock", "set_title", "group", "group_as_tab",
+      "group_as_selection_container", "ungroup", "move_from_container", "align", "distribute",
+      "refresh", "refresh_viewsheet");
 
    public void apply(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
@@ -103,6 +114,8 @@ public class ViewsheetEditService {
       case "set_title" -> setTitle(sessionToken, user, request);
       case "group" -> group(sessionToken, user, request, linkUri);
       case "group_as_tab" -> groupAsTab(sessionToken, user, request, linkUri);
+      case "group_as_selection_container" ->
+         groupAsSelectionContainer(sessionToken, user, request, linkUri);
       case "ungroup" -> ungroup(sessionToken, user, request, linkUri);
       case "move_from_container" -> moveFromContainer(sessionToken, user, request, linkUri);
       case "align", "distribute" -> arrange(sessionToken, user, request, linkUri, op);
@@ -477,6 +490,59 @@ public class ViewsheetEditService {
       });
    }
 
+   /**
+    * Creates a Selection Container ({@code CurrentSelectionVSAssembly}) combining the given
+    * selection filters -- the container the native Composer's "combine filters into one
+    * compacted panel" gesture produces. Unlike {@link #groupAsTab}, {@code GroupingService}'s
+    * {@code selection=true} mode has no lazy-create fallback (it asserts the container already
+    * exists), so the container is built here first via the same factory {@code add} already
+    * uses, then each named filter is folded in with the same call
+    * {@code VSBindingService.addAssembly} uses for "drag a new filter onto an existing Selection
+    * Container".
+    */
+   private void groupAsSelectionContainer(String sessionToken, Principal user,
+                                          EditRequest request, String linkUri) throws Exception
+   {
+      List<String> names = request.assemblies();
+
+      if(names == null || names.size() < 2) {
+         throw new IllegalArgumentException(
+            "Edit op 'group_as_selection_container' requires 'assemblies' with at least two " +
+            "assembly names.");
+      }
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         Viewsheet vs = rvs.getViewsheet();
+         List<VSAssembly> members = new ArrayList<>();
+
+         for(String name : names) {
+            VSAssembly assembly = requireVSAssembly(rvs, vs, name);
+
+            if(!(assembly instanceof AbstractSelectionVSAssembly)) {
+               throw new IllegalArgumentException(
+                  "'" + name + "' is a " + assembly.getClass().getSimpleName() + ", not a " +
+                  "selection filter -- edit(op:'group_as_selection_container') only combines " +
+                  "Selection List, Selection Tree, Time Slider or Calendar assemblies.");
+            }
+
+            members.add(assembly);
+         }
+
+         CurrentSelectionVSAssembly container = (CurrentSelectionVSAssembly) VSEventUtil
+            .createVSAssembly(rvs, AbstractSheet.CURRENTSELECTION_ASSET);
+         Point[] locs = GroupContainerVSAssembly.getUpperLeftAndBottomRight(
+            vs, names.toArray(new String[0]));
+         container.setPixelOffset(locs[0]);
+         container.setPixelSize(new Dimension(locs[1].x - locs[0].x, locs[1].y - locs[0].y));
+
+         coreLifecycleService.addDeleteVSObject(rvs, container, dispatcher);
+
+         for(VSAssembly member : members) {
+            grouping.groupComponents(rvs, container, member, true, linkUri, dispatcher);
+         }
+      });
+   }
+
    private VSAssembly requireVSAssembly(RuntimeViewsheet rvs, Viewsheet vs, String name) {
       requireExisting(rvs, name);
       VSAssembly assembly = vs == null ? null : (VSAssembly) vs.getAssembly(name);
@@ -509,6 +575,18 @@ public class ViewsheetEditService {
                "by group_as_tab. To take an assembly out of the tab, use " +
                "edit(op:'move_from_container') on it instead -- the tab is removed " +
                "automatically once only one assembly remains in it.");
+         }
+
+         // Same failure class as the Tab guard above: group_as_selection_container produces a
+         // CurrentSelectionVSAssembly, which ComposerGroupService.ungroup also does not unwrap.
+         if(assembly instanceof CurrentSelectionVSAssembly) {
+            throw new IllegalArgumentException(
+               "'" + request.assembly() + "' is a Selection Container, not a Group -- " +
+               "edit(op:'ungroup') only reverses the GroupContainer that group creates; it does " +
+               "not undo a Selection Container created by group_as_selection_container. To take " +
+               "an assembly out of it, use edit(op:'move_from_container') on it instead -- " +
+               "unlike a Tab or Group, the container is NOT removed automatically when it is " +
+               "down to one member; remove it explicitly with edit(op:'remove') once empty.");
          }
 
          groups.ungroup(runtimeId, request.assembly(), linkUri, user, dispatcher);
@@ -830,4 +908,5 @@ public class ViewsheetEditService {
    private final ComposerGroupService groups;
    private final GroupingService grouping;
    private final VSRefreshService refreshService;
+   private final CoreLifecycleService coreLifecycleService;
 }

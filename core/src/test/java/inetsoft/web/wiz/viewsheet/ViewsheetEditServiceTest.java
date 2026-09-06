@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.web.composer.vs.event.CopyVSObjectsEvent;
 import inetsoft.web.composer.vs.objects.controller.ClipboardControllerService;
 import inetsoft.web.composer.vs.objects.controller.ComposerObjectService;
@@ -33,11 +35,14 @@ import inetsoft.web.viewsheet.controller.VSRefreshService;
 import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
+import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
@@ -50,7 +55,10 @@ import inetsoft.web.composer.vs.objects.event.ResizeVSObjectTitleEvent;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
 
+import java.awt.Dimension;
+import java.awt.Point;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
@@ -624,6 +632,28 @@ class ViewsheetEditServiceTest {
       assertTrue(thrown.getMessage().contains("Tab"));
    }
 
+   /**
+    * Same failure class as PVA-013, for the Selection Container this bug's fix introduces:
+    * {@code ComposerGroupService.ungroup} only unwraps a GroupContainerVSAssembly, so without
+    * this guard "ungroup" on a Selection Container would report success while leaving it intact.
+    */
+   @Test
+   void ungroupOnASelectionContainerFailsLoudInsteadOfSilentlyDoingNothing() {
+      ComposerGroupService groups = mock(ComposerGroupService.class);
+      RuntimeViewsheet rvs = runtimeWith("Selection1", mock(CurrentSelectionVSAssembly.class));
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(new AssemblyNode(
+         "Selection1", "CurrentSelection", 0, 0, 200, 200, 0, null, true)),
+         mock(ComposerObjectService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request("ungroup", "Selection1"), ""));
+
+      assertTrue(thrown.getMessage().contains("Selection1"));
+      assertTrue(thrown.getMessage().contains("Selection Container"));
+      verifyNoInteractions(groups);
+   }
+
    @Test
    void groupAsTabRejectsFewerThanTwoAssemblies() {
       ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
@@ -665,6 +695,88 @@ class ViewsheetEditServiceTest {
 
       verify(grouping).groupComponents(eq(rvs), eq(a), eq(b), eq(false), anyString(), any());
       verify(grouping).groupComponents(eq(rvs), eq(a), eq(c), eq(false), anyString(), any());
+      verifyNoMoreInteractions(grouping);
+   }
+
+   @Test
+   void groupAsSelectionContainerRejectsFewerThanTwoAssemblies() {
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(),
+            arrange("group_as_selection_container", List.of("A"), null), ""));
+      assertTrue(thrown.getMessage().contains("two"));
+   }
+
+   /**
+    * VBM-008: only Selection List/Tree/Time Slider/Calendar (AbstractSelectionVSAssembly) can
+    * join a Selection Container -- a Chart, say, cannot. The error must name the offending
+    * assembly and its actual type, not just fail generically.
+    */
+   @Test
+   void groupAsSelectionContainerRejectsANonSelectionAssemblyNamingTheOffender() {
+      VSAssembly a = mock(SelectionListVSAssembly.class);
+      VSAssembly bad = mock(ChartVSAssembly.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("A")).thenReturn(a);
+      when(vs.getAssembly("Chart1")).thenReturn(bad);
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("A", "SelectionList", 0, 0, 100, 100, 0, null, true),
+         new AssemblyNode("Chart1", "Chart", 100, 0, 100, 100, 0, null, true));
+      ViewsheetEditService service = serviceWithRuntime(rvs, reader,
+         mock(ComposerObjectService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(),
+            arrange("group_as_selection_container", List.of("A", "Chart1"), null), ""));
+
+      assertTrue(thrown.getMessage().contains("Chart1"));
+   }
+
+   /**
+    * Unlike group_as_tab, GroupingService's selection=true mode has no lazy-create fallback, so
+    * the container must be built once up front (via VSEventUtil.createVSAssembly, notified to the
+    * client via coreLifecycleService.addDeleteVSObject) and then each member folded in with its
+    * own groupComponents call -- once per member, not pairwise.
+    */
+   @Test
+   void groupAsSelectionContainerCreatesContainerOnceAndCallsGroupComponentsOncePerMember()
+      throws Exception
+   {
+      GroupingService grouping = mock(GroupingService.class);
+      CoreLifecycleService coreLifecycleService = mock(CoreLifecycleService.class);
+      VSAssembly a = mock(SelectionListVSAssembly.class);
+      VSAssembly b = mock(SelectionListVSAssembly.class);
+      CurrentSelectionVSAssembly container = mock(CurrentSelectionVSAssembly.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("A")).thenReturn(a);
+      when(vs.getAssembly("B")).thenReturn(b);
+      when(vs.getPixelPositionInViewsheet(any())).thenAnswer(inv -> new Point(0, 0));
+      when(vs.getPixelSize(any())).thenAnswer(inv -> new Dimension(100, 100));
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("A", "SelectionList", 0, 0, 100, 100, 0, null, true),
+         new AssemblyNode("B", "SelectionList", 100, 0, 100, 100, 0, null, true));
+      ViewsheetEditService service = serviceWithRuntimeAndGrouping(rvs, reader, grouping,
+         coreLifecycleService);
+
+      try(MockedStatic<VSEventUtil> vsEventUtil = mockStatic(VSEventUtil.class)) {
+         vsEventUtil.when(() ->
+            VSEventUtil.createVSAssembly(rvs, AbstractSheet.CURRENTSELECTION_ASSET))
+            .thenReturn(container);
+
+         service.apply("tok", principal(),
+                       arrange("group_as_selection_container", List.of("A", "B"), null), "");
+      }
+
+      verify(coreLifecycleService).addDeleteVSObject(eq(rvs), eq(container), any());
+      verify(grouping).groupComponents(eq(rvs), eq(container), eq(a), eq(true), anyString(), any());
+      verify(grouping).groupComponents(eq(rvs), eq(container), eq(b), eq(true), anyString(), any());
       verifyNoMoreInteractions(grouping);
    }
 
@@ -977,7 +1089,8 @@ class ViewsheetEditServiceTest {
                                       mock(ClipboardControllerService.class),
                                       mock(VSObjectPropertyService.class), reader,
                                       mock(ComposerGroupService.class),
-                                      mock(GroupingService.class), refreshService);
+                                      mock(GroupingService.class), refreshService,
+                                      mock(CoreLifecycleService.class));
    }
 
    /** Runs the mutation against a supplied runtime, for the guards that inspect the assembly. */
@@ -1016,7 +1129,8 @@ class ViewsheetEditServiceTest {
                                       propertyService, reader,
                                       mock(ComposerGroupService.class),
                                       mock(GroupingService.class),
-                                      mock(VSRefreshService.class));
+                                      mock(VSRefreshService.class),
+                                      mock(CoreLifecycleService.class));
    }
 
    private static ViewsheetEditService serviceWith(ComposerObjectService objects,
@@ -1031,6 +1145,18 @@ class ViewsheetEditServiceTest {
    private static ViewsheetEditService serviceWithRuntimeAndGrouping(RuntimeViewsheet rvs,
                                                                      ViewsheetReadService reader,
                                                                      GroupingService grouping)
+   {
+      return serviceWithRuntimeAndGrouping(rvs, reader, grouping,
+                                           mock(CoreLifecycleService.class));
+   }
+
+   /**
+    * Exposes {@code coreLifecycleService} too -- for group_as_selection_container's
+    * addDeleteVSObject call.
+    */
+   private static ViewsheetEditService serviceWithRuntimeAndGrouping(
+      RuntimeViewsheet rvs, ViewsheetReadService reader, GroupingService grouping,
+      CoreLifecycleService coreLifecycleService)
    {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
 
@@ -1049,7 +1175,7 @@ class ViewsheetEditServiceTest {
                                       mock(ClipboardControllerService.class),
                                       mock(VSObjectPropertyService.class), reader,
                                       mock(ComposerGroupService.class), grouping,
-                                      mock(VSRefreshService.class));
+                                      mock(VSRefreshService.class), coreLifecycleService);
    }
 
    private static ViewsheetEditService serviceWith(ComposerObjectService objects,
@@ -1073,6 +1199,7 @@ class ViewsheetEditServiceTest {
 
       return new ViewsheetEditService(sessions, objects, clipboard,
                                      mock(VSObjectPropertyService.class), reader, groups,
-                                     grouping, mock(VSRefreshService.class));
+                                     grouping, mock(VSRefreshService.class),
+                                     mock(CoreLifecycleService.class));
    }
 }
