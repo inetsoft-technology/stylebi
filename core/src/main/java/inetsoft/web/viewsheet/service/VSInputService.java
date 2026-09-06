@@ -871,7 +871,9 @@ public class VSInputService {
       textInputAssemblyInfo.setInsetStyle(textInputGeneralPaneModel.isInsetStyle());
       textInputAssemblyInfo.setMultiline(textInputGeneralPaneModel.isMultiLine());
 
-      String table = dataInputPaneModel.getTable();
+      String table = resolveInputTableBinding(viewsheet.getViewsheet().getBaseWorksheet(),
+         viewsheet.getViewsheet(), dataInputPaneModel.getTable(),
+         dataInputPaneModel.getColumnValue());
       textInputAssemblyInfo.setTableName(table == null ? "" : table);
       textInputAssemblyInfo.setColumnValue(dataInputPaneModel.getColumnValue());
       textInputAssemblyInfo.setRowValue(dataInputPaneModel.getRowValue());
@@ -1093,7 +1095,9 @@ public class VSInputService {
       sliderAssemblyInfo.setPrimary(basicGeneralPaneModel.isPrimary());
       sliderAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
 
-      String table = dataInputPaneModel.getTable();
+      String table = resolveInputTableBinding(viewsheet.getViewsheet().getBaseWorksheet(),
+         viewsheet.getViewsheet(), dataInputPaneModel.getTable(),
+         dataInputPaneModel.getColumnValue());
       sliderAssemblyInfo.setTableName(table == null ? "" : table);
       sliderAssemblyInfo.setColumnValue(dataInputPaneModel.getColumnValue());
       sliderAssemblyInfo.setRowValue(dataInputPaneModel.getRowValue());
@@ -1996,7 +2000,9 @@ public class VSInputService {
       setListValues(comboBoxAssemblyInfo, value, viewsheet, principal);
 
       // TODO validate column/row variable/expression type
-      String table = dataInputPaneModel.getTable();
+      String table = resolveInputTableBinding(viewsheet.getViewsheet().getBaseWorksheet(),
+         viewsheet.getViewsheet(), dataInputPaneModel.getTable(),
+         dataInputPaneModel.getColumnValue());
       comboBoxAssemblyInfo.setTableName(table == null ? "" : table);
       comboBoxAssemblyInfo.setColumnValue(dataInputPaneModel.getColumnValue());
       comboBoxAssemblyInfo.setRowValue(dataInputPaneModel.getRowValue());
@@ -2287,7 +2293,9 @@ public class VSInputService {
       spinnerAssemblyInfo.setPrimary(basicGeneralPaneModel.isPrimary());
       spinnerAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
 
-      String table = dataInputPaneModel.getTable();
+      String table = resolveInputTableBinding(viewsheet.getViewsheet().getBaseWorksheet(),
+         viewsheet.getViewsheet(), dataInputPaneModel.getTable(),
+         dataInputPaneModel.getColumnValue());
       spinnerAssemblyInfo.setTableName(table == null ? "" : table);
       spinnerAssemblyInfo.setColumnValue(dataInputPaneModel.getColumnValue());
       spinnerAssemblyInfo.setRowValue(dataInputPaneModel.getRowValue());
@@ -3773,6 +3781,93 @@ public class VSInputService {
       }
       catch(Exception ex) {
          //ignore the exception
+      }
+
+      return false;
+   }
+
+   /**
+    * Resolves a Data Input pane's {@code table} value against the worksheet before it is
+    * stored, instead of letting an unresolvable value be written silently (bug #76478):
+    * {@code refreshVariable()} keys off this exact string later, at apply time, and no-ops
+    * without any error if it doesn't match a real assembly or variable.
+    *
+    * <p>Accepts the correct {@code "$(varName)"} reference form as-is, provided the variable
+    * actually exists; accepts any real worksheet table/assembly name as-is (a genuine
+    * table+column binding); and normalizes two unambiguous natural mistakes into the
+    * {@code "$(varName)"} form the runtime requires: a bare variable name with no
+    * {@code $(...)} wrapping, and the Composer's own "Variables" tree folder label (not a
+    * selectable leaf -- see {@link #getInputTablesTree}) paired with a {@code columnValue}
+    * that names a real variable. Anything else is rejected loud, by field name, rather than
+    * silently persisted as a broken binding.
+    */
+   private static String resolveInputTableBinding(Worksheet ws, Viewsheet vs, String table,
+                                                   String columnValue)
+   {
+      if(table == null || table.isEmpty() || ws == null) {
+         return table;
+      }
+
+      if(table.startsWith("$(") && table.endsWith(")")) {
+         String vname = table.substring(2, table.length() - 1);
+
+         if(!isKnownVariableName(ws, vs, vname)) {
+            throw new MessageException("Unknown variable '" + vname + "' referenced by " +
+               "table binding '" + table + "'. Use add_variable to create it first.");
+         }
+
+         return table;
+      }
+
+      if(isKnownVariableName(ws, vs, table)) {
+         return "$(" + table + ")";
+      }
+
+      if(ws.getAssembly(table) != null) {
+         return table;
+      }
+
+      if("Variables".equals(table) && columnValue != null && !columnValue.isEmpty() &&
+         isKnownVariableName(ws, vs, columnValue))
+      {
+         return "$(" + columnValue + ")";
+      }
+
+      throw new MessageException("Unknown table binding '" + table + "' for this input. " +
+         "It does not match a worksheet table or a worksheet variable; use " +
+         "\"$(variableName)\" to bind to a variable.");
+   }
+
+   private static boolean isKnownVariableName(Worksheet ws, Viewsheet vs, String name) {
+      if(ws == null || name == null) {
+         return false;
+      }
+
+      Assembly assembly = ws.getAssembly(name);
+
+      if(assembly instanceof VariableAssembly) {
+         return true;
+      }
+
+      // A concrete worksheet assembly of this name (e.g. a real table) always outranks an
+      // incidental UserVariable of the same name pulled in from some *other* assembly's own
+      // condition/SQL params by Worksheet.getAllVariables() -- that fallback list is not
+      // restricted to VariableAssembly-backed names.
+      if(assembly != null) {
+         return false;
+      }
+
+      ArrayList<UserVariable> variableList = new ArrayList<>();
+      Viewsheet.mergeVariables(variableList, ws.getAllVariables());
+
+      if(vs != null) {
+         Viewsheet.mergeVariables(variableList, vs.getAllVariables());
+      }
+
+      for(UserVariable var : variableList) {
+         if(var != null && name.equals(var.getName())) {
+            return true;
+         }
       }
 
       return false;
