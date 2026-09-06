@@ -1233,15 +1233,21 @@ public class WorksheetAgentController {
    }
 
    /**
-    * Every live {@link RuntimeViewsheet} belonging to {@code user} whose
-    * {@code Viewsheet.getBaseEntry()} currently matches {@code worksheetEntry}.
+    * Every live {@link RuntimeViewsheet} whose {@code Viewsheet.getBaseEntry()} currently
+    * matches {@code worksheetEntry} and whose owner is the same logical user as {@code user}.
     *
-    * <p>Scoped to {@code user}'s own runtimes only -- {@code WorksheetService.getRuntimeSheets}
-    * has no global/all-users variant, so a viewsheet another user has open on the same base
-    * worksheet is not detected here. Documented limitation, not a bug in this check.
+    * <p>Fetches every live runtime sheet ({@code getRuntimeSheets(null)}) rather than relying on
+    * {@code WorksheetService.getRuntimeSheets(user)}'s own {@code Principal.equals()} filter,
+    * because a browser-paired viewsheet's owning principal and the calling agent's
+    * JWT-reconstructed principal are legitimately different objects for the same logical user
+    * (session renewal, a different browser window, or a long-lived cached token -- see
+    * {@link PairingUtil#sameLogicalUser(Principal, Principal)}, and
+    * {@code SheetRuntimeAccess.grantOwnershipBypass()} for the identical, already-fixed problem
+    * elsewhere in this package). Matching is done manually with
+    * {@link PairingUtil#sameLogicalUser(Principal, Principal)} instead.
     */
    private List<RuntimeViewsheet> connectedViewsheets(AssetEntry worksheetEntry, Principal user) {
-      RuntimeSheet[] sheets = worksheetService.getRuntimeSheets(user);
+      RuntimeSheet[] sheets = worksheetService.getRuntimeSheets(null);
       List<RuntimeViewsheet> connected = new ArrayList<>();
 
       if(sheets == null) {
@@ -1255,7 +1261,9 @@ public class WorksheetAgentController {
 
          Viewsheet vs = rvs.getViewsheet();
 
-         if(vs != null && worksheetEntry.equals(vs.getBaseEntry())) {
+         if(vs != null && worksheetEntry.equals(vs.getBaseEntry()) &&
+            PairingUtil.sameLogicalUser(rvs.getUser(), user))
+         {
             connected.add(rvs);
          }
       }
