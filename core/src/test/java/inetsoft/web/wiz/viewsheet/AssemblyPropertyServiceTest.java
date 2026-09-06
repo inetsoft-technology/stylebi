@@ -234,6 +234,43 @@ class AssemblyPropertyServiceTest {
          model.getGaugeAdvancedPaneModel().getRangePaneModel().getRangeValues());
    }
 
+   /**
+    * VBM-006: a trailing blank {@code rangeValues} entry (e.g. {@code ["60","90","",""]}) is an
+    * unambiguous "extend the last color band to the gauge's own max" request that the renderer
+    * ({@code DefaultVSGauge.fillRanges0}) now resolves correctly on its own, so it must be
+    * allowed to pass through silently -- no normalization needed here, and no error either.
+    */
+   @Test
+   void allowsATrailingBlankGaugeRangeValue() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1",
+         Map.of("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("60", "90", "", "")),
+         ""));
+   }
+
+   /**
+    * VBM-006: unlike a trailing blank, a blank entry followed by a later populated entry is
+    * genuinely ambiguous -- the renderer has no principled way to resolve it and would silently
+    * collapse that band to nothing. This must be refused loudly instead, naming the field.
+    */
+   @Test
+   void refusesAnInteriorGapInGaugeRangeValues() {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Gauge1",
+            Map.of("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                   java.util.List.of("60", "", "150")),
+            ""));
+
+      assertTrue(thrown.getMessage().contains("rangeValues[1]"),
+                 "must name the blank index: " + thrown.getMessage());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static AssemblyPropertyService serviceWith(VSAssembly assembly, Object model) {
