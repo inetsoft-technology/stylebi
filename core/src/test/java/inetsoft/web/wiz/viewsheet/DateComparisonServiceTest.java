@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -65,7 +66,8 @@ class DateComparisonServiceTest {
    }
 
    private static DateComparisonService.Comparison comparison(String endDate, boolean endToday) {
-      return new DateComparisonService.Comparison(4, "year", endDate, endToday, null, null, null);
+      return new DateComparisonService.Comparison(4, "year", endDate, endToday, null, null, null,
+                                                  null);
    }
 
    /**
@@ -103,7 +105,12 @@ class DateComparisonServiceTest {
    }
 
    private static DateComparisonService.Comparison facetOnly() {
-      return new DateComparisonService.Comparison(null, null, null, false, null, true, null);
+      return new DateComparisonService.Comparison(null, null, null, false, null, true, null, null);
+   }
+
+   private static DateComparisonService.Comparison comparisonOptionOnly(String comparisonOption) {
+      return new DateComparisonService.Comparison(null, null, null, false, null, null, null,
+                                                  comparisonOption);
    }
 
    // ── the recorded defect ───────────────────────────────────────────────────
@@ -171,7 +178,7 @@ class DateComparisonServiceTest {
       assertThrows(IllegalArgumentException.class,
                    () -> DateComparisonService.requireEndAnchor(
                       new DateComparisonService.Comparison(0, "year", null, true, null, null,
-                                                           null)));
+                                                           null, null)));
    }
 
    @Test
@@ -221,7 +228,8 @@ class DateComparisonServiceTest {
    {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison =
-         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null);
+         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null,
+                                              null);
 
       harness(model).service.set("tok", principal(), "Chart1", comparison, "");
 
@@ -235,7 +243,8 @@ class DateComparisonServiceTest {
    void refusesAnUnrecognizedPeriodLevel(String word) {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison =
-         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null);
+         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null,
+                                              null);
 
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
@@ -470,6 +479,95 @@ class DateComparisonServiceTest {
 
       assertEquals("Point", result.get("chartTypeBefore"));
       assertEquals("Stack Bar", result.get("chartTypeAfter"));
+   }
+
+   // ── comparisonOption ─────────────────────────────────────────────────────
+
+   /**
+    * The wire records ({@code DateComparisonRequest}/{@code Comparison}) had no
+    * {@code comparisonOption} field at all, so posting one was rejected with an "Unrecognized
+    * field" error before {@code apply} ever ran. This pins the write path end to end.
+    */
+   @ParameterizedTest
+   @CsvSource({
+      "value, 6",
+      "change, 2",
+      "percentChange, 1",
+      "PercentChange, 1"
+   })
+   void setsComparisonOptionForEachToken(String word, int code) throws Exception {
+      DateComparisonPaneModel model = model();
+
+      harness(model).service.set("tok", principal(), "Chart1", comparisonOptionOnly(word), "");
+
+      assertEquals(code, model.getComparisonOption());
+   }
+
+   @Test
+   void refusesAnUnrecognizedComparisonOption() {
+      Harness h = harness(model());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", comparisonOptionOnly("percent"), ""));
+
+      assertTrue(thrown.getMessage().contains("comparisonOption"), thrown.getMessage());
+   }
+
+   /** comparisonOption is period-independent, like useFacet/onlyShowMostRecentDate — a call that
+    *  sets only it must not be refused for lacking an end anchor. */
+   @Test
+   void comparisonOptionAloneNeedsNoEndAnchor() throws Exception {
+      Harness h = harness(model());
+
+      h.service.set("tok", principal(), "Chart1", comparisonOptionOnly("change"), "");
+
+      verify(h.sessions, times(1)).mutate(anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void leavesComparisonOptionUntouchedWhenNotMentioned() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.setComparisonOption(Calculator.CHANGE);
+
+      harness(model).service.set("tok", principal(), "Chart1", facetOnly(), "");
+
+      assertEquals(Calculator.CHANGE, model.getComparisonOption(),
+                  "a call that omits comparisonOption must not reset it");
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      "6, value",
+      "2, change",
+      "1, percentChange",
+      "101, changeAndValue",
+      "102, percentChangeAndValue"
+   })
+   void readsComparisonOptionAsAName(int code, String word) throws Exception {
+      DateComparisonPaneModel model = model();
+      model.setComparisonOption(code);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1");
+
+      assertEquals(word, read.get("comparisonOption"));
+   }
+
+   /**
+    * Not reachable through this dialog in practice ({@code Calculator}'s other constants —
+    * RUNNINGTOTAL/MOVING/CUSTOM/COMPOUNDGROWTH — never end up on a date-comparison model), but
+    * pins the fallback explicitly: an option outside even the wider read-side vocabulary (which
+    * already covers the two composite settings, changeAndValue/percentChangeAndValue) is reported
+    * as null rather than a raw magic number.
+    */
+   @Test
+   void readsATrulyOutOfVocabularyComparisonOptionAsNull() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.setComparisonOption(Calculator.CUSTOM);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1");
+
+      assertNull(read.get("comparisonOption"));
    }
 
    @Test

@@ -868,11 +868,12 @@ public class ViewsheetAssemblyAgentController {
 
    public record DateComparisonRequest(String assembly, Integer periods, String level,
                                        String endDate, Boolean endToday, String interval,
-                                       Boolean useFacet, Boolean onlyShowMostRecentDate) {
+                                       Boolean useFacet, Boolean onlyShowMostRecentDate,
+                                       String comparisonOption) {
       DateComparisonService.Comparison comparison() {
          return new DateComparisonService.Comparison(
             periods, level, endDate, Boolean.TRUE.equals(endToday), interval, useFacet,
-            onlyShowMostRecentDate);
+            onlyShowMostRecentDate, comparisonOption);
       }
    }
 
