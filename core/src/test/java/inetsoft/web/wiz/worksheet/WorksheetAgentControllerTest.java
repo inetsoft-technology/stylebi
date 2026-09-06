@@ -23,11 +23,14 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.VariableTable;
+import inetsoft.sree.ClientInfo;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XNode;
 import inetsoft.uql.XRepository;
@@ -79,6 +82,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.server.ResponseStatusException;
 import org.xml.sax.SAXParseException;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -104,6 +108,53 @@ class WorksheetAgentControllerTest {
       return new JoinSession(token, "Worksheet/ws-1", "alice~;~host-org",
                              SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
                              JoinSession.ConnectionMode.PAIRED, null, null, null);
+   }
+
+   /**
+    * Builds a real (non-mocked) {@link SRPrincipal} for the same logical user but a distinct
+    * session -- a concrete {@link ClientInfo} (ip/session) and a distinct {@code secureId}, the
+    * exact three fields {@code ClientInfo.equals()}/{@code SRPrincipal.equals()} compare (see
+    * {@code SRPrincipal.java:444-465}, {@code ClientInfo.java:156-176}). Mirrors both VBM-005 P1
+    * investigators' throwaway JUnit fixture technique (see
+    * docs/teams/2026-09-06-bug-vbm-005/01-hypothesis-continuity.md and
+    * 01-hypothesis-mismatch.md, both "Finding 4"): {@code SRPrincipal}'s Ignite-safe no-arg
+    * constructor (it explicitly documents skipping the parameterized constructors specifically to
+    * avoid calling {@code XSessionService.getService()}, which needs a live Spring context) plus
+    * its own public {@code setUser(ClientInfo)}/{@code setOrgId(String)} setters, and reflection
+    * only for {@code secureID} (private, no public setter). {@code SRPrincipal.getName()} is
+    * derived from {@code client.getUserIdentity()}, so the inherited {@code XPrincipal.name}
+    * field need not be set separately for identity/equality purposes.
+    */
+   private static SRPrincipal realSessionPrincipal(String name, String org, String ip,
+                                                    String httpSession, long secureId)
+      throws ReflectiveOperationException
+   {
+      SRPrincipal principal = new SRPrincipal();
+      principal.setUser(new ClientInfo(new IdentityID(name, org), ip, httpSession));
+      principal.setOrgId(org);
+
+      Field secureIdField = SRPrincipal.class.getDeclaredField("secureID");
+      secureIdField.setAccessible(true);
+      secureIdField.set(principal, secureId);
+
+      return principal;
+   }
+
+   /**
+    * Reflectively sets {@link RuntimeSheet}'s protected {@code user} field (the field
+    * {@code RuntimeSheet.matches(Principal)} compares via {@code Tool.equals(this.user, user)} --
+    * see {@code RuntimeSheet.java:369-371}) -- there is no public setter, because in production
+    * this is only ever populated by a runtime's own constructor/open path, never reassigned.
+    * Lets a {@code mock(RuntimeViewsheet.class, CALLS_REAL_METHODS)} fixture's real,
+    * un-stubbed {@code matches()} run against a real owning principal, instead of a mocked
+    * return value.
+    */
+   private static void setRuntimeSheetOwner(RuntimeSheet sheet, Principal owner)
+      throws ReflectiveOperationException
+   {
+      Field userField = RuntimeSheet.class.getDeclaredField("user");
+      userField.setAccessible(true);
+      userField.set(sheet, owner);
    }
 
    private static WorksheetAgentController controller(SheetAgentFeature feature,
@@ -4141,9 +4192,14 @@ class WorksheetAgentControllerTest {
       RuntimeViewsheet connectedRvs = mock(RuntimeViewsheet.class);
       when(connectedRvs.getViewsheet()).thenReturn(vs);
       when(connectedRvs.getID()).thenReturn("rt-vs-1");
+      when(connectedRvs.getUser()).thenReturn(agent);
 
       WorksheetService ws = mock(WorksheetService.class);
-      when(ws.getRuntimeSheets(eq(agent)))
+      // connectedViewsheets() now fetches every live runtime sheet (getRuntimeSheets(null)) and
+      // filters manually via PairingUtil.sameLogicalUser(rvs.getUser(), user) -- see VBM-005 fix
+      // (docs/teams/2026-09-06-bug-vbm-005/02-root-cause.md) -- so this stub must match that call,
+      // and connectedRvs.getUser() above must resolve to the same logical user as agent.
+      when(ws.getRuntimeSheets(any()))
          .thenReturn(new RuntimeSheet[]{ connectedRvs });
 
       WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
@@ -4361,9 +4417,14 @@ class WorksheetAgentControllerTest {
       when(vs.getBaseEntry()).thenReturn(entry);
       RuntimeViewsheet connectedRvs = mock(RuntimeViewsheet.class);
       when(connectedRvs.getViewsheet()).thenReturn(vs);
+      when(connectedRvs.getUser()).thenReturn(agent);
 
       WorksheetService ws = mock(WorksheetService.class);
-      when(ws.getRuntimeSheets(eq(agent))).thenReturn(new RuntimeSheet[]{ connectedRvs });
+      // connectedViewsheets() now fetches every live runtime sheet (getRuntimeSheets(null)) and
+      // filters manually via PairingUtil.sameLogicalUser(rvs.getUser(), user) -- see VBM-005 fix
+      // (docs/teams/2026-09-06-bug-vbm-005/02-root-cause.md) -- so this stub must match that call,
+      // and connectedRvs.getUser() above must resolve to the same logical user as agent.
+      when(ws.getRuntimeSheets(any())).thenReturn(new RuntimeSheet[]{ connectedRvs });
 
       WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
          mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
@@ -4381,6 +4442,148 @@ class WorksheetAgentControllerTest {
       }
 
       assertEquals(Boolean.TRUE, result.get("ok"));
+      verify(connectedRvs).resetRuntime();
+   }
+
+   /**
+    * Regression for VBM-005 -- currently RED (fails), on purpose, until the P4 fix lands.
+    *
+    * <p>{@code connectedViewsheets()} finds its connected viewsheets via
+    * {@code worksheetService.getRuntimeSheets(user)}, which (per
+    * {@code WorksheetEngine.getRuntimeSheets}) filters with
+    * {@code user == null || rvs.matches(user)} -- i.e. {@code RuntimeSheet.matches()} ->
+    * {@code Tool.equals(this.user, user)} -> plain {@code SRPrincipal.equals()}. That comparison
+    * requires exact {@code ClientInfo} (ip+session) and {@code secureId} equality, not merely the
+    * same logical user.
+    *
+    * <p>An agent's JWT-derived {@code SRPrincipal} is minted from whichever browser
+    * {@code HttpSession} happened to service {@code /sso/authorize} at {@code login_start}/
+    * {@code login_complete} time (see {@code SSOTokenController.authorize()} /
+    * {@code SSOTokenService.createSSOToken()}), and is then reused, frozen, for every later
+    * request in that agent session. A browser-paired {@code RuntimeViewsheet}'s owning principal
+    * is whatever {@code HttpSession} was live when the browser opened/paired that specific
+    * viewsheet -- a separate event that can be backed by a different {@code HttpSession} for the
+    * exact same human (session renewal, a different browser/incognito window --
+    * {@code login_start}'s own tool description explicitly offers this as an option -- or simply a
+    * long-lived cached token outliving the browser session that originally minted it; see
+    * docs/teams/2026-09-06-bug-vbm-005/02-root-cause.md). When that happens, the two
+    * {@code SRPrincipal}s are the same logical user but different objects, and
+    * {@code RuntimeSheet.matches()} returns {@code false} -- so {@code connectedViewsheets()}
+    * silently drops the viewsheet, and the PVA-002 {@code resetRuntime()} call this test's
+    * sibling ({@code plainSaveInPlaceResetsConnectedViewsheetRuntimes}) covers never fires for it.
+    * {@code PairingUtil.sameLogicalUser()} already exists and is wired into every other
+    * runtime-access path in this same package (see {@code SheetRuntimeAccess
+    * .grantOwnershipBypass()}'s javadoc, which documents this exact failure mode as an
+    * already-observed production incident) -- {@code connectedViewsheets()} is the one path that
+    * was never given the same treatment.
+    *
+    * <p>Unlike {@code plainSaveInPlaceResetsConnectedViewsheetRuntimes} (which stubs
+    * {@code getRuntimeSheets} to hand back the connected viewsheet for the literal same
+    * {@code Principal} object, and so cannot detect an identity mismatch either way), this test
+    * uses two distinct, realistically-shaped real {@code SRPrincipal}s (real {@code ClientInfo},
+    * real {@code secureId}) and a {@code WorksheetService} stub that replicates
+    * {@code WorksheetEngine.getRuntimeSheets(user)}'s own real filtering predicate
+    * (rather than returning an already-filtered canned list) against a
+    * {@code mock(RuntimeViewsheet.class, CALLS_REAL_METHODS)} fixture whose real, un-stubbed
+    * {@code matches()} runs for real.
+    *
+    * <p>This test asserts the CORRECT/desired behavior -- the same-logical-user viewsheet's
+    * runtime IS reset -- exactly like {@code plainSaveInPlaceResetsConnectedViewsheetRuntimes}
+    * does for the continuity case. That final {@code verify(connectedRvs).resetRuntime()} is
+    * expected to FAIL today: {@code connectedViewsheets()} has no {@code PairingUtil
+    * .sameLogicalUser()} fallback yet, so the real {@code getRuntimeSheets(agentPrincipal)}
+    * filtering predicate above silently returns an empty array for this fixture, and
+    * {@code resetRuntime()} is never invoked. Once P4 gives {@code connectedViewsheets()} that
+    * fallback (per {@code 02-root-cause.md}'s fix direction), this assertion should pass without
+    * any other change to this test.
+    */
+   @Test
+   void plainSaveInPlaceResetsConnectedViewsheetAcrossIdentitySessionBoundary() throws Exception {
+      // "browser" principal: owns the paired viewsheet, as if established when a human's browser
+      // opened/paired the Composer session that owns it.
+      SRPrincipal browserPrincipal = realSessionPrincipal(
+         "alice", "host-org", "10.0.0.5", "browser-http-session-A", 111L);
+
+      // "agent" principal: same logical user (alice/host-org), but reconstructed by
+      // WizServiceAuthenticationFilter from a JWT minted at a DIFFERENT HttpSession's
+      // /sso/authorize -- e.g. an earlier login_start/login_complete bootstrap, a session
+      // renewal, or a different browser/incognito window used for the authorize click.
+      SRPrincipal agentPrincipal = realSessionPrincipal(
+         "alice", "host-org", "10.0.0.9", "agent-jwt-http-session-B", 222L);
+
+      // Fixture sanity check: these must be genuinely different sessions for this test to prove
+      // anything -- if this ever fails, the fixture itself is broken, not the code under test.
+      assertNotEquals(browserPrincipal, agentPrincipal,
+         "fixture bug: browser/agent principals must be different sessions of the same logical "
+            + "user for this test to mean anything");
+
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(entry);
+      when(rws.getWorksheet()).thenReturn(new Worksheet());
+      when(rws.getCurrent()).thenReturn(5);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-SAVE-IDBOUNDARY"), eq(agentPrincipal)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-idboundary"));
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(entry);
+
+      // Real fixture: an un-stubbed matches() call runs RuntimeSheet's actual
+      // Tool.equals(this.user, user) body, against the real "browser" SRPrincipal reflectively
+      // installed as its owner -- not a canned/stubbed return value.
+      RuntimeViewsheet connectedRvs = mock(RuntimeViewsheet.class, CALLS_REAL_METHODS);
+      when(connectedRvs.getViewsheet()).thenReturn(vs);
+      setRuntimeSheetOwner(connectedRvs, browserPrincipal);
+
+      // Confirm the fixture's premise by executing the real chain directly, before routing it
+      // through the controller -- if either of these ever flips, the fixture (not the production
+      // code) is what broke.
+      assertTrue(connectedRvs.matches(browserPrincipal),
+         "fixture bug: the browser-owned runtime must match its own owning principal");
+      assertFalse(connectedRvs.matches(agentPrincipal),
+         "fixture bug: this mismatch is exactly what this test exists to demonstrate -- if "
+            + "SRPrincipal.equals() ever starts returning true here, either the fix already "
+            + "landed (re-point this test at PairingUtil.sameLogicalUser() instead) or something "
+            + "changed underneath it that needs investigating before trusting the rest of this "
+            + "test");
+
+      WorksheetService ws = mock(WorksheetService.class);
+      // Replicates WorksheetEngine.getRuntimeSheets(user)'s own real filtering predicate
+      // ("user == null || rvs.matches(user)") against the fixture above, rather than a
+      // pre-filtered canned list -- so the real RuntimeSheet.matches()/SRPrincipal.equals() chain,
+      // not the test author, determines what comes back.
+      List<RuntimeSheet> allLiveRuntimeSheets = List.of(connectedRvs);
+      when(ws.getRuntimeSheets(any())).thenAnswer(invocation -> {
+         Principal requestUser = invocation.getArgument(0);
+         return allLiveRuntimeSheets.stream()
+            .filter(sheet -> requestUser == null || sheet.matches(requestUser))
+            .toArray(RuntimeSheet[]::new);
+      });
+
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
+
+      Map<String, Object> result;
+
+      try(MockedStatic<DependencyTool> dependencyTool = mockStatic(DependencyTool.class)) {
+         dependencyTool.when(() -> DependencyTool.getDependencies(anyString())).thenReturn(List.of());
+
+         result = ctrl.save("TOK-SAVE-IDBOUNDARY",
+            new WorksheetAgentController.SaveRequest(null, null), agentPrincipal);
+      }
+
+      assertEquals(Boolean.TRUE, result.get("ok"));
+
+      // THE BUG (VBM-005) -- this is the assertion expected to be RED today: the browser-owned
+      // viewsheet's runtime should be reset (same logical user, PVA-002's whole point), but
+      // WorksheetService.getRuntimeSheets(agentPrincipal) silently drops it, because
+      // connectedViewsheets() has no logical-identity fallback the way SheetRuntimeAccess
+      // .grantOwnershipBypass()'s sibling paths do. Once connectedViewsheets() is fixed to also
+      // match via PairingUtil.sameLogicalUser(), this passes with no other change to this test.
       verify(connectedRvs).resetRuntime();
    }
 
