@@ -3843,8 +3843,18 @@ public class VSInputService {
          return false;
       }
 
-      if(ws.getAssembly(name) instanceof VariableAssembly) {
+      Assembly assembly = ws.getAssembly(name);
+
+      if(assembly instanceof VariableAssembly) {
          return true;
+      }
+
+      // A concrete worksheet assembly of this name (e.g. a real table) always outranks an
+      // incidental UserVariable of the same name pulled in from some *other* assembly's own
+      // condition/SQL params by Worksheet.getAllVariables() -- that fallback list is not
+      // restricted to VariableAssembly-backed names.
+      if(assembly != null) {
+         return false;
       }
 
       ArrayList<UserVariable> variableList = new ArrayList<>();

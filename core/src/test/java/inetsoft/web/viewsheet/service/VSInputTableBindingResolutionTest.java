@@ -35,9 +35,14 @@ package inetsoft.web.viewsheet.service;
  * bad value instead of persisting a binding that can never resolve.
  */
 
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.DefaultVariableAssembly;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.util.MessageException;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.Test;
@@ -95,6 +100,34 @@ class VSInputTableBindingResolutionTest {
       ws.addAssembly(new EmbeddedTableAssembly(ws, "Query1"));
 
       assertEquals("Query1", resolve(ws, "Query1", "DISCOUNT"));
+   }
+
+   /**
+    * Review round 1 finding: a real table can share its name with a UserVariable that
+    * Worksheet.getAllVariables() pulls in purely because some *other*, unrelated table's own
+    * condition references "$(Query1)" -- no assembly named "Query1" is ever a VariableAssembly.
+    * The real "Query1" table must still win.
+    */
+   @Test
+   void aRealTableOutranksAnUnrelatedConditionVariableOfTheSameName() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new EmbeddedTableAssembly(ws, "Query1"));
+
+      EmbeddedTableAssembly other = new EmbeddedTableAssembly(ws, "OtherTable");
+      ColumnRef ref = new ColumnRef(new AttributeRef("col1"));
+      Condition cond = new Condition();
+      cond.addValue("$(Query1)");
+      ConditionList conditionList = new ConditionList();
+      conditionList.append(new ConditionItem(ref, cond, 0));
+      other.setPreConditionList(conditionList);
+      ws.addAssembly(other);
+
+      // sanity check that the collision is actually set up: "Query1" really does show up as
+      // a merged UserVariable name, purely via the unrelated table's condition.
+      assertTrue(java.util.Arrays.stream(ws.getAllVariables())
+                    .anyMatch(v -> "Query1".equals(v.getName())));
+
+      assertEquals("Query1", resolve(ws, "Query1", null));
    }
 
    @Test
