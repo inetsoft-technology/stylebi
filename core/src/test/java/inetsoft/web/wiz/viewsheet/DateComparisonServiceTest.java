@@ -21,6 +21,9 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
 import org.junit.jupiter.api.Tag;
@@ -401,6 +404,72 @@ class DateComparisonServiceTest {
       CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
       when(assembly.getVSCrosstabInfo()).thenReturn(crosstabInfo);
       return assembly;
+   }
+
+   // ── reporting a chart-type override ─────────────────────────────────────────
+
+   /**
+    * {@code ChartDcProcessor.updateDateComparisonChartType()} unconditionally forces a chart's
+    * (non-multi-style) runtime type to Bar/Bar-Stack when a comparison is applied, regardless of
+    * the original type — e.g. stripping a Line chart's only group-shelf visual-breakdown
+    * mechanism with nothing reporting it. This must be disclosed.
+    */
+   @Test
+   void reportsAChartTypeOverrideWhenTheRuntimeTypeActuallyChanged() throws Exception {
+      VSChartInfo cinfo = mock(VSChartInfo.class);
+      when(cinfo.getRTChartType()).thenReturn(GraphTypes.CHART_LINE, GraphTypes.CHART_BAR);
+
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(cinfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertEquals(true, result.get("chartTypeOverridden"));
+      assertEquals("Line", result.get("chartTypeBefore"));
+      assertEquals("Bar", result.get("chartTypeAfter"));
+   }
+
+   @Test
+   void returnsAnEmptyMapWhenTheChartTypeDidNotActuallyChange() throws Exception {
+      VSChartInfo cinfo = mock(VSChartInfo.class);
+      when(cinfo.getRTChartType()).thenReturn(GraphTypes.CHART_BAR);
+
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(cinfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertFalse(result.containsKey("chartTypeOverridden"));
+   }
+
+   /**
+    * The multi-style branch of {@code updateDateComparisonChartType} changes each aggregate's
+    * runtime type instead of the info-level one — the disclosure must read from an aggregate in
+    * that case, not the (untouched) info-level type.
+    */
+   @Test
+   void describesAMultiStyleChartTypeOverrideViaItsAggregate() throws Exception {
+      ChartAggregateRef agg = mock(ChartAggregateRef.class);
+      when(agg.getRTChartType()).thenReturn(GraphTypes.CHART_POINT, GraphTypes.CHART_BAR_STACK);
+
+      VSChartInfo cinfo = mock(VSChartInfo.class);
+      when(cinfo.isMultiStyles()).thenReturn(true);
+      when(cinfo.getAestheticAggregateRefs(true))
+         .thenReturn(java.util.List.of(agg));
+
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(cinfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertEquals("Point", result.get("chartTypeBefore"));
+      assertEquals("Stack Bar", result.get("chartTypeAfter"));
    }
 
    @Test
