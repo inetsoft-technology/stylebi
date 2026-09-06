@@ -440,15 +440,26 @@ public class BindingAgentController {
                                         linkUri);
    }
 
+   /**
+    * @param warnings messages from any post-write shelf-metadata refresh steps that were caught
+    *                 rather than propagated -- the calc field write itself already committed
+    *                 either way (see {@code ViewsheetSessionService.mutate}/
+    *                 {@code CalcFieldAgentService.modify}); empty when nothing warned. Distinct
+    *                 from {@code handleCommandError}'s 409 body, which is for a write that did
+    *                 NOT commit.
+    */
+   public record CalcFieldResponse(List<String> warnings) {}
+
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc-field")
-   public void modifyCalcField(@PathVariable String sessionToken,
+   public CalcFieldResponse modifyCalcField(@PathVariable String sessionToken,
                                @RequestBody CalcFieldAgentService.CalcFieldRequest request,
                                @RequestParam(required = false, defaultValue = "") String linkUri,
                                Principal user)
       throws Exception
    {
       requireEnabled();
-      calcFieldService.modify(sessionToken, user, request, linkUri);
+      List<String> warnings = calcFieldService.modify(sessionToken, user, request, linkUri);
+      return new CalcFieldResponse(warnings);
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/source")
