@@ -177,6 +177,51 @@ class TabularCatalogProviderPagingTest {
       private List<TabularDatasetRef> current;
    }
 
+   // ----- overflow guard for start + limit -----
+
+   @Test
+   void limitLargerThanRemainingCount_doesNotOverflowStartPlusLimit() throws Exception {
+      List<TabularDatasetRef> datasets = NINE_DATASETS.subList(0, 5);
+      FixedCatalogProvider provider = new FixedCatalogProvider(datasets);
+
+      TabularCatalogPage page1 =
+         provider.listDatasets(DS, new TabularCatalogRequest(null, 2, null));
+      String cursor = page1.nextCursor();
+      assertNotNull(cursor);
+
+      // A compliant caller may raise limit on a later page -- nothing in the contract requires it to
+      // stay constant across a browsing session, only that the cursor is replayed with the same
+      // nameContains. start + limit here is 2 + Integer.MAX_VALUE, which overflows int arithmetic.
+      TabularCatalogPage page2 =
+         provider.listDatasets(DS, new TabularCatalogRequest(null, Integer.MAX_VALUE, cursor));
+
+      assertEquals(idList(datasets.subList(2, datasets.size())), idList(page2.datasets()));
+      assertNull(page2.nextCursor());
+   }
+
+   // ----- decodeCursor edge cases -----
+
+   @ParameterizedTest(name = "cursor ''{0}''")
+   @ValueSource(strings = {"not-a-cursor", "-1"})
+   void cursorNotMintedByThisImplementation_throwsIllegalArgumentException(String cursor) {
+      FixedCatalogProvider provider = new FixedCatalogProvider(NINE_DATASETS);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> provider.listDatasets(DS, new TabularCatalogRequest(null, LIMIT, cursor)));
+   }
+
+   @Test
+   void cursorPastTheEnd_returnsEmptyExhaustedPage_notException() throws Exception {
+      List<TabularDatasetRef> datasets = NINE_DATASETS.subList(0, 3);
+      FixedCatalogProvider provider = new FixedCatalogProvider(datasets);
+
+      TabularCatalogPage page =
+         provider.listDatasets(DS, new TabularCatalogRequest(null, LIMIT, "999"));
+
+      assertEquals(List.of(), page.datasets());
+      assertNull(page.nextCursor());
+   }
+
    // ----- A4 / B8 -----
 
    private static final List<TabularDatasetRef> NAME_FILTER_DATASETS = refs(

@@ -166,8 +166,11 @@ public interface TabularCatalogProvider {
       TabularCatalog catalog = listDatasets(dataSource);
       List<TabularDatasetRef> all = catalog.datasets() == null ? List.of() : catalog.datasets();
 
+      String normalizedNameContains = request.nameContains() == null || request.nameContains().isBlank()
+         ? null : request.nameContains().toUpperCase(Locale.ROOT);
+
       List<TabularDatasetRef> filtered = all.stream()
-         .filter(ref -> matchesNameContains(ref, request.nameContains()))
+         .filter(ref -> matchesNameContains(ref, normalizedNameContains))
          .collect(Collectors.toUnmodifiableList());
 
       int start = decodeCursor(request.cursor());
@@ -178,20 +181,21 @@ public interface TabularCatalogProvider {
          return new TabularCatalogPage(List.of(), null);
       }
 
-      int end = Math.min(start + request.limit(), filtered.size());
-      List<TabularDatasetRef> page = List.copyOf(filtered.subList(start, end));
-      String nextCursor = end < filtered.size() ? encodeCursor(end) : null;
+      // start + request.limit() as int arithmetic can overflow -- limit has no upper bound, only
+      // limit > 0 -- so the addition is done as long before clamping back down to filtered.size().
+      long end = Math.min((long) start + request.limit(), filtered.size());
+      List<TabularDatasetRef> page = List.copyOf(filtered.subList(start, (int) end));
+      String nextCursor = end < filtered.size() ? encodeCursor((int) end) : null;
 
       return new TabularCatalogPage(page, nextCursor);
    }
 
-   private static boolean matchesNameContains(TabularDatasetRef ref, String nameContains) {
-      if(nameContains == null || nameContains.isBlank()) {
+   private static boolean matchesNameContains(TabularDatasetRef ref, String normalizedNameContains) {
+      if(normalizedNameContains == null) {
          return true;
       }
 
-      return ref.id() != null &&
-         ref.id().toUpperCase(Locale.ROOT).contains(nameContains.toUpperCase(Locale.ROOT));
+      return ref.id() != null && ref.id().toUpperCase(Locale.ROOT).contains(normalizedNameContains);
    }
 
    private static int decodeCursor(String cursor) {
