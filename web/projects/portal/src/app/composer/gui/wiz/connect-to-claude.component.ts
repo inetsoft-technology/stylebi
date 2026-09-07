@@ -226,7 +226,11 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
             this.loading = false;
             this.error = message;
          });
-         this.connectErrorSubscription = null;
+
+         if(this.connectErrorSubscription) {
+            this.connectErrorSubscription.unsubscribe();
+            this.connectErrorSubscription = null;
+         }
       });
 
       this.socketConnection.whenConnected().pipe(take(1), timeout(MINT_CONNECT_TIMEOUT_MS)).subscribe({

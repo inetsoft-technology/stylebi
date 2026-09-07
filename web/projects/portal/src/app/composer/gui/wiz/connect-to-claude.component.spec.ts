@@ -171,6 +171,20 @@ describe("ConnectToClaudeComponent", () => {
          expect(button.disabled).toBe(false);
       });
 
+      // connectionError() is backed by a long-lived Subject; unsubscribing only the component's
+      // OWN reference (not the Subject's registration of it) leaves a closure permanently
+      // registered on the Subject, invisible to ngOnDestroy(), once per failed attempt.
+      it("unsubscribes from connectionError() after it fires, instead of leaking the registration", () => {
+         mockSocketConnection.whenConnected = vi.fn(() => NEVER);
+
+         component.requestCode();
+         expect(mockConnectionErrorSubject.observers.length).toBe(1);
+
+         mockConnectionErrorSubject.next("Client disconnected!");
+
+         expect(mockConnectionErrorSubject.observers.length).toBe(0);
+      });
+
       // Independent backstop for when connectionError() itself never fires -- see
       // MINT_CONNECT_TIMEOUT_MS in connect-to-claude.component.ts.
       it("falls back to a timeout when neither whenConnected() nor connectionError() ever fire", () => {
