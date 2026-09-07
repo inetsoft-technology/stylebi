@@ -898,10 +898,10 @@ class WorksheetAgentControllerTest {
       TableAssembly crosstab = TestWorksheets.withGroupSumAndSort(
          TestWorksheets.nonEmbeddedTableWithColumns(ws, "Crosstab1", "cust", "amount"),
          "cust", "amount");
-      // Parity audit L10 Group C #8's new checkValidity() call needs a real-looking source --
-      // nonEmbeddedTableWithColumns leaves SourceInfo unset, which used to be invisible here
-      // because neither refreshColumnSelection nor loadTableData's own internal checkValidity()
-      // (which swallows the failure) ever surfaced it.
+      // refreshData()'s new checkValidity() call needs a real-looking source -- nonEmbeddedTableWithColumns
+      // leaves SourceInfo unset, which used to be invisible here because neither
+      // refreshColumnSelection nor loadTableData's own internal checkValidity() (which swallows the
+      // failure) ever surfaced it.
       ((BoundTableAssembly) crosstab).setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
       ws.addAssembly(crosstab);
 
@@ -909,9 +909,6 @@ class WorksheetAgentControllerTest {
       when(rws.getWorksheet()).thenReturn(ws);
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(rws.getAssetQuerySandbox()).thenReturn(box);
-      // Parity audit L10 Group C #7's new AssetQuery.createAssetQuery(...) call (mirroring
-      // WSQueryService.runQuery) needs the sandbox's own getWorksheet()/getVariableTable() to be
-      // real, not an unstubbed mock, or it NPEs deep inside query construction.
       when(box.getWorksheet()).thenReturn(ws);
       when(box.getVariableTable()).thenReturn(new VariableTable());
       doAnswer(invocation -> {
@@ -973,9 +970,9 @@ class WorksheetAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
-   // refresh_data -- parity audit L10 Group C #7/#8/#9/#11: WSQueryService.runQuery (the UI's own
-   // "Run Query" action this tool mirrors) clears more cache layers, checks validity, removes the
-   // row cap, and discovers tabular columns -- none of which the agent path used to do.
+   // refresh_data -- WSQueryService.runQuery (the UI's own "Run Query" action this tool mirrors)
+   // clears the query cache, checks validity, removes the row cap, and discovers tabular columns --
+   // none of which the agent path used to do.
    // ---------------------------------------------------------------------------
 
    /** #7: a single-table refresh must clear the cached query result, not just resetTableLens. */

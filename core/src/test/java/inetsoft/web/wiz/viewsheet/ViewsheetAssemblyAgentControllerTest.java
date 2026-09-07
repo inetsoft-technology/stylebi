@@ -1009,9 +1009,9 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
-   // save -- parity audit L10 Group B #1/#2: save_viewsheet had no overwrite/duplicate-name
-   // confirmation at all, unlike save_worksheet's own already-fixed L2-Group10 guard and unlike
-   // the viewsheet UI's own SaveViewsheetDialogService.validateSaveViewSheet.
+   // save -- had no overwrite/duplicate-name confirmation at all, unlike save_worksheet's own
+   // already-fixed L2-Group10 guard and unlike the viewsheet UI's own
+   // SaveViewsheetDialogService.validateSaveViewSheet.
    // ---------------------------------------------------------------------------
 
    /** A name colliding with an existing entry must be refused, not silently overwritten. */
@@ -1099,8 +1099,8 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
-   // save -- parity audit L10 Group B #3: save_viewsheet never propagated a pending binding
-   // rename to dependent assets, unlike both of the viewsheet UI's own save paths.
+   // save -- never propagated a pending binding rename to dependent assets at all, unlike either
+   // of the viewsheet UI's own save paths (each of which does, conditionally).
    // ---------------------------------------------------------------------------
 
    /** A successful save must flush any pending rename to dependent assets. */

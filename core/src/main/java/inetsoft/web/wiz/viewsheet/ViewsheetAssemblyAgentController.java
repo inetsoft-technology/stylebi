@@ -1045,7 +1045,7 @@ public class ViewsheetAssemblyAgentController {
     *              (i.e. has not been saved before). When omitted the viewsheet is saved in-place.
     * @param scope optional scope — {@code "global"} (default) for the shared repository,
     *              {@code "user"} for the user's private folder.
-    * @param confirmOverwrite parity audit L10 Group B #1/#2: {@code true} to proceed when
+    * @param confirmOverwrite {@code true} to proceed when
     *              {@code name} collides with an asset that already exists, mirroring
     *              {@code WorksheetAgentController.SaveRequest}'s own {@code confirmed} field and
     *              {@code SaveViewsheetDialogService.validateSaveViewSheet}'s "already exists,
@@ -1093,11 +1093,11 @@ public class ViewsheetAssemblyAgentController {
          IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
          entry = new AssetEntry(assetScope, AssetEntry.Type.VIEWSHEET, name, owner, uname.orgID);
 
-         // Parity audit L10 Group B #1: SaveViewsheetDialogService.validateSaveViewSheet already
-         // refuses (pending confirmation) an overwrite of an existing entry via this same
-         // isDuplicatedEntry check -- this agent path never called the equivalent, so a second
-         // save_viewsheet({name:"X"}) silently overwrote whatever "X" already held with no signal
-         // anything collided. Mirrors WorksheetAgentController.save()'s own L2-Group10 fix.
+         // SaveViewsheetDialogService.validateSaveViewSheet already refuses (pending confirmation)
+         // an overwrite of an existing entry via this same isDuplicatedEntry check -- this agent
+         // path never called the equivalent, so a second save_viewsheet({name:"X"}) silently
+         // overwrote whatever "X" already held with no signal anything collided. Mirrors
+         // WorksheetAgentController.save()'s own L2-Group10 fix.
          try {
             if(viewsheetService.isDuplicatedEntry(viewsheetService.getAssetRepository(), entry)
                && !Boolean.TRUE.equals(body.confirmOverwrite()))
@@ -1119,23 +1119,12 @@ public class ViewsheetAssemblyAgentController {
          viewsheetService.setViewsheet(rvs.getViewsheet(), entry, xp, true, true);
          rvs.setEntry(entry);
 
-         // Parity audit L10 Group B #3: this agent path previously called neither
-         // fixRenameDepEntry nor renameDep, so a rename made during the session was silently
-         // dropped on save -- no path here propagated a pending binding rename to dependent assets
-         // at all.
-         //
-         // Review follow-up (PR stylebi#5045): this is a deliberate DEVIATION from both UI save
-         // paths, not a mirror of either -- neither actually calls both methods unconditionally.
-         // SaveViewsheetDialogService.saveViewsheet (Save-As dialog path) calls both, but only when
-         // model.isUpdateDepend() is true. ComposerViewsheetService.saveViewsheet (plain in-place
-         // save) calls only renameDep (never fixRenameDepEntry), also gated on
-         // event.isUpdateDepend(), and explicitly discards the pending rename via clearRenameDep
-         // when that flag is false -- a choice this agent path has no equivalent of. No human is
-         // present here to answer "update dependent bindings?", so this path always answers "yes"
-         // rather than offering the UI's own discard option, same rationale as
-         // WorksheetAgentController.save()'s own PVA-011 fix. Safe to call unconditionally either
-         // way: both methods are no-ops when renameInfoMap has nothing pending for this runtime id
-         // (WorksheetEngine.fixRenameDepEntry/renameDep both return immediately on a null lookup).
+         // Propagates a pending binding rename to dependent assets, same as WorksheetAgentController
+         // .save()'s own PVA-011 fix. Deliberately unconditional, NOT a mirror of the UI: the UI's
+         // own save paths only do this when isUpdateDepend() is true, and otherwise discard the
+         // pending rename (clearRenameDep). With no human here to answer that prompt, this path
+         // always answers "yes" instead. Safe either way -- both calls are no-ops when nothing is
+         // pending for this runtime id.
          viewsheetService.fixRenameDepEntry(rvs.getID(), entry);
          viewsheetService.renameDep(rvs.getID());
 

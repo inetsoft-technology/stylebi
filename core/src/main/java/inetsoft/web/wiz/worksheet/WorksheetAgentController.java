@@ -2836,14 +2836,14 @@ public class WorksheetAgentController {
             }
 
             if(assembly instanceof TableAssembly table) {
-               // Parity audit L10 Group C #8: WSQueryService.runQuery (the UI's own "Run Query"
-               // action this tool mirrors) reaches this same validity gate via
-               // WorksheetEventUtil.refreshAssembly, which this agent path cannot call directly --
-               // it has no CommandDispatcher for refreshAssembly's own cross-join auto-repair
-               // machinery (same, already-documented limitation as replaceEmbeddedTable() above).
-               // Call the check directly so an invalid table (e.g. a cross-join cell-count limit)
-               // is reported instead of silently proceeding -- same MessageException|
-               // ConfirmException-propagates-else-logged distinction refreshAssembly itself makes.
+               // WSQueryService.runQuery (the UI's own "Run Query" action this tool mirrors) reaches
+               // this same validity gate via WorksheetEventUtil.refreshAssembly, which this agent
+               // path cannot call directly -- it has no CommandDispatcher for refreshAssembly's own
+               // cross-join auto-repair machinery (same, already-documented limitation as
+               // replaceEmbeddedTable() above). Call the check directly so an invalid table (e.g. a
+               // cross-join cell-count limit) is reported instead of silently proceeding -- same
+               // MessageException|ConfirmException-propagates-else-logged distinction refreshAssembly
+               // itself makes.
                try {
                   table.checkValidity();
                }
@@ -2857,19 +2857,19 @@ public class WorksheetAgentController {
 
                int mode = WorksheetEventUtil.getMode(table);
 
-               // Parity audit L10 Group C #9: WSQueryService.runQuery removes the row cap in
-               // RUNTIME_MODE before re-running the query; without this, refresh_data could return
-               // a still row-limited preview where a real "Run Query" click would not.
+               // WSQueryService.runQuery removes the row cap in RUNTIME_MODE before re-running the
+               // query; without this, refresh_data could return a still row-limited preview where a
+               // real "Run Query" click would not.
                if(mode == AssetQuerySandbox.RUNTIME_MODE) {
                   box.getVariableTable().remove(XQuery.HINT_MAX_ROWS);
                }
 
                box.resetTableLens(req.table(), mode);
 
-               // Parity audit L10 Group C #7: WSQueryService.runQuery also clears the cached query
-               // result from AssetDataCache before re-executing -- resetTableLens alone leaves
-               // that cache holding the pre-refresh result, so a caller reading the table right
-               // after refresh_data could still observe stale data. (WSQueryService additionally
+               // WSQueryService.runQuery also clears the cached query result from AssetDataCache
+               // before re-executing -- resetTableLens alone leaves that cache holding the
+               // pre-refresh result, so a caller reading the table right after refresh_data could
+               // still observe stale data. (WSQueryService additionally
                // clears AssetQueryCacheNormalizer's and a live BoundQuery's own cache via a fresh
                // AssetQuery.createAssetQuery(...) call -- both reach into repository/datasource
                // resolution that needs a real Spring context, so they're deliberately left for a
@@ -2877,9 +2877,9 @@ public class WorksheetAgentController {
                DataKey key = AssetDataCache.getCacheKey(table, box, null, mode, true);
                assetDataCache.remove(key);
 
-               // Parity audit L10 Group C #11: WSQueryService.runQuery discovers a not-yet-run
-               // tabular query's columns before reloading; without it, refresh_data on a query
-               // that has never executed in this runtime loads against an empty column selection.
+               // WSQueryService.runQuery discovers a not-yet-run tabular query's columns before
+               // reloading; without it, refresh_data on a query that has never executed in this
+               // runtime loads against an empty column selection.
                if(table instanceof TabularTableAssembly tabular) {
                   tabular.loadColumnSelection(box.getVariableTable(), true, box.getQueryManager());
                }
