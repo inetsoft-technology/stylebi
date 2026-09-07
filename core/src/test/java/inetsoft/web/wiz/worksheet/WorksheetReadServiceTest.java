@@ -256,6 +256,46 @@ class WorksheetReadServiceTest {
       assertEquals(List.of("5"), ranking.values());
    }
 
+   // Bug #76483 WBS-017: operationName() had no case for DATE_IN (ordinal 11), so a date_in
+   // pre-condition reported operation:"11" instead of "DATE_IN", and extractValues()'s
+   // "instanceof Condition" check excludes DateCondition (a sibling of Condition, not a
+   // subtype), so the range name was silently dropped to []. Round-trips through the actual
+   // production mutator (WorksheetMutationSupport.addFilter), matching this file's own
+   // convention of exercising the real mutation path rather than hand-building the condition.
+   @Test
+   void dateInPreConditionReportsAReadableOperationAndTheRangeName() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate");
+      ((ColumnRef) t.getColumnSelection(false).getAttribute("orderDate")).setDataType(XSchema.DATE);
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.addFilter(t, "orderDate", "DATE_IN", "Last quarter");
+
+      WorksheetModel.FilterModel condition =
+         tableNamed(read(ws), "T").preConditions().get(0);
+
+      assertEquals("DATE_IN", condition.operation());
+      assertEquals(List.of("Last quarter"), condition.values());
+   }
+
+   // Same operationName() gap, systemic across any XCondition subtype that isn't a plain
+   // Condition: RankingCondition's own operation (TOP_N/BOTTOM_N) fell to the same
+   // String.valueOf(ordinal) default as DATE_IN did. extractValues() already handles
+   // RankingCondition correctly (Bug #75950) -- only the operation name was still raw.
+   @Test
+   void bottomNRankingConditionReportsAReadableOperationName() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total");
+      ws.addAssembly(t);
+      WorksheetMutationSupport.setRanking(t,
+         new WorksheetMutationSupport.RankingSpec("total", 10, "BOTTOM_N", false));
+
+      WorksheetModel.FilterModel ranking = tableNamed(read(ws), "T").rankingConditions().get(0);
+
+      assertEquals("BOTTOM_N", ranking.operation());
+      assertEquals(List.of("10"), ranking.values());
+   }
+
    private static WorksheetModel.TableModel tableNamed(WorksheetModel m, String name) {
       return m.tables().stream().filter(t -> name.equals(t.name())).findFirst().orElseThrow();
    }

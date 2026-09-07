@@ -647,6 +647,9 @@ public class WorksheetReadService {
          case XCondition.CONTAINS      -> "CONTAINS";
          case XCondition.LIKE          -> "LIKE";
          case XCondition.NULL          -> negated ? "NOT_NULL" : "NULL";
+         case XCondition.DATE_IN       -> "DATE_IN";
+         case XCondition.TOP_N         -> "TOP_N";
+         case XCondition.BOTTOM_N      -> "BOTTOM_N";
          default                       -> String.valueOf(xc.getOperation());
       };
    }
@@ -668,6 +671,17 @@ public class WorksheetReadService {
 
          return Collections.singletonList(
             n instanceof UserVariable uvar ? "$(" + uvar.getName() + ")" : n.toString());
+      }
+
+      if(xc instanceof DateCondition dc) {
+         // DATE_IN's value is a named range (e.g. "Last quarter"), not a literal in
+         // getValue()/getValueCount() -- DateCondition is a sibling of Condition, not a
+         // subtype (both extend AbstractCondition directly), so it never reaches the
+         // instanceof Condition branch below and always fell through to []. getName() is
+         // exactly the range name addFilter/resolveDateInCondition resolved this condition
+         // from, so surfacing it here is what makes the read round-trippable.
+         String name = dc.getName();
+         return name != null ? Collections.singletonList(name) : Collections.emptyList();
       }
 
       if(!(xc instanceof Condition c)) {
