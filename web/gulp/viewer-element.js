@@ -29,9 +29,9 @@ const { verifyClassicScriptBundle } = require("./verify-classic-script");
 const { rebundleMainForClassicScript } = require("./esbuild-classic-script-rebundle");
 
 // The esbuild @angular/build:application builder (in use for this project since the
-// Angular 17->18/esbuild migration) hashes output filenames as "<name>-<HASH>.js" and does
-// not emit a separate runtime chunk -- unlike the older Webpack builder's "<name>.<hash>.js"
-// convention these patterns used to target.
+// migration away from the older Webpack-based builder) hashes output filenames as
+// "<name>-<HASH>.js" and does not emit a separate runtime chunk -- unlike that older builder's
+// "<name>.<hash>.js" convention these patterns used to target.
 const ngOutputDir = "target/generated-resources/ng/inetsoft/web/resources/viewer-element";
 const rebundleDir = "target/generated-resources/gulp/tmp/viewer-element";
 const appDir = "target/generated-resources/gulp/inetsoft/web/resources/app";
