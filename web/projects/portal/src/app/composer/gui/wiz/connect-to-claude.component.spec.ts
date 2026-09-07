@@ -17,7 +17,7 @@
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
-import { of } from "rxjs";
+import { NEVER, of, Subject } from "rxjs";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { ConnectToClaudeComponent } from "./connect-to-claude.component";
 
@@ -26,6 +26,7 @@ describe("ConnectToClaudeComponent", () => {
    let component: ConnectToClaudeComponent;
    let mockSocketConnection: any;
    let mockStompConnection: { subscribe: ReturnType<typeof vi.fn>; send: ReturnType<typeof vi.fn> };
+   let mockConnectionErrorSubject: Subject<string>;
 
    beforeEach(waitForAsync(() => {
       mockStompConnection = {
@@ -33,8 +34,11 @@ describe("ConnectToClaudeComponent", () => {
          send: vi.fn()
       };
 
+      mockConnectionErrorSubject = new Subject<string>();
+
       mockSocketConnection = {
-         whenConnected: vi.fn(() => of(mockStompConnection))
+         whenConnected: vi.fn(() => of(mockStompConnection)),
+         connectionError: vi.fn(() => mockConnectionErrorSubject.asObservable())
       };
 
       // Default: subscribe returns a Subscription-like object
@@ -122,6 +126,67 @@ describe("ConnectToClaudeComponent", () => {
       expect(component.error).toBe("Feature disabled");
       expect(component.code).toBeNull();
       expect(component.loading).toBe(false);
+   });
+
+   describe("connection failure (bug 76489: silent hang on a broken socket)", () => {
+      /*
+       * whenConnected() only ever emits on a successful connect -- a socket that fails or keeps
+       * failing to (re)connect never pushes to it, so before this fix the loading spinner hung
+       * forever with no error. connectionError() is the sibling stream that does fire on that
+       * path; requestCode() must listen to it.
+       */
+      it("surfaces a connection error instead of hanging forever", () => {
+         mockSocketConnection.whenConnected = vi.fn(() => NEVER);
+
+         component.requestCode();
+         expect(component.loading).toBe(true);
+
+         mockConnectionErrorSubject.next("Client disconnected!");
+         fixture.detectChanges();
+
+         expect(component.loading).toBe(false);
+         expect(component.error).toBe("Client disconnected!");
+         expect(fixture.nativeElement.querySelector(".wiz-connect-error")?.textContent?.trim())
+            .toBe("Client disconnected!");
+      });
+
+      it("ignores a null connectionError emission (the success/reset marker)", () => {
+         mockSocketConnection.whenConnected = vi.fn(() => NEVER);
+
+         component.requestCode();
+         mockConnectionErrorSubject.next(null);
+
+         expect(component.loading).toBe(true);
+         expect(component.error).toBeNull();
+      });
+
+      it("re-enables the Connect to Claude button so the user can retry", () => {
+         mockSocketConnection.whenConnected = vi.fn(() => NEVER);
+
+         component.requestCode();
+         mockConnectionErrorSubject.next("Client disconnected!");
+         fixture.detectChanges();
+
+         const button: HTMLButtonElement = fixture.nativeElement.querySelector("button");
+         expect(button.disabled).toBe(false);
+      });
+
+      // Independent backstop for when connectionError() itself never fires -- see
+      // MINT_CONNECT_TIMEOUT_MS in connect-to-claude.component.ts.
+      it("falls back to a timeout when neither whenConnected() nor connectionError() ever fire", () => {
+         vi.useFakeTimers();
+         mockSocketConnection.whenConnected = vi.fn(() => NEVER);
+
+         component.requestCode();
+         expect(component.loading).toBe(true);
+
+         vi.advanceTimersByTime(30000);
+
+         expect(component.loading).toBe(false);
+         expect(component.error).toBe("Timed out connecting to the server. Please try again.");
+
+         vi.useRealTimers();
+      });
    });
 
    it("copy button uses the ngxClipboard directive instead of navigator.clipboard", () => {
