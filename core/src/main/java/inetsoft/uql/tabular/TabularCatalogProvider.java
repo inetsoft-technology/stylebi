@@ -17,6 +17,13 @@
  */
 package inetsoft.uql.tabular;
 
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 /**
  * A tabular connector's description of its own catalog: which datasets a data source holds, and
  * what one dataset looks like.
@@ -97,4 +104,169 @@ public interface TabularCatalogProvider {
     */
    TabularDatasetSchema describeDataset(TabularDataSource<?> dataSource, String datasetId)
       throws Exception;
+
+   /**
+    * A filtered, paged view of the same catalog {@link #listDatasets(TabularDataSource)} returns in
+    * full -- for a caller that wants to browse or search rather than receive everything.
+    *
+    * This default implementation calls the full {@link #listDatasets(TabularDataSource)}, filters
+    * it in memory by {@code request.nameContains()}, and slices out one page. That is CORRECT for
+    * every connector -- the two calls describe the same catalog -- but it is NOT CHEAP: every page,
+    * including the first, re-enumerates the whole source. A connector that can push
+    * {@code nameContains} and paging down to its own source (a {@code WHERE ... LIKE} clause, a
+    * REST API's own cursor/query parameters, ...) should override this method rather than rely on
+    * the default -- the smaller the source, the less this matters, which is why no community
+    * connector needs to today.
+    *
+    * <p><b>Order.</b> Paging is only coherent if {@link #listDatasets(TabularDataSource)} returns
+    * the same datasets in the same relative order across repeated calls against an unchanged source
+    * -- not merely a stable order within one call. Every existing implementer already satisfies this
+    * incidentally (a SQL dictionary query, a REST list endpoint, and a metadata document all return
+    * a deterministic order in practice); a connector whose native order can vary between two calls
+    * (e.g. hash-based iteration) MUST impose its own stable secondary order (such as sorting by
+    * {@link TabularDatasetRef#id()}) before returning from {@link #listDatasets(TabularDataSource)}
+    * -- there is no separate ordering hook for the paged method to use instead.
+    *
+    * <p><b>Filtering.</b> {@code nameContains} matches a {@link TabularDatasetRef} id as a
+    * case-insensitive substring ({@link Locale#ROOT}, not the platform default locale, so
+    * this does not depend on where the JVM runs) -- not a prefix, not a whole-name match. {@code
+    * null} or blank means every dataset matches; it never means match nothing.
+    *
+    * <p><b>Paging.</b> {@code request.cursor()} is opaque; the caller passes back exactly the
+    * {@link TabularCatalogPage#nextCursor()} a previous call returned, together with the SAME
+    * {@code nameContains} it was minted under. This default implementation's cursor happens to be a
+    * decimal offset into the filtered list, but that is an implementation detail an overriding
+    * connector is free to ignore -- nothing in this contract lets a caller tell which kind of cursor
+    * it is holding, or exploit that if it could. A cursor this default implementation cannot parse
+    * throws {@link IllegalArgumentException}; a syntactically valid cursor that no longer lands
+    * inside the (possibly re-filtered) list -- because the underlying catalog changed, or the caller
+    * mixed up two browsing sessions -- is answered with an empty, exhausted page rather than an
+    * exception, the same answer a caller gets from simply over-paging past the real end.
+    *
+    * <p><b>Stated residual.</b> Because this default implementation re-runs
+    * {@link #listDatasets(TabularDataSource)} on every call, its cursor is, structurally, an offset
+    * into a freshly recomputed list -- the same shape of weakness an offset-based contract would
+    * have had: a dataset added or removed between two page calls can be skipped or repeated. This is
+    * not a regression this method introduces; {@link #listDatasets(TabularDataSource)} never
+    * promised a snapshot across two separate calls either. What paging through an opaque cursor buys
+    * over a literal offset in the CONTRACT is that an overriding connector is not committed to the
+    * same weakness: a keyset-style cursor over a source with a stable native ordering (SAP's last
+    * TABNAME seen, say) is NOT vulnerable to insertions or deletions elsewhere in the keyspace the
+    * way an integer offset is. This default implementation does not need that extra robustness --
+    * see the class javadoc's cost argument -- so it does not build it.
+    *
+    * @param request never null.
+    * @return never null. {@link TabularCatalogPage#nextCursor()} is null exactly on the last page.
+    * @throws Exception whatever {@link #listDatasets(TabularDataSource)} throws, unchanged, plus
+    *         {@link IllegalArgumentException} for an unparseable cursor.
+    */
+   default TabularCatalogPage listDatasets(TabularDataSource<?> dataSource,
+                                           TabularCatalogRequest request) throws Exception
+   {
+      TabularCatalog catalog = listDatasets(dataSource);
+      List<TabularDatasetRef> all = catalog.datasets() == null ? List.of() : catalog.datasets();
+
+      List<TabularDatasetRef> filtered = all.stream()
+         .filter(ref -> matchesNameContains(ref, request.nameContains()))
+         .collect(Collectors.toUnmodifiableList());
+
+      int start = decodeCursor(request.cursor());
+
+      if(start < 0 || start >= filtered.size()) {
+         // Over-paged, or a cursor from a browsing session whose filter/underlying catalog has
+         // since moved on -- answered the same way as genuine exhaustion. See "Paging" above.
+         return new TabularCatalogPage(List.of(), null);
+      }
+
+      int end = Math.min(start + request.limit(), filtered.size());
+      List<TabularDatasetRef> page = List.copyOf(filtered.subList(start, end));
+      String nextCursor = end < filtered.size() ? encodeCursor(end) : null;
+
+      return new TabularCatalogPage(page, nextCursor);
+   }
+
+   private static boolean matchesNameContains(TabularDatasetRef ref, String nameContains) {
+      if(nameContains == null || nameContains.isBlank()) {
+         return true;
+      }
+
+      return ref.id() != null &&
+         ref.id().toUpperCase(Locale.ROOT).contains(nameContains.toUpperCase(Locale.ROOT));
+   }
+
+   private static int decodeCursor(String cursor) {
+      if(cursor == null) {
+         return 0;
+      }
+
+      try {
+         int index = Integer.parseInt(cursor);
+
+         if(index < 0) {
+            throw new NumberFormatException("negative cursor");
+         }
+
+         return index;
+      }
+      catch(NumberFormatException e) {
+         throw new IllegalArgumentException(
+            "TabularCatalogRequest.cursor '" + cursor + "' was not minted by this default " +
+            "TabularCatalogProvider.listDatasets(TabularDataSource, TabularCatalogRequest) and " +
+            "cannot be resumed from.", e);
+      }
+   }
+
+   private static String encodeCursor(int nextStart) {
+      return Integer.toString(nextStart);
+   }
+
+   /**
+    * The relationships the source declares that lie entirely within {@code datasetIds} -- both
+    * endpoints. An edge with one endpoint inside {@code datasetIds} and one outside is dropped, not
+    * just the outside endpoint; an edge with neither endpoint inside is dropped too. See
+    * {@code TabularCatalogService.validateRelationshipEndpoints} -- this method's whole reason to
+    * exist both-endpoints-only is that it is what keeps that unchanged validation correct by
+    * construction for a caller that annotates a chosen SUBSET of a source's datasets rather than the
+    * whole catalog: a relationship into a dataset the caller never selected has no home to attach to.
+    *
+    * This default implementation calls the full {@link #listDatasets(TabularDataSource)} and
+    * filters its relationships -- correct, and no more expensive than the paging default above, but
+    * for a connector whose relationships can ONLY be produced by describing every dataset one at a
+    * time (Salesforce's {@code describeGlobal} is the motivating case: today it has to
+    * describe every sobject just to report the lookup fields between them), overriding this
+    * method to describe only {@code datasetIds} is a real cost win that overriding the paging method
+    * above is not.
+    *
+    * <p>No directional promise: some connectors can report an edge cheaply when it points OUT of a
+    * dataset in {@code datasetIds} (a lookup field is visible on the referencing object's own
+    * description) but not when it points IN from outside; this contract only promises "the edges the
+    * source declares with both endpoints in {@code datasetIds}", not that both directions cost the
+    * same to discover.
+    *
+    * @param datasetIds the caller's chosen subset. A null or empty collection is treated
+    *                    identically -- both yield an empty relationship list, never every edge and
+    *                    never an exception.
+    * @return never null; empty when the source declares no relationship satisfying the
+    *         both-endpoints rule, or none at all.
+    */
+   default List<TabularRelationship> listRelationships(TabularDataSource<?> dataSource,
+                                                        Collection<String> datasetIds) throws Exception
+   {
+      if(datasetIds == null || datasetIds.isEmpty()) {
+         return List.of();
+      }
+
+      TabularCatalog catalog = listDatasets(dataSource);
+      List<TabularRelationship> relationships = catalog.relationships();
+
+      if(relationships == null || relationships.isEmpty()) {
+         return List.of();
+      }
+
+      Set<String> ids = datasetIds instanceof Set<String> set ? set : new HashSet<>(datasetIds);
+
+      return relationships.stream()
+         .filter(rel -> rel != null && ids.contains(rel.fromDataset()) && ids.contains(rel.toDataset()))
+         .collect(Collectors.toUnmodifiableList());
+   }
 }
