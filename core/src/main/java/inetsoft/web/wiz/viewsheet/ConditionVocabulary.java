@@ -174,8 +174,7 @@ public final class ConditionVocabulary {
       if(field == null) {
          throw new IllegalArgumentException(
             "Condition " + index + " names '" + clause.field() + "', which this assembly " +
-            "cannot filter on. Available fields: " +
-            (fields.isEmpty() ? "(none)" : String.join(", ", new TreeSet<>(names(fields)))) +
+            "cannot filter on. Available fields: " + fieldList(fields) +
             ". A condition on an unknown column is the recorded cause of a downstream cast " +
             "failure, so it is refused here.");
       }

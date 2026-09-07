@@ -605,6 +605,27 @@ class AssemblyHighlightServiceTest {
       assertNull(highlights.get(0).get("font"));
    }
 
+   // FontInfo.toFont() parses the same stored string with an unguarded Integer.parseInt(), so a
+   // malformed size is a pre-existing risk elsewhere -- but list_highlights' read path must not
+   // throw on it, since it is now reachable straight from an agent's read-only call.
+   @Test
+   void reportsTheRawFontSizeWhenItIsNotANumber() throws Exception {
+      HighlightModel stored = existing("Styled");
+      inetsoft.web.adhoc.model.FontInfo font = new inetsoft.web.adhoc.model.FontInfo();
+      font.setFontFamily("Arial");
+      font.setFontSize("not-a-number");
+      stored.setFontInfo(font);
+      Harness h = harness(model(stored));
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Table1", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> highlights = (List<Map<String, Object>>) listed.get("highlights");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> reportedFont = (Map<String, Object>) highlights.get(0).get("font");
+      assertEquals("not-a-number", reportedFont.get("fontSize"));
+   }
+
    @Test
    void eachWriteIsOneCheckpoint() throws Exception {
       Harness h = harness(model());

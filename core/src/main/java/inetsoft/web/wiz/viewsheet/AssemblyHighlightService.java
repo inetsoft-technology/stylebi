@@ -284,12 +284,33 @@ public class AssemblyHighlightService {
 
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("fontFamily", font.getFontFamily());
-      out.put("fontSize", font.getFontSize() == null ? null : Integer.valueOf(font.getFontSize()));
+      out.put("fontSize", describeFontSize(font.getFontSize()));
       out.put("bold", "bold".equals(font.getFontWeight()));
       out.put("italic", "italic".equals(font.getFontStyle()));
       out.put("underline", "underline".equals(font.getFontUnderline()));
       out.put("strikethrough", "strikethrough".equals(font.getFontStrikethrough()));
       return out;
+   }
+
+   /**
+    * {@code FontInfo.toFont()} parses the same stored string with an unguarded
+    * {@code Integer.parseInt}, so a malformed size is a pre-existing risk — but that path only
+    * runs once a highlight is applied, while this one is now reachable straight from
+    * {@code list_highlights}'s read. Reporting the raw stored value on a parse failure keeps the
+    * read itself from throwing, while still surfacing that something is off (a caller expecting
+    * an int wouldn't get a string here otherwise).
+    */
+   private static Object describeFontSize(String fontSize) {
+      if(fontSize == null) {
+         return null;
+      }
+
+      try {
+         return Integer.valueOf(fontSize);
+      }
+      catch(NumberFormatException e) {
+         return fontSize;
+      }
    }
 
    private HighlightDialogModel read(String runtimeId, String assemblyName, Region region,
