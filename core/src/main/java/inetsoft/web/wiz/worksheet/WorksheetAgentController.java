@@ -395,7 +395,7 @@ public class WorksheetAgentController {
 
       // edit_sql_query needs RuntimeWorksheet for SQL parsing and column re-init.
       if("edit_sql_query".equals(req.op())) {
-         editSqlQuery(sessionToken, req, user);
+         editSqlQuery(sessionToken, req.table(), req.expression(), user);
          return;
       }
 
@@ -2549,8 +2549,12 @@ public class WorksheetAgentController {
 
    /**
     * Replace the SQL on an existing {@link SQLBoundTableAssembly}.
+    *
+    * @return the assembly name and any undeclared {@code $(name)} variables the new SQL
+    *         references, mirroring {@link #addSqlQuery}'s response shape.
     */
-   private void editSqlQuery(String sessionToken, EditRequest req, Principal user)
+   private SqlQueryResponse editSqlQuery(String sessionToken, String table, String expression,
+                                          Principal user)
       throws Exception
    {
       // Verify ACCESS permission on freeform SQL ("Visual Composer -> Free Form SQL"),
@@ -2561,27 +2565,27 @@ public class WorksheetAgentController {
             Catalog.getCatalog().getString("composer.authorization.permissionDenied"));
       }
 
-      if(req.table() == null || req.table().isBlank()) {
+      if(table == null || table.isBlank()) {
          throw new PairingException("table is required for edit_sql_query.");
       }
 
-      if(req.expression() == null || req.expression().isBlank()) {
+      if(expression == null || expression.isBlank()) {
          throw new PairingException("expression (SQL string) is required for edit_sql_query.");
       }
 
-      editService.applyOnRuntime(sessionToken, user, rws -> {
+      return editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
-         Assembly a = ws.getAssembly(req.table());
+         Assembly a = ws.getAssembly(table);
 
          if(!(a instanceof SQLBoundTableAssembly sqlTable)) {
-            throw new PairingException("Not a SQL-bound table: " + req.table());
+            throw new PairingException("Not a SQL-bound table: " + table);
          }
 
          SQLBoundTableAssemblyInfo info =
             (SQLBoundTableAssemblyInfo) sqlTable.getInfo();
 
          if(info.getQuery() == null) {
-            throw new PairingException("Table has no query: " + req.table());
+            throw new PairingException("Table has no query: " + table);
          }
 
          // Verify READ permission on the datasource this SQL executes against, mirroring
@@ -2630,7 +2634,7 @@ public class WorksheetAgentController {
          try {
             synchronized(sql) {
                sql.setParseSQL(true);
-               sql.setSQLString(req.expression(), true);
+               sql.setSQLString(expression, true);
                sql.wait(10_000);
             }
          }
@@ -2674,11 +2678,12 @@ public class WorksheetAgentController {
          // TableAssembly by name, including a SQL-bound one) -- unbounded here had the same hang
          // shape as refreshData's own single-table branch (3a) above.
          RenderWaitSupport.awaitOrRetry(() -> {
-            WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+            WorksheetEventUtil.refreshColumnSelection(rws, table, true);
             return null;
          }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
             (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
-         return null;
+
+         return new SqlQueryResponse(table, detectUndeclaredVariables(rws));
       });
    }
 
@@ -3550,6 +3555,42 @@ public class WorksheetAgentController {
 
          return new SqlQueryResponse(tableName, detectUndeclaredVariables(rws));
       });
+   }
+
+   /**
+    * Request body for editing a SQL query table's SQL text.
+    *
+    * @param table      the assembly name of the existing SQL-bound table to edit
+    * @param expression the new SQL string
+    */
+   public record EditSqlQueryRequest(String table, String expression) {}
+
+   /**
+    * Replace the SQL query on an existing SQL-bound table assembly.
+    *
+    * <p>Own bespoke endpoint mirroring {@link #addSqlQuery}'s shape, rather than going through
+    * the shared void {@link #edit} dispatcher, so the response can carry
+    * {@code undeclaredVariables} back to the caller. {@code edit_sql_query} was already
+    * dispatched to {@link #editSqlQuery} via its own early-return branch in {@link #editOp}
+    * rather than the generic Editor/dispatch pipeline, so this adds no risk to the other ops
+    * still served by {@link #edit}.</p>
+    *
+    * @param sessionToken the token obtained at join time
+    * @param body         the existing SQL-bound assembly name and the new SQL string
+    * @param user         the authenticated agent principal
+    * @return the assembly name and any undeclared {@code $(name)} variables the new SQL
+    *         references
+    * @throws PairingException if the session is invalid, the table is not SQL-bound, or the
+    *                          SQL cannot be parsed
+    */
+   @PutMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/sql-query")
+   public SqlQueryResponse editSqlQuery(@PathVariable String sessionToken,
+                                         @RequestBody EditSqlQueryRequest body,
+                                         Principal user) throws Exception
+   {
+      requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
+      return editSqlQuery(sessionToken, body.table(), body.expression(), user);
    }
 
    /**

@@ -57,6 +57,9 @@ import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.ws.LayoutGraphService;
+import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
+import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
+import inetsoft.web.composer.ws.command.WSCollectVariablesCommand;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
@@ -3922,6 +3925,84 @@ class WorksheetAgentControllerTest {
 
       assertThrows(RenderNotReadyException.class,
          () -> ctrl.edit("TOK-ES4", req, agent));
+   }
+
+   /**
+    * Bug #76500 (WSQ-002): {@code editSqlQuery} used to end its {@code applyOnRuntime} lambda
+    * with a bare {@code return null;}, never calling {@code detectUndeclaredVariables} the way
+    * {@code addSqlQuery} does -- so an unresolved {@code $(name)} placeholder in an edited SQL
+    * string was silently accepted with no signal, unlike {@code add_sql_query}. Exercises the
+    * new bespoke {@code PUT .../sql-query} endpoint (mirroring {@code addSqlQuery}'s shape)
+    * rather than the shared void {@code /edit} dispatcher, since only the bespoke endpoint can
+    * carry a typed response back to the caller.
+    */
+   @Test
+   void editSqlQueryEndpointReturnsUndeclaredVariables() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
+      ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
+      ws.addAssembly(sqlt);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      // No sleep this time -- refreshColumnSelection completes immediately so execution reaches
+      // the tail of the lambda instead of timing out (contrast
+      // editSqlQueryThrowsRenderNotReadyWhenColumnSelectionIsSlow).
+      doNothing().when(box).refreshColumnSelection(eq("SqlTable1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-ES5"), any())).thenReturn(session("TOK-ES5"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      ColumnSelection newColumns = new ColumnSelection();
+      newColumns.addAttribute(new ColumnRef(new AttributeRef(null, "a")));
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenReturn(newColumns);
+
+      WorksheetAgentController ctrl = securityController(editSvc, mock(DataSourceService.class),
+         securityEngine, mock(MetadataApiService.class), mock(XRepository.class),
+         queryManagerService);
+
+      VariableAssemblyModelInfo undeclared = new VariableAssemblyModelInfo();
+      undeclared.setName("MV.ORDER_DATE.Max");
+      WSCollectVariablesCommand command = WSCollectVariablesCommand.builder()
+         .varInfos(List.of(undeclared))
+         .build();
+
+      // Table-less "SELECT 1" (no FROM clause), same as editSqlQueryThrowsRenderNotReadyWhenColumn-
+      // SelectionIsSlow above -- fixUniformSQLInfo's in-memory shortcut (sql.getTableCount() <= 0)
+      // fires without a live datasource/Config bean, which this lightweight test context does not
+      // provide. WorksheetEventUtil.refreshVariables is mocked below regardless of SQL content, so
+      // detecting a $(name) placeholder in the real SQL text is not what this test is verifying --
+      // that detection is detectUndeclaredVariables'/VarSQL's own job, already covered elsewhere.
+      WorksheetAgentController.EditSqlQueryRequest body =
+         new WorksheetAgentController.EditSqlQueryRequest("SqlTable1", "SELECT 1");
+
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
+         eventUtil.when(() -> WorksheetEventUtil.refreshVariables(eq(rws), any(), eq(false)))
+            .thenReturn(command);
+
+         WorksheetAgentController.SqlQueryResponse response =
+            ctrl.editSqlQuery("TOK-ES5", body, agent);
+
+         assertEquals("SqlTable1", response.tableName());
+         assertEquals(List.of("MV.ORDER_DATE.Max"), response.undeclaredVariables());
+      }
    }
 
    // ---------------------------------------------------------------------------
