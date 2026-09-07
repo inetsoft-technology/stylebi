@@ -184,7 +184,7 @@ public class TabPropertyDialogService {
          // we're about to reconcile with that stale value, undoing this fix within the same
          // request).
          Point originalScaledPos = tabAssemblyInfo.getLayoutPosition(true);
-         boolean hasScaledPos = originalScaledPos != tabAssemblyInfo.getLayoutPosition(false);
+         boolean hasScaledPos = tabAssemblyInfo.isScaled();
          int originalScaledTop = hasScaledPos ? originalScaledPos.y : -1;
 
          TabVSAssemblyInfo.repositionForBottomTabs(tabAssemblyInfo, vs,
