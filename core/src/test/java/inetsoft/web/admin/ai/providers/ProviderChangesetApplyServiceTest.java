@@ -29,10 +29,12 @@ import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.security.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.quality.Strictness;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -76,7 +78,8 @@ class ProviderChangesetApplyServiceTest {
 
       lenient().when(user.getRoles()).thenReturn(new IdentityID[] { CALLER_ROLE });
       lenient().when(backupService.backup(anyString())).thenReturn("admin-snapshot/ref");
-      tool = mockStatic(Tool.class, CALLS_REAL_METHODS);
+      tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
+         .defaultAnswer(Answers.CALLS_REAL_METHODS));
       tool.when(() -> Tool.encryptPassword(anyString()))
          .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
       wireAuthenticationFake();

@@ -177,12 +177,12 @@ public class AdminChangePlanService {
     * contract: changing them invalidates every outstanding preview, which is safe (an apply is
     * refused with 409) but forces operators to re-review.
     *
-    * <p>{@code task} is deliberately excluded: it is a free-text narrative that is never compared
-    * or parsed, only carried through to {@code AdminChangesetApplyService}'s {@code writeAudit}
-    * call as {@link AdminChangeRecord#setTaskDescription}, a write-only audit label. Including it
-    * here would let two equivalent narratives describing the identical change list hash
-    * differently, forcing a spurious re-review (a false {@code PlanHashMismatchException}) even
-    * though nothing the gate actually protects has changed.
+    * <p>{@code task} is deliberately excluded from the hash: it is a free-text narrative that is
+    * never compared or parsed. A reviewer reads the {@code task} at preview, and it is embedded in
+    * the {@code taskToken} issued for that plan, which is what reaches the audit record. The apply
+    * request's own {@code task} field is now vestigial (not read for the audit record). Excluding
+    * {@code task} from the hash lets two equivalent narratives describing the identical change list
+    * be reviewed separately, each valid on its own planHash.
     */
    private static String hash(List<PlanChange> changes) {
       StringBuilder canonical = new StringBuilder();

@@ -235,7 +235,10 @@ class AdminAiControllerTest {
 
       assertEquals("conflict", actual.get("status"));
       assertEquals(ex.getMessage(), actual.get("error"));
-      assertSame(current, actual.get("plan"));
+      ResolvedPlan returnedPlan = (ResolvedPlan) actual.get("plan");
+      assertEquals(current.task(), returnedPlan.task());
+      assertEquals(current.planHash(), returnedPlan.planHash());
+      assertNull(returnedPlan.taskToken());
    }
 
    @Test void handlePlanHashMismatchIsAnnotatedConflict() throws NoSuchMethodException {
@@ -259,7 +262,10 @@ class AdminAiControllerTest {
 
       assertEquals("conflict", actual.get("status"));
       assertEquals(ex.getMessage(), actual.get("error"));
-      assertSame(current, actual.get("plan"));
+      ResolvedPlan returnedPlan = (ResolvedPlan) actual.get("plan");
+      assertEquals(current.task(), returnedPlan.task());
+      assertEquals(current.planHash(), returnedPlan.planHash());
+      assertNull(returnedPlan.taskToken());
    }
 
    @Test void handleTaskTokenMismatchIsAnnotatedConflict() throws NoSuchMethodException {
@@ -270,5 +276,19 @@ class AdminAiControllerTest {
 
       assertNotNull(annotation, "handleTaskTokenMismatch must be annotated @ResponseStatus");
       assertEquals(HttpStatus.CONFLICT, annotation.value());
+   }
+
+   @Test void handlePlanHashMismatchScrubsTheTaskTokenFromTheReturnedPlan() {
+      ResolvedPlan current = new ResolvedPlan("t", List.of(), false, false, "hash456", "unreviewed-token");
+      Map<String, Object> actual = controller.handlePlanHashMismatch(
+         new AdminChangesetApplyService.PlanHashMismatchException(current));
+      assertNull(((ResolvedPlan) actual.get("plan")).taskToken());
+   }
+
+   @Test void handleTaskTokenMismatchScrubsTheTaskTokenFromTheReturnedPlan() {
+      ResolvedPlan current = new ResolvedPlan("t", List.of(), false, false, "hash456", "unreviewed-token");
+      Map<String, Object> actual = controller.handleTaskTokenMismatch(
+         new AdminChangesetApplyService.TaskTokenMismatchException(current, "msg"));
+      assertNull(((ResolvedPlan) actual.get("plan")).taskToken());
    }
 }

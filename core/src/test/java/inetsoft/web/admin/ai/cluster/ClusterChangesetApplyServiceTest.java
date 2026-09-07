@@ -29,10 +29,12 @@ import inetsoft.web.cluster.ServerClusterClient;
 import inetsoft.web.cluster.ServerClusterStatus;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.quality.Strictness;
 
 import java.util.List;
 import java.util.Set;
@@ -64,7 +66,8 @@ class ClusterChangesetApplyServiceTest {
       lenient().when(clusterService.getClusterEnabled())
          .thenReturn(ClusterEnabledModel.builder().enabled(true).pauseEnabled(true).build());
       lenient().when(client.getConfiguredServers()).thenReturn(Set.of("s1", "s2"));
-      tool = mockStatic(Tool.class, CALLS_REAL_METHODS);
+      tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
+         .defaultAnswer(Answers.CALLS_REAL_METHODS));
       tool.when(() -> Tool.encryptPassword(anyString()))
          .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
    }
