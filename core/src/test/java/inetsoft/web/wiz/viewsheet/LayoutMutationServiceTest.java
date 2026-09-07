@@ -132,6 +132,42 @@ class LayoutMutationServiceTest {
    }
 
    /**
+    * A negative left/top has no on-screen equivalent a human could produce -- the interactive
+    * Composer's own controller path silently skips such an update rather than applying it, but
+    * this agent-facing entry point refuses it loudly instead, so a caller can tell an invalid
+    * input apart from a no-op.
+    */
+   @Test
+   void moveResizeRefusesANegativePosition() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize",
+            VSLayoutService.CONTENT, List.of(Map.of("name", "Table1", "x", -5, "y", 10)), false));
+
+      assertTrue(thrown.getMessage().contains("-5"), thrown.getMessage());
+      LayoutObjectModelHolder table = fx.readTableObject();
+      assertEquals(300, table.layoutX(), "a refused move must leave the object's position untouched");
+      assertEquals(400, table.layoutY());
+   }
+
+   @Test
+   void addRefusesANegativePosition() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      int objectCountBefore = fx.printLayoutObjectNames().size();
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+            List.of(Map.of("name", "NewCaption", "type", "text", "x", 10, "y", -5)), false));
+
+      assertTrue(thrown.getMessage().contains("-5"), thrown.getMessage());
+      assertEquals(objectCountBefore, fx.printLayoutObjectNames().size(),
+                   "a refused add must not place a new object in the layout");
+   }
+
+   /**
     * The Hazard-1 exit criterion again, from this task's own entry point (not just
     * {@code LayoutSessionServiceTest}'s unit test in isolation) -- a full {@code
     * edit_layout_objects} call through {@code LayoutMutationService} leaves the master runtime's

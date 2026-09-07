@@ -223,6 +223,7 @@ public class LayoutMutationService {
                   (currentSize != null ? currentSize.width : 0);
                int height = object.containsKey("height") ? toInt(object.get("height")) :
                   (currentSize != null ? currentSize.height : 0);
+               requireNonNegativePosition(x, y);
                Point position = new Point(x, y);
                Dimension size = new Dimension(width, height);
                assemblyLayout.setPosition(position);
@@ -257,10 +258,13 @@ public class LayoutMutationService {
             for(Map<String, Object> object : objects) {
                String name = requireName(object);
                AddVSLayoutObjectEvent event = new AddVSLayoutObjectEvent();
+               int xOffset = toInt(object.getOrDefault("x", 0));
+               int yOffset = toInt(object.getOrDefault("y", 0));
+               requireNonNegativePosition(xOffset, yOffset);
                event.setLayoutName(layoutName);
                event.setRegion(region);
-               event.setxOffset(toInt(object.getOrDefault("x", 0)));
-               event.setyOffset(toInt(object.getOrDefault("y", 0)));
+               event.setxOffset(xOffset);
+               event.setyOffset(yOffset);
                event.setNames(new String[] { name });
 
                VSAssembly assembly = masterVs.getAssembly(name);
@@ -366,6 +370,23 @@ public class LayoutMutationService {
          .orElseThrow(() -> new IllegalArgumentException(
             "\"" + objectName + "\" is not placed in layout \"" + layoutName + "\" -- add it " +
             "first with edit_layout_objects (op: \"add\")."));
+   }
+
+   /**
+    * VSLayoutControllerService.moveResizeLayoutObjects (the human UI's own controller path)
+    * already refuses a negative left/top -- but it does so by silently skipping the update,
+    * which is a poor fit for an agent-facing API (a caller has no way to tell "nothing changed
+    * because the input was invalid" from "nothing changed for some other reason"). This enforces
+    * the same StyleBI-wide invariant (a layout object's position is clamped to the page origin;
+    * no on-screen equivalent exists for a negative one) but fails loud instead, matching every
+    * other validation in this class.
+    */
+   private static void requireNonNegativePosition(int x, int y) {
+      if(x < 0 || y < 0) {
+         throw new IllegalArgumentException(
+            "edit_layout_objects: x/y must be non-negative -- got (" + x + ", " + y + "). " +
+            "StyleBI clamps a layout object's position to the page origin.");
+      }
    }
 
    private static String requireName(Map<String, Object> object) {
