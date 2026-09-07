@@ -40,6 +40,7 @@ import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.util.script.ScriptEnvRepository;
 import java.awt.Point;
 import java.util.Enumeration;
 import inetsoft.web.composer.ws.WorksheetControllerService;
@@ -126,8 +127,22 @@ public class WorksheetEditService {
          SheetType.WORKSHEET, session.runtimeId(), agent);
       applySocketSession(rws, session);
 
+      // Confirmed live: a session paired from the expression column's OWN editor (required for
+      // every real editExpression call -- PaneScopeService demands a pane-scoped session for
+      // worksheetExpression) resolves a RuntimeWorksheet whose getAssetQuerySandbox()/
+      // getScriptEnv() can come back null, silently no-op'ing ExpressionDialogService.check()'s
+      // JS branch (`if(env != null) env.compile(text)`) and letting an uncompilable expression
+      // through. Falling back to ScriptEnvRepository.getScriptEnv() -- the same standalone,
+      // sandbox-independent engine CalcFieldService.scriptEnvOf falls back to, and what
+      // AssetQuerySandbox itself lazily creates its own env from -- keeps the check from being
+      // silently skipped.
       AssetQuerySandbox wbox = rws.getAssetQuerySandbox();
       ScriptEnv scriptEnv = wbox == null ? null : wbox.getScriptEnv();
+
+      if(scriptEnv == null) {
+         scriptEnv = ScriptEnvRepository.getScriptEnv();
+      }
+
       Editor editor = new Editor(rws.getWorksheet(), agent, securityEngine, innerJoinService,
          expressionDialogService, scriptEnv);
 
@@ -1874,13 +1889,25 @@ public class WorksheetEditService {
       }
 
       /**
-       * Mirrors the native "Edit Expression" dialog's own syntax check
-       * ({@link ExpressionDialogService#check}) -- before this, the wiz agent path skipped it
-       * entirely, silently persisting an uncompilable JS expression or unparseable SQL one, only
-       * surfacing later as a broken render. {@code expressionDialogService} is {@code null} only
-       * for an {@code Editor} built via {@code WorksheetEditService}'s 5-arg legacy constructor
-       * (this package's own tests), which skips validation deliberately rather than requiring
-       * every existing test to supply a real {@link ExpressionDialogService}.
+       * SQL mode still delegates to the native "Edit Expression" dialog's own check
+       * ({@link ExpressionDialogService#check}) -- its SQL branch (a real {@code SQLLexer}/
+       * {@code SQLParser} parse) genuinely works. JS mode does NOT: {@code check()}'s JS branch
+       * validates via {@code ScriptEnv.compile()}, which -- confirmed live -- does not actually
+       * parse anything under the Graal engine (it only builds a lazy {@code Source} literal), so
+       * a real syntax error like an unbalanced paren is silently accepted and only surfaces later
+       * at render time. Reproduced live: the native Formula/Expression editor dialog accepts the
+       * same broken text too, then `FormulaTableLens` logs a `SyntaxError` at data-refresh time --
+       * a pre-existing StyleBI-side gap in {@code check()} itself, out of scope for this lane
+       * (operator decision: fix only this path, not the shared dialog method). JS mode instead
+       * calls {@link ScriptEnv#checkFunction} directly -- the primitive that actually parses
+       * eagerly (`context.parse("js", cmd)`, throwing on a real syntax error), the same one
+       * StyleBI's own Composer script-editor "check script" endpoint ({@code OpenScriptController})
+       * already uses for an equivalent syntax-only check.
+       *
+       * <p>{@code expressionDialogService} is {@code null} only for an {@code Editor} built via
+       * {@code WorksheetEditService}'s 5-arg legacy constructor (this package's own tests), which
+       * skips validation deliberately rather than requiring every existing test to supply a real
+       * {@link ExpressionDialogService} -- both branches below honor that by returning early.
        */
       private void validateExpressionSyntax(String table, String name, String expression, boolean sql)
          throws PairingException
@@ -1892,7 +1919,12 @@ public class WorksheetEditService {
          String str = ExpressionRef.getSQLExpression(sql, expression);
 
          try {
-            expressionDialogService.check(str, scriptEnv, sql);
+            if(sql) {
+               expressionDialogService.check(str, scriptEnv, true);
+            }
+            else if(scriptEnv != null) {
+               scriptEnv.checkFunction(name, str);
+            }
          }
          catch(Exception ex) {
             String message = sql

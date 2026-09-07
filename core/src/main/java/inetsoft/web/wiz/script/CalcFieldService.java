@@ -28,6 +28,7 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.DataVSAssemblyInfo;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.util.script.ScriptEnvRepository;
 import inetsoft.web.wiz.pairing.PairingException;
 import org.springframework.stereotype.Service;
 
@@ -148,11 +149,25 @@ public class CalcFieldService {
    }
 
    /**
-    * Mirrors {@code ModifyCalculateFieldService.checkScriptValid}'s syntax check, not the method
-    * itself: that method is wired to a {@code CommandDispatcher}/{@code MessageCommand} pair --
-    * a WebSocket-session concept this session-token-based agent path has none of -- and also
-    * handles the cube-measure (MDX) branch, which {@link #calcRefOf} never returns (every ref
-    * this Tier 2a path resolves is a plain {@link ExpressionRef}-backed field).
+    * Mirrors the INTENT of {@code ModifyCalculateFieldService.checkScriptValid}'s syntax check,
+    * not its JS implementation: that method (and the shared {@code ExpressionDialogService.check}
+    * the native "Edit Expression" dialog also uses) validates JS via {@code ScriptEnv.compile()},
+    * which -- confirmed live -- does NOT actually parse anything under the Graal engine; it only
+    * builds a lazy {@code Source} literal, so a syntax error like an unbalanced paren is silently
+    * accepted and only surfaces later at render time (reproduced live: the native Formula Editor
+    * dialog accepts it too, then `FormulaTableLens` logs a `SyntaxError` at data-refresh time).
+    * That is a pre-existing StyleBI-side gap in {@code checkScriptValid}/{@code
+    * ExpressionDialogService.check} themselves, out of scope for this lane (operator decision:
+    * fix only this path, not the shared dialog method). {@link ScriptEnv#checkFunction} is the
+    * primitive that actually parses eagerly (`context.parse("js", cmd)`, throwing on a real
+    * syntax error) -- the same one StyleBI's own Composer script-editor "check script" endpoint
+    * (`OpenScriptController`) already uses for an equivalent syntax-only check.
+    *
+    * <p>Also does not reuse {@code checkScriptValid} itself for another reason: that method is
+    * wired to a {@code CommandDispatcher}/{@code MessageCommand} pair -- a WebSocket-session
+    * concept this session-token-based agent path has none of -- and also handles the cube-measure
+    * (MDX) branch, which {@link #calcRefOf} never returns (every ref this Tier 2a path resolves
+    * is a plain {@link ExpressionRef}-backed field).
     */
    private void validateExpression(RuntimeViewsheet rvs, CalculateRef cref, String expression)
       throws PairingException
@@ -172,11 +187,14 @@ public class CalcFieldService {
       ScriptEnv env = scriptEnvOf(rvs);
 
       if(env == null) {
+         // ScriptEnvRepository.getScriptEnv() (scriptEnvOf's fallback) can only fail if the
+         // Graal engine class itself is missing from the deployment -- not a case worth
+         // silently skipping validation for, but also not one this path can recover from.
          return;
       }
 
       try {
-         env.compile(str);
+         env.checkFunction(cref.getName(), str);
       }
       catch(Exception ex) {
          String suggestion = env.getSuggestion(ex, null);
@@ -186,19 +204,40 @@ public class CalcFieldService {
       }
    }
 
+   /**
+    * Prefers the live runtime's own {@link ScriptEnv} when one is wired up, but calc fields are
+    * only ever reachable through a pane-scoped session ({@code PaneScopeService} requires it for
+    * every real call) -- and that session's {@code RuntimeViewsheet} is StyleBI's own preview
+    * copy backing the Formula Editor dialog, which is never given a live {@link ViewsheetSandbox}
+    * the way the dialog's own OK-button controller's runtime is
+    * ({@code ModifyCalculateFieldService} resolves a different, non-preview runtime). Relying on
+    * {@code rvs}'s own sandbox alone made this validation a no-op on every real call -- confirmed
+    * live, not just suspected: {@code rvs.getViewsheetSandbox()} returns {@code Optional.empty()}
+    * for that preview runtime.
+    *
+    * <p>Falls back to {@link ScriptEnvRepository#getScriptEnv()} -- a standalone engine with no
+    * data-sandbox dependency, the same mechanism {@code AssetQuerySandbox}/{@code ViewsheetScope}
+    * lazily create their own env from, and what {@code OpenScriptController} already uses for a
+    * comparable syntax-only check. Compiling doesn't need a live data context: referencing an
+    * undeclared {@code field} is a runtime {@code ReferenceError}, not a compile-time syntax
+    * error, so a bare engine still catches the failure mode this check exists for (e.g. an
+    * unbalanced paren).
+    */
    private ScriptEnv scriptEnvOf(RuntimeViewsheet rvs) {
-      if(rvs == null) {
-         return null;
+      if(rvs != null) {
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isPresent()) {
+            AssetQuerySandbox wbox = box.get().getAssetQuerySandbox();
+            ScriptEnv env = wbox == null ? null : wbox.getScriptEnv();
+
+            if(env != null) {
+               return env;
+            }
+         }
       }
 
-      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
-
-      if(box.isEmpty()) {
-         return null;
-      }
-
-      AssetQuerySandbox wbox = box.get().getAssetQuerySandbox();
-      return wbox == null ? null : wbox.getScriptEnv();
+      return ScriptEnvRepository.getScriptEnv();
    }
 
    private ExpressionRef expressionOf(Viewsheet vs, String table, String name)

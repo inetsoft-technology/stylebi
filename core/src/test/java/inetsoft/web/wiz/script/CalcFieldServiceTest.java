@@ -107,7 +107,13 @@ class CalcFieldServiceTest {
                    service.read(vsWithCalcFields(), "Query1", "Margin"));
    }
 
-   /** No {@code ViewsheetSandbox} available (unstubbed mock) -- validation is skipped, not blocked. */
+   /**
+    * No {@code ViewsheetSandbox} available (unstubbed mock) -- mirrors the real pane-scoped
+    * preview runtime a calcField's formula editor pairs to in production, which never gets one
+    * wired up. {@code scriptEnvOf} falls back to a real {@code ScriptEnvRepository} engine in
+    * this case, so validation still runs -- see
+    * {@link #writingAnUncompilableExpressionWithNoSandboxStillGetsRejectedViaTheFallbackEngine}.
+    */
    private static RuntimeViewsheet rvsFor(Viewsheet vs) {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
@@ -146,7 +152,8 @@ class CalcFieldServiceTest {
    void writingAnExpressionThatFailsToCompileIsRejectedRatherThanStored() throws Exception {
       Viewsheet vs = vsWithCalcFields();
       ScriptEnv env = mock(ScriptEnv.class);
-      when(env.compile(anyString())).thenThrow(new RuntimeException("missing ) after argument list"));
+      doThrow(new RuntimeException("missing ) after argument list"))
+         .when(env).checkFunction(anyString(), anyString());
       when(env.getSuggestion(any(), any())).thenReturn("check the parentheses");
 
       PairingException ex = assertThrows(PairingException.class, () -> service.write(
@@ -159,6 +166,26 @@ class CalcFieldServiceTest {
       assertEquals("field['PRICE'] - field['COST']", service.read(vs, "Query1", "Margin"));
    }
 
+   /**
+    * The exact live bug this fix closes: a calcField's real-world caller is ALWAYS the pane-scoped
+    * preview runtime (PaneScopeService requires it), which has no {@code ViewsheetSandbox} --
+    * confirmed live, not just suspected. Before {@code scriptEnvOf} fell back to
+    * {@code ScriptEnvRepository.getScriptEnv()}, {@code rvsFor}'s null sandbox meant validation
+    * was skipped entirely and a broken expression like this one was persisted verbatim. No mocked
+    * {@link ScriptEnv} here -- this is the real Graal engine, the same one
+    * {@code ScriptEnvRepository} lazily hands to {@code AssetQuerySandbox}/{@code ViewsheetScope}
+    * elsewhere in this codebase.
+    */
+   @Test
+   void writingAnUncompilableExpressionWithNoSandboxStillGetsRejectedViaTheFallbackEngine() {
+      Viewsheet vs = vsWithCalcFields();
+
+      PairingException ex = assertThrows(PairingException.class, () -> service.write(
+         rvsFor(vs), "Query1", "Margin", "field['PRICE'] - ("));
+
+      assertTrue(ex.getMessage().contains("Script error"), ex.getMessage());
+   }
+
    /** A SQL-mode field's write is validated too, on the SQL-validity path, not the JS compile path. */
    @Test
    void aSqlModeWriteNeverCallsTheJavaScriptCompiler() throws Exception {
@@ -169,6 +196,7 @@ class CalcFieldServiceTest {
 
       assertEquals("0.25", service.read(vs, "Query1", "TaxRate"));
       verify(env, never()).compile(anyString());
+      verify(env, never()).checkFunction(anyString(), anyString());
    }
 
    @Test
