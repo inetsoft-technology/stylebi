@@ -44,6 +44,12 @@ public abstract class AbstractCloudCredential extends AbstractCredential impleme
 
    @Override
    public void setId(String id) {
+      if(!Tool.equals(this.id, id)) {
+         // the unavailable state describes one specific secret, so it does not carry over when a
+         // different secret is referenced
+         setCredentialUnavailable(false);
+      }
+
       this.id = id;
    }
 
@@ -64,6 +70,43 @@ public abstract class AbstractCloudCredential extends AbstractCredential impleme
       }
 
       return Tool.equals(((AbstractCloudCredential) obj).id, id);
+   }
+
+   @Override
+   public boolean isCredentialUnavailable() {
+      return credentialUnavailable;
+   }
+
+   @Override
+   public void setCredentialUnavailable(boolean unavailable) {
+      // the timestamp is written first so that a thread which reads the flag as true is
+      // guaranteed to see the matching timestamp and not throttle against a stale one
+      this.lastFetchFailure = unavailable ? System.currentTimeMillis() : 0L;
+      this.credentialUnavailable = unavailable;
+   }
+
+   @Override
+   public boolean isFetchRetryDue() {
+      return System.currentTimeMillis() - lastFetchFailure >= FETCH_RETRY_INTERVAL;
+   }
+
+   @Override
+   public boolean beginFetchRetry() {
+      synchronized(this) {
+         if(fetchingCredential) {
+            return false;
+         }
+
+         fetchingCredential = true;
+         return true;
+      }
+   }
+
+   @Override
+   public void endFetchRetry() {
+      synchronized(this) {
+         fetchingCredential = false;
+      }
    }
 
    @Override
@@ -176,5 +219,15 @@ public abstract class AbstractCloudCredential extends AbstractCredential impleme
    }
 
    private String id;
-   private String dbType;;
+   private String dbType;
+   // runtime only state, it must not be written to XML or cross java serialization where it
+   // would go stale. it is read by every thread that connects to the data source that owns this
+   // credential, so it is volatile.
+   private transient volatile boolean credentialUnavailable;
+   private transient volatile long lastFetchFailure;
+   // a primitive so that java deserialization, which does not run the constructor, still leaves
+   // it in a usable state
+   private transient boolean fetchingCredential;
+
+   private static final long FETCH_RETRY_INTERVAL = 30000L;
 }
