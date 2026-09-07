@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("unused")
-public class MongoRuntime extends TabularRuntime {
+public class MongoRuntime extends TabularRuntime implements TabularCatalogProvider {
    @SuppressWarnings("unchecked")
    public Object getQueryResults(Document query, MongoDatabase db) {
       // cannot run a command as this will be batched and that isn't supported
@@ -137,6 +137,42 @@ public class MongoRuntime extends TabularRuntime {
 
       if(db != null && !db.isEmpty() && dbs.length > 0 && !ArrayUtils.contains(dbs, db)) {
          throw new RuntimeException("Database is not found: " + db);
+      }
+   }
+
+   @Override
+   public TabularCatalog listDatasets(TabularDataSource<?> dataSource) throws Exception {
+      MongoDataSource ds = (MongoDataSource) dataSource;
+      requireDatabase(ds);
+
+      com.mongodb.MongoClient mongoClient = pool.get(ds);
+      MongoDatabase db = mongoClient.getDatabase(ds.getDB());
+      return MongoCatalog.listDatasets(db);
+   }
+
+   @Override
+   public TabularDatasetSchema describeDataset(TabularDataSource<?> dataSource, String datasetId)
+      throws Exception
+   {
+      MongoDataSource ds = (MongoDataSource) dataSource;
+      requireDatabase(ds);
+
+      com.mongodb.MongoClient mongoClient = pool.get(ds);
+      MongoDatabase db = mongoClient.getDatabase(ds.getDB());
+      return MongoCatalog.describeDataset(db, datasetId);
+   }
+
+   /**
+    * An unconfigured database must throw, not silently enumerate nothing (and must not be
+    * confused with "the database exists but holds no collections", which is a different, legal,
+    * empty result). Checked before {@link #pool}/{@code getDatabase} are even reached, so a
+    * blank/null database name never reaches the driver at all. Mirrors
+    * {@code CassandraRuntime.requireKeyspace}.
+    */
+   private static void requireDatabase(MongoDataSource ds) throws Exception {
+      if(ds.getDB() == null || ds.getDB().isBlank()) {
+         throw new Exception("Data source '" + ds.getName() +
+            "' has no database configured; cannot enumerate its collections.");
       }
    }
 
