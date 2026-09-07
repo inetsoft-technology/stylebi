@@ -35,7 +35,10 @@ db.createCollection("catalog_empty");
 // GridFS's own naming convention: a legal MongoDB collection name containing '.', which
 // TabularDatasetRef.id's contract forbids. listDatasets must exclude it without failing to list
 // every other collection in the database.
+// Not left empty: a describeDataset test needs to tell "rejected because of the dot" apart from
+// "rejected because there was nothing to sample", which requires a real document to sample.
 db.createCollection("catalog_fs.files");
+db.getCollection("catalog_fs.files").insert({filename: "a.txt", length: NumberInt(10)});
 
 // db.createUser({ user: "root", pwd: "password", roles: [ { role: "userAdminAnyDatabase", db: "admin" } ] });
 db.createUser({ user: "test", pwd: "password", roles: [ { role: "readWrite", db: "test" } ] });

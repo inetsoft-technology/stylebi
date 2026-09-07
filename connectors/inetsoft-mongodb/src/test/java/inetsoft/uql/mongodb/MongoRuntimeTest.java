@@ -184,6 +184,25 @@ class MongoRuntimeTest {
    }
 
    @Test
+   void describeDataset_dottedCollectionName_throwsEvenThoughItExists() {
+      // "catalog_fs.files" (bootstrap.js) is a real, non-empty collection -- listDatasets already
+      // excludes it, but a caller reaching describeDataset directly (as
+      // TabularCatalogService.describeTable does, with no check that its target ever came from
+      // listDatasets) must still be refused rather than getting back a schema whose datasetId
+      // contains '.'. Asserting on "contains '.'" rather than just any exception distinguishes
+      // this from describeDataset_emptyExistingCollection_throws's message -- proves the dot
+      // check fired, not that sampling this (non-empty) collection happened to fail some other
+      // way.
+      MongoRuntime runtime = new MongoRuntime();
+
+      Exception ex = assertThrows(Exception.class,
+         () -> runtime.describeDataset(dataSource(), "catalog_fs.files"));
+
+      assertTrue(ex.getMessage().contains("catalog_fs.files"));
+      assertTrue(ex.getMessage().contains("contains '.'"));
+   }
+
+   @Test
    void describeDataset_unionsKeysAndResolvesTypesAcrossRealDocuments() throws Exception {
       MongoRuntime runtime = new MongoRuntime();
       TabularDatasetSchema schema = runtime.describeDataset(dataSource(), "catalog_shapes");

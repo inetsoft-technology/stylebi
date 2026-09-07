@@ -20,7 +20,9 @@ package inetsoft.uql.mongodb;
 import com.mongodb.client.MongoDatabase;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.tabular.*;
+import org.bson.BsonArray;
 import org.bson.BsonDocument;
+import org.bson.BsonString;
 import org.bson.BsonType;
 import org.bson.BsonValue;
 
@@ -78,6 +80,20 @@ final class MongoCatalog {
    }
 
    static TabularDatasetSchema describeDataset(MongoDatabase db, String datasetId) throws Exception {
+      if(datasetId.contains(".")) {
+         // listDatasets excludes a dotted name from the catalog it returns, but nothing forces a
+         // caller to go through listDatasets first: MetadataApiService.getMetaData ->
+         // TabularCatalogService.describeTable(dsName, target) passes a client-supplied target
+         // straight to this method, gated only by a data-source READ permission check -- not by
+         // "was this id ever returned by listDatasets". Without this check, a caller with read
+         // access could ask for "fs.chunks" directly and get back a schema whose datasetId
+         // contains '.', reintroducing the exact "two different datasets collide once a dot-
+         // splitting reader strips everything before the last '.'" hazard TabularDatasetRef.id's
+         // contract exists to prevent.
+         throw new Exception("Collection '" + datasetId + "' contains '.', which " +
+            "TabularDatasetRef.id's contract forbids; it is not describable through this SPI.");
+      }
+
       List<BsonDocument> sample = sampleDocuments(db, datasetId, SAMPLE_SIZE);
 
       if(sample.isEmpty()) {
@@ -151,8 +167,8 @@ final class MongoCatalog {
     */
    private static String aggregateQuery(String datasetId) {
       BsonDocument doc = new BsonDocument();
-      doc.append("aggregate", new org.bson.BsonString(datasetId));
-      doc.append("pipeline", new org.bson.BsonArray());
+      doc.append("aggregate", new BsonString(datasetId));
+      doc.append("pipeline", new BsonArray());
       return doc.toJson();
    }
 

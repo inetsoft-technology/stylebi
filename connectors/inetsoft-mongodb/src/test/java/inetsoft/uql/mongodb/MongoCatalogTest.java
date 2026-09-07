@@ -121,6 +121,23 @@ class MongoCatalogTest {
    // ----- describeDataset: contract-level -----
 
    @Test
+   void describeDataset_dottedDatasetId_throwsWithoutSampling() {
+      // listDatasets filters a dotted name out of the catalog it returns, but nothing stops a
+      // caller (MetadataApiService.getMetaData -> TabularCatalogService.describeTable) from
+      // asking for one directly -- describeDataset must reject it itself, not merely rely on
+      // never having offered it. No MongoCatalog.sampleDocuments stub is installed here:
+      // asserting the throw happens even without one proves the check runs before ever touching
+      // the driver, not after a failed/empty sample.
+      MongoDatabase db = fakeDb();
+
+      Exception ex = assertThrows(Exception.class,
+         () -> MongoCatalog.describeDataset(db, "fs.chunks"));
+
+      assertTrue(ex.getMessage().contains("fs.chunks"));
+      assertTrue(ex.getMessage().contains("contains '.'"));
+   }
+
+   @Test
    void describeDataset_noSampledDocuments_throws() {
       MongoDatabase db = fakeDb();
       stubSample(db, "empty_or_missing", List.of());
