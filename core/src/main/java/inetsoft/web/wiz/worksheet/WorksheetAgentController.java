@@ -34,6 +34,7 @@ import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.uql.asset.sync.DependencyTransformer;
 import inetsoft.uql.asset.sync.RenameDependencyInfo;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
@@ -63,7 +64,6 @@ import inetsoft.uql.util.filereader.TextUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.CoreTool;
 import inetsoft.util.FileSystemService;
-import inetsoft.util.MissingAssetClassNameException;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
@@ -89,7 +89,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
-import org.xml.sax.SAXParseException;
 
 import java.awt.*;
 import java.io.*;
@@ -979,12 +978,13 @@ public class WorksheetAgentController {
     * connected worksheet -- i.e. would need attention or would break if it were removed or
     * structurally changed.
     *
-    * <p>Answers "who else uses this worksheet" from the asset repository's own dependency
-    * index rather than from whatever the caller was told: this is the same
-    * {@link AssetRepository#getSheetDependencies} check the Portal's own "remove this
-    * dataset?" dialog runs before a delete ({@code DataSetService.isWorksheetRemoveable}),
-    * not a new dependency-tracking mechanism. It only reports OTHER saved assets that
-    * reference this one -- not the tables/joins/columns inside this worksheet itself.
+    * <p>Answers "who else uses this worksheet" from the canonical reverse-dependency index
+    * ({@link inetsoft.uql.asset.sync.DependencyTool#getDependencies}, the same index-backed
+    * lookup used by {@code RepositoryObjectService.checkAssetEntryDependencies} and
+    * {@code DependencyTransformer}) rather than from whatever the caller was told, and rather
+    * than the legacy per-sheet {@link AssetRepository#getSheetDependencies} scan. It only
+    * reports OTHER saved assets that reference this one -- not the tables/joins/columns inside
+    * this worksheet itself.
     *
     * <p>An unsaved (temporary-scope) worksheet always reports no dependents: nothing can
     * point at an asset that was never saved, so {@code saved} is {@code false} and
@@ -1018,17 +1018,11 @@ public class WorksheetAgentController {
       result.put("saved", true);
       result.put("path", entry.getPath());
 
-      AssetEntry[] deps;
-
-      try {
-         deps = assetRepository.getSheetDependencies(entry, user);
-      }
-      catch(SAXParseException | MissingAssetClassNameException ex) {
-         // same tolerance as AssetRepository#checkSheetRemoveable: if the sheet can't be
-         // read (corrupted asset XML, or a class from a since-uninstalled plugin), treat
-         // it as having no dependents rather than erroring.
-         deps = new AssetEntry[0];
-      }
+      List<AssetObject> rawDeps = DependencyTool.getDependencies(entry.toIdentifier());
+      AssetEntry[] deps = rawDeps.stream()
+         .filter(AssetEntry.class::isInstance)
+         .map(AssetEntry.class::cast)
+         .toArray(AssetEntry[]::new);
 
       List<Map<String, Object>> dependents = new ArrayList<>();
       StringBuilder paths = new StringBuilder();
