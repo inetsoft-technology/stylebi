@@ -72,6 +72,16 @@ class AdminChangesetApplyServiceTest {
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
       tool.when(() -> Tool.encryptPassword(anyString()))
          .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+      tool.when(() -> Tool.decryptPassword(anyString()))
+         .thenAnswer(inv -> {
+            String s = inv.getArgument(0);
+
+            if(!s.startsWith("TKN:")) {
+               throw new IllegalArgumentException("not a token");
+            }
+
+            return s.substring(4);
+         });
       AdminPropertyCatalog catalog = new AdminPropertyCatalog();
       planService = new AdminChangePlanService(catalog, new AdminRiskClassifier(catalog));
       service = new AdminChangesetApplyService(planService, changeService, backupService);
@@ -107,7 +117,40 @@ class AdminChangesetApplyServiceTest {
       PlanRequest probe = new PlanRequest();
       probe.setTask(task);
       probe.setChanges(changes);
-      req.setPlanHash(planService.resolve(probe).planHash());
+      ResolvedPlan resolved = planService.resolve(probe);
+      req.setPlanHash(resolved.planHash());
+      req.setTaskToken(resolved.taskToken());
+      return req;
+   }
+
+   /**
+    * Builds an apply request whose taskToken was issued for a DIFFERENT task string than the one
+    * this request's own {@code task} field carries — the shape a caller previewing an honest
+    * description then applying with different text produces.
+    */
+   private ApplyRequest requestWithDivergentApplyTask(String previewTask, String applyTask,
+                                                       String... propertyValuePairs)
+   {
+      List<PlanRequest.Change> changes = new ArrayList<>();
+
+      for(int i = 0; i < propertyValuePairs.length; i += 2) {
+         PlanRequest.Change change = new PlanRequest.Change();
+         change.setProperty(propertyValuePairs[i]);
+         change.setValue(propertyValuePairs[i + 1]);
+         changes.add(change);
+      }
+
+      PlanRequest preview = new PlanRequest();
+      preview.setTask(previewTask);
+      preview.setChanges(changes);
+      ResolvedPlan previewed = planService.resolve(preview);
+
+      ApplyRequest req = new ApplyRequest();
+      req.setTask(applyTask);
+      req.setChanges(changes);
+      req.setReviewOutcome("approved");
+      req.setPlanHash(previewed.planHash());
+      req.setTaskToken(previewed.taskToken());
       return req;
    }
 
@@ -181,6 +224,49 @@ class AdminChangesetApplyServiceTest {
          argThat(r -> "approved".equals(r.getReviewOutcome())), eq(principal));
    }
 
+   @Test
+   void auditsThePreviewedTaskEvenWhenApplyTaskDiffers() throws Exception {
+      stub("query.runtime.maxrow", "100");
+      when(changeService.applyChange(any(), eq(principal)))
+         .thenReturn(result("query.runtime.maxrow", "100", "500",
+                            AdminChangeRecord.STATUS_VERIFIED, null));
+
+      ApplyRequest req = requestWithDivergentApplyTask(
+         "raise the row limit", "totally different apply-time text", "max.rows", "500");
+
+      ApplyResult applied = service.apply(req, principal);
+
+      // The core regression proof: apply still succeeds. Task text diverging must never be
+      // treated as drift — only `changes` is hash-protected.
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, applied.status());
+      verify(changeService).applyChange(
+         argThat(r -> "raise the row limit".equals(r.getTaskDescription())), eq(principal));
+   }
+
+   @Test
+   void rejectsAMissingTaskToken() {
+      stub("query.runtime.maxrow", "100");
+      ApplyRequest req = request("t", "max.rows", "500");
+      req.setTaskToken(null);
+
+      AdminChangesetApplyService.TaskTokenMismatchException ex = assertThrows(
+         AdminChangesetApplyService.TaskTokenMismatchException.class,
+         () -> service.apply(req, principal));
+      assertTrue(ex.getMessage().startsWith("taskToken:"));
+      assertNotNull(ex.current());
+   }
+
+   @Test
+   void rejectsATaskTokenIssuedForADifferentPlan() {
+      stub("query.runtime.maxrow", "100");
+      ApplyRequest req = request("t", "max.rows", "500");
+      ApplyRequest otherPlan = request("other task", "max.rows", "600");
+      req.setTaskToken(otherPlan.getTaskToken());
+
+      assertThrows(AdminChangesetApplyService.TaskTokenMismatchException.class,
+         () -> service.apply(req, principal));
+   }
+
    // ── concurrency ──────────────────────────────────────────────────────────
 
    /**
@@ -198,7 +284,7 @@ class AdminChangesetApplyServiceTest {
       PlanChange change = new PlanChange("query.runtime.maxrow", null, "100", "500",
          AdminChangeRecord.RISK_LOW, AdminChangeRecord.SCOPE_VALUE, true, null);
       ResolvedPlan plan = new ResolvedPlan("t", List.of(change), false, false,
-                                           "fixed-hash", "fixed-token");
+                                           "fixed-hash", TaskAuditToken.issue("fixed-hash", "t"));
       when(mockPlanService.resolve(any())).thenReturn(plan);
       AdminChangesetApplyService concurrentService =
          new AdminChangesetApplyService(mockPlanService, changeService, backupService);
@@ -224,13 +310,14 @@ class AdminChangesetApplyServiceTest {
       req.setTask("t");
       req.setChanges(List.of());
       req.setPlanHash("fixed-hash");
+      req.setTaskToken(TaskAuditToken.issue("fixed-hash", "t"));
 
       ExecutorService pool = Executors.newFixedThreadPool(2);
 
       try {
          List<Future<ApplyResult>> futures = List.of(
-            pool.submit(() -> concurrentService.apply(req, principal)),
-            pool.submit(() -> concurrentService.apply(req, principal)));
+            pool.submit(() -> applyOnThisThread(concurrentService, req)),
+            pool.submit(() -> applyOnThisThread(concurrentService, req)));
 
          for(Future<ApplyResult> future : futures) {
             assertEquals(AdminChangesetApplyService.STATUS_APPLIED, future.get(5, TimeUnit.SECONDS).status());
@@ -241,6 +328,36 @@ class AdminChangesetApplyServiceTest {
       }
 
       assertEquals(1, maxConcurrent.get(), "two applies ran their critical section concurrently");
+   }
+
+   /**
+    * {@code apply} now calls {@code TaskAuditToken.verify}, which reaches {@code Tool}. Mockito's
+    * {@code mockStatic} registration is thread-local, so the executor's worker threads do not see
+    * the {@code tool} mock installed in {@code setUp} on the main test thread - without this, they
+    * would fall through to the real crypto implementation, which cannot decode the fake
+    * {@code "TKN:"} token this test class uses. Each worker thread needs its own registration.
+    */
+   private ApplyResult applyOnThisThread(AdminChangesetApplyService svc, ApplyRequest req)
+      throws Exception
+   {
+      try(MockedStatic<Tool> threadTool = mockStatic(Tool.class,
+         withSettings().strictness(Strictness.LENIENT).defaultAnswer(Answers.CALLS_REAL_METHODS)))
+      {
+         threadTool.when(() -> Tool.encryptPassword(anyString()))
+            .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+         threadTool.when(() -> Tool.decryptPassword(anyString()))
+            .thenAnswer(inv -> {
+               String s = inv.getArgument(0);
+
+               if(!s.startsWith("TKN:")) {
+                  throw new IllegalArgumentException("not a token");
+               }
+
+               return s.substring(4);
+            });
+
+         return svc.apply(req, principal);
+      }
    }
 
    // ── review gate ──────────────────────────────────────────────────────────
