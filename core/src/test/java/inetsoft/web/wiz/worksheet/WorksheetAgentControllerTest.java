@@ -47,6 +47,8 @@ import inetsoft.uql.erm.XEntity;
 import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.JDBCQuery;
+import inetsoft.uql.jdbc.JDBCSelection;
+import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.web.wiz.model.DatabaseTableMeta;
 import inetsoft.uql.schema.UserVariable;
@@ -72,6 +74,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -247,6 +250,34 @@ class WorksheetAgentControllerTest {
          dataSourceService, securityEngine,
          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class));
+   }
+
+   /**
+    * WSQ-006: stubs a {@code mockConstruction}-produced {@code UniformSQL} so that
+    * {@code addSqlQuery}/{@code editSqlQuery}'s {@code new UniformSQL()} + real
+    * {@code setSQLString}/grammar-parse machinery is bypassed entirely -- {@code getParseResult()}
+    * is set directly to {@code parseResult} rather than left to a real SQL string's parse
+    * behavior (which, per two contested refute rounds on this bug, is not a reliable way to
+    * reach a particular branch; the lead's decision was to test via direct mocking instead).
+    * {@code getSelection()} is stubbed with an empty real {@code JDBCSelection} so
+    * {@code JDBCUtil.fixUniformSQLInfo}'s in-memory shortcut (which the mock's default
+    * {@code getTableCount() == 0} always takes) doesn't NPE. {@code setSQLString} spawns a
+    * background thread that acquires the mock's monitor and calls {@code notifyAll()} once the
+    * caller's {@code synchronized(sql) { ...; sql.wait(10_000); }} block actually starts
+    * waiting, so the call returns immediately instead of blocking for the real 10s timeout --
+    * {@code wait()} itself is {@code final} on {@code Object} and cannot be stubbed directly.
+    */
+   private static void stubUniformSqlConstruction(UniformSQL mock, int parseResult) {
+      when(mock.getParseResult()).thenReturn(parseResult);
+      when(mock.getSelection()).thenReturn(new JDBCSelection());
+      doAnswer(inv -> {
+         new Thread(() -> {
+            synchronized(mock) {
+               mock.notifyAll();
+            }
+         }).start();
+         return null;
+      }).when(mock).setSQLString(anyString(), anyBoolean());
    }
 
    /** Builds an {@code add_table} EditRequest that routes to addBoundTable() (no logicalModel). */
@@ -3925,6 +3956,174 @@ class WorksheetAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // editSqlQuery -- differentiated "no columns" guard message (bug #76500, WSQ-006)
+   // ---------------------------------------------------------------------------
+
+   /**
+    * WSQ-006: a genuine grammar failure should surface the syntax-specific message, not the old
+    * generic "SQL could not be parsed or no columns detected" wording. {@code sql.getParseResult()}
+    * is stubbed directly to {@code PARSE_FAILED} via {@code stubUniformSqlConstruction} -- see its
+    * javadoc for why real SQL-string-driven parsing is not used here.
+    */
+   @Test
+   void editSqlQueryThrowsParseFailedMessageForMalformedSql() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
+      ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
+      ws.addAssembly(sqlt);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-EPF"), any())).thenReturn(session("TOK-EPF"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenReturn(new ColumnSelection());
+
+      WorksheetAgentController ctrl = securityController(editSvc, mock(DataSourceService.class),
+         securityEngine, mock(MetadataApiService.class), mock(XRepository.class),
+         queryManagerService);
+
+      EditRequest req = editSqlQueryRequest("SqlTable1", "SELECT 1");
+
+      try(MockedConstruction<UniformSQL> ignored = mockConstruction(UniformSQL.class,
+         (m, ctx) -> stubUniformSqlConstruction(m, UniformSQL.PARSE_FAILED)))
+      {
+         PairingException ex = assertThrows(PairingException.class,
+            () -> ctrl.edit("TOK-EPF", req, agent));
+         assertTrue(ex.getMessage().contains("SQL could not be parsed — check syntax"),
+                    "should surface the parse-failed variant, got: " + ex.getMessage());
+      }
+   }
+
+   /**
+    * WSQ-006: when the SQL parses fine but the guard still fires (empty columns), a captured
+    * driver error should be surfaced instead of the generic message. {@code sql.getParseResult()}
+    * is stubbed to {@code PARSE_SUCCESS} via {@code stubUniformSqlConstruction}, and
+    * {@code lastQueryError} is set directly on the real {@code scratchQuery} instance the mocked
+    * {@code queryManagerService.getColumnSelection} is invoked with -- exactly mirroring what
+    * {@code QueryManagerService.getColumnSelection}'s real fallback branch does
+    * (QueryManagerService.java:1955). Per the lead's decision, no known real SQL shape reliably
+    * reaches this branch (per two contested refute rounds), so both signals are mocked directly.
+    */
+   @Test
+   void editSqlQueryThrowsDriverErrorMessageWhenLastQueryErrorIsSet() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
+      ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
+      ws.addAssembly(sqlt);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-EDE"), any())).thenReturn(session("TOK-EDE"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenAnswer(inv -> {
+            JDBCQuery q = inv.getArgument(0);
+            q.setLastQueryError(new Exception("Column \"PRODUCT_ID\" not found in ORDERS"));
+            return new ColumnSelection();
+         });
+
+      WorksheetAgentController ctrl = securityController(editSvc, mock(DataSourceService.class),
+         securityEngine, mock(MetadataApiService.class), mock(XRepository.class),
+         queryManagerService);
+
+      EditRequest req = editSqlQueryRequest("SqlTable1", "SELECT 1");
+
+      try(MockedConstruction<UniformSQL> ignored = mockConstruction(UniformSQL.class,
+         (m, ctx) -> stubUniformSqlConstruction(m, UniformSQL.PARSE_SUCCESS)))
+      {
+         PairingException ex = assertThrows(PairingException.class,
+            () -> ctrl.edit("TOK-EDE", req, agent));
+         assertTrue(ex.getMessage().contains("syntactically valid but could not be resolved"),
+                    "should surface the driver-error variant, got: " + ex.getMessage());
+         assertTrue(ex.getMessage().contains("Column \"PRODUCT_ID\" not found in ORDERS"),
+                    "should include the captured driver error text, got: " + ex.getMessage());
+      }
+   }
+
+   /**
+    * WSQ-006: if the guard fires but neither {@code parseResult} nor {@code lastQueryError}
+    * explain why, the original generic message must still be the fallback.
+    */
+   @Test
+   void editSqlQueryFallsBackToGenericMessageWhenNeitherSignalExplainsIt() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
+      ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
+      ws.addAssembly(sqlt);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-EGEN"), any())).thenReturn(session("TOK-EGEN"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      // lastQueryError is left unset (defaults to null on a freshly-constructed JDBCQuery) --
+      // this is the "driver call succeeded but returned nothing" outcome, not exercised above.
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenReturn(new ColumnSelection());
+
+      WorksheetAgentController ctrl = securityController(editSvc, mock(DataSourceService.class),
+         securityEngine, mock(MetadataApiService.class), mock(XRepository.class),
+         queryManagerService);
+
+      EditRequest req = editSqlQueryRequest("SqlTable1", "SELECT 1");
+
+      try(MockedConstruction<UniformSQL> ignored = mockConstruction(UniformSQL.class,
+         (m, ctx) -> stubUniformSqlConstruction(m, UniformSQL.PARSE_SUCCESS)))
+      {
+         PairingException ex = assertThrows(PairingException.class,
+            () -> ctrl.edit("TOK-EGEN", req, agent));
+         assertTrue(
+            ex.getMessage().contains("SQL could not be parsed or no columns detected"),
+            "should fall back to the original generic message, got: " + ex.getMessage());
+      }
+   }
+
+   // ---------------------------------------------------------------------------
    // addSqlQuery — FREE_FORM_SQL / ACCESS + datasource READ permission gates
    // ---------------------------------------------------------------------------
 
@@ -4069,6 +4268,184 @@ class WorksheetAgentControllerTest {
          () -> ctrl.addSqlQuery("TOK-SQ-CDATA", body, agent));
       assertTrue(ex.getMessage().contains("]]>"), ex.getMessage());
       assertNull(ws.getAssembly("bad]]>name"));
+   }
+
+   // ---------------------------------------------------------------------------
+   // addSqlQuery -- differentiated "no columns" guard message (bug #76500, WSQ-006)
+   // ---------------------------------------------------------------------------
+
+   /**
+    * WSQ-006: a genuine grammar failure should surface the syntax-specific message, not the old
+    * generic "SQL could not be parsed or no columns detected" wording. {@code sql.getParseResult()}
+    * is stubbed directly to {@code PARSE_FAILED} via {@code stubUniformSqlConstruction} -- see its
+    * javadoc for why real SQL-string-driven parsing is not used here.
+    */
+   @Test
+   void addSqlQueryThrowsParseFailedMessageForMalformedSql() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
+      when(xrepository.getDataSource("MyDatasource")).thenReturn(jdbcDs);
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-SQ-PF"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenReturn(new ColumnSelection());
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, securityEngine, mock(MetadataApiService.class),
+         xrepository, queryManagerService);
+
+      WorksheetAgentController.SqlQueryRequest body =
+         new WorksheetAgentController.SqlQueryRequest("MyDatasource", "SELECT 1", null);
+
+      try(MockedConstruction<UniformSQL> ignored = mockConstruction(UniformSQL.class,
+         (m, ctx) -> stubUniformSqlConstruction(m, UniformSQL.PARSE_FAILED)))
+      {
+         PairingException ex = assertThrows(PairingException.class,
+            () -> ctrl.addSqlQuery("TOK-SQ-PF", body, agent));
+         assertTrue(ex.getMessage().contains("SQL could not be parsed — check syntax"),
+                    "should surface the parse-failed variant, got: " + ex.getMessage());
+      }
+   }
+
+   /**
+    * WSQ-006: when the SQL parses fine but the guard still fires (empty columns), a captured
+    * driver error should be surfaced instead of the generic message. {@code sql.getParseResult()}
+    * is stubbed to {@code PARSE_SUCCESS} via {@code stubUniformSqlConstruction}, and
+    * {@code lastQueryError} is set directly on the real {@code JDBCQuery} instance the mocked
+    * {@code queryManagerService.getColumnSelection} is invoked with, exactly mirroring what
+    * {@code QueryManagerService.getColumnSelection}'s real fallback branch does
+    * (QueryManagerService.java:1955). Per the lead's decision, no known real SQL shape reliably
+    * reaches this branch (per two contested refute rounds), so both signals are mocked directly.
+    */
+   @Test
+   void addSqlQueryThrowsDriverErrorMessageWhenLastQueryErrorIsSet() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
+      when(xrepository.getDataSource("MyDatasource")).thenReturn(jdbcDs);
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-SQ-DE"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenAnswer(inv -> {
+            JDBCQuery q = inv.getArgument(0);
+            q.setLastQueryError(new Exception("Column \"PRODUCT_ID\" not found in ORDERS"));
+            return new ColumnSelection();
+         });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, securityEngine, mock(MetadataApiService.class),
+         xrepository, queryManagerService);
+
+      WorksheetAgentController.SqlQueryRequest body =
+         new WorksheetAgentController.SqlQueryRequest("MyDatasource", "SELECT 1", null);
+
+      try(MockedConstruction<UniformSQL> ignored = mockConstruction(UniformSQL.class,
+         (m, ctx) -> stubUniformSqlConstruction(m, UniformSQL.PARSE_SUCCESS)))
+      {
+         PairingException ex = assertThrows(PairingException.class,
+            () -> ctrl.addSqlQuery("TOK-SQ-DE", body, agent));
+         assertTrue(ex.getMessage().contains("syntactically valid but could not be resolved"),
+                    "should surface the driver-error variant, got: " + ex.getMessage());
+         assertTrue(ex.getMessage().contains("Column \"PRODUCT_ID\" not found in ORDERS"),
+                    "should include the captured driver error text, got: " + ex.getMessage());
+      }
+   }
+
+   /**
+    * WSQ-006: if the guard fires but neither {@code parseResult} nor {@code lastQueryError}
+    * explain why (the "driver call succeeded but returned nothing" case both refute rounds
+    * identified), the original generic message must still be the fallback.
+    */
+   @Test
+   void addSqlQueryFallsBackToGenericMessageWhenNeitherSignalExplainsIt() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
+      when(xrepository.getDataSource("MyDatasource")).thenReturn(jdbcDs);
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-SQ-GEN"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      // lastQueryError is left unset (defaults to null on a freshly-constructed JDBCQuery) --
+      // this is the "driver call succeeded but returned nothing" outcome, not exercised above.
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenReturn(new ColumnSelection());
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, securityEngine, mock(MetadataApiService.class),
+         xrepository, queryManagerService);
+
+      WorksheetAgentController.SqlQueryRequest body =
+         new WorksheetAgentController.SqlQueryRequest("MyDatasource", "SELECT 1", null);
+
+      try(MockedConstruction<UniformSQL> ignored = mockConstruction(UniformSQL.class,
+         (m, ctx) -> stubUniformSqlConstruction(m, UniformSQL.PARSE_SUCCESS)))
+      {
+         PairingException ex = assertThrows(PairingException.class,
+            () -> ctrl.addSqlQuery("TOK-SQ-GEN", body, agent));
+         assertTrue(
+            ex.getMessage().contains("SQL could not be parsed or no columns detected"),
+            "should fall back to the original generic message, got: " + ex.getMessage());
+      }
    }
 
    // ---------------------------------------------------------------------------
