@@ -2503,6 +2503,35 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(ex2.getMessage().contains("already exists"));
    }
 
+   /**
+    * Same bug class as {@code editExpressionRejectsAnUncompilableScriptRatherThanStoringIt} --
+    * `add_expression_column` is a separate, directly wire-exposed op from `edit_expression`, and
+    * before this test's fix it had no syntax validation at all: an agent could create a brand-new
+    * expression column with an unbalanced paren and it would be silently persisted. Uses the same
+    * real-fallback-engine {@code rws(ws)} (no sandbox stubbed) as the `editExpression` fallback
+    * test, so this proves the real {@code ScriptEnv.checkFunction()} path, not a mock.
+    */
+   @Test
+   void addExpressionColumnRejectsAnUncompilableScriptRatherThanCreatingIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      ExpressionDialogService realDialogService = new ExpressionDialogService(
+         mock(ViewsheetService.class), mock(VSScriptableController.class),
+         mock(DataSourceRegistry.class));
+
+      WorksheetEditService svc = serviceWithExpressionValidation(
+         rws(ws), "Worksheet/ws1", agent, "TOK", realDialogService);
+
+      assertThrows(PairingException.class, () -> svc.apply("TOK", agent, ed ->
+         ed.addExpressionColumn("T", "calc", "field['a'] - (", "integer", false)));
+
+      assertNull(t.getColumnSelection(false).getAttribute("calc"),
+         "the rejected column must not have been created at all");
+   }
+
    // =========================================================================
    // Sort test
    // =========================================================================
@@ -2836,9 +2865,12 @@ class WorksheetEditServiceMutatorsTest {
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
 
+      // Stubbed on the specific failing text only, not anyString() -- addExpressionColumn now
+      // validates too (this test's own setup call below), so a blanket throw-on-any-SQL-call
+      // stub would fail the setup itself rather than the intended second call.
       ExpressionDialogService dialogService = mock(ExpressionDialogService.class);
       doThrow(new Exception("Unexpected token: )"))
-         .when(dialogService).check(anyString(), any(), eq(true));
+         .when(dialogService).check(eq("a b c )"), any(), eq(true));
 
       WorksheetEditService svc = serviceWithExpressionValidation(
          rws(ws), "Worksheet/ws1", agent, "TOK", dialogService);
@@ -2849,7 +2881,9 @@ class WorksheetEditServiceMutatorsTest {
       assertThrows(PairingException.class, () -> svc.apply("TOK", agent, ed ->
          ed.editExpression("T", "calc", "a b c )", "integer", true)));
 
-      verify(dialogService).check(anyString(), any(), eq(true));
+      // Called twice now (setup's addExpressionColumn + the failing editExpression), since
+      // addExpressionColumn validates too.
+      verify(dialogService, times(2)).check(anyString(), any(), eq(true));
       verify(dialogService, never()).check(anyString(), any(), eq(false));
    }
 

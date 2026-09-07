@@ -58,6 +58,7 @@ import java.security.Principal;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Session-resolved edit service for worksheets.
@@ -135,16 +136,19 @@ public class WorksheetEditService {
       // through. Falling back to ScriptEnvRepository.getScriptEnv() -- the same standalone,
       // sandbox-independent engine CalcFieldService.scriptEnvOf falls back to, and what
       // AssetQuerySandbox itself lazily creates its own env from -- keeps the check from being
-      // silently skipped.
-      AssetQuerySandbox wbox = rws.getAssetQuerySandbox();
-      ScriptEnv scriptEnv = wbox == null ? null : wbox.getScriptEnv();
-
-      if(scriptEnv == null) {
-         scriptEnv = ScriptEnvRepository.getScriptEnv();
-      }
+      // silently skipped. Resolved lazily (only inside validateExpressionSyntax, and only when it
+      // actually reaches the JS branch): apply() is the single entry point for every mutator, not
+      // just the two expression-editing ones, and this resolution is a reflective
+      // ScriptEnvRepository.getScriptEnv() call with no caching at that layer when the sandbox
+      // path comes up empty -- not worth paying on every removeColumn/addFilter/setSort/... call.
+      Supplier<ScriptEnv> scriptEnvSupplier = () -> {
+         AssetQuerySandbox wbox = rws.getAssetQuerySandbox();
+         ScriptEnv env = wbox == null ? null : wbox.getScriptEnv();
+         return env != null ? env : ScriptEnvRepository.getScriptEnv();
+      };
 
       Editor editor = new Editor(rws.getWorksheet(), agent, securityEngine, innerJoinService,
-         expressionDialogService, scriptEnv);
+         expressionDialogService, scriptEnvSupplier);
 
       try {
          mutation.accept(editor);
@@ -406,13 +410,13 @@ public class WorksheetEditService {
 
       Editor(Worksheet ws, Principal agent, SecurityEngine securityEngine,
              InnerJoinService innerJoinService, ExpressionDialogService expressionDialogService,
-             ScriptEnv scriptEnv) {
+             Supplier<ScriptEnv> scriptEnvSupplier) {
          this.ws = ws;
          this.agent = agent;
          this.securityEngine = securityEngine;
          this.innerJoinService = innerJoinService;
          this.expressionDialogService = expressionDialogService;
-         this.scriptEnv = scriptEnv;
+         this.scriptEnvSupplier = scriptEnvSupplier;
       }
 
       /**
@@ -657,8 +661,9 @@ public class WorksheetEditService {
        * @param expression the expression body
        * @param type       the data type string, or {@code null}
        * @param sql        {@code true} if the expression is SQL rather than script
-       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, or
-       *                          if a column named {@code name} already exists on the table
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, if a
+       *                          column named {@code name} already exists on the table, or if
+       *                          {@code expression} fails syntax validation
        */
       public void addExpressionColumn(String table, String name, String expression,
                                       String type, boolean sql)
@@ -678,6 +683,7 @@ public class WorksheetEditService {
                "'. Use edit_expression to modify an existing expression column.");
          }
 
+         validateExpressionSyntax(table, name, expression, sql);
          WorksheetMutationSupport.addExpressionColumn(t, name, expression, type, sql);
       }
 
@@ -1889,7 +1895,13 @@ public class WorksheetEditService {
       }
 
       /**
-       * SQL mode still delegates to the native "Edit Expression" dialog's own check
+       * Shared by {@link #addExpressionColumn} and {@link #editExpression} -- both are separate,
+       * directly wire-exposed ops (`add_expression_column`/`edit_expression`) that can each create
+       * a brand-new expression column with no other write path in between, so both need the same
+       * gate: an uncompilable expression created via {@code add_expression_column} is exactly the
+       * same failure mode this validation exists to close for {@code edit_expression}.
+       *
+       * <p>SQL mode still delegates to the native "Edit Expression" dialog's own check
        * ({@link ExpressionDialogService#check}) -- its SQL branch (a real {@code SQLLexer}/
        * {@code SQLParser} parse) genuinely works. JS mode does NOT: {@code check()}'s JS branch
        * validates via {@code ScriptEnv.compile()}, which -- confirmed live -- does not actually
@@ -1920,10 +1932,14 @@ public class WorksheetEditService {
 
          try {
             if(sql) {
-               expressionDialogService.check(str, scriptEnv, true);
+               expressionDialogService.check(str, scriptEnvSupplier.get(), true);
             }
-            else if(scriptEnv != null) {
-               scriptEnv.checkFunction(name, str);
+            else {
+               ScriptEnv env = scriptEnvSupplier.get();
+
+               if(env != null) {
+                  env.checkFunction(name, str);
+               }
             }
          }
          catch(Exception ex) {
@@ -3387,6 +3403,6 @@ public class WorksheetEditService {
       private final SecurityEngine securityEngine;
       private final InnerJoinService innerJoinService;
       private final ExpressionDialogService expressionDialogService;
-      private final ScriptEnv scriptEnv;
+      private final Supplier<ScriptEnv> scriptEnvSupplier;
    }
 }
