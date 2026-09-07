@@ -178,11 +178,12 @@ public class AdminChangePlanService {
     * refused with 409) but forces operators to re-review.
     *
     * <p>{@code task} is deliberately excluded from the hash: it is a free-text narrative that is
-    * never compared or parsed. A reviewer reads the {@code task} at preview, and it is embedded in
-    * the {@code taskToken} issued for that plan, which is what reaches the audit record. The apply
-    * request's own {@code task} field is now vestigial (not read for the audit record). Excluding
-    * {@code task} from the hash lets two equivalent narratives describing the identical change list
-    * be reviewed separately, each valid on its own planHash.
+    * never compared or parsed. {@code preview}'s own {@code task} is what a caller sees and what
+    * {@code taskToken} embeds; the apply request's own {@code task} field is now vestigial (not read
+    * for the audit record). Excluding {@code task} means two equivalent narratives describing the
+    * identical change list produce the same planHash, so a caller paraphrasing {@code task} between
+    * preview and apply never trips a spurious re-review (a false {@code PlanHashMismatchException})
+    * even though nothing the gate protects has changed.
     */
    private static String hash(List<PlanChange> changes) {
       StringBuilder canonical = new StringBuilder();

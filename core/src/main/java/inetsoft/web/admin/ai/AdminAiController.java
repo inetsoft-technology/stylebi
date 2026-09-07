@@ -129,7 +129,7 @@ public class AdminAiController {
    {
       return Map.of("status", "conflict",
                     "error", String.valueOf(ex.getMessage()),
-                    "plan", withoutTaskToken(ex.current()));
+                    "plan", ex.current());
    }
 
    /**
@@ -146,12 +146,7 @@ public class AdminAiController {
    {
       return Map.of("status", "conflict",
                     "error", String.valueOf(ex.getMessage()),
-                    "plan", withoutTaskToken(ex.current()));
-   }
-
-   private static ResolvedPlan withoutTaskToken(ResolvedPlan plan) {
-      return new ResolvedPlan(plan.task(), plan.changes(), plan.requiresStorageBackup(),
-                              plan.requiresAgentSignoff(), plan.planHash(), null);
+                    "plan", ex.current());
    }
 
    private final AdminBackupService backupService;

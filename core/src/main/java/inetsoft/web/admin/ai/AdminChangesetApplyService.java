@@ -65,7 +65,7 @@ public class AdminChangesetApplyService {
    public static class PlanHashMismatchException extends RuntimeException {
       public PlanHashMismatchException(ResolvedPlan current) {
          super("planHash: does not match the current plan; re-review before applying");
-         this.current = current;
+         this.current = withoutTaskToken(current);
       }
 
       /** The plan as it stands now, so the caller can show the operator what changed. */
@@ -80,7 +80,7 @@ public class AdminChangesetApplyService {
    public static class TaskTokenMismatchException extends RuntimeException {
       public TaskTokenMismatchException(ResolvedPlan current, String message) {
          super(message);
-         this.current = current;
+         this.current = withoutTaskToken(current);
       }
 
       /** The plan as it stands now, so the caller can show the operator what to re-review. */
@@ -89,6 +89,17 @@ public class AdminChangesetApplyService {
       }
 
       private final transient ResolvedPlan current;
+   }
+
+   /**
+    * A 409 conflict response exists to show the operator what the CURRENT plan looks like so they can
+    * re-review — it must never hand back a taskToken, which would let a caller retry with an
+    * unreviewed narrative and silently defeat the whole audit-pinning mechanism this exception exists
+    * to protect.
+    */
+   private static ResolvedPlan withoutTaskToken(ResolvedPlan plan) {
+      return new ResolvedPlan(plan.task(), plan.changes(), plan.requiresStorageBackup(),
+                              plan.requiresAgentSignoff(), plan.planHash(), null);
    }
 
    /**

@@ -770,4 +770,72 @@ class AdminChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, applied.status());
       assertEquals("query.runtime.maxrow", applied.rollbackFailures().get(0).property());
    }
+
+   /**
+    * PlanHashMismatchException constructor must scrub taskToken from the plan it carries
+    * in current(), even when the original plan has a non-null taskToken, to prevent leaking
+    * the token in a 409 response.
+    */
+   @Test
+   void planHashMismatchExceptionScrubsTaskTokenFromCurrent() {
+      List<AdminChangeRequest> changes = List.of(
+         change("property", "old", "new"));
+      ResolvedPlan planWithToken = new ResolvedPlan(
+         "original task",
+         changes,
+         false,
+         false,
+         "hash123",
+         "TKN:value");
+
+      AdminChangesetApplyService.PlanHashMismatchException ex =
+         new AdminChangesetApplyService.PlanHashMismatchException(
+            planWithToken, "hash456");
+
+      assertNull(ex.current().taskToken(),
+         "PlanHashMismatchException must scrub taskToken");
+      assertEquals(new ResolvedPlan(
+         "original task",
+         changes,
+         false,
+         false,
+         "hash123",
+         null),
+         ex.current(),
+         "All other plan fields must be preserved");
+   }
+
+   /**
+    * TaskTokenMismatchException constructor must scrub taskToken from the plan it carries
+    * in current(), even when the original plan has a non-null taskToken, to prevent leaking
+    * the token in a 409 response.
+    */
+   @Test
+   void taskTokenMismatchExceptionScrubsTaskTokenFromCurrent() {
+      List<AdminChangeRequest> changes = List.of(
+         change("property", "old", "new"));
+      ResolvedPlan planWithToken = new ResolvedPlan(
+         "original task",
+         changes,
+         false,
+         false,
+         "hash123",
+         "TKN:value");
+
+      AdminChangesetApplyService.TaskTokenMismatchException ex =
+         new AdminChangesetApplyService.TaskTokenMismatchException(
+            planWithToken);
+
+      assertNull(ex.current().taskToken(),
+         "TaskTokenMismatchException must scrub taskToken");
+      assertEquals(new ResolvedPlan(
+         "original task",
+         changes,
+         false,
+         false,
+         "hash123",
+         null),
+         ex.current(),
+         "All other plan fields must be preserved");
+   }
 }
