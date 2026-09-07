@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.TaskAuditToken;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -85,7 +86,9 @@ public class PresentationChangePlanService {
 
       String task = req.getTask().trim();
       List<PlanChange> immutableChanges = Collections.unmodifiableList(changes);
-      return new ResolvedPlan(task, immutableChanges, true, true, hash(immutableChanges));
+      String planHash = hash(immutableChanges);
+      return new ResolvedPlan(task, immutableChanges, true, true,
+                              planHash, TaskAuditToken.issue(planHash, task));
    }
 
    /**

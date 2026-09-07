@@ -25,6 +25,7 @@ import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.RollbackFailure;
+import inetsoft.web.admin.ai.TaskAuditToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -92,7 +93,8 @@ public class PresentationChangesetApplyService {
 
          if(req.getPlanHash() == null || !currentHash.equals(req.getPlanHash())) {
             throw new AdminChangesetApplyService.PlanHashMismatchException(
-               new inetsoft.web.admin.ai.ResolvedPlan(task, planChanges, true, true, currentHash));
+               new inetsoft.web.admin.ai.ResolvedPlan(task, planChanges, true, true,
+                  currentHash, TaskAuditToken.issue(currentHash, task)));
          }
 
          if(req.getReviewOutcome() == null || req.getReviewOutcome().trim().isEmpty()) {

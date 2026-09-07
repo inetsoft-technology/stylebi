@@ -23,6 +23,7 @@ import inetsoft.report.internal.license.LicenseType;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.TaskAuditToken;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -131,8 +132,9 @@ public class LicenseChangePlanService {
       }
 
       String task = req.getTask().trim();
+      String planHash = hash(changes, installed.size());
       return new ResolvedPlan(task, Collections.unmodifiableList(changes), true, true,
-                              hash(changes, installed.size()));
+                              planHash, TaskAuditToken.issue(planHash, task));
    }
 
    // ---------------------------------------------------------------- add

@@ -56,6 +56,7 @@ class ClusterChangesetApplyServiceTest {
 
    private ClusterChangePlanService planService;
    private ClusterChangesetApplyService service;
+   private MockedStatic<Tool> tool;
 
    @BeforeEach void setUp() {
       planService = new ClusterChangePlanService(clusterService, client);
@@ -63,6 +64,13 @@ class ClusterChangesetApplyServiceTest {
       lenient().when(clusterService.getClusterEnabled())
          .thenReturn(ClusterEnabledModel.builder().enabled(true).pauseEnabled(true).build());
       lenient().when(client.getConfiguredServers()).thenReturn(Set.of("s1", "s2"));
+      tool = mockStatic(Tool.class, CALLS_REAL_METHODS);
+      tool.when(() -> Tool.encryptPassword(anyString()))
+         .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+   }
+
+   @AfterEach void tearDown() {
+      tool.close();
    }
 
    // -------------------------------------------------------------------------
@@ -280,11 +288,10 @@ class ClusterChangesetApplyServiceTest {
       // stubbed here too, specifically so the audit write actually reaches Audit.getInstance()
       // .auditAdminChange(...) and this test can assert on the record's real field values, rather
       // than only proving the write was attempted the way every prior area's test settles for.
-      try(MockedStatic<Audit> audit = mockStatic(Audit.class);
-          MockedStatic<Tool> tool = mockStatic(Tool.class, CALLS_REAL_METHODS))
-      {
+      tool.when(Tool::getHost).thenReturn("test-host");
+
+      try(MockedStatic<Audit> audit = mockStatic(Audit.class)) {
          audit.when(Audit::getInstance).thenReturn(auditInstance);
-         tool.when(Tool::getHost).thenReturn("test-host");
          service.apply(applyRequest("task", hash, "looks good", pause("s1")), user);
       }
 

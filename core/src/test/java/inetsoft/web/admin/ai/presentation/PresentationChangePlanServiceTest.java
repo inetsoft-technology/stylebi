@@ -20,13 +20,17 @@ package inetsoft.web.admin.ai.presentation;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.general.model.WebMapSettingsModel;
 import inetsoft.web.admin.presentation.model.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.quality.Strictness;
 
 import java.security.Principal;
 import java.util.Arrays;
@@ -36,6 +40,8 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.withSettings;
 
 /**
  * 01-spec.md section 0/2 (16-entry catalog, dead-field exclusion), section 4 (risk/scope split),
@@ -50,6 +56,7 @@ class PresentationChangePlanServiceTest {
    @Mock
    private PresentationSettingsAccess access;
    private PresentationChangePlanService service;
+   private MockedStatic<Tool> tool;
 
    private static final Principal PRINCIPAL = () -> "admin";
    private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -57,6 +64,15 @@ class PresentationChangePlanServiceTest {
    @BeforeEach
    void setUp() {
       service = new PresentationChangePlanService(access);
+      tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
+         .defaultAnswer(Answers.CALLS_REAL_METHODS));
+      tool.when(() -> Tool.encryptPassword(anyString()))
+         .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+   }
+
+   @AfterEach
+   void tearDown() {
+      tool.close();
    }
 
    // ---------------------------------------------------------------- request builders

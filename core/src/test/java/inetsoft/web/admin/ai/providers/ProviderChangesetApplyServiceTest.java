@@ -21,6 +21,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.MessageException;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
@@ -30,6 +31,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.*;
@@ -64,6 +66,7 @@ class ProviderChangesetApplyServiceTest {
 
    private ProviderChangePlanService planService;
    private ProviderChangesetApplyService service;
+   private MockedStatic<Tool> tool;
 
    @BeforeEach void setUp() throws Exception {
       planService = new ProviderChangePlanService(authenticationProviderService,
@@ -73,8 +76,15 @@ class ProviderChangesetApplyServiceTest {
 
       lenient().when(user.getRoles()).thenReturn(new IdentityID[] { CALLER_ROLE });
       lenient().when(backupService.backup(anyString())).thenReturn("admin-snapshot/ref");
+      tool = mockStatic(Tool.class, CALLS_REAL_METHODS);
+      tool.when(() -> Tool.encryptPassword(anyString()))
+         .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
       wireAuthenticationFake();
       wireAuthorizationFake();
+   }
+
+   @AfterEach void tearDown() {
+      tool.close();
    }
 
    // -------------------------------------------------------------------------

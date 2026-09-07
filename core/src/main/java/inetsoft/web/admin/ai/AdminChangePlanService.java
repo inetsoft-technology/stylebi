@@ -166,8 +166,10 @@ public class AdminChangePlanService {
       boolean signoff = changes.stream()
          .anyMatch(c -> AdminChangeRecord.RISK_HIGH.equals(c.risk()));
 
-      return new ResolvedPlan(req.getTask().trim(), Collections.unmodifiableList(changes),
-                              backup, signoff, hash(changes));
+      String planHash = hash(changes);
+      String task = req.getTask().trim();
+      return new ResolvedPlan(task, Collections.unmodifiableList(changes),
+                              backup, signoff, planHash, TaskAuditToken.issue(planHash, task));
    }
 
    /**

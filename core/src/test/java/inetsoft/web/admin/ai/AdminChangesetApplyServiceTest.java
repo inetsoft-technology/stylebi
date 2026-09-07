@@ -18,9 +18,11 @@
 package inetsoft.web.admin.ai;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -61,10 +63,15 @@ class AdminChangesetApplyServiceTest {
    private MockedStatic<SreeEnv> sreeEnv;
    private AdminChangesetApplyService service;
    private AdminChangePlanService planService;
+   private MockedStatic<Tool> tool;
 
    @BeforeEach
    void setUp() {
       sreeEnv = mockStatic(SreeEnv.class, withSettings().strictness(Strictness.LENIENT));
+      tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
+         .defaultAnswer(Answers.CALLS_REAL_METHODS));
+      tool.when(() -> Tool.encryptPassword(anyString()))
+         .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
       AdminPropertyCatalog catalog = new AdminPropertyCatalog();
       planService = new AdminChangePlanService(catalog, new AdminRiskClassifier(catalog));
       service = new AdminChangesetApplyService(planService, changeService, backupService);
@@ -73,6 +80,7 @@ class AdminChangesetApplyServiceTest {
    @AfterEach
    void tearDown() {
       sreeEnv.close();
+      tool.close();
    }
 
    /**
@@ -189,7 +197,8 @@ class AdminChangesetApplyServiceTest {
       AdminChangePlanService mockPlanService = mock(AdminChangePlanService.class);
       PlanChange change = new PlanChange("query.runtime.maxrow", null, "100", "500",
          AdminChangeRecord.RISK_LOW, AdminChangeRecord.SCOPE_VALUE, true, null);
-      ResolvedPlan plan = new ResolvedPlan("t", List.of(change), false, false, "fixed-hash");
+      ResolvedPlan plan = new ResolvedPlan("t", List.of(change), false, false,
+                                           "fixed-hash", "fixed-token");
       when(mockPlanService.resolve(any())).thenReturn(plan);
       AdminChangesetApplyService concurrentService =
          new AdminChangesetApplyService(mockPlanService, changeService, backupService);

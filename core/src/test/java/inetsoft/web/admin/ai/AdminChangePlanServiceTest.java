@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
+import org.mockito.Answers;
 import org.mockito.MockedStatic;
 import org.mockito.quality.Strictness;
 
@@ -43,15 +44,21 @@ class AdminChangePlanServiceTest {
    private final AdminChangePlanService service =
       new AdminChangePlanService(catalog, new AdminRiskClassifier(catalog));
    private MockedStatic<SreeEnv> sreeEnv;
+   private MockedStatic<Tool> tool;
 
    @BeforeEach
    void setUp() {
       sreeEnv = mockStatic(SreeEnv.class, withSettings().strictness(Strictness.LENIENT));
+      tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
+         .defaultAnswer(Answers.CALLS_REAL_METHODS));
+      tool.when(() -> Tool.encryptPassword(anyString()))
+         .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
    }
 
    @AfterEach
    void tearDown() {
       sreeEnv.close();
+      tool.close();
    }
 
    private static PlanRequest request(String task, String property, String value) {
@@ -161,6 +168,14 @@ class AdminChangePlanServiceTest {
          .thenReturn("100");
       String base = service.resolve(request("t", "max.rows", "500")).planHash();
       assertEquals(base, service.resolve(request("other", "max.rows", "500")).planHash());
+   }
+
+   @Test
+   void issuesATaskTokenBoundToThePlanHash() {
+      sreeEnv.when(() -> SreeEnv.getProperty("query.runtime.maxrow", false, false))
+         .thenReturn("100");
+      ResolvedPlan plan = service.resolve(request("t", "max.rows", "500"));
+      assertEquals("TKN:" + plan.planHash() + "\u001ft", plan.taskToken());
    }
 
    @Test
@@ -322,16 +337,11 @@ class AdminChangePlanServiceTest {
 
    @Test void refusesACredentialWhenCloudSecretsAreConfigured() {
       // In that mode the property holds the NAME of a secret, not the secret, so writing a literal
-      // value would store something nothing downstream can resolve. Scoped to this test: a
-      // class-wide Tool mock would silently change every other test's environment.
-      try(MockedStatic<Tool> tool = mockStatic(Tool.class, withSettings().strictness(
-             Strictness.LENIENT)))
-      {
-         tool.when(Tool::isCloudSecrets).thenReturn(true);
-         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-            () -> service.resolve(request("set it", "openid.client.secret", "s3cret")));
-         assertTrue(ex.getMessage().contains("cloud secrets"));
-      }
+      // value would store something nothing downstream can resolve.
+      tool.when(Tool::isCloudSecrets).thenReturn(true);
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("set it", "openid.client.secret", "s3cret")));
+      assertTrue(ex.getMessage().contains("cloud secrets"));
    }
 
    @Test void refusesAnEmptyValueForACredentialAndSaysWhatToUseInstead() {
@@ -357,27 +367,23 @@ class AdminChangePlanServiceTest {
       // The guard became reachable for mail and logging credentials when they joined the
       // allow-list. Its message used to say "Settings > Security > SSO", which is the wrong page
       // for every one of them - and a wrong page is worse guidance than none.
-      try(MockedStatic<Tool> tool = mockStatic(Tool.class, withSettings().strictness(
-             Strictness.LENIENT)))
-      {
-         tool.when(Tool::isCloudSecrets).thenReturn(true);
+      tool.when(Tool::isCloudSecrets).thenReturn(true);
 
-         for(String prop : new String[] { "mail.smtp.pass", "log.fluentd.security.sharedkey",
-                                          "openid.client.secret" })
-         {
-            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-               () -> service.resolve(request("set it", prop, "value")));
-            assertTrue(ex.getMessage().contains(prop), "message should name " + prop);
-            assertTrue(ex.getMessage().contains("cloud secrets"));
-            // The message must describe only what admin-chat will not do. Every claim about how a
-            // property is configured elsewhere is a claim per property, and this is one string for
-            // seven of them - two review rounds caught exactly that, first the page name and then
-            // the Secret ID field, which only three of the seven actually have.
-            assertFalse(ex.getMessage().contains("Security > SSO"),
-                        "message must not name an SSO page for " + prop);
-            assertFalse(ex.getMessage().contains("Secret ID"),
-                        "message must not promise a Secret ID field for " + prop);
-         }
+      for(String prop : new String[] { "mail.smtp.pass", "log.fluentd.security.sharedkey",
+                                       "openid.client.secret" })
+      {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("set it", prop, "value")));
+         assertTrue(ex.getMessage().contains(prop), "message should name " + prop);
+         assertTrue(ex.getMessage().contains("cloud secrets"));
+         // The message must describe only what admin-chat will not do. Every claim about how a
+         // property is configured elsewhere is a claim per property, and this is one string for
+         // seven of them - two review rounds caught exactly that, first the page name and then
+         // the Secret ID field, which only three of the seven actually have.
+         assertFalse(ex.getMessage().contains("Security > SSO"),
+                     "message must not name an SSO page for " + prop);
+         assertFalse(ex.getMessage().contains("Secret ID"),
+                     "message must not promise a Secret ID field for " + prop);
       }
    }
 }

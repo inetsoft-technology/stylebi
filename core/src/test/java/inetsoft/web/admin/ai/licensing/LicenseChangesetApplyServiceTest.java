@@ -67,6 +67,7 @@ class LicenseChangesetApplyServiceTest {
    private final Set<License> installed = new LinkedHashSet<>();
    private LicenseChangePlanService planService;
    private LicenseChangesetApplyService service;
+   private MockedStatic<Tool> tool;
 
    @BeforeEach
    void setUp() throws Exception {
@@ -77,6 +78,9 @@ class LicenseChangesetApplyServiceTest {
       lenient().when(licenseManager.getInstalledLicenses())
          .thenAnswer(inv -> new LinkedHashSet<>(installed));
       lenient().when(backupService.backup(anyString())).thenReturn("admin-snapshot/ref");
+      tool = mockStatic(Tool.class, CALLS_REAL_METHODS);
+      tool.when(() -> Tool.encryptPassword(anyString()))
+         .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
 
       lenient().doAnswer(inv -> {
          String key = inv.getArgument(0);
@@ -89,6 +93,11 @@ class LicenseChangesetApplyServiceTest {
          installed.removeIf(l -> Objects.equals(l.key(), key));
          return null;
       }).when(licenseKeySettingsService).removeServerKey(anyString());
+   }
+
+   @AfterEach
+   void tearDown() {
+      tool.close();
    }
 
    private static License license(String key, LicenseType type, LocalDateTime expires) {
@@ -390,11 +399,10 @@ class LicenseChangesetApplyServiceTest {
       LicenseApplyRequest req = applyRequest("task", hash, "looks good", null, add("K1"));
       Audit auditInstance = mock(Audit.class);
 
-      try(MockedStatic<Audit> audit = mockStatic(Audit.class);
-          MockedStatic<Tool> tool = mockStatic(Tool.class, CALLS_REAL_METHODS))
-      {
+      tool.when(Tool::getHost).thenReturn("test-host");
+
+      try(MockedStatic<Audit> audit = mockStatic(Audit.class)) {
          audit.when(Audit::getInstance).thenReturn(auditInstance);
-         tool.when(Tool::getHost).thenReturn("test-host");
          service.apply(req, user);
       }
 

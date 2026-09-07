@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai.presentation;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.uql.XPrincipal;
+import inetsoft.util.Tool;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.presentation.model.LookAndFeelSettingsModel;
@@ -28,6 +29,7 @@ import inetsoft.web.admin.presentation.model.PresentationFormatsSettingsModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.HashMap;
@@ -59,6 +61,7 @@ class PresentationChangesetApplyServiceTest {
    private final Map<String, Object> state = new HashMap<>();
    private PresentationChangePlanService planService;
    private PresentationChangesetApplyService service;
+   private MockedStatic<Tool> tool;
 
    private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -68,6 +71,9 @@ class PresentationChangesetApplyServiceTest {
       service = new PresentationChangesetApplyService(planService, access, backupService);
 
       lenient().when(backupService.backup(anyString())).thenReturn("admin-snapshot/ref");
+      tool = mockStatic(Tool.class, CALLS_REAL_METHODS);
+      tool.when(() -> Tool.encryptPassword(anyString()))
+         .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
 
       lenient().when(access.read(any(), any(), anyBoolean())).thenAnswer(inv -> {
          PresentationSubModel subModel = inv.getArgument(0);
@@ -82,6 +88,11 @@ class PresentationChangesetApplyServiceTest {
          state.put(stateKey(subModel, global), model);
          return null;
       }).when(access).write(any(), any(), any(), anyBoolean());
+   }
+
+   @AfterEach
+   void tearDown() {
+      tool.close();
    }
 
    private static String stateKey(PresentationSubModel subModel, boolean global) {

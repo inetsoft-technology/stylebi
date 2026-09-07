@@ -164,7 +164,7 @@ class AdminAiControllerTest {
       PlanRequest req = new PlanRequest();
       req.setTask("raise max rows");
       ResolvedPlan expected =
-         new ResolvedPlan("raise max rows", List.of(), false, false, "hash123");
+         new ResolvedPlan("raise max rows", List.of(), false, false, "hash123", "token123");
       when(planService.resolve(req)).thenReturn(expected);
 
       ResolvedPlan actual = controller.preview(req, principal);
@@ -226,7 +226,8 @@ class AdminAiControllerTest {
    // -------------------------------------------------------------------------
 
    @Test void handlePlanHashMismatchReturnsConflictStatusWithCurrentPlan() {
-      ResolvedPlan current = new ResolvedPlan("raise max rows", List.of(), false, false, "hash456");
+      ResolvedPlan current = new ResolvedPlan("raise max rows", List.of(), false, false,
+                                              "hash456", "token456");
       AdminChangesetApplyService.PlanHashMismatchException ex =
          new AdminChangesetApplyService.PlanHashMismatchException(current);
 
