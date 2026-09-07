@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, OnInit } from "@angular/core";
+import { ChangeDetectorRef, Component, Input, OnInit } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { ShadowPropPaneModel } from "../../data/vs/shadow-prop-pane-model";
 import { ShapeShadowUtil } from "../../../common/util/shape-shadow-util";
@@ -51,6 +51,9 @@ export class ShadowPropPane implements OnInit {
       { value: "NW", label: "_#(js:Northwest)" }
    ];
 
+   constructor(private changeRef: ChangeDetectorRef) {
+   }
+
    ngOnInit() {
       // guard against a model persisted before these settings existed
       if(!this.model.color) {
@@ -76,7 +79,21 @@ export class ShadowPropPane implements OnInit {
 
    /** Keep a cleared or out-of-range entry from reaching the server. */
    clamp(field: "distance" | "blur", value: any): void {
-      const num = parseInt(value, 10);
-      this.model[field] = isNaN(num) ? 0 : Math.max(0, Math.min(MAX_LENGTH, num));
+      const raw = parseInt(value, 10);
+      const clamped = isNaN(raw) ? 0 : Math.max(0, Math.min(MAX_LENGTH, raw));
+      this.model[field] = clamped;
+
+      // If the clamped result happens to equal the value the model already
+      // held (e.g. re-typing another out-of-range number into a field
+      // already at the clamp boundary), the [ngModel] binding sees no change
+      // and never re-writes the input's DOM value, leaving the raw,
+      // out-of-range text on screen. Force a real transition so NgModel
+      // always re-renders the clamped value, mirroring AlphaDropdown's
+      // changeAlpha0().
+      if(clamped !== raw) {
+         this.model[field] = null;
+         this.changeRef.detectChanges();
+         this.model[field] = clamped;
+      }
    }
 }
