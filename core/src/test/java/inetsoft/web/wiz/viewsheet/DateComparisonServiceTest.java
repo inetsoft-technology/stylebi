@@ -808,6 +808,56 @@ class DateComparisonServiceTest {
       assertEquals(false, read.get("enabled"));
    }
 
+   /**
+    * {@code levelWord()} existed since the level/interval write-side word-to-code normalization
+    * first landed, but was never wired into {@code describePeriod()} -- the read side kept
+    * reporting the raw {@code XConstants} group code, asymmetric with comparisonOption's own
+    * two-way translation. Caught live, testing this fix's own build, before it shipped further.
+    */
+   @Test
+   void describesTheStandardPeriodLevelAsAWordNotARawCode() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.getPeriodPaneModel().getStandardPeriodPaneModel().getDateLevel()
+         .setValue(String.valueOf(XConstants.YEAR_DATE_GROUP));
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1");
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> period = (Map<String, Object>) read.get("period");
+      assertEquals("year", period.get("level"));
+   }
+
+   @Test
+   void describesTheIntervalLevelAsAWordNotARawCode() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.getIntervalPaneModel().getLevel()
+         .setValue(String.valueOf(DateComparisonInfo.YEAR_TO_DATE));
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1");
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> interval = (Map<String, Object>) read.get("interval");
+      assertEquals("yearToDate", interval.get("level"));
+   }
+
+   /**
+    * A level/interval dynamic value is not guaranteed to hold a plain int literal -- falling back
+    * to the raw string rather than throwing keeps a formula/unrecognized code readable instead of
+    * breaking the whole read.
+    */
+   @Test
+   void fallsBackToTheRawStringForAnUnrecognizedLevelCode() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.getPeriodPaneModel().getStandardPeriodPaneModel().getDateLevel()
+         .setValue("not-a-number");
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1");
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> period = (Map<String, Object>) read.get("period");
+      assertEquals("not-a-number", period.get("level"));
+   }
+
    @Test
    void hidesTheEndDateWhenTheRangeAnchorsOnToday() throws Exception {
       Map<String, Object> read = harness(model()).service.read("tok", principal(), "Chart1");

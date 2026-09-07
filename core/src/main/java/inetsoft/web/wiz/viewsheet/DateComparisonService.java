@@ -585,6 +585,23 @@ public class DateComparisonService {
       target.setValue(value);
    }
 
+   private static final Map<Integer, String> INTERVAL_NAMES = Map.of(
+      DateComparisonInfo.ALL, "all",
+      DateComparisonInfo.YEAR_TO_DATE, "yearToDate",
+      DateComparisonInfo.QUARTER_TO_DATE, "quarterToDate",
+      DateComparisonInfo.MONTH_TO_DATE, "monthToDate",
+      DateComparisonInfo.WEEK_TO_DATE, "weekToDate",
+      DateComparisonInfo.SAME_QUARTER, "sameQuarter",
+      DateComparisonInfo.SAME_MONTH, "sameMonth",
+      DateComparisonInfo.SAME_WEEK, "sameWeek",
+      DateComparisonInfo.SAME_DAY, "sameDay"
+   );
+
+   /** The inverse of {@link #normalizeInterval(String)}, for reporting it back. */
+   private static String intervalWord(int interval) {
+      return INTERVAL_NAMES.getOrDefault(interval, String.valueOf(interval));
+   }
+
    // ── read normalization ────────────────────────────────────────────────────
 
    private static Map<String, Object> describePeriod(PeriodPaneModel periods) {
@@ -599,7 +616,7 @@ public class DateComparisonService {
 
       if(standard != null) {
          out.put("periods", value(standard.getPreCount()));
-         out.put("level", value(standard.getDateLevel()));
+         out.put("level", describeCode(standard.getDateLevel(), DateComparisonService::levelWord));
          out.put("endToday", standard.isToDayAsEndDay());
          out.put("endDate", standard.isToDayAsEndDay() ? null : value(standard.getEndDay()));
          out.put("inclusive", standard.isInclusive());
@@ -616,7 +633,7 @@ public class DateComparisonService {
          return out;
       }
 
-      out.put("level", value(interval.getLevel()));
+      out.put("level", describeCode(interval.getLevel(), DateComparisonService::intervalWord));
       out.put("granularity", value(interval.getGranularity()));
       out.put("endDayAsToDate", interval.isEndDayAsToDate());
       out.put("inclusive", interval.isInclusive());
@@ -625,6 +642,37 @@ public class DateComparisonService {
 
    private static Object value(DynamicValueModel model) {
       return model == null ? null : model.getValue();
+   }
+
+   /**
+    * Reads a dynamic value written by {@link #normalizeLevel(String)}/{@link
+    * #normalizeInterval(String)} back as the word an agent caller understands, mirroring {@link
+    * #describeComparisonOption(int)}. Written but never wired up when {@code level}/{@code
+    * interval}'s write-side word-to-code normalization first landed -- {@code get_date_comparison}
+    * kept reporting the raw StyleBI numeric/bitmask code, asymmetric with comparisonOption's own
+    * two-way translation. Falls back to the raw stored string for a non-numeric dynamic value
+    * (a formula/expression) or a code the map does not recognize, rather than throwing --  a
+    * DynamicValueModel is not guaranteed to hold a plain int literal.
+    */
+   private static Object describeCode(DynamicValueModel model, java.util.function.IntFunction<String> word) {
+      if(model == null) {
+         return null;
+      }
+
+      Object rawValue = model.getValue();
+
+      if(rawValue == null) {
+         return null;
+      }
+
+      String raw = rawValue.toString();
+
+      try {
+         return word.apply(Integer.parseInt(raw.trim()));
+      }
+      catch(NumberFormatException e) {
+         return raw;
+      }
    }
 
    private final ViewsheetSessionService sessions;
