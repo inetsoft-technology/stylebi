@@ -159,6 +159,21 @@ class ElasticCatalogTests {
       // rejects a dotted TabularDatasetRef.id.
       request("POST", "/logs-2026.09.04/_doc?refresh=true", """
          {"level": "INFO", "message": "service started"}""");
+
+      // CI review round 1 on #5041: describeDataset's "none of them can be addressed as a
+      // column" exception must still explain itself when a field alias is part of why. An alias
+      // can only ever point at a REAL, already-declared, non-alias field (Elasticsearch itself
+      // refuses a path to a nonexistent field or to another alias -- checked directly against
+      // this same 7.9.2 image before writing this fixture), so the minimal index that reproduces
+      // "columns ends up empty AND an alias is one of the reasons" needs one backing field whose
+      // own type is separately unaddressable (geo_point), plus alias(es) pointing to it. Two
+      // aliases, not one, so the fix is checked against more than a single-element list.
+      request("PUT", "/alias-only", """
+         {"mappings": {"properties": {
+            "loc":  {"type": "geo_point"},
+            "ref1": {"type": "alias", "path": "loc"},
+            "ref2": {"type": "alias", "path": "loc"}
+         }}}""");
    }
 
    @AfterAll
@@ -178,7 +193,7 @@ class ElasticCatalogTests {
       TabularCatalog catalog = runtime.listDatasets(dataSource);
       List<String> ids = catalog.datasets().stream().map(TabularDatasetRef::id).toList();
 
-      assertEquals(List.of("earthquakes", "logs-2026.09.04", "orders"), ids,
+      assertEquals(List.of("alias-only", "earthquakes", "logs-2026.09.04", "orders"), ids,
                    "only the open, non-internal indexes, sorted by name -- including the dotted, " +
                    "ILM-style index name (G1)");
       // The cluster's own bookkeeping indexes must not reach the annotation list, and a closed
@@ -447,6 +462,25 @@ class ElasticCatalogTests {
       // that rejected one here would be a silent regression of that, not a safety fix. A non-
       // leading, non-".."/"." dot must sail through untouched.
       assertDoesNotThrow(() -> runtime.describeDataset(dataSource, "logs-2026.09.04"));
+   }
+
+   @Test
+   void noAddressableColumnsExceptionNamesTheAliasesTooNotJustTheBackingField() throws Exception {
+      // CI review round 1 on #5041: before this fix, a field alias was skipped with only a debug
+      // log line, never recorded anywhere -- so this exception's "none of them can be addressed"
+      // explanation named the geo_point backing field but silently dropped both aliases that are
+      // equally a reason columns ended up empty, and its "N field(s)" count came from
+      // properties.size() (3 here) rather than from what the sentence actually lists.
+      Exception thrown = assertThrows(Exception.class,
+         () -> runtime.describeDataset(dataSource, "alias-only"));
+
+      assertTrue(thrown.getMessage().contains("loc (geo_point)"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("ref1 (alias)") &&
+                 thrown.getMessage().contains("ref2 (alias)"),
+                 "both aliases must be named, not just the backing field: " + thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("declares 3 field(s)"),
+                 "the count must match the 3 fields actually listed as the reason, not silently " +
+                 "undercount or overcount: " + thrown.getMessage());
    }
 
    @Test

@@ -242,12 +242,23 @@ final class ElasticCatalog {
       List<String> unaddressable = new ArrayList<>();
       List<String> arrays = new ArrayList<>();
       List<String> unrecognizedTypes = new ArrayList<>();
-      collect(properties, null, columns, unaddressable, arrays, unrecognizedTypes);
+      List<String> aliases = new ArrayList<>();
+      collect(properties, null, columns, unaddressable, arrays, unrecognizedTypes, aliases);
 
       if(columns.isEmpty()) {
-         throw new Exception("Elasticsearch index '" + datasetId + "' declares " +
-            properties.size() + " field(s), but none of them can be addressed as a column: " +
-            String.join(", ", unaddressable) + ".");
+         // aliases is deliberately folded in HERE ONLY, not into unaddressable itself: unaddressable
+         // is also the roster written into the dataset description (see datasetDescription below),
+         // and an alias is absent from _source entirely -- it isn't data the description needs to
+         // explain away, it simply isn't part of the data (fieldAliasIsNotAColumn pins this). But an
+         // index whose fields are ALL aliases still needs an exception that explains itself, so this
+         // one-off list is exactly the fields responsible for columns being empty, matching the
+         // count in the sentence that quotes it -- properties.size() would only count top-level
+         // fields and undercount whenever a declared object is in the mix.
+         List<String> reasons = new ArrayList<>(unaddressable);
+         reasons.addAll(aliases);
+         throw new Exception("Elasticsearch index '" + datasetId + "' declares " + reasons.size() +
+            " field(s), but none of them can be addressed as a column: " +
+            String.join(", ", reasons) + ".");
       }
 
       // Fully filled, with no empty value. Once the index is known a runnable query is completely
@@ -326,10 +337,17 @@ final class ElasticCatalog {
     * for the kinds of field that deliberately do not become an ordinary column, or whose type this
     * connector does not recognize. Recurses into a declared object with dotted names, which is what
     * {@code JsonTable.walkRecord} produces for the same document.
+    *
+    * <p>{@code aliases} is tracked separately from {@code unaddressable} on purpose: an alias is
+    * absent from {@code _source} entirely, so unlike an object/geo/range field it is not data the
+    * dataset description needs to name as excluded (see {@code datasetDescription}, which is never
+    * given this list) — it exists only so {@code describeDataset}'s "none of them can be addressed"
+    * exception can still explain itself for an index whose fields are all aliases, instead of
+    * rendering an empty list.
     */
    private static void collect(Map<?, ?> properties, String prefix, List<TabularColumn> columns,
                                List<String> unaddressable, List<String> arrays,
-                               List<String> unrecognizedTypes)
+                               List<String> unrecognizedTypes, List<String> aliases)
    {
       for(Map.Entry<?, ?> entry : properties.entrySet()) {
          String name = prefix == null ? String.valueOf(entry.getKey())
@@ -347,6 +365,7 @@ final class ElasticCatalog {
          // .keyword subfield the 'fields' key holds, which is never read at all.
          if(ALIAS.equals(type)) {
             LOG.debug("Skipping Elasticsearch field alias {}", name);
+            aliases.add(name + " (alias)");
             continue;
          }
 
@@ -358,7 +377,7 @@ final class ElasticCatalog {
          }
 
          if(sub != null) {
-            collect(sub, name, columns, unaddressable, arrays, unrecognizedTypes);
+            collect(sub, name, columns, unaddressable, arrays, unrecognizedTypes, aliases);
             continue;
          }
 
