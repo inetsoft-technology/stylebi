@@ -19,6 +19,10 @@ package inetsoft.uql.mongodb;
 
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
+import inetsoft.uql.tabular.TabularCatalog;
+import inetsoft.uql.tabular.TabularDatasetRef;
+import inetsoft.uql.tabular.TabularDatasetSchema;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.credential.*;
 import org.junit.jupiter.api.*;
@@ -37,6 +41,9 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
@@ -65,9 +72,16 @@ class MongoRuntimeTest {
    @BeforeAll
    static void attachLogConsumer() {
       container.followOutput(new Slf4jLogConsumer(LOG));
+      // A bare Mockito mock() does not remember what setUser/setPassword are called with -- every
+      // getUser()/getPassword() call would answer null regardless, so the driver would silently
+      // connect with no credentials at all against an auth-enabled server. A real
+      // LocalPasswordCredential (a plain field-backed POJO) is required for authentication to
+      // actually happen in this test.
       CredentialService credentialService = mock(CredentialService.class);
-      when(credentialService.createCredential(CredentialType.PASSWORD)).thenReturn(mock(LocalPasswordCredential.class));
-      when(credentialService.createCredential(CredentialType.PASSWORD, false)).thenReturn(mock(LocalPasswordCredential.class));
+      when(credentialService.createCredential(CredentialType.PASSWORD))
+         .thenAnswer(invocation -> new LocalPasswordCredential());
+      when(credentialService.createCredential(CredentialType.PASSWORD, false))
+         .thenAnswer(invocation -> new LocalPasswordCredential());
       ApplicationContext context = mock(ApplicationContext.class);
       when(context.getBean(CredentialService.class)).thenReturn(credentialService);
       ConfigurationContext.getContext().setApplicationContext(context);
@@ -141,5 +155,86 @@ class MongoRuntimeTest {
 
          assertArrayEquals(expectedData.get(rowCount++), row);
       }
+   }
+
+   private MongoDataSource dataSource() {
+      MongoDataSource dataSource = new MongoDataSource();
+      dataSource.setHost(container.getHost());
+      dataSource.setPort(container.getPort());
+      dataSource.setDB("test");
+      dataSource.setUser("test");
+      dataSource.setPassword("password");
+      return dataSource;
+   }
+
+   @Test
+   void listDatasets_excludesDottedCollection_keepsEveryOtherCollection() throws Exception {
+      MongoRuntime runtime = new MongoRuntime();
+      TabularCatalog catalog = runtime.listDatasets(dataSource());
+      Set<String> ids = catalog.datasets().stream().map(TabularDatasetRef::id)
+         .collect(Collectors.toSet());
+
+      assertTrue(ids.contains("table1"));
+      assertTrue(ids.contains("catalog_shapes"));
+      assertTrue(ids.contains("catalog_empty"));
+      // GridFS-shaped name from bootstrap.js -- must not appear, and must not have taken every
+      // other collection down with it (TabularDatasetRef.id forbids '.').
+      assertTrue(ids.stream().noneMatch(id -> id.contains(".")));
+      assertTrue(catalog.relationships().isEmpty());
+   }
+
+   @Test
+   void describeDataset_dottedCollectionName_throwsEvenThoughItExists() {
+      // "catalog_fs.files" (bootstrap.js) is a real, non-empty collection -- listDatasets already
+      // excludes it, but a caller reaching describeDataset directly (as
+      // TabularCatalogService.describeTable does, with no check that its target ever came from
+      // listDatasets) must still be refused rather than getting back a schema whose datasetId
+      // contains '.'. Asserting on "contains '.'" rather than just any exception distinguishes
+      // this from describeDataset_emptyExistingCollection_throws's message -- proves the dot
+      // check fired, not that sampling this (non-empty) collection happened to fail some other
+      // way.
+      MongoRuntime runtime = new MongoRuntime();
+
+      Exception ex = assertThrows(Exception.class,
+         () -> runtime.describeDataset(dataSource(), "catalog_fs.files"));
+
+      assertTrue(ex.getMessage().contains("catalog_fs.files"));
+      assertTrue(ex.getMessage().contains("contains '.'"));
+   }
+
+   @Test
+   void describeDataset_unionsKeysAndResolvesTypesAcrossRealDocuments() throws Exception {
+      MongoRuntime runtime = new MongoRuntime();
+      TabularDatasetSchema schema = runtime.describeDataset(dataSource(), "catalog_shapes");
+
+      Map<String, String> types = schema.columns().stream()
+         .collect(Collectors.toMap(c -> c.name(), c -> c.type()));
+
+      // "_id" is not set by the fixture -- MongoDB auto-assigns an ObjectId to every document at
+      // insert time regardless, so it is still expected on every sampled document.
+      assertEquals(Set.of("_id", "name", "qty", "active", "when", "onlyInSecond"), types.keySet());
+      assertEquals(XSchema.STRING, types.get("_id"));
+      assertEquals(XSchema.STRING, types.get("name"));
+      // First document's "qty" is a 32-bit int -- first-non-null-in-scan-order wins even though
+      // the second document's "qty" is a 64-bit long.
+      assertEquals(XSchema.INTEGER, types.get("qty"));
+      assertEquals(XSchema.BOOLEAN, types.get("active"));
+      assertEquals(XSchema.TIME_INSTANT, types.get("when"));
+      // Only present in the second sampled document -- proves the key union, not just the first
+      // document's shape, drives the reported column list.
+      assertEquals(XSchema.STRING, types.get("onlyInSecond"));
+      assertTrue(schema.columnsMayBeIncomplete());
+      assertEquals(List.of("_id"), schema.keyColumns());
+      assertEquals("catalog_shapes", schema.datasetId());
+   }
+
+   @Test
+   void describeDataset_emptyExistingCollection_throws() {
+      MongoRuntime runtime = new MongoRuntime();
+
+      Exception ex = assertThrows(Exception.class,
+         () -> runtime.describeDataset(dataSource(), "catalog_empty"));
+
+      assertTrue(ex.getMessage().contains("catalog_empty"));
    }
 }
