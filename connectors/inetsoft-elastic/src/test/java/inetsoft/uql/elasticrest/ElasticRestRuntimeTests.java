@@ -17,13 +17,16 @@
  */
 package inetsoft.uql.elasticrest;
 
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.credential.*;
+import inetsoft.util.swap.XSwapper;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.LineIterator;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.context.ApplicationContext;
@@ -38,11 +41,23 @@ import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * Needs a Docker daemon, so it is off unless asked for:
+ *
+ * <pre>./mvnw -pl connectors/inetsoft-elastic -am -Delastic.tests=true test</pre>
+ *
+ * <p>This was {@code @Disabled}, which had the same effect on a normal build but could only be
+ * run after editing the source. It now shares {@link ElasticCatalogTests}'s condition, so the two
+ * Elasticsearch test classes are enabled the same way — see that class for why a JUnit condition
+ * rather than {@code @Tag("integration")}.
+ */
 @Testcontainers
-@Disabled
+@EnabledIfSystemProperty(named = "elastic.tests", matches = "true")
 class ElasticRestRuntimeTests {
    @Container
    static final ElasticsearchContainer container =
@@ -57,6 +72,16 @@ class ElasticRestRuntimeTests {
       when(credentialService.createCredential(CredentialType.PASSWORD, false)).thenReturn(mock(LocalPasswordCredential.class));
       ApplicationContext context = mock(ApplicationContext.class);
       when(context.getBean(CredentialService.class)).thenReturn(credentialService);
+      // See ElasticCatalogTests.loadData() for why this stub exists: without it,
+      // runQuery -> XQuery.getMaxRows -> ... -> PropertiesEngine.getInstance() puts a null bean
+      // into ConfigurationContext's Caffeine cache, which throws and permanently breaks
+      // inetsoft.report.internal.Util for the rest of the JVM.
+      PropertiesEngine propertiesEngine = mock(PropertiesEngine.class);
+      when(propertiesEngine.getProperty(anyString(), anyString(), anyBoolean()))
+         .thenAnswer(invocation -> invocation.getArgument(1));
+      when(context.getBean(PropertiesEngine.class)).thenReturn(propertiesEngine);
+      // See ElasticCatalogTests.loadData(): one bean further down the same runQuery call path.
+      when(context.getBean(XSwapper.class)).thenReturn(mock(XSwapper.class));
       ConfigurationContext.getContext().setApplicationContext(context);
 
       try(InputStream input = ElasticRestRuntimeTests.class.getResourceAsStream("earthquakes.ndjson")) {

@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.tabular.*;
+import inetsoft.web.wiz.model.DatasourceTablesResponse;
 import inetsoft.web.wiz.model.osi.OsiDataset;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -37,14 +38,21 @@ import static org.mockito.Mockito.when;
  * Covers charter assertions C1-C3 and C6: {@link TabularCatalogService} must not trust a
  * connector's {@link TabularCatalog}/{@link TabularDatasetSchema} at face value — a null
  * relationships list, a relationship pointing at an unknown dataset, a blank id/column name, a
- * dotted dataset id, a blank relationship name, or a mismatched/empty column pairing must each
- * produce a named exception, not an NPE or a silently-broken wire response.
+ * blank relationship name, or a mismatched/empty column pairing must each produce a named
+ * exception, not an NPE or a silently-broken wire response.
+ *
+ * <p>The check that a dotted {@code TabularDatasetRef.id} must be rejected (once part of C6) was
+ * removed in the Elasticsearch SPI round: it was a producer-side guard against a downstream
+ * consumer (wiz's {@code bareTableName}/{@code sourceMatches}) that could not yet tell an opaque
+ * connector id from a qualified JDBC one. That consumer now treats a METADATA source as opaque
+ * directly, so the guard was deleted rather than kept as a redundant, and now wrong, restriction —
+ * see {@link TabularDatasetRef#id}'s javadoc. {@code listTables_dottedDatasetId_isAccepted} below
+ * pins the new behavior so this is not silently reintroduced.
  *
  * C6 was added after P5 review r1 (finding 1): the original C1-C3 pass checked only three of the
- * SPI's documented invariants, leaving the ones on {@code TabularDatasetRef.id} (no {@code .}) and
- * {@code TabularRelationship} (non-blank name, paired columns) unchecked — including the very
- * invariant ({@code id} must not contain {@code .}) that motivated {@code SharepointDatasetId}'s
- * whole escaping scheme in the sibling implementer. Extended again after P5 review r2 (finding 1):
+ * SPI's documented invariants, leaving the ones on {@code TabularDatasetRef.id} and
+ * {@code TabularRelationship} (non-blank name, paired columns) unchecked. Extended again after P5
+ * review r2 (finding 1):
  * C6 itself still missed the uniqueness half of both "non-blank and unique within one catalog"
  * ({@code TabularDatasetRef.id}) and "stable identifier ... within the catalog"
  * ({@code TabularRelationship.name}), plus (r2 nit 2) that {@code TabularDatasetSchema.keyColumns}
@@ -194,21 +202,26 @@ class TabularCatalogServiceContractValidationTest {
       assertTrue(ex.getMessage().toLowerCase().contains("column"));
    }
 
-   // ----- C6: TabularDatasetRef.id must not contain '.' -----
+   // ----- G2: TabularDatasetRef.id is opaque -- a '.' is no longer rejected on its own -----
 
    @Test
-   void listTables_dottedDatasetId_throwsNamedException() throws Exception {
-      TabularCatalog catalog =
-         new TabularCatalog(List.of(new TabularDatasetRef("contoso.sharepoint.com")), List.of());
+   void listTables_dottedDatasetId_isAccepted() throws Exception {
+      // An Elasticsearch ILM/rollover index name is exactly this shape. Before G2, this single
+      // dotted id would have aborted the ENTIRE catalog for the whole data source -- not just
+      // mislabeled one dataset -- which is why this is a listTables-level test, not a narrower
+      // unit test of validateDatasetIds alone.
+      TabularCatalog catalog = new TabularCatalog(
+         List.of(new TabularDatasetRef("logs-2026.09.04"), new TabularDatasetRef("orders")),
+         List.of());
       FakeCatalogRuntime runtime = new FakeCatalogRuntime(catalog, Map.of());
       TabularCatalogService service = createService(dsName -> runtime);
 
-      Exception ex = assertThrows(Exception.class, () -> service.listTables(DS_NAME));
+      DatasourceTablesResponse response = service.listTables(DS_NAME);
 
-      assertFalse(ex instanceof UnsupportedDatasourceException);
-      assertTrue(ex.getMessage().contains(DS_NAME));
-      assertTrue(ex.getMessage().contains("contoso.sharepoint.com"),
-         "message must name the offending id: " + ex.getMessage());
+      assertEquals(2, response.getTables().size());
+      assertTrue(response.getTables().stream()
+                    .anyMatch(t -> "logs-2026.09.04".equals(t.getTable())),
+                 "the dotted id must be reported verbatim, not renamed or dropped");
    }
 
    // ----- C6: TabularRelationship.name must be non-blank -----
