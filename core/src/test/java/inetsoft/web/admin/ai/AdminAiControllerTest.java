@@ -247,4 +247,28 @@ class AdminAiControllerTest {
       assertNotNull(annotation, "handlePlanHashMismatch must be annotated @ResponseStatus");
       assertEquals(HttpStatus.CONFLICT, annotation.value());
    }
+
+   @Test void handleTaskTokenMismatchReturnsConflictStatusWithCurrentPlan() {
+      ResolvedPlan current = new ResolvedPlan("raise max rows", List.of(), false, false,
+                                              "hash456", "token456");
+      AdminChangesetApplyService.TaskTokenMismatchException ex =
+         new AdminChangesetApplyService.TaskTokenMismatchException(current,
+            "taskToken: does not match the current plan; re-review before applying");
+
+      Map<String, Object> actual = controller.handleTaskTokenMismatch(ex);
+
+      assertEquals("conflict", actual.get("status"));
+      assertEquals(ex.getMessage(), actual.get("error"));
+      assertSame(current, actual.get("plan"));
+   }
+
+   @Test void handleTaskTokenMismatchIsAnnotatedConflict() throws NoSuchMethodException {
+      ResponseStatus annotation = AdminAiController.class
+         .getMethod("handleTaskTokenMismatch",
+                    AdminChangesetApplyService.TaskTokenMismatchException.class)
+         .getAnnotation(ResponseStatus.class);
+
+      assertNotNull(annotation, "handleTaskTokenMismatch must be annotated @ResponseStatus");
+      assertEquals(HttpStatus.CONFLICT, annotation.value());
+   }
 }
