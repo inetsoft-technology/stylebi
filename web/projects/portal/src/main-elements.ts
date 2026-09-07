@@ -20,13 +20,17 @@ import { createCustomElement } from "@angular/elements";
 import { provideRouter } from "@angular/router";
 import { EmbedChartComponent } from "./app/embed/chart/embed-chart.component";
 import { embedElementConfig } from "./app/embed/embed-element.config";
-import { embedChartRoutes } from "./app/embed/chart/embed-chart.routes";
+import { embedChartRoutesEager } from "./app/embed/chart/embed-chart.routes-eager";
 import "./main-base-element";
 
 createApplication({
    providers: [
       ...embedElementConfig.providers,
-      provideRouter(embedChartRoutes)
+      // Use the eager route variant here (not embedChartRoutes) -- see the comment on
+      // embedChartRoutesEager for why: EmbedChartComponent is always needed immediately in this
+      // bundle (it's created below regardless), so the lazy loadComponent() portal routing uses
+      // only costs this single-component bundle a broken build (Bug #76468).
+      provideRouter(embedChartRoutesEager)
    ]
 }).then(app => {
    const embedChart = createCustomElement(EmbedChartComponent, {injector: app.injector});

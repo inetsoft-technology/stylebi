@@ -60,7 +60,7 @@ import {
    ActionsContextmenuComponent
 } from "../../widget/fixed-dropdown/actions-contextmenu.component";
 import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
-import { EMBED_CHART_URL_MATCHER } from "./embed-chart.routes";
+import { EMBED_CHART_URL_MATCHER } from "./embed-chart-url-matcher";
 import { DownloadService } from "../../../../../shared/download/download.service";
 import { TooltipService } from "../../widget/tooltip/tooltip.service";
 import { ShadowDomService } from "../shadow-dom.service";
