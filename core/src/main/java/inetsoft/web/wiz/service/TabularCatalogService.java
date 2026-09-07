@@ -96,13 +96,11 @@ public class TabularCatalogService {
          if(ref == null || ref.id() == null || ref.id().isBlank()) {
             throw new Exception("Data source '" + dsName + "' returned a dataset with a blank id.");
          }
-         if(ref.id().contains(".")) {
-            // TabularDatasetRef.id's javadoc: "Must not contain a '.' character" — wiz's own
-            // bareTableName/sourceMatches split a non-FILE source on '.', so a dotted id would
-            // silently collide two different datasets, or resolve to the wrong one, downstream.
-            throw new Exception("Data source '" + dsName + "' returned a dataset id '" + ref.id() +
-               "' containing '.', which TabularDatasetRef.id's contract forbids.");
-         }
+         // No '.'-containing check here: a TabularDatasetRef.id is opaque, and an id genuinely
+         // containing '.' (an Elasticsearch ILM/rollover index name, say) is legal. wiz's own
+         // bareTableName/sourceMatches now treat a METADATA source as opaque instead of splitting
+         // it, which is the fix this check used to stand in for -- see TabularDatasetRef.id's
+         // javadoc.
          if(!seen.add(ref.id())) {
             // TabularDatasetRef.id's javadoc: "must be non-blank and unique within one catalog."
             // A duplicate becomes two DatabaseTableInfo rows with an identical table field, and a

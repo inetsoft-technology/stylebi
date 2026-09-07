@@ -36,7 +36,19 @@ import java.io.OutputStreamWriter;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 
-public class ElasticRestRuntime extends TabularRuntime {
+public class ElasticRestRuntime extends TabularRuntime implements TabularCatalogProvider {
+   @Override
+   public TabularCatalog listDatasets(TabularDataSource<?> dataSource) throws Exception {
+      return ElasticCatalog.listDatasets((ElasticRestDataSource) dataSource);
+   }
+
+   @Override
+   public TabularDatasetSchema describeDataset(TabularDataSource<?> dataSource, String datasetId)
+      throws Exception
+   {
+      return ElasticCatalog.describeDataset((ElasticRestDataSource) dataSource, datasetId);
+   }
+
    public XTableNode runQuery(TabularQuery query0, VariableTable params) {
       ElasticRestQuery query = (ElasticRestQuery) query0;
       boolean expanded = query.isExpanded();
@@ -115,13 +127,79 @@ public class ElasticRestRuntime extends TabularRuntime {
       }
    }
 
-   private URLConnection getConnection(ElasticRestQuery query) throws Exception {
-      ElasticRestDataSource ds = (ElasticRestDataSource) query.getDataSource();
+   /**
+    * Reads one of the cluster's metadata endpoints with a GET and returns the response body.
+    *
+    * <p><b>This exists because {@link #getConnection} cannot be reused for a metadata read, and it
+    * must not be "simplified" back into it.</b> {@code getConnection} calls
+    * {@code conn.setDoOutput(true)} unconditionally, which makes {@link HttpURLConnection} issue a
+    * POST, and it writes {@code query.getFilter()} as the request body. {@code _search} accepts
+    * POST, so {@code runQuery} is unaffected — but neither endpoint {@link ElasticCatalog} reads
+    * does. Measured against Elasticsearch 7.9.2:
+    *
+    * <ul>
+    * <li>{@code POST /_cat/indices} answers HTTP 405. It is a GET-only endpoint.</li>
+    * <li>{@code POST /{index}/_mapping} with no body answers HTTP 400 — and <b>with</b> a body it
+    *     is not a read at all: it is the mapping-UPDATE API, answers 200, and adds the fields the
+    *     body names to the live index. A mapping addition cannot be undone without reindexing.
+    *     So routing a catalog read through {@code getConnection} would not merely fail; given a
+    *     query carrying a filter it would write to the user's index, which
+    *     {@link TabularCatalogProvider} forbids in as many words ("must not mutate the passed data
+    *     source beyond what a normal connection already does").</li>
+    * </ul>
+    *
+    * <p>Only the basic-auth header and the URL joining are shared, through {@link #applyBasicAuth}
+    * and {@link #joinURL}.
+    *
+    * <p>A non-2xx response is turned into an exception carrying the status and the server's own
+    * error body, rather than the bare {@code IOException} {@code getInputStream} throws on its own —
+    * Elasticsearch explains itself well in that body (an unknown index answers 404 with an
+    * {@code index_not_found_exception}) and the SPI's callers surface the message to a user.
+    *
+    * @param path already-encoded, and prefixed with {@code /}. This method does not itself
+    *             validate an index name embedded in {@code path} — it trusts the caller. For
+    *             {@link ElasticCatalog}, that trust is warranted only because
+    *             {@link ElasticCatalog#validateIndexName} rejects a {@code datasetId} containing a
+    *             character Elasticsearch itself forbids (space, {@code \/*?"<>|,#}), or shaped
+    *             like {@code .}/{@code ..}/a leading {@code +}, before ever building a path from
+    *             it. That check cannot and does not confirm the id came from this data source's
+    *             own {@code listDatasets} — the SPI does not let a connector verify that, and
+    *             {@code SharepointOnlineCatalog}'s class javadoc argues at length why that gap is
+    *             accepted SPI-wide rather than fixed per-connector. Percent-encoding beyond what
+    *             {@link #joinURL} already does is unnecessary only because of the character
+    *             restriction above, not because of anything about the caller.
+    */
+   static String getMetadata(ElasticRestDataSource ds, String path) throws Exception {
+      String urlString = joinURL(ds.getURL(), path);
+      HttpURLConnection conn = (HttpURLConnection) new URL(urlString).openConnection();
+      conn.setRequestMethod("GET");
+      conn.setRequestProperty("Accept", "application/json");
+      applyBasicAuth(conn, ds);
+
+      int status = conn.getResponseCode();
+
+      if(status < 200 || status >= 300) {
+         String body;
+
+         try(InputStream error = conn.getErrorStream()) {
+            body = error == null ? "" : IOUtils.toString(error, StandardCharsets.UTF_8);
+         }
+         catch(Exception ignore) {
+            body = "";
+         }
+
+         throw new Exception("Elasticsearch answered HTTP " + status + " for " + urlString +
+                             (body.isEmpty() ? "" : ": " + body));
+      }
+
+      try(InputStream input = conn.getInputStream()) {
+         return IOUtils.toString(input, StandardCharsets.UTF_8);
+      }
+   }
+
+   private static void applyBasicAuth(URLConnection conn, ElasticRestDataSource ds) {
       String user = ds.getUser();
       String password = ds.getPassword();
-
-      URL url = new URL(createURL(query));
-      URLConnection conn = url.openConnection();
 
       if(user != null && password != null) {
          String credential = new String(
@@ -129,6 +207,15 @@ public class ElasticRestRuntime extends TabularRuntime {
             StandardCharsets.US_ASCII);
          conn.setRequestProperty("Authorization", "Basic " + credential);
       }
+   }
+
+   private URLConnection getConnection(ElasticRestQuery query) throws Exception {
+      ElasticRestDataSource ds = (ElasticRestDataSource) query.getDataSource();
+
+      URL url = new URL(createURL(query));
+      URLConnection conn = url.openConnection();
+
+      applyBasicAuth(conn, ds);
 
       conn.setDoOutput(true);
 
@@ -146,9 +233,15 @@ public class ElasticRestRuntime extends TabularRuntime {
 
    private String createURL(ElasticRestQuery query) {
       ElasticRestDataSource ds = (ElasticRestDataSource) query.getDataSource();
-      String url = ds.getURL();
-      String suffix = query.getSuffix();
+      return joinURL(ds.getURL(), query.getSuffix());
+   }
 
+   /**
+    * Appends a suffix to the data source URL without doubling or dropping the separating slash.
+    * Extracted from {@link #createURL} so {@link #getMetadata} joins its paths the same way a query
+    * does, rather than growing a second, subtly different copy of this rule.
+    */
+   private static String joinURL(String url, String suffix) {
       if(suffix != null) {
           if(url.endsWith("/") && suffix.startsWith("/")) {
              url += suffix.substring(1);

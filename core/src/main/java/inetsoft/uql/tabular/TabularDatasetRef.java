@@ -20,41 +20,30 @@ package inetsoft.uql.tabular;
 /**
  * One dataset a tabular data source holds.
  *
- * @param id the connector's own handle for this dataset, opaque to core. It is the ONLY token that
- *           travels: the caller hands it back verbatim to
+ * @param id the connector's own handle for this dataset, fully opaque to core. It is the ONLY
+ *           token that travels: the caller hands it back verbatim to
  *           {@link TabularCatalogProvider#describeDataset}, and it is what identifies the dataset
  *           in every {@link TabularRelationship} of the same catalog. Must be non-blank and unique
  *           within one catalog, and must remain stable across calls for an unchanged source.
  *
- *           <p><b>Must not contain a {@code .} character.</b> This id is carried verbatim into
+ *           <p><b>May contain a {@code .} character.</b> A connector-native id is not a qualified
+ *           name, and a dot in it is not special — an Elasticsearch ILM/rollover index name
+ *           ({@code logs-2026.09.04}) is one ordinary example. This id is carried verbatim into
  *           {@code OsiDataset.source} on the wiz side ({@code TabularCatalogService.toDataset}
- *           does {@code dataset.setSource(schema.datasetId())}). wiz's own
- *           {@code bareTableName(source, category)}
- *           ({@code wiz-services/src/v1/services/tabularBinding.ts:68-71}) exempts only the
- *           {@code FILE} category from splitting {@code source} on {@code "."}. Every other
- *           category still has {@code source} split on {@code "."}, keeping only the last
- *           segment — {@code METADATA} included. <b>That has NOT been fixed.</b> Nothing in wiz
- *           exempts a METADATA id from the split today. Its sibling {@code sourceMatches}
- *           ({@code wiz-services/src/services/tableDocResolver.ts:27-33}) is worse: it takes no
- *           category parameter at all and always splits.
+ *           does {@code dataset.setSource(schema.datasetId())}), and wiz treats a METADATA
+ *           source as opaque end to end: {@code bareTableName}/{@code sourceMatches}
+ *           (wiz's {@code tabularBinding.ts}/{@code tableDocResolver.ts}) no longer split a
+ *           METADATA {@code source} on {@code "."} the way they still do for a JDBC source, whose
+ *           id genuinely is a qualified name meant to have its qualifier stripped.
  *
- *           <p>Splitting on {@code "."} is correct for a JDBC source, whose id genuinely is a
- *           qualified name meant to have its qualifier stripped. It is wrong for an opaque
- *           connector-native id, which was never a qualified name: two ids {@code "A.B"} and
- *           {@code "C.B"} would both bare-reduce to {@code "B"} and be reported as duplicates of
- *           each other, and a lookup could resolve to the wrong dataset. This javadoc constraint
- *           — no dot in the id — is the SPI's only defense against that today, and it holds only
- *           because OData's own EDM grammar happens to forbid a dot in an entity set name;
- *           nothing in this codebase enforces it for a connector that does not have that
- *           accident of grammar in its favor.
- *
- *           <p>A connector whose native identity is composite (e.g. SharePoint's
- *           {@code site → list}, named in this SPI's design doc as the first case expected to need
- *           one) must therefore either join its parts with something other than {@code .}, or this
- *           constraint has to be revisited together with making {@code bareTableName}/
- *           {@code sourceMatches} treat a METADATA id as opaque instead of qualified — the more
- *           correct fix, deliberately not done as a partial patch here, since
- *           {@code sourceMatches} has no category parameter and fixing only dedup while leaving
- *           resolution wrong would be worse than fixing neither.
+ *           <p>This used to be a hard constraint — "must not contain a {@code .} character" — and
+ *           {@code TabularCatalogService} enforced it by throwing, aborting an entire catalog for
+ *           any single dotted id. That was a producer-side guard against a consumer that could not
+ *           yet tell an opaque id from a qualified one; the consumer has since been fixed
+ *           directly (wiz's opaque-id handling above), so the guard was removed rather than kept
+ *           as a redundant, and now wrong, restriction on every connector. A connector whose
+ *           native identity is composite (e.g. SharePoint's {@code site → list}) may still choose
+ *           to join its parts with a separator other than {@code .} — nothing requires a dot — but
+ *           nothing in the SPI forbids one either.
  */
 public record TabularDatasetRef(String id) {}
