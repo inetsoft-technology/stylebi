@@ -29,16 +29,16 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Covers charter assertions A9 and B5.
  *
- * <p>A9's reflection check, honestly scoped: {@code core}'s test classpath cannot see ANY of the 12
- * production {@link TabularCatalogProvider} implementers — not just the 3 that live in the separate
+ * <p>A9's reflection check, honestly scoped: {@code core}'s test classpath cannot see ANY of the 13
+ * production {@link TabularCatalogProvider} implementers — not just the 4 that live in the separate
  * enterprise reactor, but all 9 community connectors too, because the dependency direction is
  * connector to {@code core}, never the reverse. Running this from {@code core} therefore verifies
- * zero implementers by reflection today; what makes A9 true for all 12 is the constructive argument
+ * zero implementers by reflection today; what makes A9 true for all 13 is the constructive argument
  * in the design doc (the two methods are new, and no connector file changes this round), not this
  * test.
  *
  * <p>This test exists so that fact is asserted, not silently assumed:
- * {@code knownImplementersAreNotOnClasspath_documentedLimitOfThisModule} pins the 12 names and
+ * {@code knownImplementersAreNotOnClasspath_documentedLimitOfThisModule} pins the 13 names and
  * fails loudly the day one becomes loadable from {@code core} — at which point
  * {@code resolvesToInterfaceDefaultWhenLoadable} (which already loops over the same list and skips
  * whatever it cannot load) starts actually checking that one, with no code change needed here.
@@ -58,7 +58,8 @@ class TabularCatalogProviderImplementerCanaryTest {
       "inetsoft.uql.sharepoint.SharepointOnlineRuntime",
       "inetsoft.uql.facebook.marketing.FBAdInsightsRuntime",
       "inetsoft.uql.googleanalyticsga4.AnalyticsRuntime",
-      "inetsoft.uql.sforce.SForceRuntime");
+      "inetsoft.uql.sforce.SForceRuntime",
+      "inetsoft.uql.sapjco2.table.SAPTableRuntime");
 
    @Test
    void knownImplementersAreNotOnClasspath_documentedLimitOfThisModule() {
