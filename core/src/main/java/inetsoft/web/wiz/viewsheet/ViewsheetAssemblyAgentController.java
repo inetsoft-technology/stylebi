@@ -1119,13 +1119,23 @@ public class ViewsheetAssemblyAgentController {
          viewsheetService.setViewsheet(rvs.getViewsheet(), entry, xp, true, true);
          rvs.setEntry(entry);
 
-         // Parity audit L10 Group B #3: SaveViewsheetDialogService.saveViewsheet (Save-As dialog
-         // path) and ComposerViewsheetService.saveViewsheet (plain in-place save) both propagate a
-         // pending binding rename to dependent assets via fixRenameDepEntry+renameDep -- this agent
-         // path called neither, so a rename made during the session was silently dropped on save.
-         // No human is present here to answer "update dependent bindings?", so default to "yes",
-         // same rationale as WorksheetAgentController.save()'s own PVA-011 fix. Both calls are
-         // no-ops when nothing was renamed this session.
+         // Parity audit L10 Group B #3: this agent path previously called neither
+         // fixRenameDepEntry nor renameDep, so a rename made during the session was silently
+         // dropped on save -- no path here propagated a pending binding rename to dependent assets
+         // at all.
+         //
+         // Review follow-up (PR stylebi#5045): this is a deliberate DEVIATION from both UI save
+         // paths, not a mirror of either -- neither actually calls both methods unconditionally.
+         // SaveViewsheetDialogService.saveViewsheet (Save-As dialog path) calls both, but only when
+         // model.isUpdateDepend() is true. ComposerViewsheetService.saveViewsheet (plain in-place
+         // save) calls only renameDep (never fixRenameDepEntry), also gated on
+         // event.isUpdateDepend(), and explicitly discards the pending rename via clearRenameDep
+         // when that flag is false -- a choice this agent path has no equivalent of. No human is
+         // present here to answer "update dependent bindings?", so this path always answers "yes"
+         // rather than offering the UI's own discard option, same rationale as
+         // WorksheetAgentController.save()'s own PVA-011 fix. Safe to call unconditionally either
+         // way: both methods are no-ops when renameInfoMap has nothing pending for this runtime id
+         // (WorksheetEngine.fixRenameDepEntry/renameDep both return immediately on a null lookup).
          viewsheetService.fixRenameDepEntry(rvs.getID(), entry);
          viewsheetService.renameDep(rvs.getID());
 
