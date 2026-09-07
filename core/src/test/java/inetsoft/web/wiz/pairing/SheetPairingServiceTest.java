@@ -31,6 +31,7 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.wiz.script.ScriptTarget;
 import org.junit.jupiter.api.Test;
 
 import java.security.Principal;
@@ -75,6 +76,14 @@ import static org.mockito.Mockito.when;
  * [EditorContext: IDOR]      mint against a runtimeId the caller does not own fails identically
  *                            whether or not the named assembly exists -- the failure must never
  *                            become an oracle for what exists on someone else's open sheet
+ * [EditorContext: conditionValue ok]   mint accepts a worksheetConditionValue editorContext
+ *                            naming a column the worksheet runtime has
+ * [EditorContext: conditionValue no name] mint refuses a worksheetConditionValue context that
+ *                            carries no name
+ * [EditorContext: conditionValue no column] mint refuses a worksheetConditionValue context
+ *                            naming a column the table does not have
+ * [Kinds: exhaustive]        every ScriptTarget.Kind wire name is in RECOGNIZED_KINDS -- catches
+ *                            a new Kind added there but never wired into this hand-maintained list
  */
 /*
  * @WizAgentTestSupport (which itself carries @Tag("core")) replaces a bare @Tag: the
@@ -464,6 +473,20 @@ class SheetPairingServiceTest {
       assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
       assertTrue(ex.getMessage().contains("NoSuchColumn"),
                  "message must name what was asked for: " + ex.getMessage());
+   }
+
+   /**
+    * Would have caught stylebi's worksheetConditionValue regression the moment
+    * {@code ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE} was added but never wired into
+    * {@code RECOGNIZED_KINDS} -- mirrors {@code PaneScopeServiceTest#everyKindIsClassifiedByExactlyOneGuard}.
+    */
+   @Test
+   void everyScriptTargetKindIsRecognized() {
+      for(ScriptTarget.Kind k : ScriptTarget.Kind.values()) {
+         assertTrue(SheetPairingService.RECOGNIZED_KINDS.contains(k.wireName()),
+            "ScriptTarget.Kind '" + k.wireName() + "' is missing from " +
+            "SheetPairingService.RECOGNIZED_KINDS -- mint would refuse it as an unknown kind.");
+      }
    }
 
    /**

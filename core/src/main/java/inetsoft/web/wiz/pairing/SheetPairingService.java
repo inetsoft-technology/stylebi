@@ -59,7 +59,7 @@ public class SheetPairingService {
     * packages depend on each other in both directions. An unrecognized kind is refused here, at
     * mint time, rather than left to surface later at {@code ScriptTarget.Kind.fromWire}.
     */
-   private static final List<String> RECOGNIZED_KINDS = List.of(
+   static final List<String> RECOGNIZED_KINDS = List.of(
       "viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick", "calcField",
       "worksheetExpression", "worksheetCondition", "worksheetConditionValue");
 
@@ -255,10 +255,10 @@ public class SheetPairingService {
    }
 
    /**
-    * The two worksheet kinds addressed by (table, field) rather than by assembly alone --
+    * The worksheet kinds addressed by (table, field) rather than by assembly alone --
     * exactly like {@code calcField}, and validated the same way (whole-branch review finding 3).
     *
-    * <p>Before this, both fell through to the generic "does the assembly exist" branch, which
+    * <p>Before this, these fell through to the generic "does the assembly exist" branch, which
     * neither requires nor verifies {@code name}. "New expression column" opens the formula editor
     * with no {@code formulaName}, so the mint carried no name; the mint SUCCEEDED, {@code status}
     * reported a healthy pane-scoped session, and then {@code PaneScopeService.matchesGrant}
@@ -271,15 +271,15 @@ public class SheetPairingService {
       List.of("worksheetExpression", "worksheetCondition", "worksheetConditionValue");
 
    /**
-    * Verifies a {@code worksheetExpression}/{@code worksheetCondition} context names a column
-    * that actually exists, mirroring the {@code calcField} branch against the
-    * {@link TableAssembly}'s own column selection.
+    * Verifies a {@code worksheetExpression}/{@code worksheetCondition}/
+    * {@code worksheetConditionValue} context names a column that actually exists, mirroring the
+    * {@code calcField} branch against the {@link TableAssembly}'s own column selection.
     *
     * <p>{@code worksheetExpression} is checked against EXPRESSION columns specifically, matching
     * on the same {@code ExpressionRef} name/attribute pair {@code WorksheetScriptService} reads
     * and writes through, so a grant cannot be minted for a location that service would then
-    * refuse. {@code worksheetCondition} is checked against any column, since adding a condition
-    * to a field that has none yet is legitimate.
+    * refuse. {@code worksheetCondition} and {@code worksheetConditionValue} are checked against
+    * any column, since adding a condition to a field that has none yet is legitimate.
     */
    private static void validateWorksheetColumnContext(RuntimeSheet rs, EditorContext ctx)
       throws PairingException
