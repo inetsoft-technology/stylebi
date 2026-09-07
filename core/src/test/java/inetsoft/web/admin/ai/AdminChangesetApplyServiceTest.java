@@ -778,11 +778,9 @@ class AdminChangesetApplyServiceTest {
     */
    @Test
    void planHashMismatchExceptionScrubsTaskTokenFromCurrent() {
-      List<AdminChangeRequest> changes = List.of(
-         change("property", "old", "new"));
       ResolvedPlan planWithToken = new ResolvedPlan(
          "original task",
-         changes,
+         List.of(),
          false,
          false,
          "hash123",
@@ -790,13 +788,13 @@ class AdminChangesetApplyServiceTest {
 
       AdminChangesetApplyService.PlanHashMismatchException ex =
          new AdminChangesetApplyService.PlanHashMismatchException(
-            planWithToken, "hash456");
+            planWithToken);
 
       assertNull(ex.current().taskToken(),
          "PlanHashMismatchException must scrub taskToken");
       assertEquals(new ResolvedPlan(
          "original task",
-         changes,
+         List.of(),
          false,
          false,
          "hash123",
@@ -812,11 +810,9 @@ class AdminChangesetApplyServiceTest {
     */
    @Test
    void taskTokenMismatchExceptionScrubsTaskTokenFromCurrent() {
-      List<AdminChangeRequest> changes = List.of(
-         change("property", "old", "new"));
       ResolvedPlan planWithToken = new ResolvedPlan(
          "original task",
-         changes,
+         List.of(),
          false,
          false,
          "hash123",
@@ -824,13 +820,14 @@ class AdminChangesetApplyServiceTest {
 
       AdminChangesetApplyService.TaskTokenMismatchException ex =
          new AdminChangesetApplyService.TaskTokenMismatchException(
-            planWithToken);
+            planWithToken,
+            "taskToken: does not match the current plan; re-review before applying");
 
       assertNull(ex.current().taskToken(),
          "TaskTokenMismatchException must scrub taskToken");
       assertEquals(new ResolvedPlan(
          "original task",
-         changes,
+         List.of(),
          false,
          false,
          "hash123",
