@@ -114,6 +114,12 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                           {@code null} only if the assembly carries no offset at all
     * @param y                  the assembly's vertical pixel offset on the worksheet canvas;
     *                           {@code null} only if the assembly carries no offset at all
+    * @param referencedVariables the worksheet variables this table's SQL or conditions reference
+    *                           (declared and undeclared alike), by name; empty when it references
+    *                           none. For a SQL-bound table this resolves the actual name-placeholder
+    *                           tokens in its query; for any other table type it reflects whatever
+    *                           its own filter/ranking/TopN conditions reference, recursively
+    *                           aggregated across upstream sources for a join, concat or mirror table
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record TableModel(
@@ -138,7 +144,8 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       boolean visibleInViewsheet,
       String mode,
       Integer x,
-      Integer y
+      Integer y,
+      List<String> referencedVariables
    ) {}
 
    /**

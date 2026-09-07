@@ -24,16 +24,20 @@ import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.jdbc.JDBCQuery;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.web.wiz.pairing.TestWorksheets;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
 
 import java.awt.Point;
 import java.util.List;
@@ -294,6 +298,123 @@ class WorksheetReadServiceTest {
 
       assertEquals("BOTTOM_N", ranking.operation());
       assertEquals(List.of("10"), ranking.values());
+   }
+
+   // ---------------------------------------------------------------------------
+   // referencedVariables (WSQ-001)
+   // ---------------------------------------------------------------------------
+
+   /**
+    * WSQ-001: a SQL-bound table's name-placeholder tokens must be surfaced, resolved the same
+    * way {@code SQLBoundTableAssembly.getAllVariables()} itself resolves them for the native
+    * Composer SQL Query dialog and {@code add_sql_query}'s own undeclared-variable detection --
+    * i.e. via {@code XDataService.getQueryParameters}, not a regex over the raw SQL string.
+    */
+   @Test
+   void sqlBoundTableReportsVariableResolvedFromQueryParameters() throws Exception {
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly t = new SQLBoundTableAssembly(ws, "SqlTable1");
+      JDBCQuery query = new JDBCQuery();
+      ((SQLBoundTableAssemblyInfo) t.getInfo()).setQuery(query);
+      ws.addAssembly(t);
+
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      when(assetRepository.getSession()).thenReturn(new Object());
+      XRepository xRepository = mock(XRepository.class);
+      UserVariable stateVar = new UserVariable("state");
+      when(xRepository.getQueryParameters(any(), eq(query), eq(true)))
+         .thenReturn(new UserVariable[]{ stateVar });
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class);
+          MockedStatic<XRepository> xrepositoryStatic = mockStatic(XRepository.class))
+      {
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+         xrepositoryStatic.when(XRepository::getRepository).thenReturn(xRepository);
+
+         WorksheetModel.TableModel tm = tableNamed(read(ws), "SqlTable1");
+         assertEquals(List.of("state"), tm.referencedVariables());
+      }
+   }
+
+   /**
+    * The field must show every referenced variable, declared or not -- unlike
+    * {@code detectUndeclaredVariables}, which filters out anything already present in the live
+    * {@code VariableTable} (see the WSQ-001 refute's recheck round 2). Declaring "state" as a
+    * worksheet variable assembly must not make it disappear from referencedVariables.
+    */
+   @Test
+   void sqlBoundTableStillReportsAVariableThatIsAlreadyDeclared() throws Exception {
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly t = new SQLBoundTableAssembly(ws, "SqlTable1");
+      JDBCQuery query = new JDBCQuery();
+      ((SQLBoundTableAssemblyInfo) t.getInfo()).setQuery(query);
+      ws.addAssembly(t);
+
+      DefaultVariableAssembly declared = new DefaultVariableAssembly(ws, "state");
+      declared.setVariable(new AssetVariable("state"));
+      ws.addAssembly(declared);
+
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      when(assetRepository.getSession()).thenReturn(new Object());
+      XRepository xRepository = mock(XRepository.class);
+      when(xRepository.getQueryParameters(any(), eq(query), eq(true)))
+         .thenReturn(new UserVariable[]{ new UserVariable("state") });
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class);
+          MockedStatic<XRepository> xrepositoryStatic = mockStatic(XRepository.class))
+      {
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+         xrepositoryStatic.when(XRepository::getRepository).thenReturn(xRepository);
+
+         WorksheetModel.TableModel tm = tableNamed(read(ws), "SqlTable1");
+         assertEquals(List.of("state"), tm.referencedVariables(),
+            "a declared variable must still be reported -- referencedVariables is not the "
+               + "undeclared-only filter detectUndeclaredVariables applies");
+      }
+   }
+
+   @Test
+   void sqlBoundTableWithNoPlaceholderTokensReportsEmptyNotNull() throws Exception {
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly t = new SQLBoundTableAssembly(ws, "SqlTable1");
+      JDBCQuery query = new JDBCQuery();
+      ((SQLBoundTableAssemblyInfo) t.getInfo()).setQuery(query);
+      ws.addAssembly(t);
+
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      when(assetRepository.getSession()).thenReturn(new Object());
+      XRepository xRepository = mock(XRepository.class);
+      when(xRepository.getQueryParameters(any(), eq(query), eq(true)))
+         .thenReturn(new UserVariable[0]);
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class);
+          MockedStatic<XRepository> xrepositoryStatic = mockStatic(XRepository.class))
+      {
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+         xrepositoryStatic.when(XRepository::getRepository).thenReturn(xRepository);
+
+         WorksheetModel.TableModel tm = tableNamed(read(ws), "SqlTable1");
+         assertNotNull(tm.referencedVariables());
+         assertTrue(tm.referencedVariables().isEmpty());
+      }
+   }
+
+   /**
+    * Refute recheck round 2, point 3: a non-SQL-bound table is not guaranteed to report an empty
+    * list -- {@code AbstractTableAssembly.getAllVariables()} resolves whatever its own filter
+    * conditions reference. An embedded table with a variable-bound filter must report it, the
+    * same as a SQL-bound table would.
+    */
+   @Test
+   void nonSqlBoundTableReportsVariableReferencedByItsOwnFilterCondition() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "region");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.addFilter(t, "region", "=", "$(region)");
+
+      WorksheetModel.TableModel tm = tableNamed(read(ws), "T");
+      assertEquals(List.of("region"), tm.referencedVariables());
    }
 
    private static WorksheetModel.TableModel tableNamed(WorksheetModel m, String name) {
