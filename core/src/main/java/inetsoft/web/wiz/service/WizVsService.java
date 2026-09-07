@@ -4915,6 +4915,10 @@ public class WizVsService {
                                                      VisualizationConfig config)
    {
       CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, name);
+      // Chat-generated crosstabs default to Shrink to Fit = true (bug #76316, UD-003); the
+      // server default (TableDataVSAssemblyInfo) is false, which looks cramped/misaligned
+      // for AI-authored crosstabs shown in the chat panel.
+      crosstab.getCrosstabInfo().setShrinkValue(true);
 
       if(config != null && config.getBindingInfo() instanceof CrosstabBinding binding) {
          VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
