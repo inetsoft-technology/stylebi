@@ -369,6 +369,11 @@ public class TabularCatalogService {
       OsiDataset dataset = new OsiDataset();
       dataset.setName(schema.datasetId());
       dataset.setSource(schema.datasetId());
+
+      if(schema.description() != null && !schema.description().isBlank()) {
+         dataset.setDescription(schema.description());
+      }
+
       dataset.setPrimaryKey(schema.keyColumns() == null || schema.keyColumns().isEmpty() ?
          null : schema.keyColumns());
       dataset.setFields(fields);
