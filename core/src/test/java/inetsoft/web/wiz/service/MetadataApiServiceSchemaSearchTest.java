@@ -17,9 +17,22 @@
  */
 package inetsoft.web.wiz.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.XDataSource;
+import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.jdbc.JDBCDataSource;
+import inetsoft.web.composer.AssetTreeService;
+import inetsoft.web.portal.controller.database.DataSourceService;
+import inetsoft.web.wiz.model.DatabaseTableInfo;
+import inetsoft.web.wiz.model.DatabaseTableMeta;
+import inetsoft.web.wiz.model.DatasourceTablesResponse;
+import inetsoft.web.wiz.model.SchemaSearchResponse;
+import inetsoft.web.wiz.request.SchemaSearchRequest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,9 +40,19 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.security.Principal;
+import java.util.Collections;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 /**
  * Bug #76350 PSD-001: search_schema("category") missed a table literally named "categories" —
@@ -85,5 +108,122 @@ class MetadataApiServiceSchemaSearchTest {
       assertEquals("wine", MetadataApiService.stem("wines"));
       assertEquals("order", MetadataApiService.stem("orders"));
       assertEquals("glass", MetadataApiService.stem("glass"));
+   }
+
+   /**
+    * Bug #76449 wbs006: searchSchema("", fields=[...]) short-circuited to an empty result
+    * before request.getFields() was ever read, so a fields-only search could never find a
+    * column that genuinely exists. These drive {@code searchSchema} itself (not just the
+    * static helpers above) with {@code getDatabaseTables}/{@code getTableDetails} stubbed out
+    * via a spy, since the JDBC metadata-provider plumbing they walk is unrelated to the
+    * short-circuit-ordering bug under test.
+    */
+   private MetadataApiService createSpiedService(DatasourceTablesResponse tablesResponse,
+                                                   DatabaseTableMeta tableMeta)
+      throws Exception
+   {
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSourceFullNames()).thenReturn(new String[] { "Examples/Orders" });
+      when(xrepository.getDataSource("Examples/Orders")).thenReturn(mock(JDBCDataSource.class));
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(anyString(), any(ResourceAction.class), any()))
+         .thenReturn(true);
+
+      MetadataApiService service = spy(new MetadataApiService(
+         xrepository, dataSourceService, mock(AssetRepository.class),
+         mock(AssetTreeService.class), new ObjectMapper()));
+
+      doReturn(tablesResponse).when(service).getDatabaseTables(anyString(), any());
+
+      if(tableMeta != null) {
+         doReturn(tableMeta).when(service)
+            .getTableDetails(anyString(), anyString(), any(), any(), any());
+      }
+
+      return service;
+   }
+
+   private DatasourceTablesResponse oneTableFixture(String tableName) {
+      DatabaseTableInfo table = new DatabaseTableInfo();
+      table.setTable(tableName);
+      table.setType("TABLE");
+
+      DatasourceTablesResponse response = new DatasourceTablesResponse();
+      response.setTables(List.of(table));
+      return response;
+   }
+
+   private DatabaseTableMeta columnFixture(String columnName) {
+      DatabaseTableMeta.ColumnMeta column = new DatabaseTableMeta.ColumnMeta();
+      column.setName(columnName);
+      column.setType("INTEGER");
+
+      DatabaseTableMeta meta = new DatabaseTableMeta();
+      meta.setColumns(List.of(column));
+      return meta;
+   }
+
+   @Test
+   void emptyQueryWithFieldsStillFindsMatchingColumns() throws Exception {
+      MetadataApiService service = createSpiedService(
+         oneTableFixture("orders"), columnFixture("PRODUCT_ID"));
+
+      SchemaSearchRequest request = new SchemaSearchRequest();
+      request.setQuery("");
+      request.setFields(List.of("PRODUCT_ID"));
+
+      SchemaSearchResponse response = service.searchSchema(request, mock(Principal.class));
+
+      assertEquals(1, response.getResults().size(),
+         "an empty query with a real fields match must not be short-circuited away");
+      assertEquals("orders", response.getResults().get(0).getTable());
+   }
+
+   @Test
+   void nonsenseQueryWithFieldsMatchesTheSameAsEmptyQuery() throws Exception {
+      MetadataApiService service = createSpiedService(
+         oneTableFixture("orders"), columnFixture("PRODUCT_ID"));
+
+      SchemaSearchRequest request = new SchemaSearchRequest();
+      request.setQuery("zzzznonsense");
+      request.setFields(List.of("PRODUCT_ID"));
+
+      SchemaSearchResponse response = service.searchSchema(request, mock(Principal.class));
+
+      assertEquals(1, response.getResults().size());
+      assertEquals("orders", response.getResults().get(0).getTable());
+   }
+
+   @Test
+   void emptyQueryAndEmptyFieldsStillShortCircuitsToNoResults() throws Exception {
+      MetadataApiService service = createSpiedService(oneTableFixture("orders"), null);
+
+      SchemaSearchRequest request = new SchemaSearchRequest();
+      request.setQuery("");
+      request.setFields(Collections.emptyList());
+
+      SchemaSearchResponse response = service.searchSchema(request, mock(Principal.class));
+
+      assertTrue(response.getResults().isEmpty(),
+         "genuinely empty search criteria (no query, no fields) must still return no results");
+   }
+
+   @Test
+   void queryAndFieldsTogetherStillMatchOnTableNameAloneWhenNoColumnMatches() throws Exception {
+      MetadataApiService service = createSpiedService(
+         oneTableFixture("orders"), columnFixture("UNRELATED_COLUMN"));
+
+      SchemaSearchRequest request = new SchemaSearchRequest();
+      request.setQuery("order");
+      request.setFields(List.of("NOT_A_REAL_COLUMN"));
+
+      SchemaSearchResponse response = service.searchSchema(request, mock(Principal.class));
+
+      assertEquals(1, response.getResults().size(),
+         "a table-name match alone (query 'order' vs table 'orders') must still be included " +
+         "when a fields list is also supplied but contributes no column match -- the fix's " +
+         "queryLower-computation move must not have broken the non-empty-query path");
+      assertEquals("orders", response.getResults().get(0).getTable());
    }
 }

@@ -133,9 +133,19 @@ public class ViewsheetAssemblyAgentController {
     *                      title), sourced from {@code AssetEntry.toView()} — {@code null} if it
     *                      could not be resolved (or, for {@link #openBaseWorksheet}, not resolved
     *                      at all — that path does not go through {@link SheetJoinService#join})
+    * @param concurrentSessionCount how many sessions (including this one) are live on the exact
+    *                      same runtime right now (PSM-001 Change B) — self-inclusive, so a solo
+    *                      join reports {@code 1}, never {@code 0}; advisory only, never a reason
+    *                      this join itself would be refused. {@code null} for
+    *                      {@link #openBaseWorksheet}/{@link #createViewsheet}, same as
+    *                      {@code sheetLabel} — those mint a brand-new runtime directly rather than
+    *                      going through {@link SheetJoinService#join}, so there is no co-occupancy
+    *                      computation to report (a freshly-minted runtime cannot yet have another
+    *                      session on it).
     */
    public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
-                              String sheetType, EditorContext editorContext, String sheetLabel) {}
+                              String sheetType, EditorContext editorContext, String sheetLabel,
+                              Integer concurrentSessionCount) {}
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/join")
    public JoinResponse join(@RequestBody JoinRequest body, Principal user) throws PairingException {
@@ -144,7 +154,7 @@ public class ViewsheetAssemblyAgentController {
       JoinSession session = outcome.session();
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
                               session.sheetType().name().toLowerCase(), session.editorContext(),
-                              outcome.sheetLabel());
+                              outcome.sheetLabel(), outcome.concurrentSessionCount());
    }
 
    /** {@code force} closes a worksheet session already held for this identity instead of
@@ -168,7 +178,8 @@ public class ViewsheetAssemblyAgentController {
       boolean force = body != null && Boolean.TRUE.equals(body.force());
       JoinSession session = openService.openBaseWorksheet(sessionToken, user, force);
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
-                              session.sheetType().name().toLowerCase(), session.editorContext(), null);
+                              session.sheetType().name().toLowerCase(), session.editorContext(), null,
+                              null);
    }
 
    /**
@@ -244,10 +255,11 @@ public class ViewsheetAssemblyAgentController {
       }
 
       // sheetLabel: null, same as openBaseWorksheet -- the newly-created viewsheet is untitled and
-      // unsaved, so there is no resolvable human-readable identity for it yet.
+      // unsaved, so there is no resolvable human-readable identity for it yet. concurrentSessionCount:
+      // null for the same reason as openBaseWorksheet's -- see the field's javadoc above.
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
                               session.sheetType().name().toLowerCase(), session.editorContext(),
-                              null);
+                              null, null);
    }
 
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/model")
@@ -863,11 +875,12 @@ public class ViewsheetAssemblyAgentController {
 
    public record DateComparisonRequest(String assembly, Integer periods, String level,
                                        String endDate, Boolean endToday, String interval,
-                                       Boolean useFacet, Boolean onlyShowMostRecentDate) {
+                                       Boolean useFacet, Boolean onlyShowMostRecentDate,
+                                       String comparisonOption) {
       DateComparisonService.Comparison comparison() {
          return new DateComparisonService.Comparison(
             periods, level, endDate, Boolean.TRUE.equals(endToday), interval, useFacet,
-            onlyShowMostRecentDate);
+            onlyShowMostRecentDate, comparisonOption);
       }
    }
 

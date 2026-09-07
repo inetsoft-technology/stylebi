@@ -4069,6 +4069,15 @@ public abstract class AssetQuery extends PreAssetQuery {
          if(mode != AssetQuerySandbox.RUNTIME_MODE) {
             throw new ExpressionFailedException(-1, null, getTable().getName(), ex);
          }
+         else {
+            // RUNTIME_MODE returns a null table (see fixColumnHeaders(base, ...) below) instead
+            // of rethrowing, so leave the real cause behind for a caller (e.g.
+            // WorksheetPreviewService.preview) that needs to explain the null rather than report
+            // a generic "not found" message. Uses the same thread-local idiom as
+            // XSessionManager.getXNodeTableLens's writer / AssetQuery.getDesignTableLens's reader.
+            XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set(
+               ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage());
+         }
       }
       finally {
          WSExecution.setAssetQuerySandbox(null);

@@ -25,8 +25,11 @@ import inetsoft.report.composition.region.ChartArea;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.vslayout.LayoutInfo;
 import inetsoft.web.binding.service.VSBindingService;
+import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
+import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
 import inetsoft.web.graph.handler.ChartRegionHandler;
 import inetsoft.web.viewsheet.command.ViewsheetCommand;
@@ -151,6 +154,86 @@ class FormatPainterServiceTest {
       assertFalse(commands.get(0).getModel().isVAlignmentEnabled());
       assertFalse(commands.get(1).getModel().isHAlignmentEnabled());
       assertFalse(commands.get(1).getModel().isVAlignmentEnabled());
+   }
+
+   /**
+    * VBS-005: before this guard, a `field` that resolved to nothing on the chart did not error —
+    * it fell all the way through {@code GraphFormatUtil.setBindingTextFormat} to
+    * {@code plot.setTextFormat(fmt)}, silently overwriting the chart's whole shared
+    * {@code PlotDescriptor} default text format with a format meant for one field. This asserts
+    * both that the call now refuses instead, and that the plot's default text format is left
+    * untouched (the real prior bug, not merely "a disconnected format got created").
+    */
+   @Test
+   void refusesATextFieldThatDoesNotResolveToAnyBoundField() {
+      when(viewsheet.getLayoutInfo()).thenReturn(new LayoutInfo());
+
+      // PlotDescriptor always starts with its own fresh default CompositeTextFormat (never
+      // null) — the prior bug replaced this exact instance via plot.setTextFormat(fmt), so the
+      // regression check is identity, not nullity.
+      CompositeTextFormat originalPlotFormat =
+         chart.getChartDescriptor().getPlotDescriptor().getTextFormat();
+
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("currency");
+      format.setFormatSpec("$#,##0");
+
+      FormatVSObjectEvent event = new FormatVSObjectEvent();
+      event.setObjects(new String[0]);
+      event.setCharts(new String[]{ "Chart1" });
+      event.setRegions(new String[]{ "text" });
+      event.setColumnNames(new String[][]{ { "NOT_A_REAL_FIELD" } });
+      event.setIndexes(new int[][]{ { -1 } });
+      event.setFormat(format);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.setFormat("Viewsheet1", event, null, dispatcher, ""));
+      assertTrue(thrown.getMessage().contains("NOT_A_REAL_FIELD"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Chart1"), thrown.getMessage());
+      assertSame(originalPlotFormat,
+                chart.getChartDescriptor().getPlotDescriptor().getTextFormat(),
+                "the plot's shared default text format must not be replaced by a bogus field");
+   }
+
+   /**
+    * VBS-005 correction #1: {@code info.getDCBIndingRef()} only searches
+    * {@code getRuntimeDateComparisonRefs()}, not the full runtime-field lookup
+    * {@code getChartBindable()} itself falls back to
+    * ({@code getFieldByName(columnName, true)} gated on {@code isAppliedDateComparison()}). The
+    * new guard must replicate that fallback, or a legitimately-bound runtime-only field on a
+    * date-comparison chart would incorrectly fail the unresolved-field check.
+    */
+   @Test
+   void resolvesATextFieldThroughTheDateComparisonRuntimeFallback() throws Exception {
+      when(viewsheet.getLayoutInfo()).thenReturn(new LayoutInfo());
+
+      CompositeTextFormat originalPlotFormat =
+         chart.getChartDescriptor().getPlotDescriptor().getTextFormat();
+
+      ChartRef dcOnlyField = mock(ChartRef.class);
+      when(dcOnlyField.getFullName()).thenReturn("DC_ONLY_FIELD");
+
+      VSChartInfo chartInfo = chart.getVSChartInfo();
+      chartInfo.setRTXFields(new ChartRef[]{ dcOnlyField });
+      chartInfo.setRuntimeDateComparisonRefs(new ChartRef[]{ dcOnlyField });
+
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("currency");
+      format.setFormatSpec("$#,##0");
+
+      FormatVSObjectEvent event = new FormatVSObjectEvent();
+      event.setObjects(new String[0]);
+      event.setCharts(new String[]{ "Chart1" });
+      event.setRegions(new String[]{ "text" });
+      event.setColumnNames(new String[][]{ { "DC_ONLY_FIELD" } });
+      event.setIndexes(new int[][]{ { -1 } });
+      event.setFormat(format);
+
+      assertDoesNotThrow(() -> service.setFormat("Viewsheet1", event, null, dispatcher, ""));
+      verify(dcOnlyField).setTextFormat(any());
+      assertSame(originalPlotFormat,
+                chart.getChartDescriptor().getPlotDescriptor().getTextFormat(),
+                "a resolved field must write its own text format, not the plot's shared default");
    }
 
    @Captor ArgumentCaptor<SetCurrentFormatCommand> argCaptor;

@@ -1261,9 +1261,9 @@ public class CrossTabFilter extends AbstractTableLens
     */
    public void setRowTopN(int rcol, int dcol, int topn, boolean reverse, boolean others) {
       if(rcol >= 0 && rcol < rowtopns.length && dcol >= 0 &&
-         dcol < this.dcol.length && topn >= 1)
+         dcol < this.dcol.length)
       {
-         InnerTopNInfo info = new InnerTopNInfo(dcol, topn, reverse, others);
+         InnerTopNInfo info = new InnerTopNInfo(dcol, Math.max(topn, 0), reverse, others);
          rowtopns[rcol] = info;
       }
    }
@@ -1280,9 +1280,9 @@ public class CrossTabFilter extends AbstractTableLens
     */
    public void setColTopN(int ccol, int dcol, int topn, boolean reverse, boolean others) {
       if(ccol >= 0 && ccol < coltopns.length && dcol >= 0 &&
-         dcol < this.dcol.length && topn >= 1)
+         dcol < this.dcol.length)
       {
-         InnerTopNInfo info = new InnerTopNInfo(dcol, topn, reverse, others);
+         InnerTopNInfo info = new InnerTopNInfo(dcol, Math.max(topn, 0), reverse, others);
          coltopns[ccol] = info;
       }
    }
@@ -3902,7 +3902,7 @@ public class CrossTabFilter extends AbstractTableLens
 
    private boolean isOthers(InnerTopNInfo[] topNs) {
       for(InnerTopNInfo topn : topNs) {
-         if(topn == null || topn.n == 0 || topn.n == Integer.MAX_VALUE) {
+         if(topn == null || topn.n == Integer.MAX_VALUE) {
             continue;
          }
 
@@ -5484,7 +5484,7 @@ public class CrossTabFilter extends AbstractTableLens
       topNSections.sort(sc);
 
       assert info != null;
-      int n = (info.n > 0) ? Math.min(info.n, sections.size()) : sections.size();
+      int n = Math.min(Math.max(info.n, 0), sections.size());
 
       // @by billh, 'keep last equal' is not supported, but if we can edit it
       // in topn editor, we should support it

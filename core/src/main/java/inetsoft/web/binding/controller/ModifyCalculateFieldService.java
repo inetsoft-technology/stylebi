@@ -55,6 +55,8 @@ import inetsoft.web.vswizard.command.*;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.vswizard.model.VSWizardEditModes;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -247,9 +249,14 @@ public class ModifyCalculateFieldService {
             calc.setVSAssemblyInfo(calcInfo);
          }
 
-         AggregateInfo ainfo = createAggregateInfo(engine.getAssetRepository(), vs,
-                                                   calc.getAbsoluteName(), calc.getSourceInfo(), principal);
-         calcInfo.setAggregateInfo(ainfo);
+         try {
+            AggregateInfo ainfo = createAggregateInfo(engine.getAssetRepository(), vs,
+                                                      calc.getAbsoluteName(), calc.getSourceInfo(), principal);
+            calcInfo.setAggregateInfo(ainfo);
+         }
+         catch(Exception e) {
+            warnRefreshFailure(dispatcher, "refresh calc table aggregate info", tname, refname, e);
+         }
       }
 
       // remodified other chart/crosstab aggregate info
@@ -310,29 +317,40 @@ public class ModifyCalculateFieldService {
       if(ass instanceof ChartVSAssembly) {
          ChartVSAssembly chart = (ChartVSAssembly) ass;
 
-         if(changeCalcType) {
-            chart.changeBindingCalcType(refname, chart.getVSChartInfo(), cref, event.wizard());
-            chart.getVSChartInfo().setAggregateInfo(new AggregateInfo());
-            chartHandler.fixAggregateInfo(chart.getChartInfo(), vs, null);
+         try {
+            if(changeCalcType) {
+               chart.changeBindingCalcType(refname, chart.getVSChartInfo(), cref, event.wizard());
+               chart.getVSChartInfo().setAggregateInfo(new AggregateInfo());
+               chartHandler.fixAggregateInfo(chart.getChartInfo(), vs, null);
+            }
+            else {
+               chartHandler.fixAggregateInfo(chart.getChartInfo(), vs, chart.getAggregateInfo());
+            }
          }
-         else {
-            chartHandler.fixAggregateInfo(chart.getChartInfo(), vs, chart.getAggregateInfo());
+         catch(Exception e) {
+            warnRefreshFailure(dispatcher, "refresh chart aggregate info", tname, refname, e);
          }
       }
       else if(ass instanceof CrosstabVSAssembly) {
          CrosstabVSAssembly cross = (CrosstabVSAssembly) ass;
-         TableAssembly tbl = VSEventUtil.getTableAssembly(vs, cross.getSourceInfo(),
-                                                          engine.getAssetRepository(), principal);
-         AggregateInfo nainfo = new AggregateInfo();
 
-         if(changeCalcType) {
-            VSEventUtil.createAggregateInfo(tbl, nainfo, null, vs, true);
-         }
-         else {
-            VSEventUtil.createAggregateInfo(tbl, nainfo, cross.getAggregateInfo(), vs, true);
-         }
+         try {
+            TableAssembly tbl = VSEventUtil.getTableAssembly(vs, cross.getSourceInfo(),
+                                                             engine.getAssetRepository(), principal);
+            AggregateInfo nainfo = new AggregateInfo();
 
-         cross.getVSCrosstabInfo().setAggregateInfo(nainfo);
+            if(changeCalcType) {
+               VSEventUtil.createAggregateInfo(tbl, nainfo, null, vs, true);
+            }
+            else {
+               VSEventUtil.createAggregateInfo(tbl, nainfo, cross.getAggregateInfo(), vs, true);
+            }
+
+            cross.getVSCrosstabInfo().setAggregateInfo(nainfo);
+         }
+         catch(Exception e) {
+            warnRefreshFailure(dispatcher, "refresh crosstab aggregate info", tname, refname, e);
+         }
       }
 
       if(event.wizard()) {
@@ -374,10 +392,22 @@ public class ModifyCalculateFieldService {
          VSWizardEditModes.WIZARD_DASHBOARD.equalsIgnoreCase(event.wizardOriginalMode());
 
       if((!event.wizard() || event.remove() && wizardNewVs) && (infoChanged || !create)) {
-         WizardRecommenderUtil.setIgnoreRefreshTempAssembly(event.wizard());
-         VSRefreshEvent refresh = VSRefreshEvent.builder().confirmed(false).build();
-         refreshController.refreshViewsheet(refresh, principal, dispatcher, linkUri);
-         WizardRecommenderUtil.setIgnoreRefreshTempAssembly(null);
+         try {
+            WizardRecommenderUtil.setIgnoreRefreshTempAssembly(event.wizard());
+            VSRefreshEvent refresh = VSRefreshEvent.builder().confirmed(false).build();
+            refreshController.refreshViewsheet(refresh, principal, dispatcher, linkUri);
+         }
+         catch(Exception e) {
+            // A session-less caller (e.g. the wiz agent) has no WebSocket-session-scoped
+            // runtime id for VSRefreshController's own cluster-affinity routing to key on,
+            // so this best-effort post-write refresh can NPE (RuntimeSheetCache.getAffinityKey)
+            // even though the calc field mutation above already committed -- see PCB-006
+            // 04-reverify-after-redeploy.md.
+            warnRefreshFailure(dispatcher, "refresh the viewsheet", tname, refname, e);
+         }
+         finally {
+            WizardRecommenderUtil.setIgnoreRefreshTempAssembly(null);
+         }
       }
 
       if(ass != null) {
@@ -400,6 +430,23 @@ public class ModifyCalculateFieldService {
 
       engine.flushRuntimeSheet(id);
       return null;
+   }
+
+   // The calc field mutation has already committed by the time any of these post-write refresh
+   // steps run (see the try/catch around vs.addCalcField/removeCalcField above) -- a failure here
+   // is a stale-shelf-metadata degradation, not a failed write, so the caller gets a warning
+   // instead of either a false hard error or silent, unreported staleness.
+   private void warnRefreshFailure(CommandDispatcher dispatcher, String step, String tname,
+                                   String refname, Exception e)
+   {
+      LOG.warn("Failed to {} after calc field \"{}\" change on \"{}\" -- the calc field write " +
+               "itself already committed", step, refname, tname, e);
+      MessageCommand command = new MessageCommand();
+      command.setType(MessageCommand.Type.WARNING);
+      command.setMessage("The \"" + refname + "\" calc field change on \"" + tname +
+         "\" was saved, but a secondary step (" + step + ") failed -- some assemblies bound " +
+         "to this table may not reflect the change until the sheet is reopened.");
+      dispatcher.sendCommand(command);
    }
 
    private AggregateInfo createAggregateInfo(AssetRepository engine, Viewsheet vs,
@@ -732,4 +779,6 @@ public class ModifyCalculateFieldService {
    private final VSWizardBindingHandler wizardBindingHandler;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final DataSourceRegistry dataSourceRegistry;
+
+   private static final Logger LOG = LoggerFactory.getLogger(ModifyCalculateFieldService.class);
 }

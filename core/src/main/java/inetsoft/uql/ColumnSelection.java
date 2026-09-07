@@ -365,6 +365,18 @@ public class ColumnSelection implements XMLSerializable, Cloneable, Serializable
             String attr = dr.getAttribute();
             String oname = entity == null || entity.length() == 0 ? attr : entity + "." + attr;
 
+            // fix Bug #76449: match a genuinely table-qualified reference (e.g.
+            // "RETURNS.ORDER_ID") against its entity-qualified form directly, before the
+            // fuzzy fallback below gets a chance to strip the qualifier and match the first
+            // same-named column from ANY table. Without this, a qualified reference to a
+            // column that also carries a display alias (getName() prefers the alias over the
+            // qualified form, so the exact-match loop above can never see it) always fell
+            // through to the fuzzy fallback and could silently resolve to the wrong table's
+            // column when two joined tables share a bare attribute name.
+            if(oname.equals(name)) {
+               return dr;
+            }
+
             if(oname.equals(dr.getName()) && dr.getAttribute().equals(name)) {
                return dr;
             }

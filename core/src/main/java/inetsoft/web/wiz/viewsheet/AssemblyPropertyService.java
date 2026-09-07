@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.composer.model.vs.RangePaneModel;
 import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.web.viewsheet.service.VSInputService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -245,8 +246,55 @@ public class AssemblyPropertyService {
             model = PropertyPath.set(model, entry.getValue(), patch.get(entry.getKey()));
          }
 
+         if(type.equals("gauge") && resolved.values().stream()
+            .anyMatch(path -> path.startsWith("gaugeAdvancedPaneModel.rangePaneModel")))
+         {
+            requireNoInteriorGapInGaugeRangeValues(model);
+         }
+
          writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);
       });
+   }
+
+   /**
+    * A trailing blank {@code rangeValues} entry (e.g. {@code ["60","90","",""]}) is an
+    * unambiguous "extend the last band to the gauge's own max" request -- the renderer
+    * (fillRanges0) now handles that correctly on its own, so it is left to pass through
+    * silently. A <em>blank followed by a populated entry</em> (e.g. {@code ["60","","150"]})
+    * is genuinely ambiguous -- the renderer has no principled way to resolve it and would
+    * silently collapse that band to nothing -- so that shape is refused here instead of
+    * being allowed to reach a plausible-but-wrong render.
+    *
+    * <p>Only invoked by the caller when this call's own patch touches
+    * {@code gaugeAdvancedPaneModel.rangePaneModel}. The human Composer GUI has no equivalent
+    * validation, so a gauge can already have an interior gap saved from that path (or from a
+    * call before this guard existed); an unrelated later patch (e.g. {@code max}) must not be
+    * blocked by state it never touched.
+    */
+   private void requireNoInteriorGapInGaugeRangeValues(Object model) {
+      Object rangePane = PropertyPath.get(model, "gaugeAdvancedPaneModel.rangePaneModel");
+
+      if(!(rangePane instanceof RangePaneModel range)) {
+         return;
+      }
+
+      String[] rangeValues = range.getRangeValues();
+      int lastPopulated = -1;
+
+      for(int i = 0; i < rangeValues.length; i++) {
+         if(rangeValues[i] != null && !rangeValues[i].isEmpty()) {
+            lastPopulated = i;
+         }
+      }
+
+      for(int i = 0; i < lastPopulated; i++) {
+         if(rangeValues[i] == null || rangeValues[i].isEmpty()) {
+            throw new IllegalArgumentException(
+               "rangeValues[" + i + "] is blank but a later entry is set -- rangeValues may " +
+               "only have a blank trailing entry (meaning \"extend to the gauge's own max\"), " +
+               "not a gap in the middle.");
+         }
+      }
    }
 
    // ── convention dispatch ───────────────────────────────────────────────────

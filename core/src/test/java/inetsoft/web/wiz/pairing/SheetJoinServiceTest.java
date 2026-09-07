@@ -72,6 +72,12 @@ import static org.mockito.Mockito.when;
  *                   absent, never fatal
  * [labelDegrades]   resolveSheetLabel degrades to null (not a thrown exception) when reading
  *                   the found runtime's label itself throws (e.g. AssetEntry.toView())
+ * [soloCount]       joining a runtime with no other live session reports concurrentSessionCount
+ *                   == 1 (self-inclusive, never 0) (PSM-001 Change B)
+ * [coOccupiedCount] joining a runtime that already has a live session on it reports the total
+ *                   count including the new joiner
+ * [neverRefuses]    a same-runtime double-join always succeeds -- the count is advisory only,
+ *                   never a refusal ground
  */
 @Tag("core")
 @ExtendWith(MockitoExtension.class)
@@ -554,5 +560,55 @@ class SheetJoinServiceTest {
 
       assertNotNull(outcome.session());
       assertNull(outcome.sheetLabel());
+   }
+
+   // ---------------------------------------------------------------------------
+   // concurrentSessionCount (PSM-001 Change B)
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void soloJoinReportsSelfInclusiveCountOfOneNeverZero() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      String code = pairing.mint("Worksheet/solo-1", ALICE_KEY, "sock-solo", null,
+                                 SheetType.WORKSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      SheetJoinService.JoinOutcome outcome = svc.join(code, alice);
+
+      assertEquals(1, outcome.concurrentSessionCount());
+   }
+
+   @Test
+   void secondJoinOnTheSameRuntimeReportsTheTotalCountIncludingTheNewJoiner() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      String firstCode = pairing.mint("Worksheet/shared-1", ALICE_KEY, "sock-a", null,
+                                      SheetType.WORKSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+      svc.join(firstCode, alice);
+
+      // A second, independent pairing code for the SAME runtimeId (the G12 mechanism: a pairing
+      // code binds to whatever document is already open, not to a dedicated asset).
+      String secondCode = pairing.mint("Worksheet/shared-1", ALICE_KEY, "sock-b", null,
+                                       SheetType.WORKSHEET, null);
+      SheetJoinService.JoinOutcome secondOutcome = svc.join(secondCode, alice);
+
+      assertEquals(2, secondOutcome.concurrentSessionCount());
+   }
+
+   @Test
+   void aSameRuntimeDoubleJoinAlwaysSucceedsTheCountIsAdvisoryOnlyNeverARefusal() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      String firstCode = pairing.mint("Worksheet/shared-2", ALICE_KEY, "sock-a", null,
+                                      SheetType.WORKSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+      svc.join(firstCode, alice);
+
+      String secondCode = pairing.mint("Worksheet/shared-2", ALICE_KEY, "sock-b", null,
+                                       SheetType.WORKSHEET, null);
+
+      // Must not throw -- a high concurrentSessionCount is a signal to surface, never a reason to
+      // refuse the join itself.
+      SheetJoinService.JoinOutcome secondOutcome = svc.join(secondCode, alice);
+      assertNotNull(secondOutcome.session());
    }
 }

@@ -21,6 +21,11 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.Calculator;
+import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,13 +72,68 @@ public class DateComparisonService {
    /**
     * A date-comparison request in the agent vocabulary.
     *
-    * @param periods  how many periods back to compare
-    * @param level    the period level — the date level token, e.g. year, quarter, month
-    * @param endDate  the range end. Required unless {@code endToday} is set.
-    * @param endToday anchor the range on today instead of an explicit end
+    * @param periods          how many periods back to compare
+    * @param level            the period level — the date level token, e.g. year, quarter, month
+    * @param endDate          the range end. Required unless {@code endToday} is set.
+    * @param endToday         anchor the range on today instead of an explicit end
+    * @param comparisonOption what the numbers mean — one of: value, change, percentChange
     */
    public record Comparison(Integer periods, String level, String endDate, boolean endToday,
-                            String interval, Boolean useFacet, Boolean onlyShowMostRecentDate) {}
+                            String interval, Boolean useFacet, Boolean onlyShowMostRecentDate,
+                            String comparisonOption) {}
+
+   /**
+    * The agent vocabulary's comparisonOption tokens, mapped to {@link Calculator}'s constants.
+    * Deliberately only the three the plugin's own schema documents and can send — see
+    * {@code dateComparisonTools.ts}'s {@code normalizeComparisonOption}. {@link
+    * DateComparisonInfo#CHANGE_VALUE}/{@link DateComparisonInfo#PERCENT_VALUE} ("Change and
+    * Value" / "Percent Change and Value" in the interactive Composer's own dialog) are real,
+    * reachable settings, but extending the write side to accept them would be inert without a
+    * matching plugin-schema change to let an agent actually send those tokens — tracked as a
+    * follow-on, not folded into this fix.
+    */
+   private static final Map<String, Integer> COMPARISON_OPTION_WORDS = Map.of(
+      "value", Calculator.VALUE,
+      "change", Calculator.CHANGE,
+      "percentchange", Calculator.PERCENT
+   );
+
+   /**
+    * The inverse of {@link #COMPARISON_OPTION_WORDS}, plus the two composite options the write
+    * side does not (yet) accept but the read side can still name accurately: {@link
+    * DateComparisonInfo#CHANGE_VALUE}/{@link DateComparisonInfo#PERCENT_VALUE}. A value outside
+    * even this wider set (e.g. a {@link Calculator} type this dialog should never produce) is
+    * reported as {@code null} rather than a bare int — this service does not echo raw magic
+    * numbers to the caller.
+    */
+   private static final Map<Integer, String> COMPARISON_OPTION_NAMES = Map.of(
+      Calculator.VALUE, "value",
+      Calculator.CHANGE, "change",
+      Calculator.PERCENT, "percentChange",
+      DateComparisonInfo.CHANGE_VALUE, "changeAndValue",
+      DateComparisonInfo.PERCENT_VALUE, "percentChangeAndValue"
+   );
+
+   /**
+    * Translates the agent vocabulary's comparisonOption word to {@link Calculator}'s numeric
+    * constant, mirroring {@link #normalizeLevel(String)}'s case-insensitive, fail-loud pattern.
+    */
+   private static int normalizeComparisonOption(String option) {
+      Integer code = COMPARISON_OPTION_WORDS.get(option.trim().toLowerCase());
+
+      if(code == null) {
+         throw new IllegalArgumentException(
+            "'comparisonOption' must be one of: value, change, percentChange. Got '" + option +
+            "'.");
+      }
+
+      return code;
+   }
+
+   /** The inverse of {@link #normalizeComparisonOption(String)}, for reporting it back. */
+   private static String comparisonOptionWord(int option) {
+      return COMPARISON_OPTION_NAMES.get(option);
+   }
 
    /** The current settings, normalized. Never echoes the raw cell format. */
    public Map<String, Object> read(String sessionToken, Principal user, String assemblyName)
@@ -98,7 +158,7 @@ public class DateComparisonService {
       }
 
       out.put("enabled", true);
-      out.put("comparisonOption", model.getComparisonOption());
+      out.put("comparisonOption", comparisonOptionWord(model.getComparisonOption()));
       out.put("useFacet", model.isUseFacet());
       out.put("onlyShowMostRecentDate", model.isOnlyShowMostRecentDate());
       out.put("period", describePeriod(model.getPeriodPaneModel()));
@@ -113,6 +173,9 @@ public class DateComparisonService {
     * to change (e.g. a row bound at "month" retargeted to "year" so periods line up), reports
     * the dimension name and the before/after level under {@code retargetedDimension} /
     * {@code retargetedFromLevel} / {@code retargetedToLevel}. Empty when nothing was retargeted.
+    * For a chart, also reports {@code chartTypeOverridden}/{@code chartTypeBefore}/
+    * {@code chartTypeAfter} when applying the comparison forced the chart's runtime style to
+    * change (see {@link #describeChartTypeOverride}).
     */
    public Map<String, Object> set(String sessionToken, Principal user, String assemblyName,
                                   Comparison comparison, String linkUri) throws Exception
@@ -130,11 +193,14 @@ public class DateComparisonService {
                "dimension in its binding.");
          }
 
+         int beforeChartType = chartRTChartType(rvs, assemblyName);
+
          apply(model, comparison);
          comparisonService.setDateComparison(runtimeId, assemblyName,
                                             model.toDateComparisonInfo(), null, linkUri, user,
                                             dispatcher);
          result.putAll(describeRetargetedDimension(rvs, assemblyName));
+         result.putAll(describeChartTypeOverride(rvs, assemblyName, beforeChartType));
       });
 
       return result;
@@ -205,6 +271,75 @@ public class DateComparisonService {
       }
 
       return null;
+   }
+
+   /**
+    * {@code ChartDcProcessor.updateDateComparisonChartType()} unconditionally forces a chart's
+    * primary/value series' runtime style to Bar/Bar-Stack whenever a comparison is applied,
+    * regardless of the chart's original type — e.g. a Line chart with a group-shelf dimension
+    * loses that dimension's only visual-breakdown mechanism (Bar has none) the moment a
+    * comparison is set, with nothing reporting it. {@code get_binding} stays "correct"
+    * throughout, since the binding itself is never touched — only the runtime chart type is.
+    * This compares the runtime chart type read before {@code comparisonService.setDateComparison}
+    * ran against the same read afterward, so the disclosure reflects reality regardless of which
+    * of {@code ChartDcProcessor}'s branches (plain, multi-style, value-plus) actually fired.
+    *
+    * <p>Not a chart, or the type did not change: returns an empty map.
+    */
+   private static Map<String, Object> describeChartTypeOverride(RuntimeViewsheet rvs,
+                                                                 String assemblyName,
+                                                                 int beforeType)
+   {
+      Map<String, Object> out = new LinkedHashMap<>();
+
+      if(beforeType == NOT_A_CHART) {
+         return out;
+      }
+
+      int afterType = chartRTChartType(rvs, assemblyName);
+
+      if(afterType == NOT_A_CHART || afterType == beforeType) {
+         return out;
+      }
+
+      out.put("chartTypeOverridden", true);
+      out.put("chartTypeBefore", GraphTypes.getDisplayName(beforeType));
+      out.put("chartTypeAfter", GraphTypes.getDisplayName(afterType));
+      return out;
+   }
+
+   private static final int NOT_A_CHART = Integer.MIN_VALUE;
+
+   /** The runtime chart type that would be affected by a date-comparison chart-type override. */
+   private static int chartRTChartType(RuntimeViewsheet rvs, String assemblyName) {
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof ChartVSAssembly)) {
+         return NOT_A_CHART;
+      }
+
+      VSChartInfo cinfo = ((ChartVSAssembly) assembly).getVSChartInfo();
+      return cinfo == null ? NOT_A_CHART : effectiveRTChartType(cinfo);
+   }
+
+   /**
+    * The non-multi-style branch changes {@code VSChartInfo}'s own runtime type; the multi-style
+    * branch changes each aggregate's instead (see {@code ChartDcProcessor
+    * .updateDateComparisonChartType}) — read whichever one the comparison would actually change.
+    */
+   private static int effectiveRTChartType(VSChartInfo cinfo) {
+      if(!cinfo.isMultiStyles()) {
+         return cinfo.getRTChartType();
+      }
+
+      for(ChartAggregateRef agg : cinfo.getAestheticAggregateRefs(true)) {
+         if(agg != null) {
+            return agg.getRTChartType();
+         }
+      }
+
+      return cinfo.getRTChartType();
    }
 
    public void clear(String sessionToken, Principal user, String assemblyName, String linkUri)
@@ -280,6 +415,10 @@ public class DateComparisonService {
 
       if(comparison.onlyShowMostRecentDate() != null) {
          model.setOnlyShowMostRecentDate(comparison.onlyShowMostRecentDate());
+      }
+
+      if(comparison.comparisonOption() != null) {
+         model.setComparisonOption(normalizeComparisonOption(comparison.comparisonOption()));
       }
 
       PeriodPaneModel periods = model.getPeriodPaneModel();

@@ -168,6 +168,32 @@ class PresentationChangesetApplyServiceTest {
    }
 
    @Test
+   void applySucceedsWhenTaskIsParaphrasedBetweenPreviewAndApply() throws Exception {
+      // hash() recomputes locally at this call site (PresentationChangesetApplyService.apply), a
+      // second place from PresentationChangePlanService.resolve() where the same "task must not
+      // affect the hash" mistake could be reintroduced independently -- this test guards that
+      // second call site specifically, not just the plan-service-level hash contract.
+      seed(PresentationSubModel.FORMATS, false, formats("MM/dd/yyyy"));
+      PresentationChangeRequest changeReq =
+         change("formats", "organization", obj().put("dateFormat", "yyyy-MM-dd"));
+
+      PresentationChangePlanRequest preview = new PresentationChangePlanRequest();
+      preview.setTask("Update date format to ISO");
+      preview.setChanges(List.of(changeReq));
+      var plan = planService.resolve(preview, user);
+
+      PresentationApplyRequest apply = new PresentationApplyRequest();
+      apply.setTask("Change the date format to ISO 8601");
+      apply.setChanges(List.of(changeReq));
+      apply.setPlanHash(plan.planHash());
+      apply.setReviewOutcome("looks good");
+
+      var result = service.apply(apply, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+   }
+
+   @Test
    void applyRefusesAStaleHash() throws Exception {
       seed(PresentationSubModel.FORMATS, false, formats("MM/dd/yyyy"));
       PresentationApplyRequest req = applyRequest("t", "ok", null,

@@ -148,12 +148,19 @@ class AdminChangePlanServiceTest {
    }
 
    @Test
-   void hashChangesWithTheProposedValueAndTheTask() {
+   void hashChangesWithTheProposedValue() {
       sreeEnv.when(() -> SreeEnv.getProperty("query.runtime.maxrow", false, false))
          .thenReturn("100");
       String base = service.resolve(request("t", "max.rows", "500")).planHash();
       assertNotEquals(base, service.resolve(request("t", "max.rows", "600")).planHash());
-      assertNotEquals(base, service.resolve(request("other", "max.rows", "500")).planHash());
+   }
+
+   @Test
+   void hashIsUnaffectedByDifferentTaskStrings() {
+      sreeEnv.when(() -> SreeEnv.getProperty("query.runtime.maxrow", false, false))
+         .thenReturn("100");
+      String base = service.resolve(request("t", "max.rows", "500")).planHash();
+      assertEquals(base, service.resolve(request("other", "max.rows", "500")).planHash());
    }
 
    @Test

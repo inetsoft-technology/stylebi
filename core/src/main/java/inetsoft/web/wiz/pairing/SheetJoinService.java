@@ -70,17 +70,32 @@ public class SheetJoinService {
    }
 
    /**
-    * The result of a successful {@link #join}: the reusable session, plus a best-effort
-    * human-readable label for the sheet it joined (sourced from {@code AssetEntry.toView()}),
-    * for display alongside the raw {@code runtimeId}.
+    * The result of a successful {@link #join}: the reusable session, a best-effort human-readable
+    * label for the sheet it joined (sourced from {@code AssetEntry.toView()}, for display
+    * alongside the raw {@code runtimeId}), and how many sessions (including this one) are now
+    * live on the exact same runtime (PSM-001 Change B) -- self-inclusive, so a solo join reports
+    * {@code 1}, never {@code 0}.
     *
-    * <p>Kept as a join-time-only wrapper rather than a field on {@link JoinSession} itself:
+    * <p>Kept as a join-time-only wrapper rather than fields on {@link JoinSession} itself:
     * {@code JoinSession} is reconstructed at 8+ call sites across this file ({@code resolve()},
-    * {@code retarget()}, {@code withEditorContext}/{@code withFollowFocusEnabled}), and a rarely-
-    * changing display string would either need threading through every one of them or go stale
-    * forever after a rename. {@code sheetLabel} is computed once, at join, and never refreshed.
+    * {@code retarget()}, {@code withEditorContext}/{@code withFollowFocusEnabled}), and both of
+    * these values would either need threading through every one of them or go stale immediately
+    * (a co-occupancy count in particular is only meaningful at the instant of joining, not on
+    * every later refresh). Both are computed once, at join, and never refreshed.
     */
-   public record JoinOutcome(JoinSession session, String sheetLabel) {}
+   public record JoinOutcome(JoinSession session, String sheetLabel, int concurrentSessionCount) {
+      /**
+       * Back-compat constructor predating {@code concurrentSessionCount} (PSM-001) -- defaults it
+       * to {@code 1} (self-inclusive "just me", the same value a real solo join computes), so the
+       * existing hand-built {@code new JoinOutcome(session, label)} fixtures across the
+       * worksheet/viewsheet/script/binding controller test packages -- none of which exercise
+       * co-occupancy -- do not all need updating for one new field on a record none of them
+       * otherwise touch.
+       */
+      public JoinOutcome(JoinSession session, String sheetLabel) {
+         this(session, sheetLabel, 1);
+      }
+   }
 
    /**
     * Validate flag + code + same-logical-user, consume it, open and return a reusable JoinSession.
@@ -176,9 +191,16 @@ public class SheetJoinService {
 
       String sheetLabel = resolveSheetLabel(runtimeSheet, grant.runtimeId());
 
+      // Self-inclusive: session is already in SheetSessionService's map by this point (opened
+      // just above), so this counts itself plus any other live session already on this exact
+      // runtime -- a solo join reports 1, never 0. Advisory only, never a refusal (PSM-001 Change
+      // B) -- the co-occupant is a different, unrelated caller by construction, and refusing here
+      // would break legitimate concurrent/collaborative use.
+      int concurrentSessionCount = sessions.findAllOnRuntime(session.runtimeId()).size();
+
       LOG.info("Sheet agent pairing join granted (runtimeId={}, sheetType={}, agent={})",
                grant.runtimeId(), grant.sheetType(), agentUser.getName());
-      return new JoinOutcome(session, sheetLabel);
+      return new JoinOutcome(session, sheetLabel, concurrentSessionCount);
    }
 
    /**

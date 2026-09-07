@@ -323,6 +323,96 @@ public class SheetOpenService {
       return vsSession;
    }
 
+   /**
+    * {@code create_worksheet}. Mints a brand-new, BLANK worksheet runtime, and pairs the caller
+    * to it directly by reusing the ACTING session's already-live browser socket -- the exact
+    * mechanism {@link #createViewsheet} already uses in the reverse direction (worksheet/
+    * viewsheet -> new viewsheet), applied here to worksheet/viewsheet -> new worksheet.
+    *
+    * <p>Unlike {@link #openBaseWorksheet}, which always follows a viewsheet down to ITS OWN base
+    * (never an arbitrary target), the acting session here may be EITHER sheet type, exactly like
+    * {@link #createViewsheet} -- resolved through the generic, type-agnostic
+    * {@link SheetSessionService#resolve}, not {@link ViewsheetSessionService}.
+    *
+    * <p>Unlike {@link #createViewsheet}, there is no data source to resolve: the new worksheet is
+    * always blank. Callers design it with the add_table/add_join/add_calc_field family of tools,
+    * then save_worksheet to persist it. If the acting session is a viewsheet with no source of
+    * its own, attach_base_worksheet is the tool that connects the saved worksheet back to it.
+    *
+    * @param fromSessionToken the already-paired session (worksheet or viewsheet) whose browser
+    *                         connection the new session reuses
+    * @throws IllegalArgumentException on every refusal, with a message naming the specific
+    *                                  problem and, where there is one, the next tool to call.
+    */
+   public JoinSession createWorksheet(String fromSessionToken, Principal user) throws Exception {
+      JoinSession actingSession = sheetSessions.resolve(fromSessionToken, agentKey(user));
+
+      if(actingSession == null) {
+         throw new IllegalArgumentException(
+            "Invalid or expired session: " + fromSessionToken + ". Ask the user for a fresh " +
+            "pairing code and run connect_sheet again.");
+      }
+
+      // Same class of bug openBaseWorksheet/createViewsheet guard against: a pane-scoped session
+      // is a write handle for ONE script location, and minting a new whole-sheet
+      // (editorContext = null) session from it would launder that narrow grant into unscoped
+      // whole-sheet authority on a runtime the pane's grant never named. Must come before the
+      // runtime is touched or any grant is minted.
+      if(actingSession.editorContext() != null) {
+         throw new IllegalArgumentException(
+            "This session is scoped to one script location, not to the whole sheet, so it " +
+            "cannot create a new worksheet: doing so would turn a single-expression grant into " +
+            "a whole-sheet write handle. Ask the user to re-pair from the sheet toolbar " +
+            "('Connect to Claude') and call create_worksheet from that session.");
+      }
+
+      if(actingSession.socketSessionId() == null) {
+         throw new IllegalArgumentException(
+            "The connected session has no active browser connection to create a worksheet in; " +
+            "ask the user to re-pair (run connect_sheet again) before calling create_worksheet.");
+      }
+
+      boolean canCreate = securityProvider.checkPermission(
+         user, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
+
+      if(!canCreate) {
+         throw new IllegalArgumentException(
+            "You do not have permission to create a Data Worksheet in Visual Composer.");
+      }
+
+      String runtimeId = viewsheetService.openTemporaryWorksheet(user, null);
+
+      // The acting session's own socket/owner, exactly like createViewsheet mints in the reverse
+      // direction -- no new pairing code, and the new session is opened whole-sheet (null
+      // editorContext), matching how a freshly-created worksheet has always been opened.
+      JoinSession wsSession = sheetSessions.open(runtimeId, actingSession.ownerIdentity(),
+                                                  SheetType.WORKSHEET,
+                                                  actingSession.socketSessionId(),
+                                                  actingSession.socketUserName(), null);
+
+      // Tells the Composer tab bar an agent is now attached to this runtime -- the same
+      // best-effort notification openBaseWorksheet/createViewsheet send for their own attach
+      // paths; create_worksheet is a fourth real entry point that attaches a session, so it needs
+      // the same call for the tab-bar indicator to be consistent across all of them.
+      try {
+         broadcast.sendAgentActive(wsSession);
+      }
+      catch(Exception ex) {
+         LOG.warn("Worksheet created, but notifying the tab bar failed (runtimeId={})",
+                  runtimeId, ex);
+      }
+
+      OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
+         .assetId(null)          // unsaved, blank worksheet -- there is no asset path yet
+         .viewsheet(false)
+         .runtimeId(runtimeId)
+         .build();
+
+      broadcast.sendToComposer(actingSession.socketSessionId(), command);
+
+      return wsSession;
+   }
+
    private static String agentKey(Principal agent) {
       if(agent instanceof XPrincipal p) {
          IdentityID id = IdentityID.getIdentityIDFromKey(p.getName());

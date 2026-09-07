@@ -123,7 +123,7 @@ public class ProviderChangePlanService {
 
       String task = req.getTask().trim();
       return new ResolvedPlan(task, Collections.unmodifiableList(changes), true, true,
-                              hash(task, changes, chainProjections));
+                              hash(changes, chainProjections));
    }
 
    // ---------------------------------------------------------------- create
@@ -502,11 +502,16 @@ public class ProviderChangePlanService {
     * reorder on a touched chain changes that chain's projection, so {@code apply}'s fresh re-resolve
     * produces a different hash and is refused via the existing 409 path -- no new conflict-handling
     * code needed.
+    * <p>
+    * {@code task} is deliberately excluded from this hash: it is a free-text audit narrative, never
+    * compared, parsed, or gated on -- it flows only into {@code ProviderChangesetApplyService
+    * .writeAudit}'s {@code record.setTaskDescription(task)}. Including it here would fail the
+    * apply-time plan-hash check whenever a caller paraphrases the task description between preview
+    * and apply while the actual {@code changes}/chain state stay identical.
     */
-   private static String hash(String task, List<PlanChange> changes,
-                              Map<ProviderChain, String> chainProjections)
+   private static String hash(List<PlanChange> changes, Map<ProviderChain, String> chainProjections)
    {
-      StringBuilder canonical = new StringBuilder(task).append('\n');
+      StringBuilder canonical = new StringBuilder();
 
       for(ProviderChain chain : ProviderChain.values()) {
          String projection = chainProjections.get(chain);

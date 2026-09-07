@@ -88,7 +88,7 @@ public class PresentationChangesetApplyService {
          }
 
          String task = req.getTask().trim();
-         String currentHash = PresentationChangePlanService.hash(task, planChanges);
+         String currentHash = PresentationChangePlanService.hash(planChanges);
 
          if(req.getPlanHash() == null || !currentHash.equals(req.getPlanHash())) {
             throw new AdminChangesetApplyService.PlanHashMismatchException(

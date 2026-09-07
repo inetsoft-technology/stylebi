@@ -85,7 +85,7 @@ public class PresentationChangePlanService {
 
       String task = req.getTask().trim();
       List<PlanChange> immutableChanges = Collections.unmodifiableList(changes);
-      return new ResolvedPlan(task, immutableChanges, true, true, hash(task, immutableChanges));
+      return new ResolvedPlan(task, immutableChanges, true, true, hash(immutableChanges));
    }
 
    /**
@@ -360,9 +360,18 @@ public class PresentationChangePlanService {
    /** SHA-256 over the canonical plan, same field-order/control-character-free contract as every
     * other area's own {@code hash} method. Package-visible so {@link PresentationChangesetApplyService}
     * can recompute the identical hash from the same {@link ResolvedChange#planChange()} list
-    * {@link #resolveEntries} already produced, instead of resolving the whole plan a second time. */
-   static String hash(String task, List<PlanChange> changes) {
-      StringBuilder canonical = new StringBuilder(task).append('\n');
+    * {@link #resolveEntries} already produced, instead of resolving the whole plan a second time.
+    *
+    * <p>Deliberately does NOT take {@code task}: the free-text task description is never
+    * canonicalized or otherwise constrained (only checked for non-blank in {@link #resolveEntries}),
+    * so two equally valid paraphrases of the same intent over the identical {@code changes} would
+    * otherwise hash differently and trip a false {@code PlanHashMismatchException} between preview
+    * and apply. {@code task} is write-only downstream -- it flows into
+    * {@link PresentationChangesetApplyService#writeAudit} as
+    * {@code AdminChangeRecord.setTaskDescription}, a plain audit label that is never read back or
+    * compared -- so excluding it from the hash does not weaken the gate against a changed plan. */
+   static String hash(List<PlanChange> changes) {
+      StringBuilder canonical = new StringBuilder();
 
       for(PlanChange change : changes) {
          canonical.append(change.property()).append(SEP)

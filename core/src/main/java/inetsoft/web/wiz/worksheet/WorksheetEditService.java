@@ -380,7 +380,7 @@ public class WorksheetEditService {
       public void removeColumn(String table, String col) throws PairingException {
          TableAssembly t = requireTable(table);
          ColumnSelection cs = t.getColumnSelection();
-         DataRef toRemove = cs.getAttribute(col);
+         DataRef toRemove = WorksheetMutationSupport.resolveFieldOrNull(t, col, false);
 
          if(toRemove != null) {
             WorksheetMutationSupport.assertSnapshotAllowsColumnRemove(t, table, col, toRemove);
@@ -512,8 +512,7 @@ public class WorksheetEditService {
        */
       public void renameColumn(String table, String col, String newName) throws PairingException {
          TableAssembly t = requireTable(table);
-         ColumnSelection cs = t.getColumnSelection(false);
-         DataRef existing = cs.getAttribute(col);
+         DataRef existing = WorksheetMutationSupport.resolveFieldOrNull(t, col, false);
 
          if(existing instanceof ColumnRef cr) {
             if(!WorksheetControllerService.allowsDeletion(ws, t, cr)) {
@@ -1656,8 +1655,7 @@ public class WorksheetEditService {
          throws PairingException
       {
          TableAssembly t = requireTable(table);
-         ColumnSelection cs = t.getColumnSelection(false);
-         DataRef ref = cs.getAttribute(col);
+         DataRef ref = WorksheetMutationSupport.resolveFieldOrNull(t, col, false);
 
          if(!(ref instanceof ColumnRef cr)) {
             throw new PairingException("Column not found: " + col);

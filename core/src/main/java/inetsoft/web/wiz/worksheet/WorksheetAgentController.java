@@ -77,6 +77,7 @@ import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.RenderWaitSupport;
 import inetsoft.web.wiz.service.TabularEndpointBindingSupport;
 import inetsoft.web.wiz.script.PaneScopeService;
+import inetsoft.web.wiz.viewsheet.SheetOpenService;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.slf4j.Logger;
@@ -129,7 +130,8 @@ public class WorksheetAgentController {
                                    LayoutGraphService layoutGraphService,
                                    DataSourceService dataSourceService,
                                    SecurityEngine securityEngine,
-                                   RenameTransformHandler renameTransformHandler)
+                                   RenameTransformHandler renameTransformHandler,
+                                   SheetOpenService openService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -147,6 +149,7 @@ public class WorksheetAgentController {
       this.dataSourceService = dataSourceService;
       this.securityEngine = securityEngine;
       this.renameTransformHandler = renameTransformHandler;
+      this.openService = openService;
    }
 
    // ---------------------------------------------------------------------------
@@ -173,7 +176,51 @@ public class WorksheetAgentController {
       JoinSession session = outcome.session();
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
                               session.sheetType().name().toLowerCase(), session.editorContext(),
-                              outcome.sheetLabel());
+                              outcome.sheetLabel(), outcome.concurrentSessionCount());
+   }
+
+   /**
+    * Request body for the create-worksheet endpoint.
+    *
+    * @param fromSessionToken the already-paired session (worksheet or viewsheet) whose browser
+    *                         connection the new session reuses
+    */
+   public record CreateWorksheetRequest(String fromSessionToken) {}
+
+   /**
+    * {@code create_worksheet}. Mints a brand-new, blank worksheet runtime and pairs the caller to
+    * it directly -- no new pairing code needed, and the browser visually follows along in the
+    * currently-open Composer window -- by reusing the ALREADY-PAIRED session named by
+    * {@code fromSessionToken} (worksheet or viewsheet, either is accepted). {@link SheetOpenService}
+    * performs every guard and the browser broadcast; this endpoint only translates its
+    * {@link JoinSession} into the same join shape {@link #join} returns.
+    *
+    * <p>The worksheet this mints is always blank -- no table, no source. Design it with the
+    * existing add_table/add_join/add_calc_field family of tools, then save_worksheet to persist
+    * it. If the acting session is a viewsheet with no source of its own, attach_base_worksheet is
+    * the tool that connects the saved worksheet back to it.
+    *
+    * @throws PairingException naming the specific problem: no acting session, no live browser
+    *                          connection on it, or a permission failure.
+    */
+   @PostMapping("/api/wiz/v1/agent/worksheet/create")
+   public JoinResponse createWorksheet(@RequestBody CreateWorksheetRequest body, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+
+      JoinSession session;
+
+      try {
+         session = openService.createWorksheet(body == null ? null : body.fromSessionToken(), user);
+      }
+      catch(IllegalArgumentException e) {
+         throw new PairingException(e.getMessage(), e);
+      }
+
+      return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
+                              session.sheetType().name().toLowerCase(), session.editorContext(),
+                              null, null);
    }
 
    /**
@@ -1189,15 +1236,21 @@ public class WorksheetAgentController {
    }
 
    /**
-    * Every live {@link RuntimeViewsheet} belonging to {@code user} whose
-    * {@code Viewsheet.getBaseEntry()} currently matches {@code worksheetEntry}.
+    * Every live {@link RuntimeViewsheet} whose {@code Viewsheet.getBaseEntry()} currently
+    * matches {@code worksheetEntry} and whose owner is the same logical user as {@code user}.
     *
-    * <p>Scoped to {@code user}'s own runtimes only -- {@code WorksheetService.getRuntimeSheets}
-    * has no global/all-users variant, so a viewsheet another user has open on the same base
-    * worksheet is not detected here. Documented limitation, not a bug in this check.
+    * <p>Fetches every live runtime sheet ({@code getRuntimeSheets(null)}) rather than relying on
+    * {@code WorksheetService.getRuntimeSheets(user)}'s own {@code Principal.equals()} filter,
+    * because a browser-paired viewsheet's owning principal and the calling agent's
+    * JWT-reconstructed principal are legitimately different objects for the same logical user
+    * (session renewal, a different browser window, or a long-lived cached token -- see
+    * {@link PairingUtil#sameLogicalUser(Principal, Principal)}, and
+    * {@code SheetRuntimeAccess.grantOwnershipBypass()} for the identical, already-fixed problem
+    * elsewhere in this package). Matching is done manually with
+    * {@link PairingUtil#sameLogicalUser(Principal, Principal)} instead.
     */
    private List<RuntimeViewsheet> connectedViewsheets(AssetEntry worksheetEntry, Principal user) {
-      RuntimeSheet[] sheets = worksheetService.getRuntimeSheets(user);
+      RuntimeSheet[] sheets = worksheetService.getRuntimeSheets(null);
       List<RuntimeViewsheet> connected = new ArrayList<>();
 
       if(sheets == null) {
@@ -1211,7 +1264,9 @@ public class WorksheetAgentController {
 
          Viewsheet vs = rvs.getViewsheet();
 
-         if(vs != null && worksheetEntry.equals(vs.getBaseEntry())) {
+         if(vs != null && worksheetEntry.equals(vs.getBaseEntry()) &&
+            PairingUtil.sameLogicalUser(rvs.getUser(), user))
+         {
             connected.add(rvs);
          }
       }
@@ -3547,9 +3602,14 @@ public class WorksheetAgentController {
     * @param sheetLabel    best-effort human-readable label for the sheet (e.g. its Composer tab
     *                      title), sourced from {@code AssetEntry.toView()} — {@code null} if it
     *                      could not be resolved
+    * @param concurrentSessionCount how many sessions (including this one) are live on the exact
+    *                      same runtime right now (PSM-001 Change B) — self-inclusive, so a solo
+    *                      join reports {@code 1}, never {@code 0}; advisory only, never a reason
+    *                      this join itself would be refused
     */
    public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
-                              String sheetType, EditorContext editorContext, String sheetLabel) {}
+                              String sheetType, EditorContext editorContext, String sheetLabel,
+                              Integer concurrentSessionCount) {}
 
    // ---------------------------------------------------------------------------
    // Exception handling
@@ -3609,6 +3669,7 @@ public class WorksheetAgentController {
    private final DataSourceService dataSourceService;
    private final SecurityEngine securityEngine;
    private final RenameTransformHandler renameTransformHandler;
+   private final SheetOpenService openService;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetAgentController.class);
 
    // Mirrors ViewsheetEditService.TABLE_WARM_MAX_ATTEMPTS/TABLE_WARM_RETRY_SLEEP_MS: the same

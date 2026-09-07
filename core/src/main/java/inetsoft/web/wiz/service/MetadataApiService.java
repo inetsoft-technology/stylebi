@@ -1982,16 +1982,16 @@ public class MetadataApiService {
       throws Exception
    {
       String query = request.getQuery();
+      List<String> fields = request.getFields();
+      boolean searchColumns = fields != null && !fields.isEmpty();
 
-      if(Tool.isEmptyString(query)) {
+      if(Tool.isEmptyString(query) && !searchColumns) {
          SchemaSearchResponse response = new SchemaSearchResponse();
          response.setResults(Collections.emptyList());
          return response;
       }
 
-      String queryLower = query.toLowerCase(Locale.ROOT);
-      List<String> fields = request.getFields();
-      boolean searchColumns = fields != null && !fields.isEmpty();
+      String queryLower = Tool.isEmptyString(query) ? null : query.toLowerCase(Locale.ROOT);
       Set<String> fieldNamesLower = new HashSet<>();
 
       if(searchColumns) {
@@ -2018,7 +2018,7 @@ public class MetadataApiService {
             DatasourceTablesResponse tablesResponse = getDatabaseTables(dsName, principal);
 
             for(DatabaseTableInfo tableInfo : tablesResponse.getTables()) {
-               boolean tableMatches = tableNameMatches(
+               boolean tableMatches = queryLower != null && tableNameMatches(
                   tableInfo.getTable().toLowerCase(Locale.ROOT), queryLower);
 
                // If searching by field names, look for column matches

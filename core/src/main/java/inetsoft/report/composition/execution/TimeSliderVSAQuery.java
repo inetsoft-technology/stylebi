@@ -1033,6 +1033,10 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          double mind = ((Number) min).doubleValue();
          double maxd = ((Number) max).doubleValue();
          double curr = (minObj == null) ? mind : ((Number) minObj).doubleValue();
+         // the live data range, captured before either branch below overwrites mind/maxd with
+         // "niced" bounds -- used to detect a persisted rangeSize that no longer fits the
+         // current data (e.g. the bound column's range has shrunk since it was last persisted).
+         double rawSpan = maxd - mind;
 
          if(rangecol != null && rsize0 != 0) {
             Number gap = rangecol.getInterval();
@@ -1061,7 +1065,9 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
                rsize0 = gap.doubleValue();
             }
 
-            if(rsize0 > tinfo.getRangeSizeValue()) {
+            // also recompute (rather than replay the stale value) if the persisted step no
+            // longer fits the live data range at all
+            if(rsize0 > tinfo.getRangeSizeValue() || tinfo.getRangeSize() > rawSpan) {
                tinfo.setRangeSize(rsize0);
             }
             else {
@@ -1094,7 +1100,10 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
                rsize0 = numbers[2];
             }
 
-            if(rsize0 > tinfo.getRangeSizeValue()) {
+            // also recompute (rather than replay the stale value) if the persisted step no
+            // longer fits the live data range at all -- e.g. the bound column's range has
+            // shrunk since this rangeSize was last persisted
+            if(rsize0 > tinfo.getRangeSizeValue() || tinfo.getRangeSize() > rawSpan) {
                if(init) {
                   tinfo.setRangeSizeValue(rsize0);
                }

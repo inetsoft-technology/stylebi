@@ -17,6 +17,7 @@
  */
 package inetsoft.report.io.viewsheet;
 
+import inetsoft.report.StyleFont;
 import inetsoft.web.wiz.service.MarkdownModel;
 import inetsoft.web.wiz.service.PptxDeckMerger;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
@@ -182,13 +183,20 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       return candidate + "…";
    }
 
-   /** Apply a uniform bold/size/color to every run in every paragraph of a text box. */
+   /** Apply a uniform bold/size/color to every run in every paragraph of a text box.
+    *  Also sets an explicit font family: without one, a run has no Latin-typeface element at
+    *  all and resolves purely by OOXML theme inheritance (the deck's theme font), which
+    *  {@link #appendBlock} and {@link #appendSpans} below rely on this same explicit-family
+    *  approach for too. This matches this codebase's other PPTX-export convention
+    *  ({@code PPTValueHelper}, bug #75992) of always writing a resolved family name rather than
+    *  leaving typeface resolution to the reader. */
    private void styleBox(XSLFTextBox box, boolean bold, double fontSize, Color color) {
       for(XSLFTextParagraph paragraph : box.getTextParagraphs()) {
          for(XSLFTextRun run : paragraph.getTextRuns()) {
             run.setBold(bold);
             run.setFontSize(fontSize);
             run.setFontColor(color);
+            run.setFontFamily(StyleFont.getDefaultFontFamily());
          }
       }
    }
@@ -299,6 +307,7 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
          bullet.setFontSize(bodySize);
          bullet.setFontColor(ACCENT);
          bullet.setBold(true);
+         bullet.setFontFamily(StyleFont.getDefaultFontFamily());
          appendSpans(p, block.spans(), bodySize, BODY_COLOR, false);
          break;
       default:
@@ -320,6 +329,7 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
          run.setFontColor(color);
          run.setBold(forceBold || span.bold());
          run.setItalic(span.italic());
+         run.setFontFamily(StyleFont.getDefaultFontFamily());
       }
    }
 

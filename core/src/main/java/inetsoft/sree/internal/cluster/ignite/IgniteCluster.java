@@ -745,6 +745,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       getNodePropertyMap().put(getLocalMember() + ":" + name, value);
    }
 
+   @Override
+   public void clearLocalNodeProperty(String name) {
+      getNodePropertyMap().remove(getLocalMember() + ":" + name);
+   }
+
    private Map<String, Object> getNodePropertyMap() {
       return getMap(getClass().getName() + ".nodeProperties");
    }

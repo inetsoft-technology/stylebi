@@ -137,6 +137,15 @@ public interface Cluster extends AutoCloseable {
    void setLocalNodeProperty(String name, Object value);
 
    /**
+    * Removes the named property of the current cluster node. Unlike
+    * {@link #setLocalNodeProperty(String, Object)} with a {@code null} value, this is
+    * guaranteed not to attempt to store a null value in the underlying implementation.
+    *
+    * @param name the property name.
+    */
+   void clearLocalNodeProperty(String name);
+
+   /**
     * Check if this node is the master. The oldest node in the cluster is
     * treated as the master.
     */

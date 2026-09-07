@@ -95,9 +95,14 @@ public class BindingAgentController {
     * @param sheetLabel    best-effort human-readable label for the sheet (e.g. its Composer tab
     *                      title), sourced from {@code AssetEntry.toView()} — {@code null} if it
     *                      could not be resolved
+    * @param concurrentSessionCount how many sessions (including this one) are live on the exact
+    *                      same runtime right now (PSM-001 Change B) — self-inclusive, so a solo
+    *                      join reports {@code 1}, never {@code 0}; advisory only, never a reason
+    *                      this join itself would be refused
     */
    public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
-                              String sheetType, EditorContext editorContext, String sheetLabel) {}
+                              String sheetType, EditorContext editorContext, String sheetLabel,
+                              Integer concurrentSessionCount) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/join")
    public JoinResponse join(@RequestBody JoinRequest body, Principal user) throws PairingException {
@@ -106,7 +111,7 @@ public class BindingAgentController {
       JoinSession session = outcome.session();
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
                               session.sheetType().name().toLowerCase(), session.editorContext(),
-                              outcome.sheetLabel());
+                              outcome.sheetLabel(), outcome.concurrentSessionCount());
    }
 
    @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/fields")
@@ -435,15 +440,26 @@ public class BindingAgentController {
                                         linkUri);
    }
 
+   /**
+    * @param warnings messages from any post-write shelf-metadata refresh steps that were caught
+    *                 rather than propagated -- the calc field write itself already committed
+    *                 either way (see {@code ViewsheetSessionService.mutate}/
+    *                 {@code CalcFieldAgentService.modify}); empty when nothing warned. Distinct
+    *                 from {@code handleCommandError}'s 409 body, which is for a write that did
+    *                 NOT commit.
+    */
+   public record CalcFieldResponse(List<String> warnings) {}
+
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc-field")
-   public void modifyCalcField(@PathVariable String sessionToken,
+   public CalcFieldResponse modifyCalcField(@PathVariable String sessionToken,
                                @RequestBody CalcFieldAgentService.CalcFieldRequest request,
                                @RequestParam(required = false, defaultValue = "") String linkUri,
                                Principal user)
       throws Exception
    {
       requireEnabled();
-      calcFieldService.modify(sessionToken, user, request, linkUri);
+      List<String> warnings = calcFieldService.modify(sessionToken, user, request, linkUri);
+      return new CalcFieldResponse(warnings);
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/source")
