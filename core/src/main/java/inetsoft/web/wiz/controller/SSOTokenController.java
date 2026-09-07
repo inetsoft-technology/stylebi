@@ -169,9 +169,29 @@ public class SSOTokenController {
 
       List<String> allowedCallbacks = getAllowedCallbacks();
 
-      // Check if callback starts with the allowed prefix
+      // Check if callback starts with the allowed prefix, at a path boundary
+      String lowerCallback = callback.toLowerCase();
       return allowedCallbacks.stream()
-         .anyMatch(allowed -> callback.toLowerCase().startsWith(allowed.toLowerCase()));
+         .anyMatch(allowed -> matchesPrefixBoundary(lowerCallback, allowed.toLowerCase()));
+   }
+
+   /**
+    * Returns true if {@code value} starts with {@code prefix} and the match ends at a path
+    * boundary — i.e. {@code prefix} is the entire value, or is immediately followed by
+    * {@code /} or {@code ?}. Prevents a longer, unrelated path
+    * (e.g. {@code .../api/wiz/auth/callback-evil}) from matching a {@code .../callback} prefix.
+    */
+   private boolean matchesPrefixBoundary(String value, String prefix) {
+      if(!value.startsWith(prefix)) {
+         return false;
+      }
+
+      if(value.length() == prefix.length()) {
+         return true;
+      }
+
+      char next = value.charAt(prefix.length());
+      return next == '/' || next == '?';
    }
 
    /**
