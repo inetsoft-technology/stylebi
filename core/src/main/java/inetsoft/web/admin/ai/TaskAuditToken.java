@@ -83,6 +83,10 @@ public final class TaskAuditToken {
       }
    }
 
-   /** Same unit-separator {@code AdminChangePlanService#hash} uses; task/planHash cannot contain it. */
-   private static final char SEP = '';
+   /**
+    * Same unit-separator {@code AdminChangePlanService#hash} uses. {@code indexOf} finds the FIRST
+    * separator, which is always the planHash boundary, so even if {@code task} contains a stray
+    * separator, it cannot be exploited to forge a different split.
+    */
+   private static final char SEP = '\u001f';
 }

@@ -89,6 +89,6 @@ class TaskAuditTokenTest {
       // Pins the wire format one layer down from verify(), so a future change to the delimiter
       // or field order is caught here even if verify() happened to still round-trip correctly.
       String token = TaskAuditToken.issue("hash123", "t");
-      assertEquals("TKN:hash123t", token);
+      assertEquals("TKN:hash123" + (char) 0x1F + "t", token);
    }
 }
