@@ -94,7 +94,7 @@ class MetadataApiServiceNonJdbcBranchTest {
          tabularCatalogService);
 
       assertThrows(Exception.class,
-         () -> service.getDatabaseTables("Examples/Orders", mock(Principal.class)));
+         () -> service.getDatabaseTables("Examples/Orders", null, null, null, mock(Principal.class)));
 
       verifyNoInteractions(tabularCatalogService);
    }
@@ -119,7 +119,7 @@ class MetadataApiServiceNonJdbcBranchTest {
          tabularCatalogService);
 
       DatasourceTablesResponse response =
-         service.getDatabaseTables("OData Source", mock(Principal.class));
+         service.getDatabaseTables("OData Source", null, null, null, mock(Principal.class));
 
       assertNotNull(response);
       verify(tabularCatalogService).listTables("OData Source");

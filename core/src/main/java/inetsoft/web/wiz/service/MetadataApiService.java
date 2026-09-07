@@ -1196,16 +1196,37 @@ public class MetadataApiService {
    /**
     * Gets all tables and their FK relationships for the specified datasource.
     *
-    * @param dsName    the datasource name/path.
-    * @param principal the current user.
-    * @return tables with catalog/schema/type, plus foreign key relationships.
+    * @param dsName       the datasource name/path.
+    * @param nameContains optional case-insensitive substring filter on the dataset/table id.
+    *                      {@code null} or blank matches everything. Ignored (as if {@code null})
+    *                      when {@code limit} is {@code null}.
+    * @param limit         optional page size. {@code null} means "no paging" -- this method
+    *                      returns the full table list, exactly as it did before this parameter
+    *                      existed. A non-null value switches to the paged path, which for a
+    *                      tabular data source never returns relationships (see
+    *                      {@link TabularCatalogService#listTables(String, String, int, String)})
+    *                      and for a JDBC data source is rejected -- see below.
+    * @param cursor        the exact {@code nextCursor} a previous paged call returned, or
+    *                      {@code null} for the first page. Ignored when {@code limit} is
+    *                      {@code null}.
+    * @param principal     the current user.
+    * @return tables with catalog/schema/type, plus foreign key relationships (paged responses
+    *         carry none).
+    * @throws IllegalArgumentException if {@code limit} is non-null for a JDBC data source: JDBC
+    *         paging is not implemented yet (see
+    *         {@code docs/teams/2026-09-07-tabular-catalog-paging-contract/09-design-dialog-and-persistence.md}
+    *         A.5 in the wiz repo) -- a JDBC caller must omit {@code limit}/{@code cursor}/
+    *         {@code nameContains} today rather than silently receiving an unpaged full listing.
     */
-   public DatasourceTablesResponse getDatabaseTables(String dsName, Principal principal)
+   public DatasourceTablesResponse getDatabaseTables(
+      String dsName, String nameContains, Integer limit, String cursor, Principal principal)
       throws Exception
    {
       if(!dataSourceService.checkPermission(dsName, ResourceAction.READ, principal)) {
          throw new SecurityException("Access denied to data source: " + dsName);
       }
+
+      boolean paged = limit != null;
 
       // getJDBCDatasource throws clearly if the source doesn't exist or isn't JDBC; call it
       // first so we fail fast before the more expensive metadata connection is opened.
@@ -1218,7 +1239,19 @@ public class MetadataApiService {
          // Not relational, but the connector may still be able to describe its own catalog
          // through TabularCatalogProvider. No line below this branch runs for a non-JDBC source,
          // and none of it changed.
-         return tabularCatalogService.listTables(dsName);
+         return paged
+            ? tabularCatalogService.listTables(dsName, nameContains, limit, cursor)
+            : tabularCatalogService.listTables(dsName);
+      }
+
+      if(paged) {
+         // JDBC paging is a separate, larger change (skipping the per-table
+         // buildRelationships/populatePrimaryKeys calls below, which today run unconditionally)
+         // that this round does not implement. Failing loudly here keeps that a documented gap
+         // rather than a silent degradation to the unpaged full listing.
+         throw new IllegalArgumentException(
+            "Paging (nameContains/limit/cursor) is not supported yet for JDBC data source '" +
+            dsName + "'; omit these parameters to get the full, unpaged table list.");
       }
 
       DefaultMetaDataProvider metaDataProvider = getMetaDataProvider(dsName);
@@ -2015,7 +2048,8 @@ public class MetadataApiService {
                continue;
             }
 
-            DatasourceTablesResponse tablesResponse = getDatabaseTables(dsName, principal);
+            DatasourceTablesResponse tablesResponse =
+               getDatabaseTables(dsName, null, null, null, principal);
 
             for(DatabaseTableInfo tableInfo : tablesResponse.getTables()) {
                boolean tableMatches = queryLower != null && tableNameMatches(

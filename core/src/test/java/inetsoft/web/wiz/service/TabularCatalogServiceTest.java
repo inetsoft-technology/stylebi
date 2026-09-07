@@ -96,6 +96,49 @@ class TabularCatalogServiceTest {
       assertEquals(List.of("ID"), rel.getToColumns());
    }
 
+   // ----- paging: listTables(dsName, nameContains, limit, cursor) -----
+
+   /**
+    * Charter-successor assertion (09-design-dialog-and-persistence.md A.3): a paged response must
+    * never carry relationships, even for a source whose full {@code listDatasets} declares one --
+    * the paged {@link TabularCatalogPage} that {@code FakeCatalogRuntime}'s inherited default
+    * {@code listDatasets(ds, request)} derives from this same {@code catalog} has no relationships
+    * field to carry one in the first place.
+    */
+   @Test
+   void listTables_paged_neverReturnsRelationshipsEvenWhenFullCatalogDeclaresOne() throws Exception {
+      TabularCatalog catalog = new TabularCatalog(
+         List.of(new TabularDatasetRef("Products"), new TabularDatasetRef("Categories")),
+         List.of(new TabularRelationship("Products_Category", "Products", "Categories",
+            List.of("CategoryID"), List.of("ID"))));
+
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(catalog, Map.of());
+      TabularCatalogService service =
+         createService(repositoryWithFakeDataSource(), dsName -> runtime);
+
+      DatasourceTablesResponse response = service.listTables(DS_NAME, null, 10, null);
+
+      assertEquals(2, response.getTables().size());
+      assertEquals(List.of(), response.getRelationships());
+      assertNull(response.getNextCursor(), "both datasets fit in one page of 10");
+   }
+
+   @Test
+   void listTables_paged_duplicateDatasetId_isValidatedTheSameAsTheFullListing() throws Exception {
+      // validateDatasetIds is shared between the full and paged paths -- this pins that the
+      // paged path did not quietly drop that check while adding its own toPagedTablesResponse
+      // mapping.
+      TabularCatalog catalog = new TabularCatalog(
+         List.of(new TabularDatasetRef("A"), new TabularDatasetRef("A")), List.of());
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(catalog, Map.of());
+      TabularCatalogService service =
+         createService(repositoryWithFakeDataSource(), dsName -> runtime);
+
+      Exception ex = assertThrows(Exception.class,
+         () -> service.listTables(DS_NAME, null, 10, null));
+      assertTrue(ex.getMessage().contains("A"));
+   }
+
    @Test
    void listTables_emptyCatalog_throwsInsteadOfSilentlyEmptyResult() throws Exception {
       FakeCatalogRuntime runtime = new FakeCatalogRuntime(

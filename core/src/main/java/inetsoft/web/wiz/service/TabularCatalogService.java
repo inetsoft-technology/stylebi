@@ -87,6 +87,29 @@ public class TabularCatalogService {
       return toTablesResponse(dsName, catalog);
    }
 
+   /**
+    * The paged counterpart of {@link #listTables(String)}, for a caller that wants to browse or
+    * search a large catalog rather than receive everything (spec §3.1/§7). Unlike the full
+    * listing, a page never carries relationships: a {@link TabularCatalogPage} has no
+    * relationships field to validate, so {@link #validateRelationshipEndpoints} is not called
+    * here -- see spec §5, which argues that check does not need relaxing precisely because the
+    * paged path never feeds it a relationship whose endpoint could fall outside the caller's
+    * current page.
+    */
+   public DatasourceTablesResponse listTables(String dsName, String nameContains, int limit,
+                                              String cursor) throws Exception
+   {
+      TabularCatalogProvider provider = resolveProvider(dsName);
+      TabularDataSource<?> tds = resolveTabularDataSource(dsName);
+
+      TabularCatalogPage page =
+         provider.listDatasets(tds, new TabularCatalogRequest(nameContains, limit, cursor));
+
+      validateDatasetIds(dsName, page.datasets());
+
+      return toPagedTablesResponse(dsName, page);
+   }
+
    private static void validateDatasetIds(String dsName, List<TabularDatasetRef> datasets)
       throws Exception
    {
@@ -335,6 +358,23 @@ public class TabularCatalogService {
       DatasourceTablesResponse response = new DatasourceTablesResponse();
       response.setTables(tables);
       response.setRelationships(relationships);
+      return response;
+   }
+
+   static DatasourceTablesResponse toPagedTablesResponse(String dsName, TabularCatalogPage page) {
+      List<DatabaseTableInfo> tables = new ArrayList<>();
+
+      for(TabularDatasetRef ref : page.datasets()) {
+         DatabaseTableInfo info = new DatabaseTableInfo();
+         info.setDatabase(dsName);
+         info.setTable(ref.id());
+         tables.add(info);
+      }
+
+      DatasourceTablesResponse response = new DatasourceTablesResponse();
+      response.setTables(tables);
+      response.setRelationships(List.of());
+      response.setNextCursor(page.nextCursor());
       return response;
    }
 
