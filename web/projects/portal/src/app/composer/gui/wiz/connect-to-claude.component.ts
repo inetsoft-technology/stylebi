@@ -82,6 +82,17 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
     */
    private connectErrorSubscription: Subscription | null = null;
    /**
+    * The `whenConnected()`/`timeout()` listener opened for the current `requestCode()` call --
+    * `connectErrorSubscription`'s racing sibling. Both listen for the SAME `requestCode()` call to
+    * settle, from opposite outcomes, so each must cancel the other the instant it wins: without
+    * this, a `connectionError()` firing first (error shown, loading cleared) left this listener
+    * live, and a socket that then self-healed within the timeout window could still resolve it,
+    * send the mint request, and set `code` -- leaving the stale error and a freshly-minted code
+    * shown together. Torn down everywhere `connectErrorSubscription` is (a fresh `requestCode()`
+    * call, a `runtimeId` change, or destroy), plus by its own two outcomes below.
+    */
+   private connectWaitSubscription: Subscription | null = null;
+   /**
     * The `editorContext` that was actually SENT with the mint that produced `code` -- captured
     * when the code comes back, and what `detach()` sends.
     *
@@ -193,6 +204,11 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
             this.connectErrorSubscription.unsubscribe();
             this.connectErrorSubscription = null;
          }
+
+         if(this.connectWaitSubscription) {
+            this.connectWaitSubscription.unsubscribe();
+            this.connectWaitSubscription = null;
+         }
       }
    }
 
@@ -208,6 +224,11 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       if(this.connectErrorSubscription) {
          this.connectErrorSubscription.unsubscribe();
          this.connectErrorSubscription = null;
+      }
+
+      if(this.connectWaitSubscription) {
+         this.connectWaitSubscription.unsubscribe();
+         this.connectWaitSubscription = null;
       }
 
       // Read ONCE, here, and carry this exact value through to the response handler: the getters
@@ -231,10 +252,22 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
             this.connectErrorSubscription.unsubscribe();
             this.connectErrorSubscription = null;
          }
+
+         // connectionError() won the race: cancel the sibling whenConnected()/timeout() listener
+         // below so a socket that self-heals moments later cannot still resolve it, send the
+         // mint request, and set `code` next to this stale error.
+         if(this.connectWaitSubscription) {
+            this.connectWaitSubscription.unsubscribe();
+            this.connectWaitSubscription = null;
+         }
       });
 
-      this.socketConnection.whenConnected().pipe(take(1), timeout(MINT_CONNECT_TIMEOUT_MS)).subscribe({
+      this.connectWaitSubscription = this.socketConnection.whenConnected().pipe(
+         take(1), timeout(MINT_CONNECT_TIMEOUT_MS)
+      ).subscribe({
          next: (conn: StompClientConnection) => {
+            this.connectWaitSubscription = null;
+
             if(this.connectErrorSubscription) {
                this.connectErrorSubscription.unsubscribe();
                this.connectErrorSubscription = null;
@@ -274,8 +307,10 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
             conn.send("/events/wiz/pairing/mint", {}, JSON.stringify(payload));
          },
          error: () => {
-            // Only reachable via the timeout() backstop -- connectionError() above is the normal
-            // path and unsubscribes itself before this could ever race it.
+            // Only reachable via the timeout() backstop -- connectionError() above cancels this
+            // subscription (see connectWaitSubscription) before this could ever race it.
+            this.connectWaitSubscription = null;
+
             if(this.connectErrorSubscription) {
                this.connectErrorSubscription.unsubscribe();
                this.connectErrorSubscription = null;
@@ -422,6 +457,11 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       if(this.connectErrorSubscription) {
          this.connectErrorSubscription.unsubscribe();
          this.connectErrorSubscription = null;
+      }
+
+      if(this.connectWaitSubscription) {
+         this.connectWaitSubscription.unsubscribe();
+         this.connectWaitSubscription = null;
       }
 
       // Releases the outer whenConnected() wait itself, not just what it produces -- otherwise a

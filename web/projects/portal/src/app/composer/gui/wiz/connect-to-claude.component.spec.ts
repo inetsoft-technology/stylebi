@@ -201,6 +201,50 @@ describe("ConnectToClaudeComponent", () => {
 
          vi.useRealTimers();
       });
+
+      // Fix round 2: connectionError() and the whenConnected()/timeout() wait raced each other in
+      // only one direction -- a successful whenConnected() cancelled a pending connectionError(),
+      // but not the reverse. So a connectionError() firing first left the whenConnected() wait
+      // live, and a socket that self-healed moments later within the timeout window could still
+      // resolve it, send the mint request, and set `code` -- next to the stale error the template
+      // never cleared.
+      it("cancels the whenConnected()/timeout() wait once connectionError() fires, so a socket " +
+         "that self-heals moments later cannot still set code next to the stale error", () => {
+         const whenConnectedSubject = new Subject<any>();
+         mockSocketConnection.whenConnected = vi.fn(() => whenConnectedSubject.asObservable());
+
+         component.requestCode();
+         mockConnectionErrorSubject.next("Client disconnected!");
+         fixture.detectChanges();
+
+         expect(component.error).toBe("Client disconnected!");
+         expect(component.loading).toBe(false);
+
+         // The socket self-heals within the timeout window -- whenConnected() would otherwise
+         // resolve and this component would mint a code from it.
+         whenConnectedSubject.next(mockStompConnection);
+         fixture.detectChanges();
+
+         expect(mockStompConnection.send).not.toHaveBeenCalled();
+         expect(component.code).toBeNull();
+         expect(component.error).toBe("Client disconnected!");
+      });
+
+      // Companion to the connectionError() leak test above: the whenConnected()/timeout() wait
+      // predates this component's other teardown-on-destroy discipline and was still fire-and-
+      // forget -- a destroyed component's callback could still run zone.run() against it up to
+      // 30s later. Now stored in connectWaitSubscription and torn down like its siblings.
+      it("tears down the whenConnected()/timeout() wait on destroy, not just connectionError()", () => {
+         const whenConnectedSubject = new Subject<any>();
+         mockSocketConnection.whenConnected = vi.fn(() => whenConnectedSubject.asObservable());
+
+         component.requestCode();
+         expect(whenConnectedSubject.observers.length).toBe(1);
+
+         fixture.destroy();
+
+         expect(whenConnectedSubject.observers.length).toBe(0);
+      });
    });
 
    it("copy button uses the ngxClipboard directive instead of navigator.clipboard", () => {
