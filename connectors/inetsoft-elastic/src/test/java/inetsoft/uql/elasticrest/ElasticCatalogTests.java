@@ -422,6 +422,34 @@ class ElasticCatalogTests {
    }
 
    @Test
+   void malformedDatasetIdIsRejectedBeforeAnyHttpRequest() {
+      // I1: TabularCatalogService.describeTable passes a caller-supplied target straight through
+      // with no proof it ever came from listDatasets, so each of these would otherwise be
+      // embedded verbatim into a live request URL by ElasticRestRuntime.getMetadata. Asserting on
+      // OUR OWN message text (not just "it threw") is what proves validateIndexName caught this
+      // before any request went out -- a real round trip against a malformed URL would surface a
+      // connection-level or Elasticsearch-native error instead, never this literal phrase.
+      List<String> malformed = List.of(
+         "a/b", "a?b", "a#b", "a b", "a\"b", "a<b", "a>b", "a|b", "a,b", "a*b", "a\\b",
+         ".", "..", "+leading");
+
+      for(String id : malformed) {
+         Exception thrown = assertThrows(Exception.class,
+            () -> runtime.describeDataset(dataSource, id), "id='" + id + "'");
+         assertTrue(thrown.getMessage().contains("not a legal Elasticsearch index name"),
+                    "id='" + id + "': " + thrown.getMessage());
+      }
+   }
+
+   @Test
+   void aLegitimateDottedNameIsNotRejectedByValidation() throws Exception {
+      // The whole point of this round was to PERMIT a dot in a dataset id (G1) -- a validator
+      // that rejected one here would be a silent regression of that, not a safety fix. A non-
+      // leading, non-".."/"." dot must sail through untouched.
+      assertDoesNotThrow(() -> runtime.describeDataset(dataSource, "logs-2026.09.04"));
+   }
+
+   @Test
    void paramsUseTheQueryBeansOwnPropertyNames() throws Exception {
       // Derived, not written out: TabularUtil derives a property name from the getter through
       // java.beans.Introspector, so a getter rename must break this assertion rather than leave a

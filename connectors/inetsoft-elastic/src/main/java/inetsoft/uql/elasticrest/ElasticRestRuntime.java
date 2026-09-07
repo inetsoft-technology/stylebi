@@ -156,9 +156,18 @@ public class ElasticRestRuntime extends TabularRuntime implements TabularCatalog
     * Elasticsearch explains itself well in that body (an unknown index answers 404 with an
     * {@code index_not_found_exception}) and the SPI's callers surface the message to a user.
     *
-    * @param path already-encoded, and prefixed with {@code /}. Index names are safe to embed
-    *             directly: Elasticsearch forbids a space and {@code \/*?"<>|,#} in an index name,
-    *             so nothing reaching here needs percent-encoding beyond what {@link #joinURL} does.
+    * @param path already-encoded, and prefixed with {@code /}. This method does not itself
+    *             validate an index name embedded in {@code path} — it trusts the caller. For
+    *             {@link ElasticCatalog}, that trust is warranted only because
+    *             {@link ElasticCatalog#validateIndexName} rejects a {@code datasetId} containing a
+    *             character Elasticsearch itself forbids (space, {@code \/*?"<>|,#}), or shaped
+    *             like {@code .}/{@code ..}/a leading {@code +}, before ever building a path from
+    *             it. That check cannot and does not confirm the id came from this data source's
+    *             own {@code listDatasets} — the SPI does not let a connector verify that, and
+    *             {@code SharepointOnlineCatalog}'s class javadoc argues at length why that gap is
+    *             accepted SPI-wide rather than fixed per-connector. Percent-encoding beyond what
+    *             {@link #joinURL} already does is unnecessary only because of the character
+    *             restriction above, not because of anything about the caller.
     */
    static String getMetadata(ElasticRestDataSource ds, String path) throws Exception {
       String urlString = joinURL(ds.getURL(), path);

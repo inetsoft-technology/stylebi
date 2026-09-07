@@ -25,6 +25,7 @@ import inetsoft.uql.tabular.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
@@ -203,6 +204,8 @@ final class ElasticCatalog {
          throw new Exception("Elasticsearch was asked to describe a blank dataset id.");
       }
 
+      validateIndexName(datasetId);
+
       Map<?, ?> byIndex = asMap(parse(ElasticRestRuntime.getMetadata(
          ds, "/" + datasetId + "/_mapping")));
 
@@ -263,6 +266,58 @@ final class ElasticCatalog {
       return new TabularDatasetSchema(datasetId, columns, List.of(), params, false,
          datasetDescription(ds, datasetId, mappings, columns, unaddressable, arrays,
                             unrecognizedTypes));
+   }
+
+   /**
+    * Rejects a {@code datasetId} that could not possibly be a real Elasticsearch index name,
+    * before it ever reaches {@link ElasticRestRuntime#getMetadata} or {@link #searchSuffix} and is
+    * embedded into a live URL.
+    *
+    * <p>{@code describeDataset} does not, and cannot, confirm {@code datasetId} came from this
+    * data source's own {@link #listDatasets} — {@code TabularCatalogService.describeTable} passes
+    * the caller-supplied target straight through, and {@code validateDatasetIdEchoed} only checks
+    * self-consistency AFTER the connector already ran. That gap is not this connector's to close:
+    * it is the same one {@code SharepointOnlineCatalog}'s own class javadoc argues at length is
+    * deliberately accepted SPI-wide, since anyone who can author a query can already point
+    * {@code runQuery} at any string through the connector's own unvalidated {@code setSuffix}. What
+    * IS this connector's to fix is narrower: a name reaching {@link ElasticRestRuntime#getMetadata}
+    * with a character its javadoc claims can't occur, embedded verbatim into a request URL.
+    *
+    * <p>The rejected characters and shapes below were checked against a live Elasticsearch 7.9.2,
+    * not assumed: {@code PUT /<name>} for each one, reading back the server's own
+    * {@code invalid_index_name_exception} message. A name containing a legal, non-leading
+    * {@code .} — {@code logs-2026.09.04}, this round's own G1 fixture — is deliberately NOT
+    * rejected here; only the exact strings {@code .}/{@code ..} and a leading {@code +} are.
+    *
+    * @throws Exception naming the offending id and which rule it broke.
+    */
+   private static void validateIndexName(String datasetId) throws Exception {
+      String reason = null;
+
+      if(datasetId.getBytes(StandardCharsets.UTF_8).length > 255) {
+         reason = "longer than 255 bytes";
+      }
+      else if(".".equals(datasetId) || "..".equals(datasetId)) {
+         reason = "must not be '.' or '..'";
+      }
+      else if(datasetId.startsWith("+")) {
+         reason = "must not start with '+'";
+      }
+      else {
+         for(int i = 0; i < datasetId.length(); i++) {
+            char c = datasetId.charAt(i);
+
+            if(FORBIDDEN_NAME_CHARS.indexOf(c) >= 0) {
+               reason = "must not contain '" + c + "'";
+               break;
+            }
+         }
+      }
+
+      if(reason != null) {
+         throw new Exception("Elasticsearch was asked to describe dataset id '" + datasetId +
+            "', which is not a legal Elasticsearch index name: " + reason + ".");
+      }
    }
 
    /**
@@ -577,6 +632,14 @@ final class ElasticCatalog {
 
    private static final String ALIAS = "alias";
    private static final String NESTED = "nested";
+
+   /**
+    * Every character Elasticsearch 7.9.2 refuses in an index name, measured with
+    * {@code PUT /<name>} against a live container: {@code \ / * ? " < > | , #} and a space. Used
+    * by {@link #validateIndexName} — kept as one literal string rather than a
+    * {@code Set<Character>} since every use is a single {@code indexOf} scan.
+    */
+   private static final String FORBIDDEN_NAME_CHARS = "\\/*?\"<>|,# ";
 
    /**
     * Sorted by index name so two calls against an unchanged cluster produce the same order —
