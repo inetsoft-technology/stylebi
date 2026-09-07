@@ -2444,6 +2444,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.onOpenSheet.emit({
          type: "worksheet",
          assetId: this.vs.baseEntry.identifier,
+         vsId: this.vs.runtimeId,
       });
    }
 

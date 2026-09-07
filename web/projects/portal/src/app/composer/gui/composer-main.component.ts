@@ -1727,6 +1727,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                ws.localId = sheetCounter++;
                ws.newSheet = newSheet;
                ws.gettingStarted = gettingStarted;
+               ws.vsId = event.vsId;
 
                index = this.sheets.push(ws) - 1;
                this.openedTabs.push(new ComposerTabModel(ws.type, ws));

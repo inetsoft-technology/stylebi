@@ -131,7 +131,7 @@ public class OpenWorksheetController extends WorksheetController {
       entry.setProperty("openAutoSaved", event.openAutoSavedFile() + "");
       entry.setProperty("gettingStarted", event.gettingStartedWs() + "");
       String runtimeId = eventService.openWorksheet(
-         principal, entry, event.openAutoSavedFile(), event.createQuery(),
+         principal, entry, event.openAutoSavedFile(), event.createQuery(), event.vsId(),
          commandDispatcher);
 
       getRuntimeViewsheetRef().setRuntimeId(runtimeId);
