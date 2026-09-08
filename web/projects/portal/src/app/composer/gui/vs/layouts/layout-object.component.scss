@@ -49,8 +49,19 @@ span.wrapper {
   line-height: normal;
 }
 
-.txt-primary .object  {
-  border: 2px dotted;
+.active .object {
+  border: 2px dotted var(--inet-viz-selected-border);
+}
+
+// .viz-modern/.viz-dark live on an intermediate .object-container ancestor of .object
+// (or, for a Tab/Line/Calendar child, on .object itself), never on the same element as
+// .active - hence the four-selector spread instead of a single compound class, mirroring
+// editable-object-container.component.scss's modern/dark gate for the same border.
+.active .viz-modern.object,
+.active .viz-modern .object,
+.active .viz-dark.object,
+.active .viz-dark .object {
+  border-style: dashed;
 }
 
 .horizontal-line {
