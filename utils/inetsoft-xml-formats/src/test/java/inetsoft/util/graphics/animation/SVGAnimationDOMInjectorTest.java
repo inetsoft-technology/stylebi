@@ -2471,6 +2471,423 @@ class SVGAnimationDOMInjectorTest {
    }
 
    // -------------------------------------------------------------------------
+   // Bordered (grouped) pie animation tests
+   //
+   // A pie whose binding has a group dimension gets a 1px slice border (GraphGenerator gives the
+   // IntervalElement a StaticLineFrame), so BarVO.paintBar fills the wedge and then strokes the
+   // same Shape.  Batik writes the two as sibling <path> elements with an identical "d" inside
+   // one <g class="inetsoft-bar">, and only the fill carries stroke="none".  The border used to
+   // be skipped entirely, painting the pie's whole group structure in the first frame while the
+   // fills swept in behind it.
+   // -------------------------------------------------------------------------
+
+   /**
+    * Re-parents {@code slice} into a {@code <g class="inetsoft-bar">} annotation group holding a
+    * Batik style-wrapper {@code <g>}, and adds the border path that {@code BarVO.paintLine} draws
+    * over the same shape — {@code fill="none"}, its own stroke, and an identical {@code d}:
+    *
+    * <pre>
+    * &lt;g class="inetsoft-bar"&gt;&lt;g fill="red" stroke="red"&gt;
+    *   &lt;path d="M.. A.. L.. Z" stroke="none"/&gt;
+    *   &lt;path fill="none" d="M.. A.. L.. Z" stroke="black"/&gt;
+    * &lt;/g&gt;&lt;/g&gt;
+    * </pre>
+    *
+    * <p>Batik may instead put the draw pass in a second sibling {@code <g>}, and may omit the
+    * border's own {@code stroke} when it matches the inherited one.  Pairing is by {@code d}
+    * within the annotation group, so both shapes behave identically; this one nests the two paths
+    * together to also cover the deeper-than-direct-child case.
+    *
+    * @return the border path element.
+    */
+   private static Element addSliceBorder(Document doc, Element slice) {
+      Element parent = (Element) slice.getParentNode();
+      Element annot = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      annot.setAttribute("class", SVGSupport.ANNOTATION_BAR);
+      Element wrapper = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      wrapper.setAttribute("fill", "red");
+      wrapper.setAttribute("stroke", "red");
+      annot.appendChild(wrapper);
+      parent.replaceChild(annot, slice);
+      wrapper.appendChild(slice);
+      return appendBorderPath(doc, wrapper, slice.getAttribute("d"));
+   }
+
+   /** Appends a Batik draw-pass path ({@code fill="none"}, stroked) with the given geometry. */
+   private static Element appendBorderPath(Document doc, Element parent, String d) {
+      Element border = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      border.setAttribute("fill", "none");
+      border.setAttribute("stroke", "black");
+      border.setAttribute("d", d);
+      parent.appendChild(border);
+      return border;
+   }
+
+   /** Extracts the delay (as formatted) from an {@code inetsoft-pie-sweep-N} animation style. */
+   private static String sweepDelay(String style) {
+      Matcher m = Pattern.compile("inetsoft-pie-sweep-\\d+ [\\d.]+s linear ([\\d.]+)s")
+         .matcher(style);
+      return m.find() ? m.group(1) : null;
+   }
+
+   /**
+    * The wedge outline must sweep in on exactly its own slice's timeline: same keyframes rule,
+    * same duration, same delay, same rewritten from-state geometry.
+    */
+   @Test
+   void groupedPie_borderSweepsWithItsOwnFill() throws Exception {
+      Document doc = newDocument();
+      Element a = addPieSlice(doc, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      Element b = addPieSlice(doc, 100, 180, 80, 0, 1, 20, 100, 100, 100);
+      Element borderA = addSliceBorder(doc, a);
+      Element borderB = addSliceBorder(doc, b);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      for(Element[] pair : List.of(new Element[]{ a, borderA }, new Element[]{ b, borderB })) {
+         String fillStyle = pair[0].getAttribute("style");
+         String borderStyle = pair[1].getAttribute("style");
+
+         assertNotNull(sweepKeyframeName(fillStyle), "fill must sweep");
+         assertEquals(sweepKeyframeName(fillStyle), sweepKeyframeName(borderStyle),
+                      "border must reference its own slice's sweep keyframes, not another's");
+         // The fill's whole animation string appears verbatim as the border's first animation,
+         // which pins duration and delay as well as the keyframes name.
+         assertTrue(borderStyle.contains(fillStyle),
+                    "border must run the identical sweep as its fill: " + borderStyle);
+         assertEquals(pair[0].getAttribute("d"), pair[1].getAttribute("d"),
+                      "border must be rewritten to the same zero-arc from-state as its fill");
+      }
+
+      assertNotEquals(sweepKeyframeName(borderA.getAttribute("style")),
+                      sweepKeyframeName(borderB.getAttribute("style")),
+                      "each slice keeps its own sweep, so the two borders must differ");
+   }
+
+   /**
+    * The zero-length-arc from-state is invisible when filled (it encloses no area) but draws a
+    * radial hairline from the rim to the hub when STROKED.  So the border must be held at
+    * {@code opacity:0} until its own sweep begins, otherwise every slice's spoke shows at t=0 —
+    * an asterisk across the pie, which is the same defect in a different costume.
+    */
+   @Test
+   void groupedPie_borderHiddenUntilItsSweepBegins() throws Exception {
+      Document doc = newDocument();
+      Element a = addPieSlice(doc, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      Element b = addPieSlice(doc, 100, 180, 80, 0, 1, 20, 100, 100, 100);
+      Element borderA = addSliceBorder(doc, a);
+      Element borderB = addSliceBorder(doc, b);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      for(Element[] pair : List.of(new Element[]{ a, borderA }, new Element[]{ b, borderB })) {
+         String delay = sweepDelay(pair[0].getAttribute("style"));
+         String borderStyle = pair[1].getAttribute("style");
+
+         assertNotNull(delay, "fill must carry a sweep delay");
+         assertTrue(borderStyle.startsWith("opacity:0"),
+                    "border must start hidden: " + borderStyle);
+         // steps(1,start) + both: the backwards fill holds opacity 0 through the delay, then it
+         // snaps to 1 exactly when the sweep starts.
+         assertTrue(borderStyle.contains(
+                       "inetsoft-pie-fade 0.001s steps(1,start) " + delay + "s both"),
+                    "border must be revealed at its own sweep delay (" + delay + "s): "
+                       + borderStyle);
+      }
+   }
+
+   /**
+    * The load-bearing no-regression test: pairing the border in must not perturb the fill's
+    * geometry, timing or the generated CSS by so much as a character.  {@code slices} still
+    * holds only fill paths, so the grouping and duration math sees identical input.
+    */
+   @Test
+   void groupedPie_fillStyleIdenticalToUngroupedPie() throws Exception {
+      Document plain = newDocument();
+      Element pa = addPieSlice(plain, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      Element pb = addPieSlice(plain, 100, 180, 80, 0, 1, 20, 100, 100, 100);
+
+      Document bordered = newDocument();
+      Element ba = addPieSlice(bordered, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      Element bb = addPieSlice(bordered, 100, 180, 80, 0, 1, 20, 100, 100, 100);
+      addSliceBorder(bordered, ba);
+      addSliceBorder(bordered, bb);
+
+      SVGAnimationDOMInjector.injectAnimation(plain.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+      SVGAnimationDOMInjector.injectAnimation(bordered.getDocumentElement(),
+                                              SVGSupport.ANIMATION_PIE);
+
+      assertEquals(pa.getAttribute("style"), ba.getAttribute("style"),
+                   "border pairing must not change the fill's animation");
+      assertEquals(pb.getAttribute("style"), bb.getAttribute("style"),
+                   "border pairing must not change the fill's animation");
+      assertEquals(pa.getAttribute("d"), ba.getAttribute("d"),
+                   "border pairing must not change the fill's from-state");
+      assertEquals(allStyleContent(plain.getDocumentElement()),
+                   allStyleContent(bordered.getDocumentElement()),
+                   "border pairing must not change the generated CSS");
+   }
+
+   /** Borders share their slice's keyframes rule rather than duplicating the sweep CSS. */
+   @Test
+   void groupedPie_sweepKeyframesNotDuplicated() throws Exception {
+      Document doc = newDocument();
+      Element a = addPieSlice(doc, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      Element b = addPieSlice(doc, 100, 180, 80, 0, 1, 20, 100, 100, 100);
+      addSliceBorder(doc, a);
+      addSliceBorder(doc, b);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      assertEquals(2, countOccurrences(allStyleContent(doc.getDocumentElement()),
+                                       "@keyframes inetsoft-pie-sweep-"),
+                   "one sweep rule per fill slice — borders share, they do not duplicate");
+   }
+
+   /**
+    * Bezier donut rings have no arc command, so the whole panel falls back to the staggered
+    * opacity fade.  That style already gates opacity, so the border gets it verbatim and is
+    * hidden and revealed on exactly its slice's timeline.
+    */
+   @Test
+   void groupedBezierDonut_borderFadesWithFill() throws Exception {
+      Document doc = newDocument();
+      Element r1 = addRingSlice(doc, 100, 100, 0, 120);
+      Element r2 = addRingSlice(doc, 100, 100, 120, 120);
+      Element border1 = addSliceBorder(doc, r1);
+      Element border2 = addSliceBorder(doc, r2);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      for(Element[] pair : List.of(new Element[]{ r1, border1 }, new Element[]{ r2, border2 })) {
+         String fillStyle = pair[0].getAttribute("style");
+
+         assertTrue(fillStyle.contains("inetsoft-pie-fade"), "bezier ring must use the fade");
+         assertEquals(fillStyle, pair[1].getAttribute("style"),
+                      "border must fade on exactly its slice's timeline");
+      }
+
+      assertNotEquals(r1.getAttribute("style"), r2.getAttribute("style"),
+                      "the fade is staggered per slice, so the two must differ");
+   }
+
+   /**
+    * An arc donut (hole detected) rewrites slices to a two-arc ring from-state, which likewise
+    * collapses to a radial spoke when stroked.  The border must get the same ring geometry, the
+    * same ring keyframes, and the opacity gate.
+    */
+   @Test
+   void groupedArcDonut_borderGetsRingFromState() throws Exception {
+      Document doc = newDocument();
+      addHoleOverlay(doc, 100, 100, 30);
+      Element a = addPieSlice(doc, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      Element border = addSliceBorder(doc, a);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      String d = a.getAttribute("d");
+      assertEquals(2, countOccurrences(d, "A"), "donut from-state must be a ring (two arcs)");
+      assertEquals(d, border.getAttribute("d"), "border must get the same ring from-state");
+      assertEquals(sweepKeyframeName(a.getAttribute("style")),
+                   sweepKeyframeName(border.getAttribute("style")),
+                   "border must share its slice's ring keyframes");
+      assertTrue(border.getAttribute("style").startsWith("opacity:0"),
+                 "the ring from-state is a stroked spoke, so the border must start hidden");
+   }
+
+   /**
+    * On a grouped donut the center-hole overlay picks up a border too — a second stroked
+    * {@code <circle>}, not a {@code <path>} — so hole detection (which requires a circle and no
+    * path) must still fire and keep the overlay pinned opaque.
+    */
+   @Test
+   void groupedDonut_holeOverlayStillReclassified() throws Exception {
+      Document doc = newDocument();
+      Element hole = addHoleOverlay(doc, 100, 100, 30);
+      Element holeBorder = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "circle");
+      holeBorder.setAttribute("fill", "none");
+      holeBorder.setAttribute("stroke", "black");
+      holeBorder.setAttribute("cx", "100");
+      holeBorder.setAttribute("cy", "100");
+      holeBorder.setAttribute("r", "30");
+      hole.appendChild(holeBorder);
+      Element a = addPieSlice(doc, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      addSliceBorder(doc, a);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      assertEquals(SVGSupport.ANNOTATION_DONUT_HOLE, hole.getAttribute("class"),
+                   "a bordered hole overlay must still be reclassified");
+      assertTrue(hole.getAttribute("style").contains("opacity:1!important"),
+                 "hole overlay must stay pinned opaque");
+      assertTrue(a.getAttribute("style").contains("inetsoft-pie-sweep"),
+                 "the hole must still be recognised so slices sweep as a ring");
+   }
+
+   /**
+    * Companion matching is scoped to the enclosing annotation group, so an unrelated stroked path
+    * that merely happens to share a slice's geometry is never touched.  This also locks in the
+    * no-op for a 3D pie, whose faces have no {@code inetsoft-bar} group at all.
+    */
+   @Test
+   void pieSliceOutsideAnnotationGroup_getsNoCompanion() throws Exception {
+      Document doc = newDocument();
+      Element a = addPieSlice(doc, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      addPieSlice(doc, 100, 180, 80, 0, 1, 20, 100, 100, 100);
+      // Same geometry, stroked, but not inside any annotation group.
+      Element stray = appendBorderPath(doc, doc.getDocumentElement(), a.getAttribute("d"));
+      String origStrayD = stray.getAttribute("d");
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      assertTrue(a.getAttribute("style").contains("inetsoft-pie-sweep"), "the slice must sweep");
+      assertEquals("", stray.getAttribute("style"),
+                   "a path outside the slice's annotation group must not be animated");
+      assertEquals(origStrayD, stray.getAttribute("d"),
+                   "a path outside the slice's annotation group must keep its geometry");
+   }
+
+   /**
+    * A collected path with no arc command alongside slices that do have one (a mixed donut, or a
+    * 3D depth quad) snaps to opaque when the matching slice's sweep begins rather than sweeping
+    * itself.  Its border must snap on the same beat.
+    *
+    * <p>Note this covers the non-arc snap branch generically, not a real 3D pie: a 3D pie is
+    * drawn by {@code Pie3DVO}, which {@code VGraphPair.hasPieVO} skips, so it never receives an
+    * animation hint and never reaches this code at all.
+    */
+   @Test
+   void nonArcSlice_borderSnapsWithItsFace() throws Exception {
+      Document doc = newDocument();
+      Element top = addPieSlice(doc, 180, 100, 80, 0, 1, 100, 160, 100, 100);
+      addSliceBorder(doc, top);
+      Element depth = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      depth.setAttribute("stroke", "none");
+      depth.setAttribute("d", "M100 160 L180 100 L180 120 L100 180 Z");
+      doc.getDocumentElement().appendChild(depth);
+      Element depthBorder = addSliceBorder(doc, depth);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      String depthStyle = depth.getAttribute("style");
+      assertTrue(depthStyle.contains("steps(1,start)"), "depth quad must snap, not sweep");
+      assertEquals(depthStyle, depthBorder.getAttribute("style"),
+                   "depth-face border must snap on the same beat as its face");
+   }
+
+   /** A pie clipped across tiles falls back to the fade; the border must follow it there too. */
+   @Test
+   void tiledGroupedPie_borderFadesWithFill() throws Exception {
+      Document doc = newDocument();   // viewBox 0 0 800 600
+      // Pie center (600,300), r=500 → bbox width 1000 > 800: larger than the tile.
+      Element a = addPieSlice(doc, 1100, 300, 500, 0, 1, 600, 800, 600, 300);
+      Element b = addPieSlice(doc, 600, 800, 500, 0, 1, 100, 300, 600, 300);
+      Element borderA = addSliceBorder(doc, a);
+      addSliceBorder(doc, b);
+      String origBorderD = borderA.getAttribute("d");
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      assertTrue(a.getAttribute("style").contains("inetsoft-pie-fade"), "tiled pie must fade");
+      assertEquals(a.getAttribute("style"), borderA.getAttribute("style"),
+                   "border must fade with its slice");
+      assertEquals(origBorderD, borderA.getAttribute("d"),
+                   "the fade must not rewrite the border's geometry either");
+   }
+
+   /**
+    * {@code GShape} can emit an outline pass on top of the fill in addition to the line frame's
+    * border, so one annotation group may hold more than one companion.  Every one must animate.
+    */
+   @Test
+   void groupedPie_multipleCompanionsAllAnimated() throws Exception {
+      Document doc = newDocument();
+      Element a = addPieSlice(doc, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      addPieSlice(doc, 100, 180, 80, 0, 1, 20, 100, 100, 100);
+      Element border1 = addSliceBorder(doc, a);
+      Element border2 = appendBorderPath(doc, (Element) border1.getParentNode(),
+                                         a.getAttribute("d"));
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      String kf = sweepKeyframeName(a.getAttribute("style"));
+
+      for(Element border : List.of(border1, border2)) {
+         assertEquals(kf, sweepKeyframeName(border.getAttribute("style")),
+                      "every companion must share the slice's sweep");
+         assertEquals(a.getAttribute("d"), border.getAttribute("d"),
+                      "every companion must get the slice's from-state");
+      }
+   }
+
+   /**
+    * With the "apply effect" (shine) chart option, {@code BarVO.applyEffect} fills the very same
+    * wedge path twice more with gradients.  Those extra paths also carry {@code stroke="none"},
+    * so they are collected as slices too — and the one border must be claimed by only the first
+    * of them, or it accumulates a stack of {@code animation} declarations of which only the last
+    * has any effect.
+    */
+   @Test
+   void groupedPie_duplicateShineFillsClaimBorderOnce() throws Exception {
+      Document doc = newDocument();
+      Element a = addPieSlice(doc, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      addPieSlice(doc, 100, 180, 80, 0, 1, 20, 100, 100, 100);
+      Element border = addSliceBorder(doc, a);
+      Element wrapper = (Element) border.getParentNode();
+      // The two gradient overlay fills applyEffect draws over the same wedge.
+      for(int i = 0; i < 2; i++) {
+         Element shine = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+         shine.setAttribute("stroke", "none");
+         shine.setAttribute("fill", "url(#gradient" + i + ")");
+         shine.setAttribute("d", a.getAttribute("d"));
+         wrapper.appendChild(shine);
+      }
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      String borderStyle = border.getAttribute("style");
+      assertEquals(1, countOccurrences(borderStyle, "animation:"),
+                   "border must be claimed once, not once per duplicated fill: " + borderStyle);
+      assertEquals(1, countOccurrences(borderStyle, "opacity:0"),
+                   "border must carry a single opacity gate: " + borderStyle);
+      assertEquals(sweepKeyframeName(a.getAttribute("style")),
+                   sweepKeyframeName(borderStyle),
+                   "border must follow the slice that claimed it");
+   }
+
+   /**
+    * Referenced geometry ({@code <defs>}/{@code <clipPath>}) can share a slice's {@code d} without
+    * being a wedge outline.  Rewriting it would corrupt the reference, so the companion search
+    * descends only into {@code <g>}.
+    */
+   @Test
+   void groupedPie_defsContentNotTreatedAsBorder() throws Exception {
+      Document doc = newDocument();
+      Element a = addPieSlice(doc, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      addPieSlice(doc, 100, 180, 80, 0, 1, 20, 100, 100, 100);
+      Element border = addSliceBorder(doc, a);
+      Element annot = (Element) border.getParentNode().getParentNode();
+      Element defs = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "defs");
+      Element clip = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "clipPath");
+      clip.setAttribute("id", "clip1");
+      Element clipPath = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      clipPath.setAttribute("d", a.getAttribute("d"));
+      clip.appendChild(clipPath);
+      defs.appendChild(clip);
+      annot.appendChild(defs);
+      String origClipD = clipPath.getAttribute("d");
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      assertTrue(border.getAttribute("style").contains("inetsoft-pie-sweep"),
+                 "the real border must still be animated");
+      assertEquals(origClipD, clipPath.getAttribute("d"),
+                   "clip-path geometry must never be rewritten");
+      assertEquals("", clipPath.getAttribute("style"),
+                   "clip-path geometry must never be animated");
+   }
+
+   // -------------------------------------------------------------------------
    // Relation / tree / network chart tests
    // -------------------------------------------------------------------------
 
