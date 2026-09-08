@@ -134,7 +134,8 @@ class MetadataApiServiceSchemaSearchTest {
          xrepository, dataSourceService, mock(AssetRepository.class),
          mock(AssetTreeService.class), new ObjectMapper()));
 
-      doReturn(tablesResponse).when(service).getDatabaseTables(anyString(), any());
+      doReturn(tablesResponse).when(service)
+         .getDatabaseTables(anyString(), any(), any(), any(), any());
 
       if(tableMeta != null) {
          doReturn(tableMeta).when(service)

@@ -1179,9 +1179,9 @@ public class WizDatabaseController {
       }
 
       return new WizDatasourceEntry(info.name(), info.path(), nodeType, folder, sourceType,
-                                    databaseType, annotationClass, info.createdBy(),
-                                    info.createdDate(), info.editable(), info.deletable(),
-                                    info.hasSubFolder());
+                                    databaseType, annotationClass, ANNOTATION_TARGET_THRESHOLD,
+                                    info.createdBy(), info.createdDate(), info.editable(),
+                                    info.deletable(), info.hasSubFolder());
    }
 
    /**
@@ -1675,4 +1675,12 @@ public class WizDatabaseController {
 
    /** Named rather than imported: it lives in a connector module core does not depend on. */
    private static final String REST_QUERY_CLASS = "inetsoft.uql.rest.AbstractRestQuery";
+
+   /**
+    * See {@link WizDatasourceEntry#annotationTargetThreshold()}. Global for every connector: of the
+    * connectors this threshold can affect, only Salesforce on a large org has enough sobjects to
+    * cross it, and a typical JDBC schema stays well under it, so annotating a source that size today
+    * sees no behavior change.
+    */
+   static final int ANNOTATION_TARGET_THRESHOLD = 500;
 }

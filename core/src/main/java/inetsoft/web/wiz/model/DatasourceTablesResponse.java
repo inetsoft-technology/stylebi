@@ -39,6 +39,20 @@ public class DatasourceTablesResponse {
       this.relationships = relationships;
    }
 
+   /**
+    * The cursor to pass back to fetch the next page of a paged {@code GET /datasource/tables}
+    * request. {@code null} means either this response is not paged (no {@code limit} was
+    * requested) or it is the last page of one that was.
+    */
+   public String getNextCursor() {
+      return nextCursor;
+   }
+
+   public void setNextCursor(String nextCursor) {
+      this.nextCursor = nextCursor;
+   }
+
    private List<DatabaseTableInfo> tables;
    private List<OsiRelationship> relationships;
+   private String nextCursor;
 }

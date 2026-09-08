@@ -72,6 +72,20 @@ package inetsoft.web.wiz.model;
  *                     <dd>classification failed, usually a connector plugin that did not load. Kept
  *                     distinct from the others so the cause is not mistaken for a verdict.</dd>
  *                     </dl>
+ * @param annotationTargetThreshold
+ *                     the most annotation targets wiz may list without asking the user to narrow
+ *                     the selection first. Wiz's first listing request must use
+ *                     {@code limit = annotationTargetThreshold + 1}: getting back that many means
+ *                     the source has more, so wiz has to ask before annotating everything;
+ *                     otherwise it proceeds unchanged. It cannot be learned from the listing
+ *                     response, since it decides what {@code limit} to put on the request that
+ *                     produces that response — this entry is wiz's only chance to learn it first.
+ *                     Currently the same global value ({@code 500}, see
+ *                     {@code WizDatabaseController.ANNOTATION_TARGET_THRESHOLD}) on every entry, not
+ *                     overridable per connector; carried per-entry rather than hardcoded in wiz so
+ *                     that changing it later — including making it per-connector — needs no new
+ *                     channel. Not meaningful for a folder entry, which is never annotated, but
+ *                     still carries the same global value for record simplicity.
  * @param createdBy    the alias of the creating user, may be null.
  * @param createdDate  creation time in epoch millis, 0 when unknown. Not formatted.
  * @param editable     whether the caller holds WRITE on this entry.
@@ -86,6 +100,7 @@ public record WizDatasourceEntry(
    String sourceType,
    String databaseType,
    String annotationClass,
+   int annotationTargetThreshold,
    String createdBy,
    long createdDate,
    boolean editable,

@@ -142,16 +142,28 @@ public class DatasourceMetaApiController {
    /**
     * Gets all tables and FK relationships for the specified datasource.
     *
-    * @param dsPath the datasource name or path.
+    * <p>{@code nameContains}/{@code limit}/{@code cursor} are all optional; omitting all three
+    * is byte-identical to this endpoint's pre-paging behavior. Supplying {@code limit} switches
+    * to the paged path (see {@link MetadataApiService#getDatabaseTables}), whose response never
+    * carries relationships and, for a JDBC data source, is rejected rather than silently
+    * returning an unpaged full listing.
+    *
+    * @param dsPath       the datasource name or path.
+    * @param nameContains optional case-insensitive substring filter on the dataset/table id.
+    * @param limit        optional page size; presence is what triggers paging.
+    * @param cursor       the exact {@code nextCursor} a previous paged call returned.
     * @return tables (with catalog/schema/type) and OSI relationships.
     */
    @GetMapping("/datasource/tables")
    public DatasourceTablesResponse getDatabaseTables(
       @RequestParam("dsPath") String dsPath,
+      @RequestParam(value = "nameContains", required = false) String nameContains,
+      @RequestParam(value = "limit", required = false) Integer limit,
+      @RequestParam(value = "cursor", required = false) String cursor,
       XPrincipal principal)
       throws Exception
    {
-      return metadataService.getDatabaseTables(dsPath, principal);
+      return metadataService.getDatabaseTables(dsPath, nameContains, limit, cursor, principal);
    }
 
    /**
