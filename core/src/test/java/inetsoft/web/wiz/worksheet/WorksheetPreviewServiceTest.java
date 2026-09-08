@@ -209,8 +209,9 @@ class WorksheetPreviewServiceTest {
    @Test
    void throwsPairingExceptionWhenGetColCountThrows() throws Exception {
       TableLens l = mock(TableLens.class);
-      when(l.getColCount()).thenThrow(new NullPointerException(
-         "Cannot invoke \"inetsoft.report.TableLens.getColCount()\" because \"table\" is null"));
+      NullPointerException cause = new NullPointerException(
+         "Cannot invoke \"inetsoft.report.TableLens.getColCount()\" because \"table\" is null");
+      when(l.getColCount()).thenThrow(cause);
 
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
@@ -220,6 +221,7 @@ class WorksheetPreviewServiceTest {
       assertEquals("Failed to read result columns for 'T': " +
                    "Cannot invoke \"inetsoft.report.TableLens.getColCount()\" because \"table\" is null",
                    ex.getMessage());
+      assertSame(cause, ex.getCause());
    }
 
    @Test
@@ -228,7 +230,8 @@ class WorksheetPreviewServiceTest {
       when(l.getColCount()).thenReturn(1);
       when(l.getObject(0, 0)).thenReturn("col");
       when(l.moreRows(1)).thenReturn(true);
-      when(l.getObject(1, 0)).thenThrow(new RuntimeException("row read failed"));
+      RuntimeException cause = new RuntimeException("row read failed");
+      when(l.getObject(1, 0)).thenThrow(cause);
 
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
@@ -236,6 +239,7 @@ class WorksheetPreviewServiceTest {
       PairingException ex = assertThrows(PairingException.class,
                                           () -> service.preview(rws(box), "T", 10));
       assertEquals("Failed to read result columns for 'T': row read failed", ex.getMessage());
+      assertSame(cause, ex.getCause());
    }
 
    @Test

@@ -126,7 +126,7 @@ public class WorksheetPreviewService {
       }
       catch(RuntimeException e) {
          throw new PairingException("Failed to read result columns for '"
-                                    + tableName + "': " + e.getMessage());
+                                    + tableName + "': " + e.getMessage(), e);
       }
    }
 
