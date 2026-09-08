@@ -232,6 +232,12 @@ public class VSTreeHandler {
       String aname = cinfo.getAbsoluteName();
       VSAssembly cass = vs0 == null ? null : (VSAssembly) vs0.getAssembly(aname);
 
+      // viewsheet may have been disposed/reset concurrently (e.g. user interacts with the
+      // binding tree before a heavy operation finishes), so cass can be null here.
+      if(cass == null) {
+         return null;
+      }
+
       SourceInfo sinfo = cinfo.getSourceInfo();
       String prefix = null;
       String source = null;
