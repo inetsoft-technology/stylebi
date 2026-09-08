@@ -552,6 +552,14 @@ public class AssetUtil {
          return null;
       }
 
+      // Bug #76400: a ColumnRef's own alias (e.g. an aggregate output alias set by
+      // set_group_aggregate) is about to be discarded by the unwrap below. A downstream table
+      // (e.g. the auto per-viewsheet mirror Worksheet.getVSTableAssembly lazily creates) may have
+      // folded that same alias into one of its own columns' bare attribute name (see
+      // MirrorTableAssembly.updateColumnSelection -> AssetUtil.getOuterAttribute), so keep it
+      // around as a last-resort match key in case the raw-attribute match below finds nothing.
+      String origAlias = ref instanceof ColumnRef ? ((ColumnRef) ref).getAlias() : null;
+
       if(ref instanceof ColumnRef) {
          ref = ((ColumnRef) ref).getDataRef();
       }
@@ -603,7 +611,32 @@ public class AssetUtil {
          }
       }
 
-      return column2;
+      if(column2 != null) {
+         return column2;
+      }
+
+      // Bug #76400 fallback: nothing matched the raw attribute name. If the original (pre-unwrap)
+      // ref carried an alias, try it against candidate columns' own bare ATTRIBUTE (not their
+      // alias) -- covers a downstream table whose column selection was rebuilt from a column that
+      // carried this same alias, baking the alias in as that column's own attribute name (e.g.
+      // AssetUtil.getOuterAttribute, used by MirrorTableAssembly.updateColumnSelection). Only a
+      // column with no alias of its own is eligible, so this never masks a genuine, differently-
+      // aliased column that happens to share this bare name.
+      if(origAlias != null && origAlias.length() > 0) {
+         iter = columns.getAttributes();
+
+         while(iter.hasMoreElements()) {
+            ColumnRef dref = (ColumnRef) iter.nextElement();
+
+            if(Tool.equals(dref.getAttribute(), origAlias) &&
+               (dref.getAlias() == null || dref.getAlias().isEmpty()))
+            {
+               return dref;
+            }
+         }
+      }
+
+      return null;
    }
 
    /**
