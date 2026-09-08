@@ -4573,6 +4573,64 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
+    * Same rule as {@link #addConcatenationRejectsColumnsThatDoNotLineUpByType}, reached through the
+    * other entry point: {@code addConcatSubtable} only checked column COUNT, so a subtable whose
+    * column at some position was a different {@code isMergeable} class than the existing subtables'
+    * spliced straight in with no error.
+    */
+   @Test
+   void addConcatSubtableRejectsColumnsThatDoNotLineUpByType() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a =
+         table(ws, "A", col("id", XSchema.INTEGER), col("name", XSchema.STRING));
+      EmbeddedTableAssembly b =
+         table(ws, "B", col("id", XSchema.INTEGER), col("name", XSchema.STRING));
+      EmbeddedTableAssembly c =
+         table(ws, "C", col("id", XSchema.INTEGER), col("amount", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addConcatSubtable("U", "C")));
+
+      assertTrue(ex.getMessage().contains("position 2"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("name"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("amount"), ex.getMessage());
+      assertEquals(2, ((ConcatenatedTableAssembly) ws.getAssembly("U")).getTableAssemblies().length,
+                   "the subtable list must be unchanged when the types do not line up");
+   }
+
+   /**
+    * Companion to the rejection test above: different types are not automatically a mismatch, since
+    * {@code AssetUtil.isMergeable} treats all number types as interchangeable, and likewise date and
+    * timeInstant. This is the case that would have let the original reporter's date/timeInstant
+    * repro still pass, proving the fix does not over-tighten past what {@code addConcatenation}
+    * itself allows.
+    */
+   @Test
+   void addConcatSubtableAcceptsColumnTypesThatMerge() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("n", XSchema.INTEGER), col("s", XSchema.STRING));
+      EmbeddedTableAssembly b = table(ws, "B", col("n", XSchema.INTEGER), col("s", XSchema.STRING));
+      EmbeddedTableAssembly c = table(ws, "C", col("n", XSchema.DOUBLE), col("s", XSchema.CHAR));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION"));
+
+      svc.apply("TOK", agent, ed -> ed.addConcatSubtable("U", "C"));
+
+      assertEquals(3, ((ConcatenatedTableAssembly) ws.getAssembly("U")).getTableAssemblies().length,
+                   "a mergeable column-type pairing must still be accepted");
+   }
+
+   /**
     * With three sources the mismatch is between the third and the first, which pins down that the
     * loop keeps checking past the first pair and names the offending source rather than whichever
     * one happened to come second.
