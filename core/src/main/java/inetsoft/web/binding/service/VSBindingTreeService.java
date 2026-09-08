@@ -90,7 +90,7 @@ public class VSBindingTreeService {
                assetTreeModel = treeHandler.getTableTreeModel(
                   engine.getAssetRepository(), rvs, (TableDataVSAssemblyInfo) info, principal);
 
-               if(appendComponentTree) {
+               if(assetTreeModel != null && appendComponentTree) {
                   treeHandler.appendVSAssemblyTree(rvs, assetTreeModel, principal, assembly);
                }
             }
