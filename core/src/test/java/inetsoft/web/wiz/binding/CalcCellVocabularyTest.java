@@ -19,14 +19,20 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.CellBinding;
 import inetsoft.report.GroupableCellBinding;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.AggregateRef;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.web.binding.model.table.CellBindingInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @Tag("core")
 class CalcCellVocabularyTest {
@@ -239,5 +245,185 @@ class CalcCellVocabularyTest {
    void acceptsValueAsAnAliasForFormulaContent() {
       assertDoesNotThrow(
          () -> CalcCellVocabulary.validate(spec("content", "formula", "value", "Sum(Sales)")));
+   }
+
+   // ── sort.rankBy / topn.rankBy shape ──────────────────────────────────────────
+
+   @Test
+   void mapsValueAscAndValueDescSortTokens() {
+      assertEquals(XConstants.SORT_VALUE_ASC, CalcCellVocabulary.sortDirection("value_asc"));
+      assertEquals(XConstants.SORT_VALUE_DESC, CalcCellVocabulary.sortDirection("value_desc"));
+   }
+
+   @Test
+   void refusesValueAscSortWithNoRankBy() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> CalcCellVocabulary.validate(spec(
+            "content", "text", "value", "x",
+            "sort", spec("direction", "value_asc"))));
+
+      assertTrue(thrown.getMessage().contains("rankBy"));
+   }
+
+   @Test
+   void acceptsValueDescSortWithRankBy() {
+      assertDoesNotThrow(() -> CalcCellVocabulary.validate(spec(
+         "content", "text", "value", "x",
+         "sort", spec("direction", "value_desc",
+                      "rankBy", spec("column", "Revenue", "formula", "Sum")))));
+   }
+
+   @Test
+   void refusesTopnRankByMissingColumn() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> CalcCellVocabulary.validate(spec(
+            "content", "text", "value", "x",
+            "topn", spec("mode", "top", "rankBy", spec("formula", "Sum")))));
+
+      assertTrue(thrown.getMessage().contains("column"));
+   }
+
+   // ── field.namedGroup inline ('Customize') shape ──────────────────────────────
+   //
+   // Checked eagerly in validate() (before sessions.mutate opens a checkpoint the caller then
+   // has to undo), same as sort/topn -- the actual condition-list-building for a valid shape is
+   // CalcTableService.applyInlineNamedGroup's job, not this stateless vocabulary's.
+
+   @Test
+   void refusesInlineNamedGroupWithNoGroups() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> CalcCellVocabulary.validate(spec(
+            "content", "column", "grouping", "group", "expand", "vertical",
+            "field", spec("column", "Region", "type", "dimension",
+                          "namedGroup", spec("groups", List.of())))));
+
+      assertTrue(thrown.getMessage().contains("groups"));
+   }
+
+   @Test
+   void refusesInlineNamedGroupGroupWithBlankName() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> CalcCellVocabulary.validate(spec(
+            "content", "column", "grouping", "group", "expand", "vertical",
+            "field", spec("column", "Region", "type", "dimension",
+                          "namedGroup", spec("groups", List.of(
+                             spec("name", " ",
+                                  "conditions", List.of(spec("operator", "one_of",
+                                                             "values", List.of("CA"))))))))));
+
+      assertTrue(thrown.getMessage().contains("name"));
+   }
+
+   @Test
+   void refusesInlineNamedGroupGroupWithNoConditions() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> CalcCellVocabulary.validate(spec(
+            "content", "column", "grouping", "group", "expand", "vertical",
+            "field", spec("column", "Region", "type", "dimension",
+                          "namedGroup", spec("groups", List.of(
+                             spec("name", "West", "conditions", List.of())))))));
+
+      assertTrue(thrown.getMessage().contains("condition"));
+   }
+
+   @Test
+   void refusesInlineNamedGroupConditionThatIsNotAnObject() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> CalcCellVocabulary.validate(spec(
+            "content", "column", "grouping", "group", "expand", "vertical",
+            "field", spec("column", "Region", "type", "dimension",
+                          "namedGroup", spec("groups", List.of(
+                             spec("name", "West", "conditions", List.of("not-an-object"))))))));
+
+      assertTrue(thrown.getMessage().contains("object"));
+   }
+
+   @Test
+   void refusesInlineNamedGroupConditionNamingADifferentField() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> CalcCellVocabulary.validate(spec(
+            "content", "column", "grouping", "group", "expand", "vertical",
+            "field", spec("column", "Region", "type", "dimension",
+                          "namedGroup", spec("groups", List.of(
+                             spec("name", "West",
+                                  "conditions", List.of(spec("field", "State",
+                                                             "operator", "one_of",
+                                                             "values", List.of("CA"))))))))));
+
+      assertTrue(thrown.getMessage().contains("Region"));
+   }
+
+   @Test
+   void acceptsAWellFormedInlineNamedGroup() {
+      assertDoesNotThrow(() -> CalcCellVocabulary.validate(spec(
+         "content", "column", "grouping", "group", "expand", "vertical",
+         "field", spec("column", "Region", "type", "dimension",
+                       "namedGroup", spec("groups", List.of(
+                          spec("name", "West",
+                               "conditions", List.of(spec("operator", "one_of",
+                                                          "values", List.of("CA"))))),
+                                          "others", "leave")))));
+   }
+
+   @Test
+   void ignoresByNameNamedGroupStringsEntirely() {
+      // The by-name form ("a predefined group's name") needs runtime session state to resolve --
+      // not this stateless vocabulary's job. A plain string must pass through untouched here.
+      assertDoesNotThrow(() -> CalcCellVocabulary.validate(spec(
+         "content", "column", "grouping", "group", "expand", "vertical",
+         "field", spec("column", "Region", "type", "dimension", "namedGroup", "Coastal"))));
+   }
+
+   // ── describe(info, aggregates): resolving sortByCol/sumCol back to {column, formula} ────────
+
+   @Test
+   void describeResolvesSortByColBackToRankBy() {
+      CellBindingInfo info = new CellBindingInfo();
+      info.setType(CellBinding.BIND_COLUMN);
+      info.setBtype(CellBinding.GROUP);
+      info.getOrder().setType(XConstants.SORT_VALUE_DESC);
+      info.getOrder().setSortCol(1);
+
+      AggregateRef sum = mock(AggregateRef.class);
+      when(sum.getDataRef()).thenReturn(new AttributeRef(null, "PAID"));
+      when(sum.getFormulaName()).thenReturn("Sum");
+      AggregateRef avg = mock(AggregateRef.class);
+      when(avg.getDataRef()).thenReturn(new AttributeRef(null, "PAID"));
+      when(avg.getFormulaName()).thenReturn("Average");
+
+      Map<String, Object> described =
+         CalcCellVocabulary.describe(info, new AggregateRef[]{ sum, avg });
+      @SuppressWarnings("unchecked")
+      Map<String, Object> sort = (Map<String, Object>) described.get("sort");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> rankBy = (Map<String, Object>) sort.get("rankBy");
+
+      assertEquals("value_desc", sort.get("direction"));
+      assertEquals("PAID", rankBy.get("column"));
+      assertEquals("Average", rankBy.get("formula"));
+   }
+
+   @Test
+   void describeOmitsRankByWhenAggregatesAreUnavailable() {
+      CellBindingInfo info = new CellBindingInfo();
+      info.setType(CellBinding.BIND_COLUMN);
+      info.setBtype(CellBinding.GROUP);
+      info.getOrder().setType(XConstants.SORT_VALUE_ASC);
+      info.getOrder().setSortCol(0);
+
+      // The single-argument overload -- no aggregate context available -- must not report a
+      // bare index under 'rankBy' (exactly the brittle-under-reorder shape this vocabulary
+      // avoids everywhere else); it omits the key instead.
+      @SuppressWarnings("unchecked")
+      Map<String, Object> sort = (Map<String, Object>) CalcCellVocabulary.describe(info).get("sort");
+
+      assertNull(sort.get("rankBy"));
    }
 }

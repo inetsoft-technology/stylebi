@@ -107,6 +107,11 @@ public final class DateLevels {
       return token;
    }
 
+   /** The accepted names, for a vocabulary listing — not the numbers they resolve to. */
+   public static List<String> names() {
+      return new ArrayList<>(BY_NAME.keySet());
+   }
+
    /** StyleBI's sentinel for an unset level — see {@code VSDimensionRef.setDateLevel}. */
    private static final String UNSET = "-1";
 

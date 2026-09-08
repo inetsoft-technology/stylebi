@@ -21,10 +21,14 @@ import inetsoft.report.CellBinding;
 import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.XCondition;
+import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.DataVSAssembly;
@@ -32,13 +36,18 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.report.internal.binding.AssetNamedGroupInfo;
+import inetsoft.uql.erm.CalcAggregate;
 import inetsoft.web.binding.command.GetCellScriptCommand;
 import inetsoft.web.binding.command.GetPredefinedNamedGroupCommand;
 import inetsoft.web.binding.controller.VSTableLayoutService;
+import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.event.GetCellScriptEvent;
 import inetsoft.web.binding.event.GetPredefinedNamedGroupEvent;
+import inetsoft.web.binding.handler.TableLayoutHandler;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.table.OrderModel;
+import inetsoft.web.binding.model.table.TopNModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.condition.ConditionExpression;
 import inetsoft.web.composer.model.condition.ConditionUtil;
@@ -50,6 +59,7 @@ import inetsoft.web.binding.model.table.CellBindingInfo;
 import inetsoft.web.binding.model.table.TableCell;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.binding.model.FieldRef;
+import inetsoft.web.wiz.viewsheet.ConditionVocabulary;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,12 +89,15 @@ public class CalcTableService {
    @Autowired
    public CalcTableService(ViewsheetSessionService sessions, VSTableLayoutService layoutService,
                            DataRefModelFactoryService refModelService,
-                           BindableFieldsService fieldsService)
+                           BindableFieldsService fieldsService,
+                           VSColumnHandler columnsHandler, TableLayoutHandler layoutHandler)
    {
       this.sessions = sessions;
       this.layoutService = layoutService;
       this.refModelService = refModelService;
       this.fieldsService = fieldsService;
+      this.columnsHandler = columnsHandler;
+      this.layoutHandler = layoutHandler;
    }
 
    /**
@@ -100,6 +113,7 @@ public class CalcTableService {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
       TableLayout layout = layoutOf(assembly);
+      AggregateRef[] aggregates = aggregatesOf(rvs, assembly);
       List<Map<String, Object>> cells = new ArrayList<>();
 
       for(int row = 0; row < layout.getRowCount(); row++) {
@@ -116,7 +130,7 @@ public class CalcTableService {
 
             cell.put("binding",
                      CalcCellVocabulary.describe(
-                        layoutService.getCellBindingInfo(assembly, row, col)));
+                        layoutService.getCellBindingInfo(assembly, row, col), aggregates));
             cells.add(cell);
          }
       }
@@ -142,7 +156,8 @@ public class CalcTableService {
       out.put("row", row);
       out.put("col", col);
       out.put("binding",
-              CalcCellVocabulary.describe(layoutService.getCellBindingInfo(assembly, row, col)));
+              CalcCellVocabulary.describe(layoutService.getCellBindingInfo(assembly, row, col),
+                                          aggregatesOf(rvs, assembly)));
       return out;
    }
 
@@ -275,19 +290,45 @@ public class CalcTableService {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          requireInGrid(layoutOf(assembly), row, col);
 
-         CellBindingInfo cellBindingInfo = toCellBindingInfo(binding);
+         CellBindingInfo cellBindingInfo = toCellBindingInfo(binding, rvs, assembly);
 
          if(cellBindingInfo.getType() == CellBinding.BIND_COLUMN) {
             requireBindableColumn(runtimeId, user, assemblyName, cellBindingInfo.getValue());
          }
 
+         Object field = binding.get("field");
          String namedGroup = cellBindingInfo.getType() == CellBinding.BIND_COLUMN
-            ? namedGroupOf(binding.get("field")) : null;
+            ? namedGroupOf(field) : null;
+         Map<String, Object> inlineNamedGroup = cellBindingInfo.getType() == CellBinding.BIND_COLUMN
+            ? inlineNamedGroupOf(field) : null;
 
+         // 'sort' and 'field.namedGroup' are independent: a named group only changes which raw
+         // values collapse into which labelled bucket (OrderModel.info), while 'sort' (any
+         // direction, including manual) orders the resulting labels same as any other value
+         // (see LayoutTool.createGroupExpression -- it reads order.info and order.type/asc
+         // separately when building the cell's mapList()/toList() expression). So this only
+         // adds the group's own conditions onto whatever OrderModel 'sort' already built above,
+         // rather than replacing it.
          if(namedGroup != null) {
-            cellBindingInfo.setOrder(resolveNamedGroupOrder(
+            resolveNamedGroupOrder(cellBindingInfo.getOrder(),
                rvs, assembly, runtimeId, user, dispatcher, cellBindingInfo.getValue(),
-               namedGroup));
+               namedGroup);
+         }
+         else if(inlineNamedGroup != null) {
+            applyInlineNamedGroup(cellBindingInfo.getOrder(), inlineNamedGroup, rvs, assembly,
+               cellBindingInfo.getValue());
+         }
+         else {
+            // toCellBindingInfo builds a brand-new OrderModel every call, whose 'info' defaults
+            // to an empty-but-non-null NamedGroupInfoModel (type 0) -- VSTableLayoutService
+            // .setNamedGroupInfo only clears the persisted named group for an explicit null,
+            // not for that default object, so omitting 'field.namedGroup' silently left a prior
+            // write's named group in place (live-confirmed: set one, then write the same cell
+            // without 'namedGroup', and the old group kept rendering). The Composer's own UI
+            // never hits this branch: it loads the real OrderModel once and mutates it in
+            // place, so clearing there always means an explicit null. Explicit null here makes
+            // this match this tool's own documented contract -- 'field' is not preserved.
+            cellBindingInfo.getOrder().setInfo(null);
          }
 
          SetCellBindingEvent event = new SetCellBindingEvent();
@@ -372,22 +413,28 @@ public class CalcTableService {
    }
 
    /**
-    * Resolves a cell's {@code field.namedGroup} to the {@code OrderModel}
-    * {@code VSTableLayoutService.setNamedGroupInfo} actually knows how to apply -- worksheet-local
-    * first (an {@code EXPERT_NAMEDGROUP_INFO} built from the assembly's own per-group
-    * conditions), then the repository-registered asset kind. Neither matching is a hard failure:
-    * a name that resolves to nothing would otherwise silently render without any grouping at
-    * all, which is the defect this fixes.
+    * Resolves a cell's {@code field.namedGroup} onto the given {@code OrderModel}'s {@code info}
+    * -- worksheet-local first (an {@code EXPERT_NAMEDGROUP_INFO} built from the assembly's own
+    * per-group conditions), then the repository-registered asset kind. Neither matching is a
+    * hard failure: a name that resolves to nothing would otherwise silently render without any
+    * grouping at all, which is the defect this fixes.
+    *
+    * <p>Only {@code order.info} is touched here -- {@code order.type} (sort direction/manual
+    * order) is whatever 'sort' already set it to (or the default, if 'sort' was omitted). The
+    * two are independent inputs to the same {@code mapList()}/{@code toList()} expression
+    * {@code LayoutTool.createGroupExpression} builds; forcing a direction here would silently
+    * discard what 'sort' asked for.
     */
-   private OrderModel resolveNamedGroupOrder(RuntimeViewsheet rvs, CalcTableVSAssembly assembly,
-                                             String runtimeId, Principal user,
-                                             CapturingCommandDispatcher dispatcher,
-                                             String column, String namedGroup)
+   private void resolveNamedGroupOrder(OrderModel order, RuntimeViewsheet rvs,
+                                       CalcTableVSAssembly assembly, String runtimeId,
+                                       Principal user, CapturingCommandDispatcher dispatcher,
+                                       String column, String namedGroup)
       throws Exception
    {
       for(DefaultNamedGroupAssembly ngAssembly : worksheetNamedGroups(rvs, assembly, column)) {
          if(namedGroup.equals(ngAssembly.getName())) {
-            return worksheetLocalOrder(ngAssembly);
+            worksheetLocalOrder(order, ngAssembly);
+            return;
          }
       }
 
@@ -398,10 +445,8 @@ public class CalcTableService {
          NamedGroupInfoModel ngInfoModel = new NamedGroupInfoModel();
          ngInfoModel.setType(XNamedGroupInfo.ASSET_NAMEDGROUP_INFO);
          ngInfoModel.setName(namedGroup);
-         OrderModel orderModel = new OrderModel();
-         orderModel.setType(XConstants.SORT_SPECIFIC);
-         orderModel.setInfo(ngInfoModel);
-         return orderModel;
+         order.setInfo(ngInfoModel);
+         return;
       }
 
       throw new IllegalArgumentException(
@@ -413,7 +458,7 @@ public class CalcTableService {
    /**
     * Converts a worksheet-local {@code DefaultNamedGroupAssembly}'s per-group conditions into
     * the {@code EXPERT_NAMEDGROUP_INFO} shape {@code VSTableLayoutService.setNamedGroupInfo}
-    * consumes.
+    * consumes, and sets it onto the given {@code OrderModel}'s {@code info}.
     *
     * <p>This cannot reuse {@code NamedGroupInfoModel.fixNamedGroupInfoModel} -- that method skips
     * anything whose {@code getType()} isn't {@code EXPERT}/{@code SIMPLE}, and a worksheet-local
@@ -421,12 +466,16 @@ public class CalcTableService {
     * though it holds inline per-group {@code ConditionList}s. The conversion itself is the same
     * technique that method uses.
     *
-    * <p>{@code SORT_SPECIFIC} on the order is not optional decoration: {@code OrderInfo.isSpecific()}
-    * -- which reads this exact bit -- gates whether {@code OrderInfo.createSortOrder} ever folds
-    * the named-group conditions into the {@code SortOrder} StyleBI actually groups by. Without
-    * it the named group is attached but never takes effect.
+    * <p>Only {@code order.info} is set here, deliberately -- {@code order.type} is not touched.
+    * {@code LayoutTool.createGroupExpression} reads {@code order.getRealNamedGroupInfo()} (the
+    * group mapping) and {@code order.getType()}/{@code isAsc()} (the resulting sort) as two
+    * independent inputs to the same generated {@code mapList()} expression; the Composer's own
+    * {@code CalcNamedGroupDialog.apply()} likewise only ever assigns {@code order.info}/
+    * {@code order.others}, never {@code order.type}.
     */
-   private OrderModel worksheetLocalOrder(DefaultNamedGroupAssembly ngAssembly) throws Exception {
+   private void worksheetLocalOrder(OrderModel order, DefaultNamedGroupAssembly ngAssembly)
+      throws Exception
+   {
       NamedGroupInfoModel ngInfoModel = new NamedGroupInfoModel();
       ngInfoModel.setType(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO);
 
@@ -439,10 +488,233 @@ public class CalcTableService {
          ngInfoModel.addCondition(conditionExpression);
       }
 
-      OrderModel orderModel = new OrderModel();
-      orderModel.setType(XConstants.SORT_SPECIFIC);
-      orderModel.setInfo(ngInfoModel);
-      return orderModel;
+      order.setInfo(ngInfoModel);
+   }
+
+   /**
+    * Builds an inline ('Customize') named group straight from the caller's own conditions --
+    * {@code {groups: [{name, conditions}], others?}} -- rather than looking one up by name. This
+    * is the mechanism most calc-table named groups actually use: the Composer's own Named Group
+    * Definition dialog ({@code ExpertNamedGroupDialog}) always builds one of these, on the fly,
+    * scoped to the one cell being edited -- unlike {@link #resolveNamedGroupOrder}'s two lookups,
+    * neither of which is what "Customize" itself is.
+    *
+    * <p>Each group's {@code conditions} reuses {@link ConditionVocabulary}'s own flat,
+    * junction-chained vocabulary -- the same one {@code set_condition} uses -- so this does not
+    * grow a second condition-shape for an agent to learn.
+    *
+    * <p>Sets both {@code order.info} and {@code order.others}, matching
+    * {@code CalcNamedGroupDialog.apply()} exactly: {@code order.type} is untouched, for the same
+    * reason {@link #worksheetLocalOrder} leaves it alone.
+    */
+   private void applyInlineNamedGroup(OrderModel order, Map<String, Object> spec,
+                                      RuntimeViewsheet rvs, CalcTableVSAssembly assembly,
+                                      String column) throws Exception
+   {
+      Object rawGroups = spec.get("groups");
+      List<?> groups = rawGroups instanceof List<?> list ? list : List.of();
+
+      if(groups.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'field.namedGroup.groups' needs at least one {name, conditions} group -- a named " +
+            "group with no groups in it buckets nothing.");
+      }
+
+      DataRefModel fieldModel = refModelService.createDataRefModel(columnRef(rvs, assembly, column));
+      NamedGroupInfoModel ngInfoModel = new NamedGroupInfoModel();
+      ngInfoModel.setType(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO);
+
+      for(Object g : groups) {
+         Map<?, ?> groupSpec = g instanceof Map<?, ?> map ? map : Map.of();
+         Object name = groupSpec.get("name");
+
+         if(!(name instanceof String text) || text.isBlank()) {
+            throw new IllegalArgumentException(
+               "Every group in 'field.namedGroup.groups' needs a non-blank 'name'.");
+         }
+
+         Object[] conditionArray = ConditionVocabulary.toConditionList(
+            clausesOf(groupSpec.get("conditions"), column), new DataRefModel[]{ fieldModel });
+         ConditionExpression expr = new ConditionExpression();
+         expr.setName(text);
+         expr.setList(conditionArray);
+         ngInfoModel.addCondition(expr);
+      }
+
+      order.setInfo(ngInfoModel);
+      order.setOthers(!isLeaveOthers(spec.get("others")));
+   }
+
+   /**
+    * {@code field.namedGroup.others} in the tool's own string vocabulary ({@code "group"}/
+    * {@code "leave"}), but also accepts the plain {@code Boolean} this same concept uses
+    * elsewhere in {@code inetsoft.web.wiz} ({@code DimensionSortRanking.Ranking.others},
+    * {@code EditRequest.groupOthers} -- both {@code true} = group, {@code false} = leave). A
+    * caller reasonably following that sibling convention and sending {@code others: false} here
+    * would otherwise silently get {@code GROUP_OTHERS} instead of the requested "leave ungrouped"
+    * behavior, since only the exact string {@code "leave"} was ever recognized.
+    */
+   private static boolean isLeaveOthers(Object others) {
+      return Boolean.FALSE.equals(others) || "leave".equalsIgnoreCase(String.valueOf(others));
+   }
+
+   /**
+    * The real, properly-typed {@code DataRef} for a bound column -- needed so
+    * {@link ConditionVocabulary#toConditionList} parses each condition's values against the
+    * column's actual data type (a date column's values need {@code dataType}, or they parse as
+    * plain strings and never match). Mirrors {@code VSTableLayoutService.getPredefinedNamedGroup}'s
+    * own column resolution.
+    */
+   private DataRef columnRef(RuntimeViewsheet rvs, CalcTableVSAssembly assembly, String column)
+      throws Exception
+   {
+      ColumnSelection cols = columnSelectionOf(rvs, assembly);
+      DataRef field = cols == null ? null : cols.getAttribute(column);
+
+      if(field == null) {
+         throw new IllegalArgumentException(
+            "'" + column + "' is not a bindable column on this table -- list_bindable_fields " +
+            "reports what is available.");
+      }
+
+      return field;
+   }
+
+   private ColumnSelection columnSelectionOf(RuntimeViewsheet rvs, CalcTableVSAssembly assembly)
+      throws Exception
+   {
+      SourceInfo source = assembly.getSourceInfo();
+      return columnsHandler.getColumnSelection(
+         rvs, assembly.getAbsoluteName(), source == null ? null : source.getSource(),
+         null, false, true, false, false, false, false);
+   }
+
+   /**
+    * Every distinct summary ({@code grouping: "summary"}) cell in this calc table, deduplicated
+    * by column+formula identity -- the same list {@code sort.rankBy}/{@code topn.rankBy} are
+    * resolved against on write, and the read side reports {@code rankBy} from
+    * ({@link CalcCellVocabulary#describe(CellBindingInfo, AggregateRef[])}). Order matters: it is
+    * the same order {@code OrderModel.sortByCol}/{@code TopNModel.sumCol} index into, mirroring
+    * {@code VSTableLayoutService.getAggregates}.
+    */
+   private AggregateRef[] aggregatesOf(RuntimeViewsheet rvs, CalcTableVSAssembly assembly)
+      throws Exception
+   {
+      ColumnSelection cols = columnSelectionOf(rvs, assembly);
+      CalcAggregate[] aggs = layoutHandler.getCalcAggregateFields(assembly, cols);
+      AggregateRef[] out = new AggregateRef[aggs.length];
+
+      for(int i = 0; i < aggs.length; i++) {
+         out[i] = (AggregateRef) aggs[i];
+      }
+
+      return out;
+   }
+
+   /**
+    * Resolves a {@code {column, formula}} rank-by reference to its index in
+    * {@link #aggregatesOf}'s list -- the same index {@code OrderModel.sortByCol}/
+    * {@code TopNModel.sumCol} actually store. {@code rankBy == null} is only valid with exactly
+    * one summary cell in scope, matching what the Composer's own Top-N pane defaults to; with
+    * zero or more than one, guessing would silently rank by the wrong column, so this refuses
+    * instead.
+    */
+   private int resolveRankBy(RuntimeViewsheet rvs, CalcTableVSAssembly assembly,
+                             Map<String, Object> rankBy, String forWhat) throws Exception
+   {
+      AggregateRef[] aggs = aggregatesOf(rvs, assembly);
+
+      if(rankBy == null) {
+         if(aggs.length == 1) {
+            return 0;
+         }
+
+         throw new IllegalArgumentException(
+            forWhat + " needs a 'rankBy' of {column, formula} -- this table has " + aggs.length +
+            " summary cell(s) in scope (" + describeAggs(aggs) + "), so which one to use is " +
+            "ambiguous." + (aggs.length == 0 ?
+               " Add a summary cell first." : " Name one with 'rankBy'."));
+      }
+
+      String column = str(rankBy, "column");
+      String formula = str(rankBy, "formula");
+
+      for(int i = 0; i < aggs.length; i++) {
+         AggregateRef agg = aggs[i];
+         String aggColumn = agg.getDataRef() == null ? null : agg.getDataRef().getName();
+
+         if(Objects.equals(aggColumn, column) && Objects.equals(agg.getFormulaName(), formula)) {
+            return i;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         forWhat + "'s 'rankBy' names " + formula + "(" + column + "), which isn't one of this " +
+         "table's summary cells (" + describeAggs(aggs) + ").");
+   }
+
+   private static String describeAggs(AggregateRef[] aggs) {
+      if(aggs.length == 0) {
+         return "none";
+      }
+
+      StringBuilder out = new StringBuilder();
+
+      for(int i = 0; i < aggs.length; i++) {
+         if(i > 0) {
+            out.append(", ");
+         }
+
+         AggregateRef agg = aggs[i];
+         out.append(agg.getFormulaName()).append("(")
+            .append(agg.getDataRef() == null ? "?" : agg.getDataRef().getName()).append(")");
+      }
+
+      return out.toString();
+   }
+
+   /**
+    * One named group's conditions, in {@link ConditionVocabulary}'s flat clause shape. A
+    * condition's own {@code field} defaults to the column being grouped -- the only one a named
+    * group can meaningfully condition on -- and naming a different one is refused rather than
+    * silently ignored.
+    */
+   @SuppressWarnings("unchecked")
+   private static List<ConditionVocabulary.Clause> clausesOf(Object rawConditions, String column) {
+      if(!(rawConditions instanceof List<?> list) || list.isEmpty()) {
+         throw new IllegalArgumentException(
+            "Every group in 'field.namedGroup.groups' needs at least one condition.");
+      }
+
+      List<ConditionVocabulary.Clause> clauses = new ArrayList<>();
+
+      for(Object c : list) {
+         if(!(c instanceof Map<?, ?>)) {
+            throw new IllegalArgumentException(
+               "Every condition in 'field.namedGroup.groups[].conditions' must be an object " +
+               "such as {operator: \"one_of\", values: [...]}, got " + c + ".");
+         }
+
+         Map<String, Object> clause = (Map<String, Object>) c;
+         Object field = clause.get("field");
+
+         if(field != null && !column.equals(String.valueOf(field))) {
+            throw new IllegalArgumentException(
+               "A named-group condition's 'field' must be the column being grouped ('" + column +
+               "'), got '" + field + "'. Omit 'field' or set it to '" + column + "'.");
+         }
+
+         Object rawValues = clause.get("values");
+         List<Object> values = rawValues instanceof List<?> valueList
+            ? new ArrayList<>(valueList) : List.of();
+         Object junction = clause.get("junction");
+         clauses.add(new ConditionVocabulary.Clause(
+            column, String.valueOf(clause.get("operator")), values,
+            junction == null ? null : String.valueOf(junction),
+            Boolean.TRUE.equals(clause.get("negated"))));
+      }
+
+      return clauses;
    }
 
    /**
@@ -593,17 +865,49 @@ public class CalcTableService {
 
    /** The tokens this build accepts, so an agent can discover rather than guess. */
    public Map<String, Object> vocabulary() {
-      return Map.of(
-         "content", CalcCellVocabulary.contentTokens(),
-         "grouping", CalcCellVocabulary.groupingTokens(),
-         "expand", CalcCellVocabulary.expandTokens(),
-         "layoutOps", new TreeSet<>(LAYOUT_OPS.values()),
-         "copyOps", List.of("copy", "cut", "remove"));
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("content", CalcCellVocabulary.contentTokens());
+      out.put("grouping", CalcCellVocabulary.groupingTokens());
+      out.put("expand", CalcCellVocabulary.expandTokens());
+      out.put("layoutOps", new TreeSet<>(LAYOUT_OPS.values()));
+      out.put("copyOps", List.of("copy", "cut", "remove"));
+      out.put("sortDirections", CalcCellVocabulary.sortDirectionTokens());
+      out.put("topnModes", CalcCellVocabulary.topnModeTokens());
+      // The names a 'summary' cell's 'formula' accepts. The string itself can also carry a
+      // percentage-of-group mode (append '<N>', N = one of the PERCENTAGE_* values a caller
+      // would otherwise have to read off StyleConstants), a second column for a two-column
+      // formula (append '(ColumnName)' -- Correlation/Covariance/WeightedAverage/First/Last), or
+      // an Nth/Pth parameter for the formulas that take one (append '(N)') -- exactly the syntax
+      // the Composer's own aggregate-option pane builds. Neither the percentage encoding nor
+      // which formulas take an N/second-column argument is enumerated here yet.
+      //
+      // AggregateFormula's static initializer reads a property via SreeEnv, which throws
+      // ShutdownException outside a running Spring context (server startup/shutdown, or a unit
+      // test with no Spring context at all) -- degrade this one enrichment to an empty list
+      // rather than losing the rest of vocabulary()'s response over it.
+      List<String> aggregateFormulas = new ArrayList<>();
+
+      try {
+         for(inetsoft.uql.asset.AggregateFormula formula :
+            inetsoft.uql.asset.AggregateFormula.getFormulas())
+         {
+            aggregateFormulas.add(formula.getFormulaName());
+         }
+      }
+      catch(Throwable e) {
+         LOG.debug("Could not list aggregate formulas; reporting none", e);
+      }
+
+      out.put("aggregateFormulas", aggregateFormulas);
+      out.put("dateLevels", DateLevels.names());
+      return out;
    }
 
    // ── conversions ───────────────────────────────────────────────────────────
 
-   static CellBindingInfo toCellBindingInfo(Map<String, Object> binding) {
+   private CellBindingInfo toCellBindingInfo(Map<String, Object> binding, RuntimeViewsheet rvs,
+                                             CalcTableVSAssembly assembly) throws Exception
+   {
       CellBindingInfo info = new CellBindingInfo();
       int type = CalcCellVocabulary.content(str(binding, "content"));
       info.setType(type);
@@ -667,9 +971,124 @@ public class CalcTableService {
       info.setRowGroup(rowGroup != null ? rowGroup : TableCellBinding.DEFAULT_GROUP);
       String colGroup = str(binding, "colGroup");
       info.setColGroup(colGroup != null ? colGroup : TableCellBinding.DEFAULT_GROUP);
-      info.setMergeRowGroup(TableCellBinding.DEFAULT_GROUP);
-      info.setMergeColGroup(TableCellBinding.DEFAULT_GROUP);
+
+      // Same "inherit by default" reasoning as rowGroup/colGroup above, extended to the merge-
+      // specific pair: a caller who never mentions these means "leave the default ancestor",
+      // not "clear it" -- so the sentinel, not null, is what an omitted key produces.
+      String mergeRowGroup = str(binding, "mergeRowGroup");
+      info.setMergeRowGroup(binding.containsKey("mergeRowGroup") ?
+                             mergeRowGroup : TableCellBinding.DEFAULT_GROUP);
+      String mergeColGroup = str(binding, "mergeColGroup");
+      info.setMergeColGroup(binding.containsKey("mergeColGroup") ?
+                             mergeColGroup : TableCellBinding.DEFAULT_GROUP);
+
+      if(binding.get("timeSeries") instanceof Boolean timeSeries) {
+         info.setTimeSeries(timeSeries);
+      }
+
+      applySort(info, asMap(binding.get("sort")), rvs, assembly);
+      applyTopn(info, asMap(binding.get("topn")), rvs, assembly);
+
+      if(type == CellBinding.BIND_COLUMN) {
+         applyDateGroup(info, asMap(binding.get("field")));
+      }
+
       return info;
+   }
+
+   /**
+    * A group cell's sort direction/manual order, or -- for {@code value_asc}/{@code value_desc}
+    * -- which summary cell to sort by. {@code sort.rankBy} is resolved against
+    * {@link #aggregatesOf} at write time, the same list the Composer's own Sort dropdown resolves
+    * its selection against when the human clicks save.
+    */
+   private void applySort(CellBindingInfo info, Map<String, Object> sort, RuntimeViewsheet rvs,
+                          CalcTableVSAssembly assembly) throws Exception
+   {
+      if(sort == null) {
+         return;
+      }
+
+      OrderModel order = info.getOrder();
+      order.setType(CalcCellVocabulary.sortDirection(str(sort, "direction")));
+
+      if(order.getType() == XConstants.SORT_SPECIFIC) {
+         List<?> manual = (List<?>) sort.get("manualOrder");
+         List<String> values = new ArrayList<>();
+
+         for(Object value : manual) {
+            values.add(value == null ? null : String.valueOf(value));
+         }
+
+         order.setManualOrder(values);
+      }
+      else if(order.getType() == XConstants.SORT_VALUE_ASC ||
+              order.getType() == XConstants.SORT_VALUE_DESC)
+      {
+         order.setSortCol(resolveRankBy(rvs, assembly, asMap(sort.get("rankBy")),
+                                        "sort.direction '" + str(sort, "direction") + "'"));
+      }
+   }
+
+   /**
+    * A group cell's ranking, including which summary cell to rank by. {@code topn.rankBy} is
+    * resolved against {@link #aggregatesOf} at write time; omitted, it defaults to the sole
+    * in-scope summary cell (matching the Composer's own Top-N pane) or refuses when that is
+    * ambiguous.
+    */
+   private void applyTopn(CellBindingInfo info, Map<String, Object> topn, RuntimeViewsheet rvs,
+                          CalcTableVSAssembly assembly) throws Exception
+   {
+      if(topn == null) {
+         return;
+      }
+
+      TopNModel model = info.getTopn();
+      model.setType(CalcCellVocabulary.topnMode(str(topn, "mode")));
+
+      if(model.getType() != XCondition.NONE) {
+         Object n = topn.get("n");
+         model.setTopn(n == null ? 3 : ((Number) n).intValue());
+         model.setSumCol(resolveRankBy(rvs, assembly, asMap(topn.get("rankBy")), "'topn'"));
+      }
+   }
+
+   /**
+    * Wires {@code field.dateLevel}/{@code field.dateInterval} into the OrderModel that actually
+    * drives calc-table date grouping ({@code order.option}/{@code order.interval} --
+    * {@code CalcGroupOption.levelChanged} on the UI side). Earlier, 'field.dateLevel' was declared
+    * on this tool's schema and forwarded over the wire, but nothing on this path ever read it back
+    * off the map -- it validated cleanly and was silently discarded. Fixed here rather than left
+    * as a validated-but-inert field, per this plugin's stated position on a declared parameter
+    * that does not do what its description says.
+    */
+   private static void applyDateGroup(CellBindingInfo info, Map<String, Object> field) {
+      if(field == null) {
+         return;
+      }
+
+      String dateLevel = str(field, "dateLevel");
+
+      if(dateLevel != null) {
+         String normalized = DateLevels.normalize(dateLevel);
+         info.getOrder().setOption(Integer.parseInt(normalized));
+      }
+
+      Object interval = field.get("dateInterval");
+
+      if(interval != null) {
+         if(!(interval instanceof Number) || ((Number) interval).intValue() < 1) {
+            throw new IllegalArgumentException(
+               "'field.dateInterval' must be a positive integer, got " + interval + ".");
+         }
+
+         info.getOrder().setInterval(((Number) interval).intValue());
+      }
+   }
+
+   @SuppressWarnings("unchecked")
+   private static Map<String, Object> asMap(Object value) {
+      return value instanceof Map ? (Map<String, Object>) value : null;
    }
 
    /**
@@ -701,12 +1120,32 @@ public class CalcTableService {
          "A cell's 'field' must be an object such as {column: \"Region\", type: \"dimension\"}.");
    }
 
-   /** A field's named-group name, if it carries one. {@code null} means none was given. */
+   /**
+    * A field's by-name named-group reference, if it carries one. {@code null} means none was
+    * given, or it was given inline (a {@code Map} -- see {@link #inlineNamedGroupOf}) rather
+    * than by name.
+    */
    private static String namedGroupOf(Object field) {
       Object namedGroup = field instanceof FieldRef ref ? ref.namedGroup()
          : field instanceof Map<?, ?> map ? map.get("namedGroup") : null;
+
+      if(namedGroup instanceof Map<?, ?>) {
+         return null;
+      }
+
       String text = namedGroup == null ? "" : String.valueOf(namedGroup).trim();
       return text.isEmpty() ? null : text;
+   }
+
+   /**
+    * A field's inline ('Customize') named-group definition, if it carries one --
+    * {@code {groups: [{name, conditions}], others?}}. {@code null} means none was given, or it
+    * was given by name (a plain string -- see {@link #namedGroupOf}) instead.
+    */
+   @SuppressWarnings("unchecked")
+   private static Map<String, Object> inlineNamedGroupOf(Object field) {
+      Object namedGroup = field instanceof Map<?, ?> map ? map.get("namedGroup") : null;
+      return namedGroup instanceof Map<?, ?> ? (Map<String, Object>) namedGroup : null;
    }
 
    private static TableCell cellAt(int row, int col) {
@@ -788,4 +1227,6 @@ public class CalcTableService {
    private final VSTableLayoutService layoutService;
    private final DataRefModelFactoryService refModelService;
    private final BindableFieldsService fieldsService;
+   private final VSColumnHandler columnsHandler;
+   private final TableLayoutHandler layoutHandler;
 }

@@ -29,10 +29,12 @@ import inetsoft.report.GroupableCellBinding;
 import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.Condition;
 import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AttachedAssembly;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
@@ -41,11 +43,14 @@ import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.AbstractTableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.web.binding.controller.VSTableLayoutService;
 import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.handler.TableLayoutHandler;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.binding.event.CopyCutCalcCellEvent;
 import inetsoft.web.binding.event.ModifyTableLayoutEvent;
 import inetsoft.web.binding.event.SetCellBindingEvent;
@@ -391,13 +396,163 @@ class CalcTableServiceTest {
       assertTrue(String.valueOf(vocabulary.get("expand")).contains("vertical"));
    }
 
+   // ── sort.rankBy / topn.rankBy resolution ─────────────────────────────────────
+
+   private static AggregateRef aggregate(String column, String formulaName) {
+      // A real AggregateFormula constant would work here too, but its static initializer reads
+      // a property via SreeEnv, which throws outside a running Spring context -- exactly the
+      // trap CalcTableService.vocabulary()'s own try/catch exists for. Mocking AggregateRef
+      // directly avoids ever touching that class in this pure-Mockito suite.
+      AggregateRef agg = mock(AggregateRef.class);
+      when(agg.getDataRef()).thenReturn(new AttributeRef(null, column));
+      when(agg.getFormulaName()).thenReturn(formulaName);
+      return agg;
+   }
+
+   @Test
+   void resolvesSortRankByToTheMatchingSummaryCellsIndex() throws Exception {
+      Harness h = harness(3, 3);
+      AggregateRef avg = aggregate("PAID", "Average");
+      AggregateRef sum = aggregate("PAID", "Sum");
+      when(h.layoutHandler().getCalcAggregateFields(any(), any()))
+         .thenReturn(new inetsoft.uql.erm.CalcAggregate[]{ avg, sum });
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension"),
+              "sort", spec("direction", "value_desc",
+                           "rankBy", spec("column", "PAID", "formula", "Sum"))));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      inetsoft.web.binding.model.table.OrderModel order = captor.getValue().getBinding().getOrder();
+      assertEquals(XConstants.SORT_VALUE_DESC, order.getType());
+      // Index 1 ("Sum"), not 0 ("Average") -- proves the match is by {column, formula}, not by
+      // first-in-scope-aggregate.
+      assertEquals(1, order.getSortCol());
+   }
+
+   @Test
+   void refusesTopnWithNoRankByWhenMultipleSummaryCellsAreInScope() throws Exception {
+      Harness h = harness(3, 3);
+      AggregateRef avg = aggregate("PAID", "Average");
+      AggregateRef sum = aggregate("PAID", "Sum");
+      when(h.layoutHandler().getCalcAggregateFields(any(), any()))
+         .thenReturn(new inetsoft.uql.erm.CalcAggregate[]{ avg, sum });
+
+      Exception thrown = assertThrows(Exception.class, () -> h.service.setCellBinding(
+         "tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension"),
+              "topn", spec("mode", "top", "n", 3))));
+
+      assertTrue(thrown.getMessage().contains("ambiguous"));
+      assertTrue(thrown.getMessage().contains("Sum"));
+      assertTrue(thrown.getMessage().contains("Average"));
+   }
+
+   @Test
+   void defaultsTopnRankByToTheSoleSummaryCellInScope() throws Exception {
+      Harness h = harness(3, 3);
+      AggregateRef sum = aggregate("PAID", "Sum");
+      when(h.layoutHandler().getCalcAggregateFields(any(), any()))
+         .thenReturn(new inetsoft.uql.erm.CalcAggregate[]{ sum });
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension"),
+              "topn", spec("mode", "top", "n", 3)));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      assertEquals(0, captor.getValue().getBinding().getTopn().getSumCol());
+   }
+
+   // ── field.namedGroup.others (boolean and string forms) ───────────────────────
+
+   @Test
+   void inlineNamedGroupOthersFalseMeansLeaveOthersInTheirOwnGroup() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension",
+                            "namedGroup", spec(
+                               "groups", List.of(spec("name", "West",
+                                  "conditions", List.of(spec("operator", "one_of",
+                                                             "values", List.of("CA"))))),
+                               "others", false))));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      // false must mean "leave" -- inverted, this would silently group instead (the exact
+      // opposite of what the natural Boolean convention used elsewhere in inetsoft.web.wiz,
+      // e.g. DimensionSortRanking.Ranking.others, means).
+      assertFalse(captor.getValue().getBinding().getOrder().isOthers());
+   }
+
+   @Test
+   void inlineNamedGroupOthersLeaveStringMeansLeaveOthersInTheirOwnGroup() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension",
+                            "namedGroup", spec(
+                               "groups", List.of(spec("name", "West",
+                                  "conditions", List.of(spec("operator", "one_of",
+                                                             "values", List.of("CA"))))),
+                               "others", "leave"))));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      assertFalse(captor.getValue().getBinding().getOrder().isOthers());
+   }
+
+   @Test
+   void inlineNamedGroupOthersOmittedDefaultsToGroupingThemTogether() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension",
+                            "namedGroup", spec(
+                               "groups", List.of(spec("name", "West",
+                                  "conditions", List.of(spec("operator", "one_of",
+                                                             "values", List.of("CA")))))))));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      assertTrue(captor.getValue().getBinding().getOrder().isOthers());
+   }
+
+   // ── mergeRowGroup / mergeColGroup / timeSeries wiring ─────────────────────────
+
+   @Test
+   void wiresMergeRowGroupMergeColGroupAndTimeSeriesOntoTheBinding() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension"),
+              "mergeRowGroup", "TotalsRow", "mergeColGroup", null, "timeSeries", true));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      CellBindingInfo bound = captor.getValue().getBinding();
+      assertEquals("TotalsRow", bound.getMergeRowGroup());
+      assertNull(bound.getMergeColGroup());
+      assertTrue(bound.isTimeSeries());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(CalcTableService service, ViewsheetSessionService sessions,
                           VSTableLayoutService layoutService, Viewsheet viewsheet,
                           CalcTableVSAssemblyInfo assemblyInfo,
                           DataRefModelFactoryService refModelService,
-                          BindableFieldsService fieldsService) {}
+                          BindableFieldsService fieldsService,
+                          VSColumnHandler columnsHandler, TableLayoutHandler layoutHandler) {}
 
    private static Harness harness(int rows, int cols) {
       CalcTableVSAssembly assembly = mock(CalcTableVSAssembly.class);
@@ -454,7 +609,15 @@ class CalcTableServiceTest {
 
       VSTableLayoutService layoutService = mock(VSTableLayoutService.class);
       DataRefModelFactoryService refModelService = mock(DataRefModelFactoryService.class);
-      when(refModelService.createDataRefModel(any())).thenReturn(mock(DataRefModel.class));
+      // ConditionVocabulary.toConditionList matches conditions to fields by name, so the
+      // stub must echo the real DataRef's name rather than a bare, unstubbed mock (whose
+      // getName() would default to null and make every field lookup fail).
+      when(refModelService.createDataRefModel(any())).thenAnswer(invocation -> {
+         DataRef ref = invocation.getArgument(0);
+         DataRefModel model = mock(DataRefModel.class);
+         when(model.getName()).thenReturn(ref.getName());
+         return model;
+      });
 
       // Default fixture: a single "current" source table carrying every column the existing
       // test suite binds. Individual tests that need to exercise the column-existence check
@@ -472,9 +635,40 @@ class CalcTableServiceTest {
          throw new IllegalStateException(e);
       }
 
+      VSColumnHandler columnsHandler = mock(VSColumnHandler.class);
+      TableLayoutHandler layoutHandler = mock(TableLayoutHandler.class);
+
+      // Default fixture: the same columns fieldsService.list() above already carries, so
+      // CalcTableService.columnRef() (the inline named-group path's own column resolution,
+      // separate from BindableFieldsService's column-existence check) also finds "REGION"/
+      // "PAID" out of the box, the same way a fresh test doesn't have to stub fieldsService
+      // again unless it needs a narrower fixture.
+      try {
+         ColumnSelection bindableCols = new ColumnSelection();
+         bindableCols.addAttribute(new AttributeRef(null, "Region"));
+         bindableCols.addAttribute(new AttributeRef(null, "REGION"));
+         bindableCols.addAttribute(new AttributeRef(null, "PAID"));
+         when(columnsHandler.getColumnSelection(any(), any(), any(), any(),
+                                                anyBoolean(), anyBoolean(), anyBoolean(),
+                                                anyBoolean(), anyBoolean(), anyBoolean()))
+            .thenReturn(bindableCols);
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      // Default fixture: no summary cells in scope. Mockito's default answer for an array
+      // return type is null, not empty -- aggregatesOf()'s "new AggregateRef[aggs.length]" NPEs
+      // on that for every test that never bound a summary cell, not just the ones that care
+      // about rankBy/sort-by-value.
+      when(layoutHandler.getCalcAggregateFields(any(), any()))
+         .thenReturn(new inetsoft.uql.erm.CalcAggregate[0]);
+
       return new Harness(
-         new CalcTableService(sessions, layoutService, refModelService, fieldsService), sessions,
-         layoutService, vs, info, refModelService, fieldsService);
+         new CalcTableService(sessions, layoutService, refModelService, fieldsService,
+                              columnsHandler, layoutHandler),
+         sessions, layoutService, vs, info, refModelService, fieldsService,
+         columnsHandler, layoutHandler);
    }
 
    private static Principal principal() {
@@ -669,9 +863,13 @@ class CalcTableServiceTest {
    /**
     * The confirmed silent-drop defect: {@code field.namedGroup} naming a worksheet-local group
     * created via {@code add_named_group} must land on {@code CellBindingInfo.order} as an
-    * {@code EXPERT_NAMEDGROUP_INFO} built from that assembly's own per-group conditions, with
-    * {@code order.type == SORT_SPECIFIC} -- the bit {@code OrderInfo.isSpecific()} gates before
-    * a named group's conditions are ever folded into the actual grouping order.
+    * {@code EXPERT_NAMEDGROUP_INFO} built from that assembly's own per-group conditions --
+    * {@code order.info} only. {@code order.type} is untouched (stays at {@code OrderModel}'s
+    * default) when the call gives no {@code sort}: a named group and a sort direction are
+    * independent settings on a real cell (confirmed live -- a Composer cell can carry
+    * {@code Sort: Manual} or even {@code Sort: By Value (Asc)} together with a named group), and
+    * {@code CalcNamedGroupDialog.apply()}, the Composer's own commit path for a named group,
+    * never assigns {@code order.type} either.
     */
    @Test
    void bindsAWorksheetLocalNamedGroupAsAnExpertOrder() throws Exception {
@@ -709,7 +907,10 @@ class CalcTableServiceTest {
       verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class),
                                              any());
       inetsoft.web.binding.model.table.OrderModel order = captor.getValue().getBinding().getOrder();
-      assertEquals(XConstants.SORT_SPECIFIC, order.getType());
+      // No 'sort' was given, so order.type stays at its OrderModel default (SORT_ASC) --
+      // resolving a named group only ever sets order.info, never order.type (see the class
+      // comment above).
+      assertEquals(XConstants.SORT_ASC, order.getType());
       assertEquals(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO, order.getInfo().getType());
       List<inetsoft.web.composer.model.condition.ConditionExpression> conds =
          order.getInfo().getConditions();
@@ -748,7 +949,9 @@ class CalcTableServiceTest {
       verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class),
                                              any());
       inetsoft.web.binding.model.table.OrderModel order = captor.getValue().getBinding().getOrder();
-      assertEquals(XConstants.SORT_SPECIFIC, order.getType());
+      // Same reasoning as bindsAWorksheetLocalNamedGroupAsAnExpertOrder above: no 'sort' was
+      // given, so order.type stays at its default rather than being forced by the named group.
+      assertEquals(XConstants.SORT_ASC, order.getType());
       assertEquals(XNamedGroupInfo.ASSET_NAMEDGROUP_INFO, order.getInfo().getType());
       assertEquals("Tiers", order.getInfo().getName());
    }
