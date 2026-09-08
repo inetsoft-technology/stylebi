@@ -18,8 +18,10 @@
 package inetsoft.web.binding.service.graph;
 
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.asset.SNamedGroupInfo;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.web.binding.VSDataController;
@@ -149,7 +151,18 @@ public abstract class ChartDimensionInfoFactory<M extends ChartDimensionRef>
 
          ref.setCaption(model.getCaption());
          ref.setManualOrderList(VSDataController.fixNull(model.getManualOrder()));
-         ref.setDateLevelValue(model.getDateLevel());
+
+         String dlevel = model.getDateLevel();
+
+         if("-1".equals(dlevel) && ref.getDataRef() != null &&
+            XSchema.isDateType(ref.getDataRef().getDataType()))
+         {
+            dlevel = XSchema.TIME.equals(ref.getDataRef().getDataType())
+               ? String.valueOf(DateRangeRef.HOUR_INTERVAL)
+               : String.valueOf(DateRangeRef.YEAR_INTERVAL);
+         }
+
+         ref.setDateLevelValue(dlevel);
       }
    }
 

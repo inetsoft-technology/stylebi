@@ -30,6 +30,7 @@ import inetsoft.uql.XCondition;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
@@ -184,5 +185,77 @@ class ChartDimensionInfoFactoryTest {
       factory.pasteChartRef(null, model, ref);
 
       assertNull(ref.getNamedGroupInfo());
+   }
+
+   /**
+    * PCB-007: a {@code ChartDimensionRefModel} built via the wiz layer's no-arg constructor
+    * (e.g. {@code FieldRefFactory.toChartRef}) that never had a date level set carries the
+    * class-level sentinel {@code dlevel == "-1"} verbatim -- not {@code null}. Forwarded
+    * unconditionally into {@code setDateLevelValue}, that sentinel is not a member of
+    * {@code VSDimensionRef}'s date-level restriction list, so {@code DynamicValue}'s generic
+    * "unmatched value" fallback silently resolves it to the first restriction entry
+    * ({@code YEAR_INTERVAL}) -- an accidental default, not an intentional one. These cases
+    * assert the write is now an explicit, intentional Year/Hour default that mirrors
+    * {@code BDimensionRefModel}'s own "date default to year if not set" convention.
+    */
+   @Test
+   void defaultsToYearForAnUnsetDateLevelOnADateDimension() {
+      ChartDimensionRefModel model = new ChartDimensionRefModel();
+      model.setOrder(XConstants.SORT_ASC);
+
+      AttributeRef dateAttr = new AttributeRef("ORDER_DATE");
+      dateAttr.setDataType(XSchema.DATE);
+      VSChartDimensionRef ref = new VSChartDimensionRef();
+      ref.setDataRef(new ColumnRef(dateAttr));
+
+      factory.pasteChartRef(null, model, ref);
+
+      assertEquals(String.valueOf(DateRangeRef.YEAR_INTERVAL), ref.getDateLevelValue());
+   }
+
+   @Test
+   void defaultsToHourForAnUnsetDateLevelOnATimeDimension() {
+      ChartDimensionRefModel model = new ChartDimensionRefModel();
+      model.setOrder(XConstants.SORT_ASC);
+
+      AttributeRef timeAttr = new AttributeRef("LOGIN_TIME");
+      timeAttr.setDataType(XSchema.TIME);
+      VSChartDimensionRef ref = new VSChartDimensionRef();
+      ref.setDataRef(new ColumnRef(timeAttr));
+
+      factory.pasteChartRef(null, model, ref);
+
+      assertEquals(String.valueOf(DateRangeRef.HOUR_INTERVAL), ref.getDateLevelValue());
+   }
+
+   @Test
+   void passesThroughAnExplicitDateLevelOnADateDimensionUnchanged() {
+      ChartDimensionRefModel model = new ChartDimensionRefModel();
+      model.setOrder(XConstants.SORT_ASC);
+      model.setDateLevel(String.valueOf(DateRangeRef.MONTH_INTERVAL));
+
+      AttributeRef dateAttr = new AttributeRef("ORDER_DATE");
+      dateAttr.setDataType(XSchema.DATE);
+      VSChartDimensionRef ref = new VSChartDimensionRef();
+      ref.setDataRef(new ColumnRef(dateAttr));
+
+      factory.pasteChartRef(null, model, ref);
+
+      assertEquals(String.valueOf(DateRangeRef.MONTH_INTERVAL), ref.getDateLevelValue());
+   }
+
+   @Test
+   void leavesTheUnsetSentinelAloneForANonDateDimension() {
+      ChartDimensionRefModel model = new ChartDimensionRefModel();
+      model.setOrder(XConstants.SORT_ASC);
+
+      AttributeRef stringAttr = new AttributeRef("REGION");
+      stringAttr.setDataType(XSchema.STRING);
+      VSChartDimensionRef ref = new VSChartDimensionRef();
+      ref.setDataRef(new ColumnRef(stringAttr));
+
+      factory.pasteChartRef(null, model, ref);
+
+      assertEquals("-1", ref.getDateLevelValue());
    }
 }
