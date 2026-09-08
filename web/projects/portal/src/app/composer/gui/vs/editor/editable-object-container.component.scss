@@ -50,7 +50,7 @@
 // rule regardless of selector specificity or source order.
 .handle.bg-primary {
   background-color: var(--inet-shell-surface-default) !important;
-  border: 1.5px solid var(--inet-composer-selected-outline);
+  border: 1px solid var(--inet-composer-selected-outline);
   box-sizing: border-box;
 }
 
@@ -138,7 +138,16 @@
 }
 
 .active .object  {
-  border: 2px dashed var(--inet-viz-selected-border);
+  border: 2px dotted var(--inet-viz-selected-border);
+}
+
+// Modern/dark objects switch to the dashed treatment; legacy objects keep the
+// original dotted style so unmarked/un-modernized content stays visually
+// frozen, matching the modernize/revert contract the rest of this migration
+// follows (VizModernizeUtil: "unmarked content is never modernized").
+.active.viz-modern .object,
+.active.viz-dark .object {
+  border-style: dashed;
 }
 
 .drop-target {
