@@ -181,6 +181,8 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
     */
    static String getDiscoveryMetadata(String url) throws Exception {
       HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+      conn.setConnectTimeout(CATALOG_HTTP_TIMEOUT);
+      conn.setReadTimeout(CATALOG_HTTP_TIMEOUT);
       conn.setRequestMethod("GET");
       conn.setRequestProperty("Accept", "application/json");
       return readMetadataResponse(conn, url);
@@ -202,6 +204,8 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
     */
    static String getSiteMetadata(DatagovDataSource ds, String url) throws Exception {
       HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+      conn.setConnectTimeout(CATALOG_HTTP_TIMEOUT);
+      conn.setReadTimeout(CATALOG_HTTP_TIMEOUT);
       conn.setRequestMethod("GET");
       conn.setRequestProperty("Accept", "application/json");
       String user = ds.getUser();
@@ -246,6 +250,18 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
          return IOUtils.toString(input, StandardCharsets.UTF_8);
       }
    }
+
+   /**
+    * Connect/read timeout (ms) for the catalog SPI's two HTTP calls ({@link #getDiscoveryMetadata}/
+    * {@link #getSiteMetadata}) only -- deliberately not applied to {@link #getConnection}/
+    * {@link #testDataSource}'s pre-existing, unrelated {@code runQuery} path. Those two methods are
+    * a new, synchronous call path (invoked from an interactive "annotate this data source" flow),
+    * so an unreachable or slow Socrata site must fail loudly within a bounded time rather than hang
+    * the calling request indefinitely -- exactly the failure mode this session's own live
+    * verification hit once already (a JVM hang against a flaky sandbox proxy connection with no
+    * timeout set anywhere in this class).
+    */
+   private static final int CATALOG_HTTP_TIMEOUT = 30_000;
 
    private static final Logger LOG = LoggerFactory.getLogger(DatagovRuntime.class.getName());
 }

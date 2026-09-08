@@ -435,7 +435,7 @@ class DatagovCatalogTest {
 
    @ParameterizedTest
    @ValueSource(strings = {
-      "a/b-cdef", "erm2-nwe9/../secret", "erm2 nwe9", "ERM2-NWE9", "erm2-nwe", "erm2-nwe99"
+      "a/b-cdef", "erm2-nwe9/../secret", "erm2 nwe9", "erm2-nwe", "erm2-nwe99"
    })
    void describeDataset_malformedId_rejectedBeforeAnyHttpRequest(String id) {
       // Stubbed to blow up loudly (an Error, not an Exception the code under test could catch) if
@@ -448,6 +448,26 @@ class DatagovCatalogTest {
          () -> DatagovCatalog.describeDataset(ds(), id), "id='" + id + "'");
       assertTrue(thrown.getMessage().contains("not a Socrata 4x4 id"),
          "id='" + id + "': " + thrown.getMessage());
+   }
+
+   // ----- describeDataset: case-insensitive id (review R1, Moderate 1) -----
+
+   @ParameterizedTest
+   @ValueSource(strings = {"ERM2-NWE9", "Erm2-Nwe9"})
+   void describeDataset_uppercaseId_acceptedCaseInsensitively(String id) throws Exception {
+      // listDatasets applies no case filter of its own (only resource.type == "dataset"), so an
+      // uppercase 4x4 id it hands back must not be rejected one call later by describeDataset --
+      // otherwise the connector's own output would be self-inconsistent. The id is embedded into
+      // the request URL exactly as given (not lowercased), which is what the argument captor below
+      // confirms.
+      ArgumentCaptor<String> requested = ArgumentCaptor.forClass(String.class);
+      ensureStatic().when(() -> DatagovRuntime.getSiteMetadata(any(), requested.capture()))
+         .thenReturn(rowsJson(null, null, column(1, "sid", "meta_data")));
+
+      TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), id);
+
+      assertEquals(id, schema.datasetId());
+      assertTrue(requested.getValue().contains(id), requested.getValue());
    }
 
    @ParameterizedTest
@@ -514,6 +534,23 @@ class DatagovCatalogTest {
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
 
       assertEquals(List.of("sid"), schema.keyColumns());
+   }
+
+   @Test
+   void describeDataset_quotedNumericRowIdentifierColumnId_stillResolvesKeyColumn()
+      throws Exception
+   {
+      // A Socrata response that sends rowIdentifierColumnId/column id as a quoted JSON string
+      // rather than a bare number -- exercises getLong's JsonString fallback branch (review R1,
+      // Minor 2), not just its NUMBER fast path every other test in this class hits via rowsJson/
+      // column's unquoted-literal helpers.
+      stubSiteMetadata("{\"meta\":{\"view\":{\"rowIdentifierColumnId\":\"2\",\"columns\":[" +
+         "{\"id\":\"1\",\"name\":\"sid\",\"dataTypeName\":\"meta_data\"}," +
+         "{\"id\":\"2\",\"name\":\"Unique Key\",\"dataTypeName\":\"text\"}]}}}");
+
+      TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
+
+      assertEquals(List.of("Unique Key"), schema.keyColumns());
    }
 
    // ----- describeDataset: descriptions passed through verbatim -----

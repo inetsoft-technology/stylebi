@@ -235,8 +235,8 @@ final class DatagovCatalog {
 
       if(!SOCRATA_4X4.matcher(datasetId).matches()) {
          throw new Exception("Datagov was asked to describe dataset id '" + datasetId + "', " +
-            "which is not a Socrata 4x4 id (exactly 4 lowercase letters/digits, a hyphen, 4 " +
-            "more lowercase letters/digits) -- refusing to embed it into a request URL.");
+            "which is not a Socrata 4x4 id (exactly 4 letters/digits, a hyphen, 4 more " +
+            "letters/digits) -- refusing to embed it into a request URL.");
       }
    }
 
@@ -309,8 +309,14 @@ final class DatagovCatalog {
          return ((JsonNumber) v).longValue();
       }
 
+      // Tolerates a numeric value Socrata sent as a quoted JSON string. JsonValue#toString() on a
+      // JsonString includes the surrounding quotes, so Long.parseLong needs the unquoted text --
+      // without this branch a quoted number always fell through to null, silently.
+      String text = v.getValueType() == JsonValue.ValueType.STRING ? ((JsonString) v).getString()
+         : v.toString();
+
       try {
-         return Long.parseLong(v.toString());
+         return Long.parseLong(text);
       }
       catch(NumberFormatException e) {
          return null;
@@ -363,9 +369,17 @@ final class DatagovCatalog {
       Map.entry("meta_data", XSchema.STRING));
 
    /**
-    * Exactly 4 lowercase letters/digits, a hyphen, 4 more -- Socrata's own 4x4 id shape.
+    * Exactly 4 letters/digits, a hyphen, 4 more -- Socrata's own 4x4 id shape. Case-insensitive
+    * deliberately: every id observed live during this connector's development was lowercase, but
+    * {@link #listDatasets} applies no case filter of its own (only {@code resource.type ==
+    * "dataset"}), so a case-sensitive pattern here could reject an id {@code listDatasets} itself
+    * just vouched for one call earlier -- a self-inconsistent round trip for the connector's own
+    * output. Case carries no meaning for this check anyway: the id is embedded into the request
+    * path unencoded either way, and an uppercase letter is exactly as safe there as a lowercase
+    * one -- only the shape (length/hyphen placement/character class) is the security boundary.
     */
-   private static final Pattern SOCRATA_4X4 = Pattern.compile("[a-z0-9]{4}-[a-z0-9]{4}");
+   private static final Pattern SOCRATA_4X4 =
+      Pattern.compile("[a-z0-9]{4}-[a-z0-9]{4}", Pattern.CASE_INSENSITIVE);
 
    /**
     * Confirmed live: {@code limit=10000} against a real, large Socrata site returned every
