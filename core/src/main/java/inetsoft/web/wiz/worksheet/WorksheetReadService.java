@@ -448,8 +448,21 @@ public class WorksheetReadService {
     * non-null) and query-mode ({@code getTableName()} non-null) are mutually exclusive, and
     * neither being set means no picker at all -- reported as {@code null}, not an empty/default
     * {@code ChoicesModel}.
+    *
+    * <p>{@code displayStyle == NONE} is checked FIRST, before {@code getChoices()}/
+    * {@code getTableName()}, matching {@code VariableAssemblyDialogService} (the native Composer
+    * variable dialog's own reader, {@code :101-104}). {@code applyVariableChoices} only clears
+    * {@code choices}/{@code values}/{@code table} when a NEW {@code values}/{@code table} source
+    * is supplied in the same call -- a caller that supplies only {@code displayStyle: "none"}
+    * (turning the picker off without resupplying/clearing its source) leaves the old picker data
+    * on the object untouched, which would otherwise read back as a fully populated picker
+    * alongside a "none" style.
     */
    private WorksheetModel.ChoicesModel readVariableChoices(AssetVariable var) {
+      if(var.getDisplayStyle() == UserVariable.NONE) {
+         return null;
+      }
+
       String displayStyle = displayStyleName(var.getDisplayStyle());
 
       if(var.getChoices() != null) {

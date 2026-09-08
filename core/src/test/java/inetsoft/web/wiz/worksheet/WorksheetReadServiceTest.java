@@ -484,6 +484,35 @@ class WorksheetReadServiceTest {
    }
 
    /**
+    * {@code applyVariableChoices} only clears {@code choices}/{@code values}/{@code table} when a
+    * NEW {@code values}/{@code table} source is supplied in the same call -- a caller that
+    * supplies only {@code displayStyle: "none"} (turning the picker off without resupplying or
+    * explicitly clearing its source, a very natural "turn this picker off" call, reachable as-is
+    * through {@code edit_variable}) leaves the old embedded list on the {@code AssetVariable}
+    * object untouched. The read side must not report that stale, self-contradictory combination
+    * (a fully populated picker alongside a "none" style) -- it must read back as no picker at all,
+    * matching how {@code VariableAssemblyDialogService} (the native Composer dialog's own reader)
+    * treats {@code NONE} as authoritative over any leftover {@code choices}/{@code table} data.
+    */
+   @Test
+   void variableWithDisplayStyleSetToNoneAloneReportsNullChoicesNotStaleData() {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly va = new DefaultVariableAssembly(ws, "region");
+      AssetVariable var = new AssetVariable("region");
+      va.setVariable(var);
+      ws.addAssembly(va);
+
+      WorksheetMutationSupport.applyVariableChoices(ws, var,
+         new WorksheetMutationSupport.VariableChoicesSpec(
+            List.of("east", "west"), null, null, null, null, "list"));
+
+      WorksheetMutationSupport.applyVariableChoices(ws, var,
+         new WorksheetMutationSupport.VariableChoicesSpec(null, null, null, null, null, "none"));
+
+      assertNull(variableNamed(read(ws), "region").choices());
+   }
+
+   /**
     * {@code DATE_COMBOBOX} has no forward case in {@code parseVariableDisplayStyle} -- it is
     * reachable only via StyleBI's native, non-agent Composer variable dialog, never via
     * {@code add_variable}/{@code edit_variable}. The read side must still report it (as
