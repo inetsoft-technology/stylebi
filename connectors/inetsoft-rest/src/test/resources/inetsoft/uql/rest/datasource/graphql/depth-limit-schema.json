@@ -72,6 +72,31 @@
               "description": null,
               "args": [],
               "type": { "kind": "OBJECT", "name": "Level1", "ofType": null }
+            },
+            {
+              "name": "exactlySix",
+              "description": null,
+              "args": [],
+              "comment": "Exactly 6 NON_NULL wrapper layers before the innermost String -- the boundary MAX_UNWRAP_DEPTH (6) claims to support (positions 0-5 are the 6 wrappers, position 6 is the terminal SCALAR, and the introspection query's ofType nesting reaches exactly that far). Must resolve to String, never the unknown-scalar default.",
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "NON_NULL", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL", "name": null,
+                      "ofType": {
+                        "kind": "NON_NULL", "name": null,
+                        "ofType": {
+                          "kind": "NON_NULL", "name": null,
+                          "ofType": { "kind": "SCALAR", "name": "String", "ofType": null }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           ]
         },

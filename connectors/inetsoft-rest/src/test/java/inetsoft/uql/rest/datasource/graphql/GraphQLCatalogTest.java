@@ -103,6 +103,36 @@ class GraphQLCatalogTest {
    }
 
    @Test
+   void describeDatasetDescriptionMarksTheStructuralNotesBoundaryEvenWithAMultiParagraphSource()
+      throws Exception
+   {
+      // bookstore-schema.json's own Order.description is single-line, which is why the suite
+      // could not previously see this: a real, multi-paragraph source description already
+      // contains its own blank-line paragraph break, so a bare "\n\n" is not a reliable boundary
+      // marker between "the source said" and "the connector composed" (I3). This fixture's Order
+      // description is genuinely two source-authored paragraphs, both verbatim.
+      TabularDatasetSchema orders =
+         GraphQLCatalog.describeDataset(schemaRoot("multi-paragraph-description-schema.json"),
+            "orders");
+      String description = orders.description();
+
+      assertTrue(description.startsWith(
+         "A customer order.\n\nOrders are created at checkout and update through fulfillment."),
+         "both source-authored paragraphs must survive verbatim, in order: " + description);
+      assertTrue(description.contains("-- GraphQLCatalog structural notes --"),
+         "the boundary must be an explicit marker, not a positional \"\\n\\n\" that the source's " +
+         "own second paragraph could be mistaken for: " + description);
+      // The marker must come AFTER both of the source's own paragraphs, not between them --
+      // otherwise the source's second paragraph would itself be misread as connector-composed.
+      int markerIndex = description.indexOf("-- GraphQLCatalog structural notes --");
+      int secondParagraphIndex = description.indexOf("Orders are created at checkout");
+      assertTrue(secondParagraphIndex >= 0 && secondParagraphIndex < markerIndex,
+         "the source's second paragraph must precede the structural-notes marker: " + description);
+      assertTrue(description.contains("lineItems"), "composed clauses must still follow the " +
+         "marker: " + description);
+   }
+
+   @Test
    void describeDatasetDescriptionDoesNotClaimAKeptReferenceWasDiscarded() throws Exception {
       TabularDatasetSchema orders =
          GraphQLCatalog.describeDataset(schemaRoot("bookstore-schema.json"), "orders");
@@ -380,6 +410,20 @@ class GraphQLCatalogTest {
          GraphQLCatalog.describeDataset(schemaRoot("depth-limit-schema.json"), "deepRecords");
       assertEquals(GraphQLCatalog.UNKNOWN_SCALAR_DEFAULT, columnType(deep, "value"),
          "a type nested deeper than MAX_UNWRAP_DEPTH must default, never throw");
+   }
+
+   @Test
+   void ofTypeChainWrappedExactlySixLevelsStillResolves() throws Exception {
+      // The boundary MAX_UNWRAP_DEPTH's own comment claims to support: exactly 6 NON_NULL/LIST
+      // wrapper layers, matching how deep the introspection query's own ofType nesting reaches.
+      // Regression test for the off-by-one where the loop only inspected 6 of the 7 positions the
+      // query fetches (I1) -- "value" (7 layers, genuinely unresolvable) passed either way, so it
+      // could not have caught this.
+      TabularDatasetSchema deep =
+         GraphQLCatalog.describeDataset(schemaRoot("depth-limit-schema.json"), "deepRecords");
+      assertEquals(XSchema.STRING, columnType(deep, "exactlySix"),
+         "a type wrapped exactly MAX_UNWRAP_DEPTH deep is exactly what the query resolves, and " +
+         "must not default to unknown");
    }
 
    @Test

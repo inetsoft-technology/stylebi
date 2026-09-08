@@ -31,8 +31,11 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.http.util.EntityUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -137,55 +140,67 @@ final class GraphQLIntrospectionClient {
          int status = response.getStatusLine().getStatusCode();
          String body = response.getEntity() == null ? "" : EntityUtils.toString(response.getEntity());
 
-         if(status < 200 || status >= 300) {
-            throw new Exception("GraphQL endpoint '" + url + "' rejected the introspection " +
-               "request (HTTP " + status + ").");
-         }
-
-         JsonNode root;
+         // Parse the body for a GraphQL errors array and a usable data.__schema BEFORE deciding
+         // anything from the HTTP status. A non-2xx response can still carry a parseable, fully
+         // actionable GraphQL errors array (a managed gateway's query-depth limit rejects with
+         // HTTP 413 and a body like {"errors":[{"message":"Query depth limit exceeded",...}]}) --
+         // that message is more useful than a bare status code, so it belongs in the exception
+         // text whenever the body actually has one. And per the GraphQL spec, a 200 response MAY
+         // carry both a fully usable "data" AND a non-empty "errors" array at once (partial
+         // success -- e.g. an unrelated resolver's warning). Whether introspection actually
+         // failed is decided by whether data.__schema came back usable, never by errors' mere
+         // presence.
+         JsonNode root = null;
 
          try {
             root = MAPPER.readTree(body);
          }
-         catch(IOException e) {
-            throw new Exception("GraphQL endpoint '" + url + "' returned a non-JSON response to " +
-               "the introspection request.", e);
+         catch(IOException ignore) {
+            // Not JSON -- root stays null, handled below alongside the empty-body case.
+         }
+
+         String errorMessages = root == null ? null : extractErrorMessages(root.path("errors"));
+         JsonNode schema = root == null ? null : root.path("data").path("__schema");
+         boolean schemaUsable = schema != null && !schema.isMissingNode() && !schema.isNull();
+
+         if(schemaUsable) {
+            if(errorMessages != null) {
+               // Partial success: log so the resolver-level errors are not silently lost, but
+               // proceed -- a usable __schema is a usable __schema regardless.
+               LOG.warn("GraphQL endpoint '{}' returned a usable schema alongside a non-empty " +
+                  "errors array (proceeding): {}", url, errorMessages);
+            }
+
+            return schema;
+         }
+
+         if(status < 200 || status >= 300) {
+            String suffix = errorMessages != null ? ": " + errorMessages + "." : ".";
+            throw new Exception("GraphQL endpoint '" + url + "' rejected the introspection " +
+               "request (HTTP " + status + ")" + suffix);
          }
 
          if(root == null) {
-            throw new Exception("GraphQL endpoint '" + url + "' returned an empty response body " +
-               "to the introspection request.");
+            throw new Exception(body.isEmpty()
+               ? "GraphQL endpoint '" + url + "' returned an empty response body to the " +
+                  "introspection request."
+               : "GraphQL endpoint '" + url + "' returned a non-JSON response to the " +
+                  "introspection request.");
          }
 
-         JsonNode errors = root.path("errors");
-
-         if(errors.isArray() && !errors.isEmpty()) {
-            StringBuilder messages = new StringBuilder();
-
-            for(JsonNode error : errors) {
-               if(messages.length() > 0) {
-                  messages.append("; ");
-               }
-
-               messages.append(error.path("message").asText("(no message)"));
-            }
-
+         if(errorMessages != null) {
             // A distinct, actionable message from the unreachable/auth-failure cases above --
             // "introspection is disabled" is an ordinary production security posture (arriving as
-            // HTTP 200 with a GraphQL-level errors array), not a connectivity or credentials
-            // problem, and telling those apart is exactly what a person fixing this needs first.
+            // HTTP 200 with a GraphQL-level errors array and no usable data.__schema), not a
+            // connectivity or credentials problem, and telling those apart is exactly what a
+            // person fixing this needs first.
             throw new Exception("GraphQL endpoint '" + url + "' returned introspection errors, " +
-               "which usually means introspection is disabled on this server: " + messages + ".");
+               "which usually means introspection is disabled on this server: " + errorMessages +
+               ".");
          }
 
-         JsonNode schema = root.path("data").path("__schema");
-
-         if(schema.isMissingNode() || schema.isNull()) {
-            throw new Exception("GraphQL endpoint '" + url + "' returned no usable data.__schema " +
-               "from the introspection request, and no errors array explaining why.");
-         }
-
-         return schema;
+         throw new Exception("GraphQL endpoint '" + url + "' returned no usable data.__schema " +
+            "from the introspection request, and no errors array explaining why.");
       }
       finally {
          client.close();
@@ -198,6 +213,29 @@ final class GraphQLIntrospectionClient {
       return MAPPER.writeValueAsString(Map.of("query", INTROSPECTION_QUERY));
    }
 
+   /**
+    * @return a semicolon-joined rendering of every message in a GraphQL {@code errors} array, or
+    *         {@code null} if {@code errorsNode} isn't a non-empty array (no errors reported, or
+    *         the body wasn't shaped like a GraphQL response at all).
+    */
+   private static String extractErrorMessages(JsonNode errorsNode) {
+      if(errorsNode == null || !errorsNode.isArray() || errorsNode.isEmpty()) {
+         return null;
+      }
+
+      StringBuilder messages = new StringBuilder();
+
+      for(JsonNode error : errorsNode) {
+         if(messages.length() > 0) {
+            messages.append("; ");
+         }
+
+         messages.append(error.path("message").asText("(no message)"));
+      }
+
+      return messages.toString();
+   }
+
    private static String rootMessage(Throwable t) {
       Throwable cause = t;
 
@@ -208,6 +246,7 @@ final class GraphQLIntrospectionClient {
       return cause.getMessage() != null ? cause.getMessage() : cause.toString();
    }
 
+   private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
    private static final int CONNECT_TIMEOUT_MS = 15_000;
    private static final int READ_TIMEOUT_MS = 30_000;
    private static final ObjectMapper MAPPER = new ObjectMapper();

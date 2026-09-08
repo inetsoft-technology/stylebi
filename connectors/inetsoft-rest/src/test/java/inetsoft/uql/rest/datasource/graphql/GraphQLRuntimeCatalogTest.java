@@ -17,6 +17,9 @@
  */
 package inetsoft.uql.rest.datasource.graphql;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import inetsoft.test.*;
@@ -138,6 +141,39 @@ class GraphQLRuntimeCatalogTest {
    }
 
    @Test
+   void listDatasetsProceedsOnAUsableSchemaEvenAlongsideANonEmptyErrorsArray() throws Exception {
+      // Legal per the GraphQL spec: a 200 response MAY carry a fully usable "data" AND a
+      // non-empty "errors" array at once (partial success -- e.g. an unrelated resolver's own
+      // warning). The errors array's mere presence must never be treated as fatal on its own --
+      // only an unusable data.__schema decides that (I2).
+      stubIntrospection(withUnrelatedResolverWarning(okIntrospectionBody()));
+
+      TabularCatalog catalog = runtime.listDatasets(dataSource);
+
+      List<String> ids = catalog.datasets().stream().map(TabularDatasetRef::id).toList();
+      assertTrue(ids.contains("orders"), "a usable __schema must still be used: " + ids);
+   }
+
+   @Test
+   void listDatasetsQuotesTheServersOwnErrorWhenANonSuccessStatusCarriesAParseableErrorsBody() {
+      // Reproduces a real managed GraphQL gateway's query-depth-limit rejection (found live
+      // against countries.trevorblades.com during P4 verification): HTTP 413, body is a
+      // perfectly parseable GraphQL errors array. The server's own message must reach the
+      // exception text rather than being discarded in favor of a bare status code.
+      stubFor(post(urlPathEqualTo("/graphql")).willReturn(aResponse().withStatus(413)
+         .withHeader("Content-Type", "application/json")
+         .withBody("{\"errors\":[{\"message\":\"Query depth limit exceeded\"," +
+            "\"extensions\":{\"code\":\"GCDN_QUERY_DEPTH_LIMIT\"}}]}")));
+
+      Exception ex = assertThrows(Exception.class, () -> runtime.listDatasets(dataSource));
+      assertTrue(ex.getMessage().contains("413"), "must still name the HTTP status: " +
+         ex.getMessage());
+      assertTrue(ex.getMessage().contains("Query depth limit exceeded"),
+         "must quote the server's own error text rather than a generic message: " +
+         ex.getMessage());
+   }
+
+   @Test
    void listDatasetsThrowsAConnectivityMessage_unreachable() {
       // Point at a URL WireMock is not listening on -- the JVM connection itself fails, never
       // reaching the HTTP-status or GraphQL-errors classification branches at all.
@@ -206,6 +242,14 @@ class GraphQLRuntimeCatalogTest {
 
    private void stubIntrospection(String responseBody) {
       stubFor(post(urlPathEqualTo("/graphql")).willReturn(okJson(responseBody)));
+   }
+
+   private static String withUnrelatedResolverWarning(String introspectionBody) throws IOException {
+      ObjectMapper mapper = new ObjectMapper();
+      ObjectNode root = (ObjectNode) mapper.readTree(introspectionBody);
+      ArrayNode errors = root.putArray("errors");
+      errors.addObject().put("message", "some unrelated field's resolver logged a warning");
+      return mapper.writeValueAsString(root);
    }
 
    private static String okIntrospectionBody() throws IOException {

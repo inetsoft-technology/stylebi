@@ -62,10 +62,11 @@ import java.util.stream.Collectors;
  * <h2>Depth limits, both deliberate and both degrade safely</h2>
  * <ul>
  *   <li>The {@code NON_NULL}/{@code LIST} {@code ofType} unwrap chain ({@link #unwrap}) is bounded
- *       to {@value #MAX_UNWRAP_DEPTH} layers, matching how deep this connector's own introspection
- *       query resolves {@code ofType}. A type nested deeper unwraps to an unrecognized kind/name
- *       and is treated as an unresolved type (the same named-default path as an unknown scalar),
- *       never a crash.</li>
+ *       to {@value #MAX_UNWRAP_DEPTH} nested {@code ofType} hops (i.e. {@value #MAX_UNWRAP_DEPTH}
+ *       {@code + 1} inspected positions, counting the outer {@code type} node itself as position
+ *       0) -- exactly matching how deep this connector's own introspection query resolves {@code
+ *       ofType}. A type nested deeper unwraps to an unrecognized kind/name and is treated as an
+ *       unresolved type (the same named-default path as an unknown scalar), never a crash.</li>
  *   <li>Nested-object ("value object") flattening ({@link #flattenValueObject}) is exactly ONE
  *       level -- {@code totalPrice.tax.rate} is not reachable. A doubly-nested value object is
  *       dropped at DEBUG, not recursed into and not crashed.</li>
@@ -407,6 +408,14 @@ final class GraphQLCatalog {
       return null;
    }
 
+   // A fixed heading that cannot plausibly occur in source-authored GraphQL SDL doc-comment
+   // prose -- the actual boundary marker between "the source said" and "the connector inferred"
+   // (I3). A bare "\n\n" is NOT sufficient: a real, multi-paragraph source description already
+   // contains its own blank-line paragraph breaks, so a second "\n\n" would be indistinguishable
+   // from one the source itself put there. This marker's own text makes the boundary explicit
+   // regardless of how many paragraphs the source's own description has.
+   private static final String STRUCTURAL_NOTES_MARKER = "-- GraphQLCatalog structural notes --";
+
    private static String buildDescription(JsonNode nodeType, List<String> clauses) {
       String sourceDescription = emptyToNull(nodeType.path("description").asText(null));
 
@@ -416,11 +425,13 @@ final class GraphQLCatalog {
 
       String composed = String.join("; ", clauses);
 
-      // The connector-composed clauses are a visibly SEPARATE second paragraph, never blended
+      // The connector-composed clauses are headed by STRUCTURAL_NOTES_MARKER and never blended
       // into the source's own sentence -- what makes TabularDatasetSchema#description's
       // structural-notes carve-out honest rather than a blurring of "the source said" and "the
-      // connector inferred".
-      return sourceDescription == null ? composed : sourceDescription + "\n\n" + composed;
+      // connector inferred". See the marker's own comment for why position alone (a bare "\n\n")
+      // isn't a reliable boundary once the source's own description is multi-paragraph.
+      String marked = STRUCTURAL_NOTES_MARKER + "\n" + composed;
+      return sourceDescription == null ? marked : sourceDescription + "\n\n" + marked;
    }
 
    private static Map<String, String> buildParams(SchemaIndex index, String datasetId) {
@@ -531,13 +542,17 @@ final class GraphQLCatalog {
    // Structural helpers -- type unwrapping, connection detection, field lookup
    // ===================================================================================
 
+   // Counts nested "ofType" HOPS, not inspected positions: the introspection query's outer "type"
+   // node is position 0 (zero hops), and each "ofType" nesting is one more hop, so a query with
+   // MAX_UNWRAP_DEPTH nested "ofType"s fetches kind/name at MAX_UNWRAP_DEPTH + 1 positions (0
+   // through MAX_UNWRAP_DEPTH inclusive). unwrap() below must inspect all of them.
    private static final int MAX_UNWRAP_DEPTH = 6;
 
    /**
     * The innermost named type once {@code NON_NULL}/{@code LIST} wrappers are stripped, and
     * separately whether exactly one {@code LIST} wrapper was crossed (needed to distinguish "a
-    * list of Order" from "one Order"). Depth-bounded to {@link #MAX_UNWRAP_DEPTH} -- see class
-    * javadoc.
+    * list of Order" from "one Order"). Depth-bounded to {@value #MAX_UNWRAP_DEPTH} nested {@code
+    * ofType} hops -- see class javadoc.
     */
    private record Unwrapped(String kind, String name, boolean isList) {}
 
@@ -545,7 +560,10 @@ final class GraphQLCatalog {
       JsonNode current = typeRef;
       boolean isList = false;
 
-      for(int depth = 0; depth < MAX_UNWRAP_DEPTH; depth++) {
+      // <= (not <): MAX_UNWRAP_DEPTH counts ofType HOPS, so there are MAX_UNWRAP_DEPTH + 1
+      // positions to inspect (position 0 is the base node, before any hop) -- exactly as many as
+      // the introspection query itself fetches kind/name for. See the field's own comment.
+      for(int depth = 0; depth <= MAX_UNWRAP_DEPTH; depth++) {
          if(current == null || current.isMissingNode() || current.isNull()) {
             return new Unwrapped(null, null, isList);
          }
@@ -566,9 +584,9 @@ final class GraphQLCatalog {
          return new Unwrapped(kind, current.path("name").asText(null), isList);
       }
 
-      // Exceeded MAX_UNWRAP_DEPTH NON_NULL/LIST layers -- deeper than this connector's
-      // introspection query resolves. Never a crash -- treated as an unresolved type; see class
-      // javadoc and charter G22.
+      // Exceeded the query's own reach (MAX_UNWRAP_DEPTH nested ofType hops) -- deeper than this
+      // connector's introspection query resolves. Never a crash -- treated as an unresolved type;
+      // see class javadoc and charter G22.
       return new Unwrapped(null, null, isList);
    }
 
