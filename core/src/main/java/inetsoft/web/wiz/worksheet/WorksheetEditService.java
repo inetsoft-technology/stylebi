@@ -908,11 +908,26 @@ public class WorksheetEditService {
       /**
        * Removes an assembly (typically a join assembly) from the worksheet by name.
        *
-       * <p>No-ops if no assembly with {@code name} exists.</p>
-       *
        * @param name the assembly name to remove
+       * @throws PairingException if no assembly with {@code name} exists, or if another
+       *                          assembly is built on it
        */
-      public void removeJoin(String name) {
+      public void removeJoin(String name) throws PairingException {
+         Assembly a = ws.getAssembly(name);
+
+         if(a == null) {
+            throw new PairingException("Join assembly not found in worksheet: " + name);
+         }
+
+         if(AssetEventUtil.hasDependent(a, ws, Set.of(name))) {
+            throw new PairingException(
+               "\"" + name + "\" cannot be removed because other assemblies are built on it. " +
+               "Removing it would leave them referencing an assembly that no longer exists, every " +
+               "query against them failing, and nothing able to repair them. Remove the " +
+               "assemblies that depend on it first -- read_worksheet_model reports each table's " +
+               "sources field, which is what references what.");
+         }
+
          ws.removeAssembly(name);
       }
 
