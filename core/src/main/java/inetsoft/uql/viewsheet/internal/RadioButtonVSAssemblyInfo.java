@@ -401,9 +401,18 @@ public class RadioButtonVSAssemblyInfo extends ListInputVSAssemblyInfo
    }
 
    /**
-    * Seed the modern-gated round corner. This type bypasses the base chrome hook (see
-    * VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own — form-input modernization,
-    * tracked as its own follow-on project from the card-corner work.
+    * Seed the modern-gated round corner and control height. This type bypasses the base chrome
+    * hook (see VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own — form-input
+    * modernization, tracked as its own follow-on project from the card-corner work.
+    *
+    * Legacy default is 2 * defh (title lane + one data row); preserve that ratio rather than
+    * substituting a single control height, or a freshly-created radio button would lose the room
+    * its second row needs. Title height is deliberately left alone - RadioButton is one of the
+    * types TitleLaneHeightRowTest.excludedTypesNeverTakeTheDensityRow pins to never follow the
+    * density row, so cellHeight alone absorbs the container's growth (container - the
+    * still-legacy title height), or updateDataRowCol()'s (containerHeight - titleHeight) /
+    * cellHeight would recompute a second row out of the container's new headroom instead of
+    * leaving it as clearance - see CheckBoxVSAssemblyInfo, which shares this exact shape.
     */
    @Override
    protected void seedChromeDefaults(VizContext ctx) {
@@ -417,6 +426,25 @@ public class RadioButtonVSAssemblyInfo extends ListInputVSAssemblyInfo
       if(objFormat != null) {
          objFormat.getDefaultFormat().setRoundCornerValue(
             ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 0);
+      }
+
+      if(ctx.modern && getPixelSize().height == 2 * AssetUtil.defh) {
+         int newHeight = 2 * VSDensityDefaults.controlHeight(ctx);
+         setPixelSize(new Dimension(getPixelSize().width, newHeight));
+
+         if(getCellHeight() == AssetUtil.defh) {
+            setCellHeight(newHeight - getTitleHeight());
+         }
+      }
+      else if(!ctx.modern && getPixelSize().height % 2 == 0 &&
+         VSDensityDefaults.isControlHeight(getPixelSize().height / 2))
+      {
+         int oldHeight = getPixelSize().height;
+         setPixelSize(new Dimension(getPixelSize().width, 2 * AssetUtil.defh));
+
+         if(getCellHeight() == oldHeight - getTitleHeight()) {
+            setCellHeight(AssetUtil.defh);
+         }
       }
    }
 

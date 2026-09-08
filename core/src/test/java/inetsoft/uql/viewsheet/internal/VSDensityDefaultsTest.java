@@ -85,6 +85,61 @@ class VSDensityDefaultsTest {
    }
 
    @Test
+   void denseControlHeightIsNotLegacyDefh() {
+      // control height is the one tier that steps up even at dense - a standalone form input
+      // reads as cramped at the tightest data-row height, unlike row/header/title height
+      assertEquals(24, VSDensityDefaults.controlHeightForMode("dense"));
+      assertNotEquals(AssetUtil.defh, VSDensityDefaults.controlHeightForMode("dense"));
+   }
+
+   @Test
+   void compactAndComfortableControlHeight() {
+      assertEquals(28, VSDensityDefaults.controlHeightForMode("compact"));
+      assertEquals(30, VSDensityDefaults.controlHeightForMode("comfortable"));
+   }
+
+   @Test
+   void unrecognizedControlModeFallsBackToDense() {
+      assertEquals(24, VSDensityDefaults.controlHeightForMode("bogus"));
+   }
+
+   @Test
+   void controlHeightIsDefhWhenGateIsOff() {
+      // modern is now the shipped default for a new install, so the gate must be turned off
+      // explicitly - VizContext.ofGate() no longer resolves to legacy just because the property
+      // is unset.
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+      assertEquals(AssetUtil.defh, VSDensityDefaults.controlHeight(VizContext.ofGate()));
+   }
+
+   @Test
+   void aLegacyContextYieldsLegacyControlHeight() {
+      assertEquals(AssetUtil.defh, VSDensityDefaults.controlHeight(VizContext.LEGACY));
+   }
+
+   @Test
+   void aModernContextYieldsItsDensityControlHeight() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      assertEquals(30, VSDensityDefaults.controlHeight(VizContext.of(VizMark.MODERN_LIGHT)));
+   }
+
+   @Test
+   void isControlHeightMatchesAllThreeTiers() {
+      assertTrue(VSDensityDefaults.isControlHeight(24), "dense");
+      assertTrue(VSDensityDefaults.isControlHeight(28), "compact");
+      assertTrue(VSDensityDefaults.isControlHeight(30), "comfortable");
+   }
+
+   @Test
+   void isControlHeightRejectsEverythingElse() {
+      assertFalse(VSDensityDefaults.isControlHeight(AssetUtil.defh));
+      assertFalse(VSDensityDefaults.isControlHeight(20));
+      assertFalse(VSDensityDefaults.isControlHeight(40));
+      assertFalse(VSDensityDefaults.isControlHeight(0));
+   }
+
+   @Test
    void normalizeModeKeepsRecognizedValues() {
       assertEquals("comfortable", VSDensityDefaults.normalizeMode("comfortable"));
       assertEquals("compact", VSDensityDefaults.normalizeMode("compact"));
