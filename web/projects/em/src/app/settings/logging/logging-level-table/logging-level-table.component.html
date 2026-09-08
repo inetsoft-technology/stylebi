@@ -15,9 +15,9 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<em-table-view [dataSource]="loggingLevels"
+<em-table-view [dataSource]="keyedLoggingLevels"
                [tableInfo]="tableInfo"
-               [trackByProp]="'name'"
+               [trackByProp]="'rowKey'"
                (add)="addLevel()"
                (editSelected)="editLevel($event)"
                (removeSelection)="removeLevels($event)">

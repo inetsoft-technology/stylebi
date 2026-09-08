@@ -44,6 +44,28 @@ export class LoggingLevelTableComponent {
          actions: [TableAction.EDIT, TableAction.ADD, TableAction.DELETE]
       };
    }
+
+   /**
+    * `name` alone is not a unique row identity: in multi-tenant setups two rows can share the
+    * same context+name but differ in orgName/level (see LogLevelSetting.equals() server-side).
+    * TableView's trackByProp only supports a single flat field, so each row is stamped with a
+    * non-enumerable composite key (kept off the object's enumerable properties so it is not
+    * picked up by JSON.stringify when the row is later POSTed back to the server) and
+    * trackByProp points at that key instead of "name".
+    */
+   get keyedLoggingLevels(): LogLevelDTO[] {
+      for(const level of this.loggingLevels) {
+         if(level != null && !Object.prototype.hasOwnProperty.call(level, "rowKey")) {
+            Object.defineProperty(level, "rowKey", {
+               value: `${level.context}_${level.name}_${level.orgName}`,
+               enumerable: false,
+               configurable: true
+            });
+         }
+      }
+
+      return this.loggingLevels;
+   }
    private getTableColumns() {
       if(!this.enterprise || !this.isMultiTenant) {
          return [
@@ -133,7 +155,8 @@ export class LoggingLevelTableComponent {
       this.loggingLevels = this.loggingLevels.filter(
          (loggingLevel) => !loggingLevels.some((level) =>
             level.name === loggingLevel.name &&
-            level.context === loggingLevel.context));
+            level.context === loggingLevel.context &&
+            level.orgName === loggingLevel.orgName));
       this.loggingLevelsChange.emit(this.loggingLevels);
    }
 }
