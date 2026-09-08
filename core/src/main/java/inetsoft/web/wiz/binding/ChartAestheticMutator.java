@@ -1233,8 +1233,17 @@ public final class ChartAestheticMutator {
     * visibly rendering — the write worked, the read lied.
     *
     * <p>{@code fullName} is kept only as a fallback, for the models our own writer built.
+    *
+    * <p>Package-private rather than private since bug #76495: {@code
+    * ChartBindingService.discardBoundFields} needs the same column-name resolution this class's
+    * own read path (this method, plus {@link #read}) already does, to decide whether a bound
+    * aesthetic channel's field still resolves in a chart's new source. Reading
+    * {@code AestheticInfo.getFullName()} directly there would not work — this method exists
+    * precisely because that property is null on every channel {@code
+    * AestheticRefModelFactory.createAestheticInfo} builds (the real read path {@code
+    * discardBoundFields} runs against), and only {@code dataInfo} carries the name.
     */
-   private static String fieldNameOf(AestheticInfo info) {
+   static String fieldNameOf(AestheticInfo info) {
       if(info == null) {
          return null;
       }
@@ -1310,7 +1319,18 @@ public final class ChartAestheticMutator {
       };
    }
 
-   private static AestheticInfo read(ChartBindingModel model, String channel) {
+   /**
+    * The {@code AestheticInfo} bound to a channel, or {@code null} when nothing is.
+    *
+    * <p>Package-private rather than private since bug #76495: this is the only method that maps
+    * a channel name to its bound field, so {@code ChartBindingService.discardBoundFields} needs
+    * it (alongside {@link #fieldNameOf}) to decide, per channel, whether a forced source repoint
+    * should clear it. Widening costs nothing to this class's own five existing callers — a
+    * package-private method is still callable unqualified from within its own class exactly as
+    * before — and no class outside this package could reference it either way, since it was
+    * unreachable from outside {@code ChartAestheticMutator} while private.
+    */
+   static AestheticInfo read(ChartBindingModel model, String channel) {
       return switch(channel) {
          case "color" -> model.getColorField();
          case "shape" -> model.getShapeField();

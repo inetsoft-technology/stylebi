@@ -34,7 +34,11 @@ import inetsoft.web.binding.controller.SwapXYBindingService;
 import inetsoft.web.binding.event.ChangeChartRefEvent;
 import inetsoft.web.binding.event.ChangeChartTypeEvent;
 import inetsoft.web.binding.event.ChangeSeparateStatusEvent;
+import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.ChartBindingModel;
+import inetsoft.web.binding.model.graph.AestheticInfo;
+import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
+import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
@@ -132,9 +136,15 @@ public class ChartBindingService {
     * ability to set one.
     *
     * <p>Repointing a bound chart invalidates its fields, since the columns belong to the old
-    * source; the Composer handles that by <em>deleting</em> the ones the new source does not have
-    * ({@code VSAssemblyInfoHandler.validateChartColumns}). So it is refused unless {@code force},
-    * rather than done silently on one call.
+    * source. {@code changeChartRef} — the write path this method drives — never reaches {@code
+    * VSAssemblyInfoHandler.validateChartColumns} (that method's only caller is {@code
+    * validateBinding}, and every real caller of <em>that</em> is a drag-and-drop controller or
+    * {@code ChangeGeographicService}, none of them anywhere in this call chain), so nothing
+    * downstream discards a stale field for this path the way the Composer's own drag-and-drop
+    * repoint does. So a repoint is refused unless {@code force}; when it is forced,
+    * {@link #discardBoundFields} does the discarding itself, right here, selectively keeping a
+    * field whose column still resolves in the new source rather than clearing everything (bug
+    * #76495, the sibling of {@code TableBindingService}'s own bug #76302).
     */
    public void setSource(String sessionToken, Principal user, String assemblyName, String table,
                          boolean force, String linkUri) throws Exception
@@ -150,8 +160,11 @@ public class ChartBindingService {
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          String resolved = BindingSources.resolve(model, table, assemblyName);
 
-         if(!force && !BindingSources.alreadyPointedAt(model.getSource(), resolved)) {
+         if(!force) {
             requireNoBoundFields(model, assemblyName, resolved);
+         }
+         else {
+            discardBoundFields(model, resolved);
          }
 
          model.setSource(BindingSources.assetSource(resolved));
@@ -165,7 +178,10 @@ public class ChartBindingService {
    }
 
    /**
-    * Refuses to discard bound fields.
+    * Refuses to discard bound fields. {@link #discardBoundFields} is the {@code force:true}
+    * counterpart for the identical thirteen locations — kept as a separate method, the way
+    * {@code TableBindingService.requireNoBoundFields}/{@code discardBoundFields} are, rather than
+    * merged into one, so this one stays pure refusal.
     *
     * <p>Counts <b>every</b> place a chart keeps a field, not just x/y/group: the three list
     * shelves, the ten single-field shelves, the six aesthetic channels, and a map's geo fields.
@@ -187,6 +203,10 @@ public class ChartBindingService {
    private static void requireNoBoundFields(ChartBindingModel model, String assemblyName,
                                             String table)
    {
+      if(BindingSources.alreadyPointedAt(model.getSource(), table)) {
+         return;
+      }
+
       List<String> populated = new ArrayList<>();
 
       for(String shelf : ChartBindingMutator.SHELVES) {
@@ -223,6 +243,151 @@ public class ChartBindingService {
             "' discards them. Pass force: true to do that deliberately, or bind the fields you " +
             "want after the source is set.");
       }
+   }
+
+   /**
+    * The {@code force:true} counterpart to {@link #requireNoBoundFields}: discards only the
+    * fields that no longer resolve in the new source, across the identical thirteen locations —
+    * selectively, not a blanket clear, mirroring {@code TableBindingService.discardBoundFields}
+    * (bug #76302)'s own intent. A field whose column name also exists in the new source is kept —
+    * a same-shaped repoint (e.g. a partitioned/monthly sibling table) should not discard bindings
+    * a human doing the equivalent repoint in the Composer would keep. This is also what makes a
+    * word-cloud's or candlestick's binding — which lives entirely on an aesthetic channel or the
+    * single-field shelves, per {@link #requireNoBoundFields}'s own javadoc — survive a repoint to
+    * a same-shaped sibling table rather than being wiped just because <em>something</em> changed.
+    *
+    * <p>Before this existed, {@code setSource(force: true)} to a genuinely different table left
+    * every one of these thirteen locations untouched: {@code changeChartRef}'s real write path
+    * never reaches {@code validateChartColumns} (see {@link #setSource}'s own javadoc), so nothing
+    * downstream cleared them either. {@code get_binding} then reported fields pointing at columns
+    * that no longer existed in the chart's new source (bug #76495).
+    */
+   private static void discardBoundFields(ChartBindingModel model, String table) {
+      if(BindingSources.alreadyPointedAt(model.getSource(), table)) {
+         return;
+      }
+
+      List<String> availableColumns = columnsOf(model, table);
+
+      for(String shelf : ChartBindingMutator.SHELVES) {
+         List<ChartRefModel> bound = ChartBindingMutator.readShelf(model, shelf);
+         List<ChartRefModel> stillResolves = new ArrayList<>();
+
+         for(ChartRefModel field : bound) {
+            if(resolves(columnNameOf(field), availableColumns)) {
+               stillResolves.add(field);
+            }
+         }
+
+         if(stillResolves.size() != bound.size()) {
+            switch(shelf) {
+            case "x" -> model.setXFields(stillResolves);
+            case "y" -> model.setYFields(stillResolves);
+            default -> model.setGroupFields(stillResolves);
+            }
+         }
+      }
+
+      for(String shelf : ChartBindingMutator.SINGLE_SHELVES) {
+         ChartRefModel bound = ChartBindingMutator.readSingleShelf(model, shelf);
+
+         if(bound != null && !resolves(columnNameOf(bound), availableColumns)) {
+            ChartBindingMutator.setSingleShelf(model, shelf, null);
+         }
+      }
+
+      for(String channel : ChartAestheticMutator.boundFieldChannels(model)) {
+         AestheticInfo info = ChartAestheticMutator.read(model, channel);
+         String column = ChartAestheticMutator.fieldNameOf(info);
+
+         if(!resolves(column, availableColumns)) {
+            ChartAestheticMutator.clearField(
+               model, channel, AestheticChannels.NODE_CHANNELS.contains(channel));
+         }
+      }
+
+      List<ChartRefModel> geoFields = model.getGeoFields();
+
+      if(geoFields != null && !geoFields.isEmpty()) {
+         List<ChartRefModel> stillResolves = new ArrayList<>();
+
+         for(ChartRefModel field : geoFields) {
+            if(resolves(columnNameOf(field), availableColumns)) {
+               stillResolves.add(field);
+            }
+         }
+
+         if(stillResolves.size() != geoFields.size()) {
+            model.setGeoFields(stillResolves);
+         }
+      }
+   }
+
+   /** The column a shelf/geo {@code ChartRefModel} is bound to, or {@code null} for neither kind. */
+   private static String columnNameOf(ChartRefModel ref) {
+      if(ref instanceof ChartDimensionRefModel dimension) {
+         return dimension.getColumnValue() == null ? dimension.getName() : dimension.getColumnValue();
+      }
+
+      if(ref instanceof ChartAggregateRefModel aggregate) {
+         return aggregate.getFullName();
+      }
+
+      return null;
+   }
+
+   /**
+    * Whether a bound field's column still exists in the new source — matching either its raw
+    * name or its unqualified form against either form of each available column, the same
+    * case-insensitive, qualified-or-not comparison {@link TableBindingService#discardBoundFields}
+    * makes (see that method's own {@code columnsOf} javadoc for why both sides need expanding).
+    */
+   private static boolean resolves(String column, List<String> availableColumns) {
+      if(column == null) {
+         return false;
+      }
+
+      String bare = TableBindingService.unqualified(column);
+
+      return availableColumns.stream().anyMatch(
+         c -> c.equalsIgnoreCase(column) || c.equalsIgnoreCase(bare));
+   }
+
+   /**
+    * The new source table's column names, mirroring {@code TableBindingService.columnsOf} — not
+    * calling it directly, since its parameter type is {@code BaseTableBindingModel}, a sibling of
+    * {@code ChartBindingModel} under the common {@code BindingModel} base, not a parent — a
+    * {@code ChartBindingModel} instance cannot be passed where a {@code BaseTableBindingModel} is
+    * expected. Each column contributes both its raw name and, when qualified
+    * ({@code "table.attribute"}), its unqualified form too, for the same reason the sibling
+    * method does: a joined/merged worksheet table commonly carries qualified column names, so
+    * expanding this side is needed independently of whether an old bound field's column name
+    * happens to be qualified or not.
+    */
+   private static List<String> columnsOf(ChartBindingModel model, String table) {
+      List<String> names = new ArrayList<>();
+      List<BindingModel.SourceTable> tables = model.getTables();
+
+      if(tables != null) {
+         for(BindingModel.SourceTable candidate : tables) {
+            if(table.equalsIgnoreCase(candidate.getName()) && candidate.getColumns() != null) {
+               for(BindingModel.SourceTableColumn column : candidate.getColumns()) {
+                  if(column.getName() == null) {
+                     continue;
+                  }
+
+                  names.add(column.getName());
+                  String bare = TableBindingService.unqualified(column.getName());
+
+                  if(!bare.equals(column.getName())) {
+                     names.add(bare);
+                  }
+               }
+            }
+         }
+      }
+
+      return names;
    }
 
    /**
