@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.web.adhoc.model.FontInfo;
 import inetsoft.web.wiz.binding.VisualFrameAliases;
 import inetsoft.web.composer.model.vs.HighlightDialogModel;
 import inetsoft.web.composer.model.vs.HighlightModel;
@@ -80,7 +81,7 @@ public class AssemblyHighlightService {
    }
 
    /** One highlight in the agent vocabulary. Colours are {@code #RRGGBB}. */
-   public record Highlight(String name, String foreground, String background,
+   public record Highlight(String name, String foreground, String background, FontInfo font,
                            List<ConditionVocabulary.Clause> conditions, boolean applyRow) {}
 
    public Map<String, Object> list(String sessionToken, Principal user, String assemblyName,
@@ -239,6 +240,10 @@ public class AssemblyHighlightService {
          out.setBackground(VisualFrameAliases.normalizeColor(highlight.background()));
       }
 
+      if(highlight.font() != null) {
+         out.setFontInfo(highlight.font());
+      }
+
       out.setApplyRow(highlight.applyRow());
 
       // The embedded condition model reuses spec #4's vocabulary rather than a parallel one,
@@ -262,12 +267,50 @@ public class AssemblyHighlightService {
       out.put("name", highlight.getName());
       out.put("foreground", highlight.getForeground());
       out.put("background", highlight.getBackground());
+      out.put("font", describeFont(highlight.getFontInfo()));
       out.put("applyRow", highlight.isApplyRow());
       out.put("conditions", highlight.getVsConditionDialogModel() == null
          ? List.of()
          : ConditionVocabulary.describe(
             highlight.getVsConditionDialogModel().getConditionList()));
       return out;
+   }
+
+   /** {@code null} when no font override is stored, mirroring {@code foreground}/{@code background}. */
+   private static Map<String, Object> describeFont(FontInfo font) {
+      if(font == null || font.getFontFamily() == null) {
+         return null;
+      }
+
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("fontFamily", font.getFontFamily());
+      out.put("fontSize", describeFontSize(font.getFontSize()));
+      out.put("bold", "bold".equals(font.getFontWeight()));
+      out.put("italic", "italic".equals(font.getFontStyle()));
+      out.put("underline", "underline".equals(font.getFontUnderline()));
+      out.put("strikethrough", "strikethrough".equals(font.getFontStrikethrough()));
+      return out;
+   }
+
+   /**
+    * {@code FontInfo.toFont()} parses the same stored string with an unguarded
+    * {@code Integer.parseInt}, so a malformed size is a pre-existing risk — but that path only
+    * runs once a highlight is applied, while this one is now reachable straight from
+    * {@code list_highlights}'s read. Reporting the raw stored value on a parse failure keeps the
+    * read itself from throwing, while still surfacing that something is off (a caller expecting
+    * an int wouldn't get a string here otherwise).
+    */
+   private static Object describeFontSize(String fontSize) {
+      if(fontSize == null) {
+         return null;
+      }
+
+      try {
+         return Integer.valueOf(fontSize);
+      }
+      catch(NumberFormatException e) {
+         return fontSize;
+      }
    }
 
    private HighlightDialogModel read(String runtimeId, String assemblyName, Region region,

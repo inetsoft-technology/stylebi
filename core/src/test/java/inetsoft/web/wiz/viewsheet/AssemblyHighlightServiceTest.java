@@ -60,15 +60,15 @@ class AssemblyHighlightServiceTest {
 
    private static AssemblyHighlightService.Highlight highlight(String name) {
       return new AssemblyHighlightService.Highlight(
-         name, null, "#ff0000",
-         List.of(new ConditionVocabulary.Clause("Revenue", ">", List.of(1000), null, false)),
+         name, null, "#ff0000", null,
+         List.of(new ConditionVocabulary.Clause("Revenue", ">", List.of(1000), null, false, false, 0)),
          false);
    }
 
    private static AssemblyHighlightService.Highlight highlightApplyRow(String name) {
       return new AssemblyHighlightService.Highlight(
-         name, null, "#ff0000",
-         List.of(new ConditionVocabulary.Clause("Revenue", ">", List.of(1000), null, false)),
+         name, null, "#ff0000", null,
+         List.of(new ConditionVocabulary.Clause("Revenue", ">", List.of(1000), null, false, false, 0)),
          true);
    }
 
@@ -165,7 +165,7 @@ class AssemblyHighlightServiceTest {
       Exception thrown = assertThrows(
          Exception.class,
          () -> h.service.set("tok", principal(), "Table1", null,
-                             new AssemblyHighlightService.Highlight("Nothing", null, null,
+                             new AssemblyHighlightService.Highlight("Nothing", null, null, null,
                                                                     List.of(), false),
                              false, ""));
 
@@ -180,9 +180,10 @@ class AssemblyHighlightServiceTest {
          Exception.class,
          () -> h.service.set("tok", principal(), "Table1", null,
                              new AssemblyHighlightService.Highlight(
-                                "Bad", null, "#fff",
+                                "Bad", null, "#fff", null,
                                 List.of(new ConditionVocabulary.Clause("Profit", ">",
-                                                                       List.of(1), null, false)),
+                                                                       List.of(1), null, false,
+                                                                       false, 0)),
                                 false),
                              false, ""));
 
@@ -542,6 +543,87 @@ class AssemblyHighlightServiceTest {
       verify(h.highlights).getHighlightDialogModel(eq("rt1"), eq("Table1"), eq(2), eq(1),
                                                    eq("Sales"), eq(false), eq(false),
                                                    any(Principal.class));
+   }
+
+   // ── font (L8 parity finding 1) ───────────────────────────────────────────
+
+   @Test
+   void setsTheFontInfoOnTheStoredHighlight() throws Exception {
+      Harness h = harness(model());
+      inetsoft.web.adhoc.model.FontInfo font = new inetsoft.web.adhoc.model.FontInfo();
+      font.setFontFamily("Arial");
+      font.setFontSize("12");
+      font.setFontWeight("bold");
+      font.setFontStyle("italic");
+      AssemblyHighlightService.Highlight highlight = new AssemblyHighlightService.Highlight(
+         "Styled", null, "#ff0000", font,
+         List.of(new ConditionVocabulary.Clause("Revenue", ">", List.of(1000), null, false, false, 0)),
+         false);
+
+      h.service.set("tok", principal(), "Table1", null, highlight, false, "");
+
+      HighlightModel added = capture(h.highlights).getHighlights()[0];
+      assertNotNull(added.getFontInfo());
+      assertEquals("Arial", added.getFontInfo().getFontFamily());
+      assertEquals("bold", added.getFontInfo().getFontWeight());
+      assertEquals("italic", added.getFontInfo().getFontStyle());
+   }
+
+   @Test
+   void reportsTheFontBackOnListWhenSet() throws Exception {
+      HighlightModel stored = existing("Styled");
+      inetsoft.web.adhoc.model.FontInfo font = new inetsoft.web.adhoc.model.FontInfo();
+      font.setFontFamily("Arial");
+      font.setFontSize("14");
+      font.setFontWeight("bold");
+      font.setFontUnderline("underline");
+      stored.setFontInfo(font);
+      Harness h = harness(model(stored));
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Table1", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> highlights = (List<Map<String, Object>>) listed.get("highlights");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> reportedFont = (Map<String, Object>) highlights.get(0).get("font");
+      assertNotNull(reportedFont);
+      assertEquals("Arial", reportedFont.get("fontFamily"));
+      assertEquals(14, reportedFont.get("fontSize"));
+      assertEquals(true, reportedFont.get("bold"));
+      assertEquals(true, reportedFont.get("underline"));
+      assertEquals(false, reportedFont.get("italic"));
+   }
+
+   @Test
+   void reportsNullFontWhenNoOverrideIsStored() throws Exception {
+      Harness h = harness(model(existing("Plain")));
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Table1", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> highlights = (List<Map<String, Object>>) listed.get("highlights");
+      assertNull(highlights.get(0).get("font"));
+   }
+
+   // FontInfo.toFont() parses the same stored string with an unguarded Integer.parseInt(), so a
+   // malformed size is a pre-existing risk elsewhere -- but list_highlights' read path must not
+   // throw on it, since it is now reachable straight from an agent's read-only call.
+   @Test
+   void reportsTheRawFontSizeWhenItIsNotANumber() throws Exception {
+      HighlightModel stored = existing("Styled");
+      inetsoft.web.adhoc.model.FontInfo font = new inetsoft.web.adhoc.model.FontInfo();
+      font.setFontFamily("Arial");
+      font.setFontSize("not-a-number");
+      stored.setFontInfo(font);
+      Harness h = harness(model(stored));
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Table1", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> highlights = (List<Map<String, Object>>) listed.get("highlights");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> reportedFont = (Map<String, Object>) highlights.get(0).get("font");
+      assertEquals("not-a-number", reportedFont.get("fontSize"));
    }
 
    @Test

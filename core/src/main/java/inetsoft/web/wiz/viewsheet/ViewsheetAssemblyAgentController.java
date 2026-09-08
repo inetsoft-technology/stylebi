@@ -40,6 +40,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.MessageException;
 import inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService;
+import inetsoft.web.adhoc.model.FontInfo;
 import inetsoft.web.wiz.script.ScriptImageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -696,12 +697,18 @@ public class ViewsheetAssemblyAgentController {
    /**
     * One clause in the flat condition vocabulary. {@code junction} joins it to the NEXT clause,
     * so the last clause must not carry one — {@link ConditionVocabulary} enforces that.
+    *
+    * <p>{@code equal} turns {@code less_than}/{@code greater_than} into their "or equal to" form.
+    * {@code level} is the clause's nesting depth for parenthesization — omitted or {@code null}
+    * means flat (level 0), matching the historical behavior.
     */
    public record ConditionClause(String field, String operator, List<Object> values,
-                                 String junction, Boolean negated) {
+                                 String junction, Boolean negated, Boolean equal, Integer level) {
       ConditionVocabulary.Clause toClause() {
          return new ConditionVocabulary.Clause(field, operator, values, junction,
-                                               Boolean.TRUE.equals(negated));
+                                               Boolean.TRUE.equals(negated),
+                                               Boolean.TRUE.equals(equal),
+                                               level == null ? 0 : level);
       }
    }
 
@@ -786,12 +793,34 @@ public class ViewsheetAssemblyAgentController {
       conditionService.clear(sessionToken, user, request.assembly(), linkUri);
    }
 
+   /**
+    * A minimal, LLM-facing font override for a highlight. Booleans rather than
+    * {@link FontInfo}'s CSS-style-string fields (e.g. {@code fontStyle: "italic"}), matching the
+    * boolean {@code bold}/{@code italic} shape {@code ApplyHighlightModel.FontInfo} already uses
+    * elsewhere in this package for the same concept.
+    */
+   public record FontRequest(String fontFamily, Integer fontSize, Boolean bold, Boolean italic,
+                             Boolean underline, Boolean strikethrough) {
+      FontInfo toFontInfo() {
+         FontInfo info = new FontInfo();
+         info.setFontFamily(fontFamily);
+         info.setFontSize(fontSize == null ? null : String.valueOf(fontSize));
+         info.setFontWeight(Boolean.TRUE.equals(bold) ? "bold" : "normal");
+         info.setFontStyle(Boolean.TRUE.equals(italic) ? "italic" : "normal");
+         info.setFontUnderline(Boolean.TRUE.equals(underline) ? "underline" : "normal");
+         info.setFontStrikethrough(Boolean.TRUE.equals(strikethrough) ? "strikethrough" : "normal");
+         return info;
+      }
+   }
+
    public record HighlightRequest(String assembly, Integer row, Integer col, String colName,
+                                  Boolean axis, Boolean text,
                                   String name, String foreground, String background,
+                                  FontRequest fontInfo,
                                   List<ConditionClause> conditions, Boolean applyRow,
                                   Boolean replace) {
       AssemblyHighlightService.Region region() {
-         return highlightRegion(row, col, colName);
+         return highlightRegion(row, col, colName, axis, text);
       }
 
       AssemblyHighlightService.Highlight highlight() {
@@ -803,8 +832,9 @@ public class ViewsheetAssemblyAgentController {
             }
          }
 
-         return new AssemblyHighlightService.Highlight(name, foreground, background, clauses,
-                                                       Boolean.TRUE.equals(applyRow));
+         return new AssemblyHighlightService.Highlight(
+            name, foreground, background, fontInfo == null ? null : fontInfo.toFontInfo(),
+            clauses, Boolean.TRUE.equals(applyRow));
       }
    }
 
@@ -814,12 +844,14 @@ public class ViewsheetAssemblyAgentController {
                                              @RequestParam(required = false) Integer row,
                                              @RequestParam(required = false) Integer col,
                                              @RequestParam(required = false) String colName,
+                                             @RequestParam(required = false) Boolean axis,
+                                             @RequestParam(required = false) Boolean text,
                                              Principal user)
       throws Exception
    {
       requireEnabled();
       return highlightService.list(sessionToken, user, assembly,
-                                   highlightRegion(row, col, colName));
+                                   highlightRegion(row, col, colName, axis, text));
    }
 
    /**
@@ -843,10 +875,13 @@ public class ViewsheetAssemblyAgentController {
     * even while normalizing {@code row}/{@code col} to 0.
     */
    private static AssemblyHighlightService.Region highlightRegion(Integer row, Integer col,
-                                                                   String colName)
+                                                                   String colName, Boolean axis,
+                                                                   Boolean text)
    {
-      return row == null && col == null && colName == null ? null
-         : new AssemblyHighlightService.Region(row, col, colName, false, false);
+      return row == null && col == null && colName == null &&
+         axis == null && text == null ? null
+         : new AssemblyHighlightService.Region(row, col, colName, Boolean.TRUE.equals(axis),
+                                               Boolean.TRUE.equals(text));
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/highlights")
@@ -876,11 +911,12 @@ public class ViewsheetAssemblyAgentController {
    public record DateComparisonRequest(String assembly, Integer periods, String level,
                                        String endDate, Boolean endToday, String interval,
                                        Boolean useFacet, Boolean onlyShowMostRecentDate,
-                                       String comparisonOption) {
+                                       String comparisonOption, String shareAssembly,
+                                       Boolean toDate, Boolean inclusive) {
       DateComparisonService.Comparison comparison() {
          return new DateComparisonService.Comparison(
             periods, level, endDate, Boolean.TRUE.equals(endToday), interval, useFacet,
-            onlyShowMostRecentDate, comparisonOption);
+            onlyShowMostRecentDate, comparisonOption, shareAssembly, toDate, inclusive);
       }
    }
 

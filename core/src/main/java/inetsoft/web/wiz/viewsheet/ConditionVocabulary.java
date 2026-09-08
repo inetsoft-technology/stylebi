@@ -63,7 +63,7 @@ public final class ConditionVocabulary {
 
    /** One condition in the flat vocabulary. {@code junction} points at the *next* condition. */
    public record Clause(String field, String operator, List<Object> values, String junction,
-                        boolean negated) {}
+                        boolean negated, boolean equal, int level) {}
 
    /**
     * Builds the alternating array.
@@ -115,6 +115,8 @@ public final class ConditionVocabulary {
             clause.put("operator", operatorToken(condition.getOperation()));
             clause.put("values", values(condition.getValues()));
             clause.put("negated", condition.isNegated());
+            clause.put("equal", condition.isEqual());
+            clause.put("level", condition.getLevel());
             clause.put("junction", junctionAfter(conditionList, i));
             out.add(clause);
          }
@@ -172,8 +174,7 @@ public final class ConditionVocabulary {
       if(field == null) {
          throw new IllegalArgumentException(
             "Condition " + index + " names '" + clause.field() + "', which this assembly " +
-            "cannot filter on. Available fields: " +
-            (fields.isEmpty() ? "(none)" : String.join(", ", new TreeSet<>(names(fields)))) +
+            "cannot filter on. Available fields: " + fieldList(fields) +
             ". A condition on an unknown column is the recorded cause of a downstream cast " +
             "failure, so it is refused here.");
       }
@@ -184,19 +185,168 @@ public final class ConditionVocabulary {
 
       ConditionModel condition = new ConditionModel();
       condition.setField(field);
-      condition.setOperation(OPERATORS.get(operator));
+      int operation = OPERATORS.get(operator);
+      condition.setOperation(operation);
       condition.setNegated(clause.negated());
-      condition.setLevel(0);
-      condition.setValues(values.stream().map(ConditionVocabulary::value)
-                             .toArray(ConditionValueModel[]::new));
+      condition.setEqual(clause.equal());
+      condition.setLevel(clause.level());
+
+      if(operation == XCondition.TOP_N || operation == XCondition.BOTTOM_N) {
+         requireExactlyOneValue(values, index);
+         condition.setValues(new ConditionValueModel[] { rankingValue(values.get(0), index, fields) });
+      }
+      else {
+         condition.setValues(values.stream().map(raw -> value(raw, index, fields))
+                                .toArray(ConditionValueModel[]::new));
+      }
+
       return condition;
    }
 
-   private static ConditionValueModel value(Object raw) {
+   /**
+    * A plain scalar (string/number/boolean/null) means {@code VALUE}, exactly as before. An
+    * object carrying a recognized {@code type} discriminator selects one of the four non-VALUE
+    * shapes ConditionUtil actually knows how to read: comparing a column to another column
+    * ({@code field}), to a prompted variable ({@code variable}), to a built-in session value
+    * ({@code session_data}), or to a computed expression ({@code expression}). SUBQUERY is
+    * deliberately not supported here -- its payload is a full sub-query definition with no
+    * tractable minimal-field summary.
+    */
+   private static ConditionValueModel value(Object raw, int index, Map<String, DataRefModel> fields) {
+      if(raw instanceof Map<?, ?> map && map.get("type") instanceof String typeToken) {
+         return typedValue(typeToken, map, index, fields);
+      }
+
       ConditionValueModel value = new ConditionValueModel();
       value.setValue(raw);
       value.setType(ConditionValueModel.VALUE);
       return value;
+   }
+
+   private static ConditionValueModel typedValue(String typeToken, Map<?, ?> map, int index,
+                                                  Map<String, DataRefModel> fields)
+   {
+      String type = typeToken.trim().toLowerCase();
+      ConditionValueModel value = new ConditionValueModel();
+
+      switch(type) {
+         case "field" -> {
+            String name = requireString(map.get("field"), index, "field");
+            DataRefModel resolved = fields.get(name.toLowerCase());
+
+            if(resolved == null) {
+               throw new IllegalArgumentException(
+                  "Condition " + index + "'s field-typed value names '" + name + "', which this " +
+                  "assembly cannot filter on. Available fields: " + fieldList(fields) + ".");
+            }
+
+            value.setValue(resolved);
+            value.setType(ConditionValueModel.FIELD);
+         }
+         case "variable" -> {
+            String name = requireString(map.get("name"), index, "name");
+            value.setValue("$(" + name + ")");
+            value.setType(ConditionValueModel.VARIABLE);
+            Object choiceQuery = map.get("choiceQuery");
+
+            if(choiceQuery instanceof String query && !query.isBlank()) {
+               value.setChoiceQuery(query);
+            }
+         }
+         case "session_data" -> {
+            String name = requireString(map.get("name"), index, "name").trim().toUpperCase();
+
+            if(!SESSION_DATA_NAMES.contains(name)) {
+               throw new IllegalArgumentException(
+                  "Condition " + index + "'s session_data value must be one of " +
+                  SESSION_DATA_NAMES + ", got '" + map.get("name") + "'.");
+            }
+
+            value.setValue("$(" + name + ")");
+            value.setType(ConditionValueModel.SESSION_DATA);
+         }
+         case "expression" -> {
+            String expression = requireString(map.get("expression"), index, "expression");
+            Object languageRaw = map.get("language");
+            String language = languageRaw == null ? "js" :
+               String.valueOf(languageRaw).trim().toLowerCase();
+            ExpressionValueModel exprModel = new ExpressionValueModel();
+            exprModel.setExpression(expression);
+            exprModel.setType("sql".equals(language) ?
+               ExpressionValueModel.SQL : ExpressionValueModel.JS);
+            value.setValue(exprModel);
+            value.setType(ConditionValueModel.EXPRESSION);
+         }
+         default -> throw new IllegalArgumentException(
+            "Condition " + index + " has a value of unknown type '" + typeToken + "'. Supported " +
+            "typed values: field, variable, session_data, expression.");
+      }
+
+      return value;
+   }
+
+   private static String requireString(Object raw, int index, String fieldName) {
+      if(!(raw instanceof String str) || str.isBlank()) {
+         throw new IllegalArgumentException(
+            "Condition " + index + "'s value needs a non-empty '" + fieldName + "'.");
+      }
+
+      return str.trim();
+   }
+
+   /**
+    * {@code TOP_N}/{@code BOTTOM_N} carry a ranking value -- {@code n} and the group-by field --
+    * rather than a plain scalar. ConditionUtil unconditionally casts {@code getValue()} to
+    * {@code RankingValueModel} for these two operations, so this is the one branch that MUST
+    * produce that shape.
+    */
+   private static ConditionValueModel rankingValue(Object raw, int index,
+                                                    Map<String, DataRefModel> fields)
+   {
+      if(!(raw instanceof Map<?, ?> map)) {
+         throw new IllegalArgumentException(
+            "Condition " + index + " uses a ranking operator (top_n/bottom_n) and needs a value " +
+            "shaped {n, groupField}, not a plain value.");
+      }
+
+      Object nRaw = map.get("n");
+
+      if(!(nRaw instanceof Number number) || number.intValue() <= 0 ||
+         number.doubleValue() != number.intValue())
+      {
+         throw new IllegalArgumentException(
+            "Condition " + index + "'s ranking value needs a positive integer 'n', got " + nRaw + ".");
+      }
+
+      String groupFieldName = requireString(map.get("groupField"), index, "groupField");
+      DataRefModel groupField = fields.get(groupFieldName.toLowerCase());
+
+      if(groupField == null) {
+         throw new IllegalArgumentException(
+            "Condition " + index + "'s ranking groupField '" + groupFieldName + "' is not a " +
+            "field this assembly can filter on. Available fields: " + fieldList(fields) + ".");
+      }
+
+      RankingValueModel ranking = new RankingValueModel();
+      ranking.setN(number.intValue());
+      ranking.setDataRef(groupField);
+
+      ConditionValueModel value = new ConditionValueModel();
+      value.setValue(ranking);
+      value.setType(ConditionValueModel.VALUE);
+      return value;
+   }
+
+   private static void requireExactlyOneValue(List<Object> values, int index) {
+      if(values.size() != 1) {
+         throw new IllegalArgumentException(
+            "Condition " + index + " uses a ranking operator (top_n/bottom_n), which needs " +
+            "exactly one value shaped {n, groupField}, got " + values.size() + ".");
+      }
+   }
+
+   private static String fieldList(Map<String, DataRefModel> fields) {
+      return fields.isEmpty() ? "(none)" : String.join(", ", new TreeSet<>(names(fields)));
    }
 
    private static JunctionOperatorModel junction(String token, int index) {
@@ -270,11 +420,79 @@ public final class ConditionVocabulary {
 
       if(values != null) {
          for(ConditionValueModel value : values) {
-            out.add(value == null ? null : value.getValue());
+            out.add(describeValue(value));
          }
       }
 
       return out;
+   }
+
+   /**
+    * The reverse of {@link #typedValue} / {@link #rankingValue}: a non-VALUE value reads back as
+    * the same typed-object shape it would be written as, rather than leaking the raw Java model
+    * (a {@code DataRefModel}, {@code ExpressionValueModel}, ...) into the agent-facing JSON.
+    */
+   private static Object describeValue(ConditionValueModel value) {
+      if(value == null) {
+         return null;
+      }
+
+      String type = value.getType();
+
+      if(ConditionValueModel.FIELD.equals(type) && value.getValue() instanceof DataRefModel field) {
+         Map<String, Object> out = new LinkedHashMap<>();
+         out.put("type", "field");
+         out.put("field", field.getName());
+         return out;
+      }
+
+      if(ConditionValueModel.VARIABLE.equals(type)) {
+         Map<String, Object> out = new LinkedHashMap<>();
+         out.put("type", "variable");
+         out.put("name", variableName(value.getValue()));
+
+         if(value.getChoiceQuery() != null) {
+            out.put("choiceQuery", value.getChoiceQuery());
+         }
+
+         return out;
+      }
+
+      if(ConditionValueModel.SESSION_DATA.equals(type)) {
+         Map<String, Object> out = new LinkedHashMap<>();
+         out.put("type", "session_data");
+         out.put("name", variableName(value.getValue()));
+         return out;
+      }
+
+      if(ConditionValueModel.EXPRESSION.equals(type) &&
+         value.getValue() instanceof ExpressionValueModel expr)
+      {
+         Map<String, Object> out = new LinkedHashMap<>();
+         out.put("type", "expression");
+         out.put("expression", expr.getExpression());
+         out.put("language", expr.getType() == ExpressionValueModel.SQL ? "sql" : "js");
+         return out;
+      }
+
+      if(value.getValue() instanceof RankingValueModel ranking) {
+         Map<String, Object> out = new LinkedHashMap<>();
+         out.put("n", ranking.getN());
+         out.put("groupField", ranking.getDataRef() == null ? null : ranking.getDataRef().getName());
+         return out;
+      }
+
+      // SUBQUERY and anything else read back as the raw value, unchanged from before -- SUBQUERY's
+      // payload has no tractable minimal-field summary (see the write-side note on typedValue).
+      return value.getValue();
+   }
+
+   private static String variableName(Object value) {
+      if(value instanceof String str && str.startsWith("$(") && str.endsWith(")")) {
+         return str.substring(2, str.length() - 1);
+      }
+
+      return String.valueOf(value);
    }
 
    /** An unmapped operation reads back as itself rather than as a guessed token. */
@@ -297,7 +515,10 @@ public final class ConditionVocabulary {
    /** The canonical spelling per operation, used when reading back. */
    private static final Set<String> CANONICAL = Set.of(
       "equals", "one_of", "less_than", "greater_than", "between", "starts_with", "contains",
-      "null", "top_n", "date_in", "like");
+      "null", "top_n", "bottom_n", "date_in", "like");
+
+   /** The only names StyleBI recognizes as built-in session values (see Condition.isSessionVariable). */
+   private static final Set<String> SESSION_DATA_NAMES = Set.of("_USER_", "_ROLES_", "_GROUPS_");
 
    private static Map<String, Integer> operators() {
       Map<String, Integer> map = new LinkedHashMap<>();
@@ -318,6 +539,7 @@ public final class ConditionVocabulary {
       map.put("null", XCondition.NULL);
       map.put("is_null", XCondition.NULL);
       map.put("top_n", XCondition.TOP_N);
+      map.put("bottom_n", XCondition.BOTTOM_N);
       map.put("date_in", XCondition.DATE_IN);
       map.put("like", XCondition.LIKE);
       return Collections.unmodifiableMap(map);
