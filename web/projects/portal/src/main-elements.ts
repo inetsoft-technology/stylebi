@@ -20,17 +20,21 @@ import { createCustomElement } from "@angular/elements";
 import { provideRouter } from "@angular/router";
 import { EmbedChartComponent } from "./app/embed/chart/embed-chart.component";
 import { embedElementConfig } from "./app/embed/embed-element.config";
-import { embedChartRoutesEager } from "./app/embed/chart/embed-chart.routes-eager";
+import { EMBED_CHART_ROUTE_PROVIDERS } from "./app/embed/chart/embed-chart.route-providers";
 import "./main-base-element";
 
 createApplication({
    providers: [
       ...embedElementConfig.providers,
-      // Use the eager route variant here (not embedChartRoutes) -- see the comment on
-      // embedChartRoutesEager for why: EmbedChartComponent is always needed immediately in this
-      // bundle (it's created below regardless), so the lazy loadComponent() portal routing uses
-      // only costs this single-component bundle a broken build (Bug #76468).
-      provideRouter(embedChartRoutesEager)
+      // EmbedChartComponent is instantiated by createCustomElement() below from app.injector, so
+      // no route is ever activated in this bundle and route-level providers (which live in the
+      // EnvironmentInjector that route activation creates) would never exist -- every non-root
+      // service the chart tree injects then fails with NG0201. EMBED_CHART_ROUTE_PROVIDERS must
+      // therefore be registered at the application root here, exactly as main-viewer-element.ts
+      // does for <inetsoft-viewer>. provideRouter([]) is still needed for the Router/ActivatedRoute
+      // that EmbedChartComponent injects.
+      provideRouter([]),
+      ...EMBED_CHART_ROUTE_PROVIDERS
    ]
 }).then(app => {
    const embedChart = createCustomElement(EmbedChartComponent, {injector: app.injector});
