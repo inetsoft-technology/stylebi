@@ -1194,6 +1194,32 @@ public class MetadataApiService {
    }
 
    /**
+    * The declared relationships among a caller-chosen subset of one tabular data source's datasets.
+    * Serves {@code POST /datasource/relationships} (item 2, scaled-annotation-target-selection).
+    *
+    * <p>Tabular-only by construction, with no JDBC branch: {@link TabularCatalogService#resolveProvider}
+    * already throws {@link UnsupportedDatasourceException} (mapped to this controller's existing
+    * 422 handler) for a JDBC data source, whose runtime never implements {@code TabularCatalogProvider}.
+    * A caller passing a JDBC path gets a clean, already-wired 422 -- not a gap, since JDBC subset
+    * annotation isn't even wired for paging yet (see {@link #getDatabaseTables}'s own doc).</p>
+    *
+    * @param dsPath     the datasource name/path.
+    * @param datasetIds the caller's chosen dataset id subset. {@code null}/empty is legal and
+    *                    answers with an empty relationships list.
+    * @param principal  the current user; must have READ on {@code dsPath}.
+    */
+   public DatasourceRelationshipsResponse getDatasourceRelationships(
+      String dsPath, List<String> datasetIds, Principal principal) throws Exception
+   {
+      if(!dataSourceService.checkPermission(dsPath, ResourceAction.READ, principal)) {
+         throw new SecurityException("Access denied to data source: " + dsPath);
+      }
+
+      List<OsiRelationship> relationships = tabularCatalogService.listRelationships(dsPath, datasetIds);
+      return new DatasourceRelationshipsResponse(relationships);
+   }
+
+   /**
     * Gets all tables and their FK relationships for the specified datasource.
     *
     * @param dsName       the datasource name/path.

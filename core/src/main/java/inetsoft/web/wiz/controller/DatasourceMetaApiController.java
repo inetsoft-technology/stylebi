@@ -27,6 +27,7 @@ import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.osi.OsiDataset;
+import inetsoft.web.wiz.request.DatasourceRelationshipsRequest;
 import inetsoft.web.wiz.request.FkIntegrityRequest;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
 import inetsoft.web.wiz.request.SchemaSearchRequest;
@@ -164,6 +165,21 @@ public class DatasourceMetaApiController {
       throws Exception
    {
       return metadataService.getDatabaseTables(dsPath, nameContains, limit, cursor, principal);
+   }
+
+   /**
+    * Declared relationships among a caller-chosen subset of one tabular data source's datasets --
+    * the subset counterpart of {@code GET /datasource/tables}' full relationship set. See
+    * {@link MetadataApiService#getDatasourceRelationships}.
+    */
+   @PostMapping("/datasource/relationships")
+   public DatasourceRelationshipsResponse getDatasourceRelationships(
+      @RequestBody DatasourceRelationshipsRequest request,
+      Principal principal)
+      throws Exception
+   {
+      return metadataService.getDatasourceRelationships(
+         request.dsPath(), request.datasetIds(), principal);
    }
 
    /**
