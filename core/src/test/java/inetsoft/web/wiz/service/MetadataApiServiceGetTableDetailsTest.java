@@ -160,4 +160,66 @@ class MetadataApiServiceGetTableDetailsTest {
 
       assertTrue(meta.getColumns().isEmpty());
    }
+
+   /**
+    * GitHub code review on stylebi#5052 caught this: {@code catalog}/{@code schema} being an
+    * empty string (not null -- e.g. a caller that always sends {@code ""} rather than omitting
+    * the field) must not be passed through to {@code getTable} literally, the same way the
+    * existing {@code getTableMetaData} precedent (this file, {@code Tool.isEmptyString(catalog)
+    * ? null : catalog}) already normalizes it -- otherwise {@code getTable} searches for a
+    * catalog/schema node literally named {@code ""}, fails to match, and the new check
+    * incorrectly throws "not found" for a real, zero-column table.
+    */
+   @Test
+   void emptyStringCatalogAndSchemaAreNormalizedBeforeGetTableLookup() throws Exception {
+      MetadataApiService service = createService();
+
+      when(metaDataProvider.getMetaData(any(XNode.class), eq(true)))
+         .thenReturn(tableDataWithColumns());
+      // Only stub the null-catalog/null-schema form -- if the fix regresses and passes ""
+      // straight through, this stub won't match, getTable() returns null (Mockito default),
+      // and the test fails on the assertion below instead of a stray unstubbed-call error.
+      when(metaDataProvider.getTable(eq(null), eq(null), eq("PermissionFilteredView"), eq(false)))
+         .thenReturn(new XNode("PermissionFilteredView"));
+
+      DatabaseTableMeta meta = service.getTableDetails(
+         DS_NAME, "PermissionFilteredView", "", "", mock(Principal.class));
+
+      assertTrue(meta.getColumns().isEmpty());
+   }
+
+   /**
+    * GitHub code review on stylebi#5052 caught this: {@code tableName} may be a fully-qualified
+    * {@code catalog.table} name (per {@code DefaultMetaDataProvider.getTable}'s own javadoc) with
+    * {@code catalog}/{@code schema} left null -- exactly what {@code getQualifiedTableNode} (used
+    * a few lines above the fix, for the column-fetch lookup) already strips down to the bare
+    * table name. The fix must reuse that same stripped name for the {@code getTable} lookup too,
+    * not the raw, still-qualified {@code tableName} parameter -- otherwise {@code getTable}'s own
+    * matching (which compares against the bare catalog-node name) never matches a qualified
+    * string, and the new check incorrectly throws "not found" for a real, zero-column table.
+    */
+   @Test
+   void qualifiedTableNameIsStrippedBeforeGetTableLookup() throws Exception {
+      MetadataApiService service = createService();
+
+      // hasCatalog=true is what makes SQLTypes.getQualifiedTableNode's catalog-stripping branch
+      // engage at all -- the existing tests above never set this, so they never exercise
+      // stripping (their tableName has no "." in it and node.getName() == tableName trivially).
+      XNode rootMetaData = new XNode();
+      rootMetaData.setAttribute("hasCatalog", "true");
+      when(metaDataProvider.getRootMetaData(anyString())).thenReturn(rootMetaData);
+
+      when(metaDataProvider.getMetaData(any(XNode.class), eq(true)))
+         .thenReturn(tableDataWithColumns());
+      // Stub only the bare, stripped name -- if the fix regresses and passes the raw qualified
+      // tableName straight through, this stub won't match and the test fails on the assertion
+      // below (getTable() returns null via Mockito's default) instead of silently passing.
+      when(metaDataProvider.getTable(eq(null), eq(null), eq("PermissionFilteredView"), eq(false)))
+         .thenReturn(new XNode("PermissionFilteredView"));
+
+      DatabaseTableMeta meta = service.getTableDetails(
+         DS_NAME, "SOMECATALOG.PermissionFilteredView", null, null, mock(Principal.class));
+
+      assertTrue(meta.getColumns().isEmpty());
+   }
 }

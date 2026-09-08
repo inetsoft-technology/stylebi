@@ -1937,7 +1937,9 @@ public class MetadataApiService {
       }
 
       if(tableNode.getChildCount() == 0 &&
-         metaDataProvider.getTable(catalog, schema, tableName, false) == null)
+         metaDataProvider.getTable(Tool.isEmptyString(catalog) ? null : catalog,
+                                    Tool.isEmptyString(schema) ? null : schema,
+                                    node.getName(), false) == null)
       {
          throw new Exception(Tool.buildString(
             "Table '", tableName, "' was not found as a datasource table in '", dsName, "'. ",
