@@ -228,14 +228,17 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       /**
        * A single group-by dimension.
        *
-       * @param field     source column name
-       * @param dateLevel the date grouping level applied directly to this group (e.g.
-       *                  {@code "QUARTER"}), same vocabulary as set_group_aggregate's
-       *                  {@code dateLevel} / add_date_range_column's {@code dateOption};
-       *                  {@code null} for a plain (non-date-bucketed) group
+       * @param field      source column name
+       * @param dateLevel  the date grouping level applied directly to this group (e.g.
+       *                   {@code "QUARTER"}), same vocabulary as set_group_aggregate's
+       *                   {@code dateLevel} / add_date_range_column's {@code dateOption};
+       *                   {@code null} for a plain (non-date-bucketed) group
+       * @param timeSeries whether this group is treated as a time series (fills gaps in the
+       *                   date range with empty rows), same as set_group_aggregate's
+       *                   {@code timeSeries} flag on this group
        */
       @JsonInclude(JsonInclude.Include.NON_NULL)
-      public record GroupModel(String field, String dateLevel) {}
+      public record GroupModel(String field, String dateLevel, boolean timeSeries) {}
 
       /**
        * A single aggregate measure.
