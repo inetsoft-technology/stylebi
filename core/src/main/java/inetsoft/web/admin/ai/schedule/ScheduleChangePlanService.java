@@ -234,6 +234,14 @@ public class ScheduleChangePlanService {
                label + ".spec.conditions[" + i + "]: only time conditions are supported in this " +
                "area (got " + conditions.get(i).getClass().getSimpleName() + ")");
          }
+
+         TimeCondition tc = (TimeCondition) conditions.get(i);
+
+         if(tc.getType() == TimeCondition.Type.AT && tc.getDate() == null) {
+            throw new IllegalArgumentException(
+               label + ".spec.conditions[" + i + "].date: an ISO 8601 date is required for " +
+               "\"AT\"-type conditions");
+         }
       }
    }
 

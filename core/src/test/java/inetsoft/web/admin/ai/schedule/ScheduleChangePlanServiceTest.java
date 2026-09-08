@@ -129,6 +129,35 @@ class ScheduleChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("conditions"));
    }
 
+   // bug: an "AT"-type condition with a null date sailed through preview and only failed at apply
+   // time inside AdminScheduleGateway, where the generic exception handling misclassified the
+   // failure as rollback-failed even though nothing had been written -- catch it here instead.
+   @Test void resolveCreateThrowsOnAtConditionWithNullDate() {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      spec.setConditions(List.of(atCondition(null)));
+      ScheduleChangePlanRequest req = request("task", List.of(createChange(spec)));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("date"));
+      assertTrue(ex.getMessage().contains("AT"));
+   }
+
+   // positive control: an "AT" condition with a non-null date must still resolve successfully --
+   // guards against the new check above being overly strict.
+   @Test void resolveCreateSucceedsWithAtConditionAndNonNullDate() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      spec.setConditions(List.of(atCondition(java.time.OffsetDateTime.now())));
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      ScheduleChangePlanRequest req = request("create a task", List.of(createChange(spec)));
+
+      ResolvedPlan plan = service.resolve(req, user);
+
+      assertEquals(1, plan.changes().size());
+   }
+
    @Test void resolveCreateThrowsOnUnsupportedActionType() {
       CreateScheduleTaskRequest spec = createSpec("t1", "admin");
       spec.setActions(List.of(new BatchAction()));
@@ -336,6 +365,13 @@ class ScheduleChangePlanServiceTest {
       TimeCondition condition = new TimeCondition();
       condition.setHour(hour);
       condition.setMinute(minute);
+      return condition;
+   }
+
+   private static TimeCondition atCondition(java.time.OffsetDateTime date) {
+      TimeCondition condition = new TimeCondition();
+      condition.setType(TimeCondition.Type.AT);
+      condition.setDate(date);
       return condition;
    }
 
