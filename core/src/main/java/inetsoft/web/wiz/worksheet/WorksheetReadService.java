@@ -133,7 +133,36 @@ public class WorksheetReadService {
          // Note this is the effective limit, capped by query.runtime.maxrow; see TableModel.
          maxRows <= 0 ? null : maxRows,
          t.isDistinct(), t.isSQLMergeable(), t.isVisibleTable(), tableMode(t),
-         offset == null ? null : offset.x, offset == null ? null : offset.y);
+         offset == null ? null : offset.x, offset == null ? null : offset.y,
+         readReferencedVariables(t));
+   }
+
+   /**
+    * The worksheet variables this table's SQL or conditions reference, declared and undeclared
+    * alike. {@link TableAssembly#getAllVariables()} is overridden by {@link SQLBoundTableAssembly}
+    * to resolve a SQL-bound table's actual name-placeholder tokens (via
+    * {@code XDataService.getQueryParameters} plus its WHERE/HAVING scan); every other table type
+    * falls back to {@link AbstractTableAssembly}'s condition-derived variables, aggregated
+    * recursively across upstream sources for a join, concat or mirror table -- neither is a regex
+    * over the SQL text, so this can never disagree with what {@code add_sql_query}'s own
+    * undeclared-variable detection reports for the same query.
+    */
+   private List<String> readReferencedVariables(TableAssembly t) {
+      UserVariable[] vars = t.getAllVariables();
+
+      if(vars == null || vars.length == 0) {
+         return Collections.emptyList();
+      }
+
+      LinkedHashSet<String> names = new LinkedHashSet<>();
+
+      for(UserVariable var : vars) {
+         if(var != null && var.getName() != null) {
+            names.add(var.getName());
+         }
+      }
+
+      return new ArrayList<>(names);
    }
 
    // -------------------------------------------------------------------------
