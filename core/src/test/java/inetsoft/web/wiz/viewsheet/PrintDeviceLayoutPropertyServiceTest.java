@@ -432,6 +432,21 @@ class PrintDeviceLayoutPropertyServiceTest {
    }
 
    @Test
+   void refusesCreatingADeviceLayoutNamedPrintLayout() throws Exception {
+      // The dialog's reservedName() blocks this literal too (resolved through Catalog from
+      // "_#(js:Print Layout)" in Angular) -- not just "Master".
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+      h.registerDevices("wiz-mobile");
+
+      Exception thrown = assertThrows(Exception.class, () -> h.service.manageDeviceLayout(
+         "tok", h.principal, "create", Map.of("name", "Print Layout"), ""));
+
+      assertTrue(thrown.getMessage().contains("Print Layout"), thrown.getMessage());
+      verify(h.dialog, never())
+         .setViewsheetInfo(anyString(), any(), any(), any(), anyString(), any());
+   }
+
+   @Test
    void allowsMasterAsAnUpdateOrDeleteTargetSinceOnlyCreateIsReserved() throws Exception {
       VSDeviceLayoutDialogModel existing = new VSDeviceLayoutDialogModel();
       existing.setName("Master");

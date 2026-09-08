@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.PaperSize;
+import inetsoft.util.Catalog;
 import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
 import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
 import inetsoft.web.composer.model.vs.*;
@@ -200,6 +201,19 @@ public class PrintDeviceLayoutPropertyService {
             throw new IllegalArgumentException(
                "manage_device_layout: \"name\" cannot be \"Master\" -- that name is reserved " +
                "for the viewsheet's own Master view.");
+         }
+
+         // The dialog's reservedName() blocks a second reserved literal too: the print layout's
+         // own display name, "_#(js:Print Layout)" in Angular -- resolved through the same
+         // Catalog mechanism server-side, so this stays correct if a translation for the key is
+         // ever added (today it falls back to the literal "Print Layout", matching what the
+         // dialog currently shows in every locale this community edition ships).
+         String reservedPrintLayoutName = Catalog.getCatalog(user).getString("Print Layout");
+
+         if(reservedPrintLayoutName.equals(name)) {
+            throw new IllegalArgumentException(
+               "manage_device_layout: \"name\" cannot be \"" + name + "\" -- that name is " +
+               "reserved for the viewsheet's print layout.");
          }
 
          if(DEVICE_LAYOUT_INVALID_NAME_CHARS.matcher(name).find()) {
