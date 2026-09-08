@@ -2388,7 +2388,9 @@ public class SummaryFilter extends AbstractGroupedTable
          this.row = first.row;
 
          includedRows = new SparseBitSet();
-         Map<String, List<GroupNode>> subgroups = new HashMap<>();
+         // linked so the gathered order is at least deterministic; sortMergedNodes()
+         // below puts the children back into their own group level's order
+         Map<String, List<GroupNode>> subgroups = new LinkedHashMap<>();
 
          for(GroupNode node : list) {
             // copy named group values. (51822)
@@ -2412,6 +2414,44 @@ public class SummaryFilter extends AbstractGroupedTable
                   nodes.add(subgroup.get(0));
                }
             }
+
+            sortMergedNodes();
+         }
+      }
+
+      /**
+       * Restore the group ordering of the merged children.
+       *
+       * The children are gathered from several parent groups, so the order they end up
+       * in here is the order the sub-groups happened to be collected in, not the order
+       * defined for their own group level. Every other group at this level is ordered,
+       * and the order-dependent calculations (running total, moving, change/previous)
+       * read the resulting row order, so the "Others" bucket has to be ordered the same
+       * way. (74910)
+       */
+      private void sortMergedNodes() {
+         if(nodes == null || nodes.size() < 2) {
+            return;
+         }
+
+         int lvl = nodes.get(0).level;
+
+         // only a uniform level has a single group order to sort by. a hierarchy merge
+         // mixes levels, so it is left in the order it was gathered in
+         for(GroupNode child : nodes) {
+            if(child.level != lvl) {
+               return;
+            }
+         }
+
+         if(lvl < 0 || lvl >= cols.length) {
+            return;
+         }
+
+         SortOrder order = getGroupOrder(cols[lvl]);
+
+         if(order != null && order.getOrder() != StyleConstants.SORT_NONE) {
+            nodes.sort(new GroupNodeComparer2(order));
          }
       }
 
