@@ -33,6 +33,7 @@ import inetsoft.uql.viewsheet.graph.DefaultVSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -68,6 +69,18 @@ import static inetsoft.test.XTableUtil.date;
  * Neither skip condition had any automated coverage prior to this test (verified: grep -rn
  * "isFacet()|isCompareAll()" core/src/test returned no hits against DateComparisonUtil before
  * this file was added) -- both fixes had previously been verified live only.
+ *
+ * <p>{@link #facetCausedByUnrelatedDimensionStillOrphansUnreachedChronologicalPart()} covers a
+ * narrower, still-open question the two bugs above don't: {@code applyDateRange()}'s skip
+ * condition only ever consults the single {@link VSChartInfo#isFacet()} flag, which is true
+ * whenever the chart ends up with a {@code FacetCoord} for *any* reason (see
+ * {@code GraphGenerator.createCoord()} -- any axis carrying 2+ dimensions produces one,
+ * regardless of whether the DC part column is among them). It cannot distinguish "part IS the
+ * faceted dimension" (Bug #76388's case, where skipping is correct) from "some unrelated
+ * dimension is faceted and part is still a plain chronologically-ordered axis" (where skipping
+ * means a genuinely-unreached future part -- e.g. December while the current year has only
+ * reached April -- renders anyway). This test currently fails against the production code,
+ * documenting that gap rather than asserting it is fixed.</p>
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -134,6 +147,35 @@ class DateComparisonUtilApplyDateRangeTest {
       assertPartRowAccepted(partScale, data, true, "2019-01-01", 51);
       assertPartRowAccepted(partScale, data, true, "2019-01-01", 52);
       assertPartRowAccepted(partScale, data, true, "2020-01-01", 51);
+   }
+
+   /**
+    * Same rows/DC config as {@link #nonCompareAllNonFacetModeStillOrphansUnreachedParts()} --
+    * part is a plain chronologically-ordered week number, not itself a facet dimension -- except
+    * {@code info.isFacet()} is true, simulating a chart where some *other*, DC-unrelated
+    * dimension (e.g. Region) shares the axis and happens to trigger a {@code FacetCoord}. Unlike
+    * {@link #facetModeDoesNotOrphanFacetsTheMostRecentPeriodLacks()} (where part genuinely is the
+    * faceted dimension), the most-recent period's own chronological reach is still meaningful
+    * here, so parts 51/52 (December) should still be orphaned -- the current implementation
+    * cannot tell these two facet causes apart and skips the heuristic either way, so this
+    * currently fails.
+    */
+   @Test
+   @Disabled("Bug #76518 -- fails against current production code (applyDateRange() cannot yet "
+      + "distinguish 'part is the faceted dimension' from 'an unrelated dimension is faceted'); "
+      + "re-enable once #76518 is fixed.")
+   void facetCausedByUnrelatedDimensionStillOrphansUnreachedChronologicalPart() {
+      DataSet data = buildRows();
+      DateComparisonInfo dcInfo = dcInfo(false);
+
+      // facet=true here stands in for "an unrelated dimension made the chart a FacetCoord",
+      // not "the DC part column is the faceted dimension" -- applyDateRange() has no way to
+      // tell the two apart from info.isFacet() alone.
+      Scale partScale = applyAndGetPartScale(dcInfo, data, true);
+
+      assertPartRowAccepted(partScale, data, false, "2019-01-01", 51);
+      assertPartRowAccepted(partScale, data, false, "2019-01-01", 52);
+      assertPartRowAccepted(partScale, data, false, "2020-01-01", 51);
    }
 
    // -- fixture plumbing --------------------------------------------------------------------
