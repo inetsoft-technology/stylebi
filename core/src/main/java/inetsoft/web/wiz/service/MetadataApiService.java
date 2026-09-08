@@ -1936,6 +1936,18 @@ public class MetadataApiService {
             Tool.buildString("Table ", tableName, " not found in data source ", dsName));
       }
 
+      if(tableNode.getChildCount() == 0 &&
+         metaDataProvider.getTable(Tool.isEmptyString(catalog) ? null : catalog,
+                                    Tool.isEmptyString(schema) ? null : schema,
+                                    node.getName(), false) == null)
+      {
+         throw new Exception(Tool.buildString(
+            "Table '", tableName, "' was not found as a datasource table in '", dsName, "'. ",
+            "get_table_details only resolves real datasource tables from the JDBC catalog -- ",
+            "it cannot look up worksheet-internal assemblies/tables (e.g. ones created by ",
+            "add_table or add_sql_query). Use read_worksheet_model to inspect those instead."));
+      }
+
       DatabaseTableMeta meta = new DatabaseTableMeta();
       meta.setName(tableName);
       meta.setCatalog(Tool.isEmptyString(catalog) ? null : catalog);
