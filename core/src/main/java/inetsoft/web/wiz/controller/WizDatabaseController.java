@@ -31,6 +31,7 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.uql.tabular.ScriptedQuery;
 import inetsoft.uql.tabular.SelectableTabularQuery;
+import inetsoft.uql.tabular.TabularCatalogProvider;
 import inetsoft.uql.util.Config;
 import inetsoft.util.MessageException;
 import inetsoft.util.audit.ActionRecord;
@@ -1222,14 +1223,55 @@ public class WizDatabaseController {
          return UNKNOWN;
       }
 
-      return queryClass == null ? UNKNOWN : classifyQueryClass(queryClass);
+      if(queryClass == null) {
+         return UNKNOWN;
+      }
+
+      Class<?> runtimeClass;
+
+      try {
+         runtimeClass = resolveRuntimeClass(type);
+      }
+      catch(Throwable ex) {
+         // Same "plugin absent" reasoning as the query-class load above: a declared runtime that
+         // fails to load must not silently fall through into classifyQueryClass and get sorted as
+         // DOCUMENT_REQUIRED/METADATA by default. It is UNKNOWN, full stop.
+         LOG.debug("Failed to load the runtime class for type {}: {}", type, ex.getMessage());
+         return UNKNOWN;
+      }
+
+      return classifyQueryClass(queryClass, runtimeClass);
+   }
+
+   /**
+    * The runtime class {@code Config} has on file for this data source type, or {@code null} when
+    * none is declared (a type with no declared runtime is not the same as a plugin that failed to
+    * load, which this method signals by throwing, mirroring {@code annotationClassOf}'s existing
+    * query-class handling above).
+    *
+    * <p>Pure class lookup -- {@code Config.getClass} calls {@code Class.forName}, never a
+    * constructor -- so this instantiates nothing.</p>
+    *
+    * <p>Package-private, not private: so a unit test can resolve a runtime class through the
+    * real {@code Config} registry directly, the same way {@code classifyQueryClass} was pulled
+    * out of this method so it can be exercised without standing up a plugin registry.</p>
+    */
+   Class<?> resolveRuntimeClass(String type) throws ClassNotFoundException {
+      String runtimeClassName = uqlConfig.getRuntime(type);
+      return runtimeClassName == null ? null : uqlConfig.getClass(type, runtimeClassName);
    }
 
    /**
     * The classification itself, separated from how the class was obtained so it can be exercised
     * without standing up a plugin registry.
+    *
+    * @param runtimeClass the data source type's declared {@code TabularRuntime} class, or
+    *                      {@code null} when it declares none -- passing {@code null} here is
+    *                      indistinguishable from omitting the check entirely, which is exactly the
+    *                      pre-existing behavior this parameter must not disturb for every type that
+    *                      declares no runtime.
     */
-   static String classifyQueryClass(Class<?> queryClass) {
+   static String classifyQueryClass(Class<?> queryClass, Class<?> runtimeClass) {
       if(ScriptedQuery.class.isAssignableFrom(queryClass)) {
          return UNSUPPORTED;
       }
@@ -1238,6 +1280,17 @@ public class WizDatabaseController {
       // being asked about, and core cannot reference the connector classes to test them directly.
       if(queryClass.getResource("endpoints.json") != null) {
          return ENDPOINT_CATALOG;
+      }
+
+      // The runtime is the authoritative "can this be annotated without a document" fact --
+      // TabularCatalogService.resolveProvider tests the SAME interface on the SAME class of
+      // object at call time, so this makes the two agree by construction. Placed before
+      // isRestQuery, not before ScriptedQuery/endpoints.json: a query that is unsupported or
+      // already catalogued must stay that way even if its runtime happens to also implement the
+      // SPI -- those two questions ("can this run at all", "does it ship a machine-readable
+      // catalog already") are more specific than "does the runtime know how to list datasets".
+      if(runtimeClass != null && TabularCatalogProvider.class.isAssignableFrom(runtimeClass)) {
+         return METADATA;
       }
 
       if(isRestQuery(queryClass)) {
@@ -1249,6 +1302,20 @@ public class WizDatabaseController {
       }
 
       return METADATA;
+   }
+
+   /**
+    * Convenience overload for a caller with no runtime-class information. Equivalent to passing
+    * {@code null}: with no runtime class, the SPI check above cannot fire, so this behaves exactly
+    * as {@code classifyQueryClass} did before the runtime signal was added.
+    *
+    * <p>{@code annotationClassOf} above is the only production caller of the two-argument form,
+    * and it always passes a runtime class (resolved via {@link #resolveRuntimeClass}); a new
+    * production caller reaching for this single-argument overload is opting out of the SPI
+    * signal, not picking a convenient default.</p>
+    */
+   static String classifyQueryClass(Class<?> queryClass) {
+      return classifyQueryClass(queryClass, null);
    }
 
    /**
