@@ -90,10 +90,15 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       Color borderColor = ctx.modern
          ? VSObjectChromeDefaults.objectBorderColor(ctx) : DEFAULT_BORDER_COLOR;
       int roundCorner = ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 4;
+      VSCompositeFormat objFormat = getFormat();
 
-      getFormat().getDefaultFormat().setBorderColorsValue(
-         new BorderColors(borderColor, borderColor, borderColor, borderColor));
-      getFormat().getDefaultFormat().setRoundCornerValue(roundCorner);
+      // matches the base hook's own null-guard (VSAssemblyInfo.seedChromeDefaults): a
+      // restored/malformed asset may be missing its OBJECTPATH format.
+      if(objFormat != null) {
+         objFormat.getDefaultFormat().setBorderColorsValue(
+            new BorderColors(borderColor, borderColor, borderColor, borderColor));
+         objFormat.getDefaultFormat().setRoundCornerValue(roundCorner);
+      }
 
       VSCompositeFormat activeFormat = getFormatInfo().getFormat(ACTIVE_TAB_PATH);
 
