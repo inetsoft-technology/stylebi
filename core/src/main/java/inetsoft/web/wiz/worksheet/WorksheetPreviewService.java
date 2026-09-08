@@ -99,29 +99,35 @@ public class WorksheetPreviewService {
          throw new PairingException("Table not found or produced no data: " + tableName);
       }
 
-      int colCount = lens.getColCount();
+      try {
+         int colCount = lens.getColCount();
 
-      // Row 0 is the header row in StyleBI's TableLens convention.
-      String[] headers = new String[colCount];
-
-      for(int col = 0; col < colCount; col++) {
-         Object h = lens.getObject(0, col);
-         headers[col] = h != null ? h.toString() : "col" + col;
-      }
-
-      List<Map<String, Object>> rows = new ArrayList<>();
-
-      for(int row = 1; rows.size() < limit && lens.moreRows(row); row++) {
-         Map<String, Object> rowMap = new LinkedHashMap<>();
+         // Row 0 is the header row in StyleBI's TableLens convention.
+         String[] headers = new String[colCount];
 
          for(int col = 0; col < colCount; col++) {
-            rowMap.put(headers[col], toJsonSafe(lens.getObject(row, col)));
+            Object h = lens.getObject(0, col);
+            headers[col] = h != null ? h.toString() : "col" + col;
          }
 
-         rows.add(rowMap);
-      }
+         List<Map<String, Object>> rows = new ArrayList<>();
 
-      return rows;
+         for(int row = 1; rows.size() < limit && lens.moreRows(row); row++) {
+            Map<String, Object> rowMap = new LinkedHashMap<>();
+
+            for(int col = 0; col < colCount; col++) {
+               rowMap.put(headers[col], toJsonSafe(lens.getObject(row, col)));
+            }
+
+            rows.add(rowMap);
+         }
+
+         return rows;
+      }
+      catch(RuntimeException e) {
+         throw new PairingException("Failed to read result columns for '"
+                                    + tableName + "': " + e.getMessage());
+      }
    }
 
    /**
