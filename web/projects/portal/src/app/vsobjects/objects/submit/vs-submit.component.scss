@@ -28,7 +28,19 @@
     padding: 0;
   }
 
+  // legacy (gate-off): suppress the native outline in favor of the component-computed inline
+  // ring (focusColor, applied via ngStyle in vs-submit.component.ts) so gate-off stays
+  // pixel-identical to pre-existing behavior.
   .submit-button:focus {
     box-shadow: none;
+  }
+}
+
+// modern (gate-on) only: replace the legacy computed-color 1px ring with the shell's 2px
+// translucent --inet-focus-ring, and use :focus-visible so it skips the ring on mouse click.
+:host-context(.viz-modern) {
+  .submit-button:focus-visible {
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
   }
 }

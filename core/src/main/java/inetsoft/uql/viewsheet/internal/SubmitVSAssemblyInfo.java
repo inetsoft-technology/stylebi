@@ -65,6 +65,25 @@ public class SubmitVSAssemblyInfo extends ClickableOutputVSAssemblyInfo {
       format.getCSSFormat().setCSSType(getObjCSSType());
       setFormat(format);
       setCSSDefaults();
+      seedChromeDefaults(VizContext.of(this));
+   }
+
+   /**
+    * Seed the modern-gated round corner, overriding the legacy 3px set above. This type
+    * bypasses the base chrome hook (see VSAssemblyInfo.bypassesBaseChrome()) so it seeds its
+    * own — form-input modernization, tracked as its own follow-on project from the card-corner
+    * work.
+    */
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      super.seedChromeDefaults(ctx); // no-op: this type bypasses the base hook
+
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         objFormat.getDefaultFormat().setRoundCornerValue(
+            ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 3);
+      }
    }
 
    /**

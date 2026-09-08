@@ -53,7 +53,8 @@
       [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
       outOfZone (onMousemove)="mouseMove($event)" #sliderContainer
       (click)="clearLabelSelection()">
-      <div class="wrapper" [style.top.px]="verticalCenter" [style.--slider-wrapper-top.px]="verticalCenter">
+      <div class="wrapper" [style.top.px]="verticalCenter" [style.--slider-wrapper-top.px]="verticalCenter"
+        [style.--slider-gap.px]="effectiveGap">
         @if (model.currentVisible || isMouseDown) {
           <div class="slider-value" [style.left.px]="handlePosition"
             [style.text-decoration]="model.objectFormat.decoration"

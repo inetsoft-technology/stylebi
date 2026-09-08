@@ -19,6 +19,17 @@
   overflow: hidden;
 }
 
+// objectFormat.border is entirely inline-style-bound (per-side) with no default, so an
+// author-set-nothing container previously rendered no border at all. Gated to modern only so
+// pre-existing, un-modernized dashboards keep that borderless look byte-identical.
+// :not(.vs-group-container--no-default-border) keeps this an all-or-nothing fallback: without
+// it, an author who set only one side's border would still have this shorthand fill in the
+// other three sides, since inline per-side styles only outrank the matching longhand here, not
+// the shorthand as a whole.
+:host-context(.viz-modern) .vs-group-container:not(.vs-group-container--no-default-border) {
+  border: 1px solid var(--inet-default-border-color);
+}
+
 .vs-group-container__tiled-image {
   background-repeat: repeat;
   width: 100%;
