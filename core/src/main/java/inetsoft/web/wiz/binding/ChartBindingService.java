@@ -330,7 +330,13 @@ public class ChartBindingService {
       }
 
       if(ref instanceof ChartAggregateRefModel aggregate) {
-         return aggregate.getFullName();
+         // NOT getFullName(): that is a formula display string ("Sum(DISCOUNT)") on the production
+         // read path (BAggregateRefModel#init) and null on the set_chart_shelf/set_single_shelf
+         // write path (FieldRefFactory#toChartRef never sets it) -- either way it never matches a
+         // raw column name, so resolves() always failed and every aggregate-bound field was
+         // discarded on every forced repoint, even a same-shaped-sibling-table one. getColumnValue()
+         // carries the raw column on both paths, mirroring the dimension branch above.
+         return aggregate.getColumnValue() == null ? aggregate.getName() : aggregate.getColumnValue();
       }
 
       return null;

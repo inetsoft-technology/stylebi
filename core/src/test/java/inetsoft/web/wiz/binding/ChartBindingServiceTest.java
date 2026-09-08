@@ -555,6 +555,49 @@ class ChartBindingServiceTest {
    }
 
    /**
+    * The same selective discard, on an aggregate-bound measure rather than a dimension --
+    * {@code columnNameOf}'s aggregate branch reads {@code getColumnValue()}, not
+    * {@code getFullName()} (a formula display string like "Sum(Sales)" on the production read
+    * path, and null on the set_chart_shelf/set_single_shelf write path -- either way never a raw
+    * column name), so a measure on x/y or a single-value shelf must survive a same-shaped-sibling
+    * repoint exactly like a dimension does. Regression test for the gap CI's own automated review
+    * caught after this fix's first merge: every prior test here exercised only dimensions/geo/
+    * aesthetic fields, so an aggregate always failing to resolve (and therefore always being
+    * discarded, even when its column still existed) shipped unnoticed.
+    */
+   @Test
+   void setSourceKeepsAnAggregateFieldWhoseColumnStillResolvesButClearsOneThatDoesNot()
+      throws Exception
+   {
+      ChartBindingModel existing =
+         chartWithTablesAndColumns("ORDERS1", "ORDER_DETAILS1", "Sales");
+      existing.setSource(assetSource("ORDERS1"));
+      ChartAggregateRefModel kept = new ChartAggregateRefModel();
+      kept.setColumnValue("Sales");
+      kept.setFormula("Sum");
+      ChartAggregateRefModel cleared = new ChartAggregateRefModel();
+      cleared.setColumnValue("Cost");
+      cleared.setFormula("Sum");
+      existing.setYFields(List.of(kept, cleared));
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+
+      harness(existing, refs, mock(ChangeChartTypeService.class),
+              mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", true, "");
+
+      ArgumentCaptor<ChangeChartRefEvent> captor =
+         ArgumentCaptor.forClass(ChangeChartRefEvent.class);
+      verify(refs).changeChartRef(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                  anyString());
+      List<inetsoft.web.binding.model.graph.ChartRefModel> yFields =
+         captor.getValue().getModel().getYFields();
+      assertEquals(1, yFields.size(),
+                   "the aggregate bound to 'Sales' must be kept since that column still resolves " +
+                   "in the new source; the one bound to 'Cost' must be cleared");
+      assertEquals("Sales", ((ChartAggregateRefModel) yFields.get(0)).getColumnValue());
+   }
+
+   /**
     * Forcing a repoint to the chart's own current table is the no-op exemption
     * {@code ChartBindingService.discardBoundFields} shares with {@code requireNoBoundFields}
     * (both guarded by {@code BindingSources.alreadyPointedAt}) -- every field-carrying location
