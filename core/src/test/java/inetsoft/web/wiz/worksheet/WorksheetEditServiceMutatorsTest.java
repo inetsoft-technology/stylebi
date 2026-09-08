@@ -2610,6 +2610,29 @@ class WorksheetEditServiceMutatorsTest {
       assertNull(ws.getAssembly("J"), "join assembly 'J' should have been removed");
    }
 
+   /** A join something depends on refuses to be removed -- mirrors deleteTable's own guard. */
+   @Test
+   void removeJoinRefusesWhenSomethingIsBuiltOnIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> {
+         ed.addJoin("J", "L", "id", "R", "id", "LEFT", null, null);
+         ed.addMirror("M", "J");
+      });
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeJoin("J")));
+
+      assertTrue(ex.getMessage().contains("built on it"), ex.getMessage());
+      assertNotNull(ws.getAssembly("J"), "the join must still be there");
+      assertNotNull(ws.getAssembly("M"), "and so must the mirror that depends on it");
+   }
+
    // =========================================================================
    // Column-dependency guard tests (Redmine #75968)
    //
