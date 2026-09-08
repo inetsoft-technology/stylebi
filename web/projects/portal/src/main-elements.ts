@@ -15,22 +15,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { createApplication } from "@angular/platform-browser";
-import { createCustomElement } from "@angular/elements";
 import { Optional } from "@angular/core";
+import { createCustomElement } from "@angular/elements";
+import { createApplication } from "@angular/platform-browser";
 import { provideRouter } from "@angular/router";
-
-import { embedElementConfig } from "./app/embed/embed-element.config";
-
-import { EmbedChartComponent } from "./app/embed/chart/embed-chart.component";
-import { EmbedCrosstabComponent } from "./app/embed/crosstab/embed-crosstab.component";
-import { EmbedTableComponent } from "./app/embed/table/embed-table.component";
-import { EmbedGaugeComponent } from "./app/embed/gauge/embed-gauge.component";
-import { EmbedTextComponent } from "./app/embed/text/embed-text.component";
-import { EmbedImageComponent } from "./app/embed/image/embed-image.component";
-
 import { FullScreenService } from "./app/common/services/full-screen.service";
 import { UIContextService } from "./app/common/services/ui-context.service";
+import { EmbedChartComponent } from "./app/embed/chart/embed-chart.component";
+import { embedChartRoutesEager } from "./app/embed/chart/embed-chart.routes-eager";
+import { EmbedCrosstabComponent } from "./app/embed/crosstab/embed-crosstab.component";
+import { embedElementConfig } from "./app/embed/embed-element.config";
+import { EmbedGaugeComponent } from "./app/embed/gauge/embed-gauge.component";
+import { EmbedImageComponent } from "./app/embed/image/embed-image.component";
+import { EmbedTableComponent } from "./app/embed/table/embed-table.component";
+import { EmbedTextComponent } from "./app/embed/text/embed-text.component";
 import {
    ComposerToken,
    ContextProvider,
@@ -51,12 +49,11 @@ import "./main-base-element";
 createApplication({
    providers: [
       ...embedElementConfig.providers,
-      // Empty router: these elements are used exclusively as standalone custom elements
-      // via the `url` attribute. Route-based navigation (/embed/chart/...) is not supported
-      // in this build — the elements bundle is embedded in third-party pages, not served as
-      // a navigable Angular app. Do not add embedXxxRoutes here without also reinstating
-      // the full route-navigation flow.
-      provideRouter([]),
+      // Use the eager route variant here (not embedChartRoutes) -- see the comment on
+      // embedChartRoutesEager for why: EmbedChartComponent is always needed immediately in this
+      // bundle (it's created below regardless), so the lazy loadComponent() portal routing uses
+      // only costs this single-component bundle a broken build (Bug #76468).
+      provideRouter(embedChartRoutesEager),
 
       // Shared providers for all embed elements — kept at app level so they are available
       // to standalone custom elements (no router activation occurs in that usage).

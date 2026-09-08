@@ -150,27 +150,32 @@ public class DateComparisonFormat extends Format {
             }
          }
 
-         // Remove orphaned cells (no current-year data) using the same heuristic as
-         // DateComparisonUtil.computeValidParts(). An empty validParts set means either
-         // no data, MergePartCell period without a date value, or per-part real-date
-         // layout — in all those cases no filtering is applied.
-         Set<Object> orphanedCells = new HashSet<>();
-         Set<Object> validParts = DateComparisonUtil.computeValidParts(data, dateCol, partCol, null);
-
-         if(!validParts.isEmpty()) {
-            Iterator<Map.Entry<Object, Set<Date>>> it = partDates.entrySet().iterator();
-
-            while(it.hasNext()) {
-               Map.Entry<Object, Set<Date>> entry = it.next();
-
-               if(!validParts.contains(entry.getKey())) {
-                  orphanedCells.add(entry.getKey());
-                  it.remove();
-               }
-            }
-         }
-
-         this.orphanedCells = orphanedCells;
+         // NOTE (Bug #76390): this used to remove "orphaned" part entries here --
+         // i.e. any partCol value not in DateComparisonUtil.computeValidParts(data,
+         // dateCol, partCol, null) -- and blank that part's axis label entirely,
+         // using the same "does this part have a row in the single most recent
+         // period" heuristic as DateComparisonUtil.applyDateRange()'s
+         // ValidPartsSelector. That heuristic is sound for ValidPartsSelector, which
+         // filters raw, not-yet-verified rows out of the plotted/exported dataset
+         // before anything here runs.
+         //
+         // But every entry partDates can ever contain is, by construction (see the
+         // loop above), already backed by a real row with a real plotted value --
+         // there is no "spurious future" data to discover and strip at this point.
+         // In a faceted date-comparison chart, one partCol value legitimately *is*
+         // one facet group, and different facet groups routinely finish carrying
+         // real data for the newest comparison period at different times (e.g. one
+         // WeekOfMonth bucket has already reached this year's data, another hasn't)
+         // -- that is ordinary, expected asymmetry, not a sign that a facet group's
+         // own historical entries are invalid. Applying the single dataset-wide
+         // "most recent period" heuristic here treated every part but the one
+         // holding the single latest date as fully orphaned and wiped its label
+         // outright, even though its underlying dates/bars (in partDates, and thus
+         // in the rendered chart) were completely correct. So this consumer no
+         // longer removes any partDates entries; the underlying row-level future
+         // exclusion Bug #75152/#76389 rely on is still enforced by
+         // DateComparisonUtil.applyDateRange()'s ValidPartsSelector, upstream of
+         // this class.
          this.partDates = partDates;
          this.partDates2 = partDates2;
          fixDisplayShortDate();
@@ -219,7 +224,6 @@ public class DateComparisonFormat extends Format {
    public void setGraphDataSelector(GraphtDataSelector selector) {
       this.selector = selector;
       partDates = null;
-      orphanedCells = new HashSet<>();
    }
 
    /**
@@ -284,11 +288,6 @@ public class DateComparisonFormat extends Format {
                                boolean onlyShowMostRecentDate)
    {
       initPartDate();
-
-      // Orphaned cells have no current-year data — suppress their labels entirely.
-      if(orphanedCells != null && orphanedCells.contains(obj)) {
-         return toAppendTo;
-      }
 
       Set<Date> dates = partDates.get(obj);
       dates = dates == null ? partDates2.get(obj) : dates;
@@ -448,7 +447,6 @@ public class DateComparisonFormat extends Format {
 
    private Map<Object, Set<Date>> partDates;
    private Map<Object, Set<Date>> partDates2;
-   private Set<Object> orphanedCells = new HashSet<>();
    private Map<Object, Format> preferFormat;
    private int datePart;
    private DataSet data;

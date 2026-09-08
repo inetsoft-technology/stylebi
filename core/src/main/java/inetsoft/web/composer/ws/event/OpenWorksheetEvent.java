@@ -44,6 +44,16 @@ public abstract class OpenWorksheetEvent {
    @Nullable
    public abstract String runtimeId();
 
+   /**
+    * The runtime identifier of the viewsheet this worksheet is being opened from
+    * (e.g. clicking the base worksheet link in the composer's bottom status bar),
+    * so the new worksheet's sandbox can be linked back to it. Null when the
+    * worksheet is opened with no originating viewsheet (e.g. from the portal or
+    * repository tree).
+    */
+   @Nullable
+   public abstract String vsId();
+
    public static Builder builder() {
       return new Builder();
    }

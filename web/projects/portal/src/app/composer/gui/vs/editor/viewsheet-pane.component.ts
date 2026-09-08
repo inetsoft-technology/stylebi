@@ -1359,6 +1359,30 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          command.message = Tool.getLimitedMessage(command.message);
          this.notifications.info(command.message);
       }
+      else if(command.type === "CONFIRM") {
+         this.confirm(command.message).then((ok: boolean) => {
+            if(ok) {
+               for(let key in command.events) {
+                  if(command.events.hasOwnProperty(key)) {
+                     let evt: any = command.events[key];
+                     evt.confirmed = true;
+                     this.viewsheetClient.sendEvent(key, evt);
+                  }
+               }
+            }
+            else {
+               this.vs.saving = false;
+
+               for(let key in command.noEvents) {
+                  if(command.noEvents.hasOwnProperty(key)) {
+                     let evt: any = command.noEvents[key];
+                     evt.confirmed = true;
+                     this.viewsheetClient.sendEvent(key, evt);
+                  }
+               }
+            }
+         });
+      }
       else {
          if(command.type === "ERROR" || command.type === "WARNING") {
             this.vs.saving = false;
@@ -2494,6 +2518,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.onOpenSheet.emit({
          type: "worksheet",
          assetId: this.vs.baseEntry.identifier,
+         vsId: this.vs.runtimeId,
       });
    }
 

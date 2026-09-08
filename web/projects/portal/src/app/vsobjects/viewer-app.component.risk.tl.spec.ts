@@ -141,6 +141,25 @@ describe("ViewerAppComponent — deleteBookmark()", () => {
       expect(MODAL_MOCK.open).toHaveBeenCalledOnce();
    });
 
+   // Bug #76453: the still-open Bookmark panel (.fixed-dropdown, z-index 999900) painted
+   // over this Confirm dialog (.modal, z-index 10500 by default), hiding its "Yes" button.
+   // Fix: open it with windowClass/backdropClass that carry a z-index above 999900 (mirrors
+   // the pre-existing .remove-bookmarks-dialog override for the batch-delete path).
+   it("should open the confirm dialog with a z-index above the Bookmark panel's", async () => {
+      const { comp } = await renderComponent();
+      const bk: any = { name: "TestBK", readOnly: false };
+
+      comp.deleteBookmark(bk);
+
+      expect(MODAL_MOCK.open).toHaveBeenCalledWith(
+         expect.anything(),
+         expect.objectContaining({
+            windowClass: "delete-bookmark-confirm-dialog",
+            backdropClass: "delete-bookmark-confirm-dialog-backdrop",
+         }),
+      );
+   });
+
    // 🔁 Regression-sensitive: clicking "yes" MUST send the STOMP delete event.
    // If the dialog result is not awaited or the event URI is wrong, bookmarks
    // are never removed server-side.

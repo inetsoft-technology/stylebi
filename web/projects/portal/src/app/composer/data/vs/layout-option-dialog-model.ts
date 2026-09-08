@@ -25,4 +25,5 @@ export interface LayoutOptionDialogModel {
    newObjectType?: number;
    vsEntry: AssetEntry;
    columns?: any;
+   additionalObjects?: string[];
 }

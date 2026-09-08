@@ -785,6 +785,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
    private openExistingWorksheet(): void {
       const event = new OpenWorksheetEvent();
       event.setId(this.worksheet.id);
+      event.setVsId(this.worksheet.vsId);
 
       // The server already opened this runtime and told us to attach to it (open_base_worksheet).
       // Without both of these the browser opens a SECOND runtime of the same asset: the agent
@@ -1052,12 +1053,22 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
                   }
                }
             }
-            else if(command.noEvents) {
-               for(let key in command.noEvents) {
-                  if(command.noEvents.hasOwnProperty(key)) {
-                     let evt: any = command.noEvents[key];
-                     evt.confirmed = true;
-                     this.worksheetClient.sendEvent(key, evt);
+            else {
+               // Declining is a terminal client-side decision (Bug #76433) -- nothing is
+               // resent, so nothing will ever arrive to clear `saving`. On "Yes" the
+               // spinner must stay up until the resent save actually completes
+               // (SaveSheetCommand), matching VSPane's equivalent CONFIRM handling --
+               // clearing it here unconditionally would hide the spinner before the
+               // resend is even sent, let alone before the server responds.
+               this.worksheet.saving = false;
+
+               if(command.noEvents) {
+                  for(let key in command.noEvents) {
+                     if(command.noEvents.hasOwnProperty(key)) {
+                        let evt: any = command.noEvents[key];
+                        evt.confirmed = true;
+                        this.worksheetClient.sendEvent(key, evt);
+                     }
                   }
                }
             }

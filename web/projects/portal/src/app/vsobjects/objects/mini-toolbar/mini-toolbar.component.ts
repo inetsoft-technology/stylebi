@@ -15,12 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, ElementRef, HostListener, Input, OnChanges, OnDestroy, SimpleChanges } from "@angular/core";
+import {
+   Component, ElementRef, HostListener, Input, OnChanges, OnDestroy, Optional, Self, SimpleChanges
+} from "@angular/core";
 import { AssemblyActionGroup } from "../../../common/action/assembly-action-group";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { AbstractVSActions } from "../../action/abstract-vs-actions";
 import { ContextProvider } from "../../context-provider.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
 import { NavigationKeys } from "../navigation-keys";
 import { AssemblyAction } from "../../../common/action/assembly-action";
 import { Observable ,  Subscription } from "rxjs";
@@ -108,7 +111,13 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    constructor(private contextProvider: ContextProvider,
                private element: ElementRef,
                private miniToolbarService: MiniToolbarService,
-               private popComponentService: PopComponentService) {
+               private popComponentService: PopComponentService,
+               // Present only when this <mini-toolbar> also carries [VSDataTip][miniToolbar]=true
+               // (see vs-object-container.component.html). Injected directly (rather than via
+               // DataTipService) so there is a single source of truth for "is this element
+               // currently the active, position-owning data tip" shared with the directive's
+               // own imperative positioning -- see isActiveDataTip below.
+               @Optional() @Self() private dataTipDirective: VSDataTipDirective) {
    }
 
    ngOnChanges(changes: SimpleChanges): void {
@@ -269,7 +278,7 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    }
 
    get topY(): number {
-      if(this.isPopComponent) {
+      if(this.isPopComponent || this.isActiveDataTip) {
          return Number.NaN;
       }
 
@@ -280,7 +289,22 @@ export class MiniToolbar implements OnChanges, OnDestroy {
         : this.top;
    }
 
+   // NaN makes the [style.left.px] binding produce an invalid CSS value, which the browser
+   // ignores -- leaving whatever position VSDataTipDirective last imperatively set on this
+   // same element via Renderer2.setStyle in place, instead of clobbering it back to the
+   // static design-time `left`. Mirrors the isPopComponent guard on topY above. Without this,
+   // this binding and the directive's setStyle race to own the same style property whenever
+   // this.left's value itself changes while a tip is active (e.g. the toolbar's action set,
+   // and so its clamped position, changes because an action's visibility changed -- see #76399).
+   get leftPx(): number {
+      return this.isActiveDataTip ? Number.NaN : this.left;
+   }
+
    get isPopComponent(): boolean {
       return this.popComponentService.isPopComponentShow(this.assembly);
+   }
+
+   get isActiveDataTip(): boolean {
+      return !!this.dataTipDirective && this.dataTipDirective.isActiveDataTipOwner();
    }
 }

@@ -258,7 +258,6 @@ const CONFIRM_MESSAGE = {
         ComposerObjectService,
         EventQueueService,
         LineAnchorService,
-        ResizeHandlerService,
         ClipboardService,
         ScriptService,
         ShowHyperlinkService,
@@ -1797,6 +1796,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                ws.gettingStarted = gettingStarted;
                ws.runtimeId = runtimeId;
                ws.closeOnServer = !runtimeId;
+               ws.vsId = event.vsId;
 
                index = this.sheets.push(ws) - 1;
                this.openedTabs.push(new ComposerTabModel(ws.type, ws));

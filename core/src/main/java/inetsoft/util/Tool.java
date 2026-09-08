@@ -2100,7 +2100,11 @@ public final class Tool extends CoreTool {
          if(newCredential != null) {
             newCredential.setId(credential.getId());
             ((CloudCredential) credential).refreshCredential(newCredential);
+            ((CloudCredential) credential).setCredentialUnavailable(false);
          }
+         // a null result is not marked unavailable here: decryptPasswordToCredential swallows
+         // every cause, so it cannot distinguish a missing secret from a transient failure, and
+         // the credential may still hold usable values from the original fetch
       }
    }
 

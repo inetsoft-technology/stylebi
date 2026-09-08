@@ -39,7 +39,25 @@
  * Out of scope:
  *   Ctrl/shift multi-select — MultiSelectList behaviour is tested in its own unit tests;
  *     these tests verify FiltersPane delegates to MultiSelectList correctly.
- *   Template rendering — FiltersPane uses NO_ERRORS_SCHEMA; DOM assertions are integration-level.
+ *   Template rendering — FiltersPane uses NO_ERRORS_SCHEMA; DOM assertions are integration-level,
+ *     except for Group 7 below, which specifically targets the Shared Filters table's rendered
+ *     `<input [(ngModel)]>` DOM (Bug #76424) — NO_ERRORS_SCHEMA does not suppress real, imported
+ *     directives/components (FormsModule's NgModel/NgForm, ShuffleListComponent, etc.), only
+ *     unrecognized ones, so the real DOM is still produced and inspectable.
+ *
+ * Group 7 [Risk 3] — Bug #76424 regression: removing a middle Shared Filter row must not corrupt
+ *   a surviving row's rendered Filter ID `<input>` value. The `@for` loop over
+ *   `model.sharedFilters` used to `track $index`; because `model.sharedFilters` array entries are
+ *   stable object references reused across add()/remove() (see filters-pane.component.ts), index-
+ *   based tracking caused Angular to reuse DOM/NgModel directive instances across a removal
+ *   instead of destroying/recreating them, which — combined with `@angular/forms`' microtask-
+ *   deferred NgForm control add/remove and `FormGroup.registerControl`'s silent no-op on a
+ *   `[name]` collision — let a `FormControl` end up aliased across two rows, so a later
+ *   `setValue()` wrote into an unrelated row's `<input>` (verified by executing the real
+ *   component/framework code). Fixed by
+ *   `track filter.column` (`filter.column` is the assembly name, unique per viewsheet — see
+ *   `ViewsheetInfo.getFilterColumns()`, backed by a `Map<String,String>` keyset, and
+ *   `ViewsheetPropertyDialogService` further filters to only names matching a live assembly).
  */
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
@@ -357,5 +375,60 @@ describe("FiltersPane — selectSharedFilter + isSharedFilterSelected", () => {
       comp.selectSharedFilter(1, { ctrlKey: false, shiftKey: false } as MouseEvent);
 
       expect(comp.isSharedFilterSelected(0)).toBe(false);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 7: Shared Filters table DOM regression (Bug #76424) [Risk 3]
+// ---------------------------------------------------------------------------
+
+describe("FiltersPane — Shared Filters table DOM regression (Bug #76424)", () => {
+   // 🔁 Regression-sensitive: removing a middle Shared Filter row must not leak a stale Filter ID
+   //    value onto a surviving row's rendered <input>. Reproduces the exact scenario confirmed by
+   //    executing the real component/framework code (not the reporter's original literal
+   //    description): with sharedFilters [RangeSlider1, RangeSlider2, SelectionList1,
+   //    SelectionList2], removing RangeSlider2 (index 1) used to corrupt the *middle surviving
+   //    row* (SelectionList1, now at index 1) so its <input> displayed the destroyed trailing
+   //    row's ("SelectionList2") value, while that row itself and the last row were otherwise
+   //    fine. Root cause: `@for (filter of model.sharedFilters; track $index; ...)` reused
+   //    DOM/NgModel instances across the removal instead of destroying/recreating them, racing
+   //    @angular/forms' microtask-deferred NgForm.addControl/removeControl against
+   //    FormGroup.registerControl's silent no-op on a `[name]` collision. Fixed by
+   //    `track filter.column`.
+   it("should not corrupt a surviving row's Filter ID input when a middle shared filter is removed", async () => {
+      const rangeSlider1 = makeFilter("RangeSlider1", "ID_R1");
+      const rangeSlider2 = makeFilter("RangeSlider2", "ID_R2");
+      const selectionList1 = makeFilter("SelectionList1", "ID_S1");
+      const selectionList2 = makeFilter("SelectionList2", "ID_S2");
+      const { comp, fixture, model } = await renderComponent({
+         filters: [],
+         sharedFilters: [rangeSlider1, rangeSlider2, selectionList1, selectionList2],
+      });
+
+      // Select and remove RangeSlider2 (index 1), matching the reported repro exactly.
+      comp.selectSharedFilter(1, { ctrlKey: false, shiftKey: false } as MouseEvent);
+      comp.remove();
+
+      fixture.detectChanges();
+      await fixture.whenStable();
+      // NgForm's addControl/removeControl and NgModel's _updateValue are all deferred via
+      // Promise.resolve().then(...); flush an extra macrotask/microtask turn and re-stabilize
+      // so every deferred write has landed before asserting on the DOM.
+      await new Promise(resolve => setTimeout(resolve));
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(model.sharedFilters.map(f => f.column)).toEqual([
+         "RangeSlider1", "SelectionList1", "SelectionList2",
+      ]);
+
+      const inputs: NodeListOf<HTMLInputElement> =
+         fixture.nativeElement.querySelectorAll("input.form-control");
+      expect(inputs).toHaveLength(3);
+      expect(inputs[0].value).toBe("ID_R1");
+      // This is the row that actually corrupts under `track $index` (confirmed by executing
+      // the real component) -- the middle surviving row, NOT the last row as originally reported.
+      expect(inputs[1].value).toBe("ID_S1");
+      expect(inputs[2].value).toBe("ID_S2");
    });
 });

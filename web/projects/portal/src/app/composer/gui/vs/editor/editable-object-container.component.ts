@@ -1108,19 +1108,20 @@ export class EditableObjectContainer extends AbstractActionComponent
             object = this.viewsheet.getAssembly(this.vsObject.container) || this.vsObject;
          }
 
-         this.layoutOptionDialogModel = {
-            selectedValue: 0,
-            object: name,
-            target: object.absoluteName,
-            showSelectionContainerOption: false,
-            vsEntry: null
-         };
+         const selectionContainerTarget = targetType === "VSSelectionContainer" && selectionObject;
+         const targetName = selectionContainerTarget ? this.vsObject.absoluteName : object.absoluteName;
 
-         if(targetType === "VSSelectionContainer" && selectionObject) {
-            this.layoutOptionDialogModel.showSelectionContainerOption = true;
-            this.layoutOptionDialogModel.selectedValue = 1;
-            this.layoutOptionDialogModel.target = this.vsObject.absoluteName;
-         }
+         this.layoutOptionDialogModel = {
+            selectedValue: selectionContainerTarget ? 1 : 0,
+            object: name,
+            target: targetName,
+            showSelectionContainerOption: selectionContainerTarget,
+            vsEntry: null,
+            // Bug #76403: only the assembly under the pointer drives the interact.js drop
+            // gesture, so gather the rest of a multi-selection to be grouped along with it.
+            additionalObjects: this.getAdditionalDragSelectionNames(
+               name, targetName, selectionContainerTarget)
+         };
 
          this.openLayoutOptionDialog().then(
             () => {
@@ -1131,6 +1132,26 @@ export class EditableObjectContainer extends AbstractActionComponent
             }
          );
       }
+   }
+
+   // Bug #76403: when several assemblies are multi-selected and dragged together, the
+   // interact.js drop event only identifies the assembly under the pointer (dragSource).
+   // Collect the rest of the current selection so they can be grouped into the same
+   // target instead of being silently left out.
+   private getAdditionalDragSelectionNames(primaryName: string, targetName: string,
+                                           selectionContainerTarget: boolean): string[]
+   {
+      return this.viewsheet.currentFocusedAssemblies
+         .filter((assembly: VSObjectModel) => assembly.absoluteName !== primaryName &&
+            assembly.absoluteName !== targetName &&
+            assembly.objectType !== "VSOval" &&
+            assembly.objectType !== "VSRectangle" &&
+            assembly.objectType !== "VSLine" &&
+            (!selectionContainerTarget ||
+               assembly.objectType === "VSSelectionList" ||
+               assembly.objectType === "VSRangeSlider" ||
+               assembly.objectType === "VSSelectionContainer"))
+         .map((assembly: VSObjectModel) => assembly.absoluteName);
    }
 
    //if the line handle is being dragged close enough to the object, its handles should appear

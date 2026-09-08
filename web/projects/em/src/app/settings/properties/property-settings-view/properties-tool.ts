@@ -30,7 +30,7 @@ export namespace PropertiesTool {
    export const booleanProperties = [
       "adhoc.section.table", "anonymous.userdata.save", "bigDecimal.as.double",
       "dashboard.tabs.top", "db.caseSensitive",
-      "empty.crosstab.convert", "enable.changePassword", "excel.vs.export.grid.show",
+      "enable.changePassword", "excel.vs.export.grid.show",
       "font.preload", "format.auto.downgrade", "fs.desktop", "graph.axis.inplot",
       "graph.script.action.support",
       "htmlpresenter.fitline", "hyperlink.indicator", "image.antialias",
@@ -47,8 +47,8 @@ export namespace PropertiesTool {
       "repository.tree.sort.pathOnly", "rmi.localhost.ip", "rtf.hyperlink.indicator", "rtf.merge.text",
       "schedule.auto.down", "schedule.auto.start", "schedule.reload.auto", "schedule.test.hook",
       "scheduler.restart.auto", "security.cache", "sort.crosstab.aggregate",
-      "sort.crosstab.dimension", "sree.find.backward", "string.compare.casesensitive",
-      "text.break.pages", "text.encoding.utf8", "vs.import.button", "vs.form.enabled",
+      "sort.crosstab.dimension", "string.compare.casesensitive",
+      "text.encoding.utf8", "vs.import.button", "vs.form.enabled",
       "schedule.time.12hours", "calendar.dateCompare.enabled"
    ];
 

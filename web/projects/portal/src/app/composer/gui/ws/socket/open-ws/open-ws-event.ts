@@ -25,6 +25,7 @@ export class OpenWorksheetEvent {
     * of its own. Left null in the normal flow. Mirrors OpenViewsheetEvent.runtimeViewsheetId.
     */
    private runtimeId: string = null;
+   private vsId: string = null;
 
    public setId(id: string) {
       this.id = id;
@@ -44,5 +45,9 @@ export class OpenWorksheetEvent {
 
    public setCreateQuery(createQuery: boolean) {
       this.createQuery = createQuery;
+   }
+
+   public setVsId(vsId: string) {
+      this.vsId = vsId;
    }
 }

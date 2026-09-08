@@ -42,7 +42,7 @@ import { HttpErrorResponse } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { render } from "@testing-library/angular";
-import { EMPTY, Observable, of } from "rxjs";
+import { EMPTY, Observable, of, Subject } from "rxjs";
 
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ResourcePermissionModel } from "../../resource-permission/resource-permission-model";
@@ -159,6 +159,37 @@ describe("SecurityActionsPermissionsComponent - action input and dirty baseline"
       comp.action = null;
 
       expect(comp.tableModel).toBeNull();
+      expect(comp.isModelChanged()).toBe(false);
+   });
+
+   // Regression test for bug #76443: selecting a new node must not report a spurious
+   // unsaved-changes state while the new node's permissions are still loading. Uses a
+   // manually-controlled Subject (not `of(model)`) so getPermissions() genuinely stays
+   // pending across the assertion - a bare `of(model)` would resolve synchronously inside
+   // the setter and mask the regression.
+   it("should not report unsaved changes while permissions are loading for a newly selected action", async () => {
+      const firstAction = makeAction({ type: "VIEWSHEET", resource: "/folder/view1" });
+      const secondAction = makeAction({ type: "VIEWSHEET", resource: "/folder/view2" });
+      const firstModel = makeModel({ securityEnabled: true });
+      const secondModel = makeModel({ securityEnabled: true, changed: true });
+      const secondModelSubject = new Subject<ResourcePermissionModel>();
+      const getPermissions = vi.fn()
+         .mockReturnValueOnce(of(firstModel))
+         .mockReturnValueOnce(secondModelSubject.asObservable());
+      const { comp } = await renderComponent({ action: firstAction, getPermissions });
+
+      expect(comp.isModelChanged()).toBe(false);
+
+      comp.action = secondAction;
+
+      // getPermissions() for secondAction has not resolved yet - tableModel must not be
+      // left holding firstModel while originalModel is null.
+      expect(comp.isModelChanged()).toBe(false);
+
+      secondModelSubject.next(secondModel);
+      secondModelSubject.complete();
+
+      expect(comp.tableModel).toEqual(secondModel);
       expect(comp.isModelChanged()).toBe(false);
    });
 });

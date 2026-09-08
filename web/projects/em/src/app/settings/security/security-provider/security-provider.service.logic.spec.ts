@@ -116,7 +116,8 @@ describe("SecurityProviderService — logic layer", () => {
 
    beforeEach(() => {
       // Pure logic methods use no injected dependencies; null is safe here.
-      service = new SecurityProviderService(null as any, null as any, null as any, null as any, null as any);
+      service = new SecurityProviderService(
+         null as any, null as any, null as any, null as any, null as any, null as any);
    });
 
    // ---------------------------------------------------------------------------

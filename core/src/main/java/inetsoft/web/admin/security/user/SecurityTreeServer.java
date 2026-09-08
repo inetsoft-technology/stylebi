@@ -65,6 +65,16 @@ public class SecurityTreeServer {
       final AuthenticationProvider provider = providerName == null ?
          securityProvider.getAuthenticationProvider() :
          authenticationProviderService.getProviderByName(providerName);
+
+      // getProviderByName() returns null when the name is not in this node's authentication
+      // chain -- e.g. a client that is still holding a provider name that has since been
+      // renamed or removed, or a cluster node that has not yet reloaded authc-chain.json.
+      // Report that plainly instead of NPEing on the first provider dereference below.
+      if(provider == null) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("em.security.provider.notFound", providerName));
+      }
+
       boolean editable = providerName == null || provider instanceof EditableAuthenticationProvider;
 
       try {

@@ -41,6 +41,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
+import java.util.List;
 
 import static org.mockito.Mockito.*;
 
@@ -70,6 +71,61 @@ class LayoutOptionDialogServiceTest {
 
       service.setLayoutOptionDialogModel(runtimeViewsheetRef.getRuntimeId(), model, principal, null, dispatcher);
       verify(vsObjectTreeService, times(1)).getObjectTree(rvs);
+   }
+
+   // Bug #76403: dragging a multi-selection into a container should group every
+   // additional assembly into the same target, not just the primary one.
+   @Test
+   void additionalObjectsAreGroupedTest() throws Exception {
+      VSAssembly targetAssembly = mock(VSAssembly.class);
+      VSAssembly additionalAssembly1 = mock(VSAssembly.class);
+      VSAssembly additionalAssembly2 = mock(VSAssembly.class);
+
+      when(engine.getViewsheet(any(), any())).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly("Object1")).thenReturn(assembly);
+      when(viewsheet.getAssembly("Container1")).thenReturn(targetAssembly);
+      when(viewsheet.getAssembly("Object2")).thenReturn(additionalAssembly1);
+      when(viewsheet.getAssembly("Object3")).thenReturn(additionalAssembly2);
+      when(targetAssembly.getAbsoluteName()).thenReturn("Container1");
+      when(model.getSelectedValue()).thenReturn(1);
+      when(model.getNewObjectType()).thenReturn(-1);
+      when(model.getObject()).thenReturn("Object1");
+      when(model.getTarget()).thenReturn("Container1");
+      when(model.getAdditionalObjects()).thenReturn(List.of("Object2", "Object3"));
+
+      service.setLayoutOptionDialogModel(runtimeViewsheetRef.getRuntimeId(), model, principal, null, dispatcher);
+
+      verify(groupingService, times(1))
+         .groupComponents(rvs, targetAssembly, assembly, true, null, dispatcher);
+      verify(groupingService, times(1))
+         .groupComponents(rvs, targetAssembly, additionalAssembly1, true, null, dispatcher);
+      verify(groupingService, times(1))
+         .groupComponents(rvs, targetAssembly, additionalAssembly2, true, null, dispatcher);
+   }
+
+   // Bug #76403: an additionalObjects entry that duplicates the primary object or the
+   // target itself must not be grouped a second time.
+   @Test
+   void additionalObjectsSkipDuplicatesTest() throws Exception {
+      VSAssembly targetAssembly = mock(VSAssembly.class);
+
+      when(engine.getViewsheet(any(), any())).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly("Object1")).thenReturn(assembly);
+      when(viewsheet.getAssembly("Container1")).thenReturn(targetAssembly);
+      when(targetAssembly.getAbsoluteName()).thenReturn("Container1");
+      when(model.getSelectedValue()).thenReturn(1);
+      when(model.getNewObjectType()).thenReturn(-1);
+      when(model.getObject()).thenReturn("Object1");
+      when(model.getTarget()).thenReturn("Container1");
+      when(model.getAdditionalObjects()).thenReturn(List.of("Object1", "Container1"));
+
+      service.setLayoutOptionDialogModel(runtimeViewsheetRef.getRuntimeId(), model, principal, null, dispatcher);
+
+      verify(groupingService, times(1))
+         .groupComponents(eq(rvs), eq(targetAssembly), any(VSAssembly.class), eq(true), isNull(),
+                          eq(dispatcher));
    }
 
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;
