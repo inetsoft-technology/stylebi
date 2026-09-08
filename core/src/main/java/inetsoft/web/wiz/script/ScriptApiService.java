@@ -26,8 +26,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Best-effort "Layer A" static metadata lookup (the generated Tern {@code js-functions} JSON the
@@ -93,12 +95,45 @@ public class ScriptApiService {
             functions.set(e.getKey(), e.getValue());
          }
 
+         // Report/Sree-scoped globals aren't valid in a viewsheet script -- the script editor's
+         // own autocomplete (VSScriptableService.createStaticDefinitions) hides them the same way.
+         functions.remove(SREE_ONLY);
+
+         // Excel-style CALC functions (day, eomonth, ...) are nested under "CALC" in the source
+         // file but are callable bare, unqualified, in a viewsheet script -- mirrors
+         // VSScriptableService.createStaticDefinitions, the UI script editor's own resolution of
+         // this same static metadata, so a bare lookup here matches what a human actually sees.
+         JsonNode calc = functions.get("CALC");
+
+         if(calc != null && calc.isObject()) {
+            ObjectNode merged = MAPPER.createObjectNode();
+            merged.setAll((ObjectNode) calc);
+            merged.setAll(functions);
+            return merged;
+         }
+
          return functions;
       }
       catch(Exception e) {
          LOG.warn("Failed to load script API metadata", e);
          return MAPPER.createObjectNode();
       }
+   }
+
+   private static final Set<String> SREE_ONLY = new HashSet<>();
+
+   static {
+      SREE_ONLY.add("showReplet");
+      SREE_ONLY.add("showReport");
+      SREE_ONLY.add("showURL");
+      SREE_ONLY.add("promptParameters");
+      SREE_ONLY.add("sendRequest");
+      SREE_ONLY.add("refresh");
+      SREE_ONLY.add("reprint");
+      SREE_ONLY.add("setChanged");
+      SREE_ONLY.add("scrollTo");
+      SREE_ONLY.add("showStatus");
+      SREE_ONLY.add("dataBinding");
    }
 
    private JsonNode readResource(String path) throws Exception {

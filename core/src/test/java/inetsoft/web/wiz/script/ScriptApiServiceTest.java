@@ -57,4 +57,27 @@ class ScriptApiServiceTest {
       assertNull(signature.type());
       assertNull(signature.url());
    }
+
+   @Test
+   void looksUpCalcFunctionUnqualified() {
+      // CALC.day/eomonth are nested under "CALC" in js-functions.json but are callable bare in a
+      // viewsheet script, same as VSScriptableService.createStaticDefinitions resolves them for
+      // the script editor's own autocomplete.
+      FunctionSignature day = service.lookup("day");
+      assertTrue(day.found());
+      assertNotNull(day.type());
+
+      FunctionSignature eomonth = service.lookup("eomonth");
+      assertTrue(eomonth.found());
+      assertNotNull(eomonth.type());
+   }
+
+   @Test
+   void hidesSreeOnlyReportingFunctions() {
+      // showReport/reprint are Report/Sree-scoped globals the viewsheet script editor's own
+      // autocomplete never offers (VSScriptableService.createStaticDefinitions strips them);
+      // this lookup must agree, not just relay whatever the raw metadata file contains.
+      assertFalse(service.lookup("showReport").found());
+      assertFalse(service.lookup("reprint").found());
+   }
 }

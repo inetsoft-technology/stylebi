@@ -172,7 +172,7 @@ public class ScriptEditService {
             VSAssemblyInfo info = ScriptReadService.requireAssemblyInfo(vs, target.assemblyName());
             ScriptReadService.setOnClick(info, text);
          }
-         case CALC_FIELD -> calcFields.write(vs, target.assemblyName(), target.name(), text);
+         case CALC_FIELD -> calcFields.write(rvs, target.assemblyName(), target.name(), text);
          // This is a switch STATEMENT, not an expression -- with no `default`, a Location this
          // switch does not name would silently fall through and do NOTHING (the dangerous half
          // of the trap this package has hit before: a no-op that reports success). A worksheet
