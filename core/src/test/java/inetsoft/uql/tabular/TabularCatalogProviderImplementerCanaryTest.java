@@ -59,7 +59,8 @@ class TabularCatalogProviderImplementerCanaryTest {
       "inetsoft.uql.facebook.marketing.FBAdInsightsRuntime",
       "inetsoft.uql.googleanalyticsga4.AnalyticsRuntime",
       "inetsoft.uql.sforce.SForceRuntime",
-      "inetsoft.uql.sapjco2.table.SAPTableRuntime");
+      "inetsoft.uql.sapjco2.table.SAPTableRuntime",
+      "inetsoft.uql.rest.xml.RestXMLRuntime");
 
    @Test
    void knownImplementersAreNotOnClasspath_documentedLimitOfThisModule() {
