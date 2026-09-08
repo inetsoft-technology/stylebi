@@ -367,13 +367,22 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             box.getVariableTable().put(XQuery.HINT_IGNORE_MAX_ROWS, "true");
          }
 
-         TableLens base = null;
          DataRef[] rheaders = null;
          DataRef[] cheaders = null;
          DataRef[] aggregates = null;
 
+         // don't hold the cinfo monitor across this call. it fetches the base data, and
+         // VSAQuery.getDataWithoutSandboxLock() releases and re-acquires the sandbox lock
+         // while doing so (74001). holding the monitor across that window inverts the lock
+         // order used everywhere else -- ViewsheetSandbox.refreshMetaData() updates the
+         // assembly, and so enters VSCrosstabInfo.update(), with the sandbox lock already
+         // held -- so a concurrent event (e.g. fetching a cell format after a resize)
+         // deadlocks: it owns the sandbox lock and waits for the monitor while we own the
+         // monitor and wait for the sandbox lock. the monitor only needs to cover the
+         // runtime ref reads below, which VSCrosstabInfo.update() publishes as a unit.
+         TableLens base = getAssetBaseTableLens(postDrill);
+
          synchronized(cinfo) {
-            base = getAssetBaseTableLens(postDrill);
             DataRef[] aggrs = cinfo.getRuntimeAggregates();
 
             if(aggrs == null || aggrs.length == 0) {
