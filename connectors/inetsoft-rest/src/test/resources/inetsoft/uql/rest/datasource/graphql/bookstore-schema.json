@@ -1,0 +1,612 @@
+{
+  "data": {
+    "__schema": {
+      "queryType": { "name": "Query" },
+      "types": [
+        {
+          "kind": "OBJECT",
+          "name": "Query",
+          "description": null,
+          "fields": [
+            {
+              "name": "orders",
+              "description": null,
+              "args": [ { "name": "first" }, { "name": "after" } ],
+              "type": { "kind": "OBJECT", "name": "OrderConnection", "ofType": null }
+            },
+            {
+              "name": "products",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "OBJECT", "name": "Product", "ofType": null }
+                  }
+                }
+              }
+            },
+            {
+              "name": "customers",
+              "description": null,
+              "args": [ { "name": "first" }, { "name": "after" } ],
+              "type": { "kind": "OBJECT", "name": "CustomerConnection", "ofType": null }
+            },
+            {
+              "name": "customer",
+              "description": null,
+              "args": [ { "name": "id" } ],
+              "type": { "kind": "OBJECT", "name": "Customer", "ofType": null }
+            },
+            {
+              "name": "shop",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "Shop", "ofType": null }
+            },
+            {
+              "name": "reviews",
+              "description": null,
+              "args": [ { "name": "first" }, { "name": "after" } ],
+              "type": { "kind": "OBJECT", "name": "ReviewConnection", "ofType": null }
+            },
+            {
+              "name": "tags",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "OBJECT", "name": "Tag", "ofType": null }
+                  }
+                }
+              }
+            },
+            {
+              "name": "logs",
+              "description": null,
+              "args": [ { "name": "batchToken" } ],
+              "type": { "kind": "OBJECT", "name": "LogConnection", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "OrderConnection",
+          "description": null,
+          "fields": [
+            {
+              "name": "edges",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "OBJECT", "name": "OrderEdge", "ofType": null }
+                  }
+                }
+              }
+            },
+            {
+              "name": "pageInfo",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "PageInfo", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "OrderEdge",
+          "description": null,
+          "fields": [
+            {
+              "name": "node",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "Order", "ofType": null }
+            },
+            {
+              "name": "cursor",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Order",
+          "description": "A customer order.",
+          "fields": [
+            {
+              "name": "id",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": { "kind": "SCALAR", "name": "ID", "ofType": null }
+              }
+            },
+            {
+              "name": "total",
+              "description": "The order total, in the store's own currency representation.",
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "Money", "ofType": null }
+            },
+            {
+              "name": "shipTo",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "Address", "ofType": null }
+            },
+            {
+              "name": "customer",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "Customer", "ofType": null }
+            },
+            {
+              "name": "lineItems",
+              "description": null,
+              "args": [ { "name": "first" } ],
+              "type": { "kind": "OBJECT", "name": "LineItemConnection", "ofType": null }
+            },
+            {
+              "name": "reviews",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "OBJECT", "name": "Review", "ofType": null }
+                  }
+                }
+              }
+            },
+            {
+              "name": "tags",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "OBJECT", "name": "Tag", "ofType": null }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Product",
+          "description": null,
+          "fields": [
+            {
+              "name": "id",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": { "kind": "SCALAR", "name": "ID", "ofType": null }
+              }
+            },
+            {
+              "name": "name",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            },
+            {
+              "name": "price",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "Float", "ofType": null }
+            },
+            {
+              "name": "sku",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "CustomerConnection",
+          "description": null,
+          "fields": [
+            {
+              "name": "edges",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "OBJECT", "name": "CustomerEdge", "ofType": null }
+                  }
+                }
+              }
+            },
+            {
+              "name": "pageInfo",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "PageInfo", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "CustomerEdge",
+          "description": null,
+          "fields": [
+            {
+              "name": "node",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "Customer", "ofType": null }
+            },
+            {
+              "name": "cursor",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Customer",
+          "description": null,
+          "fields": [
+            {
+              "name": "id",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": { "kind": "SCALAR", "name": "ID", "ofType": null }
+              }
+            },
+            {
+              "name": "name",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            },
+            {
+              "name": "email",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Address",
+          "description": null,
+          "fields": [
+            {
+              "name": "city",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            },
+            {
+              "name": "zip",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "SCALAR",
+          "name": "Money",
+          "description": "A vendor-defined monetary scalar with no cross-vendor wire contract.",
+          "fields": null
+        },
+        {
+          "kind": "OBJECT",
+          "name": "LineItemConnection",
+          "description": null,
+          "fields": [
+            {
+              "name": "edges",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "OBJECT", "name": "LineItemEdge", "ofType": null }
+                  }
+                }
+              }
+            },
+            {
+              "name": "pageInfo",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "PageInfo", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "LineItemEdge",
+          "description": null,
+          "fields": [
+            {
+              "name": "node",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "LineItem", "ofType": null }
+            },
+            {
+              "name": "cursor",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "LineItem",
+          "description": null,
+          "fields": [
+            {
+              "name": "id",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": { "kind": "SCALAR", "name": "ID", "ofType": null }
+              }
+            },
+            {
+              "name": "sku",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            },
+            {
+              "name": "qty",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "Int", "ofType": null }
+            },
+            {
+              "name": "order_id",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "ID", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Shop",
+          "description": null,
+          "fields": [
+            {
+              "name": "name",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "PageInfo",
+          "description": null,
+          "fields": [
+            {
+              "name": "endCursor",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            },
+            {
+              "name": "hasNextPage",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "Boolean", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "ReviewConnection",
+          "description": null,
+          "fields": [
+            {
+              "name": "edges",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "OBJECT", "name": "ReviewEdge", "ofType": null }
+                  }
+                }
+              }
+            },
+            {
+              "name": "pageInfo",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "PageInfo", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "ReviewEdge",
+          "description": null,
+          "fields": [
+            {
+              "name": "node",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "Review", "ofType": null }
+            },
+            {
+              "name": "cursor",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Review",
+          "description": null,
+          "fields": [
+            {
+              "name": "id",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": { "kind": "SCALAR", "name": "ID", "ofType": null }
+              }
+            },
+            {
+              "name": "rating",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "Int", "ofType": null }
+            },
+            {
+              "name": "order",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "Order", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Tag",
+          "description": null,
+          "fields": [
+            {
+              "name": "id",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": { "kind": "SCALAR", "name": "ID", "ofType": null }
+              }
+            },
+            {
+              "name": "name",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "LogConnection",
+          "description": null,
+          "fields": [
+            {
+              "name": "edges",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "OBJECT", "name": "LogEdge", "ofType": null }
+                  }
+                }
+              }
+            },
+            {
+              "name": "pageInfo",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "PageInfo", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "LogEdge",
+          "description": null,
+          "fields": [
+            {
+              "name": "node",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "LogEntry", "ofType": null }
+            },
+            {
+              "name": "cursor",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "LogEntry",
+          "description": null,
+          "fields": [
+            {
+              "name": "id",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": { "kind": "SCALAR", "name": "ID", "ofType": null }
+              }
+            },
+            {
+              "name": "message",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

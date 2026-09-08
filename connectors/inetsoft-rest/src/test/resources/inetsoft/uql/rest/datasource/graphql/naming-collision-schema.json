@@ -1,0 +1,127 @@
+{
+  "data": {
+    "__schema": {
+      "queryType": { "name": "Query" },
+      "types": [
+        {
+          "kind": "OBJECT",
+          "name": "Query",
+          "description": null,
+          "fields": [
+            {
+              "name": "orders_customer",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "OBJECT", "name": "OcRecord", "ofType": null }
+                  }
+                }
+              }
+            },
+            {
+              "name": "orders",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "OBJECT", "name": "OrderXRecord", "ofType": null }
+                  }
+                }
+              }
+            },
+            {
+              "name": "targets",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "OBJECT", "name": "TargetRecord", "ofType": null }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "OcRecord",
+          "description": null,
+          "fields": [
+            {
+              "name": "rowId",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": { "kind": "SCALAR", "name": "ID", "ofType": null }
+              }
+            },
+            {
+              "name": "id",
+              "description": "A reference field deliberately named 'id', not this row's own identifier.",
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "TargetRecord", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "OrderXRecord",
+          "description": null,
+          "fields": [
+            {
+              "name": "rowId",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": { "kind": "SCALAR", "name": "ID", "ofType": null }
+              }
+            },
+            {
+              "name": "customer_id",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "TargetRecord", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "TargetRecord",
+          "description": null,
+          "fields": [
+            {
+              "name": "id",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": { "kind": "SCALAR", "name": "ID", "ofType": null }
+              }
+            },
+            {
+              "name": "label",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -28,29 +28,39 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Charter A8 (counter-assertion): none of the four source types this round's classifier is
- * theoretically able to reclassify -- {@code Rest.XML}, {@code graphql}, {@code shopify},
- * {@code monday.com} -- may actually change classification, because none of their runtimes
- * implements {@link TabularCatalogProvider} today. Lives in this connector module (not core,
- * which cannot depend on connector classes) and declares itself in {@code
- * WizDatabaseController}'s package so it can call the package-private {@code classifyQueryClass}
- * directly, the same reason {@code ODataDatasourceAnnotationClassTest} lives in the OData module.
+ * Charter G18: {@code GraphQLRuntime} now implements {@link TabularCatalogProvider} (this round),
+ * which reclassifies {@code graphql}/{@code shopify}/{@code monday.com} from
+ * {@code DOCUMENT_REQUIRED} to {@code METADATA} -- {@code Rest.XML} is unaffected and stays
+ * {@code DOCUMENT_REQUIRED}. Lives in this connector module (not core, which cannot depend on
+ * connector classes) and declares itself in {@code WizDatabaseController}'s package so it can call
+ * the package-private {@code classifyQueryClass} directly, the same reason {@code
+ * ODataDatasourceAnnotationClassTest} lives in the OData module.
  *
  * <p>{@code shopify} and {@code monday.com} both declare {@link GraphQLRuntime} as their runtime
  * class ({@code ShopifyService.getRuntimeClass()} / {@code MondayService.getRuntimeClass()}), so
- * asserting {@code GraphQLRuntime} does not implement the SPI covers both, plus {@code graphql}
- * itself; {@code Rest.XML} declares {@link RestXMLRuntime}.</p>
+ * asserting {@code GraphQLRuntime} implements the SPI covers both, plus {@code graphql} itself;
+ * {@code Rest.XML} declares {@link RestXMLRuntime}, which does not implement it.</p>
+ *
+ * <p>This is a DELIBERATE inversion of two of this class's three assertions -- see
+ * {@code docs/teams/2026-09-08-graphql-introspection-catalog/00-charter.md} G18 and
+ * {@code 04-build.md} for why each new assertion below is no weaker than the one it replaces.
+ * {@code restXMLRuntimeDoesNotImplementTheCatalogSpi} is untouched, byte-for-byte.</p>
  */
 @Tag("core")
 class RestSourceTypesAnnotationClassTest {
    @Test
-   void graphQLRuntimeDoesNotImplementTheCatalogSpi() {
+   void graphQLRuntimeImplementsTheCatalogSpi() {
       // Covers graphql, shopify, and monday.com -- all three declare this as their runtime class.
-      assertFalse(TabularCatalogProvider.class.isAssignableFrom(GraphQLRuntime.class),
-         "GraphQLRuntime now implements TabularCatalogProvider -- this round's classifier would " +
-         "silently reclassify graphql/shopify/monday.com to METADATA; that is a real behavior " +
+      // Renamed from graphQLRuntimeDoesNotImplementTheCatalogSpi with the assertion INVERTED
+      // (assertFalse -> assertTrue): this is exactly as tight a pin on the runtime-class/SPI
+      // relationship as the test it replaces -- it fails the moment GraphQLRuntime stops
+      // implementing TabularCatalogProvider, the same way the old one failed the moment it started.
+      assertTrue(TabularCatalogProvider.class.isAssignableFrom(GraphQLRuntime.class),
+         "GraphQLRuntime no longer implements TabularCatalogProvider -- graphql/shopify/" +
+         "monday.com would silently fall back to DOCUMENT_REQUIRED; that is a real behavior " +
          "change requiring explicit sign-off, not a passing regression test");
    }
 
@@ -63,22 +73,31 @@ class RestSourceTypesAnnotationClassTest {
    }
 
    /**
-    * Confirms the classification LOGIC itself still yields DOCUMENT_REQUIRED for these query
-    * classes when their real runtime is passed through -- not just that the runtime classes lack
-    * the interface (the two tests above), but that feeding the real runtime through the actual
-    * two-arg classifier produces the unchanged verdict end to end.
+    * Confirms the classification LOGIC itself yields the right verdict for each of these four
+    * query classes when their real runtime is passed through -- not just that the runtime classes
+    * do/don't carry the interface (the two tests above), but that feeding the real runtime through
+    * the actual two-arg classifier produces the right verdict end to end.
+    *
+    * <p>Renamed from {@code allFourSourceTypesStillRequireDocumentation}. Three of the four
+    * assertions flip value ({@code DOCUMENT_REQUIRED} -> {@code METADATA}, matching {@code
+    * GraphQLRuntime} now implementing the SPI); {@code RestXMLQuery}/{@code RestXMLRuntime}'s
+    * assertion is UNCHANGED in both class pair and expected value. This is no weaker a guard than
+    * before: it still pins one exact verdict per query/runtime class pair, still fails the moment
+    * any of the four drifts either direction, and still keeps {@code Rest.XML} as the one case
+    * that must NOT reclassify -- a regression that reclassified {@code Rest.XML} too would fail
+    * this method exactly as loudly as one that failed to reclassify the other three.</p>
     */
    @Test
-   void allFourSourceTypesStillRequireDocumentation() {
+   void onlyRestXMLStillRequiresDocumentation() {
       assertEquals("DOCUMENT_REQUIRED",
                    WizDatabaseController.classifyQueryClass(RestXMLQuery.class, RestXMLRuntime.class));
-      assertEquals("DOCUMENT_REQUIRED",
+      assertEquals("METADATA",
                    WizDatabaseController.classifyQueryClass(GraphQLQuery.class, GraphQLRuntime.class));
-      assertEquals("DOCUMENT_REQUIRED",
+      assertEquals("METADATA",
                    WizDatabaseController.classifyQueryClass(ShopifyQuery.class, GraphQLRuntime.class));
       // monday.com declares GraphQLQuery itself as its query class (no separate Monday query
       // type) -- see MondayService.getQueryClass().
-      assertEquals("DOCUMENT_REQUIRED",
+      assertEquals("METADATA",
                    WizDatabaseController.classifyQueryClass(GraphQLQuery.class, GraphQLRuntime.class));
    }
 }

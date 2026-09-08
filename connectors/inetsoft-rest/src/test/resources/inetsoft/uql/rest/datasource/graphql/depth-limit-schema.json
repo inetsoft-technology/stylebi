@@ -1,0 +1,114 @@
+{
+  "data": {
+    "__schema": {
+      "queryType": { "name": "Query" },
+      "types": [
+        {
+          "kind": "OBJECT",
+          "name": "Query",
+          "description": null,
+          "fields": [
+            {
+              "name": "deepRecords",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "OBJECT", "name": "DeepRecord", "ofType": null }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "DeepRecord",
+          "description": null,
+          "fields": [
+            {
+              "name": "id",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": { "kind": "SCALAR", "name": "ID", "ofType": null }
+              }
+            },
+            {
+              "name": "value",
+              "description": null,
+              "args": [],
+              "comment": "7 NON_NULL wrapper layers before the innermost String -- deeper than GraphQLCatalog.MAX_UNWRAP_DEPTH (6), so the scalar itself is never reached; unwrap() must land on kind=null rather than crash.",
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "NON_NULL", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL", "name": null,
+                      "ofType": {
+                        "kind": "NON_NULL", "name": null,
+                        "ofType": {
+                          "kind": "NON_NULL", "name": null,
+                          "ofType": {
+                            "kind": "NON_NULL", "name": null,
+                            "ofType": { "kind": "SCALAR", "name": "String", "ofType": null }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "wrapper",
+              "description": null,
+              "args": [],
+              "type": { "kind": "OBJECT", "name": "Level1", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Level1",
+          "description": null,
+          "fields": [
+            {
+              "name": "flat",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            },
+            {
+              "name": "inner",
+              "description": null,
+              "args": [],
+              "comment": "Doubly-nested value object -- flattening is one level only, so this must be dropped (DEBUG), never recursed into.",
+              "type": { "kind": "OBJECT", "name": "Level2", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Level2",
+          "description": null,
+          "fields": [
+            {
+              "name": "deep",
+              "description": null,
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

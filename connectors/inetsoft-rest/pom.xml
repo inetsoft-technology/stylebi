@@ -133,6 +133,17 @@
       <scope>test</scope>
     </dependency>
 
+    <!-- Test-scope only: stubs the introspection HTTP round trip for GraphQLRuntimeCatalogTest,
+         mirroring connectors/inetsoft-odata's ODataRuntimeCatalogTest. Not a G15 violation: G15
+         forbids a GraphQL CLIENT library in compile scope; this is a generic HTTP stub server. No
+         version pinned here, matching inetsoft-odata's own dependency, so both resolve from the
+         same managed version. -->
+    <dependency>
+      <groupId>org.wiremock</groupId>
+      <artifactId>wiremock</artifactId>
+      <scope>test</scope>
+    </dependency>
+
     <dependency>
       <groupId>com.inetsoft.stylebi</groupId>
       <artifactId>inetsoft-xml-formats</artifactId>
