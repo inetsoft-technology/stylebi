@@ -2649,6 +2649,19 @@ public class WorksheetAgentController {
             scratchQuery, new VariableTable(), sqlTable, metaSession, null);
 
          if(columns == null || columns.getAttributeCount() == 0) {
+            if(sql.getParseResult() == UniformSQL.PARSE_FAILED) {
+               throw new PairingException(
+                  "SQL could not be parsed — check syntax (punctuation, keywords, clause structure).");
+            }
+
+            Exception driverError = scratchQuery.getLastQueryError();
+
+            if(driverError != null && driverError.getMessage() != null) {
+               throw new PairingException(
+                  "SQL is syntactically valid but could not be resolved against the datasource: "
+                  + driverError.getMessage() + " — check table/column references.");
+            }
+
             throw new PairingException(
                "SQL could not be parsed or no columns detected — check syntax and table references.");
          }
@@ -3538,6 +3551,19 @@ public class WorksheetAgentController {
             query, new VariableTable(), assembly, metaSession, null);
 
          if(columns == null || columns.getAttributeCount() == 0) {
+            if(sql.getParseResult() == UniformSQL.PARSE_FAILED) {
+               throw new PairingException(
+                  "SQL could not be parsed — check syntax (punctuation, keywords, clause structure).");
+            }
+
+            Exception driverError = query.getLastQueryError();
+
+            if(driverError != null && driverError.getMessage() != null) {
+               throw new PairingException(
+                  "SQL is syntactically valid but could not be resolved against the datasource: "
+                  + driverError.getMessage() + " — check table/column references.");
+            }
+
             throw new PairingException(
                "SQL could not be parsed or no columns detected — check syntax and table references.");
          }
