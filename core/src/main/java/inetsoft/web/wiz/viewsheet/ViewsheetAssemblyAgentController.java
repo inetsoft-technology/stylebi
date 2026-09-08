@@ -1052,8 +1052,22 @@ public class ViewsheetAssemblyAgentController {
     *              (i.e. has not been saved before). When omitted the viewsheet is saved in-place.
     * @param scope optional scope — {@code "global"} (default) for the shared repository,
     *              {@code "user"} for the user's private folder.
+    * @param confirmOverwrite {@code true} to proceed when
+    *              {@code name} collides with an asset that already exists, mirroring
+    *              {@code WorksheetAgentController.SaveRequest}'s own {@code confirmed} field and
+    *              {@code SaveViewsheetDialogService.validateSaveViewSheet}'s "already exists,
+    *              overwrite?" confirmation. {@code null}/{@code false} (the default) refuses the
+    *              save instead of silently overwriting the existing asset. Deliberately a field
+    *              distinct from the tool-level pane-session {@code confirmed} gate (an unrelated
+    *              confirmation a caller may need at the same time) — see the plugin's own
+    *              {@code save_viewsheet} schema.
     */
-   public record SaveRequest(String name, String scope) {}
+   public record SaveRequest(String name, String scope, Boolean confirmOverwrite) {
+      /** Compatibility constructor for callers built before {@code confirmOverwrite} was added. */
+      public SaveRequest(String name, String scope) {
+         this(name, scope, null);
+      }
+   }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/save")
    public void save(@PathVariable String sessionToken,
@@ -1111,11 +1125,42 @@ public class ViewsheetAssemblyAgentController {
             : AssetRepository.GLOBAL_SCOPE;
          IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
          entry = new AssetEntry(assetScope, AssetEntry.Type.VIEWSHEET, name, owner, uname.orgID);
+
+         // SaveViewsheetDialogService.validateSaveViewSheet already refuses (pending confirmation)
+         // an overwrite of an existing entry via this same isDuplicatedEntry check -- this agent
+         // path never called the equivalent, so a second save_viewsheet({name:"X"}) silently
+         // overwrote whatever "X" already held with no signal anything collided. Mirrors
+         // WorksheetAgentController.save()'s own L2-Group10 fix.
+         try {
+            if(viewsheetService.isDuplicatedEntry(viewsheetService.getAssetRepository(), entry)
+               && !Boolean.TRUE.equals(body.confirmOverwrite()))
+            {
+               throw new PairingException(
+                  "'" + name + "' already exists. Pass confirmOverwrite:true to overwrite it, " +
+                  "or choose a different name.");
+            }
+         }
+         catch(PairingException e) {
+            throw e;
+         }
+         catch(Exception e) {
+            throw new PairingException("Failed to check for a duplicate name: " + e.getMessage(), e);
+         }
       }
 
       try {
          viewsheetService.setViewsheet(rvs.getViewsheet(), entry, xp, true, true);
          rvs.setEntry(entry);
+
+         // Propagates a pending binding rename to dependent assets, same as WorksheetAgentController
+         // .save()'s own PVA-011 fix. Deliberately unconditional, NOT a mirror of the UI: the UI's
+         // own save paths only do this when isUpdateDepend() is true, and otherwise discard the
+         // pending rename (clearRenameDep). With no human here to answer that prompt, this path
+         // always answers "yes" instead. Safe either way -- both calls are no-ops when nothing is
+         // pending for this runtime id.
+         viewsheetService.fixRenameDepEntry(rvs.getID(), entry);
+         viewsheetService.renameDep(rvs.getID());
+
          rvs.setSavePoint(rvs.getCurrent());
 
          // Mirrors SaveViewsheetDialogService.saveViewsheet(): the old entry's autosave draft is

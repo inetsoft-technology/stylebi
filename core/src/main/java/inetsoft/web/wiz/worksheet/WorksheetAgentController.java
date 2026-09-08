@@ -22,7 +22,9 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.composition.execution.DataKey;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
@@ -64,6 +66,7 @@ import inetsoft.uql.util.filereader.TextUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.CoreTool;
 import inetsoft.util.FileSystemService;
+import inetsoft.util.MessageException;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
@@ -130,7 +133,8 @@ public class WorksheetAgentController {
                                    DataSourceService dataSourceService,
                                    SecurityEngine securityEngine,
                                    RenameTransformHandler renameTransformHandler,
-                                   SheetOpenService openService)
+                                   SheetOpenService openService,
+                                   AssetDataCache assetDataCache)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -149,6 +153,7 @@ public class WorksheetAgentController {
       this.securityEngine = securityEngine;
       this.renameTransformHandler = renameTransformHandler;
       this.openService = openService;
+      this.assetDataCache = assetDataCache;
    }
 
    // ---------------------------------------------------------------------------
@@ -2845,11 +2850,64 @@ public class WorksheetAgentController {
 
          if(req.table() != null && !req.table().isBlank()) {
             // Refresh a single assembly.
-            if(ws.getAssembly(req.table()) == null) {
+            Assembly assembly = ws.getAssembly(req.table());
+
+            if(assembly == null) {
                throw new PairingException("Table not found: " + req.table());
             }
 
-            box.resetTableLens(req.table());
+            if(assembly instanceof TableAssembly table) {
+               // WSQueryService.runQuery (the UI's own "Run Query" action this tool mirrors) reaches
+               // this same validity gate via WorksheetEventUtil.refreshAssembly, which this agent
+               // path cannot call directly -- it has no CommandDispatcher for refreshAssembly's own
+               // cross-join auto-repair machinery (same, already-documented limitation as
+               // replaceEmbeddedTable() above). Call the check directly so an invalid table (e.g. a
+               // cross-join cell-count limit) is reported instead of silently proceeding -- same
+               // MessageException|ConfirmException-propagates-else-logged distinction refreshAssembly
+               // itself makes.
+               try {
+                  table.checkValidity();
+               }
+               catch(MessageException | ConfirmException e) {
+                  throw new PairingException(
+                     "Cannot refresh '" + req.table() + "': " + e.getMessage(), e);
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to check the worksheet assembly validity: " + req.table(), e);
+               }
+
+               int mode = WorksheetEventUtil.getMode(table);
+
+               // WSQueryService.runQuery removes the row cap in RUNTIME_MODE before re-running the
+               // query; without this, refresh_data could return a still row-limited preview where a
+               // real "Run Query" click would not.
+               if(mode == AssetQuerySandbox.RUNTIME_MODE) {
+                  box.getVariableTable().remove(XQuery.HINT_MAX_ROWS);
+               }
+
+               box.resetTableLens(req.table(), mode);
+
+               // WSQueryService.runQuery also clears the cached query result from AssetDataCache
+               // before re-executing -- resetTableLens alone leaves that cache holding the
+               // pre-refresh result, so a caller reading the table right after refresh_data could
+               // still observe stale data. (WSQueryService additionally
+               // clears AssetQueryCacheNormalizer's and a live BoundQuery's own cache via a fresh
+               // AssetQuery.createAssetQuery(...) call -- both reach into repository/datasource
+               // resolution that needs a real Spring context, so they're deliberately left for a
+               // follow-up once that's live-verifiable rather than shipped unverified here.)
+               DataKey key = AssetDataCache.getCacheKey(table, box, null, mode, true);
+               assetDataCache.remove(key);
+
+               // WSQueryService.runQuery discovers a not-yet-run tabular query's columns before
+               // reloading; without it, refresh_data on a query that has never executed in this
+               // runtime loads against an empty column selection.
+               if(table instanceof TabularTableAssembly tabular) {
+                  tabular.loadColumnSelection(box.getVariableTable(), true, box.getQueryManager());
+               }
+            }
+            else {
+               box.resetTableLens(req.table());
+            }
 
             // Bug #76350 follow-on (item A): refreshColumnSelection (not loadTableData) is the
             // call that actually executes a crosstab/grouped table's query, and had no bound —
@@ -3731,6 +3789,7 @@ public class WorksheetAgentController {
    private final SecurityEngine securityEngine;
    private final RenameTransformHandler renameTransformHandler;
    private final SheetOpenService openService;
+   private final AssetDataCache assetDataCache;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetAgentController.class);
 
    // Mirrors ViewsheetEditService.TABLE_WARM_MAX_ATTEMPTS/TABLE_WARM_RETRY_SLEEP_MS: the same

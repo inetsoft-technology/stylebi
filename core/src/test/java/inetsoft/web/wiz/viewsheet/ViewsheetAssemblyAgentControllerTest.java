@@ -1260,6 +1260,131 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // save -- had no overwrite/duplicate-name confirmation at all, unlike save_worksheet's own
+   // already-fixed L2-Group10 guard and unlike the viewsheet UI's own
+   // SaveViewsheetDialogService.validateSaveViewSheet.
+   // ---------------------------------------------------------------------------
+
+   /** A name colliding with an existing entry must be refused, not silently overwritten. */
+   @Test
+   void saveWithNameCollidingWithExistingEntryRefusesUnlessConfirmed() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "__TEMPORARY__/vs-1", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(tempEntry);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(viewsheetService.isDuplicatedEntry(any(), any())).thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(sessions, viewsheetService, mock(SheetAgentBroadcastService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () -> controller.save("tok",
+         new ViewsheetAssemblyAgentController.SaveRequest("Existing", null), agent));
+
+      assertTrue(ex.getMessage().contains("already exists"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("confirmOverwrite"), ex.getMessage());
+      verify(viewsheetService, never()).setViewsheet(any(), any(), any(), anyBoolean(), anyBoolean());
+   }
+
+   /** The same collision proceeds once confirmOverwrite:true is passed. */
+   @Test
+   void saveWithNameCollidingButConfirmOverwriteTrueProceeds() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "__TEMPORARY__/vs-1", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(tempEntry);
+      when(rvs.getCurrent()).thenReturn(0);
+      when(rvs.getID()).thenReturn("rt-vs-4");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(viewsheetService.isDuplicatedEntry(any(), any())).thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(sessions, viewsheetService, mock(SheetAgentBroadcastService.class));
+
+      controller.save("tok",
+         new ViewsheetAssemblyAgentController.SaveRequest("Existing", null, true), agent);
+
+      verify(viewsheetService).setViewsheet(any(), any(), any(), eq(true), eq(true));
+   }
+
+   /** No collision (the common case) must not be refused. */
+   @Test
+   void saveWithNameNotCollidingSavesWithoutConfirmation() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "__TEMPORARY__/vs-1", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(tempEntry);
+      when(rvs.getCurrent()).thenReturn(0);
+      when(rvs.getID()).thenReturn("rt-vs-5");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(viewsheetService.isDuplicatedEntry(any(), any())).thenReturn(false);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(sessions, viewsheetService, mock(SheetAgentBroadcastService.class));
+
+      controller.save("tok",
+         new ViewsheetAssemblyAgentController.SaveRequest("agent_vs_2", null), agent);
+
+      verify(viewsheetService).setViewsheet(any(), any(), any(), eq(true), eq(true));
+   }
+
+   // ---------------------------------------------------------------------------
+   // save -- never propagated a pending binding rename to dependent assets at all, unlike either
+   // of the viewsheet UI's own save paths (each of which does, conditionally).
+   // ---------------------------------------------------------------------------
+
+   /** A successful save must flush any pending rename to dependent assets. */
+   @Test
+   void saveCallsRenameDependencyCascade() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry savedEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "Existing VS", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(savedEntry);
+      when(rvs.getCurrent()).thenReturn(2);
+      when(rvs.getID()).thenReturn("rt-vs-6");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions, viewsheetService,
+         mock(SheetAgentBroadcastService.class));
+
+      controller.save("tok",
+         new ViewsheetAssemblyAgentController.SaveRequest(null, null), agent);
+
+      InOrder order = inOrder(viewsheetService);
+      order.verify(viewsheetService).setViewsheet(any(), eq(savedEntry), any(), eq(true), eq(true));
+      order.verify(viewsheetService).fixRenameDepEntry("rt-vs-6", savedEntry);
+      order.verify(viewsheetService).renameDep("rt-vs-6");
+   }
+
+   // ---------------------------------------------------------------------------
    // attachBaseWorksheet -- Bug 76332 / PVA-007: no mcp__composer-chat__* tool could attach an
    // existing worksheet asset as a baseless viewsheet's base. Viewsheet tracks "what worksheet
    // backs this sheet" in two fields (wentry via setBaseEntry, ws via reloadBaseWorksheet/update);
