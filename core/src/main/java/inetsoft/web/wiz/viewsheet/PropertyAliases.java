@@ -66,7 +66,69 @@ public final class PropertyAliases {
     */
    private static final Set<String> CHART_READ_ONLY_FLAGS = Set.of(
       "gridLineVisible", "innerLineVisible", "trendLineVisible", "facetGridVisible",
-      "facetGridEnabled", "projectForwardEnabled", "lineTabVisible");
+      "facetGridEnabled", "projectForwardEnabled", "lineTabVisible",
+      // chartAdvancedPaneModel's own capability flags: recomputed from the chart type/embedding
+      // on every read (ChartAdvancedPaneModel's constructor and ChartPropertyDialogService's
+      // getChartPropertyDialogModel0), never consulted by updateChartAdvancedPaneModel. Same
+      // shape as the line-pane flags above -- a write reports success and changes nothing.
+      "adhocVisible", "glossyEffectSupported", "sortOthersLastEnabled",
+      // rankPerGroupLabel is a derived display string (ChartAdvancedPaneModel.getRankPerGroupLabel,
+      // computed in the constructor from the chart's ranking state) that
+      // updateChartAdvancedPaneModel never reads back -- same "readable, not writable" shape as
+      // projectForwardEnabled below.
+      "rankPerGroupLabel",
+      // chartPlotOptionsPaneModel's own capability/derived flags -- ChartPlotOptionsPaneModel's
+      // constructor computes each from the chart type, and updateChartPlotOptionsPaneModel never
+      // reads any of them back. Their real, writable siblings (showValues, stackValues, ...) are
+      // aliased above; only the derived flag for each is refused here.
+      "alphaEnabled", "showValuesVisible", "showValuesEnabled", "stackValuesVisible",
+      "stackValuesEnabled", "showReferenceLineVisible", "keepElementInPlotVisible",
+      "bandingXVisible", "bandingXColorEnabled", "bandingXSizeEnabled", "bandingYVisible",
+      "bandingYColorEnabled", "bandingYSizeEnabled", "backgroundEnabled", "showPointsVisible",
+      "showPointsLabel", "explodedPieVisible", "fillTimeVisible", "fillGapWithDashVisible",
+      "polygonColorVisible", "hasXDimension", "hasYDimension", "mapEmptyColorVisible",
+      "borderColorVisible", "paretoLineColorVisible", "webMapVisible", "mapPolygon",
+      "contourEnabled", "includeParentLabelsVisible", "applyAestheticsToSourceVisible",
+      "wordCloud", "barCornerRadiusVisible", "barRoundAllCornersVisible");
+
+   /**
+    * Table and crosstab fields with a getter/setter pair, populated on every GET, that the
+    * matching set*PropertyModel apply method never reads back. Confirmed by reading
+    * {@code TableViewPropertyDialogService}/{@code CrosstabPropertyDialogService}'s apply
+    * methods in full: {@code shadow}/{@code editable} (on the shared
+    * {@code basicGeneralPaneModel}, inherited from the outputGeneral() shape but never applied
+    * for a data assembly -- see {@link #dataGeneral}), {@code container} (VSDialogService's
+    * setAssemblySize/setAssemblyPosition never call isContainer()), and the type-specific
+    * capability flags below.
+    */
+   private static final Map<String, Set<String>> DEAD_FIELDS = Map.of(
+      "table", Set.of("shadow", "editable", "container", "shrinkEnabled", "formVisible"),
+      "crosstab", Set.of("shadow", "editable", "container", "crosstabInfoNull",
+                         "sortOthersLastEnabled", "dateComparisonSupport"));
+
+   /**
+    * {@code refresh} is aliased through the shared {@link #basicGeneral} helper because it is
+    * genuinely applied for the input assemblies (checkbox/combobox/radiobutton/slider/spinner/
+    * textinput, via {@code VSInputService}) and for submit (via
+    * {@code SubmitPropertyDialogService}). It is not applied at all for these four types --
+    * their apply methods never call {@code basicGeneralPaneModel.isRefresh()}. Refused here by
+    * type rather than removed from the shared helper, which would also remove it from the types
+    * where it is real.
+    */
+   private static final Set<String> REFRESH_DEAD_TYPES =
+      Set.of("table", "crosstab", "text", "selectionlist");
+
+   /**
+    * {@code locked} is aliased through the shared {@link #sizePosition} helper for every
+    * assembly type, but {@code SizePositionPaneModel.isLocked()} has zero consumers anywhere in
+    * {@code core/src/main/java} outside test/model code -- no {@code *PropertyDialogService}
+    * apply method ever reads it back, for any type. Image and Shape (line/oval/rectangle) are the
+    * sole exceptions: their own dialog services genuinely apply it. Everywhere else, a write
+    * through {@code set_assembly_properties} would report success and silently do nothing; the
+    * real way to lock/unlock any assembly is {@code edit(op:"set_lock")}, which mutates the live
+    * {@code LockableVSAssembly} state directly.
+    */
+   private static final Set<String> LOCKED_LIVE_TYPES = Set.of("image", "line", "oval", "rectangle");
 
    private static final Map<String, TypeAliases> REGISTRY = registry();
 
@@ -135,7 +197,51 @@ public final class PropertyAliases {
    private static String writeRefusal(String normalizedType, String pathOrKey) {
       String refusal = viewsheetWriteRefusal(normalizedType, pathOrKey);
 
-      return refusal != null ? refusal : chartWriteRefusal(normalizedType, pathOrKey);
+      if(refusal != null) {
+         return refusal;
+      }
+
+      refusal = chartWriteRefusal(normalizedType, pathOrKey);
+
+      return refusal != null ? refusal : deadFieldWriteRefusal(normalizedType, pathOrKey);
+   }
+
+   /**
+    * Refuses a write to one of the {@link #DEAD_FIELDS}/{@link #REFRESH_DEAD_TYPES} entries --
+    * fields with a getter/setter pair that this assembly type's apply method never reads back.
+    */
+   private static String deadFieldWriteRefusal(String normalizedType, String pathOrKey) {
+      if(pathOrKey == null) {
+         return null;
+      }
+
+      String leaf = pathOrKey.substring(pathOrKey.lastIndexOf('.') + 1);
+      Set<String> dead = DEAD_FIELDS.get(normalizedType);
+
+      if(dead != null && dead.contains(leaf)) {
+         return "'" + leaf + "' is read-only on " + normalizedType + ". It has a getter/setter " +
+            "pair on the dialog model, populated on every read, but this type's apply method " +
+            "never reads it back -- a write would report success and change nothing.";
+      }
+
+      if("refresh".equals(leaf) && REFRESH_DEAD_TYPES.contains(normalizedType)) {
+         return "'refresh' is read-only on " + normalizedType + ". It is real for the input " +
+            "assemblies and submit, but this type's own apply method never reads " +
+            "basicGeneralPaneModel.refresh back -- a write would report success and change " +
+            "nothing.";
+      }
+
+      if("locked".equals(leaf) && !SHEET.equals(normalizedType) &&
+         !LOCKED_LIVE_TYPES.contains(normalizedType))
+      {
+         return "'locked' is read-only on " + normalizedType + " through " +
+            "set_assembly_properties. It has a getter/setter pair on the dialog model, " +
+            "populated on every read, but this type's apply method never reads it back -- a " +
+            "write would report success and change nothing. Use edit(op:\"set_lock\") to " +
+            "lock/unlock this assembly instead.";
+      }
+
+      return null;
    }
 
    /**
@@ -301,11 +407,11 @@ public final class PropertyAliases {
       // Phase 3 batch a — the input assemblies, all on VSInputService, plus range slider,
       // calendar and tab.
       register(registry, "checkbox", CheckboxPropertyDialogModel.class,
-               listInput("checkboxGeneralPaneModel", true));
+               listInput("checkboxGeneralPaneModel", true, false));
       register(registry, "combobox", ComboboxPropertyDialogModel.class,
-               listInput("comboboxGeneralPaneModel", false));
+               listInput("comboboxGeneralPaneModel", false, true));
       register(registry, "radiobutton", RadioButtonPropertyDialogModel.class,
-               listInput("radioButtonGeneralPaneModel", true));
+               listInput("radioButtonGeneralPaneModel", true, false));
       register(registry, "slider", SliderPropertyDialogModel.class, slider());
       register(registry, "spinner", SpinnerPropertyDialogModel.class, spinner());
       register(registry, "textinput", TextInputPropertyDialogModel.class, textInput());
@@ -446,6 +552,16 @@ public final class PropertyAliases {
       aliases.put("majorIncrement", "gaugeGeneralPaneModel.numberRangePaneModel.majorIncrement");
       aliases.put("minorIncrement", "gaugeGeneralPaneModel.numberRangePaneModel.minorIncrement");
       aliases.put("showValue", "gaugeAdvancedPaneModel.showValue");
+      // Only "face" is applied on write -- setGaugePropertyDialogModel reads facePaneModel.face
+      // but never facePaneModel.faceType/.faceIds, despite both having a setter. Left unaliased
+      // (not added to a refusal list either, since they were never reachable by a short name
+      // before this batch) rather than aliased-then-refused.
+      aliases.put("face", "gaugeGeneralPaneModel.facePaneModel.face");
+      String range = "gaugeAdvancedPaneModel.rangePaneModel";
+      aliases.put("gradient", range + ".gradient");
+      aliases.put("rangeValues", range + ".rangeValues");
+      aliases.put("rangeColorValues", range + ".rangeColorValues");
+      aliases.put("targetValue", range + ".targetValue");
       dataOutput(aliases);
       return aliases;
    }
@@ -456,6 +572,8 @@ public final class PropertyAliases {
       sizePosition(aliases, "textGeneralPaneModel");
       aliases.put("alpha", "textGeneralPaneModel.alpha");
       aliases.put("popComponent", "textGeneralPaneModel.popComponent");
+      aliases.put("text", "textGeneralPaneModel.textPaneModel.text");
+      aliases.put("tipOption", "textGeneralPaneModel.tipPaneModel.tipOption");
       dataOutput(aliases);
       return aliases;
    }
@@ -481,6 +599,50 @@ public final class PropertyAliases {
       aliases.put("enableAdhocEditing", "chartAdvancedPaneModel.enableAdhocEditing");
       aliases.put("glossyEffect", "chartAdvancedPaneModel.glossyEffect");
       aliases.put("sparkline", "chartAdvancedPaneModel.sparkline");
+      aliases.put("sortOthersLast", "chartAdvancedPaneModel.sortOthersLast");
+      aliases.put("rankPerGroup", "chartAdvancedPaneModel.rankPerGroup");
+      // Readable so a caller can see why ranking-per-group applied the way it did; refused for
+      // write below (CHART_READ_ONLY_FLAGS) -- updateChartAdvancedPaneModel never reads it back,
+      // same "readable, not writable" shape as projectForwardEnabled further down.
+      aliases.put("rankPerGroupLabel", "chartAdvancedPaneModel.rankPerGroupLabel");
+
+      // The plot-options pane's own real, writable leaf fields -- updateChartPlotOptionsPaneModel
+      // applies each of these. Deliberately absent: every *Visible/*Enabled/*Supported capability
+      // flag, plus mapPolygon/contourEnabled/wordCloud/showPointsLabel/mapboxStyles, none of which
+      // updateChartPlotOptionsPaneModel ever reads back -- see CHART_READ_ONLY_FLAGS.
+      String plotOptions = "chartAdvancedPaneModel.chartPlotOptionsPaneModel";
+      aliases.put("alpha", plotOptions + ".alpha");
+      aliases.put("showValues", plotOptions + ".showValues");
+      aliases.put("stackValues", plotOptions + ".stackValues");
+      aliases.put("showReferenceLine", plotOptions + ".showReferenceLine");
+      aliases.put("keepElementInPlot", plotOptions + ".keepElementInPlot");
+      aliases.put("bandingXColor", plotOptions + ".bandingXColor");
+      aliases.put("bandingXSize", plotOptions + ".bandingXSize");
+      aliases.put("bandingYColor", plotOptions + ".bandingYColor");
+      aliases.put("bandingYSize", plotOptions + ".bandingYSize");
+      aliases.put("backgroundColor", plotOptions + ".backgroundColor");
+      aliases.put("showPoints", plotOptions + ".showPoints");
+      aliases.put("explodedPie", plotOptions + ".explodedPie");
+      aliases.put("fillTimeGap", plotOptions + ".fillTimeGap");
+      aliases.put("fillZero", plotOptions + ".fillZero");
+      aliases.put("fillGapWithDash", plotOptions + ".fillGapWithDash");
+      aliases.put("polygonColor", plotOptions + ".polygonColor");
+      aliases.put("mapEmptyColor", plotOptions + ".mapEmptyColor");
+      aliases.put("borderColor", plotOptions + ".borderColor");
+      aliases.put("paretoLineColor", plotOptions + ".paretoLineColor");
+      aliases.put("webMap", plotOptions + ".webMap");
+      aliases.put("webMapStyle", plotOptions + ".webMapStyle");
+      aliases.put("contourLevels", plotOptions + ".contourLevels");
+      aliases.put("contourBandwidth", plotOptions + ".contourBandwidth");
+      aliases.put("contourEdgeAlpha", plotOptions + ".contourEdgeAlpha");
+      aliases.put("contourCellSize", plotOptions + ".contourCellSize");
+      aliases.put("includeParentLabels", plotOptions + ".includeParentLabels");
+      aliases.put("applyAestheticsToSource", plotOptions + ".applyAestheticsToSource");
+      aliases.put("wordCloudFontScale", plotOptions + ".wordCloudFontScale");
+      aliases.put("pieRatio", plotOptions + ".pieRatio");
+      aliases.put("barCornerRadius", plotOptions + ".barCornerRadius");
+      aliases.put("barRoundAllCorners", plotOptions + ".barRoundAllCorners");
+      aliases.put("oneLine", plotOptions + ".oneLine");
 
       // The line pane — trend lines, grid lines, facet grid. What a user means by "add a trend
       // line" lives here, one pane below the general/advanced panes.
@@ -517,9 +679,14 @@ public final class PropertyAliases {
       title(aliases, "tableViewGeneralPaneModel");
       aliases.put("maxRows", "tableViewGeneralPaneModel.maxRows");
       aliases.put("submitOnChange", "tableViewGeneralPaneModel.submitOnChange");
+      aliases.put("tableStyle", "tableViewGeneralPaneModel.tableStylePaneModel.tableStyle");
       aliases.put("shrink", "tableAdvancedPaneModel.shrink");
       aliases.put("form", "tableAdvancedPaneModel.form");
       aliases.put("enableAdhoc", "tableAdvancedPaneModel.enableAdhoc");
+      aliases.put("insert", "tableAdvancedPaneModel.insert");
+      aliases.put("del", "tableAdvancedPaneModel.del");
+      aliases.put("edit", "tableAdvancedPaneModel.edit");
+      aliases.put("writeBack", "tableAdvancedPaneModel.writeBack");
       return aliases;
    }
 
@@ -529,11 +696,21 @@ public final class PropertyAliases {
       sizePosition(aliases, "tableViewGeneralPaneModel");
       title(aliases, "tableViewGeneralPaneModel");
       aliases.put("maxRows", "tableViewGeneralPaneModel.maxRows");
+      aliases.put("tableStyle", "tableViewGeneralPaneModel.tableStylePaneModel.tableStyle");
       aliases.put("fillBlankWithZero", "crosstabAdvancedPaneModel.fillBlankWithZero");
       aliases.put("summarySideBySide", "crosstabAdvancedPaneModel.summarySideBySide");
       aliases.put("mergeSpan", "crosstabAdvancedPaneModel.mergeSpan");
       aliases.put("shrink", "crosstabAdvancedPaneModel.shrink");
       aliases.put("drillEnabled", "crosstabAdvancedPaneModel.drillEnabled");
+      aliases.put("enableAdhoc", "crosstabAdvancedPaneModel.enableAdhoc");
+      aliases.put("sortOthersLast", "crosstabAdvancedPaneModel.sortOthersLast");
+      aliases.put("calculateTotal", "crosstabAdvancedPaneModel.calculateTotal");
+      aliases.put("tipOption", "crosstabAdvancedPaneModel.tipPaneModel.tipOption");
+      aliases.put("tipView", "crosstabAdvancedPaneModel.tipPaneModel.tipView");
+      aliases.put("alpha", "crosstabAdvancedPaneModel.tipPaneModel.alpha");
+      aliases.put("flyOverViews", "crosstabAdvancedPaneModel.tipPaneModel.flyOverViews");
+      aliases.put("flyOnClick", "crosstabAdvancedPaneModel.tipPaneModel.flyOnClick");
+      aliases.put("tipOnClick", "crosstabAdvancedPaneModel.tipPaneModel.tipOnClick");
       return aliases;
    }
 
@@ -543,6 +720,11 @@ public final class PropertyAliases {
       sizePosition(aliases, "selectionGeneralPaneModel");
       title(aliases, "selectionGeneralPaneModel");
       selectionGeneral(aliases);
+      String measure = "selectionListPaneModel.selectionMeasurePaneModel";
+      aliases.put("measure", measure + ".measure");
+      aliases.put("formula", measure + ".formula");
+      aliases.put("showText", measure + ".showText");
+      aliases.put("showBar", measure + ".showBar");
       return aliases;
    }
 
@@ -564,6 +746,8 @@ public final class PropertyAliases {
       aliases.put("singleSelection", "selectionGeneralPaneModel.singleSelection");
       aliases.put("submitOnChange", "selectionGeneralPaneModel.submitOnChange");
       aliases.put("suppressBlank", "selectionGeneralPaneModel.suppressBlank");
+      aliases.put("selectFirstItem", "selectionGeneralPaneModel.selectFirstItem");
+      aliases.put("quickSwitchAllowed", "selectionGeneralPaneModel.quickSwitchAllowed");
    }
 
    // ── Phase 3 batch a ───────────────────────────────────────────────────────
@@ -574,14 +758,26 @@ public final class PropertyAliases {
     * — distinct from combobox's separate top-level {@code dataInputPaneModel} (row/column
     * write-back target), which is deliberately not aliased here or via {@link #dataInput}; see
     * that method's doc for why the two must not collide under the same alias name.
+    *
+    * <p>{@code hasInputLabel} covers combobox's own top-level {@code inputLabelPaneModel}
+    * (the optional label shown next to the dropdown). Checkbox and radiobutton have no such
+    * field on their dialog model at all -- they show their own title bar instead -- so this is
+    * declared per caller rather than assumed from the shape the other two parameters share.
     */
-   private static Map<String, String> listInput(String prefix, boolean hasTitle) {
+   private static Map<String, String> listInput(String prefix, boolean hasTitle,
+                                                 boolean hasInputLabel)
+   {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, prefix);
       sizePosition(aliases, prefix);
 
       if(hasTitle) {
          title(aliases, prefix);
+      }
+
+      if(hasInputLabel) {
+         aliases.put("showLabel", "inputLabelPaneModel.showLabel");
+         aliases.put("labelText", "inputLabelPaneModel.labelText");
       }
 
       String editor = prefix + ".listValuesPaneModel.comboBoxEditorModel." +
@@ -598,6 +794,21 @@ public final class PropertyAliases {
       sizePosition(aliases, "sliderGeneralPaneModel");
       numericRange(aliases, "sliderGeneralPaneModel");
       aliases.put("snap", "sliderAdvancedPaneModel.snap");
+      // sliderLabelPaneModel's own "minimum"/"maximum" are visibility toggles for the min/max
+      // value labels -- a different field from numericRangePaneModel's "min"/"max" (the actual
+      // range values) aliased above by numericRange(). Named showMin/showMax to keep both
+      // reachable under distinct names. sliderLabelPaneModel.showLabel is deliberately NOT
+      // aliased here: setSliderPropertyDialogModel hardcodes it true on every read and never
+      // reads it back on write -- it is dead, unlike inputLabelPaneModel.showLabel below, which
+      // is real.
+      String sliderLabel = "sliderAdvancedPaneModel.sliderLabelPaneModel";
+      aliases.put("tick", sliderLabel + ".tick");
+      aliases.put("currentValue", sliderLabel + ".currentValue");
+      aliases.put("label", sliderLabel + ".label");
+      aliases.put("showMin", sliderLabel + ".minimum");
+      aliases.put("showMax", sliderLabel + ".maximum");
+      aliases.put("showLabel", "inputLabelPaneModel.showLabel");
+      aliases.put("labelText", "inputLabelPaneModel.labelText");
       dataInput(aliases);
       return aliases;
    }
@@ -607,6 +818,8 @@ public final class PropertyAliases {
       dataGeneral(aliases, "spinnerGeneralPaneModel");
       sizePosition(aliases, "spinnerGeneralPaneModel");
       numericRange(aliases, "spinnerGeneralPaneModel");
+      aliases.put("showLabel", "inputLabelPaneModel.showLabel");
+      aliases.put("labelText", "inputLabelPaneModel.labelText");
       dataInput(aliases);
       return aliases;
    }
@@ -615,6 +828,8 @@ public final class PropertyAliases {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, "textInputGeneralPaneModel");
       sizePosition(aliases, "textInputGeneralPaneModel");
+      aliases.put("showLabel", "inputLabelPaneModel.showLabel");
+      aliases.put("labelText", "inputLabelPaneModel.labelText");
       dataInput(aliases);
       return aliases;
    }
@@ -632,6 +847,23 @@ public final class PropertyAliases {
       dataGeneral(aliases, "calendarGeneralPaneModel");
       sizePosition(aliases, "calendarGeneralPaneModel");
       title(aliases, "calendarGeneralPaneModel");
+      aliases.put("showType", "calendarAdvancedPaneModel.showType");
+      aliases.put("viewMode", "calendarAdvancedPaneModel.viewMode");
+      aliases.put("daySelection", "calendarAdvancedPaneModel.daySelection");
+      aliases.put("singleSelection", "calendarAdvancedPaneModel.singleSelection");
+      aliases.put("submitOnChange", "calendarAdvancedPaneModel.submitOnChange");
+      // min/max are deliberately NOT aliased: CalendarAdvancedPaneModel.min/max are
+      // DynamicValueModel objects (value/type/dataType), not plain scalars -- the short-name
+      // alias contract here is "a leaf value", and PropertyPath's JSON coercion has no way to
+      // build the right nested shape from a bare value. Reachable via the raw dotted path with
+      // the full object shape; see CalendarPropertyDialogService's min/max ordering check for
+      // the validation this still gets on write.
+      //
+      // calendarDataPaneModel.selectedTable/selectedColumn are also deliberately absent: the
+      // parity audit flagged a possible overlap with the set_calendar_display/
+      // set_calendar_dates tool's own write path, and this pass could not confirm from this
+      // repo alone whether the two would end up writing the same underlying setter. Left out
+      // rather than guessed at -- see the handoff report for this specific gap.
       return aliases;
    }
 

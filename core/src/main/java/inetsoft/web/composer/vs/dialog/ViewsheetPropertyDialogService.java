@@ -286,6 +286,19 @@ public class ViewsheetPropertyDialogService {
       ViewsheetInfo info = viewsheet.getViewsheetInfo();
       VSOptionsPaneModel vsOptionsPaneModel = value.vsOptionsPane();
 
+      // Validated before any info.setX(...) mutation below -- this service has no defensive
+      // clone (it mutates ViewsheetInfo live), so an invalid field must be caught before any
+      // other field is applied to avoid a partial write. Mirrors form-validators.ts's
+      // inSanpGridRangeOrNull (sic): a non-positive or non-multiple-of-5 grid size divides into
+      // the Composer's own live canvas drag math and produces NaN/Infinity assembly positions,
+      // so this is refused rather than silently applied.
+      if(vsOptionsPaneModel.getSnapGrid() <= 0 || vsOptionsPaneModel.getSnapGrid() % 5 != 0) {
+         throw new IllegalArgumentException(
+            "'snapGrid' must be a positive multiple of 5; " + vsOptionsPaneModel.getSnapGrid() +
+            " is not. The Composer's canvas drag math divides by this value, so an invalid " +
+            "grid size would corrupt assembly positions rather than merely look wrong.");
+      }
+
       boolean reset = info.isMetadata() != vsOptionsPaneModel.isUseMetaData() ||
          info.getDesignMaxRows() != vsOptionsPaneModel.getMaxRows();
 
@@ -304,6 +317,7 @@ public class ViewsheetPropertyDialogService {
       info.setUpdateEnabled(vsOptionsPaneModel.isServerSideUpdate());
       info.setTouchInterval(vsOptionsPaneModel.getTouchInterval());
       info.setDesignMaxRows(vsOptionsPaneModel.getMaxRows());
+
       info.setSnapGrid(vsOptionsPaneModel.getSnapGrid());
       info.setOnReport(vsOptionsPaneModel.isListOnPortalTree());
 

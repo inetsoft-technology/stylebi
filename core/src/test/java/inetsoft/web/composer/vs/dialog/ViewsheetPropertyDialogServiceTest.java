@@ -244,6 +244,71 @@ public class ViewsheetPropertyDialogServiceTest {
       assertEquals(11.0, result.screensPane().getPrintLayout().getCustomHeight(), 1e-9);
    }
 
+   // ── snapGrid validation (parity audit L7) ───────────────────────────────────
+   //
+   // A non-positive or non-multiple-of-5 snapGrid divides into the Composer's own live canvas
+   // drag math and produces NaN/Infinity assembly positions -- the one validation in this batch
+   // with a confirmed corruption hazard if skipped. The accepting case is already covered by
+   // layoutIsUpdated() above, which exercises the full write path at VSOptionsPaneModel's
+   // default snapGrid of 20 (a legal multiple of 5) without hitting this check.
+
+   @Test
+   public void refusesAZeroSnapGrid() throws Exception {
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getViewsheetInfo()).thenReturn(new ViewsheetInfo());
+
+      ViewsheetPropertyDialogModel model = ViewsheetPropertyDialogModel.builder().build();
+      model.vsOptionsPane().setSnapGrid(0);
+
+      Exception thrown = org.junit.jupiter.api.Assertions.assertThrows(
+         IllegalArgumentException.class,
+         () -> service.setViewsheetInfo("Viewsheet1", model, null, commandDispatcher, null, null));
+
+      org.junit.jupiter.api.Assertions.assertTrue(thrown.getMessage().contains("snapGrid"));
+   }
+
+   @Test
+   public void refusesASnapGridThatIsNotAMultipleOfFive() throws Exception {
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getViewsheetInfo()).thenReturn(new ViewsheetInfo());
+
+      ViewsheetPropertyDialogModel model = ViewsheetPropertyDialogModel.builder().build();
+      model.vsOptionsPane().setSnapGrid(7);
+
+      Exception thrown = org.junit.jupiter.api.Assertions.assertThrows(
+         IllegalArgumentException.class,
+         () -> service.setViewsheetInfo("Viewsheet1", model, null, commandDispatcher, null, null));
+
+      org.junit.jupiter.api.Assertions.assertTrue(thrown.getMessage().contains("snapGrid"));
+   }
+
+   /**
+    * This service has no defensive clone (it mutates ViewsheetInfo live), so an illegal snapGrid
+    * arriving alongside other legal fields must be caught before any of those other fields are
+    * applied -- otherwise a refused patch would still leave a silent partial write behind.
+    */
+   @Test
+   public void refusesASnapGridBeforeMutatingAnyOtherField() throws Exception {
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      ViewsheetInfo info = new ViewsheetInfo();
+      when(viewsheet.getViewsheetInfo()).thenReturn(info);
+
+      ViewsheetPropertyDialogModel model = ViewsheetPropertyDialogModel.builder().build();
+      model.vsOptionsPane().setSnapGrid(7);
+      model.vsOptionsPane().setDesc("a distinctive description that must not be written");
+
+      org.junit.jupiter.api.Assertions.assertThrows(
+         IllegalArgumentException.class,
+         () -> service.setViewsheetInfo("Viewsheet1", model, null, commandDispatcher, null, null));
+
+      org.junit.jupiter.api.Assertions.assertNotEquals(
+         "a distinctive description that must not be written", info.getDescription(),
+         "snapGrid validation must run before other fields are mutated");
+   }
+
    @Mock ViewsheetService viewsheetService;
    @Mock ViewsheetSettingsService viewsheetSettingsService;
    @Mock CoreLifecycleService coreLifecycleService;

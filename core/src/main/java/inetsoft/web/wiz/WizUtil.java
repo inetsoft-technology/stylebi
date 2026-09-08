@@ -28,6 +28,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
+import inetsoft.web.wiz.pairing.PairingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -285,6 +286,33 @@ public class WizUtil {
       }
 
       return value;
+   }
+
+   /**
+    * Refuses a caret in a caller-supplied asset path/name, before it is used to build any
+    * {@link inetsoft.uql.asset.AssetEntry}.
+    *
+    * <p>{@code AssetEntry.toIdentifier()} joins its fields with a literal, unescaped
+    * {@code '^'} ({@code scope^type^user^path^orgID}). {@code AssetEntry.createAssetEntry(String)}
+    * recovers {@code path} correctly (it splits on the LAST {@code '^'} in the identifier), but
+    * recovers {@code orgID} using the FIRST {@code '^'} found after the user field -- which, when
+    * {@code path} itself contains a caret, is a caret embedded inside the path rather than the
+    * true path/orgID boundary. The recovered {@code orgID} then silently absorbs the remainder of
+    * the path plus the real orgID, corrupting it on any later round-trip through
+    * {@code createAssetEntry(identifier)}. Mirrors the same rule the Composer's own asset-picker
+    * dialogs (new-viewsheet-dialog, select-data-source-dialog, new-visualization-dialog) already
+    * enforce client-side.
+    *
+    * @param value the path/name to check; {@code null}/empty is not this method's concern.
+    * @param field the field name to name in the error, e.g. {@code "path"} or {@code "name"}.
+    */
+   public static void requireNoCaret(String value, String field) throws PairingException {
+      if(value != null && value.indexOf('^') >= 0) {
+         throw new PairingException(
+            "'" + field + "' must not contain '^'. AssetEntry.toIdentifier() joins its fields " +
+            "with a literal, unescaped '^', so a caret embedded in '" + field + "' corrupts the " +
+            "orgID recovered on any later round-trip through AssetEntry.createAssetEntry(identifier).");
+      }
    }
 
    public static final String ANNOTATION_RAW_DATA_MAX_ROW = "annotation.rawdata.maxrow";

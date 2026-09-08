@@ -113,6 +113,57 @@ class CalendarPropertyDialogServiceTest {
       assertEquals(390, result.getPixelOffset().y);
    }
 
+   // ── min/max ordering validation (parity audit L7) ──────────────────────────
+
+   @Test
+   void refusesAMinThatIsNotBeforeMax() throws Exception {
+      CalendarVSAssemblyInfo info = new CalendarVSAssemblyInfo();
+
+      when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(calendarAssembly);
+      when(calendarAssembly.getVSAssemblyInfo()).thenReturn(info);
+
+      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
+      model.getCalendarAdvancedPaneModel().setMin(
+         new inetsoft.web.composer.model.vs.DynamicValueModel("2024-01-10"));
+      model.getCalendarAdvancedPaneModel().setMax(
+         new inetsoft.web.composer.model.vs.DynamicValueModel("2024-01-01"));
+
+      Exception thrown = org.junit.jupiter.api.Assertions.assertThrows(
+         IllegalArgumentException.class,
+         () -> service.setCalendarPropertyModel(
+            "Viewsheet1", "Calendar1", model, "", null, commandDispatcher));
+
+      org.junit.jupiter.api.Assertions.assertTrue(thrown.getMessage().contains("min"));
+      org.junit.jupiter.api.Assertions.assertTrue(thrown.getMessage().contains("max"));
+      org.mockito.Mockito.verifyNoInteractions(vsObjectPropertyService);
+   }
+
+   @Test
+   void acceptsAMinThatIsBeforeMax() throws Exception {
+      CalendarVSAssemblyInfo info = new CalendarVSAssemblyInfo();
+
+      when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(calendarAssembly);
+      when(calendarAssembly.getVSAssemblyInfo()).thenReturn(info);
+
+      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
+      model.getCalendarAdvancedPaneModel().setMin(
+         new inetsoft.web.composer.model.vs.DynamicValueModel("2024-01-01"));
+      model.getCalendarAdvancedPaneModel().setMax(
+         new inetsoft.web.composer.model.vs.DynamicValueModel("2024-01-10"));
+
+      service.setCalendarPropertyModel(
+         "Viewsheet1", "Calendar1", model, "", null, commandDispatcher);
+
+      verify(vsObjectPropertyService).editObjectProperty(
+         any(RuntimeViewsheet.class), any(CalendarVSAssemblyInfo.class), any(String.class),
+         any(String.class), any(String.class), nullable(Principal.class),
+         any(CommandDispatcher.class), eq(true), nullable(Integer.class));
+   }
+
    @Mock VSObjectPropertyService vsObjectPropertyService;
    @Mock VSOutputService vsOutputService;
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;

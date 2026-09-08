@@ -18,11 +18,16 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 import java.util.LinkedHashMap;
@@ -32,6 +37,16 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+// gauge's "face" alias (parity audit L7) reads GaugeGeneralPaneModel.facePaneModel, whose lazy
+// construction runs VSGauge.getPrefixIDs() -> VSFaceUtil's static init -> a Spring-bean lookup.
+// listsTheAliasVocabularyWithCurrentValues below reads every declared alias's current value, so
+// this class needs the same running context TableViewPropertyDialogServiceTest and friends set
+// up for the same reason -- a bare Mockito-only test does not have a Spring context for that
+// static init to find.
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome()
 @Tag("core")
 class AssemblyPropertyServiceTest {
    /**
