@@ -87,6 +87,30 @@ class PrintDeviceLayoutPropertyServiceTest {
    }
 
    @Test
+   void aFreshPrintLayoutSeedsPaperSizeMarginsAndHeaderFooterFromEdgeLikeTheDialogsDefault()
+      throws Exception
+   {
+      // Same shape as the scaleFont/units seeding above, extended to every other field the
+      // print-layout dialog's own ngOnInit() default covers -- an omitted paperSize in
+      // particular resolves to PaperSize.getSize(null) => null, persisting a degenerate 0x0
+      // page, not merely a cosmetic difference from the dialog's default.
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+
+      h.service.setPrintLayout("tok", h.principal, Map.of("scaleFont", 0.8f), "");
+
+      VSPrintLayoutDialogModel written = writtenPrintLayout(h);
+      assertEquals("Letter [8.5x11 in]", written.getPaperSize());
+      assertEquals(1, written.getMarginTop(), 0.0001);
+      assertEquals(1, written.getMarginBottom(), 0.0001);
+      assertEquals(1, written.getMarginLeft(), 0.0001);
+      assertEquals(1, written.getMarginRight(), 0.0001);
+      assertEquals(0.5f, written.getHeaderFromEdge(), 0.0001f);
+      assertEquals(0.75f, written.getFooterFromEdge(), 0.0001f);
+      assertEquals("inches", written.getUnits());
+      assertEquals(0.8f, written.getScaleFont(), 0.0001f);
+   }
+
+   @Test
    void paperSizeBareShortNamesCanonicalizeCaseInsensitively() throws Exception {
       Harness h = new Harness(screensPaneWithNoPrintLayout());
 
@@ -392,6 +416,62 @@ class PrintDeviceLayoutPropertyServiceTest {
       verify(h.dialog).setViewsheetInfo(eq("rt1"), captor.capture(), any(Principal.class), any(),
                                         anyString(), any());
       assertTrue(captor.getValue().screensPane().getDeviceLayouts().isEmpty());
+   }
+
+   @Test
+   void refusesCreatingADeviceLayoutNamedMaster() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+      h.registerDevices("wiz-mobile");
+
+      Exception thrown = assertThrows(Exception.class, () -> h.service.manageDeviceLayout(
+         "tok", h.principal, "create", Map.of("name", "Master"), ""));
+
+      assertTrue(thrown.getMessage().contains("Master"), thrown.getMessage());
+      verify(h.dialog, never())
+         .setViewsheetInfo(anyString(), any(), any(), any(), anyString(), any());
+   }
+
+   @Test
+   void refusesCreatingADeviceLayoutNamedPrintLayout() throws Exception {
+      // The dialog's reservedName() blocks this literal too (resolved through Catalog from
+      // "_#(js:Print Layout)" in Angular) -- not just "Master".
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+      h.registerDevices("wiz-mobile");
+
+      Exception thrown = assertThrows(Exception.class, () -> h.service.manageDeviceLayout(
+         "tok", h.principal, "create", Map.of("name", "Print Layout"), ""));
+
+      assertTrue(thrown.getMessage().contains("Print Layout"), thrown.getMessage());
+      verify(h.dialog, never())
+         .setViewsheetInfo(anyString(), any(), any(), any(), anyString(), any());
+   }
+
+   @Test
+   void allowsMasterAsAnUpdateOrDeleteTargetSinceOnlyCreateIsReserved() throws Exception {
+      VSDeviceLayoutDialogModel existing = new VSDeviceLayoutDialogModel();
+      existing.setName("Master");
+      ScreensPaneModel screensPane = screensPaneWithNoPrintLayout();
+      screensPane.getDeviceLayouts().add(existing);
+      Harness h = new Harness(screensPane);
+      h.registerDevices("wiz-mobile");
+
+      h.service.manageDeviceLayout("tok", h.principal, "delete", Map.of("name", "Master"), "");
+
+      verify(h.dialog).setViewsheetInfo(eq("rt1"), any(), any(Principal.class), any(),
+                                        anyString(), any());
+   }
+
+   @Test
+   void refusesADeviceLayoutNameContainingADisallowedCharacter() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+      h.registerDevices("wiz-mobile");
+
+      Exception thrown = assertThrows(Exception.class, () -> h.service.manageDeviceLayout(
+         "tok", h.principal, "create", Map.of("name", "Phones/2"), ""));
+
+      assertTrue(thrown.getMessage().contains("Phones/2"), thrown.getMessage());
+      verify(h.dialog, never())
+         .setViewsheetInfo(anyString(), any(), any(), any(), anyString(), any());
    }
 
    @Test

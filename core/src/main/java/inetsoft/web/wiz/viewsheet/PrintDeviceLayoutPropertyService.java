@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.PaperSize;
+import inetsoft.util.Catalog;
 import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
 import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
 import inetsoft.web.composer.model.vs.*;
@@ -105,12 +106,27 @@ public class PrintDeviceLayoutPropertyService {
          VSPrintLayoutDialogModel printLayout = screensPane.getPrintLayout();
 
          if(printLayout == null) {
-            // No print layout configured on this viewsheet yet: seed scaleFont at the safe
-            // default BEFORE applying the patch, so an omitted "scaleFont" key lands on 1.0f
-            // rather than the bare-field 0.0f a freshly-constructed model would otherwise carry
-            // through to the write untouched (the Hazard-3 regression this class exists to
-            // close).
+            // No print layout configured on this viewsheet yet: seed every field at the same
+            // default viewsheet-print-layout-dialog.component.ts's own ngOnInit() uses for a
+            // brand-new model, BEFORE applying the caller's patch, so an omitted key lands on
+            // that default rather than the bare Java field default (0.0/0.0f/null) a
+            // freshly-constructed model would otherwise carry through to the write untouched.
+            // scaleFont was the first field this class closed this gap for (the Hazard-3
+            // regression); paperSize/margins/header-footer-from-edge are the same shape of bug --
+            // an omitted paperSize in particular resolves to PaperSize.getSize(null) => null,
+            // which persists a degenerate 0x0 page.
             printLayout = new VSPrintLayoutDialogModel();
+            // Matches viewsheet-print-layout-dialog.component.ts's ngOnInit() default verbatim,
+            // not PaperSize.getSizeStrs()[0] -- the dialog's default is a product choice, not
+            // "whichever size happens to be first in this enum", and the two should not be
+            // allowed to drift apart just because the array order changed.
+            printLayout.setPaperSize("Letter [8.5x11 in]");
+            printLayout.setMarginTop(1);
+            printLayout.setMarginBottom(1);
+            printLayout.setMarginLeft(1);
+            printLayout.setMarginRight(1);
+            printLayout.setHeaderFromEdge(0.5f);
+            printLayout.setFooterFromEdge(0.75f);
             printLayout.setScaleFont(1.0f);
          }
 
@@ -173,6 +189,38 @@ public class PrintDeviceLayoutPropertyService {
       if(name == null || name.isBlank()) {
          throw new IllegalArgumentException(
             "manage_device_layout needs a \"name\" identifying the device layout.");
+      }
+
+      // viewsheet-device-layout-dialog.component.ts's own duplicateName() and
+      // form-validators.ts's validLayoutName refuse these client-side, but neither backend path
+      // re-checks them, so a non-Angular caller could otherwise write either. Create-only,
+      // matching the dialog: this tool cannot rename an existing layout (name IS its identity),
+      // so update/delete never introduce a new name value.
+      if("create".equals(normalizedAction)) {
+         if("Master".equals(name)) {
+            throw new IllegalArgumentException(
+               "manage_device_layout: \"name\" cannot be \"Master\" -- that name is reserved " +
+               "for the viewsheet's own Master view.");
+         }
+
+         // The dialog's reservedName() blocks a second reserved literal too: the print layout's
+         // own display name, "_#(js:Print Layout)" in Angular -- resolved through the same
+         // Catalog mechanism server-side, so this stays correct if a translation for the key is
+         // ever added (today it falls back to the literal "Print Layout", matching what the
+         // dialog currently shows in every locale this community edition ships).
+         String reservedPrintLayoutName = Catalog.getCatalog(user).getString("Print Layout");
+
+         if(reservedPrintLayoutName.equals(name)) {
+            throw new IllegalArgumentException(
+               "manage_device_layout: \"name\" cannot be \"" + name + "\" -- that name is " +
+               "reserved for the viewsheet's print layout.");
+         }
+
+         if(DEVICE_LAYOUT_INVALID_NAME_CHARS.matcher(name).find()) {
+            throw new IllegalArgumentException(
+               "manage_device_layout: \"name\" contains a character StyleBI does not allow in " +
+               "a layout name (/ \\ % ^ ~ < > * | ? \" ,) -- got \"" + name + "\".");
+         }
       }
 
       List<String> selectedDevices = asStringList(safePatch.get("selectedDevices"));
@@ -400,6 +448,10 @@ public class PrintDeviceLayoutPropertyService {
    }
 
    private static final Set<String> VALID_ACTIONS = Set.of("create", "update", "delete");
+
+   // Mirrors form-validators.ts's validLayoutName exactly.
+   private static final java.util.regex.Pattern DEVICE_LAYOUT_INVALID_NAME_CHARS =
+      java.util.regex.Pattern.compile("[/\\\\%^~<>*|?\",]");
 
    private final ViewsheetSessionService sessions;
    private final ViewsheetPropertyDialogService dialogService;
