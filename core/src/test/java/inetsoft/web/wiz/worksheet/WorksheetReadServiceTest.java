@@ -444,8 +444,132 @@ class WorksheetReadServiceTest {
       assertEquals(List.of("region"), tm.referencedVariables());
    }
 
+   // -------------------------------------------------------------------------
+   // Variable choices (WBS-030 / bug #76502): read_worksheet_model never surfaced a variable's
+   // "Values" picker -- readVariable() only read alias/type/default, never choices/values/
+   // tableName/labelAttribute/valueAttribute/displayStyle. These round-trip through the real
+   // applyVariableChoices mutator so each fixture exercises the exact object shape the write
+   // path produces, not a hand-built AssetVariable that might miss a field the mutator sets.
+   // -------------------------------------------------------------------------
+
+   @Test
+   void variableWithEmbeddedChoicesRoundTripsThroughChoicesModel() {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly va = new DefaultVariableAssembly(ws, "region");
+      AssetVariable var = new AssetVariable("region");
+      va.setVariable(var);
+      ws.addAssembly(va);
+
+      WorksheetMutationSupport.applyVariableChoices(ws, var,
+         new WorksheetMutationSupport.VariableChoicesSpec(
+            List.of("east", "west"), List.of("East Region", "West Region"),
+            null, null, null, "list"));
+
+      WorksheetModel.ChoicesModel choices = variableNamed(read(ws), "region").choices();
+      assertNotNull(choices);
+      assertEquals(List.of("east", "west"), choices.values());
+      assertEquals(List.of("East Region", "West Region"), choices.labels());
+      assertNull(choices.table());
+      assertNull(choices.labelColumn());
+      assertNull(choices.valueColumn());
+      assertEquals("list", choices.displayStyle());
+   }
+
+   @Test
+   void variableWithQueryModeChoicesRoundTripsThroughChoicesModel() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "Regions", "code", "name");
+      ws.addAssembly(t);
+
+      DefaultVariableAssembly va = new DefaultVariableAssembly(ws, "region");
+      AssetVariable var = new AssetVariable("region");
+      va.setVariable(var);
+      ws.addAssembly(va);
+
+      WorksheetMutationSupport.applyVariableChoices(ws, var,
+         new WorksheetMutationSupport.VariableChoicesSpec(
+            null, null, "Regions", "name", "code", "combobox"));
+
+      WorksheetModel.ChoicesModel choices = variableNamed(read(ws), "region").choices();
+      assertNotNull(choices);
+      assertNull(choices.values());
+      assertNull(choices.labels());
+      assertEquals("Regions", choices.table());
+      assertEquals("name", choices.labelColumn());
+      assertEquals("code", choices.valueColumn());
+      assertEquals("combobox", choices.displayStyle());
+   }
+
+   @Test
+   void variableWithNoPickerReportsNullChoices() {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly va = new DefaultVariableAssembly(ws, "region");
+      va.setVariable(new AssetVariable("region"));
+      ws.addAssembly(va);
+
+      assertNull(variableNamed(read(ws), "region").choices());
+   }
+
+   /**
+    * {@code applyVariableChoices} only clears {@code choices}/{@code values}/{@code table} when a
+    * NEW {@code values}/{@code table} source is supplied in the same call -- a caller that
+    * supplies only {@code displayStyle: "none"} (turning the picker off without resupplying or
+    * explicitly clearing its source, a very natural "turn this picker off" call, reachable as-is
+    * through {@code edit_variable}) leaves the old embedded list on the {@code AssetVariable}
+    * object untouched. The read side must not report that stale, self-contradictory combination
+    * (a fully populated picker alongside a "none" style) -- it must read back as no picker at all,
+    * matching how {@code VariableAssemblyDialogService} (the native Composer dialog's own reader)
+    * treats {@code NONE} as authoritative over any leftover {@code choices}/{@code table} data.
+    */
+   @Test
+   void variableWithDisplayStyleSetToNoneAloneReportsNullChoicesNotStaleData() {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly va = new DefaultVariableAssembly(ws, "region");
+      AssetVariable var = new AssetVariable("region");
+      va.setVariable(var);
+      ws.addAssembly(va);
+
+      WorksheetMutationSupport.applyVariableChoices(ws, var,
+         new WorksheetMutationSupport.VariableChoicesSpec(
+            List.of("east", "west"), null, null, null, null, "list"));
+
+      WorksheetMutationSupport.applyVariableChoices(ws, var,
+         new WorksheetMutationSupport.VariableChoicesSpec(null, null, null, null, null, "none"));
+
+      assertNull(variableNamed(read(ws), "region").choices());
+   }
+
+   /**
+    * {@code DATE_COMBOBOX} has no forward case in {@code parseVariableDisplayStyle} -- it is
+    * reachable only via StyleBI's native, non-agent Composer variable dialog, never via
+    * {@code add_variable}/{@code edit_variable}. The read side must still report it (as
+    * {@code "date_combobox"}) rather than silently dropping the variable or crashing.
+    */
+   @Test
+   void variableWithDateComboboxDisplayStyleReadsBackWithoutCrashing() {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly va = new DefaultVariableAssembly(ws, "asOf");
+      AssetVariable var = new AssetVariable("asOf");
+      var.setSortValue(false);
+      var.setDisplayStyle(UserVariable.DATE_COMBOBOX);
+      var.setChoices(new Object[]{ "Today", "Yesterday" });
+      var.setValues(new Object[]{ "TODAY", "YESTERDAY" });
+      va.setVariable(var);
+      ws.addAssembly(va);
+
+      WorksheetModel.ChoicesModel choices = variableNamed(read(ws), "asOf").choices();
+      assertNotNull(choices);
+      assertEquals(List.of("TODAY", "YESTERDAY"), choices.values());
+      assertEquals(List.of("Today", "Yesterday"), choices.labels());
+      assertEquals("date_combobox", choices.displayStyle());
+   }
+
    private static WorksheetModel.TableModel tableNamed(WorksheetModel m, String name) {
       return m.tables().stream().filter(t -> name.equals(t.name())).findFirst().orElseThrow();
+   }
+
+   private static WorksheetModel.VariableModel variableNamed(WorksheetModel m, String name) {
+      return m.variables().stream().filter(v -> name.equals(v.name())).findFirst().orElseThrow();
    }
 
    private static WorksheetModel read(Worksheet ws) {
