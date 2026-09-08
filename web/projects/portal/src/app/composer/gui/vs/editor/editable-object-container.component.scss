@@ -42,12 +42,16 @@
 
 // Selected-object resize handles: the object's own fill is user-designed and
 // must not be overwritten, so selection reads via a dedicated outline color
-// on the handles rather than the shared shell-primary accent.
+// on the handles rather than the shared shell-primary accent. Hollow (a card
+// surface fill with a colored ring) instead of solid-filled reads closer to
+// modern design-tool selection chrome than a solid square does.
 // !important is required: _bootstrap-override.scss's .bg-primary declares
 // background-color with !important, which always wins over a non-!important
 // rule regardless of selector specificity or source order.
 .handle.bg-primary {
-  background-color: var(--inet-composer-selected-outline) !important;
+  background-color: var(--inet-shell-surface-default) !important;
+  border: 1.5px solid var(--inet-composer-selected-outline);
+  box-sizing: border-box;
 }
 
 .active .handle {
@@ -134,7 +138,7 @@
 }
 
 .txt-primary .object  {
-  border: 2px dotted;
+  border: 2px dashed var(--inet-viz-selected-border);
 }
 
 .drop-target {
