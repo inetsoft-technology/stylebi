@@ -20,7 +20,8 @@
  * VSSlider – Single Pass
  *
  * Coverage:
- *   Group 1  - verticalCenter formula: max(17, min(ceil(h/2), h-36)) — all three clamp branches
+ *   Group 1  - verticalCenter formula: max(currentVisible ? VALUE_LABEL_CLEARANCE=33 :
+ *              HANDLE_CLEARANCE=9, min(ceil(h/2), h-LABEL_BOTTOM_OFFSET=27)) — all clamp branches
  *   Group 2  - getValueX linear interpolation: value=min→0; value=max→lineWidth; midpoint→half
  *   Group 3  - getLabel: currentLabel≠previousLabel returns currentLabel; equal → numeric from position
  *   Group 4  - mouseDown/mouseUp lifecycle: isMouseDown set; mouseUp triggers applySelection+reset
@@ -36,8 +37,8 @@
  *              label, the text-decoration style binding, and the verticalCenter-driven wrapper
  *              top style) that cannot be observed on a directly-instantiated component.
  *
- * Model defaults: min=0, max=100, increment=20, value=50, width=200, height=60.
- * Key derived values: handlePosition=100, verticalCenter=24.
+ * Model defaults: min=0, max=100, increment=20, value=50, width=200, height=60, currentVisible=true.
+ * Key derived values: handlePosition=100, verticalCenter=33.
  */
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
@@ -68,27 +69,28 @@ describe("VSSlider", () => {
    // ─── Group 1: verticalCenter (model setter) ───────────────────────────────
 
    describe("Group 1 – verticalCenter formula", () => {
-      it("should compute verticalCenter as max(HANDLE_CLEARANCE=17, min(ceil(h/2), h-36))", () => {
+      it("should compute verticalCenter as max(VALUE_LABEL_CLEARANCE=33, min(ceil(h/2), h-27)) when currentVisible is true (default)", () => {
          const { comp } = createVSSlider();
-         // height=60: Math.max(17, Math.min(30, 24)) = 24
-         expect(comp.verticalCenter).toBe(24);
+         // height=60, currentVisible=true: Math.max(33, Math.min(30, 33)) = 33
+         expect(comp.verticalCenter).toBe(33);
       });
 
-      it("should clamp verticalCenter to HANDLE_CLEARANCE=17 for very short components", () => {
+      it("should clamp verticalCenter to HANDLE_CLEARANCE=9 for very short components when currentVisible is false", () => {
          const { comp } = createVSSlider({
+            currentVisible: false,
             objectFormat: {
                ...makeVSSliderModel().objectFormat,
-               height: 20, // 20-36=-16 < 17 → clamped to 17
+               height: 20, // 20-27=-7 < 9 → clamped to 9
             },
          } as any);
-         expect(comp.verticalCenter).toBe(17);
+         expect(comp.verticalCenter).toBe(9);
       });
 
-      it("should clamp verticalCenter to h-36 for tall components where ceil(h/2) > h-36", () => {
+      it("should clamp verticalCenter to h-27 for tall components where ceil(h/2) > h-27", () => {
          const { comp } = createVSSlider({
             objectFormat: {
                ...makeVSSliderModel().objectFormat,
-               height: 100, // Math.max(17, Math.min(50, 64)) = 50
+               height: 100, // Math.max(33, Math.min(50, 73)) = 50
             },
          } as any);
          expect(comp.verticalCenter).toBe(50);
@@ -418,7 +420,7 @@ describe("VSSlider", () => {
          fixture.detectChanges();
 
          let slider = fixture.nativeElement.querySelector("div.wrapper");
-         // verticalCenter = max(17, min(ceil(89/2)=45, 89-36=53)) = 45
+         // currentVisible=true (default): verticalCenter = max(33, min(ceil(89/2)=45, 89-27=62)) = 45
          expect(slider.style["top"]).toBe("45px");
       });
    });

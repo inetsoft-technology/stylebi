@@ -22,7 +22,7 @@
  * Risk-first coverage:
  *   Group 1 [Risk 3] - viewer click flow: global submit, pending value flush, debounced event dispatch
  *   Group 2 [Risk 2] - composer click behavior and refresh-enabled emit contract
- *   Group 3 [Risk 1] - keyboard navigation and focus color derivation
+ *   Group 3 [Risk 1] - keyboard navigation, vAlign padding calculation, and focus color derivation
  *
  * Confirmed bugs (it.fails): none
  */

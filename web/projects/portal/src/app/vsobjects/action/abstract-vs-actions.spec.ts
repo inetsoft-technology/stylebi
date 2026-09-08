@@ -48,6 +48,16 @@ describe("AbstractVSActions", () => {
    const miniToolbarService = new MiniToolbarService({runOutsideAngular: (fn: () => any) => fn()} as any);
    popService.getPopComponent.mockImplementation(() => "");
 
+   // Many tests below toggle the gate by adding viz-density-compact directly to document.body
+   // (only two of the nested describes had their own matching cleanup). Cascades to every nested
+   // describe/it in this file, so a class one test adds can never leak into the next test - in
+   // this file or, since Vitest doesn't reset document.body between spec files that share a
+   // worker, any spec file that happens to run after this one.
+   afterEach(() => {
+      document.body.classList.remove(
+         "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
+   });
+
    // AbstractVSActions is abstract; ChartActions is the cheapest concrete subclass to exercise
    // the shared createToolbarActions()/createMenuActions() logic through. Reused by later tests
    // appended to this file.

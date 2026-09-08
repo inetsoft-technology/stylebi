@@ -400,12 +400,24 @@ public class RadioButtonVSAssemblyInfo extends ListInputVSAssemblyInfo
       seedChromeDefaults(VizContext.of(this));
    }
 
+   /**
+    * Seed the modern-gated round corner. This type bypasses the base chrome hook (see
+    * VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own — form-input modernization,
+    * tracked as its own follow-on project from the card-corner work.
+    */
    @Override
    protected void seedChromeDefaults(VizContext ctx) {
       // returns at the bypass guard - this type owns its object border and radius
       super.seedChromeDefaults(ctx);
       seedInputTitleLane(ctx);
       seedInputValueInk(ctx);
+
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         objFormat.getDefaultFormat().setRoundCornerValue(
+            ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 0);
+      }
    }
 
    /**

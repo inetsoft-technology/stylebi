@@ -403,6 +403,25 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
       format.getCSSFormat().setCSSType(getObjCSSType());
       setFormat(format);
       setCSSDefaults();
+      seedChromeDefaults(VizContext.of(this));
+   }
+
+   /**
+    * Seed the modern-gated round corner. This type bypasses the base chrome hook (see
+    * VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own — form-input modernization,
+    * tracked as its own follow-on project from the card-corner work. The 0xc0c0c0 legacy
+    * border colour above is left untouched; only round corner is gate-dependent here.
+    */
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      super.seedChromeDefaults(ctx); // no-op: this type bypasses the base hook
+
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         objFormat.getDefaultFormat().setRoundCornerValue(
+            ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 0);
+      }
    }
 
    /**

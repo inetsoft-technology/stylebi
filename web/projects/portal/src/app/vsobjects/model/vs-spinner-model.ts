@@ -18,4 +18,5 @@
 import { VSNumericRangeModel } from "./vs-numeric-range-model";
 
 export interface VSSpinnerModel extends VSNumericRangeModel {
+   editing?: boolean;
 }
