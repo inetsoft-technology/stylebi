@@ -1129,6 +1129,8 @@ public class WorksheetAgentController {
       List<String> affectedViewsheets = isSaveAs
          ? connectedViewsheetIds(connectedViewsheets(oldEntry, user)) : List.of();
 
+      boolean isDuplicatedEntry = false;
+
       if(name != null && !name.isEmpty()) {
          IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
          int assetScope = "user".equalsIgnoreCase(body.scope())
@@ -1143,9 +1145,10 @@ public class WorksheetAgentController {
          // called the equivalent check, so a second save_worksheet({name:"X"}) silently
          // overwrote whatever "X" already held with no signal anything collided.
          try {
-            if(worksheetService.isDuplicatedEntry(worksheetService.getAssetRepository(), entry)
-               && !Boolean.TRUE.equals(body.confirmed()))
-            {
+            isDuplicatedEntry =
+               worksheetService.isDuplicatedEntry(worksheetService.getAssetRepository(), entry);
+
+            if(isDuplicatedEntry && !Boolean.TRUE.equals(body.confirmed())) {
                throw new PairingException(
                   "'" + name + "' already exists. Pass confirmed:true to overwrite it, or " +
                   "choose a different name.");
@@ -1179,10 +1182,13 @@ public class WorksheetAgentController {
       result.put("ok", true);
 
       // Only applies to a plain save-in-place: a Save-As writes under a brand-new entry no
-      // viewsheet points at yet (see the PVA-003 warning above for that case), and a first save
-      // out of TEMPORARY_SCOPE is likewise a brand-new entry nothing could have been pointing at
-      // before.
-      if(!isSaveAs && !wasTemporary) {
+      // viewsheet points at yet (see the PVA-003 warning above for that case). A first save out
+      // of TEMPORARY_SCOPE is usually a brand-new entry nothing could have been pointing at
+      // before too -- EXCEPT when its target name collides with (and, via confirmed:true,
+      // overwrites) an asset that is already a connected viewsheet's base entry (bug VBM-005):
+      // isDuplicatedEntry is exactly that collision signal, already computed above. Still skip
+      // the scan for a genuinely new name (isDuplicatedEntry stays false, cheaply).
+      if(!isSaveAs && (!wasTemporary || isDuplicatedEntry)) {
          // Bug PVA-011: the Composer UI's own Save button runs a "Dependencies Changed" cascade
          // after every in-place save (SaveWorksheetService.saveWorksheet(), lines 84-90) that
          // rewrites any already-saved dependent asset's (e.g. a viewsheet's) stored binding to

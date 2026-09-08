@@ -4276,6 +4276,67 @@ class WorksheetAgentControllerTest {
       verify(ws, never()).getRuntimeSheets(any());
    }
 
+   /**
+    * Regression for Bug VBM-005: a first save out of TEMPORARY_SCOPE whose target name COLLIDES
+    * with (and, via {@code confirmed:true}, overwrites) an asset that is already a connected
+    * viewsheet's base entry must still reset that viewsheet's runtime -- the sibling test above
+    * ({@code firstSaveOutOfTemporaryScopeDoesNotCheckForConnectedViewsheets}) only covers a
+    * genuinely new, non-colliding name, where skipping the scan is correct and intentional.
+    *
+    * <p>Before this fix, {@code save()}'s {@code if(!isSaveAs && !wasTemporary)} gate skipped the
+    * {@code connectedViewsheets(entry, user).resetRuntime()} scan unconditionally whenever
+    * {@code wasTemporary} was true, regardless of whether the target name collided with an
+    * already-connected viewsheet's base worksheet -- leaving that viewsheet silently serving stale
+    * data forever, with {@code ok:true} on every step and no warning anywhere. The fix makes the
+    * {@code wasTemporary} half of the gate collision-aware via the already-computed
+    * {@code isDuplicatedEntry} check.
+    */
+   @Test
+   void firstSaveOutOfTemporaryScopeResetsConnectedViewsheetOnCollision() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.WORKSHEET, "__TEMPORARY__/ws-2", null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(tempEntry);
+      when(rws.getWorksheet()).thenReturn(new Worksheet());
+      when(rws.getCurrent()).thenReturn(0);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-SAVE3-COLLIDE"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-3-collide"));
+
+      // The target entry this save writes to -- already the base entry of a connected viewsheet.
+      AssetEntry targetEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(targetEntry);
+      RuntimeViewsheet connectedRvs = mock(RuntimeViewsheet.class);
+      when(connectedRvs.getViewsheet()).thenReturn(vs);
+      when(connectedRvs.getUser()).thenReturn(agent);
+
+      WorksheetService ws = mock(WorksheetService.class);
+      when(ws.getRuntimeSheets(any())).thenReturn(new RuntimeSheet[]{ connectedRvs });
+      when(ws.isDuplicatedEntry(any(), any())).thenReturn(true);
+
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
+
+      Map<String, Object> result;
+
+      try(MockedStatic<DependencyTool> dependencyTool = mockStatic(DependencyTool.class)) {
+         dependencyTool.when(() -> DependencyTool.getDependencies(anyString())).thenReturn(List.of());
+
+         result = ctrl.save("TOK-SAVE3-COLLIDE",
+            new WorksheetAgentController.SaveRequest("Orders WS", null, true), agent);
+      }
+
+      assertEquals(Boolean.TRUE, result.get("ok"));
+      verify(connectedRvs).resetRuntime();
+   }
+
    // ---------------------------------------------------------------------------
    // save -- L2-Group10: duplicate-name/overwrite confirmation, control-char sanitization
    // ---------------------------------------------------------------------------
