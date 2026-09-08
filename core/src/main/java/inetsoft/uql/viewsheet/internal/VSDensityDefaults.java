@@ -21,15 +21,17 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.internal.AssetUtil;
 
 /**
- * Resolves the default row/header height for viewsheet data-surface assemblies from the
- * org-scoped modern-visualization density mode. Applied only where the assembly still carries
- * the legacy default; user-set heights always win and must be checked by the caller.
+ * Resolves the default row/header/control height for viewsheet assemblies from the org-scoped
+ * modern-visualization density mode. Applied only where the assembly still carries the legacy
+ * default; user-set heights always win and must be checked by the caller.
  *
  * The height matrix matches the browser-DOM density tokens in _viz-tokens.scss so the live
- * model, export, and non-assembly DOM surfaces agree. Dense equals AssetUtil.defh, so enabling
- * modern at the default mode reflows nothing for a type whose legacy default is AssetUtil.defh.
- * A marked calendar is the exception - its legacy title lane has always been taller, so it
- * shrinks to the dense height.
+ * model, export, and non-assembly DOM surfaces agree. Dense equals AssetUtil.defh for row/header/
+ * title height, so enabling modern at the default mode reflows nothing for a data-surface type
+ * whose legacy default is AssetUtil.defh. A marked calendar is the exception - its legacy title
+ * lane has always been taller, so it shrinks to the dense height. Control height is the one
+ * exception to dense parity by design: a standalone form input reads as cramped at the tightest
+ * data-row height, so it steps up even at dense (see controlHeight()).
  */
 public final class VSDensityDefaults {
    private VSDensityDefaults() {
@@ -108,6 +110,31 @@ public final class VSDensityDefaults {
    }
 
    /**
+    * Default height for a modern form-input control (checkbox, combo box, spinner, text input),
+    * or the legacy default when not modern. Unlike row/header height, dense does not equal
+    * AssetUtil.defh here: a standalone control needs a bit more room than a data row even at the
+    * tightest density, matching the browser's --inet-viz-control-height token. Applied only at
+    * creation, to the type's own legacy default dimension - never to an author-resized control.
+    */
+   public static int controlHeight(VizContext ctx) {
+      return ctx.modern ? controlHeightForMode(ctx.density) : AssetUtil.defh;
+   }
+
+   /**
+    * Whether height matches one of the three density-derived control heights (24/28/30) at any
+    * tier, regardless of the org's current density. Used to revert a modernized control's height
+    * back to AssetUtil.defh when its mark is cleared - unlike round corner, a control's Dimension
+    * has no separate user-override tier to fall back on, so this is a best-effort substitute: a
+    * control an author manually resized to exactly one of these three pixel values is also reset.
+    * Accepted because leaving every modernized control's height permanently changed on Revert is
+    * worse than that narrow false positive.
+    */
+   public static boolean isControlHeight(int height) {
+      return height == controlHeightForMode(DENSE) || height == controlHeightForMode(COMPACT) ||
+         height == controlHeightForMode(COMFORTABLE);
+   }
+
+   /**
     * Title-lane height for one assembly: the density row when the assembly is marked, its author
     * has not set a height, and the stored height is still the type's pre-density default;
     * otherwise the stored height unchanged. The stored height is a parameter so a composer dialog
@@ -165,6 +192,20 @@ public final class VSDensityDefaults {
          return 26;
       default:
          return AssetUtil.defh;
+      }
+   }
+
+   /**
+    * Form-input control height for a density mode. Unrecognized modes fall back to dense.
+    */
+   static int controlHeightForMode(String mode) {
+      switch(mode) {
+      case COMFORTABLE:
+         return 30;
+      case COMPACT:
+         return 28;
+      default:
+         return 24;
       }
    }
 
