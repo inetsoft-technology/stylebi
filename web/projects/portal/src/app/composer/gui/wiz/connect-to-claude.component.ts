@@ -19,12 +19,22 @@ import { Component, Input, NgZone, OnChanges, OnDestroy, OnInit, SimpleChanges }
 import { NgIf } from "@angular/common";
 import { ClipboardModule } from "ngx-clipboard";
 import { Subscription } from "rxjs";
-import { take } from "rxjs/operators";
+import { filter, take, timeout } from "rxjs/operators";
 import { StompClientConnection } from "../../../../../../shared/stomp/stomp-client-connection";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { EditorContext } from "./editor-context";
 import { FollowFocusService } from "./services/follow-focus.service";
 import { FormsModule } from "@angular/forms";
+
+/**
+ * Backstop for `requestCode()`'s wait on `whenConnected()`, independent of the
+ * `connectionError()` subscription below it. `connected`/`connectionErrorSubject` are both
+ * ReplaySubjects that a broken socket can simply never push to again (see stomp-client.ts
+ * `reconnect()`), which would otherwise leave `loading` true forever with no error. 30s is
+ * comfortably longer than a normal connect or a single 10s reconnect retry, so it only fires
+ * on a connection that is genuinely stuck.
+ */
+const MINT_CONNECT_TIMEOUT_MS = 30000;
 
 @Component({
    selector: "wiz-connect-to-claude",
@@ -64,6 +74,24 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
     * it would later open `joinedSubscription` on behalf of a component that no longer exists.
     */
    private connectSubscription: Subscription | null = null;
+   /**
+    * The `connectionError()` listener opened for the current `requestCode()` call. Torn down as
+    * soon as that call settles (mint response, error, or timeout) or a new one starts, so a
+    * connection problem that happens long after this call resolved does not retroactively set
+    * `error` on an unrelated, possibly-already-successful request.
+    */
+   private connectErrorSubscription: Subscription | null = null;
+   /**
+    * The `whenConnected()`/`timeout()` listener opened for the current `requestCode()` call --
+    * `connectErrorSubscription`'s racing sibling. Both listen for the SAME `requestCode()` call to
+    * settle, from opposite outcomes, so each must cancel the other the instant it wins: without
+    * this, a `connectionError()` firing first (error shown, loading cleared) left this listener
+    * live, and a socket that then self-healed within the timeout window could still resolve it,
+    * send the mint request, and set `code` -- leaving the stale error and a freshly-minted code
+    * shown together. Torn down everywhere `connectErrorSubscription` is (a fresh `requestCode()`
+    * call, a `runtimeId` change, or destroy), plus by its own two outcomes below.
+    */
+   private connectWaitSubscription: Subscription | null = null;
    /**
     * The `editorContext` that was actually SENT with the mint that produced `code` -- captured
     * when the code comes back, and what `detach()` sends.
@@ -171,6 +199,16 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
             this.mintSubscription.unsubscribe();
             this.mintSubscription = null;
          }
+
+         if(this.connectErrorSubscription) {
+            this.connectErrorSubscription.unsubscribe();
+            this.connectErrorSubscription = null;
+         }
+
+         if(this.connectWaitSubscription) {
+            this.connectWaitSubscription.unsubscribe();
+            this.connectWaitSubscription = null;
+         }
       }
    }
 
@@ -183,44 +221,106 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       this.hasMinted = false;
       this.currentTarget = null;
 
+      if(this.connectErrorSubscription) {
+         this.connectErrorSubscription.unsubscribe();
+         this.connectErrorSubscription = null;
+      }
+
+      if(this.connectWaitSubscription) {
+         this.connectWaitSubscription.unsubscribe();
+         this.connectWaitSubscription = null;
+      }
+
       // Read ONCE, here, and carry this exact value through to the response handler: the getters
       // that supply it are live, so re-reading it later (in detach, or even in this same
       // subscribe callback) can yield a context the server never saw. See mintedEditorContext.
       const requestedContext = this.editorContext;
 
-      this.socketConnection.whenConnected().pipe(take(1)).subscribe((conn: StompClientConnection) => {
-         const sub = conn.subscribe("/user/commands/wiz/pairing/mint", (msg: any) => {
-            sub.unsubscribe();
-            this.mintSubscription = null;
-            this.zone.run(() => {
-               this.loading = false;
-
-               try {
-                  const body = JSON.parse(msg.frame.body);
-
-                  if(body.code) {
-                     this.code = body.code;
-                     this.mintedEditorContext = requestedContext ?? null;
-                     this.hasMinted = true;
-                  }
-                  else {
-                     this.error = body.error ?? "Failed to generate pairing code";
-                  }
-               }
-               catch(e) {
-                  this.error = "Failed to generate pairing code";
-               }
-            });
+      // whenConnected() only ever emits on a SUCCESSFUL connect -- a socket that fails or keeps
+      // failing to (re)connect (see stomp-client.ts reconnect()) never pushes to it at all, so
+      // without this listener a broken socket left `loading` true and `error` unset forever.
+      // connectionError() is the sibling stream that DOES fire on that path.
+      this.connectErrorSubscription = this.socketConnection.connectionError().pipe(
+         filter((message) => message != null)
+      ).subscribe((message) => {
+         this.zone.run(() => {
+            this.loading = false;
+            this.error = message;
          });
-         this.mintSubscription = sub;
 
-         const payload: any = { runtimeId: this.runtimeId, sheetType: this.sheetType };
-
-         if(requestedContext) {
-            payload.editorContext = requestedContext;
+         if(this.connectErrorSubscription) {
+            this.connectErrorSubscription.unsubscribe();
+            this.connectErrorSubscription = null;
          }
 
-         conn.send("/events/wiz/pairing/mint", {}, JSON.stringify(payload));
+         // connectionError() won the race: cancel the sibling whenConnected()/timeout() listener
+         // below so a socket that self-heals moments later cannot still resolve it, send the
+         // mint request, and set `code` next to this stale error.
+         if(this.connectWaitSubscription) {
+            this.connectWaitSubscription.unsubscribe();
+            this.connectWaitSubscription = null;
+         }
+      });
+
+      this.connectWaitSubscription = this.socketConnection.whenConnected().pipe(
+         take(1), timeout(MINT_CONNECT_TIMEOUT_MS)
+      ).subscribe({
+         next: (conn: StompClientConnection) => {
+            this.connectWaitSubscription = null;
+
+            if(this.connectErrorSubscription) {
+               this.connectErrorSubscription.unsubscribe();
+               this.connectErrorSubscription = null;
+            }
+
+            const sub = conn.subscribe("/user/commands/wiz/pairing/mint", (msg: any) => {
+               sub.unsubscribe();
+               this.mintSubscription = null;
+               this.zone.run(() => {
+                  this.loading = false;
+
+                  try {
+                     const body = JSON.parse(msg.frame.body);
+
+                     if(body.code) {
+                        this.code = body.code;
+                        this.mintedEditorContext = requestedContext ?? null;
+                        this.hasMinted = true;
+                     }
+                     else {
+                        this.error = body.error ?? "Failed to generate pairing code";
+                     }
+                  }
+                  catch(e) {
+                     this.error = "Failed to generate pairing code";
+                  }
+               });
+            });
+            this.mintSubscription = sub;
+
+            const payload: any = { runtimeId: this.runtimeId, sheetType: this.sheetType };
+
+            if(requestedContext) {
+               payload.editorContext = requestedContext;
+            }
+
+            conn.send("/events/wiz/pairing/mint", {}, JSON.stringify(payload));
+         },
+         error: () => {
+            // Only reachable via the timeout() backstop -- connectionError() above cancels this
+            // subscription (see connectWaitSubscription) before this could ever race it.
+            this.connectWaitSubscription = null;
+
+            if(this.connectErrorSubscription) {
+               this.connectErrorSubscription.unsubscribe();
+               this.connectErrorSubscription = null;
+            }
+
+            this.zone.run(() => {
+               this.loading = false;
+               this.error = "Timed out connecting to the server. Please try again.";
+            });
+         }
       });
    }
 
@@ -352,6 +452,16 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       if(this.mintSubscription) {
          this.mintSubscription.unsubscribe();
          this.mintSubscription = null;
+      }
+
+      if(this.connectErrorSubscription) {
+         this.connectErrorSubscription.unsubscribe();
+         this.connectErrorSubscription = null;
+      }
+
+      if(this.connectWaitSubscription) {
+         this.connectWaitSubscription.unsubscribe();
+         this.connectWaitSubscription = null;
       }
 
       // Releases the outer whenConnected() wait itself, not just what it produces -- otherwise a
