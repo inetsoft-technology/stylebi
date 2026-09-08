@@ -1549,31 +1549,8 @@ public class WorksheetEditService {
                   (otherCount == 1 ? "" : "s") + ".");
             }
 
-            for(int c = 0; c < colCount; c++) {
-               // Read the type off DataRef rather than narrowing to ColumnRef: skipping a position
-               // whose ref is some other kind would silently leave it unchecked, which is the very
-               // failure this validation exists to prevent.
-               DataRef first = firstColumns.getAttribute(c);
-               DataRef other = otherColumns.getAttribute(c);
-               String ftype = first.getDataType();
-               String otype = other.getDataType();
-
-               // isMergeable dereferences both arguments; a ref with no type at all is not
-               // something this check can speak to, so leave it to the server.
-               if(ftype == null || otype == null) {
-                  continue;
-               }
-
-               if(!AssetUtil.isMergeable(ftype, otype)) {
-                  throw new PairingException(
-                     "Columns are concatenated by position, and position " + (c + 1) +
-                     " does not line up: \"" + sources[0].getName() + "\" has \"" +
-                     first.getAttribute() + "\" (" + ftype + ") while \"" + sources[i].getName() +
-                     "\" has \"" + other.getAttribute() + "\" (" + otype + "), and those types " +
-                     "cannot be merged. Reorder the columns so matching ones share a position, " +
-                     "or change one column's type with change_column_type.");
-               }
-            }
+            checkColumnTypesLineUp(firstColumns, sources[0].getName(),
+                                    otherColumns, sources[i].getName(), colCount);
          }
 
          // Build one operator per adjacent pair.
@@ -1597,6 +1574,49 @@ public class WorksheetEditService {
          ConcatenatedTableAssembly ctbl =
             new ConcatenatedTableAssembly(ws, name, sources, operators);
          placeAssembly(ctbl);
+      }
+
+      /**
+       * Validates that column {@code c} of {@code anchorColumns} is mergeable with column
+       * {@code c} of {@code otherColumns}, for every {@code c} in {@code [0, colCount)}. Shared
+       * by {@link #addConcatenation} and {@link #addConcatSubtable}, which both concatenate by
+       * position and therefore both need the same per-column type gate -- see the comment on
+       * {@link #addConcatenation}'s own call site for why anchoring the comparison choice does
+       * not matter.
+       *
+       * @throws PairingException naming the 1-based position and both column names/types, if any
+       *                          position does not line up.
+       */
+      private static void checkColumnTypesLineUp(ColumnSelection anchorColumns, String anchorName,
+                                                  ColumnSelection otherColumns, String otherName,
+                                                  int colCount)
+         throws PairingException
+      {
+         for(int c = 0; c < colCount; c++) {
+            // Read the type off DataRef rather than narrowing to ColumnRef: skipping a position
+            // whose ref is some other kind would silently leave it unchecked, which is the very
+            // failure this validation exists to prevent.
+            DataRef anchor = anchorColumns.getAttribute(c);
+            DataRef other = otherColumns.getAttribute(c);
+            String atype = anchor.getDataType();
+            String otype = other.getDataType();
+
+            // isMergeable dereferences both arguments; a ref with no type at all is not
+            // something this check can speak to, so leave it to the server.
+            if(atype == null || otype == null) {
+               continue;
+            }
+
+            if(!AssetUtil.isMergeable(atype, otype)) {
+               throw new PairingException(
+                  "Columns are concatenated by position, and position " + (c + 1) +
+                  " does not line up: \"" + anchorName + "\" has \"" + anchor.getAttribute() +
+                  "\" (" + atype + ") while \"" + otherName + "\" has \"" + other.getAttribute() +
+                  "\" (" + otype + "), and those types cannot be merged. Reorder the columns so " +
+                  "matching ones share a position, or change one column's type with " +
+                  "change_column_type.");
+            }
+         }
       }
 
       /**
@@ -2593,8 +2613,10 @@ public class WorksheetEditService {
          }
 
          // Validate column count matches existing subtables.
-         int colCount = existing[0].getColumnSelection(true).getAttributeCount();
-         int newCount = newTable.getColumnSelection(true).getAttributeCount();
+         ColumnSelection anchorColumns = existing[0].getColumnSelection(true);
+         ColumnSelection newColumns = newTable.getColumnSelection(true);
+         int colCount = anchorColumns.getAttributeCount();
+         int newCount = newColumns.getAttributeCount();
 
          if(newCount != colCount) {
             throw new PairingException(
@@ -2602,6 +2624,13 @@ public class WorksheetEditService {
                "concatenated. Existing subtables have " + colCount +
                " columns but \"" + tableName + "\" has " + newCount + ".");
          }
+
+         // Validate column types line up by position against the existing subtables' anchor
+         // column list, mirroring addConcatenation's check -- see checkColumnTypesLineUp for why
+         // comparing against existing[0] rather than the immediately preceding subtable is
+         // equivalent.
+         checkColumnTypesLineUp(anchorColumns, existing[0].getName(), newColumns, tableName,
+                                 colCount);
 
          TableAssembly[] updated = new TableAssembly[existing.length + 1];
          System.arraycopy(existing, 0, updated, 0, existing.length);
