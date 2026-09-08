@@ -1931,7 +1931,7 @@ class WorksheetAgentControllerTest {
    // ---------------------------------------------------------------------------
 
    /** Builds a {@code set_variable_values} EditRequest that routes to setVariableValues(). */
-   private static EditRequest setVariableValuesRequest(Map<String, String> variableValues) {
+   private static EditRequest setVariableValuesRequest(Map<String, Object> variableValues) {
       return new EditRequest(
          "set_variable_values", null, null, null, null, null, null, null, null, null,
          null, null, null, false,
@@ -2087,6 +2087,292 @@ class WorksheetAgentControllerTest {
       ArgumentCaptor<VariableTable> captor = ArgumentCaptor.forClass(VariableTable.class);
       verify(box).refreshVariableTable(captor.capture());
       assertEquals("AnythingGoes", captor.getValue().get("FreeVar"));
+   }
+
+   @Test
+   void setVariableValuesSingleStringValueOnMultiSelectVariableStillWorks() throws Exception {
+      // WBS-029 regression guard: a plain string on a checkboxes/list variable must keep
+      // behaving exactly as before -- a multi-select variable still accepts exactly one value
+      // via a plain string, unconditionally on display style.
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      boundedChoiceVariable(ws, "Reasons", XSchema.STRING,
+         new Object[] {"Item defective", "No longer needed"}, UserVariable.CHECKBOXES);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SVV5"), any())).thenReturn(session("TOK-SVV5"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.edit("TOK-SVV5",
+         setVariableValuesRequest(Map.of("Reasons", "Item defective")), agent);
+
+      ArgumentCaptor<VariableTable> captor = ArgumentCaptor.forClass(VariableTable.class);
+      verify(box).refreshVariableTable(captor.capture());
+      assertEquals("Item defective", captor.getValue().get("Reasons"));
+   }
+
+   @Test
+   void setVariableValuesArrayOfTwoValuesOnCheckboxesVariableSucceeds() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      boundedChoiceVariable(ws, "Reasons", XSchema.STRING,
+         new Object[] {"Item defective", "No longer needed", "Other"}, UserVariable.CHECKBOXES);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SVV6"), any())).thenReturn(session("TOK-SVV6"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.edit("TOK-SVV6", setVariableValuesRequest(
+         Map.of("Reasons", List.of("Item defective", "No longer needed"))), agent);
+
+      ArgumentCaptor<VariableTable> captor = ArgumentCaptor.forClass(VariableTable.class);
+      verify(box).refreshVariableTable(captor.capture());
+      Object value = captor.getValue().get("Reasons");
+      assertInstanceOf(Object[].class, value, "a genuine multi-value assignment must be an array");
+      assertArrayEquals(new Object[] {"Item defective", "No longer needed"}, (Object[]) value);
+      assertTrue(captor.getValue().isAsIs("Reasons"),
+         "asIs must be set so a downstream ONE_OF condition doesn't re-split each element");
+   }
+
+   @Test
+   void setVariableValuesArrayOfTwoValuesOnListVariableSucceeds() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      boundedChoiceVariable(ws, "Region", XSchema.STRING,
+         new Object[] {"East", "West", "North"}, UserVariable.LIST);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SVV7"), any())).thenReturn(session("TOK-SVV7"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.edit("TOK-SVV7",
+         setVariableValuesRequest(Map.of("Region", List.of("East", "West"))), agent);
+
+      ArgumentCaptor<VariableTable> captor = ArgumentCaptor.forClass(VariableTable.class);
+      verify(box).refreshVariableTable(captor.capture());
+      Object value = captor.getValue().get("Region");
+      assertInstanceOf(Object[].class, value);
+      assertArrayEquals(new Object[] {"East", "West"}, (Object[]) value);
+   }
+
+   @Test
+   void setVariableValuesArrayWithOneInvalidTokenIsRejectedNamingThatToken() throws Exception {
+      // The literal "each token checked individually, not the whole joined string as one
+      // candidate" fix -- the second element is bad, and must be named specifically, not the
+      // first element or the whole array.
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      boundedChoiceVariable(ws, "Reasons", XSchema.STRING,
+         new Object[] {"Item defective", "No longer needed"}, UserVariable.CHECKBOXES);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SVV8"), any())).thenReturn(session("TOK-SVV8"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit("TOK-SVV8",
+         setVariableValuesRequest(Map.of(
+            "Reasons", List.of("Item defective", "Not a real reason"))), agent));
+      assertTrue(ex.getMessage().contains("Not a real reason"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("Item defective"), ex.getMessage());
+   }
+
+   @Test
+   void setVariableValuesArrayOnComboboxVariableIsRejected() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      boundedChoiceVariable(ws, "Region", XSchema.STRING,
+         new Object[] {"East", "West"}, UserVariable.COMBOBOX);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SVV9"), any())).thenReturn(session("TOK-SVV9"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit("TOK-SVV9",
+         setVariableValuesRequest(Map.of("Region", List.of("East", "West"))), agent));
+      assertTrue(ex.getMessage().contains("Region"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("combobox"), ex.getMessage());
+   }
+
+   @Test
+   void setVariableValuesSingleElementArrayTreatedAsScalarRegardlessOfStyle() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      boundedChoiceVariable(ws, "Region", XSchema.STRING,
+         new Object[] {"East", "West"}, UserVariable.COMBOBOX);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SVV10"), any())).thenReturn(session("TOK-SVV10"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.edit("TOK-SVV10",
+         setVariableValuesRequest(Map.of("Region", List.of("East"))), agent);
+
+      ArgumentCaptor<VariableTable> captor = ArgumentCaptor.forClass(VariableTable.class);
+      verify(box).refreshVariableTable(captor.capture());
+      assertEquals("East", captor.getValue().get("Region"),
+         "a 1-element array must be unwrapped to a scalar, not rejected as multi-value-on-combobox");
+   }
+
+   @Test
+   void setVariableValuesEmptyArrayIsRejected() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      variableAssemblyForValues(ws, "Region", XSchema.STRING);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SVV11"), any())).thenReturn(session("TOK-SVV11"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit("TOK-SVV11",
+         setVariableValuesRequest(Map.of("Region", List.of())), agent));
+      assertTrue(ex.getMessage().contains("Region"), ex.getMessage());
+   }
+
+   @Test
+   void setVariableValuesArrayWithNonStringElementIsRejected() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      boundedChoiceVariable(ws, "Reasons", XSchema.STRING,
+         new Object[] {"Item defective", "No longer needed"}, UserVariable.CHECKBOXES);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SVV12"), any())).thenReturn(session("TOK-SVV12"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      List<Object> reasons = new ArrayList<>();
+      reasons.add("Item defective");
+      reasons.add(42);
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit("TOK-SVV12",
+         setVariableValuesRequest(Map.of("Reasons", reasons)), agent));
+      assertTrue(ex.getMessage().contains("Integer"), ex.getMessage());
+   }
+
+   @Test
+   void setVariableValuesUnknownVariableStillRejectedWithArrayValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SVV13"), any())).thenReturn(session("TOK-SVV13"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit("TOK-SVV13",
+         setVariableValuesRequest(Map.of(
+            "TotallyNonexistentVar", List.of("a", "b"))), agent));
+      assertTrue(ex.getMessage().contains("TotallyNonexistentVar"), ex.getMessage());
    }
 
    private static DefaultVariableAssembly variableAssemblyForValues(
