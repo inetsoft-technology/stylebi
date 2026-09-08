@@ -24,6 +24,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.security.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -122,8 +123,9 @@ public class ProviderChangePlanService {
       }
 
       String task = req.getTask().trim();
+      String planHash = hash(changes, chainProjections);
       return new ResolvedPlan(task, Collections.unmodifiableList(changes), true, true,
-                              hash(changes, chainProjections));
+                              planHash, TaskAuditToken.issue(planHash, task));
    }
 
    // ---------------------------------------------------------------- create

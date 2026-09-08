@@ -132,6 +132,23 @@ public class AdminAiController {
                     "plan", ex.current());
    }
 
+   /**
+    * Maps a missing/invalid/foreign {@code taskToken} to {@code 409} carrying the current plan,
+    * the same shape {@link #handlePlanHashMismatch} uses - a caller cannot pin an audit record to
+    * a narrative it cannot prove was reviewed, so this forces a re-preview rather than accepting
+    * whatever task text (if any) the apply request itself carries.
+    */
+   @ExceptionHandler(AdminChangesetApplyService.TaskTokenMismatchException.class)
+   @ResponseStatus(HttpStatus.CONFLICT)
+   @ResponseBody
+   public Map<String, Object> handleTaskTokenMismatch(
+      AdminChangesetApplyService.TaskTokenMismatchException ex)
+   {
+      return Map.of("status", "conflict",
+                    "error", String.valueOf(ex.getMessage()),
+                    "plan", ex.current());
+   }
+
    private final AdminBackupService backupService;
    private final AdminChangePlanService planService;
    private final AdminChangesetApplyService applyService;

@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai.cluster;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.cluster.ClusterService;
 import inetsoft.web.cluster.ServerClusterClient;
 import inetsoft.web.cluster.ServerClusterStatus;
@@ -118,8 +119,9 @@ public class ClusterChangePlanService {
       requirePauseEnabled();
 
       String task = req.getTask().trim();
+      String planHash = hash(changes);
       return new ResolvedPlan(task, Collections.unmodifiableList(changes), false, true,
-                              hash(changes));
+                              planHash, TaskAuditToken.issue(planHash, task));
    }
 
    private PlanChange resolveOne(String server, String verb) {

@@ -65,7 +65,7 @@ public class AdminChangesetApplyService {
    public static class PlanHashMismatchException extends RuntimeException {
       public PlanHashMismatchException(ResolvedPlan current) {
          super("planHash: does not match the current plan; re-review before applying");
-         this.current = current;
+         this.current = withoutTaskToken(current);
       }
 
       /** The plan as it stands now, so the caller can show the operator what changed. */
@@ -74,6 +74,32 @@ public class AdminChangesetApplyService {
       }
 
       private final transient ResolvedPlan current;
+   }
+
+   /** Thrown when {@code apply} carries a missing, invalid, or foreign {@code taskToken}. */
+   public static class TaskTokenMismatchException extends RuntimeException {
+      public TaskTokenMismatchException(ResolvedPlan current, String message) {
+         super(message);
+         this.current = withoutTaskToken(current);
+      }
+
+      /** The plan as it stands now, so the caller can show the operator what to re-review. */
+      public ResolvedPlan current() {
+         return current;
+      }
+
+      private final transient ResolvedPlan current;
+   }
+
+   /**
+    * A 409 conflict response exists to show the operator what the CURRENT plan looks like so they can
+    * re-review — it must never hand back a taskToken, which would let a caller retry with an
+    * unreviewed narrative and silently defeat the whole audit-pinning mechanism this exception exists
+    * to protect.
+    */
+   private static ResolvedPlan withoutTaskToken(ResolvedPlan plan) {
+      return new ResolvedPlan(plan.task(), plan.changes(), plan.requiresStorageBackup(),
+                              plan.requiresAgentSignoff(), plan.planHash(), null);
    }
 
    /**
@@ -90,6 +116,15 @@ public class AdminChangesetApplyService {
 
          if(req.getPlanHash() == null || !plan.planHash().equals(req.getPlanHash())) {
             throw new PlanHashMismatchException(plan);
+         }
+
+         String reviewedTask;
+
+         try {
+            reviewedTask = TaskAuditToken.verify(req.getTaskToken(), plan.planHash());
+         }
+         catch(TaskAuditToken.TaskTokenException e) {
+            throw new TaskTokenMismatchException(plan, e.getMessage());
          }
 
          // Finding 5b: requiresAgentSignoff was computed by AdminChangePlanService but never
@@ -119,7 +154,7 @@ public class AdminChangesetApplyService {
             // attempted - exactly the failure mode this method exists to prevent.
             try {
                AdminChangeResult applied = changeService.applyChange(
-                  request(txId, plan.task(), change, AdminChangeRecord.ACTION_APPLY,
+                  request(txId, reviewedTask, change, AdminChangeRecord.ACTION_APPLY,
                           change.proposedValue(), backupRef, req.getReviewOutcome()),
                   user);
 
@@ -191,7 +226,7 @@ public class AdminChangesetApplyService {
          }
 
          List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
-         failures.addAll(rollback(txId, plan.task(), undoable, undoableBefore, backupRef,
+         failures.addAll(rollback(txId, reviewedTask, undoable, undoableBefore, backupRef,
                                   req.getReviewOutcome(), user));
 
          if(failures.isEmpty()) {

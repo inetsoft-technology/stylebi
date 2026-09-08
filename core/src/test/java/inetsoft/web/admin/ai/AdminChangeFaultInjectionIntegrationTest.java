@@ -18,6 +18,7 @@
 package inetsoft.web.admin.ai;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
 import inetsoft.web.admin.properties.PropertyChangeSideEffects;
 import org.junit.jupiter.api.*;
@@ -55,6 +56,7 @@ class AdminChangeFaultInjectionIntegrationTest {
    @Mock private PropertyChangeSideEffects sideEffects;
    private MockedStatic<SreeEnv> sreeEnv;
    private MockedStatic<Audit> auditStatic;
+   private MockedStatic<Tool> tool;
    private AdminChangesetApplyService service;
    private AdminChangePlanService planService;
    /**
@@ -80,6 +82,23 @@ class AdminChangeFaultInjectionIntegrationTest {
              .thenAnswer(inv -> store.put(inv.getArgument(0), inv.getArgument(1)));
       auditStatic = mockStatic(Audit.class, withSettings().strictness(Strictness.LENIENT));
       auditStatic.when(Audit::getInstance).thenReturn(mock(Audit.class));
+      // resolve() now issues a TaskAuditToken (Task 2), and apply() now verifies one (Task 4) -
+      // both reach Tool.encryptPassword/decryptPassword, which need a live Spring context outside
+      // this mock. Same reversible TKN: stand-in AdminChangesetApplyServiceTest uses.
+      tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
+         .defaultAnswer(Answers.CALLS_REAL_METHODS));
+      tool.when(() -> Tool.encryptPassword(anyString()))
+         .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+      tool.when(() -> Tool.decryptPassword(anyString()))
+         .thenAnswer(inv -> {
+            String s = inv.getArgument(0);
+
+            if(!s.startsWith("TKN:")) {
+               throw new IllegalArgumentException("not a token");
+            }
+
+            return s.substring(4);
+         });
       AdminPropertyCatalog catalog = new AdminPropertyCatalog();
       planService = new AdminChangePlanService(catalog, new AdminRiskClassifier(catalog));
       // The REAL AdminChangeService - the whole point of this test class.
@@ -90,6 +109,7 @@ class AdminChangeFaultInjectionIntegrationTest {
    @AfterEach void tearDown() {
       sreeEnv.close();
       auditStatic.close();
+      tool.close();
       System.clearProperty(FAULT_INJECTION_ENABLED_PROPERTY);
    }
 
@@ -111,7 +131,9 @@ class AdminChangeFaultInjectionIntegrationTest {
       PlanRequest probe = new PlanRequest();
       probe.setTask(task);
       probe.setChanges(changes);
-      req.setPlanHash(planService.resolve(probe).planHash());
+      ResolvedPlan resolved = planService.resolve(probe);
+      req.setPlanHash(resolved.planHash());
+      req.setTaskToken(resolved.taskToken());
       return req;
    }
 

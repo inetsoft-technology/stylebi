@@ -166,8 +166,10 @@ public class AdminChangePlanService {
       boolean signoff = changes.stream()
          .anyMatch(c -> AdminChangeRecord.RISK_HIGH.equals(c.risk()));
 
-      return new ResolvedPlan(req.getTask().trim(), Collections.unmodifiableList(changes),
-                              backup, signoff, hash(changes));
+      String planHash = hash(changes);
+      String task = req.getTask().trim();
+      return new ResolvedPlan(task, Collections.unmodifiableList(changes),
+                              backup, signoff, planHash, TaskAuditToken.issue(planHash, task));
    }
 
    /**
@@ -175,12 +177,13 @@ public class AdminChangePlanService {
     * contract: changing them invalidates every outstanding preview, which is safe (an apply is
     * refused with 409) but forces operators to re-review.
     *
-    * <p>{@code task} is deliberately excluded: it is a free-text narrative that is never compared
-    * or parsed, only carried through to {@code AdminChangesetApplyService}'s {@code writeAudit}
-    * call as {@link AdminChangeRecord#setTaskDescription}, a write-only audit label. Including it
-    * here would let two equivalent narratives describing the identical change list hash
-    * differently, forcing a spurious re-review (a false {@code PlanHashMismatchException}) even
-    * though nothing the gate actually protects has changed.
+    * <p>{@code task} is deliberately excluded from the hash: it is a free-text narrative that is
+    * never compared or parsed. {@code preview}'s own {@code task} is what a caller sees and what
+    * {@code taskToken} embeds; the apply request's own {@code task} field is now vestigial (not read
+    * for the audit record). Excluding {@code task} means two equivalent narratives describing the
+    * identical change list produce the same planHash, so a caller paraphrasing {@code task} between
+    * preview and apply never trips a spurious re-review (a false {@code PlanHashMismatchException})
+    * even though nothing the gate protects has changed.
     */
    private static String hash(List<PlanChange> changes) {
       StringBuilder canonical = new StringBuilder();

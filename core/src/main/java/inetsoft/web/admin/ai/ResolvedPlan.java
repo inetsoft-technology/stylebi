@@ -26,8 +26,11 @@ import java.util.List;
  * @param requiresAgentSignoff  true when any change is high risk.
  * @param planHash              SHA-256 over the canonical plan, including CURRENT values, so an
  *                              apply after drift is refused.
+ * @param taskToken binds {@code task} to {@code planHash} (see {@link TaskAuditToken}) so a
+ *                  caller cannot substitute a different narrative at apply time without also
+ *                  re-previewing.
  */
 public record ResolvedPlan(String task, List<PlanChange> changes, boolean requiresStorageBackup,
-                           boolean requiresAgentSignoff, String planHash)
+                           boolean requiresAgentSignoff, String planHash, String taskToken)
 {
 }

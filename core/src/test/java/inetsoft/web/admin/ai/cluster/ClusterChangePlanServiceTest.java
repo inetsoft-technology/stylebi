@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.cluster;
 
+import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -26,8 +27,11 @@ import inetsoft.web.cluster.ServerClusterClient;
 import inetsoft.web.cluster.ServerClusterStatus;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.quality.Strictness;
 
 import java.util.List;
 import java.util.Set;
@@ -47,11 +51,20 @@ class ClusterChangePlanServiceTest {
    @Mock private ClusterService clusterService;
    @Mock private ServerClusterClient client;
    private ClusterChangePlanService service;
+   private MockedStatic<Tool> tool;
 
    @BeforeEach void setUp() {
       service = new ClusterChangePlanService(clusterService, client);
       lenient().when(clusterService.getClusterEnabled())
          .thenReturn(ClusterEnabledModel.builder().enabled(true).pauseEnabled(true).build());
+      tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
+         .defaultAnswer(Answers.CALLS_REAL_METHODS));
+      tool.when(() -> Tool.encryptPassword(anyString()))
+         .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+   }
+
+   @AfterEach void tearDown() {
+      tool.close();
    }
 
    // -------------------------------------------------------------------------

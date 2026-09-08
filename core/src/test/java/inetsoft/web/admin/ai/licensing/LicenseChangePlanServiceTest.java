@@ -20,12 +20,16 @@ package inetsoft.web.admin.ai.licensing;
 import inetsoft.report.internal.license.License;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.license.LicenseType;
+import inetsoft.util.Tool;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.quality.Strictness;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -44,10 +48,20 @@ import static org.mockito.Mockito.*;
 class LicenseChangePlanServiceTest {
    @Mock private LicenseManager licenseManager;
    private LicenseChangePlanService service;
+   private MockedStatic<Tool> tool;
 
    @BeforeEach
    void setUp() {
       service = new LicenseChangePlanService(licenseManager);
+      tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
+         .defaultAnswer(Answers.CALLS_REAL_METHODS));
+      tool.when(() -> Tool.encryptPassword(anyString()))
+         .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+   }
+
+   @AfterEach
+   void tearDown() {
+      tool.close();
    }
 
    private static License license(String key, LicenseType type, LocalDateTime expires) {
