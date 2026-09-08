@@ -5725,4 +5725,80 @@ class WorksheetEditServiceMutatorsTest {
 
       assertNull(ws.getAssembly("unused"));
    }
+
+   // =========================================================================
+   // editUnpivot bound + shrink type-compatibility guard (bug 76517/WBS-036)
+   //
+   // editUnpivot had zero validation: it just called table.setHeaderColumns(headerColumns).
+   // Every unpivot execution re-derives the melt from scratch off the pre-unpivot source table
+   // (AssetUtil.unpivot), so shrinking headerColumns onto a column whose type doesn't match the
+   // melted columns silently coerced the whole melted column to STRING and injected one phantom
+   // "column name as data" row per source row -- see 01-diagnosis.md for the full trace.
+   // =========================================================================
+
+   @Test
+   void editUnpivotRejectsOutOfRangeHeaderColumns() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly src = table(ws, "S",
+         col("region", XSchema.STRING), col("q1", XSchema.DOUBLE), col("q2", XSchema.DOUBLE));
+      ws.addAssembly(src);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addUnpivot("U", "S", 1));
+
+      PairingException negative = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editUnpivot("U", -1)));
+      assertTrue(negative.getMessage().contains("-1"), negative.getMessage());
+
+      PairingException tooLarge = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editUnpivot("U", 3)));
+      assertTrue(tooLarge.getMessage().contains("3"), tooLarge.getMessage());
+
+      assertEquals(1, ((UnpivotTableAssembly) ws.getAssembly("U")).getHeaderColumns(),
+         "a rejected headerColumns change must not be applied");
+   }
+
+   @Test
+   void editUnpivotRejectsTypeIncompatibleShrink() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly src = table(ws, "S",
+         col("region", XSchema.STRING), col("category", XSchema.STRING),
+         col("q1", XSchema.DOUBLE), col("q2", XSchema.DOUBLE));
+      ws.addAssembly(src);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addUnpivot("U", "S", 2));
+
+      // Shrinking to headerColumns=1 would move "category" (string) into the melt range
+      // alongside q1/q2 (double) -- exactly the reported repro's shape.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editUnpivot("U", 1)));
+      assertTrue(ex.getMessage().contains("category"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("string"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("double"), ex.getMessage());
+
+      assertEquals(2, ((UnpivotTableAssembly) ws.getAssembly("U")).getHeaderColumns(),
+         "a rejected shrink must not be applied");
+   }
+
+   @Test
+   void editUnpivotAllowsTypeCompatibleShrink() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly src = table(ws, "S",
+         col("region", XSchema.STRING), col("num1", XSchema.DOUBLE),
+         col("num2", XSchema.DOUBLE), col("num3", XSchema.DOUBLE));
+      ws.addAssembly(src);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addUnpivot("U", "S", 2));
+
+      // Shrinking to headerColumns=1 moves "num1" (double) into a melt range that is already
+      // entirely double -- type-homogeneous, so this must still succeed.
+      svc.apply("TOK", agent, ed -> ed.editUnpivot("U", 1));
+
+      assertEquals(1, ((UnpivotTableAssembly) ws.getAssembly("U")).getHeaderColumns());
+   }
 }

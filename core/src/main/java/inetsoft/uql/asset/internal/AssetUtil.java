@@ -2720,6 +2720,75 @@ public class AssetUtil {
    }
 
    /**
+    * Checks whether shrinking an unpivot's header column count from {@code oldHcol} to a
+    * smaller {@code newHcol} would move a column into the melted range whose type is
+    * incompatible with it, using the exact {@code sameType}/{@code allNumber} rule
+    * {@link #unpivot(XTable, int)} itself applies once the melt actually executes. This lets a
+    * caller reject the shrink up front (using the source table's declared column types) instead
+    * of letting {@code unpivot} silently coerce the melted column to {@code STRING} and inject
+    * one phantom "column name as data" row per source row.
+    *
+    * @param cs      the pre-unpivot source table's column selection, in column order
+    * @param oldHcol the current header column count
+    * @param newHcol the proposed header column count
+    *
+    * @return {@code null} if the shrink is type-safe (or not actually a shrink), otherwise a
+    *         message naming the first offending column and the conflicting types
+    */
+   public static String checkUnpivotShrinkTypeConflict(ColumnSelection cs, int oldHcol, int newHcol) {
+      if(newHcol >= oldHcol) {
+         return null;
+      }
+
+      int colCount = cs.getAttributeCount();
+      String[] types = new String[colCount];
+
+      for(int i = Math.max(0, newHcol); i < colCount; i++) {
+         DataRef ref = cs.getAttribute(i);
+         types[i] = ref instanceof ColumnRef ? ((ColumnRef) ref).getDataType() : XSchema.STRING;
+      }
+
+      boolean sameType = true;
+      boolean allNumber = true;
+
+      for(int i = newHcol + 1; i < colCount; i++) {
+         String t0 = types[i - 1];
+         String t1 = types[i];
+
+         if(!XSchema.isNumericType(t0) || !XSchema.isNumericType(t1)) {
+            allNumber = false;
+         }
+
+         if(!Objects.equals(t0, t1)) {
+            sameType = false;
+         }
+      }
+
+      if(sameType || allNumber) {
+         return null;
+      }
+
+      // The melt is not incremental (it always recomputes over [newHcol, colCount)), but the
+      // columns already at [oldHcol, colCount) are the ones the caller expects to keep their
+      // current type, so they are what a departing column is judged against.
+      String meltType = oldHcol < colCount ? types[oldHcol] : null;
+
+      for(int i = newHcol; i < oldHcol; i++) {
+         String type = types[i];
+         boolean compatible = Objects.equals(type, meltType) ||
+            (XSchema.isNumericType(type) && XSchema.isNumericType(meltType));
+
+         if(!compatible) {
+            String name = cs.getAttribute(i).getName();
+            return name + " cannot move from header to melted columns: it is type '" + type +
+               "' but the melted columns are type '" + meltType + "'.";
+         }
+      }
+
+      return null;
+   }
+
+   /**
     * Unpivot: header row is changed to a column named "Dimension", and crosstab
     * cells are changed to a column called "Measure".
     */

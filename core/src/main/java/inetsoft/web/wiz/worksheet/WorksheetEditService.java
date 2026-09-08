@@ -3152,7 +3152,11 @@ public class WorksheetEditService {
        *
        * @param tableName     the UnpivotTableAssembly name
        * @param headerColumns new number of header columns (≥ 1)
-       * @throws PairingException if the assembly is not an UnpivotTableAssembly
+       * @throws PairingException if the assembly is not an UnpivotTableAssembly, headerColumns is
+       *                          out of range, or shrinking would move a column into the melted
+       *                          range whose type is incompatible with it (bug 76517/WBS-036 —
+       *                          unguarded, this silently coerced the melted column to STRING and
+       *                          injected one phantom row per source row)
        */
       public void editUnpivot(String tableName, int headerColumns) throws PairingException {
          Assembly a = ws.getAssembly(tableName);
@@ -3161,8 +3165,28 @@ public class WorksheetEditService {
             throw new PairingException("Not an unpivot table assembly: " + tableName);
          }
 
-         if(table.getHeaderColumns() == headerColumns) {
+         int oldHeaderColumns = table.getHeaderColumns();
+
+         if(oldHeaderColumns == headerColumns) {
             return; // no-op
+         }
+
+         TableAssembly src = table.getTableAssembly();
+         int colCount = src == null ? 0 : src.getColumnSelection(false).getAttributeCount();
+
+         if(headerColumns < 0 || headerColumns >= colCount) {
+            throw new PairingException(
+               "headerColumns (" + headerColumns + ") must be between 0 and " +
+               (colCount - 1) + " (table has " + colCount + " columns).");
+         }
+
+         if(headerColumns < oldHeaderColumns) {
+            String conflict = AssetUtil.checkUnpivotShrinkTypeConflict(
+               src.getColumnSelection(false), oldHeaderColumns, headerColumns);
+
+            if(conflict != null) {
+               throw new PairingException(conflict);
+            }
          }
 
          table.setHeaderColumns(headerColumns);

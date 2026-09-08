@@ -105,12 +105,31 @@ public class TableUnpivotDialogService extends WorksheetControllerService {
       }
 
       UnpivotTableAssembly table = (UnpivotTableAssembly) assembly;
+      int oldHeaderColumns = table.getHeaderColumns();
+      int newHeaderColumns = event.getModel().getLevel();
 
-      if(table.getHeaderColumns() == event.getModel().getLevel()) {
+      if(oldHeaderColumns == newHeaderColumns) {
          return null;
       }
 
-      table.setHeaderColumns(event.getModel().getLevel());
+      // Same guard as the agent API's editUnpivot (bug 76517/WBS-036): shrinking the header
+      // column count moves a column into the melted range, and AssetUtil.unpivot has no way to
+      // reject an incompatible move -- it silently coerces the melted column to STRING and
+      // injects one phantom "column name as data" row per source row.
+      if(newHeaderColumns < oldHeaderColumns) {
+         TableAssembly src = table.getTableAssembly();
+
+         if(src != null) {
+            String conflict = AssetUtil.checkUnpivotShrinkTypeConflict(
+               src.getColumnSelection(false), oldHeaderColumns, newHeaderColumns);
+
+            if(conflict != null) {
+               throw new MessageException(conflict);
+            }
+         }
+      }
+
+      table.setHeaderColumns(newHeaderColumns);
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
       TableModeService.setDefaultTableMode(table, box);
       WorksheetEventUtil.createAssembly(rws, table, commandDispatcher, principal);
