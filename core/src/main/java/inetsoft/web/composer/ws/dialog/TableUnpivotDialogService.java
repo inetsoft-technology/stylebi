@@ -112,20 +112,30 @@ public class TableUnpivotDialogService extends WorksheetControllerService {
          return null;
       }
 
+      TableAssembly src = table.getTableAssembly();
+      int colCount = src == null ? 0 : src.getColumnSelection(false).getAttributeCount();
+
+      // Same bound check as the agent API's editUnpivot (bug 76517/WBS-036). Unlike editUnpivot,
+      // this Composer UI call site had no validation on the level value it receives from
+      // WSUnpivotDialogEvent at all, so an out-of-range level fell straight through to
+      // AssetUtil.checkUnpivotShrinkTypeConflict and threw an uncaught
+      // ArrayIndexOutOfBoundsException instead of this friendly message.
+      if(newHeaderColumns < 0 || newHeaderColumns >= colCount) {
+         throw new MessageException(
+            "headerColumns (" + newHeaderColumns + ") must be between 0 and " +
+            (colCount - 1) + " (table has " + colCount + " columns).");
+      }
+
       // Same guard as the agent API's editUnpivot (bug 76517/WBS-036): shrinking the header
       // column count moves a column into the melted range, and AssetUtil.unpivot has no way to
       // reject an incompatible move -- it silently coerces the melted column to STRING and
       // injects one phantom "column name as data" row per source row.
-      if(newHeaderColumns < oldHeaderColumns) {
-         TableAssembly src = table.getTableAssembly();
+      if(newHeaderColumns < oldHeaderColumns && src != null) {
+         String conflict = AssetUtil.checkUnpivotShrinkTypeConflict(
+            src.getColumnSelection(false), oldHeaderColumns, newHeaderColumns);
 
-         if(src != null) {
-            String conflict = AssetUtil.checkUnpivotShrinkTypeConflict(
-               src.getColumnSelection(false), oldHeaderColumns, newHeaderColumns);
-
-            if(conflict != null) {
-               throw new MessageException(conflict);
-            }
+         if(conflict != null) {
+            throw new MessageException(conflict);
          }
       }
 

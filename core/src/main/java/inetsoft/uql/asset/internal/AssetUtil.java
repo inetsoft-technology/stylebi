@@ -2741,9 +2741,18 @@ public class AssetUtil {
       }
 
       int colCount = cs.getAttributeCount();
+
+      // An out-of-range newHcol isn't this helper's bound-check to enforce -- that's the
+      // caller's job (e.g. WorksheetEditService.editUnpivot's own headerColumns check) -- but it
+      // also isn't a type conflict this helper can meaningfully answer, so treat it as no
+      // conflict rather than indexing types[] with it below.
+      if(newHcol < 0 || newHcol >= colCount) {
+         return null;
+      }
+
       String[] types = new String[colCount];
 
-      for(int i = Math.max(0, newHcol); i < colCount; i++) {
+      for(int i = newHcol; i < colCount; i++) {
          DataRef ref = cs.getAttribute(i);
          types[i] = ref instanceof ColumnRef ? ((ColumnRef) ref).getDataType() : XSchema.STRING;
       }
