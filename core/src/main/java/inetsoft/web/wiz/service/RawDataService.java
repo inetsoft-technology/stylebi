@@ -85,10 +85,21 @@ public class RawDataService {
          throw new RuntimeException("Table " + tableName + " not found.");
       }
 
-      TableLens lens =
-         box.getTableLens(targetTable.getAbsoluteName(), AssetQuerySandbox.RUNTIME_MODE);
+      TableLens lens;
 
-      writeCsvContent(lens, outputStream);
+      try {
+         lens = box.getTableLens(targetTable.getAbsoluteName(), AssetQuerySandbox.RUNTIME_MODE);
+
+         if(lens == null) {
+            throw new RuntimeException("Table " + tableName + " produced no data.");
+         }
+
+         writeCsvContent(lens, outputStream);
+      }
+      catch(RuntimeException e) {
+         throw new RuntimeException(
+            "Failed to export worksheet table '" + tableName + "': " + e.getMessage(), e);
+      }
    }
 
    public void writeDataSourceTableCsvStream(ExportDatabaseTableToCsvRequest requestData,
