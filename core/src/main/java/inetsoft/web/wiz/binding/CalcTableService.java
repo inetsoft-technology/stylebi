@@ -711,7 +711,7 @@ public class CalcTableService {
          clauses.add(new ConditionVocabulary.Clause(
             column, String.valueOf(clause.get("operator")), values,
             junction == null ? null : String.valueOf(junction),
-            Boolean.TRUE.equals(clause.get("negated"))));
+            Boolean.TRUE.equals(clause.get("negated")), false, 0));
       }
 
       return clauses;
