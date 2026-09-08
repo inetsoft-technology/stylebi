@@ -22,6 +22,8 @@ import inetsoft.web.WebConfig;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -71,5 +73,38 @@ class EditRequestParametersDeserializationTest {
 
       assertEquals("Repository Issue Events", req.endpoint());
       assertNull(req.parameters());
+   }
+
+   /**
+    * WBS-029 (bug 76502): {@code variableValues} is now {@code Map<String, Object>} so a JSON
+    * array can bind to a genuine multi-value assignment. Confirms the real app
+    * {@code ObjectMapper}'s default binding for an untyped {@code Object} map value -- a plain
+    * JSON string stays a {@code String} (single-value callers unaffected), and a JSON array of
+    * strings becomes a {@code List<String>} (specifically an {@code ArrayList}), not some other
+    * unexpected runtime shape -- before {@code WorksheetAgentController.setVariableValues} is
+    * considered complete (see design's flagged, not-live-verified risk).
+    */
+   @Test
+   void deserializesVariableValuesStringAndArrayShapes() throws Exception {
+      EditRequest req = mapper.readValue("""
+         {
+           "op": "set_variable_values",
+           "variableValues": {
+             "Region": "East",
+             "Reasons": ["Item defective", "No longer needed"]
+           }
+         }
+         """, EditRequest.class);
+
+      assertNotNull(req.variableValues());
+      assertEquals("East", req.variableValues().get("Region"));
+
+      Object reasons = req.variableValues().get("Reasons");
+      assertInstanceOf(List.class, reasons);
+      assertEquals(List.of("Item defective", "No longer needed"), reasons);
+
+      for(Object element : (List<?>) reasons) {
+         assertInstanceOf(String.class, element);
+      }
    }
 }

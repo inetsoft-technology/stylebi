@@ -463,7 +463,7 @@ public class WorksheetReadService {
          return null;
       }
 
-      String displayStyle = displayStyleName(var.getDisplayStyle());
+      String displayStyle = WorksheetMutationSupport.displayStyleName(var.getDisplayStyle());
 
       if(var.getChoices() != null) {
          // getChoices()/getValues() are named from the write side's perspective
@@ -494,23 +494,6 @@ public class WorksheetReadService {
       }
 
       return result;
-   }
-
-   /**
-    * Inverse of {@code WorksheetMutationSupport#parseVariableDisplayStyle}. {@code DATE_COMBOBOX}
-    * is read-only: it has no forward case there because it is reachable only via StyleBI's
-    * native, non-agent Composer variable dialog, not {@code add_variable}/{@code edit_variable}.
-    */
-   private static String displayStyleName(int style) {
-      return switch(style) {
-         case UserVariable.NONE -> "none";
-         case UserVariable.COMBOBOX -> "combobox";
-         case UserVariable.LIST -> "list";
-         case UserVariable.RADIO_BUTTONS -> "radio";
-         case UserVariable.CHECKBOXES -> "checkboxes";
-         case UserVariable.DATE_COMBOBOX -> "date_combobox";
-         default -> null;
-      };
    }
 
    // -------------------------------------------------------------------------

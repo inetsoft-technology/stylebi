@@ -2440,7 +2440,7 @@ public class WorksheetAgentController {
          inetsoft.uql.VariableTable vtable = new inetsoft.uql.VariableTable();
 
          if(req.variableValues() != null) {
-            for(Map.Entry<String, String> entry : req.variableValues().entrySet()) {
+            for(Map.Entry<String, Object> entry : req.variableValues().entrySet()) {
                String vname = entry.getKey();
                Assembly assembly = ws.getAssembly(vname);
 
@@ -2458,46 +2458,53 @@ public class WorksheetAgentController {
                }
 
                AssetVariable declared = va.getVariable();
-               String rawValue = entry.getValue();
-               String declaredType = declared.getTypeNode() != null
-                  ? declared.getTypeNode().getType() : null;
-               // L2-Group8: VariableInputDialogService.initVariableInfos converts every
-               // submitted string through this same CoreTool.getData(type, val, true) call
-               // before it ever reaches the VariableTable -- the agent path previously put
-               // the raw string in unconditionally, so a declared-integer variable stored
-               // "abc" verbatim instead of matching the native path's own conversion.
-               Object value = rawValue == null ? null
-                  : CoreTool.getData(declaredType, rawValue, true);
+               Object rawValue = entry.getValue();
 
-               // L2-Group8: a bounded-picker variable (combobox/list/radio/checkboxes) can
-               // only ever be given one of its declared values through the native "Enter
-               // Parameters" prompt -- the widget itself cannot render anything else. A
-               // free-text variable (displayStyle NONE) has no such restriction natively
-               // either, so it is deliberately left unchecked here to avoid making this tool
-               // *more* restrictive than the UI it is compared against. Variables whose
-               // choices come from a live query source (no stored 'values' array) are also
-               // left unchecked -- there is nothing to validate against without re-running
-               // that query.
-               if(value != null && declared.getDisplayStyle() != UserVariable.NONE
-                  && declared.getValues() != null && declared.getValues().length > 0)
-               {
-                  boolean found = false;
-
-                  for(Object candidate : declared.getValues()) {
-                     if(java.util.Objects.equals(candidate, value)) {
-                        found = true;
-                        break;
-                     }
-                  }
-
-                  if(!found) {
+               // WBS-029: rawValue is either a plain String (single value, unchanged path) or
+               // a List (bug 76502) -- a 1-element list is treated identically to a plain
+               // String regardless of display style (unambiguous single-value intent), while a
+               // 2+ element list is a genuine multi-value assignment gated behind a
+               // list/checkboxes display style and validated per element (fixing the previous
+               // whole-joined-string-as-one-candidate bug).
+               if(rawValue instanceof List<?> list) {
+                  if(list.isEmpty()) {
                      throw new PairingException(
-                        "'" + rawValue + "' is not one of the declared choices for " +
-                        "variable '" + vname + "'.");
+                        "variableValues['" + vname + "'] is an empty list. Omit '" + vname +
+                        "' to leave it unset, or supply at least one value.");
                   }
+
+                  if(list.size() == 1) {
+                     vtable.put(vname, convertAndValidateSingleValue(
+                        vname, declared, requireStringElement(vname, 0, list.get(0))));
+                     continue;
+                  }
+
+                  int style = declared.getDisplayStyle();
+
+                  if(style != UserVariable.LIST && style != UserVariable.CHECKBOXES) {
+                     String styleName = WorksheetMutationSupport.displayStyleName(style);
+                     throw new PairingException(
+                        "variableValues['" + vname + "'] supplied " + list.size() + " values, " +
+                        "but variable '" + vname + "' has display style '" +
+                        (styleName != null ? styleName : style) + "'. Only a 'list' or " +
+                        "'checkboxes' picker can take more than one value in a single " +
+                        "set_variable_values call.");
+                  }
+
+                  Object[] values = new Object[list.size()];
+
+                  for(int i = 0; i < list.size(); i++) {
+                     values[i] = convertAndValidateSingleValue(
+                        vname, declared, requireStringElement(vname, i, list.get(i)));
+                  }
+
+                  vtable.setAsIs(vname, true);
+                  vtable.put(vname, values);
+                  continue;
                }
 
-               vtable.put(vname, value);
+               String stringValue = requireStringElement(vname, -1, rawValue);
+               vtable.put(vname, convertAndValidateSingleValue(vname, declared, stringValue));
             }
          }
 
@@ -2505,6 +2512,79 @@ public class WorksheetAgentController {
          box.reset();
          return null;
       });
+   }
+
+   /**
+    * Requires that a {@code variableValues} entry (or one element of one, when {@code index}
+    * is 0 or greater) is a plain {@code String}, rejecting any other JSON type (e.g. a number
+    * or boolean) with a message naming the field path and the element's actual runtime type.
+    * The top-level scalar entry ({@code index == -1}) permits {@code null} (clears the variable,
+    * matching this endpoint's pre-existing behavior); a {@code null} list element does not,
+    * since a list conveys 2+ (or exactly 1) explicit values with no "leave unset" case.
+    */
+   private static String requireStringElement(String vname, int index, Object raw)
+      throws PairingException
+   {
+      if(raw == null) {
+         if(index < 0) {
+            return null;
+         }
+
+         throw new PairingException(
+            "variableValues['" + vname + "'][" + index + "] is null. Every value must be a " +
+            "string.");
+      }
+
+      if(raw instanceof String s) {
+         return s;
+      }
+
+      String path = index < 0 ? "variableValues['" + vname + "']"
+         : "variableValues['" + vname + "'][" + index + "]";
+      throw new PairingException(
+         path + " must be a string, but got " + raw.getClass().getSimpleName() + ".");
+   }
+
+   /**
+    * Converts and validates one submitted value for {@code vname} exactly as the pre-WBS-029
+    * scalar path always did: {@link CoreTool#getData} conversion matching
+    * {@code VariableInputDialogService.initVariableInfos}, then (when the variable declares a
+    * non-{@code NONE} display style and a non-empty {@code values} list) a check that the
+    * converted value is one of the declared choices. Used for the plain-string case, the
+    * 1-element-list case, and once per element of a 2+-element list.
+    */
+   private static Object convertAndValidateSingleValue(
+      String vname, AssetVariable declared, String rawValue)
+      throws PairingException
+   {
+      if(rawValue == null) {
+         return null;
+      }
+
+      String declaredType = declared.getTypeNode() != null
+         ? declared.getTypeNode().getType() : null;
+      Object value = CoreTool.getData(declaredType, rawValue, true);
+
+      if(value != null && declared.getDisplayStyle() != UserVariable.NONE
+         && declared.getValues() != null && declared.getValues().length > 0)
+      {
+         boolean found = false;
+
+         for(Object candidate : declared.getValues()) {
+            if(java.util.Objects.equals(candidate, value)) {
+               found = true;
+               break;
+            }
+         }
+
+         if(!found) {
+            throw new PairingException(
+               "'" + rawValue + "' is not one of the declared choices for " +
+               "variable '" + vname + "'.");
+         }
+      }
+
+      return value;
    }
 
    // ---------------------------------------------------------------------------

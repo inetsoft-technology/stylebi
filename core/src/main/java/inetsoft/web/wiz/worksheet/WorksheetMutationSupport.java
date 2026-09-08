@@ -2273,6 +2273,23 @@ public final class WorksheetMutationSupport {
    }
 
    /**
+    * Inverse of {@link #parseVariableDisplayStyle}. {@code DATE_COMBOBOX} is read-only: it has
+    * no forward case there because it is reachable only via StyleBI's native, non-agent Composer
+    * variable dialog, not {@code add_variable}/{@code edit_variable}.
+    */
+   static String displayStyleName(int style) {
+      return switch(style) {
+         case UserVariable.NONE -> "none";
+         case UserVariable.COMBOBOX -> "combobox";
+         case UserVariable.LIST -> "list";
+         case UserVariable.RADIO_BUTTONS -> "radio";
+         case UserVariable.CHECKBOXES -> "checkboxes";
+         case UserVariable.DATE_COMBOBOX -> "date_combobox";
+         default -> null;
+      };
+   }
+
+   /**
     * Describes one hand-authored "Join With" lookup level for a GENERIC/CUSTOM REST-JSON
     * datasource's {@code add_table} binding (see {@code TabularEndpointBindingSupport
     * #applyCustomLookupChain}), as opposed to {@code lookup} (a named connector's pre-built

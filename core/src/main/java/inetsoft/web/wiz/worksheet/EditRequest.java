@@ -100,7 +100,10 @@ import java.util.Map;
  *       produces via the Composer's own "Add Grouping" dialog; or {@code type} (standalone
  *       grouping, matched by data type; defaults to {@code "string"})</li>
  *   <li>{@code set_column_description} — {@code table}, {@code column}, {@code description}</li>
- *   <li>{@code set_variable_values} — {@code variableValues} (map of variable name → value)</li>
+ *   <li>{@code set_variable_values} — {@code variableValues} (map of variable name → value,
+ *       where value is a {@code String} for a single value or a {@code List<String>} of 2+
+ *       entries to assign multiple values at once to a {@code list}/{@code checkboxes}
+ *       display-style variable)</li>
  *   <li>{@code set_mirror_auto_update} — {@code table}, {@code visible} (true=auto-update on, false=off)</li>
  *   <li>{@code convert_to_embedded} — {@code table}</li>
  *   <li>{@code set_assembly_position} — {@code table}, {@code x}, {@code y}</li>
@@ -233,8 +236,12 @@ public record EditRequest(
    List<WorksheetMutationSupport.GroupMapping> groupMappings,
    /** Whether to group unmapped values as "Others" for add_named_group. */
    Boolean groupOthers,
-   /** Variable name → value mappings for set_variable_values. */
-   Map<String, String> variableValues,
+   /**
+    * Variable name → value mappings for set_variable_values. Each value is either a
+    * {@code String} (single value) or a {@code List<String>} (2+ entries assign multiple
+    * values at once; a 1-element list is treated identically to a plain String).
+    */
+   Map<String, Object> variableValues,
    /** X pixel coordinate for set_assembly_position. */
    Integer x,
    /** Y pixel coordinate for set_assembly_position. */
@@ -422,7 +429,7 @@ public record EditRequest(
       List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
       Integer index, String alias, String description, Integer maxRows, Boolean distinct,
       List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
-      Boolean groupOthers, Map<String, String> variableValues, Integer x, Integer y, String label,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y, String label,
       String defaultValue, String mode, Boolean insert, List<String> subtables,
       String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
       List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
@@ -460,7 +467,7 @@ public record EditRequest(
       List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
       Integer index, String alias, String description, Integer maxRows, Boolean distinct,
       List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
-      Boolean groupOthers, Map<String, String> variableValues, Integer x, Integer y, String label,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y, String label,
       String defaultValue, String mode, Boolean insert, List<String> subtables,
       String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
       List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
@@ -497,7 +504,7 @@ public record EditRequest(
       List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
       Integer index, String alias, String description, Integer maxRows, Boolean distinct,
       List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
-      Boolean groupOthers, Map<String, String> variableValues, Integer x, Integer y, String label,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y, String label,
       String defaultValue, String mode, Boolean insert, List<String> subtables,
       String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
       List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
@@ -533,7 +540,7 @@ public record EditRequest(
       List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
       Integer index, String alias, String description, Integer maxRows, Boolean distinct,
       List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
-      Boolean groupOthers, Map<String, String> variableValues, Integer x, Integer y, String label,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y, String label,
       String defaultValue, String mode, Boolean insert, List<String> subtables,
       String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
       List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
@@ -568,7 +575,7 @@ public record EditRequest(
       List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
       Integer index, String alias, String description, Integer maxRows, Boolean distinct,
       List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
-      Boolean groupOthers, Map<String, String> variableValues, Integer x, Integer y, String label,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y, String label,
       String defaultValue, String mode, Boolean insert, List<String> subtables,
       String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
       List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
@@ -602,7 +609,7 @@ public record EditRequest(
       List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
       Integer index, String alias, String description, Integer maxRows, Boolean distinct,
       List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
-      Boolean groupOthers, Map<String, String> variableValues, Integer x, Integer y, String label,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y, String label,
       String defaultValue, String mode, Boolean insert, List<String> subtables,
       String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
       List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
@@ -635,7 +642,7 @@ public record EditRequest(
       List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
       Integer index, String alias, String description, Integer maxRows, Boolean distinct,
       List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
-      Boolean groupOthers, Map<String, String> variableValues, Integer x, Integer y, String label,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y, String label,
       String defaultValue, String mode, Boolean insert, List<String> subtables,
       String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
       List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
