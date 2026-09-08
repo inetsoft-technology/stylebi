@@ -96,6 +96,33 @@ class WorksheetReadServiceTest {
       WorksheetModel.AggregateModel.GroupModel group = m.tables().get(0).aggregates().groups().get(0);
       assertEquals("orderDate", group.field());
       assertEquals("QUARTER", group.dateLevel());
+      assertFalse(group.timeSeries());
+   }
+
+   // Bug #76502 WBS-024: set_group_aggregate's timeSeries flag is genuinely applied to the
+   // GroupRef on write (WorksheetMutationSupport#applyAggregateInfo calls gr.setTimeSeries(true))
+   // but readAggregates never called gr.isTimeSeries() and GroupModel had no slot to carry it,
+   // so a caller could never tell the flag was set (or confirm it wasn't) from the read model.
+   @Test
+   void readsTimeSeriesFlagOnDateGroupedColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ((ColumnRef) t.getColumnSelection(false).getAttribute("orderDate"))
+         .setDataType(inetsoft.uql.schema.XSchema.DATE);
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "QUARTER", true)),
+         List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetModel m = new WorksheetReadService().read(rws);
+      WorksheetModel.AggregateModel.GroupModel group = m.tables().get(0).aggregates().groups().get(0);
+      assertEquals("orderDate", group.field());
+      assertEquals("QUARTER", group.dateLevel());
+      assertTrue(group.timeSeries());
    }
 
    /**

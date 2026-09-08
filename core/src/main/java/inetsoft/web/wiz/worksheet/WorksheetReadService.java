@@ -755,7 +755,7 @@ public class WorksheetReadService {
          String field =
             base instanceof ColumnRef cr && cr.getDataRef() instanceof DateRangeRef dr
                ? dr.getDataRef().getName() : gr.getName();
-         groups.add(new WorksheetModel.AggregateModel.GroupModel(field, dateLevel));
+         groups.add(new WorksheetModel.AggregateModel.GroupModel(field, dateLevel, gr.isTimeSeries()));
       }
 
       // Aggregates (primary + secondary)
