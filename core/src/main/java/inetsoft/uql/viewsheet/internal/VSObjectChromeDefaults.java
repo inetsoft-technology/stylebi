@@ -37,6 +37,18 @@ public final class VSObjectChromeDefaults {
       return ctx.dark ? OBJECT_BORDER_DARK : OBJECT_BORDER;
    }
 
+   /**
+    * Active/current-state indicator — the same modern selection teal used client-side for
+    * bd-selected-cell and the composer's selection border (= --inet-viz-selected-border-modern /
+    * -dark in _viz-tokens.scss), for a persistent "this is the active one" indicator baked into an
+    * assembly's own stored format (e.g. Tab's active-tab border) rather than transient editing
+    * chrome. Deliberately distinct from objectBorderColor: reusing the neutral object-border color
+    * here would make an active and inactive state read as the same color.
+    */
+   public static Color activeIndicatorColor(VizContext ctx) {
+      return ctx.dark ? ACTIVE_INDICATOR_DARK : ACTIVE_INDICATOR;
+   }
+
    /** Viewsheet page/canvas background default, as a CSS hex string (= --surface-canvas), dark in dark mode. */
    public static String pageBackgroundCss(VizContext ctx) {
       Color bg = ctx.dark ? PAGE_BG_DARK : PAGE_BG;
@@ -117,4 +129,8 @@ public final class VSObjectChromeDefaults {
    // modern card inset, px; = --inet-space-5. One value governs all four edges: the title lane, the
    // axis title and the legend column add no edge padding of their own.
    private static final int MODERN_CARD_INSET = 12;
+
+   // modern selection teal, mirroring --inet-viz-selected-border-modern/-dark in _viz-tokens.scss
+   private static final Color ACTIVE_INDICATOR = new Color(0xBFDDE5);
+   private static final Color ACTIVE_INDICATOR_DARK = new Color(0x2DD4BF);
 }

@@ -59,24 +59,55 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       getFormat().getDefaultFormat().setBordersValue(
          new Insets(GraphConstants.NONE, GraphConstants.NONE,
                     GraphConstants.THIN_LINE, GraphConstants.NONE));
-      getFormat().getDefaultFormat().setBorderColorsValue(
-         new BorderColors(DEFAULT_BORDER_COLOR, DEFAULT_BORDER_COLOR,
-                          DEFAULT_BORDER_COLOR, DEFAULT_BORDER_COLOR));
-      getFormat().getDefaultFormat().setRoundCornerValue(4);
 
       VSCompositeFormat activeFormat = new VSCompositeFormat();
-      Color primaryColor = new Color(237, 113, 28);
       activeFormat.getCSSFormat().setCSSType(getObjCSSType());
       activeFormat.getCSSFormat().addCSSAttribute("active", "true");
       activeFormat.getDefaultFormat().setBordersValue(
          new Insets(GraphConstants.NONE, GraphConstants.NONE,
                     GraphConstants.THICK_LINE, GraphConstants.NONE));
-      activeFormat.getDefaultFormat().setBorderColorsValue(
-         new BorderColors(primaryColor, primaryColor,
-                          primaryColor, primaryColor));
-      activeFormat.getDefaultFormat().setRoundCornerValue(4);
       getFormatInfo().setFormat(ACTIVE_TAB_PATH, activeFormat);
+
+      // this type overrides setDefaultFormat without calling the base chrome hook (see
+      // VSAssemblyInfo.bypassesBaseChrome()), so seed color/corner here instead
+      seedChromeDefaults(VizContext.of(this));
    }
+
+   /**
+    * Seed the modern-gated object border color and round corner, plus the active-tab indicator
+    * color. This type bypasses the base chrome hook so it seeds its own.
+    *
+    * The active tab's indicator deliberately uses VSObjectChromeDefaults.activeIndicatorColor
+    * (the same modern selection teal as bd-selected-cell / the composer's selection border)
+    * rather than the neutral objectBorderColor used for the inactive-tab border: it's the only
+    * visual cue for which tab is currently showing, and would otherwise become indistinguishable
+    * from an inactive tab's modernized border.
+    */
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      super.seedChromeDefaults(ctx); // no-op: this type bypasses the base hook
+
+      Color borderColor = ctx.modern
+         ? VSObjectChromeDefaults.objectBorderColor(ctx) : DEFAULT_BORDER_COLOR;
+      int roundCorner = ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 4;
+
+      getFormat().getDefaultFormat().setBorderColorsValue(
+         new BorderColors(borderColor, borderColor, borderColor, borderColor));
+      getFormat().getDefaultFormat().setRoundCornerValue(roundCorner);
+
+      VSCompositeFormat activeFormat = getFormatInfo().getFormat(ACTIVE_TAB_PATH);
+
+      if(activeFormat != null) {
+         Color activeColor = ctx.modern
+            ? VSObjectChromeDefaults.activeIndicatorColor(ctx) : LEGACY_ACTIVE_TAB_COLOR;
+         activeFormat.getDefaultFormat().setBorderColorsValue(
+            new BorderColors(activeColor, activeColor, activeColor, activeColor));
+         activeFormat.getDefaultFormat().setRoundCornerValue(roundCorner);
+      }
+   }
+
+   // legacy active-tab indicator color, unchanged from before the modern seeding above
+   private static final Color LEGACY_ACTIVE_TAB_COLOR = new Color(237, 113, 28);
 
    /**
     * Get the labels.
