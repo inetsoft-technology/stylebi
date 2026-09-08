@@ -428,7 +428,7 @@ public class WorksheetReadService {
       AssetVariable var = dva.getVariable();
 
       if(var == null) {
-         return new WorksheetModel.VariableModel(dva.getName(), null, null, null);
+         return new WorksheetModel.VariableModel(dva.getName(), null, null, null, null);
       }
 
       String label = var.getAlias();
@@ -438,7 +438,66 @@ public class WorksheetReadService {
       String defaultValue = valueNode != null ? valueNode.getValue() != null
          ? valueNode.getValue().toString() : null : null;
 
-      return new WorksheetModel.VariableModel(var.getName(), label, type, defaultValue);
+      return new WorksheetModel.VariableModel(var.getName(), label, type, defaultValue,
+                                              readVariableChoices(var));
+   }
+
+   /**
+    * Reads a variable's "Values" picker, matching the branching
+    * {@code WorksheetMutationSupport.applyVariableChoices} writes: embedded ({@code getChoices()}
+    * non-null) and query-mode ({@code getTableName()} non-null) are mutually exclusive, and
+    * neither being set means no picker at all -- reported as {@code null}, not an empty/default
+    * {@code ChoicesModel}.
+    */
+   private WorksheetModel.ChoicesModel readVariableChoices(AssetVariable var) {
+      String displayStyle = displayStyleName(var.getDisplayStyle());
+
+      if(var.getChoices() != null) {
+         // getChoices()/getValues() are named from the write side's perspective
+         // (UserVariable#setChoices/#setValues): "choices" holds the display labels, "values"
+         // holds the underlying typed values -- see applyEmbeddedVariableChoices.
+         return new WorksheetModel.ChoicesModel(stringify(var.getValues()),
+                                                stringify(var.getChoices()), null, null, null,
+                                                displayStyle);
+      }
+
+      if(var.getTableName() != null) {
+         DataRef labelRef = var.getLabelAttribute();
+         DataRef valueRef = var.getValueAttribute();
+         return new WorksheetModel.ChoicesModel(null, null, var.getTableName(),
+                                                labelRef != null ? labelRef.getAttribute() : null,
+                                                valueRef != null ? valueRef.getAttribute() : null,
+                                                displayStyle);
+      }
+
+      return null;
+   }
+
+   private static List<String> stringify(Object[] values) {
+      List<String> result = new ArrayList<>(values.length);
+
+      for(Object value : values) {
+         result.add(value != null ? value.toString() : null);
+      }
+
+      return result;
+   }
+
+   /**
+    * Inverse of {@code WorksheetMutationSupport#parseVariableDisplayStyle}. {@code DATE_COMBOBOX}
+    * is read-only: it has no forward case there because it is reachable only via StyleBI's
+    * native, non-agent Composer variable dialog, not {@code add_variable}/{@code edit_variable}.
+    */
+   private static String displayStyleName(int style) {
+      return switch(style) {
+         case UserVariable.NONE -> "none";
+         case UserVariable.COMBOBOX -> "combobox";
+         case UserVariable.LIST -> "list";
+         case UserVariable.RADIO_BUTTONS -> "radio";
+         case UserVariable.CHECKBOXES -> "checkboxes";
+         case UserVariable.DATE_COMBOBOX -> "date_combobox";
+         default -> null;
+      };
    }
 
    // -------------------------------------------------------------------------
