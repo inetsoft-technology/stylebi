@@ -1831,6 +1831,18 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
    }
 
    /**
+    * Clear the tracked runtime date level. A dimension created for a new date level by a
+    * drill operation is cloned from the dimension of the previous level, so it inherits
+    * the previous level in oldRuntimeDateLevel. If it is not cleared, the next update()
+    * sees the level as changed and flags runtimeDateLevelChange(), which makes the drill
+    * look like a dynamic date level change to the callers of that method.
+    */
+   public void resetOldRuntimeDateLevel() {
+      oldRuntimeDateLevel = null;
+      runtimeDValueChange = false;
+   }
+
+   /**
     * Set runtime id.
     */
    public void setRuntimeID(int rid) {
