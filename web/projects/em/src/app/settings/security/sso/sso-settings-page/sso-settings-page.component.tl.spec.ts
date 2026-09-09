@@ -42,6 +42,7 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
+import { MatDialog } from "@angular/material/dialog";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
@@ -52,8 +53,10 @@ import { http, HttpResponse } from "msw";
 import { of, Subject } from "rxjs";
 
 import { server } from "@test-mocks/server";
+import { MessageDialogType } from "../../../../common/util/message-dialog";
 import { PageHeaderService } from "../../../../page-header/page-header.service";
 import { TopScrollService } from "../../../../top-scroll/top-scroll.service";
+import { CodemirrorService } from "../../../../../../../shared/util/codemirror/codemirror.service";
 import {
    CustomSSOAttributesModel,
    OpenIdAttributesModel,
@@ -143,6 +146,25 @@ async function renderComponent(opts: RenderOpts = {}) {
    const resetModel = opts.resetModel ?? makeSettingsModel();
    const scrollSpy = { scroll: vi.fn(), visibilityChanged: new Subject<boolean>() };
    const pageHeaderSpy = { title: "" };
+   const dialogSpy = { open: vi.fn() };
+   // CustomSsoFormComponent (rendered whenever selection === CUSTOM) creates a real CodeMirror
+   // instance via CodemirrorService in ngAfterViewInit/ngAfterViewChecked; without a mock here it
+   // throws on every change-detection cycle in jsdom (no real CodeMirror instance) and the test
+   // run never settles. Mirrors the mock in custom-sso-form.component.spec.ts.
+   const codemirrorSpy = {
+      createTernServer: vi.fn(() => {}),
+      getEcmaScriptDefs: vi.fn(() => [{ "Date": { "prototype": {} } }]),
+      createCodeMirrorInstance: vi.fn(() => ({
+         getCursor: vi.fn(),
+         setCursor: vi.fn(),
+         getValue: vi.fn(() => ""),
+         setValue: vi.fn(),
+         refresh: vi.fn(),
+         focus: vi.fn(),
+         on: vi.fn(),
+         toTextArea: vi.fn(),
+      })),
+   };
 
    server.use(
       http.get("*/api/em/navbar/isMultiTenant", () =>
@@ -172,6 +194,8 @@ async function renderComponent(opts: RenderOpts = {}) {
          { provide: ActivatedRoute, useValue: { data: of({ model: routeModel }) } },
          { provide: TopScrollService, useValue: scrollSpy },
          { provide: PageHeaderService, useValue: pageHeaderSpy },
+         { provide: MatDialog, useValue: dialogSpy },
+         { provide: CodemirrorService, useValue: codemirrorSpy },
       ],
       schemas: [NO_ERRORS_SCHEMA],
    });
@@ -179,8 +203,9 @@ async function renderComponent(opts: RenderOpts = {}) {
    const comp = result.fixture.componentInstance as SsoSettingsPageComponent;
    await waitFor(() => expect(comp.selection).toBe(resetModel.activeFilterType));
    await waitFor(() => expect(comp.samlForm).toBeTruthy());
+   await waitFor(() => expect(comp.cloudSecrets).toBe(opts.cloudSecrets ?? false));
 
-   return { ...result, comp, scrollSpy, pageHeaderSpy };
+   return { ...result, comp, scrollSpy, pageHeaderSpy, dialogSpy };
 }
 
 // ---------------------------------------------------------------------------
@@ -323,6 +348,148 @@ describe("SsoSettingsPageComponent - submit(): payload branch selection", () => 
       expect(capturedBodies[2].customAttributesModel).toEqual(comp.customModel);
       expect(capturedBodies[2].samlAttributesModel).toBeUndefined();
       expect(capturedBodies[2].openIdAttributesModel).toBeUndefined();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 4 [bug #76526] - Save feedback and required-field gating
+// ---------------------------------------------------------------------------
+//
+// Bug #76526: saving a blank OpenID/Custom SSO config gave no feedback and silently locked
+// every user (including admin) out of the site, since StandardFilterChain bypasses all local
+// auth once SSO is active. The fix is two-fold: (1) submit() now inspects the POST response
+// and shows a success/error dialog instead of a fire-and-forget subscribe(), and (2) applyDisabled
+// now also gates on isOpenIdValid()/isCustomValid(), not just the SAML form's validity.
+
+describe("SsoSettingsPageComponent - bug #76526 save feedback", () => {
+   it("should show a success dialog when the backend applies the settings", async () => {
+      server.use(
+         http.post("*/api/sso/settings", () => HttpResponse.json(true)),
+      );
+
+      const { comp, dialogSpy } = await renderComponent();
+      comp.selection = SSOType.SAML;
+      comp.changed = true;
+
+      comp.submit();
+
+      await waitFor(() => expect(dialogSpy.open).toHaveBeenCalledTimes(1));
+      expect(dialogSpy.open.mock.calls[0][1].data).toEqual(expect.objectContaining({
+         type: MessageDialogType.INFO,
+      }));
+   });
+
+   // the backend rejects an incomplete OpenID/Custom config by returning `false` (mirroring the
+   // pre-existing SAML validate-then-abort contract) instead of throwing -- submit() must surface
+   // that as an error, not silently treat it as a successful save.
+   it("should show an error dialog when the backend rejects an invalid configuration", async () => {
+      server.use(
+         http.post("*/api/sso/settings", () => HttpResponse.json(false)),
+      );
+
+      const { comp, dialogSpy } = await renderComponent();
+      comp.selection = SSOType.OPENID;
+      comp.changed = true;
+
+      comp.submit();
+
+      await waitFor(() => expect(dialogSpy.open).toHaveBeenCalledTimes(1));
+      expect(dialogSpy.open.mock.calls[0][1].data).toEqual(expect.objectContaining({
+         type: MessageDialogType.ERROR,
+      }));
+   });
+
+   it("should show an error dialog when the POST itself fails", async () => {
+      server.use(
+         http.post("*/api/sso/settings", () => new HttpResponse(null, { status: 500 })),
+      );
+
+      const { comp, dialogSpy } = await renderComponent();
+      comp.selection = SSOType.CUSTOM;
+      comp.changed = true;
+
+      comp.submit();
+
+      await waitFor(() => expect(dialogSpy.open).toHaveBeenCalledTimes(1));
+      expect(dialogSpy.open.mock.calls[0][1].data).toEqual(expect.objectContaining({
+         type: MessageDialogType.ERROR,
+      }));
+   });
+});
+
+describe("SsoSettingsPageComponent - bug #76526 required-field gating", () => {
+   it("isOpenIdValid() should require authorizationEndpoint, tokenEndpoint, and clientId", async () => {
+      const { comp } = await renderComponent();
+
+      comp.openIdModel = makeOpenIdModel({
+         authorizationEndpoint: "",
+         tokenEndpoint: "",
+         clientId: "",
+      });
+      expect(comp.isOpenIdValid()).toBe(false);
+
+      comp.openIdModel = makeOpenIdModel({
+         authorizationEndpoint: "https://idp.example/auth",
+         tokenEndpoint: "https://idp.example/token",
+         clientId: "client-id",
+      });
+      expect(comp.isOpenIdValid()).toBe(true);
+   });
+
+   it("isOpenIdValid() should not require issuer, which has no manual EM input", async () => {
+      const { comp } = await renderComponent();
+
+      comp.openIdModel = makeOpenIdModel({
+         issuer: "",
+         authorizationEndpoint: "https://idp.example/auth",
+         tokenEndpoint: "https://idp.example/token",
+         clientId: "client-id",
+      });
+
+      expect(comp.isOpenIdValid()).toBe(true);
+   });
+
+   it("isOpenIdValid() should require secretId instead of clientId in cloud-secrets mode", async () => {
+      const { comp } = await renderComponent({ cloudSecrets: true });
+
+      comp.openIdModel = makeOpenIdModel({
+         authorizationEndpoint: "https://idp.example/auth",
+         tokenEndpoint: "https://idp.example/token",
+         clientId: "client-id",
+         secretId: "",
+      });
+      expect(comp.isOpenIdValid()).toBe(false);
+
+      comp.openIdModel = makeOpenIdModel({
+         authorizationEndpoint: "https://idp.example/auth",
+         tokenEndpoint: "https://idp.example/token",
+         secretId: "secret-id",
+      });
+      expect(comp.isOpenIdValid()).toBe(true);
+   });
+
+   it("isCustomValid() should require a class name or Groovy source matching the selected mode", async () => {
+      const { comp } = await renderComponent();
+
+      comp.customModel = makeCustomModel({ useJavaClass: true, javaClassName: "" });
+      expect(comp.isCustomValid()).toBe(false);
+
+      comp.customModel = makeCustomModel({ useJavaClass: true, javaClassName: "com.example.Filter" });
+      expect(comp.isCustomValid()).toBe(true);
+
+      comp.customModel = makeCustomModel({
+         useJavaClass: false,
+         useInlineGroovy: true,
+         inlineGroovyClass: "",
+      });
+      expect(comp.isCustomValid()).toBe(false);
+
+      comp.customModel = makeCustomModel({
+         useJavaClass: false,
+         useInlineGroovy: true,
+         inlineGroovyClass: "class Foo {}",
+      });
+      expect(comp.isCustomValid()).toBe(true);
    });
 });
 
