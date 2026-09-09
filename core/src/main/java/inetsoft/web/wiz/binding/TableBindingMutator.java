@@ -418,8 +418,10 @@ public final class TableBindingMutator {
 
    /**
     * @implNote {@link #addField}/{@link #moveField} reapply a shelf through this overload with
-    * no runtime context -- a field carrying {@code namedGroup} through that path is left
-    * unresolved, same as before this method learned to resolve it at all.
+    * no runtime context -- a field carrying a by-name {@code namedGroup} through that path is
+    * left unresolved, same as before this method learned to resolve it at all. An inline
+    * {@code namedGroupValues} needs no worksheet/repository lookup, so it resolves through this
+    * overload too.
     */
    private static List<BDimensionRefModel> dimensions(List<FieldRef> fields) {
       return dimensions(fields, null, null, null);
@@ -440,10 +442,10 @@ public final class TableBindingMutator {
             ref.setDateLevel(DateLevels.normalize(field.dateLevel()));
          }
 
-         if(field.namedGroup() != null && rvs != null) {
+         if(field.namedGroupValues() != null || (field.namedGroup() != null && rvs != null)) {
             try {
-               ref.setNamedGroupInfo(FieldRefFactory.resolveNamedGroupInfo(
-                  field.namedGroup(), rvs, source, field.column(), refModelService));
+               ref.setNamedGroupInfo(
+                  FieldRefFactory.resolveNamedGroupInfo(field, rvs, source, refModelService));
             }
             catch(RuntimeException e) {
                throw e; // preserve IllegalArgumentException's loud, field-named message as-is
