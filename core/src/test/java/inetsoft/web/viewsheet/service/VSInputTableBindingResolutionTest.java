@@ -148,37 +148,35 @@ class VSInputTableBindingResolutionTest {
    }
 
    /**
-    * Bug #76530's exact reported repro shape: {@code table} left unset and {@code columnValue}
-    * itself already carrying the {@code "$(varName)"} reference (the natural mistake a caller
-    * makes when only one field looks like it should hold the variable). Must resolve exactly like
-    * setting {@code table} to that same value would.
+    * Bug #76555: this normalization moved to the AI-only {@code AssemblyPropertyService} layer,
+    * so an unset {@code table} must stay unset here even when {@code columnValue} looks like a
+    * variable reference.
     */
    @Test
-   void resolvesAColumnValueOnlyVariableReferenceWhenTableIsUnset() throws Exception {
+   void leavesTableUnsetWhenOnlyColumnValueLooksLikeAVariableReference() throws Exception {
       Worksheet ws = worksheetWithVariable("StartDate");
 
-      assertEquals("$(StartDate)", resolve(ws, null, "$(StartDate)"));
-      assertEquals("$(StartDate)", resolve(ws, "", "$(StartDate)"));
+      assertNull(resolve(ws, null, "$(StartDate)"));
+      assertEquals("", resolve(ws, "", "$(StartDate)"));
    }
 
    /**
-    * The columnValue-only shape must reuse the exact same existence check the raw {@code
-    * "$(...)"}-on-{@code table} branch already gets -- an unknown variable name still throws,
-    * it is not silently accepted just because it arrived via {@code columnValue} instead.
+    * Same relocation: no columnValue-only normalization means no existence check on that path
+    * either -- it now only runs downstream, once a real {@code "$(...)"}-shaped {@code table}
+    * reaches a setter.
     */
    @Test
-   void rejectsAColumnValueOnlyVariableReferenceToAVariableThatDoesNotExist() {
+   void leavesTableUnsetEvenWhenTheColumnValueReferencesAVariableThatDoesNotExist()
+      throws Exception
+   {
       Worksheet ws = new Worksheet();
 
-      MessageException ex = assertThrows(MessageException.class,
-         () -> resolve(ws, null, "$(StartDate)"));
-      assertTrue(ex.getMessage().contains("StartDate"), ex.getMessage());
+      assertNull(resolve(ws, null, "$(StartDate)"));
    }
 
    /**
-    * The new shape only fires when {@code table} is unset -- an explicit {@code table} value
-    * (even a plain, non-variable table binding) must not be silently overridden by a {@code
-    * columnValue} that happens to look like a variable reference.
+    * An explicit {@code table} value must not be overridden by a {@code columnValue} that happens
+    * to look like a variable reference.
     */
    @Test
    void doesNotOverrideAnExplicitTableWithAColumnValueThatLooksLikeAVariable() throws Exception {
@@ -189,17 +187,16 @@ class VSInputTableBindingResolutionTest {
    }
 
    /**
-    * {@link VSInputService#resolvesToVariableBinding} is the public entry point {@code
-    * AssemblyPropertyService} uses (bug #76530 part b) to decide whether an explicit {@code
-    * dataInputPaneModel.variable} write is achievable. It must agree with {@code
-    * resolveInputTableBinding} on both the columnValue-only shape and a plain literal table.
+    * {@link VSInputService#resolvesToVariableBinding} must agree with
+    * {@code resolveInputTableBinding} on a raw {@code table} value. The columnValue-only shape
+    * (bug #76555) is no longer this method's concern -- callers normalize that themselves first.
     */
    @Test
    void resolvesToVariableBindingAgreesWithTheUnderlyingResolution() {
       Worksheet ws = worksheetWithVariable("StartDate");
       ws.addAssembly(new EmbeddedTableAssembly(ws, "Query1"));
 
-      assertTrue(VSInputService.resolvesToVariableBinding(ws, null, null, "$(StartDate)"));
+      assertFalse(VSInputService.resolvesToVariableBinding(ws, null, null, "$(StartDate)"));
       assertTrue(VSInputService.resolvesToVariableBinding(ws, null, "$(StartDate)", null));
       assertFalse(VSInputService.resolvesToVariableBinding(ws, null, "Query1", null));
       assertFalse(VSInputService.resolvesToVariableBinding(ws, null, null, null));

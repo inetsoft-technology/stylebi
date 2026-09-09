@@ -247,6 +247,10 @@ public class AssemblyPropertyService {
             model = PropertyPath.set(model, entry.getValue(), patch.get(entry.getKey()));
          }
 
+         if(PropertyAliases.derivesVariableFlagFromTable(type)) {
+            model = normalizeVariableTableBinding(model);
+         }
+
          if(type.equals("gauge") && resolved.values().stream()
             .anyMatch(path -> path.startsWith("gaugeAdvancedPaneModel.rangePaneModel")))
          {
@@ -305,25 +309,29 @@ public class AssemblyPropertyService {
    }
 
    /**
-    * Bug #76530: textinput/combobox/slider/spinner's own setter never reads back
-    * {@code dataInputPaneModel.variable} -- the real, persisted flag is always derived from
-    * whether {@code dataInputPaneModel.table} (after {@code VSInputService}'s own
-    * {@code resolveInputTableBinding} normalization, which now also accepts a {@code columnValue}
-    * already shaped {@code "$(varName)"} with {@code table} left unset) resolves to a
-    * {@code "$(varName)"} reference. Only invoked when this call's own patch explicitly touches
-    * {@code dataInputPaneModel.variable} (see the caller).
-    *
-    * <p>Bug #76552 (follow-up): the achievable state must be compared against the value the
-    * patch actually <em>requested</em>, not just checked for being merely possible. Checking
-    * achievability alone let {@code variable:false} through unguarded even when the table still
-    * resolves to a variable (the real setter derives {@code true} from the table regardless, so
-    * that write silently failed to take effect -- the same "reports success, changes nothing"
-    * defect this whole check exists to catch, just from the opposite direction), and also
-    * refused a harmless {@code variable:false} on a table that was never a variable to begin
-    * with. {@code dataInputPaneModel.variable} is a primitive {@code boolean}
-    * ({@link inetsoft.web.composer.model.vs.DataInputPaneModel#isVariable()}), and {@code model}
-    * already has this call's patch applied by the caller, so the read below is always the
-    * requested value, never null.
+    * Normalizes an unset {@code table} to {@code columnValue} when the latter is already a
+    * {@code "$(varName)"} reference (bug #76530/#76555) -- kept AI-only here since
+    * {@code VSInputService} is shared with the interactive UI's save path. Must run before
+    * {@code requireVariableFlagAchievable}/{@code writeModel}.
+    */
+   private Object normalizeVariableTableBinding(Object model) {
+      String table = (String) PropertyPath.get(model, "dataInputPaneModel.table");
+      String columnValue = (String) PropertyPath.get(model, "dataInputPaneModel.columnValue");
+
+      if((table == null || table.isEmpty()) && columnValue != null &&
+         columnValue.startsWith("$(") && columnValue.endsWith(")"))
+      {
+         return PropertyPath.set(model, "dataInputPaneModel.table", columnValue);
+      }
+
+      return model;
+   }
+
+   /**
+    * Refuses a {@code dataInputPaneModel.variable} write that doesn't match what the resolved
+    * {@code table}/{@code columnValue} binding can actually achieve (bug #76530/#76552) -- the
+    * real setter always derives the persisted flag from the binding, never from this field
+    * directly, so a mismatched request would otherwise silently no-op or be wrongly refused.
     */
    private void requireVariableFlagAchievable(String type, Object model, Viewsheet vs) {
       boolean requested = (Boolean) PropertyPath.get(model, "dataInputPaneModel.variable");

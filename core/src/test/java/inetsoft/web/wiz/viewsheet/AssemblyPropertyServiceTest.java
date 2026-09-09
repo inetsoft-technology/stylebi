@@ -311,10 +311,8 @@ class AssemblyPropertyServiceTest {
    }
 
    /**
-    * Bug #76530 part (b): the exact reported repro (a from-scratch TextInput, {@code columnValue}
-    * carrying the {@code "$(varName)"} reference, {@code table} never set). Before this fix, the
-    * write silently no-opped -- {@code variable} was never read back regardless. Part (a) makes
-    * this shape resolve, so the write must now go through rather than being refused.
+    * The exact reported repro (bug #76530): {@code columnValue} carries the reference,
+    * {@code table} never set. Must resolve and go through, not be refused.
     */
    @Test
    void allowsTheExactReportedReproNowThatColumnValueAloneResolvesToAKnownVariable()
@@ -332,6 +330,25 @@ class AssemblyPropertyServiceTest {
 
       assertDoesNotThrow(
          () -> service.set("tok", principal(), "StartDateInput", patch, ""));
+   }
+
+   /** Proves the normalization actually mutates {@code table}, not just avoids throwing. */
+   @Test
+   void normalizesColumnValueOnlyIntoTableBeforeTheAchievabilityCheck() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, ws);
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "$(StartDate)");
+      patch.put("dataInputPaneModel.variable", true);
+
+      service.set("tok", principal(), "StartDateInput", patch, "");
+
+      assertEquals("$(StartDate)", model.getDataInputPaneModel().getTable(),
+                   "normalizeVariableTableBinding must write 'table', not just avoid throwing");
    }
 
    /**
