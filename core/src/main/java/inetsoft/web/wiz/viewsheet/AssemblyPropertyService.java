@@ -311,25 +311,39 @@ public class AssemblyPropertyService {
     * {@code resolveInputTableBinding} normalization, which now also accepts a {@code columnValue}
     * already shaped {@code "$(varName)"} with {@code table} left unset) resolves to a
     * {@code "$(varName)"} reference. Only invoked when this call's own patch explicitly touches
-    * {@code dataInputPaneModel.variable} (see the caller): when the resulting table binding will
-    * not actually resolve to a variable reference, that touch would otherwise report success and
-    * leave the flag exactly where it already was -- the same "populated on every read, never read
-    * back on write" shape {@link PropertyAliases}'s {@code DEAD_FIELDS} refuses elsewhere, just
-    * conditional on the resulting binding rather than unconditional on the field.
+    * {@code dataInputPaneModel.variable} (see the caller).
+    *
+    * <p>Bug #76552 (follow-up): the achievable state must be compared against the value the
+    * patch actually <em>requested</em>, not just checked for being merely possible. Checking
+    * achievability alone let {@code variable:false} through unguarded even when the table still
+    * resolves to a variable (the real setter derives {@code true} from the table regardless, so
+    * that write silently failed to take effect -- the same "reports success, changes nothing"
+    * defect this whole check exists to catch, just from the opposite direction), and also
+    * refused a harmless {@code variable:false} on a table that was never a variable to begin
+    * with. {@code dataInputPaneModel.variable} is a primitive {@code boolean}
+    * ({@link inetsoft.web.composer.model.vs.DataInputPaneModel#isVariable()}), and {@code model}
+    * already has this call's patch applied by the caller, so the read below is always the
+    * requested value, never null.
     */
    private void requireVariableFlagAchievable(String type, Object model, Viewsheet vs) {
+      boolean requested = (Boolean) PropertyPath.get(model, "dataInputPaneModel.variable");
       String table = (String) PropertyPath.get(model, "dataInputPaneModel.table");
       String columnValue = (String) PropertyPath.get(model, "dataInputPaneModel.columnValue");
       Worksheet ws = vs == null ? null : vs.getBaseWorksheet();
+      boolean achieved = VSInputService.resolvesToVariableBinding(ws, vs, table, columnValue);
 
-      if(!VSInputService.resolvesToVariableBinding(ws, vs, table, columnValue)) {
+      if(requested != achieved) {
          throw new IllegalArgumentException(
-            "'dataInputPaneModel.variable' cannot be set directly on " + type + ". Its real, " +
-            "persisted value is always derived from whether 'dataInputPaneModel.table' (or " +
-            "'columnValue', if shaped \"$(variableName)\") resolves to an existing worksheet " +
-            "variable -- neither does here, so this write would report success and leave " +
-            "'variable' unchanged. Set 'dataInputPaneModel.table' (or 'columnValue') to " +
-            "\"$(variableName)\" for a variable created with add_variable instead.");
+            "'dataInputPaneModel.variable' cannot be set to " + requested + " on " + type +
+            ". Its real, persisted value is always derived from whether " +
+            "'dataInputPaneModel.table' (or 'columnValue', if shaped \"$(variableName)\") " +
+            "resolves to an existing worksheet variable -- it currently " +
+            (achieved ? "does" : "does not") + ", so this write would report success and leave " +
+            "'variable' " + achieved + ". " + (requested
+               ? "Set 'dataInputPaneModel.table' (or 'columnValue') to \"$(variableName)\" for " +
+                 "a variable created with add_variable instead."
+               : "Set 'dataInputPaneModel.table' (or 'columnValue') to a non-variable binding " +
+                 "instead, or leave 'dataInputPaneModel.variable' out of the patch."));
       }
    }
 

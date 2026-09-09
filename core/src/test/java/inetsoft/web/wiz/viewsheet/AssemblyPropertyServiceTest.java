@@ -370,6 +370,53 @@ class AssemblyPropertyServiceTest {
          Map.of("dataInputPaneModel.rowValue", "0"), ""));
    }
 
+   /**
+    * Bug #76552 (follow-up to #76530/PR #5100): the achievability check must compare the
+    * <em>requested</em> value, not merely whether a variable binding is possible. A patch
+    * requesting {@code variable:false} while {@code columnValue} still resolves to a known
+    * variable must be refused -- the real setter would still derive {@code variable=true} from
+    * the table's shape regardless of this patch, so the write would report success and silently
+    * leave {@code variable} at {@code true}. This is the exact gap #5100's own 3 tests left
+    * uncovered: they only ever requested {@code variable:true}.
+    */
+   @Test
+   void refusesAnExplicitVariableFalseWriteWhenTheBindingStillResolvesToAVariable() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, ws);
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "$(StartDate)");
+      patch.put("dataInputPaneModel.variable", false);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "StartDateInput", patch, ""));
+
+      assertTrue(thrown.getMessage().contains("dataInputPaneModel.variable"),
+                 "must name the refused field: " + thrown.getMessage());
+   }
+
+   /**
+    * Bug #76552 (follow-up to #76530/PR #5100): the mirror image of the case above -- requesting
+    * {@code variable:false} when the table was never a variable to begin with is a harmless
+    * no-op and must be allowed, not refused. Before this fix, the achievability check only asked
+    * "can this resolve to a variable" (no), which wrongly refused every {@code false} request
+    * regardless of whether it matched the current binding.
+    */
+   @Test
+   void allowsAnExplicitVariableFalseWriteWhenTheBindingAlreadyDoesNotResolveToAVariable()
+      throws Exception
+   {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, new Worksheet());
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "StartDateInput",
+         Map.of("dataInputPaneModel.variable", false), ""));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static AssemblyPropertyService serviceWith(VSAssembly assembly, Object model) {
