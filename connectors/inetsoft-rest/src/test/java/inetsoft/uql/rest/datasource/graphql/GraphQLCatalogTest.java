@@ -438,6 +438,87 @@ class GraphQLCatalogTest {
    }
 
    // ===================================================================================
+   // List-valued scalar/enum fields -- review round from PR #5090
+   // ===================================================================================
+
+   @Test
+   void scalarListFieldProducesNoColumnAndIsRecordedInTheDatasetDescription() throws Exception {
+      TabularDatasetSchema items =
+         GraphQLCatalog.describeDataset(schemaRoot("list-field-schema.json"), "items");
+
+      assertTrue(items.columns().stream().noneMatch(c -> c.name().equals("tags")),
+         "a scalar list ([String!]!) has no honest single-value column form: " + items.columns());
+      assertTrue(items.description().contains("tags -> dropped: list of scalar 'String'"),
+         "must name the field and why it was dropped: " + items.description());
+   }
+
+   @Test
+   void enumListFieldProducesNoColumnAndIsRecordedInTheDatasetDescription() throws Exception {
+      TabularDatasetSchema items =
+         GraphQLCatalog.describeDataset(schemaRoot("list-field-schema.json"), "items");
+
+      assertTrue(items.columns().stream().noneMatch(c -> c.name().equals("categories")),
+         "an enum list ([Category!]!) has no honest single-value column form: " +
+         items.columns());
+      assertTrue(items.description().contains("categories -> dropped: list of enum 'Category'"),
+         "must name the field and why it was dropped: " + items.description());
+   }
+
+   @Test
+   void valueObjectScalarListProducesNoColumnAndNoDatasetClause_droppedAtDebugOnly()
+      throws Exception
+   {
+      Logger logger = (Logger) LoggerFactory.getLogger(GraphQLCatalog.class);
+      Level originalLevel = logger.getLevel();
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.setLevel(Level.DEBUG);
+      logger.addAppender(appender);
+      TabularDatasetSchema items;
+
+      try {
+         items = GraphQLCatalog.describeDataset(schemaRoot("list-field-schema.json"), "items");
+      }
+      finally {
+         logger.detachAppender(appender);
+         logger.setLevel(originalLevel);
+      }
+
+      assertTrue(items.columns().stream().noneMatch(c -> c.name().equals("price.currencyCodes")),
+         "a scalar list one level down inside a value object has no single-value column form " +
+         "either: " + items.columns());
+      assertFalse(items.description().contains("currencyCodes"),
+         "a value object's contents are an implementation detail of its parent field, not a " +
+         "dataset-level fact -- must not add a description clause: " + items.description());
+
+      boolean debugged = appender.list.stream().anyMatch(event ->
+         event.getLevel() == Level.DEBUG && event.getFormattedMessage().contains("currencyCodes"));
+      assertTrue(debugged, "must still be reported, at DEBUG rather than as a dataset clause: " +
+         appender.list.stream().map(ILoggingEvent::getFormattedMessage).toList());
+   }
+
+   @Test
+   void nonListScalarAndEnumOnTheSameTypeStillProduceTheirColumns() throws Exception {
+      // The contrast case: proves the fix discriminates on isList() rather than dropping every
+      // scalar/enum field of a type that also happens to have a list field.
+      TabularDatasetSchema items =
+         GraphQLCatalog.describeDataset(schemaRoot("list-field-schema.json"), "items");
+
+      assertEquals(XSchema.STRING, columnType(items, "name"));
+      assertEquals(XSchema.STRING, columnType(items, "status"),
+         "an enum value always serializes as a string");
+      assertEquals(XSchema.DOUBLE, columnType(items, "price.amount"),
+         "the value object's own non-list scalar must still flatten to a column");
+
+      List<String> names = items.columns().stream().map(TabularColumn::name).toList();
+      assertTrue(names.containsAll(List.of("id", "name", "status", "price.amount")),
+         "surviving columns: " + names);
+      assertFalse(names.stream().anyMatch(n -> n.startsWith("tags") || n.startsWith("categories")
+         || n.equals("price.currencyCodes")), "no invented columns for dropped list fields: " +
+         names);
+   }
+
+   // ===================================================================================
    // describeDataset error handling
    // ===================================================================================
 

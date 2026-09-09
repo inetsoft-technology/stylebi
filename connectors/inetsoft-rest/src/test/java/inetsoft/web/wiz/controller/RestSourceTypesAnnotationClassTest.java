@@ -118,8 +118,11 @@ class RestSourceTypesAnnotationClassTest {
                    WizDatabaseController.classifyQueryClass(GraphQLQuery.class, GraphQLRuntime.class));
       assertEquals("METADATA",
                    WizDatabaseController.classifyQueryClass(ShopifyQuery.class, GraphQLRuntime.class));
-      // monday.com declares GraphQLQuery itself as its query class (no separate Monday query
-      // type) -- see MondayService.getQueryClass().
+      // This is a DELIBERATE duplicate of the graphql assertion two lines above, not a gap: it is
+      // the only record that monday.com was considered at all. MondayService.getQueryClass()
+      // returns GraphQLQuery and getRuntimeClass() returns GraphQLRuntime -- the same pair
+      // graphql itself passes -- so the classifier has no signal to tell the two source types
+      // apart. That is a fact about the classifier, not a hole in this test.
       assertEquals("METADATA",
                    WizDatabaseController.classifyQueryClass(GraphQLQuery.class, GraphQLRuntime.class));
    }
