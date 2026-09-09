@@ -752,7 +752,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       }
 
       try {
-         Rectangle2D[] split = splitInputPixelBounds(info, viewsheet);
+         Rectangle2D[] split = splitInputBoundsForExcel(info);
 
          if(split == null) {
             writePicture(getImage(assembly), getAnchorPosition(info));
@@ -780,29 +780,133 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
    }
 
    /**
+    * Split an input assembly into [labelBounds, widgetBounds], pushing the widget over
+    * by the amount Excel draws a LEFT label wider than the shared geometry reserved.
+    *
+    * <p>The shared split measures the label in pixels, matching the browser, but
+    * translateFontStyle() writes the font to the workbook in points
+    * (VSFontHelper.getFontSize(), a ~0.85 px-to-pt rate) and Excel lays those points out
+    * at 96 dpi, so a 24px label is written as 20pt and drawn at ~26.7px. With word wrap
+    * off that surplus overflows to the right of the text box, which for a LEFT label runs
+    * into the widget when the label gap is small. RIGHT/TOP/BOTTOM labels overflow away
+    * from the widget, so they are left where the shared geometry placed them.
+    */
+   private Rectangle2D[] splitInputBoundsForExcel(VSAssemblyInfo info) {
+      Rectangle2D[] split = splitInputPixelBounds(info, viewsheet);
+
+      if(split == null) {
+         return null;
+      }
+
+      LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
+
+      if(!LabelInfo.LEFT.equals(labelInfo.getLabelPosition())) {
+         return split;
+      }
+
+      double extra = getExcelLabelWidthSlack(labelInfo);
+
+      if(extra <= 0) {
+         return split;
+      }
+
+      Rectangle2D label = split[0];
+      Rectangle2D widget = split[1];
+
+      return new Rectangle2D[] {
+         new Rectangle2D.Double(label.getX(), label.getY(),
+                                label.getWidth() + extra, label.getHeight()),
+         new Rectangle2D.Double(widget.getX() + extra, widget.getY(),
+                                Math.max(0, widget.getWidth() - extra), widget.getHeight())
+      };
+   }
+
+   /**
+    * Get how much wider Excel draws the label than the pixel-based measurement used by
+    * the shared split, i.e. the width the label needs beyond what was reserved for it.
+    */
+   static double getExcelLabelWidthSlack(LabelInfo labelInfo) {
+      java.awt.Font font = getLabelFont(labelInfo);
+      double scale = getExcelFontScale(font);
+
+      if(scale <= 1) {
+         return 0;
+      }
+
+      // scale the measured width rather than re-measuring with a derived font: deriveFont()
+      // would drop the StyleFont subclass that Common.stringWidth() applies adjustments for.
+      return Math.ceil(Common.stringWidth(labelInfo.getLabelText(), font) * (scale - 1));
+   }
+
+   /**
+    * Get how much larger Excel draws the given font than its pixel size, i.e. the factor the
+    * pixel-based measurements the shared geometry uses are off by.
+    *
+    * <p>The workbook carries point sizes: applyFormat() gets the font from
+    * getPOIFont(.., isAdjust = true), so translateFontStyle() converts the pixel size at
+    * VSFontHelper's px-to-pt rate and then raises anything under 9pt to 9pt. Excel lays the
+    * result out at 96 dpi. Missing the 9pt floor would leave small fonts -- which Excel draws
+    * up to half again as wide -- with no compensation at all.
+    *
+    * @return the ratio of drawn size to pixel size, or 1 when Excel draws it no larger.
+    */
+   static double getExcelFontScale(java.awt.Font font) {
+      if(font == null || font.getSize() <= 0) {
+         return 1;
+      }
+
+      int points = Math.max(MIN_ADJUSTED_FONT_POINTS, VSFontHelper.getFontSize(font));
+      return Math.max(1, (points / POINTS_PER_PIXEL) / font.getSize());
+   }
+
+   /**
     * Write label text as an Excel text box at the given pixel bounds.
     */
    private void writeLabelTextBox(LabelInfo labelInfo, Rectangle2D pixelBounds) {
-      // Add extra width so Excel's font metrics (Calibri) don't cause the text to wrap.
-      // getLabelDimensions uses Java AWT string width which is narrower than Excel's rendering.
-      // For LEFT-positioned labels the widget starts immediately to the right, so cap the
-      // extra by the gap to prevent the text box from overlapping the widget when gap is small.
-      double extra = LabelInfo.LEFT.equals(labelInfo.getLabelPosition())
-         ? Math.min(30, labelInfo.getLabelGap())
-         : 30;
-      Rectangle2D padded = new Rectangle2D.Double(
-         pixelBounds.getX(), pixelBounds.getY(),
-         pixelBounds.getWidth() + extra, pixelBounds.getHeight());
-      XSSFClientAnchor anchor = (XSSFClientAnchor) getAnchorFromPixelRect(padded);
+      XSSFClientAnchor anchor = (XSSFClientAnchor) getAnchorFromPixelRect(pixelBounds);
       XSSFTextBox tb = patriarch.createTextbox(anchor);
+      // The browser renders the label with white-space:nowrap, so a label that is a few
+      // pixels wider in Excel's font metrics than in the AWT metrics used to size the box
+      // must overflow rather than break mid-word.
+      tb.setWordWrap(false);
+      // The browser label has no padding, but an Excel text box defaults to a 0.1in
+      // (~9.6px) inset that would shift the text off the position the split computed.
+      clearInsets(tb);
       // Default to vertical center to match browser flex-layout; applyFormat overrides if set.
       tb.setVerticalAlignment(VerticalAlignment.CENTER);
       XSSFRichTextString rts = (XSSFRichTextString)
          PoiExcelVSUtil.createRichTextString(book, labelInfo.getLabelText());
       tb.setText(rts);
-      // Use the original (unpadded) bounds for the round-corner radius calculation so the
-      // font-metric slack added to padded's width doesn't skew the shorter-side comparison.
-      applyFormat(tb, rts, getLabelFormat(labelInfo), false, pixelBounds);
+      applyFormat(tb, rts, getLabelFormat(labelInfo), false, roundCornerBounds(labelInfo, pixelBounds));
+   }
+
+   /**
+    * Get the bounds to derive a round-corner radius from. splitInputBoundsForExcel() widens
+    * a LEFT label box by the font slack, and applyRoundCorner() scales the radius off the
+    * shorter side, so the slack has to come back out before the two sides are compared.
+    */
+   private static Rectangle2D roundCornerBounds(LabelInfo labelInfo, Rectangle2D pixelBounds) {
+      double slack = LabelInfo.LEFT.equals(labelInfo.getLabelPosition())
+         ? getExcelLabelWidthSlack(labelInfo) : 0;
+
+      if(slack <= 0) {
+         return pixelBounds;
+      }
+
+      return new Rectangle2D.Double(pixelBounds.getX(), pixelBounds.getY(),
+                                    Math.max(1, pixelBounds.getWidth() - slack),
+                                    pixelBounds.getHeight());
+   }
+
+   /**
+    * Remove the default 0.1in internal margins of an Excel text box so the text is laid
+    * out from the box origin, the way the zero-padding label and input do in the browser.
+    */
+   private static void clearInsets(XSSFTextBox tb) {
+      tb.setLeftInset(0);
+      tb.setRightInset(0);
+      tb.setTopInset(0);
+      tb.setBottomInset(0);
    }
 
    /**
@@ -872,7 +976,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       TextInputVSAssemblyInfo info = (TextInputVSAssemblyInfo) assembly.getVSAssemblyInfo();
       Object value = assembly.getSelectedObject();
       String txt = value == null ? "" : Tool.getDataString(value, assembly.getDataType());
-      Rectangle2D[] split = splitInputPixelBounds(info, viewsheet);
+      Rectangle2D[] split = splitInputBoundsForExcel(info);
 
       if(split == null) {
          writeText(assembly, txt);
@@ -883,6 +987,9 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
          writeLabelTextBox(((InputVSAssemblyInfo) info).getLabelInfo(), split[0]);
          XSSFClientAnchor anchor = (XSSFClientAnchor) getAnchorFromPixelRect(split[1]);
          XSSFTextBox tb = patriarch.createTextbox(anchor);
+         // single-line <input> in the browser, so don't let Excel break the value
+         tb.setWordWrap(false);
+         clearInsets(tb);
          XSSFRichTextString rts = (XSSFRichTextString)
             PoiExcelVSUtil.createRichTextString(book, txt);
          tb.setText(rts);
@@ -1113,6 +1220,10 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
     * margin most cells have around their text, while still visibly rounding the corner.
     */
    private static final int MAX_TABLE_ROUND_RADIUS = 8;
+   /** points per pixel at 96 dpi, for converting the workbook's point sizes back to pixels */
+   private static final float POINTS_PER_PIXEL = 0.75f;
+   /** minimum point size translateFontStyle() writes when isAdjust is set */
+   private static final int MIN_ADJUSTED_FONT_POINTS = 9;
 
    /**
     * Draw a rounded-rectangle outline around a table/crosstab's outer bounds when the
