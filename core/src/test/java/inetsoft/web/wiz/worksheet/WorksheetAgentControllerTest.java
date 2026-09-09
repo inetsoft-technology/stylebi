@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.worksheet;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.web.WebConfig;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
@@ -345,6 +347,34 @@ class WorksheetAgentControllerTest {
          null, null, null, null, null, endpoint, parameters, lookup, lookupExpandArrays,
          lookupTopLevelOnly, suffix, customLookups
       );
+   }
+
+   /**
+    * Builds an {@code add_table} EditRequest carrying {@code queryParams} -- the fourth,
+    * connector-agnostic form routed to {@code addQueryParamsTable()}. Built through the real app
+    * {@link ObjectMapper} rather than the canonical record constructor: {@code queryParams} is
+    * appended as the LAST field of a 70+ parameter positional record, and hand-counting nulls out
+    * to that position is exactly the kind of silent off-by-one this sidesteps entirely -- see
+    * {@link EditRequestParametersDeserializationTest} for the same technique used to prove the
+    * field deserializes at all.
+    */
+   private static EditRequest addQueryParamsTableRequest(
+      String table, String datasource, String logicalModel, String schema, String catalog,
+      String endpoint, String suffix, Map<String, Object> queryParams) throws Exception
+   {
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "add_table");
+      if(table != null) body.put("table", table);
+      if(datasource != null) body.put("datasource", datasource);
+      if(logicalModel != null) body.put("logicalModel", logicalModel);
+      if(schema != null) body.put("schema", schema);
+      if(catalog != null) body.put("catalog", catalog);
+      if(endpoint != null) body.put("endpoint", endpoint);
+      if(suffix != null) body.put("suffix", suffix);
+      if(queryParams != null) body.put("queryParams", queryParams);
+
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
    }
 
    /**
@@ -3763,6 +3793,205 @@ class WorksheetAgentControllerTest {
          // if 'id' had not been threaded through, a PairingException would have fired first and
          // this mock would never have been touched.
          verify(editSvc).applyOnRuntime(eq("TOK-TT8"), eq(agent), any());
+      }
+   }
+
+   // ---------------------------------------------------------------------------
+   // add_table with queryParams — naming for addQueryParamsTable()
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void addQueryParamsTableRejectsQueryParamsTogetherWithEndpoint() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, null, null,
+         "Charges", null, Map.of("entitySet", "Orders"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-QP1", req, agent));
+      assertTrue(ex.getMessage().contains("queryParams together with endpoint or suffix"),
+         ex.getMessage());
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addQueryParamsTableRejectsQueryParamsTogetherWithSuffix() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, null, null,
+         null, "/v1/widgets", Map.of("entitySet", "Orders"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-QP2", req, agent));
+      assertTrue(ex.getMessage().contains("queryParams together with endpoint or suffix"),
+         ex.getMessage());
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addQueryParamsTableRequiresDatasource() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addQueryParamsTableRequest("t1", null, null, null, null,
+         null, null, Map.of("entitySet", "Orders"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-QP3", req, agent));
+      assertTrue(ex.getMessage().contains("datasource is required"), ex.getMessage());
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addQueryParamsTableRejectsLogicalModelTogether() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", "Order Model", null,
+         null, null, null, Map.of("entitySet", "Orders"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-QP4", req, agent));
+      assertTrue(ex.getMessage().contains("queryParams and logicalModel"), ex.getMessage());
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addQueryParamsTableRejectsSchemaCatalogTogether() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, "dbo", null,
+         null, null, Map.of("entitySet", "Orders"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-QP5", req, agent));
+      assertTrue(ex.getMessage().contains("schema/catalog"), ex.getMessage());
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addQueryParamsTableRejectsNonTabularDatasource() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
+      when(jdbcDs.getType()).thenReturn("JDBC");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(jdbcDs);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, null, null,
+         null, null, Map.of("entitySet", "Orders"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-QP6", req, agent));
+      assertTrue(ex.getMessage().contains("not a tabular"), ex.getMessage());
+      verifyNoInteractions(editSvc);
+   }
+
+   /**
+    * Proves {@code req.queryParams()} actually reaches
+    * {@code TabularQueryContractSupport.applyQueryContract} through {@code addQueryParamsTable}
+    * -- the same connector-agnostic reflection path
+    * {@code WorksheetTableService.buildTabularTable} (wiz-services' write path) uses. Fills
+    * {@code FakeNamedConnectorQuery}'s plain, non-composite {@code jsonPath} property (no
+    * {@code dependsOn}, no {@code tagsMethod}) rather than {@code endpoint}, since queryParams'
+    * whole point is addressing a connector that has no {@code endpoint}/{@code suffix} property
+    * at all -- reaching {@code editService.applyOnRuntime} is what proves the fill succeeded.
+    *
+    * <p>{@code TabularSchemaExtractor.extract} resolves connector labels through a Spring-bean
+    * {@code Config.getConfig()}, which this class's real (but minimal) {@code @WizAgentTestSupport}
+    * context does not register -- unlike {@code TabularQueryContractSupportTest}, which owns its
+    * whole context and can install a mock one for the class's entire lifetime, this test wraps
+    * the REAL installed {@link ApplicationContext} with a delegating spy for its own duration
+    * only, restoring the original context in every case (including failure) so the ~160 other
+    * tests in this class keep the real Spring context they depend on.</p>
+    */
+   @Test
+   void addQueryParamsTableThreadsQueryParamsIntoTheSharedHelper() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeNamedConnector");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, null, null,
+         null, null, Map.of("jsonPath", "$.data"));
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         assertDoesNotThrow(() -> ctrl.edit("TOK-QP7", req, agent),
+            "a plain, non-composite property with no dependsOn/tagsMethod must fill cleanly");
+         assertEquals("$.data", query.getJsonPath());
+         // editService.applyOnRuntime is only reached AFTER applyQueryContract succeeds -- if
+         // jsonPath had not been threaded through at all, this mock would never be touched.
+         verify(editSvc).applyOnRuntime(eq("TOK-QP7"), eq(agent), any());
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
       }
    }
 

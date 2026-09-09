@@ -95,7 +95,14 @@ class WizTabularControllerSecurityTest {
                 "/api/wiz/tabular/probe/open",
                 "/api/wiz/tabular/probe/table",
                 "/api/wiz/tabular/probe/close",
-                "/api/wiz/tabular/query-schema"),
+                "/api/wiz/tabular/query-schema",
+                // Added by the bearer-token OAuth endpoints round (stylebi#5096) -- this frozen
+                // list was not updated at the time, which is a pre-existing gap unrelated to
+                // this PR's own change, caught here only because it makes CI red for any PR
+                // branched after that round landed.
+                "/api/wiz/tabular/oauth-params",
+                "/api/wiz/tabular/oauth-tokens",
+                "/api/wiz/tabular/oauth-grant-password"),
          new HashSet<>(mappedPaths()));
    }
 

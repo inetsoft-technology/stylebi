@@ -51,6 +51,8 @@ import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.tabular.PropertyMeta;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularQuery;
+import inetsoft.uql.tabular.TabularQuerySchema;
+import inetsoft.uql.tabular.TabularSchemaExtractor;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.text.TextOutput;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -79,6 +81,7 @@ import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.RenderWaitSupport;
 import inetsoft.web.wiz.service.TabularEndpointBindingSupport;
+import inetsoft.web.wiz.service.TabularQueryContractSupport;
 import inetsoft.web.wiz.script.PaneScopeService;
 import inetsoft.web.wiz.viewsheet.SheetOpenService;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
@@ -283,6 +286,40 @@ public class WorksheetAgentController {
       throws Exception
    {
       requireEnabled();
+
+      // add_table with queryParams binds a TabularTableAssembly via the SAME generic,
+      // connector-agnostic path WorksheetTableService.buildTabularTable uses for wiz-services'
+      // /ws/table -- see addQueryParamsTable's own doc comment for why this is a fourth,
+      // independent add_table form rather than a variant of the endpoint/suffix block below.
+      // Checked FIRST, before the endpoint/suffix block, so a request carrying queryParams
+      // together with either of those gets ITS OWN contradiction error rather than being
+      // silently treated as the endpoint/suffix form.
+      if("add_table".equals(req.op()) && req.queryParams() != null && !req.queryParams().isEmpty()) {
+         if((req.endpoint() != null && !req.endpoint().isBlank()) ||
+            (req.suffix() != null && !req.suffix().isBlank()))
+         {
+            throw new PairingException("add_table cannot carry queryParams together with " +
+               "endpoint or suffix -- choose exactly one add_table form.");
+         }
+
+         if(req.datasource() == null || req.datasource().isBlank()) {
+            throw new PairingException("datasource is required when queryParams is specified.");
+         }
+
+         if(req.logicalModel() != null && !req.logicalModel().isBlank()) {
+            throw new PairingException(
+               "add_table cannot carry both queryParams and logicalModel -- choose one.");
+         }
+
+         if(req.schema() != null || req.catalog() != null) {
+            throw new PairingException("add_table cannot carry schema/catalog together with " +
+               "queryParams -- those name a physical table; queryParams targets a connector " +
+               "property map instead.");
+         }
+
+         addQueryParamsTable(sessionToken, req, user);
+         return;
+      }
 
       // add_table with endpoint (named connector) or suffix (generic/custom REST-JSON) binds a
       // TabularTableAssembly instead of a physical table or logical-model entity. Checked before
@@ -744,6 +781,87 @@ public class WorksheetAgentController {
             throw new PairingException("The request to '" + target + "' of '" + dsName +
                "' returned no columns. URL suffix sent: " + suffix + ". Check the parameter " +
                "values and datasource credentials -- see the server log for the cause.");
+         }
+
+         return null;
+      });
+   }
+
+   /**
+    * Create a {@link TabularTableAssembly} bound to an arbitrary connector's OWN properties,
+    * filled via {@link TabularQueryContractSupport#applyQueryContract} -- the SAME
+    * connector-agnostic reflection path {@link WorksheetTableService#buildTabularTable}
+    * (wiz-services' {@code /api/wiz/ws/table} write path) already uses. Unlike
+    * {@link #addTabularTable}, which only knows the two REST-JSON shapes
+    * ({@code endpoint}/{@code suffix}), this method makes no assumption about which connector
+    * it is talking to -- it is the Composer-side entry point for METADATA (OData, Cassandra,
+    * ...), FILE (OneDrive, ServerFile), and Rest.XML, none of which have an
+    * {@code endpoint}/{@code suffix} property on their query class.
+    */
+   private void addQueryParamsTable(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      String dsName = req.datasource();
+
+      if(!dataSourceService.checkPermission(dsName, ResourceAction.READ, user)) {
+         throw new PairingException("Access denied: no READ permission on datasource " + dsName);
+      }
+
+      XDataSource dataSource = xrepository.getDataSource(dsName);
+
+      if(dataSource == null) {
+         throw new PairingException("Data source not found: " + dsName);
+      }
+
+      if(!(dataSource instanceof TabularDataSource)) {
+         throw new PairingException("'" + dsName + "' is a " + dataSource.getType() +
+            " data source, not a tabular one, so it has no connector properties. Use " +
+            "datasource+schema+table for a physical table, or datasource+logicalModel for a " +
+            "logical model entity.");
+      }
+
+      TabularQuery query = TabularUtil.createQuery(dsName);
+
+      if(query == null) {
+         throw new PairingException("Could not create a query for data source '" + dsName +
+            "' -- its connector plugin may not be loaded.");
+      }
+
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+      TabularQuerySchema schema = new TabularSchemaExtractor().extract(query, dataSource.getType());
+      String applied = TabularQueryContractSupport.applyQueryContract(
+         query, pmap, schema, req.queryParams(), dsName);
+
+      String tableName = req.table();
+
+      if(tableName == null || tableName.isBlank()) {
+         throw new PairingException(
+            "table (the desired worksheet table name) is required for add_table with queryParams.");
+      }
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         String normalizedTableName = AssetUtil.normalizeTable(tableName);
+         String assemblyName = AssetUtil.getNextName(ws, normalizedTableName, normalizedTableName);
+         TabularTableAssembly assembly = new TabularTableAssembly(ws, assemblyName);
+         TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) assembly.getTableInfo();
+         info.setQuery(query);
+         info.setSourceInfo(new SourceInfo(SourceInfo.DATASOURCE, dsName, dsName));
+
+         positionBelowExisting(ws, assembly);
+         ws.addAssembly(assembly);
+
+         // The live call -- same one WorksheetTableService.buildTabularTable and
+         // addTabularTable above both make; a tabular query has no columns until one response
+         // has been parsed.
+         assembly.loadColumnSelection(new VariableTable(), true, null);
+
+         ColumnSelection columns = assembly.getColumnSelection(false);
+
+         if(columns == null || columns.getAttributeCount() == 0) {
+            throw new PairingException("The request to '" + dsName + "' returned no columns. " +
+               "Properties sent: " + applied + ". Check the parameter values and datasource " +
+               "credentials -- see the server log for the cause.");
          }
 
          return null;
