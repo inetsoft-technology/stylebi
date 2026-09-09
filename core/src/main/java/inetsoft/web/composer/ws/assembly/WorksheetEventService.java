@@ -55,15 +55,36 @@ public class WorksheetEventService {
                                boolean gettingStartedCreateQuery,
                                CommandDispatcher commandDispatcher) throws Exception
    {
-      return openWorksheet(user, entry, openAutoSaved, gettingStartedCreateQuery, null,
+      return openWorksheet(user, entry, openAutoSaved, gettingStartedCreateQuery, null, null,
                            commandDispatcher);
    }
 
+   /**
+    * Open the worksheet, or attach to a runtime that is already open, optionally linking the
+    * new/attached worksheet's sandbox back to an originating viewsheet.
+    *
+    * <p>{@code existingRuntimeId} is set when the server opened the runtime itself and told the
+    * browser to attach to it — the {@code open_base_worksheet} agent flow. Opening a second
+    * runtime of the same asset there is the defect this parameter exists to prevent: the agent
+    * edits one runtime while the user watches the other, both ends report success, and nothing
+    * surfaces until one save clobbers the other. An id naming a runtime that does not exist, or
+    * one owned by another user, fails inside {@code engine.getWorksheet} on the proxy call rather
+    * than quietly opening a fresh one.
+    *
+    * <p>{@code vsId} is independent of {@code existingRuntimeId} — it names the viewsheet this
+    * worksheet is being opened FROM (e.g. the base worksheet link in the composer's bottom status
+    * bar), so its sandbox can link back for script expressions like
+    * {@code worksheet['TextInput1'].value}. Either, both, or neither may be set on a given call.
+    *
+    * @param existingRuntimeId a runtime to attach to, or {@code null} to open a new one
+    * @param vsId the originating viewsheet's runtime id, or {@code null} if none
+    */
    public String openWorksheet(Principal user, AssetEntry entry, boolean openAutoSaved,
-                               boolean gettingStartedCreateQuery, String vsId,
-                               CommandDispatcher commandDispatcher) throws Exception
+                               boolean gettingStartedCreateQuery, String existingRuntimeId,
+                               String vsId, CommandDispatcher commandDispatcher) throws Exception
    {
-      String runtimeId = engine.openWorksheet(entry, user);
+      String runtimeId = existingRuntimeId != null
+         ? existingRuntimeId : engine.openWorksheet(entry, user);
       WorksheetEventServiceProxy p = proxy.getIfAvailable();
 
       if(p != null) {

@@ -30,12 +30,19 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Whether opening a worksheet creates a runtime or attaches to one that already exists.
+ * Whether opening a worksheet creates a runtime or attaches to one that already exists, and
+ * whether it links the new/attached worksheet's sandbox back to an originating viewsheet.
  *
  * <p>An agent tool ({@code open_base_worksheet}) opens a worksheet runtime server-side and tells
  * the browser to attach to it. If the browser opens its own runtime instead, both ends report
  * success and diverge silently: the agent edits one worksheet, the user watches another, and
  * nothing surfaces until a save overwrites one with the other.
+ *
+ * <p>{@code existingRuntimeId} (the attach target) and {@code vsId} (the viewsheet to link the
+ * sandbox to) are independent parameters -- bug #76409 collapsed them into the same slot when
+ * #76408 added {@code vsId} without adding its own parameter, so a supplied {@code runtimeId} was
+ * silently read as a {@code vsId} and the attach branch never fired. Every case below exercises
+ * both parameters together to guard against that collision recurring.
  */
 @Tag("core")
 class WorksheetEventServiceTest {
@@ -48,11 +55,11 @@ class WorksheetEventServiceTest {
    void attachesToTheSuppliedRuntimeInsteadOfOpeningASecondOne() throws Exception {
       Fixture f = new Fixture();
 
-      f.service.openWorksheet(f.user, f.entry, false, false, "ws-server-1", f.dispatcher);
+      f.service.openWorksheet(f.user, f.entry, false, false, "ws-server-1", null, f.dispatcher);
 
       verify(f.engine, never()).openWorksheet(any(AssetEntry.class), any(Principal.class));
       verify(f.proxy).openWorksheet(eq("ws-server-1"), eq(f.user), eq(f.entry), eq(false),
-                                    eq(false), eq(f.dispatcher));
+                                    eq(false), eq((String) null), eq(f.dispatcher));
    }
 
    /**
@@ -64,11 +71,29 @@ class WorksheetEventServiceTest {
       Fixture f = new Fixture();
       when(f.engine.openWorksheet(f.entry, f.user)).thenReturn("ws-fresh-1");
 
-      f.service.openWorksheet(f.user, f.entry, false, false, null, f.dispatcher);
+      f.service.openWorksheet(f.user, f.entry, false, false, null, null, f.dispatcher);
 
       verify(f.engine).openWorksheet(f.entry, f.user);
       verify(f.proxy).openWorksheet(eq("ws-fresh-1"), eq(f.user), eq(f.entry), eq(false),
-                                    eq(false), eq(f.dispatcher));
+                                    eq(false), eq((String) null), eq(f.dispatcher));
+   }
+
+   /**
+    * Regression test for bug #76409: attaching to a server-opened runtime (the
+    * {@code open_base_worksheet} agent flow) and linking the new worksheet's sandbox to an
+    * originating viewsheet are independent and must both take effect when both are supplied --
+    * neither parameter may shadow or overwrite the other.
+    */
+   @Test
+   void attachesToSuppliedRuntimeAndLinksVsIdSimultaneously() throws Exception {
+      Fixture f = new Fixture();
+
+      f.service.openWorksheet(f.user, f.entry, false, false, "ws-server-1", "vs-origin-1",
+                              f.dispatcher);
+
+      verify(f.engine, never()).openWorksheet(any(AssetEntry.class), any(Principal.class));
+      verify(f.proxy).openWorksheet(eq("ws-server-1"), eq(f.user), eq(f.entry), eq(false),
+                                    eq(false), eq("vs-origin-1"), eq(f.dispatcher));
    }
 
    @SuppressWarnings("unchecked")
