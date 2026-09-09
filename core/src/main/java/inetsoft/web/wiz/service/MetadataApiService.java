@@ -710,6 +710,20 @@ public class MetadataApiService {
             "Viewsheet " + vsId + " has no base worksheet or direct binding (never attached).");
       }
 
+      // #76519 P6 review round 1, Finding 2 — the read above only checked READ on the VIEWSHEET's
+      // own entry (via assetRepository.getSheet). For a real-worksheet base specifically,
+      // Viewsheet.update() (the method that load reaches to populate getBaseWorksheet()) loads that
+      // worksheet with principal=null/permission=false — its own READ is never checked at all. A
+      // principal with READ on the viewsheet but explicitly denied READ on its underlying
+      // worksheet (a legitimate, existing StyleBI configuration — share a finished dashboard, keep
+      // the raw query private) could otherwise read the full table/column/join/condition/aggregate
+      // structure through this endpoint, which /ws/structure/{worksheetId} would never let that same
+      // principal see directly. Check explicitly here, uniformly across all three base kinds
+      // (worksheet / logical model / physical table) rather than relying on whatever the internal
+      // synthesis path happens to enforce for each — same READ check /ws/structure performs on the
+      // worksheet entry it's handed directly.
+      assetRepository.checkAssetPermission(principal, baseEntry, ResourceAction.READ);
+
       Worksheet baseWorksheet = viewsheet.getBaseWorksheet();
 
       if(baseWorksheet == null) {
