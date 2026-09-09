@@ -41,6 +41,12 @@ class ConditionVocabularyTest {
       return field;
    }
 
+   private static DataRefModel field(String name, String dataType) {
+      DataRefModel field = field(name);
+      when(field.getDataType()).thenReturn(dataType);
+      return field;
+   }
+
    private static final DataRefModel[] FIELDS =
       { field("Region"), field("Revenue"), field("OrderDate") };
 
@@ -514,6 +520,42 @@ class ConditionVocabularyTest {
          List.of(clause("Revenue", "greater_than",
                         List.of(Map.of("type", "field", "field", "Nope")), null)),
          FIELDS));
+   }
+
+   // ── bug 76522 / DCG-010: a bare string that can't coerce to the field's type ─
+
+   @Test
+   void refusesAStringValueThatCannotCoerceToTheFieldsDataType() {
+      DataRefModel[] fields = { field("Region"), field("OrderId", "integer"), field("OrderDate") };
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> ConditionVocabulary.toConditionList(
+            List.of(clause("OrderId", "greater_than", List.of("CUSTOMER_ID"), null)), fields));
+
+      assertTrue(thrown.getMessage().contains("CUSTOMER_ID"));
+      assertTrue(thrown.getMessage().contains("OrderId"));
+      assertTrue(thrown.getMessage().contains("integer"));
+   }
+
+   @Test
+   void acceptsAStringValueThatDoesCoerceToTheFieldsDataType() {
+      DataRefModel[] fields = { field("Region"), field("OrderId", "integer"), field("OrderDate") };
+
+      Object[] list = ConditionVocabulary.toConditionList(
+         List.of(clause("OrderId", "greater_than", List.of("42"), null)), fields);
+
+      ConditionValueModel value = ((ConditionModel) list[0]).getValues()[0];
+      assertEquals(ConditionValueModel.VALUE, value.getType());
+      assertEquals("42", value.getValue(), "the literal is passed through unchanged; "
+         + "ConditionUtil performs the actual coercion downstream, as before");
+   }
+
+   @Test
+   void acceptsAStringLiteralAgainstAStringTypedField() {
+      DataRefModel[] fields = { field("Region", "string"), field("Revenue"), field("OrderDate") };
+
+      assertDoesNotThrow(() -> ConditionVocabulary.toConditionList(
+         List.of(clause("Region", "equals", List.of("CUSTOMER_ID"), null)), fields));
    }
 
    @Test

@@ -19,6 +19,8 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.uql.JunctionOperator;
 import inetsoft.uql.XCondition;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.*;
 
@@ -196,7 +198,7 @@ public final class ConditionVocabulary {
          condition.setValues(new ConditionValueModel[] { rankingValue(values.get(0), index, fields) });
       }
       else {
-         condition.setValues(values.stream().map(raw -> value(raw, index, fields))
+         condition.setValues(values.stream().map(raw -> value(raw, index, fields, field))
                                 .toArray(ConditionValueModel[]::new));
       }
 
@@ -212,9 +214,28 @@ public final class ConditionVocabulary {
     * deliberately not supported here -- its payload is a full sub-query definition with no
     * tractable minimal-field summary.
     */
-   private static ConditionValueModel value(Object raw, int index, Map<String, DataRefModel> fields) {
+   private static ConditionValueModel value(Object raw, int index, Map<String, DataRefModel> fields,
+                                            DataRefModel targetField)
+   {
       if(raw instanceof Map<?, ?> map && map.get("type") instanceof String typeToken) {
          return typedValue(typeToken, map, index, fields);
+      }
+
+      // ConditionUtil later force-coerces a literal VALUE against the target field's declared
+      // type (Tool.getData(dataType, value)) and silently keeps null on failure -- checking here,
+      // one hop earlier, catches a bare string that can't become the field's type (e.g. a column
+      // name meant for a {type:"field",...} operand) with a named error instead of a silently
+      // null-valued condition that matches zero rows.
+      if(raw instanceof String str && !str.isBlank()) {
+         String dataType = targetField.getDataType();
+
+         if(!XSchema.STRING.equals(dataType) && Tool.getData(dataType, str) == null) {
+            throw new IllegalArgumentException(
+               "Condition " + index + "'s value '" + str + "' cannot be interpreted as a " +
+               dataType + " for field '" + targetField.getName() + "'. If you meant to compare " +
+               "against another column, use {type: \"field\", field: \"" + str + "\"} instead of " +
+               "a plain string.");
+         }
       }
 
       ConditionValueModel value = new ConditionValueModel();
