@@ -1470,9 +1470,12 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
     * a rolling upgrade working in the other direction: a node still running an older build reads
     * {@code users.get(user.getCacheKey())} exclusively, so without it every login registered on an
     * upgraded node would be invisible to a not-yet-upgraded one and those users would hit
-    * "did not log in" for the whole upgrade window. When the two keys coincide (no session id)
-    * this is a single entry. The legacy write can be dropped once no supported upgrade path
-    * starts from a build that reads the cache key.
+    * "did not log in" for the whole upgrade window. The two keys are equal, making this a
+    * single entry, only when the locale is null and the login key keeps the same address as the
+    * cache key -- that is, no session id (the address is retained) or an empty address. Note that
+    * a locale is commonly set on the client info after construction, so in practice both writes
+    * usually land on distinct entries. The legacy write can be dropped once no supported
+    * upgrade path starts from a build that reads the cache key.
     */
    private void putLoggedInUser(ClientInfo user, SRPrincipal principal) {
       users.put(user.getLoginKey(), principal);

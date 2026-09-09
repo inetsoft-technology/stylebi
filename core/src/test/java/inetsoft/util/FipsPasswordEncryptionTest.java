@@ -46,7 +46,8 @@ package inetsoft.util;
  *
  * updateMasterPassword() — reads/writes SreeEnv password.hash.key; needs mockStatic or full context
  * getSSOKeyPair() — Cluster distributed lock + SreeEnv persistence
- * encryptPassword() / decryptPassword() — getSecretKey() lifecycle + SreeEnv round-trip
+ * encryptPassword() / decryptPassword() — full SreeEnv round-trip; getSecretKey()'s
+ *    storage-first read is covered by getSecretKey_staleInMemoryValue_readsStorageInsteadOfSnapshot
  *
  * getJwtSigningKey() self-heal path (Bug #75541) is covered by
  * getJwtSigningKey_undersizedLegacyKey_regeneratesAndPersists.
@@ -83,6 +84,28 @@ import static org.junit.jupiter.api.Assertions.*;
 class FipsPasswordEncryptionTest {
 
    private FipsPasswordEncryption encryption;
+
+   // Removes a property from the in-memory snapshot without touching the backing store, so the
+   // node looks like one whose asynchronous property refresh has not arrived yet.
+   private static void evictFromInMemoryProperties(String name) throws Exception {
+      PropertiesEngine engine = PropertiesEngine.getInstance();
+      java.lang.reflect.Method method =
+         PropertiesEngine.class.getDeclaredMethod("getInternalProperties");
+      method.setAccessible(true);
+      ((java.util.Properties) method.invoke(engine)).remove(name);
+   }
+
+   // Overwrites a property in the in-memory snapshot without touching the backing store, so the
+   // node looks like one that still holds the value from before the last change. This is the
+   // state PropertiesEngine is in when it fires firePropertyChange, which happens before its
+   // debounced snapshot refresh.
+   private static void setInMemoryPropertyOnly(String name, String value) throws Exception {
+      PropertiesEngine engine = PropertiesEngine.getInstance();
+      java.lang.reflect.Method method =
+         PropertiesEngine.class.getDeclaredMethod("getInternalProperties");
+      method.setAccessible(true);
+      ((java.util.Properties) method.invoke(engine)).setProperty(name, value);
+   }
 
    @BeforeEach
    void setUp() {
@@ -201,6 +224,42 @@ class FipsPasswordEncryptionTest {
          assertArrayEquals(input, decrypted);
       }
 
+      // Same stale-snapshot hazard as getJwtSigningKey(), on the highest-stakes key of the set:
+      // reading a key other than the persisted one leaves every already-stored password
+      // undecryptable. A null-only fallback to storage is not enough — PropertiesEngine fires
+      // firePropertyChange BEFORE its debounced snapshot refresh, so at the moment a re-read is
+      // triggered the snapshot still holds the OLD value, not null. getSecretKey() must therefore
+      // read the backing store first and treat the snapshot only as a fallback.
+      // Setup: persist a key, then plant a different one in the in-memory properties only.
+      @Test
+      void getSecretKey_staleInMemoryValue_readsStorageInsteadOfSnapshot() throws Exception {
+         SecretKey persistedKey = encryption.getSecretKey(encryption.getMasterKey());
+         String persisted = SreeEnv.getPropertyFromStorage("password.encryption.key");
+         Assumptions.assumeTrue(
+            persisted != null, "the backing store is not readable in this test environment");
+
+         SecretKey otherKey = encryption.createSecretKey();
+         Assumptions.assumeTrue(
+            !Arrays.equals(persistedKey.getEncoded(), otherKey.getEncoded()),
+            "the generated keys collided");
+         String stale = Base64.getEncoder().encodeToString(
+            encryption.encryptSecretKey(otherKey, encryption.getMasterKey()));
+
+         try {
+            setInMemoryPropertyOnly("password.encryption.key", stale);
+            Assumptions.assumeTrue(stale.equals(SreeEnv.getProperty("password.encryption.key")),
+               "could not simulate a stale in-memory property snapshot");
+
+            SecretKey reread = encryption.getSecretKey(encryption.getMasterKey());
+
+            assertArrayEquals(persistedKey.getEncoded(), reread.getEncoded(),
+               "the persisted key must win over a stale in-memory snapshot value");
+         }
+         finally {
+            setInMemoryPropertyOnly("password.encryption.key", persisted);
+         }
+      }
+
       @Test
       void encryptWithMaster_roundTrip() {
          byte[] input = "my secret password".getBytes(StandardCharsets.UTF_16);
@@ -271,16 +330,6 @@ class FipsPasswordEncryptionTest {
             SreeEnv.setProperty("jwt.signing.key", persisted);
             SreeEnv.remove("jwt.signing.key");
          }
-      }
-
-      // Removes a property from the in-memory snapshot without touching the backing store, so the
-      // node looks like one whose asynchronous property refresh has not arrived yet.
-      private void evictFromInMemoryProperties(String name) throws Exception {
-         PropertiesEngine engine = PropertiesEngine.getInstance();
-         java.lang.reflect.Method method =
-            PropertiesEngine.class.getDeclaredMethod("getInternalProperties");
-         method.setAccessible(true);
-         ((java.util.Properties) method.invoke(engine)).remove(name);
       }
 
       // Bug #75541: self-heal path — an upgraded FIPS deployment with a persisted 128-bit

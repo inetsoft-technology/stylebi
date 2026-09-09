@@ -387,7 +387,16 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
             throw new IllegalArgumentException("The master password is incorrect.");
          }
 
-         String keyProperty = SreeEnv.getProperty("password.encryption.key");
+         // Storage first, for the same reason as getSecretKey(): a stale null from the
+         // in-memory snapshot here would skip re-encrypting the stored key under the new
+         // master password, leaving it decryptable only with the old one. A read failure is
+         // propagated -- this is an explicit administrative action, so refusing it is far
+         // better than half-applying it.
+         String keyProperty = SreeEnv.getPropertyFromStorage("password.encryption.key");
+
+         if(keyProperty == null) {
+            keyProperty = SreeEnv.getProperty("password.encryption.key");
+         }
 
          if(keyProperty != null) {
             SecretKey key = decryptSecretKey(keyProperty, oldMasterKey);
@@ -429,11 +438,37 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
 
       try {
          SecretKey key;
-         String property = SreeEnv.getProperty("password.encryption.key");
+         // Storage first, snapshot only as a fallback, matching getJwtSigningKey() and
+         // getSSOKeyPair(): the in-memory snapshot refreshes asynchronously, so the cluster
+         // lock alone does not stop two nodes from each seeing "absent" and generating a
+         // different key. Of the four keys read this way, this one is the highest-stakes: a
+         // second password.encryption.key would leave every already-stored password
+         // undecryptable.
+         //
+         // Unlike the other three, a storage read failure here does NOT propagate. This method
+         // is on the path of every password encrypt/decrypt in the process, so failing closed
+         // on a transient read error would take down unrelated work that the already-loaded
+         // snapshot can serve correctly. The safety property that must hold is the narrower
+         // one: never generate a new key while the stored state is unknown. So a read failure
+         // falls back to the snapshot, and if the snapshot has no key either, the failure is
+         // rethrown rather than answered by minting a second key.
+         String property;
+         RuntimeException storageError = null;
 
-         // Fallback to backing store if in-memory cache hasn't refreshed yet
-         if(property == null) {
+         try {
             property = SreeEnv.getPropertyFromStorage("password.encryption.key");
+         }
+         catch(RuntimeException e) {
+            storageError = e;
+            property = null;
+         }
+
+         if(property == null) {
+            property = SreeEnv.getProperty("password.encryption.key");
+         }
+
+         if(property == null && storageError != null) {
+            throw storageError;
          }
 
          if(property == null) {
