@@ -64,4 +64,13 @@ describe("EditableObjectContainer — mini-toolbar/data-tip composition", () => 
       const tag = miniToolbarTag();
       expect(tag).toMatch(/\[dataTipName]\s*=\s*"vsObject\.absoluteName"/);
    });
+
+   // A data tip's target can be a container assembly (e.g. a Group Container), not just a
+   // single leaf assembly. In that case a child's own dataTipName (its absoluteName) never
+   // matches the registered data-tip value -- only its container name does, via
+   // popContainerName (see VSDataTipDirective's ngDoCheck / isActiveDataTipOwner()).
+   it("binds VSDataTip's popContainerName to the assembly's container", () => {
+      const tag = miniToolbarTag();
+      expect(tag).toMatch(/\[popContainerName]\s*=\s*"vsObject\.container"/);
+   });
 });

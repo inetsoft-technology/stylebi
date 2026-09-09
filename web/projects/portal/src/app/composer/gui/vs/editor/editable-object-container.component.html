@@ -371,6 +371,7 @@
 <ng-container *ngIf="isMiniToolbarVisible()">
   <mini-toolbar *ngIf="hasMiniToolbar()"
                 VSDataTip [dataTipName]="vsObject.absoluteName" [miniToolbar]="true"
+                [popContainerName]="vsObject.container"
                 [actions]="actions"
                 [forceAbove]="searchDisplayed"
                 [top]="vsObject.objectFormat.top"
