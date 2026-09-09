@@ -72,6 +72,8 @@ public class ScriptLibraryController {
 
    public record CheckScriptSyntaxResult(boolean ok, String message, Integer line, Integer column) {}
 
+   public record CheckScriptSyntaxRequest(String script) {}
+
    @GetMapping
    public List<ScriptLibraryFunction> list(Principal principal) {
       LibManager lib = libManagerProvider.getManager(principal);
@@ -184,11 +186,11 @@ public class ScriptLibraryController {
    }
 
    @PostMapping("/check")
-   public CheckScriptSyntaxResult checkSyntax(@RequestBody String script) {
+   public CheckScriptSyntaxResult checkSyntax(@RequestBody CheckScriptSyntaxRequest request) {
       ScriptEnv env = ScriptEnvRepository.getScriptEnv();
 
       try {
-         env.checkFunction("script", script);
+         env.checkFunction("script", request.script());
       }
       catch(Exception e) {
          int line = 0;
