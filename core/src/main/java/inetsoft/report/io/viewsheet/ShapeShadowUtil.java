@@ -23,6 +23,7 @@ import inetsoft.uql.viewsheet.internal.*;
 
 import java.awt.*;
 import java.awt.geom.Rectangle2D;
+import java.awt.image.*;
 
 /**
  * Helper for laying out the drop shadow of a shape assembly when exporting.
@@ -149,6 +150,116 @@ public final class ShapeShadowUtil {
     */
    public static Rectangle2D expandForShadow(Rectangle2D bounds, VSAssemblyInfo info) {
       return expandForShadow(bounds, info, 1);
+   }
+
+   /**
+    * Create just the blurred shadow layer of an image, with nothing of the
+    * image itself composited on top.
+    *
+    * This is the shared half of VSFaceUtil.addShadow(BufferedImage,
+    * ShapeShadow, Insets): the shape's alpha channel is tinted with the
+    * shadow color,
+    * positioned where the shadow falls, and blurred on its own so the blur can
+    * spread into the margins without softening the shape itself. Callers that
+    * paint the shape themselves -- the Print Layout shapes in
+    * PageLayout.Rectangle/Oval draw their own fill and outline through the
+    * export Graphics -- need the layer alone, and must get it from here so the
+    * blur stays defined in one place.
+    *
+    * The tint uses AlphaComposite.SrcIn and the blur a ConvolveOp, neither of
+    * which a PDF Graphics honours, so both must happen here on an off-screen
+    * image rather than against the destination.
+    *
+    * @param img the shape image, at its natural size. Only its alpha channel
+    *            matters; the color of its pixels is replaced by the shadow's.
+    * @param shadow the shadow settings.
+    * @param insets how far the shadow extends past each side of the shape, as
+    *               returned by {@link #getShadowInsets(ShapeShadow)}. The
+    *               shape occupies (insets.left, insets.top) in the layer.
+    * @return the shadow layer, or null if there is nothing to draw.
+    */
+   public static BufferedImage createShadowLayer(BufferedImage img,
+                                                 ShapeShadow shadow,
+                                                 Insets insets)
+   {
+      if(img == null || shadow == null || insets == null) {
+         return null;
+      }
+
+      int outW = img.getWidth() + insets.left + insets.right;
+      int outH = img.getHeight() + insets.top + insets.bottom;
+
+      if(outW <= 0 || outH <= 0) {
+         return null;
+      }
+
+      BufferedImage layer = new BufferedImage(outW, outH, BufferedImage.TYPE_INT_ARGB);
+      Graphics2D g2 = layer.createGraphics();
+
+      try {
+         g2.drawImage(img, insets.left + shadow.getOffsetX(),
+                      insets.top + shadow.getOffsetY(), null);
+         g2.setComposite(AlphaComposite.SrcIn);
+         g2.setColor(shadow.getShadowColor());
+         g2.fillRect(0, 0, outW, outH);
+      }
+      finally {
+         g2.dispose();
+      }
+
+      int blur = shadow.getBlurRadius();
+
+      // getGaussianBlurFilter requires a radius of at least 1
+      if(blur >= 1) {
+         layer = getGaussianBlurFilter(blur, true).filter(layer, null);
+         layer = getGaussianBlurFilter(blur, false).filter(layer, null);
+      }
+
+      return layer;
+   }
+
+   /**
+    * Build one axis of a separable gaussian blur kernel. Lives here rather
+    * than in VSFaceUtil so the report engine can blur a shadow without
+    * pulling in VSFaceUtil's static initializer, which reaches into the
+    * portal theme manager.
+    */
+   public static ConvolveOp getGaussianBlurFilter(int radius,
+                                                   boolean horizontal) 
+   {
+      if(radius < 1) {
+         throw new IllegalArgumentException("Radius must be >= 1");
+      }
+      
+      int size = radius * 2 + 1;
+      float[] data = new float[size];
+      
+      float sigma = radius / 3.0f;
+      float twoSigmaSquare = 2.0f * sigma * sigma;
+      float sigmaRoot = (float) Math.sqrt(twoSigmaSquare * Math.PI);
+      float total = 0.0f;
+      
+      for(int i = -radius; i <= radius; i++) {
+         float distance = i * i;
+         int index = i + radius;
+         data[index] = (float) Math.exp(-distance / twoSigmaSquare) / sigmaRoot;
+         total += data[index];
+      }
+      
+      for(int i = 0; i < data.length; i++) {
+         data[i] /= total;
+      }        
+      
+      Kernel kernel = null;
+
+      if(horizontal) {
+         kernel = new Kernel(size, 1, data);
+      }
+      else {
+         kernel = new Kernel(1, size, data);
+      }
+
+      return new ConvolveOp(kernel, ConvolveOp.EDGE_NO_OP, null);
    }
 
    private static final Insets NO_SHADOW = new Insets(0, 0, 0, 0);
