@@ -3230,6 +3230,25 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             clearCache(entry);
             storage.putXMLSerializable(identifier, dsheet);
          }
+         else {
+            LOG.warn("Unable to update outer dependency reference for renamed sheet: dependent entry not found: " + entry);
+         }
+      }
+
+      for(AssetEntry entry : sheet.getOuterDependencies()) {
+         String identifier = entry.toIdentifier();
+         IndexedStorage storage = getStorage(entry);
+         AbstractSheet esheet = (AbstractSheet)
+            storage.getXMLSerializable(identifier, null);
+
+         if(esheet != null) {
+            esheet.renameOuterDependent(oentry, nentry);
+            clearCache(entry);
+            storage.putXMLSerializable(identifier, esheet);
+         }
+         else {
+            LOG.warn("Unable to rename outer dependent reference for renamed sheet: embedding entry not found: " + entry);
+         }
       }
    }
 
