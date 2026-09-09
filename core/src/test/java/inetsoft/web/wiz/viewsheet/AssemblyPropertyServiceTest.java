@@ -23,9 +23,11 @@ import inetsoft.uql.asset.DefaultVariableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
+import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.model.vs.TextInputPropertyDialogModel;
+import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -571,6 +573,72 @@ class AssemblyPropertyServiceTest {
          Map.of("dataInputPaneModel.variable", false), ""));
    }
 
+   /**
+    * {@code ChartPropertyDialogService.setChartPropertyModel} only calls {@code setAlphaValue}
+    * inside the {@code tipOption == true} branch, so {@code tipAlpha} set alone -- without
+    * {@code tipOption}/{@code tipView} in the same patch -- would otherwise be silently dropped
+    * (Redmine #76516). {@code impliedSibling} fills in {@code tipOption: true} for this case.
+    */
+   @Test
+   void impliesTipOptionWhenAlphaIsSetAlone() throws Exception {
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+
+      service.set("tok", principal(), "Chart1", Map.of("tipAlpha", "50"), "");
+
+      assertTrue(model.getChartGeneralPaneModel().getTipPaneModel().isTipOption(),
+                 "tipOption must be implied true so alpha is not silently dropped");
+      assertEquals("50", model.getChartGeneralPaneModel().getTipPaneModel().getAlpha());
+   }
+
+   /** A caller who sets {@code tipOption} explicitly is never overridden, even to {@code false}. */
+   @Test
+   void leavesTipOptionAloneWhenAlphaAndTipOptionAreBothSet() throws Exception {
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+
+      service.set("tok", principal(), "Chart1", Map.of("tipAlpha", "50", "tipOption", false), "");
+
+      assertFalse(model.getChartGeneralPaneModel().getTipPaneModel().isTipOption(),
+                  "an explicit tipOption must not be overridden by the alpha implication");
+   }
+
+   /**
+    * {@code customTip} is only applied when {@code customRB == TipFormat.CUSTOM}; otherwise it is
+    * actively nulled out. So {@code tooltip} set alone -- without {@code tooltipMode: "CUSTOM"}
+    * in the same patch -- would otherwise wipe any existing custom tooltip (Redmine #76516).
+    * {@code impliedSibling} fills in {@code customRB: CUSTOM} for this case.
+    */
+   @Test
+   void impliesCustomModeWhenTooltipIsSetAlone() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      service.set("tok", principal(), "Gauge1", Map.of("tooltip", "hello"), "");
+
+      assertEquals(TipCustomizeDialogModel.TipFormat.CUSTOM,
+                   model.getGaugeGeneralPaneModel().getTipPaneModel()
+                      .getTipCustomizeDialogModel().getCustomRB(),
+                   "customRB must be implied CUSTOM so tooltip is not silently wiped");
+      assertEquals("hello", model.getGaugeGeneralPaneModel().getTipPaneModel()
+         .getTipCustomizeDialogModel().getCustomTip());
+   }
+
+   /** A caller who sets {@code tooltipMode} explicitly is never overridden. */
+   @Test
+   void leavesCustomModeAloneWhenTooltipAndTooltipModeAreBothSet() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      service.set("tok", principal(), "Gauge1",
+                  Map.of("tooltip", "hello", "tooltipMode", "none"), "");
+
+      assertEquals(TipCustomizeDialogModel.TipFormat.NONE,
+                   model.getGaugeGeneralPaneModel().getTipPaneModel()
+                      .getTipCustomizeDialogModel().getCustomRB(),
+                   "an explicit tooltipMode must not be overridden by the tooltip implication");
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static AssemblyPropertyService serviceWith(VSAssembly assembly, Object model) {
@@ -657,10 +725,23 @@ class AssemblyPropertyServiceTest {
          throw new IllegalStateException(e);
       }
 
+      ChartPropertyDialogService chart = mock(ChartPropertyDialogService.class);
+
+      if(model instanceof ChartPropertyDialogModel chartModel) {
+         try {
+            when(chart.getChartPropertyDialogModel(anyString(), anyString(),
+                                                   any(Principal.class)))
+               .thenReturn(chartModel);
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+      }
+
       return new AssemblyPropertyService(
          sessions, gauge, mock(ImagePropertyDialogService.class),
          mock(TextPropertyDialogService.class),
-         mock(ChartPropertyDialogService.class), mock(TableViewPropertyDialogService.class),
+         chart, mock(TableViewPropertyDialogService.class),
          mock(CrosstabPropertyDialogService.class),
          mock(SelectionListPropertyDialogService.class),
          mock(SelectionTreePropertyDialogService.class),
