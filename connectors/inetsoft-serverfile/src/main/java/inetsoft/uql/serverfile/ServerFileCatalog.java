@@ -47,26 +47,33 @@ import java.util.*;
  * enumeration without the cost scaling with the workbook's row count.
  *
  * <p>{@code #} is the separator because it is already the one wiz uses for this exact convention
- * (wiz's {@code tableMetadataService.ts} splits an id on the LAST {@code #}; wiz's
- * {@code tabularFileProbe.ts} builds ids the same way for the file pipeline this SPI conversion
- * replaces for ServerFile). Decoding here matches that -- split on the LAST {@code #} -- for the
- * same reason: a relative path may contain {@code #}, so the split has to favor the tail.
+ * (wiz's {@code tableMetadataService.ts:283} and {@code tabularFileProbe.ts:226} both split a FILE-
+ * category id on {@code #} -- but neither ever runs on a METADATA id: {@code tableMetadataService.ts}
+ * gates that split behind {@code category === "FILE"}, and {@code tabularFileProbe.ts}'s split result
+ * is fully overwritten by {@code describeDataset}'s own already-decoded {@code params} map, which is
+ * always spread in afterward. Dataset ids stay opaque to wiz end to end (stylebi#5041); this format
+ * is chosen only because it is already familiar, not because anything on the wiz side parses it).
  *
  * <p><b>The relative path is percent-escaped before it is used as (or joined into) an id</b> --
  * {@code #} -> {@code %23}, {@code %} -> {@code %25} (escaped first, so an escaped {@code %23}/
  * {@code %25} sequence that already existed in a real filename is never re-escaped or
- * double-unescaped) -- so that {@code lastIndexOf('#')} in a full id always finds the genuine
- * sheet separator, never a {@code #} that was really part of a plain file or directory NAME. Two
- * failure modes this closes, found in P6 review (R1-1): (1) an ordinary file like
- * {@code sales#2026.csv} used to decode as path {@code sales} + sheet {@code 2026.csv} and fail to
- * resolve, even though nothing is wrong with that file; (2) a multi-sheet workbook
- * {@code book.xlsx} with a sheet legally named {@code Sheet1.csv} encoded to
+ * double-unescaped) -- so the path portion of every id is GUARANTEED {@code #}-free. That is what
+ * makes decoding correct: {@code decodeId} splits on the FIRST {@code #} in the full id, which can
+ * therefore only ever be the genuine sheet separator -- never a {@code #} that was really part of a
+ * plain file or directory NAME (closed in P6 review, R1-1), and never confused by a {@code #}
+ * inside the SHEET NAME itself (Excel forbids {@code :\/?*[]} in a sheet name but not {@code #}; a
+ * LAST-{@code #} split, tried first, put the separator at the wrong {@code #} for a sheet legally
+ * named e.g. {@code Q#1} -- closed in P6 review, R1-5). Three failure modes this closes in total:
+ * (1) an ordinary file like {@code sales#2026.csv} used to decode as path {@code sales} + sheet
+ * {@code 2026.csv} and fail to resolve, even though nothing is wrong with that file; (2) a
+ * multi-sheet workbook {@code book.xlsx} with a sheet legally named {@code Sheet1.csv} encoded to
  * {@code book.xlsx#Sheet1.csv} -- identical to the BARE id an unrelated plain file literally named
  * {@code book.xlsx#Sheet1.csv} would have had, which {@code TabularCatalogService} rejects as a
- * duplicate id, aborting the whole catalog. Only the PATH is escaped; a sheet NAME itself
- * containing {@code #} (legal on Excel, unlike {@code :\/?*[]}) is left as the pre-existing,
- * unfixed ambiguity described in the design doc's D.1 -- escaping the path closes the two failure
- * modes above without needing to touch that separate, already-accepted residual.
+ * duplicate id, aborting the whole catalog; (3) a workbook with a sheet legally named {@code Q#1}
+ * produced an id whose separator a last-{@code #} split located one character too late. The sheet
+ * NAME itself is never escaped -- it does not need to be, once the path's own {@code #} is gone,
+ * the first {@code #} in the id is unambiguous regardless of how many more {@code #} characters
+ * the sheet name itself contains after it.
  */
 final class ServerFileCatalog {
    private ServerFileCatalog() {
@@ -316,8 +323,15 @@ final class ServerFileCatalog {
       return sheet == null ? escapedPath : escapedPath + "#" + sheet;
    }
 
+   /**
+    * Splits on the FIRST {@code #}, not the last -- {@link #escapePath} guarantees the path
+    * portion is {@code #}-free, so the first {@code #} in the full id is always the genuine
+    * separator, whether or not the SHEET name (never escaped) contains further {@code #}
+    * characters of its own (R1-5: a last-{@code #} split put the separator inside a sheet legally
+    * named e.g. {@code Q#1}).
+    */
    private static Target decodeId(String datasetId) {
-      int idx = datasetId.lastIndexOf('#');
+      int idx = datasetId.indexOf('#');
       return idx < 0 ? new Target(unescapePath(datasetId), null)
                       : new Target(unescapePath(datasetId.substring(0, idx)),
                                    datasetId.substring(idx + 1));

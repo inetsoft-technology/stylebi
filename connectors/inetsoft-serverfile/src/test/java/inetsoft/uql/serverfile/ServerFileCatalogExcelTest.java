@@ -101,7 +101,7 @@ class ServerFileCatalogExcelTest {
    }
 
    @Test
-   void aRelativePathContainingHashStillDecodesCorrectly_lastHashSplit() throws Exception {
+   void aRelativePathContainingHashStillDecodesCorrectly_pathEscapedBeforeFirstHashSplit() throws Exception {
       File sub = new File(root, "sub#folder");
       assertTrue(sub.mkdirs());
       writeWorkbook(new File(sub, "report.xlsx"), sheet("Data", "x"), sheet("Extra", "y"));
@@ -109,16 +109,33 @@ class ServerFileCatalogExcelTest {
       List<String> ids = ServerFileCatalog.listDatasets(ds).datasets().stream()
          .map(TabularDatasetRef::id).sorted().collect(Collectors.toList());
       // R1-1: the path's own '#' is percent-escaped (%23) before the sheet separator is appended,
-      // so lastIndexOf('#') on the full id always finds the genuine separator, never a '#' that
-      // was really part of the directory name.
+      // so the FIRST '#' in the full id is always the genuine separator, never a '#' that was
+      // really part of the directory name.
       assertEquals(List.of("sub%23folder/report.xlsx#Data", "sub%23folder/report.xlsx#Extra"), ids);
 
-      // decodeId must split on the LAST unescaped '#' -- the file's own relative path contains
-      // one (now escaped), and a first-'#' split would wrongly cut the path in half instead of
-      // isolating the sheet name.
+      // decodeId splits on the FIRST '#' (R1-5, superseding an earlier last-'#' rule): the path
+      // is escaped #-free, so the first '#' in "sub%23folder/report.xlsx#Data" is unambiguous.
       TabularDatasetSchema schema =
          ServerFileCatalog.describeDataset(ds, "sub%23folder/report.xlsx#Data");
       assertEquals(List.of("x"), names(schema));
+   }
+
+   // R1-5 (P6 review, round 2): Excel forbids ':\/?*[]' in a sheet name but NOT '#' -- so "Q#1" is
+   // a legal sheet name. A last-'#' split (R1-1's original fix) would land on the '#' INSIDE the
+   // sheet name instead of the genuine separator. The path is escaped #-free (R1-1), so the FIRST
+   // '#' in the id is always the real separator regardless of how many more '#' characters the
+   // sheet name itself contains after it. Distinct headers per sheet so a wrong-sheet resolution
+   // fails rather than silently passing.
+   @Test
+   void aSheetNameContainingHashStillDecodesCorrectly_firstHashSplit() throws Exception {
+      writeWorkbook(new File(root, "book.xlsx"), sheet("Q#1", "alpha"), sheet("Plain", "beta"));
+
+      List<String> ids = ServerFileCatalog.listDatasets(ds).datasets().stream()
+         .map(TabularDatasetRef::id).sorted().collect(Collectors.toList());
+      assertEquals(List.of("book.xlsx#Plain", "book.xlsx#Q#1"), ids);
+
+      assertEquals(List.of("alpha"), names(ServerFileCatalog.describeDataset(ds, "book.xlsx#Q#1")));
+      assertEquals(List.of("beta"), names(ServerFileCatalog.describeDataset(ds, "book.xlsx#Plain")));
    }
 
    // R1-1, manifestation 1: an ORDINARY, unforced file whose own name contains '#' must still
