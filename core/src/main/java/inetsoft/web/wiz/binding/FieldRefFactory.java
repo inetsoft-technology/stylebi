@@ -42,7 +42,9 @@ import inetsoft.web.composer.model.condition.ConditionExpression;
 import inetsoft.web.composer.model.condition.ConditionUtil;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Converts between StyleBI's ref models and the agent-facing {@link FieldRef}. */
 public final class FieldRefFactory {
@@ -175,6 +177,7 @@ public final class FieldRefFactory {
 
       NamedGroupInfoModel model = new NamedGroupInfoModel();
       model.setType(XNamedGroupInfo.SIMPLE_NAMEDGROUP_INFO);
+      Set<String> seenNames = new HashSet<>();
 
       for(FieldRef.NamedGroupValues.Clause clause : spec.groups()) {
          if(clause.name() == null || clause.name().isBlank()) {
@@ -187,6 +190,12 @@ public final class FieldRefFactory {
             throw new IllegalArgumentException(
                "Field '" + column + "'s 'namedGroupValues' group '" + clause.name() + "' needs " +
                "a non-empty 'values' list -- a group with no member values matches nothing.");
+         }
+
+         if(!seenNames.add(clause.name())) {
+            throw new IllegalArgumentException(
+               "Field '" + column + "'s 'namedGroupValues.groups' has a duplicate name '" +
+               clause.name() + "' -- list each group name at most once.");
          }
 
          model.addGroup(new GroupCondition(clause.name(), clause.values()));
