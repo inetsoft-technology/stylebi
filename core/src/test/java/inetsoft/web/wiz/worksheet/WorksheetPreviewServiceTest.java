@@ -242,6 +242,28 @@ class WorksheetPreviewServiceTest {
       assertSame(cause, ex.getCause());
    }
 
+   // Bug #76556 (VFO-017): a non-null TableLens can itself be the RUNTIME_MODE failed-query
+   // fallback (AssetQuery.doGetTableLens's catch(ExpressionFailedException) substitutes a
+   // design-time XNodeMetaTable carrying sentinel example data, e.g. for a JS expression
+   // column referencing invalid syntax like "$(DiscountRate)"). Previously preview() had no
+   // check for this shape and read the sentinel row as if it were real query output. It must
+   // now surface the captured cause instead of returning fabricated rows.
+   @Test
+   void throwsWhenLensIsFailedQueryFallback() throws Exception {
+      XNodeMetaTable failedLens = mock(XNodeMetaTable.class);
+      when(failedLens.isFailedQueryDefault()).thenReturn(true);
+      when(failedLens.getFailedQueryMessage())
+         .thenReturn("ReferenceError: \"$\" is not defined");
+
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(failedLens);
+
+      PairingException ex = assertThrows(PairingException.class,
+                                          () -> service.preview(rws(box), "T", 10));
+      assertTrue(ex.getMessage().contains("T"));
+      assertTrue(ex.getMessage().contains("ReferenceError: \"$\" is not defined"));
+   }
+
    @Test
    void usesFallbackHeaderNameWhenObjectIsNull() throws Exception {
       TableLens l = mock(TableLens.class);
