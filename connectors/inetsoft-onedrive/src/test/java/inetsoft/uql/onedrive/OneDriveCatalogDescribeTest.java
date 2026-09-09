@@ -215,6 +215,38 @@ class OneDriveCatalogDescribeTest {
    }
 
    /**
+    * R2-1 (06-review-r1.md's own follow-on question, "which wrong {@code encodeId} would still pass
+    * all five [prior cases]?"): every prior case contains its escape character AT MOST ONCE, so a
+    * mutation that downgrades {@code String#replace} (replaces EVERY occurrence) to {@code
+    * replaceFirst} (replaces only the first) would leave a second {@code #}/{@code %} raw and still
+    * pass all of them. A filename containing the SAME escape character TWICE is the one shape that
+    * closes that gap.
+    */
+   @Test
+   void aFileNamedWithTheHashCharacterTwiceEncodesThroughListDatasets_andRoundTrips() throws Exception {
+      String id = encodedIdFor("a#b#c.csv");
+      assertEquals("a%23b%23c.csv", id, "BOTH '#' occurrences must be escaped, not just the first");
+
+      OneDriveDataSource ds = OneDriveTestSupport.fakeDataSource("OneDrive Test");
+      TabularDatasetSchema schema = OneDriveCatalog.describeDataset(
+         ds, id, fixtureFactory("TestCSV.csv"));
+
+      assertEquals("a#b#c.csv", schema.params().get(OneDriveCatalog.PARAM_PATH));
+   }
+
+   @Test
+   void aFileNamedWithThePercentCharacterTwiceEncodesThroughListDatasets_andRoundTrips() throws Exception {
+      String id = encodedIdFor("a%b%c.csv");
+      assertEquals("a%25b%25c.csv", id, "BOTH '%' occurrences must be escaped, not just the first");
+
+      OneDriveDataSource ds = OneDriveTestSupport.fakeDataSource("OneDrive Test");
+      TabularDatasetSchema schema = OneDriveCatalog.describeDataset(
+         ds, id, fixtureFactory("TestCSV.csv"));
+
+      assertEquals("a%b%c.csv", schema.params().get(OneDriveCatalog.PARAM_PATH));
+   }
+
+   /**
     * Non-ASCII characters are outside the escape alphabet ({@code %}/{@code #} only), so a Chinese
     * (or any other Unicode) filename passes through {@code encodeId}/{@code unescapeId} completely
     * untouched -- safe by construction, not by luck, but nothing said so explicitly before this case
