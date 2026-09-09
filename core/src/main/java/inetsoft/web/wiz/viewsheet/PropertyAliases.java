@@ -107,6 +107,23 @@ public final class PropertyAliases {
                          "sortOthersLastEnabled", "dateComparisonSupport"));
 
    /**
+    * textinput/combobox/slider/spinner's {@code dataInputPaneModel.variable} (bug #76530): has a
+    * real getter/setter, populated correctly on every read from the persisted
+    * {@code InputVSAssemblyInfo.isVariable()} -- but every one of these four types' setters
+    * derives the real, persisted flag solely from whether {@code dataInputPaneModel.table} (after
+    * {@code VSInputService.resolveInputTableBinding}'s normalization) is shaped
+    * {@code "$(varName)"}. The client's own boolean here is never read back on write, for any of
+    * the four. Unlike a plain {@link #DEAD_FIELDS} entry, a write here is not refused
+    * unconditionally -- see {@code AssemblyPropertyService.requireVariableFlagAchievable}, which
+    * this set only marks as needing that check, because whether the write is actually honored
+    * depends on the resulting table binding, not on the field alone. CheckBox and RadioButton are
+    * deliberately absent: their setters read {@code dataInputPaneModel.isVariable()} directly (a
+    * different, separate defect -- tracked on its own, not this one).
+    */
+   private static final Set<String> VARIABLE_FLAG_DERIVED_TYPES =
+      Set.of("textinput", "combobox", "slider", "spinner");
+
+   /**
     * {@code refresh} is aliased through the shared {@link #basicGeneral} helper because it is
     * genuinely applied for the input assemblies (checkbox/combobox/radiobutton/slider/spinner/
     * textinput, via {@code VSInputService}) and for submit (via
@@ -155,6 +172,15 @@ public final class PropertyAliases {
 
    public static Set<String> coveredTypes() {
       return Collections.unmodifiableSet(REGISTRY.keySet());
+   }
+
+   /**
+    * Whether {@code assemblyType}'s setter derives {@code dataInputPaneModel.variable} from
+    * {@code dataInputPaneModel.table} rather than reading the field back -- see {@link
+    * #VARIABLE_FLAG_DERIVED_TYPES}.
+    */
+   public static boolean derivesVariableFlagFromTable(String assemblyType) {
+      return VARIABLE_FLAG_DERIVED_TYPES.contains(normalize(assemblyType));
    }
 
    /**

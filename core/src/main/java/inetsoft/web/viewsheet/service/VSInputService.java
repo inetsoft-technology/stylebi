@@ -3794,16 +3794,25 @@ public class VSInputService {
     *
     * <p>Accepts the correct {@code "$(varName)"} reference form as-is, provided the variable
     * actually exists; accepts any real worksheet table/assembly name as-is (a genuine
-    * table+column binding); and normalizes two unambiguous natural mistakes into the
+    * table+column binding); and normalizes three unambiguous natural mistakes into the
     * {@code "$(varName)"} form the runtime requires: a bare variable name with no
-    * {@code $(...)} wrapping, and the Composer's own "Variables" tree folder label (not a
+    * {@code $(...)} wrapping, the Composer's own "Variables" tree folder label (not a
     * selectable leaf -- see {@link #getInputTablesTree}) paired with a {@code columnValue}
-    * that names a real variable. Anything else is rejected loud, by field name, rather than
-    * silently persisted as a broken binding.
+    * that names a real variable, and (bug #76530) {@code table} left unset entirely while
+    * {@code columnValue} itself already carries the {@code "$(varName)"} reference -- the shape
+    * a caller naturally reaches for when only one field looks like it should hold the variable.
+    * Anything else is rejected loud, by field name, rather than silently persisted as a broken
+    * binding.
     */
    private static String resolveInputTableBinding(Worksheet ws, Viewsheet vs, String table,
                                                    String columnValue)
    {
+      if((table == null || table.isEmpty()) && columnValue != null &&
+         columnValue.startsWith("$(") && columnValue.endsWith(")"))
+      {
+         table = columnValue;
+      }
+
       if(table == null || table.isEmpty() || ws == null) {
          return table;
       }
@@ -3836,6 +3845,25 @@ public class VSInputService {
       throw new MessageException("Unknown table binding '" + table + "' for this input. " +
          "It does not match a worksheet table or a worksheet variable; use " +
          "\"$(variableName)\" to bind to a variable.");
+   }
+
+   /**
+    * Whether {@code table}/{@code columnValue}, once run through {@link
+    * #resolveInputTableBinding}'s normalization above, resolve to a {@code "$(varName)"}
+    * worksheet-variable reference.
+    *
+    * <p>Exposed (bug #76530) so {@code AssemblyPropertyService} can refuse an explicit
+    * {@code dataInputPaneModel.variable} write that this class's own setters would otherwise
+    * silently fail to honor: {@code setTextInputPropertyDialogModel}/
+    * {@code setComboboxPropertyDialogModel}/{@code setSliderPropertyDialogModel}/
+    * {@code setSpinnerPropertyDialogModel} never read {@code dataInputPaneModel.isVariable()} at
+    * all -- the persisted flag is always this method's own answer, derived from {@code table}.
+    */
+   public static boolean resolvesToVariableBinding(Worksheet ws, Viewsheet vs, String table,
+                                                    String columnValue)
+   {
+      String resolved = resolveInputTableBinding(ws, vs, table, columnValue);
+      return resolved != null && resolved.startsWith("$(") && resolved.endsWith(")");
    }
 
    private static boolean isKnownVariableName(Worksheet ws, Viewsheet vs, String name) {
