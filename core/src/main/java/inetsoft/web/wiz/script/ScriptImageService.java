@@ -21,7 +21,10 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.FileFormatInfo;
+import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.service.BinaryTransferService;
@@ -242,7 +245,51 @@ public class ScriptImageService {
       BufferedImage scaled = scaleToFit(full, w, h);
       byte[] encoded = encodePng(scaled, "the viewsheet");
 
-      return new ChartImage(encoded, true, scaled.getWidth(), scaled.getHeight(), null);
+      return new ChartImage(encoded, true, scaled.getWidth(), scaled.getHeight(),
+         dropdownSelectionListNote(rvs.getViewsheet()));
+   }
+
+   /**
+    * {@code VSSelectionListHelper.write} — the code every export format (SVG/PNG/HTML/PDF) shares
+    * for drawing a selection list — only calls {@code writeList()} (the method that draws the
+    * rows/values) when {@code getShowType() == SelectionVSAssemblyInfo.LIST_SHOW_TYPE}. For
+    * {@code DROPDOWN_SHOW_TYPE}, nothing substitutes: no export format draws any arrow, border, or
+    * selected-value chrome, so the assembly comes out as a blank box in this image. That's a real
+    * gap in the export pipeline, not something this render can paper over — Composer/Viewer render
+    * dropdown mode correctly, so note the discrepancy rather than let a blank box pass as a
+    * plausible result (see class doc's title-bar/tables-crosstabs fallback for the same pattern).
+    */
+   private static String dropdownSelectionListNote(Viewsheet vs) {
+      if(vs == null) {
+         return null;
+      }
+
+      StringBuilder names = new StringBuilder();
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(assembly instanceof SelectionListVSAssembly selectionList &&
+            selectionList.getVSAssemblyInfo() instanceof SelectionListVSAssemblyInfo info &&
+            info.getShowType() == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE)
+         {
+            if(names.length() > 0) {
+               names.append(", ");
+            }
+
+            names.append('"').append(selectionList.getAbsoluteName()).append('"');
+         }
+      }
+
+      if(names.length() == 0) {
+         return null;
+      }
+
+      boolean plural = names.indexOf(",") >= 0;
+
+      return names + (plural ? " are dropdown-mode selection lists" : " is a dropdown-mode " +
+         "selection list") + " that will render as an empty box in this export — StyleBI's " +
+         "export pipeline (SVG/PNG/HTML/PDF) doesn't draw dropdown chrome for any format. The " +
+         "interactive Composer/Viewer renders " + (plural ? "them" : "it") + " correctly, " +
+         "including the arrow, border, and selected value; only this static image is affected.";
    }
 
    /**

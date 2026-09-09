@@ -20,7 +20,10 @@ package inetsoft.web.wiz.script;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
@@ -64,6 +67,18 @@ class ScriptImageServiceTest {
       ChartVSAssembly chart = new ChartVSAssembly(vs, chartName);
       chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Table1"));
       vs.addAssembly(chart);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      return rvs;
+   }
+
+   /** Builds a viewsheet with a single SelectionList assembly set to the given show type. */
+   private RuntimeViewsheet viewsheetWithSelectionList(String name, int showType) {
+      Viewsheet vs = new Viewsheet();
+      SelectionListVSAssembly selectionList = new SelectionListVSAssembly(vs, name);
+      ((SelectionListVSAssemblyInfo) selectionList.getVSAssemblyInfo()).setShowType(showType);
+      vs.addAssembly(selectionList);
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
@@ -318,6 +333,48 @@ class ScriptImageServiceTest {
    @Test
    void getViewsheetImageNeverAttachesATitleNote() throws Exception {
       RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
+      VSExportService exportService = mock(VSExportService.class);
+      stubExport(exportService, fakePng(400, 300));
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+      ScriptImageService.ChartImage img = svc.getViewsheetImage(
+         rvs, null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertNull(img.note());
+   }
+
+   /**
+    * Bug #76541: {@code VSSelectionListHelper.write} only draws a selection list's rows/values
+    * when {@code getShowType() == SelectionVSAssemblyInfo.LIST_SHOW_TYPE} — no export format
+    * (SVG/PNG/HTML/PDF) substitutes any dropdown chrome, so a dropdown-mode selection list renders
+    * as a blank box with no warning. Composer/Viewer render it correctly; only static exports are
+    * affected.
+    */
+   @Test
+   void attachesANoteWhenTheViewsheetHasADropdownSelectionList() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithSelectionList(
+         "Selection1", SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      VSExportService exportService = mock(VSExportService.class);
+      stubExport(exportService, fakePng(400, 300));
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+      ScriptImageService.ChartImage img = svc.getViewsheetImage(
+         rvs, null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertNotNull(img.note());
+      assertTrue(img.note().contains("Selection1"));
+   }
+
+   /**
+    * Regression guard for the note added for bug #76541 — a list-mode SelectionList is drawn
+    * correctly by the export pipeline, so it must not start firing this note too.
+    */
+   @Test
+   void doesNotAttachANoteWhenTheSelectionListIsInListMode() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithSelectionList(
+         "Selection1", SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
       VSExportService exportService = mock(VSExportService.class);
       stubExport(exportService, fakePng(400, 300));
 
