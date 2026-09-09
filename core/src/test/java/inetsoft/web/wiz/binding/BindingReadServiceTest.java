@@ -25,6 +25,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
+import inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.AssemblyBinding;
 import org.junit.jupiter.api.Tag;
@@ -162,6 +163,37 @@ class BindingReadServiceTest {
 
       assertEquals(Integer.valueOf(GraphTypes.CHART_AUTO), ref.chartType());
       assertEquals(Integer.valueOf(GraphTypes.CHART_BAR), ref.runtimeChartType());
+   }
+
+   /**
+    * {@code withTypes(FieldRef, ChartAestheticModel)} rebuilds the ref through the full
+    * 9-arg {@code FieldRef} constructor to stamp on the per-measure chart type — the same
+    * reconstruction shape that dropped {@code namedGroupValues} before this fix, and would
+    * just as silently drop {@code calculateInfo} if a trailing component were missed again.
+    * Asserted on the calculator's own concrete type and fields rather than on {@code FieldRef}
+    * equality: {@code CalculateInfo.equals()} treats any two non-null instances as equal, so an
+    * {@code assertEquals} on the ref alone would pass even if the calculator were dropped and
+    * replaced with the wrong one.
+    */
+   @Test
+   void preservesCalculateInfoWhenStampingAPerMeasureChartTypeUnderMultiStyle() {
+      RunningTotalCalcInfo calc = new RunningTotalCalcInfo();
+      calc.setAggregate("Sum");
+      calc.setResetLevel(-1);
+
+      ChartAggregateRefModel field = aggregate("PAID", "Sum");
+      field.setCalculateInfo(calc);
+
+      ChartBindingModel model = new ChartBindingModel();
+      model.setMultiStyles(true);
+      model.setYFields(List.of(withChartType(field, 5)));
+
+      FieldRef ref = read(model).shelves().get("y").get(0);
+
+      assertInstanceOf(RunningTotalCalcInfo.class, ref.calculateInfo());
+      RunningTotalCalcInfo readBack = (RunningTotalCalcInfo) ref.calculateInfo();
+      assertEquals("Sum", readBack.getAggregate());
+      assertEquals(-1, readBack.getResetLevel());
    }
 
    /** Divergence-only: reported on every field it would be noise rather than a signal. */

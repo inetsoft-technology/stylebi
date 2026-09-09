@@ -69,9 +69,13 @@ import java.util.List;
  * @param calculateInfo    a per-measure Trend/Calculator (running total, change, moving, value-of,
  *                         percent, compound growth, or a custom expression), measures only —
  *                         mirrors the Composer binding pane's own Calculator button. {@code null}
- *                         leaves it unchanged; there is no separate "clear" signal because
- *                         clearing is just setting the aggregate's formula, which every caller
- *                         already does independently of this.
+ *                         leaves it unchanged. There is currently no signal that clears a
+ *                         previously-applied one through this agent surface — changing
+ *                         {@code aggregate} alone does not; {@code BAggregateRefModel.setFormula}/
+ *                         {@code ChartAggregateRefModel.setFormula} only ever touch the formula
+ *                         field, never {@code calculateInfo}. Removing a calculator once set
+ *                         requires a follow-up capability (a real "clear" signal), not something
+ *                         this record already supports.
  */
 public record FieldRef(String column, String type, String aggregate, String dateLevel,
                        String namedGroup, Integer chartType, Integer runtimeChartType,

@@ -39,8 +39,10 @@ import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.NamedGroupInfoModel;
+import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.graph.ChartRefModel;
+import inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import org.junit.jupiter.api.Tag;
@@ -178,6 +180,51 @@ class FieldRefFactoryTest {
       assertEquals("measure", ref.type());
       assertEquals("Sum", ref.aggregate());
       assertNull(ref.dateLevel(), "a measure has no date level");
+   }
+
+   /**
+    * Asserted on the calculator's own concrete type/fields rather than on {@code FieldRef}
+    * equality — {@code CalculateInfo.equals()} treats any two non-null instances as equal
+    * regardless of subtype, so an {@code assertEquals} on the ref alone would pass even if the
+    * wrong calculator came back.
+    */
+   @Test
+   void readsAMeasuresCalculateInfo() {
+      RunningTotalCalcInfo calc = new RunningTotalCalcInfo();
+      calc.setAggregate("Sum");
+      calc.setResetLevel(-1);
+
+      BAggregateRefModel model = new BAggregateRefModel();
+      model.setColumnValue("Sales");
+      model.setFormula("Sum");
+      model.setCalculateInfo(calc);
+
+      FieldRef ref = FieldRefFactory.from(model);
+
+      assertInstanceOf(RunningTotalCalcInfo.class, ref.calculateInfo());
+      RunningTotalCalcInfo readBack = (RunningTotalCalcInfo) ref.calculateInfo();
+      assertEquals("Sum", readBack.getAggregate());
+      assertEquals(-1, readBack.getResetLevel());
+   }
+
+   /** The write-side mirror of {@link #readsAMeasuresCalculateInfo}. */
+   @Test
+   void toChartRefAppliesCalculateInfoOntoTheAggregate() {
+      RunningTotalCalcInfo calc = new RunningTotalCalcInfo();
+      calc.setAggregate("Sum");
+      calc.setResetLevel(-1);
+
+      FieldRef field = new FieldRef(
+         "Sales", "measure", "Sum", null, null, null, null, null, calc);
+
+      ChartRefModel ref = FieldRefFactory.toChartRef(field);
+
+      assertInstanceOf(ChartAggregateRefModel.class, ref);
+      Object written = ((ChartAggregateRefModel) ref).getCalculateInfo();
+      assertInstanceOf(RunningTotalCalcInfo.class, written);
+      RunningTotalCalcInfo readBack = (RunningTotalCalcInfo) written;
+      assertEquals("Sum", readBack.getAggregate());
+      assertEquals(-1, readBack.getResetLevel());
    }
 
    @Test
