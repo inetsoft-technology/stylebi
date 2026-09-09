@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.binding.model;
 
+import inetsoft.web.binding.model.graph.CalculateInfo;
+
 import java.util.List;
 
 /**
@@ -64,10 +66,16 @@ import java.util.List;
  *                         own, ungrouped row, the same as it would with no grouping at all.
  * @param chartType        the measure's own GraphTypes code under Multi Style; null everywhere else
  * @param runtimeChartType what that measure resolved to, when it differs from {@code chartType}
+ * @param calculateInfo    a per-measure Trend/Calculator (running total, change, moving, value-of,
+ *                         percent, compound growth, or a custom expression), measures only —
+ *                         mirrors the Composer binding pane's own Calculator button. {@code null}
+ *                         leaves it unchanged; there is no separate "clear" signal because
+ *                         clearing is just setting the aggregate's formula, which every caller
+ *                         already does independently of this.
  */
 public record FieldRef(String column, String type, String aggregate, String dateLevel,
                        String namedGroup, Integer chartType, Integer runtimeChartType,
-                       NamedGroupValues namedGroupValues) {
+                       NamedGroupValues namedGroupValues, CalculateInfo calculateInfo) {
    /**
     * Every caller but the chart read builds a ref with no chart type. Kept so that adding the
     * components did not touch forty-odd construction sites that have nothing to do with charts.
@@ -75,14 +83,14 @@ public record FieldRef(String column, String type, String aggregate, String date
    public FieldRef(String column, String type, String aggregate, String dateLevel,
                    String namedGroup)
    {
-      this(column, type, aggregate, dateLevel, namedGroup, null, null, null);
+      this(column, type, aggregate, dateLevel, namedGroup, null, null, null, null);
    }
 
    /** A chart ref whose design-time type is all the read has to report. */
    public FieldRef(String column, String type, String aggregate, String dateLevel,
                    String namedGroup, Integer chartType)
    {
-      this(column, type, aggregate, dateLevel, namedGroup, chartType, null, null);
+      this(column, type, aggregate, dateLevel, namedGroup, chartType, null, null, null);
    }
 
    /**
@@ -92,7 +100,19 @@ public record FieldRef(String column, String type, String aggregate, String date
    public FieldRef(String column, String type, String aggregate, String dateLevel,
                    String namedGroup, Integer chartType, Integer runtimeChartType)
    {
-      this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType, null);
+      this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType, null, null);
+   }
+
+   /**
+    * The shape before {@code calculateInfo} was added — kept so that addition did not touch every
+    * call site that already named {@code namedGroupValues}.
+    */
+   public FieldRef(String column, String type, String aggregate, String dateLevel,
+                   String namedGroup, Integer chartType, Integer runtimeChartType,
+                   NamedGroupValues namedGroupValues)
+   {
+      this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
+           namedGroupValues, null);
    }
 
    /**
