@@ -632,6 +632,10 @@ class DateComparisonServiceTest {
       when(cinfo.isMultiStyles()).thenReturn(true);
       when(cinfo.getAestheticAggregateRefs(true))
          .thenReturn(java.util.List.of(agg));
+      // The per-aggregate chart-type override this test asserts on only ever happens inside
+      // ChartDcProcessor.process()'s body — the same body that sets dateComparisonRef — so a
+      // real chart reaching this state always has a non-null one.
+      when(cinfo.getDateComparisonRef()).thenReturn(mock(VSDataRef.class));
 
       ChartVSAssembly assembly = mock(ChartVSAssembly.class);
       when(assembly.getVSChartInfo()).thenReturn(cinfo);
@@ -642,6 +646,79 @@ class DateComparisonServiceTest {
 
       assertEquals("Point", result.get("chartTypeBefore"));
       assertEquals("Stack Bar", result.get("chartTypeAfter"));
+   }
+
+   // ── reporting a silently-inactive date comparison ───────────────────────────
+
+   /**
+    * DCG-004: a chart with a category dimension on x, an aggregate on y, and a date-typed
+    * dimension bound only to {@code group} — never searched by {@code ChartDcProcessor}/
+    * {@code DateComparisonUtil}, which only ever look at x/y. The comparison silently applies to
+    * nothing ({@code getDateComparisonRef()} stays null), and this chart type is otherwise
+    * date-comparison-compatible (Bar), so the generic "no date field on x/y" reason must be used,
+    * not a chart-type-specific one.
+    */
+   @Test
+   void reportsDateComparisonInactiveWhenNoDateFieldReachesXOrY() throws Exception {
+      VSChartInfo cinfo = mock(VSChartInfo.class);
+      when(cinfo.getRTChartType()).thenReturn(GraphTypes.CHART_BAR);
+      when(cinfo.getDateComparisonRef()).thenReturn(null);
+
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(cinfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertEquals(true, result.get("dateComparisonInactive"));
+      String reason = (String) result.get("reason");
+      assertTrue(reason.contains("x or y"), reason);
+      assertFalse(reason.contains("Bar"), "a compatible chart type should get the generic " +
+                  "reason, not a chart-type-specific one: " + reason);
+   }
+
+   /**
+    * DCG-012: a pie chart — {@code DateComparisonUtil.supportDateComparison()} rejects any chart
+    * type outside {auto, bar, line, area, interval, point} before ever searching x/y, so a pie's
+    * forced {@code color}-channel dimension (or no date field at all) never gets a chance to
+    * satisfy the x/y search. The reason must name the chart type, not the generic x/y wording.
+    */
+   @Test
+   void reportsDateComparisonInactiveWithAChartTypeReasonForAnIncompatibleChartType()
+      throws Exception
+   {
+      VSChartInfo cinfo = mock(VSChartInfo.class);
+      when(cinfo.getRTChartType()).thenReturn(GraphTypes.CHART_PIE);
+      when(cinfo.getDateComparisonRef()).thenReturn(null);
+
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(cinfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertEquals(true, result.get("dateComparisonInactive"));
+      String reason = (String) result.get("reason");
+      assertTrue(reason.contains("Pie"), reason);
+   }
+
+   /** A chart where the comparison actually applied must not be flagged inactive. */
+   @Test
+   void doesNotReportDateComparisonInactiveWhenItActuallyApplied() throws Exception {
+      VSChartInfo cinfo = mock(VSChartInfo.class);
+      when(cinfo.getRTChartType()).thenReturn(GraphTypes.CHART_BAR);
+      when(cinfo.getDateComparisonRef()).thenReturn(mock(VSDataRef.class));
+
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(cinfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertFalse(result.containsKey("dateComparisonInactive"));
    }
 
    // ── comparisonOption ─────────────────────────────────────────────────────

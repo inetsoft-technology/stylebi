@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
@@ -147,7 +148,11 @@ public class DateComparisonService {
     * {@code retargetedFromLevel} / {@code retargetedToLevel}. Empty when nothing was retargeted.
     * For a chart, also reports {@code chartTypeOverridden}/{@code chartTypeBefore}/
     * {@code chartTypeAfter} when applying the comparison forced the chart's runtime style to
-    * change (see {@link #describeChartTypeOverride}).
+    * change (see {@link #describeChartTypeOverride}). For a chart where the comparison had no
+    * effect at all — its date field isn't on x/y, or its chart type doesn't support date
+    * comparison to begin with — reports {@code dateComparisonInactive:true} and a {@code reason}
+    * (see {@link #describeDateComparisonInactive}) instead of silently returning as if it
+    * applied.
     */
    public Map<String, Object> set(String sessionToken, Principal user, String assemblyName,
                                   Comparison comparison, String linkUri) throws Exception
@@ -174,6 +179,7 @@ public class DateComparisonService {
                                             dispatcher);
          result.putAll(describeRetargetedDimension(rvs, assemblyName));
          result.putAll(describeChartTypeOverride(rvs, assemblyName, beforeChartType));
+         result.putAll(describeDateComparisonInactive(rvs, assemblyName));
       });
 
       return result;
@@ -313,6 +319,62 @@ public class DateComparisonService {
       }
 
       return cinfo.getRTChartType();
+   }
+
+   /**
+    * {@code ChartDcProcessor} only ever finds "the" date dimension to compare on by searching
+    * {@code VSChartInfo.getRTXFields()}/{@code getRTYFields()} — never group/color/shape/text —
+    * and {@code DateComparisonUtil.supportDateComparison()} rejects the attempt even earlier for
+    * any chart type outside {auto, bar, line, area, interval, point} (a pie's sliced dimension is
+    * always forced onto color, so it can never satisfy the x/y search either). Either gate leaves
+    * {@code VSChartInfo.getDateComparisonRef()} null — set only inside {@code ChartDcProcessor
+    * .process()}'s body, which never runs when a gate fires — with {@link #set} otherwise
+    * returning {@code {ok:true}} exactly as if the comparison had applied.
+    *
+    * <p>The chart-type check here mirrors {@code DateComparisonUtil.supportDateComparison()}'s own
+    * inline predicate rather than calling it (that method also runs the x/y field search this
+    * helper doesn't need, and short-circuits true once a comparison has ever applied once before,
+    * neither of which this disclosure wants) — if that shared engine class's allow-list changes,
+    * this predicate needs updating to match.
+    *
+    * <p>Not a chart, or the comparison actually took effect: returns an empty map.
+    */
+   private static Map<String, Object> describeDateComparisonInactive(RuntimeViewsheet rvs,
+                                                                     String assemblyName)
+   {
+      Map<String, Object> out = new LinkedHashMap<>();
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof ChartVSAssembly)) {
+         return out;
+      }
+
+      VSChartInfo cinfo = ((ChartVSAssembly) assembly).getVSChartInfo();
+
+      if(cinfo == null || cinfo.getDateComparisonRef() != null) {
+         return out;
+      }
+
+      boolean invalidChartType = GraphTypeUtil.checkType(cinfo, type ->
+         !GraphTypes.isAuto(type) && !GraphTypes.isBar(type) && !GraphTypes.isLine(type) &&
+         !GraphTypes.isArea(type) && !GraphTypes.isInterval(type) && !GraphTypes.isPoint(type));
+
+      out.put("dateComparisonInactive", true);
+
+      if(invalidChartType) {
+         out.put("reason", GraphTypes.getDisplayName(effectiveRTChartType(cinfo)) +
+            " charts don't support date comparison — only Bar, Line, Area, Interval, and Point " +
+            "(or Auto resolving to one of those) do. Convert the chart type first if a " +
+            "comparison is needed.");
+      }
+      else {
+         out.put("reason", "no date-typed field is bound to this chart's x or y axis — date " +
+            "comparison (own or shared) only applies to a date dimension on x or y, never " +
+            "group, color, shape, or text.");
+      }
+
+      return out;
    }
 
    public void clear(String sessionToken, Principal user, String assemblyName, String linkUri)
