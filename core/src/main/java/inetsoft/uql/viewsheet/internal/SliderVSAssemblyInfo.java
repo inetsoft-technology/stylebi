@@ -68,6 +68,22 @@ public class SliderVSAssemblyInfo extends NumericRangeVSAssemblyInfo {
    }
 
    /**
+    * Set the default vsobject format.
+    * @param border border color.
+    */
+   @Override
+   protected void setDefaultFormat(boolean border) {
+      super.setDefaultFormat(border);
+
+      // avoid text being clipped in default size; match the other form-input types
+      VSCompositeFormat format = getFormat();
+
+      if(format != null) {
+         format.getDefaultFormat().setFontValue(getDefaultFont(Font.PLAIN, 12));
+      }
+   }
+
+   /**
     * If the runtime tick label is visible.
     * @return visibility of tick labels.
     */

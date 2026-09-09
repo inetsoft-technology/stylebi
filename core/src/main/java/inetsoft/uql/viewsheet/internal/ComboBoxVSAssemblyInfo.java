@@ -390,7 +390,7 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
    protected void setDefaultFormat(boolean border) {
       VSCompositeFormat format = new VSCompositeFormat();
       // avoid text being clipped in default size
-      format.getDefaultFormat().setFontValue(getDefaultFont(Font.PLAIN, 11));
+      format.getDefaultFormat().setFontValue(getDefaultFont(Font.PLAIN, 12));
       format.getDefaultFormat().setForegroundValue("0x2b2b2b");
       format.getDefaultFormat().setBackgroundValue("0xffffff");
       format.getDefaultFormat().setBordersValue(
