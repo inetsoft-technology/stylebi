@@ -20,7 +20,13 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.test.*;
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.uql.viewsheet.vslayout.*;
@@ -34,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -44,10 +51,13 @@ import java.security.Principal;
 import java.util.*;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(SpringExtension.class)
@@ -110,6 +120,54 @@ public class ViewsheetPropertyDialogServiceTest {
       assertEquals("VSLayout001", viewsheetLayout.getID());
       assertEquals("Foo001", viewsheetLayout.getName());
       assertNotNull(viewsheetLayout.getVSAssemblyLayout("Bar001"));
+   }
+
+   // Bug: a PrintLayout whose PrintInfo.size was never populated (legacy/otherwise-constructed
+   // data, not created via the setViewsheetInfo write path) crashed getViewsheetInfo() with an
+   // unconditional NPE from PrintInfo.getSize(), which set_print_layout/manage_device_layout hit
+   // on every call since it reads the current state first.
+   @Test
+   public void getViewsheetInfo_printLayoutWithNullSize_doesNotThrow() throws Exception {
+      DeviceRegistry deviceRegistry = mock(DeviceRegistry.class);
+      when(deviceRegistry.getDevices()).thenReturn(new DeviceInfo[0]);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.isSecurityEnabled()).thenReturn(true);
+      AssetRepository assetRepository = mock(AssetRepository.class);
+
+      ViewsheetPropertyDialogService service = new ViewsheetPropertyDialogService(
+         coreLifecycleService, viewsheetService, layoutService, viewsheetSettingsService,
+         vsAssemblyInfoHandler, securityEngine, null, deviceRegistry);
+
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(viewsheetService.getAssetRepository()).thenReturn(assetRepository);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getViewsheetInfo()).thenReturn(new ViewsheetInfo());
+      when(viewsheet.getAssemblies()).thenReturn(new Assembly[0]);
+
+      LayoutInfo layoutInfo = new LayoutInfo();
+      layoutInfo.setViewsheetLayouts(new ArrayList<>());
+      PrintLayout printLayout = new PrintLayout();
+      PrintInfo printInfo = new PrintInfo();
+      printInfo.setSize(null); // simulate a print layout whose size was never populated
+      printLayout.setPrintInfo(printInfo);
+      layoutInfo.setPrintLayout(printLayout);
+      when(viewsheet.getLayoutInfo()).thenReturn(layoutInfo);
+
+      try(MockedStatic<LicenseManager> license = mockStatic(LicenseManager.class);
+          MockedStatic<OrganizationManager> orgManagerStatic = mockStatic(OrganizationManager.class);
+          MockedStatic<SUtil> sutil = mockStatic(SUtil.class))
+      {
+         license.when(LicenseManager::isEnterprise).thenReturn(false);
+         OrganizationManager orgManager = mock(OrganizationManager.class);
+         orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+         when(orgManager.isSiteAdmin(nullable(Principal.class))).thenReturn(false);
+         sutil.when(SUtil::isMultiTenant).thenReturn(true);
+
+         ViewsheetPropertyDialogModel model = assertDoesNotThrow(
+            () -> service.getViewsheetInfo("Viewsheet1", null));
+
+         assertNotNull(model.screensPane().getPrintLayout());
+      }
    }
 
    @Mock ViewsheetService viewsheetService;
