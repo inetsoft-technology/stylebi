@@ -17,6 +17,10 @@
  */
 package inetsoft.uql.onedrive;
 
+import inetsoft.uql.tabular.BrowsableQuery;
+import inetsoft.uql.tabular.BrowsableQuery.BrowseEntry;
+import inetsoft.uql.tabular.BrowsableQuery.BrowseListing;
+import inetsoft.uql.tabular.TabularCatalog;
 import inetsoft.uql.tabular.TabularColumn;
 import inetsoft.uql.tabular.TabularDatasetSchema;
 import inetsoft.util.ConfigurationContext;
@@ -117,15 +121,51 @@ class OneDriveCatalogDescribeTest {
          () -> OneDriveCatalog.describeDataset(ds, "Test/broken.csv", failingFactory));
    }
 
-   // ----- B6: id grammar bijection, exercised through the real describeDataset round trip -----
+   // ----- B6: id grammar bijection, exercised as a GENUINE encode -> decode round trip -----
+   //
+   // R1-1 (06-review-r1.md): every case here used to hand describeDataset a manually
+   // pre-computed, already-escaped literal (e.g. "sales%232026.csv") and assert only that
+   // unescapeId recovered the right path -- so encodeId itself (its one production call site is
+   // OneDriveCatalog.listDatasets, line ~126) had ZERO test coverage; a regression there (escaping
+   // only "#" and not "%", reversing the escape order, or dropping the escape entirely) would have
+   // gone undetected. Each case below now DERIVES the id by actually enumerating a stub
+   // BrowsableQuery whose entry is literally named the raw filename, through the real
+   // OneDriveCatalog.listDatasets -- the same production encodeId call listDatasets always makes --
+   // and only THEN feeds that derived id into describeDataset. The literal escaped string still
+   // appears, but as an ASSERTION on what listDatasets produced, never as an input.
+
+   /** Enumerates exactly one file, literally named {@code fileName}, and returns its emitted id. */
+   private static String encodedIdFor(String fileName) throws Exception {
+      BrowsableQuery stub = new BrowsableQuery() {
+         @Override
+         public String getBrowsablePropertyName() {
+            return "path";
+         }
+
+         @Override
+         public List<String> getAcceptedExtensions() {
+            return List.of(".txt", ".csv", ".xls", ".xlsx");
+         }
+
+         @Override
+         public BrowseListing browseChildren(String path, boolean recursive,
+                                              List<String> acceptTypes, int maxEntries)
+         {
+            return new BrowseListing(List.of(new BrowseEntry(fileName, fileName, false)), false);
+         }
+      };
+
+      TabularCatalog catalog = OneDriveCatalog.listDatasets(stub);
+      assertEquals(1, catalog.datasets().size(), "expected exactly one enumerated dataset");
+      return catalog.datasets().get(0).id();
+   }
 
    @Test
-   void aPathContainingAHashRoundTripsThroughEncodeAndDescribe() throws Exception {
-      OneDriveDataSource ds = OneDriveTestSupport.fakeDataSource("OneDrive Test");
-      // encodeId("sales#2026.csv") = "sales%232026.csv" -- the id listDatasets would have emitted
-      // for a plain file literally named this.
-      String id = "sales%232026.csv";
+   void aFileNamedWithAHashEncodesThroughListDatasets_andRoundTripsThroughDescribe() throws Exception {
+      String id = encodedIdFor("sales#2026.csv");
+      assertEquals("sales%232026.csv", id, "encodeId must escape a literal '#' as '%23'");
 
+      OneDriveDataSource ds = OneDriveTestSupport.fakeDataSource("OneDrive Test");
       TabularDatasetSchema schema = OneDriveCatalog.describeDataset(
          ds, id, fixtureFactory("TestCSV.csv"));
 
@@ -134,16 +174,62 @@ class OneDriveCatalogDescribeTest {
    }
 
    @Test
-   void aPathContainingAnAlreadyEscapedSequenceRoundTrips() throws Exception {
-      OneDriveDataSource ds = OneDriveTestSupport.fakeDataSource("OneDrive Test");
+   void aFileNamedWithAnAlreadyEscapedSequenceEncodesThroughListDatasets_andRoundTrips()
+      throws Exception
+   {
       // A file literally named "100%25.csv" (a name that already, literally, contains the escape
-      // sequence "%25") encodes to "100%2525.csv" -- escaping "%" first is what keeps this correct.
-      String id = "100%2525.csv";
+      // sequence "%25") must encode to "100%2525.csv" -- escaping "%" first is what keeps this
+      // correct (a "#"-first order would corrupt it).
+      String id = encodedIdFor("100%25.csv");
+      assertEquals("100%2525.csv", id, "encodeId must escape '%' as '%25' BEFORE escaping '#'");
 
+      OneDriveDataSource ds = OneDriveTestSupport.fakeDataSource("OneDrive Test");
       TabularDatasetSchema schema = OneDriveCatalog.describeDataset(
          ds, id, fixtureFactory("TestCSV.csv"));
 
       assertEquals("100%25.csv", schema.params().get(OneDriveCatalog.PARAM_PATH));
+   }
+
+   @Test
+   void aFileNamedOnlyTheHashCharacterEncodesThroughListDatasets_andRoundTrips() throws Exception {
+      String id = encodedIdFor("#.csv");
+      assertEquals("%23.csv", id);
+
+      OneDriveDataSource ds = OneDriveTestSupport.fakeDataSource("OneDrive Test");
+      TabularDatasetSchema schema = OneDriveCatalog.describeDataset(
+         ds, id, fixtureFactory("TestCSV.csv"));
+
+      assertEquals("#.csv", schema.params().get(OneDriveCatalog.PARAM_PATH));
+   }
+
+   @Test
+   void aFileNamedOnlyThePercentCharacterEncodesThroughListDatasets_andRoundTrips() throws Exception {
+      String id = encodedIdFor("%.csv");
+      assertEquals("%25.csv", id);
+
+      OneDriveDataSource ds = OneDriveTestSupport.fakeDataSource("OneDrive Test");
+      TabularDatasetSchema schema = OneDriveCatalog.describeDataset(
+         ds, id, fixtureFactory("TestCSV.csv"));
+
+      assertEquals("%.csv", schema.params().get(OneDriveCatalog.PARAM_PATH));
+   }
+
+   /**
+    * Non-ASCII characters are outside the escape alphabet ({@code %}/{@code #} only), so a Chinese
+    * (or any other Unicode) filename passes through {@code encodeId}/{@code unescapeId} completely
+    * untouched -- safe by construction, not by luck, but nothing said so explicitly before this case
+    * (06-review-r1.md's adversarial-attempts section).
+    */
+   @Test
+   void aNonAsciiFilenameEncodesUnchangedThroughListDatasets_andRoundTrips() throws Exception {
+      String id = encodedIdFor("销售报表.csv");
+      assertEquals("销售报表.csv", id, "no escape character appears in a non-ASCII name");
+
+      OneDriveDataSource ds = OneDriveTestSupport.fakeDataSource("OneDrive Test");
+      TabularDatasetSchema schema = OneDriveCatalog.describeDataset(
+         ds, id, fixtureFactory("TestCSV.csv"));
+
+      assertEquals("销售报表.csv", schema.params().get(OneDriveCatalog.PARAM_PATH));
    }
 
    // ----- B8: ids requireEmittableId must refuse, all before any Graph call -----
