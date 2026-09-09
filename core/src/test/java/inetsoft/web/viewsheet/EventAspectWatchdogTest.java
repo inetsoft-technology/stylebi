@@ -50,6 +50,15 @@ package inetsoft.web.viewsheet;
  *      (round-2 review finding #4).
  * [G5] @LoadingMask(watchdogTimeout = N) with N > 0 overrides the global timeout with N for
  *      that endpoint.
+ * [G6] Round-2 review found two more @LoadingMask endpoints whose sole/primary purpose is to
+ *      force a fresh ViewsheetSandbox.getVSTableLens() runtime-query re-execution -- the exact
+ *      call path implicated as this bug's hang mechanism -- and are therefore in the same
+ *      "legitimately unbounded" category as openViewsheet/refreshViewsheet/runQuery:
+ *      CrosstabDrillController's /table/drill and /table/drill/cells, and
+ *      BaseTableLoadDataController's /table/reload-table-data. This asserts (via reflection on
+ *      the real controller methods, not a synthetic fixture) that each still carries
+ *      watchdogTimeout = 0, so a future edit that drops the annotation attribute is caught here
+ *      rather than only in a live hang.
  */
 
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -76,8 +85,14 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.web.composer.vs.controller.VSLayoutServiceProxy;
+import inetsoft.web.viewsheet.controller.table.BaseTableLoadDataController;
+import inetsoft.web.viewsheet.controller.table.CrosstabDrillController;
+import inetsoft.web.viewsheet.event.table.DrillCellsEvent;
+import inetsoft.web.viewsheet.event.table.DrillEvent;
+import inetsoft.web.viewsheet.event.table.LoadTableDataEvent;
 
 import java.lang.reflect.Method;
+import java.security.Principal;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -307,5 +322,27 @@ public class EventAspectWatchdogTest {
       releaseProceed.countDown();
       worker.join(5000);
       assertFalse(worker.isAlive());
+   }
+
+   @Test
+   void crosstabDrillAndTableReloadEndpointsHaveWatchdogDisabled() throws Throwable {
+      // [G6] Reflect on the real, shipped controller methods (not a synthetic fixture) to
+      // confirm the round-2-review-requested exemption is actually applied and stays applied.
+      Method drill = CrosstabDrillController.class.getMethod(
+         "eventHandler", DrillEvent.class, Principal.class, CommandDispatcher.class, String.class);
+      Method drillCells = CrosstabDrillController.class.getMethod(
+         "drill", DrillCellsEvent.class, Principal.class, CommandDispatcher.class, String.class);
+      Method reloadTableData = BaseTableLoadDataController.class.getMethod(
+         "eventHandler", LoadTableDataEvent.class, Principal.class, CommandDispatcher.class,
+         String.class);
+
+      for(Method method : new Method[] { drill, drillCells, reloadTableData }) {
+         LoadingMask mask = method.getAnnotation(LoadingMask.class);
+         assertNotNull(mask, method + " is expected to remain @LoadingMask-annotated");
+         assertEquals(0, mask.watchdogTimeout(),
+                      method + " directly forces a fresh getVSTableLens() runtime-query " +
+                      "re-execution and must have the watchdog disabled, like " +
+                      "openViewsheet/refreshViewsheet/runQuery");
+      }
    }
 }
