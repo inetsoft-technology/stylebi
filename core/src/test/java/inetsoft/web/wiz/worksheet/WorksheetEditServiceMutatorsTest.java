@@ -5547,6 +5547,39 @@ class WorksheetEditServiceMutatorsTest {
       ExpressionValue expr = (ExpressionValue) c.getValue(0);
       assertEquals("field['b']*2", expr.getExpression());
       assertEquals(ExpressionValue.JAVASCRIPT, expr.getType());
+
+      // Bug #76556 (VFO-018): the condition must be built as an AssetCondition, not the plain
+      // Condition superclass -- ExpressionValue pre-execution (AssetConditionGroup ->
+      // execExpressionValues) is gated on instanceof AssetCondition, so a plain Condition
+      // silently never evaluates the expression and rejects every row.
+      assertTrue(c instanceof AssetCondition,
+         "a condition holding an ExpressionValue must be an AssetCondition so its expression " +
+         "gets pre-execution-evaluated, got: " + c.getClass());
+   }
+
+   @Test
+   void setConditionsSqlExpressionValueSpecBuildsAssetCondition() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("a", ">", null, false, null,
+               List.of(new WorksheetMutationSupport.ConditionValueSpec(
+                  "expression", null, "b * 2", "sql"))),
+            null, 0))));
+
+      Condition c = firstCondition(t);
+      assertTrue(c.getValue(0) instanceof ExpressionValue,
+         "an 'expression' valueSpec must build an ExpressionValue, got: " + c.getValue(0));
+      ExpressionValue expr = (ExpressionValue) c.getValue(0);
+      assertEquals(ExpressionValue.SQL, expr.getType());
+      assertTrue(c instanceof AssetCondition,
+         "an SQL-typed expression valueSpec must also build an AssetCondition, got: " +
+         c.getClass());
    }
 
    @Test
