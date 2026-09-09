@@ -65,7 +65,7 @@ public class VSWizardBindingController {
       vsWizardBindingServiceProxy.getBindingTree(id, event, dispatcher, principal);
    }
 
-   @LoadingMask
+   @LoadingMask(watchdogTimeout = 0)
    @Recommend
    @HandleWizardExceptions
    @MessageMapping("/vswizard/binding/tree/node-changed")

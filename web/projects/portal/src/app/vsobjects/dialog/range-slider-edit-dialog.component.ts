@@ -25,6 +25,19 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
 import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
 import { DateValueEditorComponent } from "../../widget/date-type-editor/date-value-editor.component";
 import { TimeInstantValueEditorComponent } from "../../widget/date-type-editor/time-instant-value-editor.component";
+
+/**
+ * Time increment used when the bound column holds a time of day only (XSchema.TIME), as
+ * opposed to "t" which is used for a full timestamp (date + time).
+ */
+export const TIME_OF_DAY_INCREMENT = "time";
+
+/**
+ * Base date used to anchor a time of day so that it can be represented as a Date and
+ * compared against the other time of day values.
+ */
+export const TIME_BASE_DATE = "1970-01-01";
+
 @Component({
     selector: "range-slider-edit-dialog",
     templateUrl: "range-slider-edit-dialog.component.html",
@@ -84,12 +97,12 @@ export class RangeSliderEditDialog implements OnDestroy {
          ]));
          this.rangeForm.get("min")?.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(value => {
             if(value) {
-               this.currentMin = new Date(value + (this.timeIncrement !== "t" ? "T00:00" : ""));
+               this.currentMin = this.toDate(value);
             }
          });
          this.rangeForm.get("max")?.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(value => {
             if(value) {
-               this.currentMax = new Date(value + (this.timeIncrement !== "t" ? "T00:00" : ""));
+               this.currentMax = this.toDate(value);
             }
          });
       }
@@ -97,6 +110,14 @@ export class RangeSliderEditDialog implements OnDestroy {
 
    formatDate(date: number | Date): string {
       const d = new Date(date);
+      const hours = d.getHours().toString().padStart(2, "0");
+      const minutes = d.getMinutes().toString().padStart(2, "0");
+
+      // time of day only, the value of an <input type="time"> is HH:mm
+      if (this.timeIncrement === TIME_OF_DAY_INCREMENT) {
+         return `${hours}:${minutes}`;
+      }
+
       const year = d.getFullYear();
       const month = ("0" + (d.getMonth() + 1)).slice(-2);
       const day = ("0" + d.getDate()).slice(-2);
@@ -104,10 +125,19 @@ export class RangeSliderEditDialog implements OnDestroy {
       if (this.timeIncrement != "t") {
          return `${year}-${month}-${day}`;
       } else {
-         const hours = d.getHours().toString().padStart(2, "0");
-         const minutes = d.getMinutes().toString().padStart(2, "0");
          return `${year}-${month}-${day}T${hours}:${minutes}`;
       }
+   }
+
+   /**
+    * Parses an input value back into a Date according to the current time increment.
+    */
+   private toDate(value: string): Date {
+      if (this.timeIncrement === TIME_OF_DAY_INCREMENT) {
+         return new Date(`${TIME_BASE_DATE}T${value}`);
+      }
+
+      return this.timeIncrement !== "t" ? new Date(value + "T00:00") : new Date(value);
    }
 
    dateRangeValidatorMin(min: Date): ValidatorFn {
@@ -120,8 +150,7 @@ export class RangeSliderEditDialog implements OnDestroy {
             return null;
          }
 
-         const valueTime = this.timeIncrement !== "t" ? new Date(value + "T00:00").getTime() :
-                                                         new Date(value).getTime();
+         const valueTime = this.toDate(value).getTime();
 
          if (valueTime < minTime){
             return {
@@ -146,8 +175,7 @@ export class RangeSliderEditDialog implements OnDestroy {
             return null;
          }
 
-         const valueTime = this.timeIncrement !== "t" ? new Date(value + "T00:00").getTime() :
-                                                                  new Date(value).getTime();
+         const valueTime = this.toDate(value).getTime();
 
          if (valueTime > maxTime) {
             return {

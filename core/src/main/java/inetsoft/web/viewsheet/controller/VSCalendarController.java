@@ -104,7 +104,7 @@ public class VSCalendarController {
     * @throws Exception if the selection could not be applied.
     */
    @Undoable
-   @LoadingMask
+   @LoadingMask(watchdogTimeout = 0)
    @MessageMapping("/calendar/clearCalendar/{name}")
    public void clearCalendar(@DestinationVariable("name") String assemblyName,
                              Principal principal, CommandDispatcher dispatcher,
@@ -149,7 +149,7 @@ public class VSCalendarController {
     * @throws Exception if the selection could not be applied.
     */
    @Undoable
-   @LoadingMask
+   @LoadingMask(watchdogTimeout = 0)
    @MessageMapping("/calendar/applyCalendar/{name}")
    public void applyCalendar(@DestinationVariable("name") String assemblyName,
                              @Payload CalendarSelectionEvent event,

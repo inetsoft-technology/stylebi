@@ -77,6 +77,14 @@ span.wrapper {
   overflow: visible;
 }
 
+// a shape's drop shadow falls outside its own box; the container clips it flat
+// otherwise, leaving only the 4px of slack the width/height carry
+.shape-shadow {
+  .object-container {
+    overflow: visible;
+  }
+}
+
 .horizontal-line, .vertical-line {
   .object-container {
     overflow: visible;

@@ -159,6 +159,24 @@ export class VSDataTipDirective implements DoCheck, OnInit, OnDestroy {
             const mainComponent = !this.miniToolbar ? nativeElement :
                document.getElementById(this.dataTipService.getVSObjectId(this.dataTipName));
 
+            if(!this.miniToolbar) {
+               // Set display to block before mainComponent.clientWidth/clientHeight are read
+               // below for the boundary check -- mainComponent is this same nativeElement, and
+               // reading its size while still display:none (e.g. right after a fresh trigger
+               // transitions out of the "not active" branch below) would measure 0x0 and skip
+               // the overflow correction entirely (#76506).
+               this.renderer.setStyle(nativeElement, "display", "block");
+            }
+
+            // Live measurement of the container's actual on-screen size, instead of the
+            // PopInfo snapshot in PopComponentService, which is written once (with the
+            // container's design-time objectFormat.width/height) when the container is added
+            // and is never refreshed -- e.g. when the container later enters max mode and
+            // grows well past that original size (#76506).
+            const containerElement = containerInfo
+               ? document.getElementById(this.dataTipService.getVSObjectId(this.popContainerName))
+               : null;
+
             let top = tipY;
             let left = tipX;
             let parentElem: any = nativeElement;
@@ -185,9 +203,12 @@ export class VSDataTipDirective implements DoCheck, OnInit, OnDestroy {
             let topOffset: number = DataTipService.DATA_TIP_OFFSET;
             let leftOffset: number = DataTipService.DATA_TIP_OFFSET;
 
-            if(containerInfo && left + reducedEmbeddedVsLeft + containerInfo.width > viewportSize[0]) {
+            const containerWidth = containerInfo
+               ? (containerElement ? containerElement.clientWidth : containerInfo.width) : 0;
+
+            if(containerInfo && left + reducedEmbeddedVsLeft + containerWidth > viewportSize[0]) {
                // place on left
-               leftOffset = -Math.min(left, containerInfo.width + leftOffset -
+               leftOffset = -Math.min(left, containerWidth + leftOffset -
                   viewerRect.scrollLeft);
             }
             // same as above for container itself or if not in container
@@ -202,7 +223,7 @@ export class VSDataTipDirective implements DoCheck, OnInit, OnDestroy {
             }
 
             const containerHeight = containerInfo
-               ? (<any>containerInfo.vsObject).objectHeight || containerInfo.height : 0;
+               ? (containerElement ? containerElement.clientHeight : containerInfo.height) : 0;
 
             if(containerInfo && top + reducedEmbeddedVsTop + containerHeight > viewportSize[1]) {
                topOffset = -Math.min(top, containerHeight + reducedEmbeddedVsTop + topOffset - viewerRect.scrollTop);
@@ -252,8 +273,8 @@ export class VSDataTipDirective implements DoCheck, OnInit, OnDestroy {
             this.renderer.addClass(nativeElement, this.dataTipClass);
 
             if(!this.miniToolbar) {
-               this.renderer.setStyle(nativeElement, "display", "block");
-
+               // display was already set to "block" above, before the boundary-check
+               // measurements were taken.
                if(tipAlpha != null && tipAlpha != 1) {
                   this.renderer.setStyle(nativeElement, "opacity", tipAlpha / 100);
                }

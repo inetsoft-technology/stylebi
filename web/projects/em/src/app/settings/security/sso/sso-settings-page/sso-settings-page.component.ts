@@ -18,12 +18,14 @@
 import { HttpClient } from "@angular/common/http";
 import { Component, OnDestroy, ViewChild } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, Validators, FormsModule } from "@angular/forms";
+import { MatDialog } from "@angular/material/dialog";
 import { MatSelect } from "@angular/material/select";
 import { ActivatedRoute } from "@angular/router";
 import { Subscription } from "rxjs";
 import { map } from "rxjs/operators";
 import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tuple";
 import { ContextHelp } from "../../../../context-help";
+import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
 import { PageHeaderService } from "../../../../page-header/page-header.service";
 import { Searchable } from "../../../../searchable";
 import { Secured } from "../../../../secured";
@@ -119,9 +121,17 @@ export class SsoSettingsPageComponent implements OnDestroy {
       "idpPublicKey"
    ];
 
+   // authorizationEndpoint/tokenEndpoint are always required; clientId (or secretId, in
+   // cloud-secrets mode) is checked separately by isOpenIdValid() -- mirrors the backend's
+   // SSOSettingsService.validateOpenIdAttributes()
+   readonly requiredOpenIdFields: (keyof OpenIdAttributesModel)[] = [
+      "authorizationEndpoint",
+      "tokenEndpoint"
+   ];
+
    constructor(private httpClient: HttpClient, activatedRoute: ActivatedRoute,
                private scrollService: TopScrollService, private formBuilder: UntypedFormBuilder,
-               pageHeader: PageHeaderService)
+               private dialog: MatDialog, pageHeader: PageHeaderService)
    {
       pageHeader.title = "_#(js:Security Settings: SSO)";
       this.subscription = activatedRoute.data.pipe(
@@ -197,8 +207,56 @@ export class SsoSettingsPageComponent implements OnDestroy {
       model.logoutUrl = this.logoutUrl;
       model.logoutPath = this.logoutPath;
       model.fallbackLogin = this.fallbackLogin;
-      this.httpClient.post("../api/sso/settings", model).subscribe();
+      this.httpClient.post<boolean>("../api/sso/settings", model).subscribe({
+         next: (applied) => {
+            if(applied === false) {
+               this.showMessage("_#(js:Error)", "_#(js:em.security.sso.invalidConfiguration)",
+                  MessageDialogType.ERROR);
+            }
+            else {
+               this.showMessage("_#(js:Success)", "_#(js:em.security.sso.saveSuccess)",
+                  MessageDialogType.INFO);
+            }
+         },
+         error: () => this.showMessage(
+            "_#(js:Error)", "_#(js:em.security.sso.saveFailed)", MessageDialogType.ERROR)
+      });
       this.changed = false;
+   }
+
+   private showMessage(title: string, content: string, type: MessageDialogType): void {
+      this.dialog.open(MessageDialog, {
+         width: "350px",
+         data: { title, content, type }
+      });
+   }
+
+   public isOpenIdValid(): boolean {
+      if(!this.openIdModel) {
+         return false;
+      }
+
+      const hasCredential = this.cloudSecrets ?
+         !!this.openIdModel.secretId : !!this.openIdModel.clientId;
+
+      return hasCredential &&
+         this.requiredOpenIdFields.every(field => !!this.openIdModel[field]);
+   }
+
+   public isCustomValid(): boolean {
+      if(!this.customModel) {
+         return false;
+      }
+
+      if(this.customModel.useJavaClass) {
+         return !!this.customModel.javaClassName;
+      }
+
+      if(this.customModel.useInlineGroovy) {
+         return !!this.customModel.inlineGroovyClass;
+      }
+
+      return false;
    }
 
    reset(): void {

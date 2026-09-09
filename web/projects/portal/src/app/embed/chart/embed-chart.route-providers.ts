@@ -46,9 +46,12 @@ import {
 import { SlideOutService } from "../../widget/slide-out/slide-out.service";
 import { AdhocFilterService } from "../../vsobjects/objects/data-tip/adhoc-filter.service";
 
-// Split out of embed-chart.routes.ts so the "elements" web-component bundle's eager route file
-// (embed-chart.routes-eager.ts) can share this provider set without importing anything that
-// contains a dynamic import() -- see embed-chart.routes-eager.ts for why that matters.
+// Split out of embed-chart.routes.ts so the "elements" web-component bundle (main-elements.ts) can
+// register this provider set at its application root -- EmbedChartComponent is created there via
+// createCustomElement(), so no route is ever activated and route-level providers would never be
+// instantiated (NG0201). Importing this file rather than embed-chart.routes.ts also keeps that
+// bundle free of the dynamic import() below, which esbuild treats as a hard chunk-split point
+// (Bug #76468).
 export const EMBED_CHART_ROUTE_PROVIDERS = [
    DataTipService,
    PopComponentService,

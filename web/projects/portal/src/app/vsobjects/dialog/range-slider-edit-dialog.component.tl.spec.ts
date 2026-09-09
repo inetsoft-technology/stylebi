@@ -28,6 +28,8 @@
  *   Group 6 [Risk 2] — minBeforeMax (group validator): numeric vs. date comparison mode
  *   Group 7 [Risk 2] — minMaxNotEqual (group validator): numeric vs. date comparison mode
  *   Group 8 [Risk 2] — close / ok: output emission contracts, numeric fallback-to-0, OK button disabled state
+ *   Group 9 [Risk 1] — time-of-day increment (XSchema.TIME binding): <input type="time">, HH:mm
+ *                      seeding, and time-only parsing anchored to TIME_BASE_DATE
  *
  * Confirmed bugs (it.fails): none
  *
@@ -39,7 +41,8 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { render } from "@testing-library/angular";
 import { firstValueFrom } from "rxjs";
 
-import { RangeSliderEditDialog } from "./range-slider-edit-dialog.component";
+import { RangeSliderEditDialog, TIME_BASE_DATE, TIME_OF_DAY_INCREMENT }
+   from "./range-slider-edit-dialog.component";
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 afterEach(() => {
@@ -522,5 +525,84 @@ describe("RangeSliderEditDialog — ok", () => {
       const okButton = fixture.nativeElement.querySelector("button.btn-primary") as HTMLButtonElement;
 
       expect(okButton.disabled).toBe(false);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 9: time-of-day increment (XSchema.TIME binding)
+//
+// A range slider bound to an XSchema.TIME column gets tick values of the form {t 'HH:mm:ss'},
+// which the host maps to the TIME_OF_DAY_INCREMENT increment. The dialog must then render
+// time-only inputs pre-filled with the current selection instead of empty datetime-local
+// inputs (and must not report the min/max as equal).
+// ---------------------------------------------------------------------------
+
+describe("RangeSliderEditDialog — time-of-day increment", () => {
+   const timeOfDay = (hhmm: string) => new Date(`${TIME_BASE_DATE}T${hhmm}`);
+
+   async function renderTimeOfDay() {
+      return renderComponent({
+         currentMin: timeOfDay("01:30"),
+         currentMax: timeOfDay("06:30"),
+         rangeMin: timeOfDay("00:00"),
+         rangeMax: timeOfDay("23:59"),
+         timeIncrement: TIME_OF_DAY_INCREMENT,
+      });
+   }
+
+   it("should render a single time input for both From and To", async () => {
+      const { fixture } = await renderTimeOfDay();
+
+      expect(fixture.nativeElement.querySelectorAll("input[type=time]").length).toBe(2);
+      expect(fixture.nativeElement.querySelectorAll("input[type=datetime-local]").length).toBe(0);
+      expect(fixture.nativeElement.querySelectorAll("input[type=date]").length).toBe(0);
+   });
+
+   // 🔁 Regression-sensitive: the reported defect was both fields rendering empty because
+   // formatDate produced a full date-time string from an Invalid Date.
+   it("should seed the controls with the HH:mm selection and leave the form valid", async () => {
+      const { comp } = await renderTimeOfDay();
+
+      expect(comp.isDateType).toBe(true);
+      expect(comp.rangeForm.get("min")?.value).toBe("01:30");
+      expect(comp.rangeForm.get("max")?.value).toBe("06:30");
+      expect(comp.rangeForm.errors?.["minMaxEqual"]).toBeFalsy();
+      expect(comp.rangeForm.valid).toBe(true);
+   });
+
+   it("should format a Date as HH:mm", async () => {
+      const { comp } = await renderComponent({
+         skipInitForm: true, timeIncrement: TIME_OF_DAY_INCREMENT });
+
+      expect(comp.formatDate(timeOfDay("08:05"))).toBe("08:05");
+   });
+
+   it("should parse an emitted HH:mm value against the base date", async () => {
+      const { comp } = await renderTimeOfDay();
+
+      comp.rangeForm.get("min")?.setValue("02:15");
+
+      expect(comp.currentMin).toEqual(timeOfDay("02:15"));
+   });
+
+   it("should flag a value outside the slider range", async () => {
+      const { comp } = await renderTimeOfDay();
+      const belowMin = comp.dateRangeValidatorMin(timeOfDay("01:00"));
+      const aboveMax = comp.dateRangeValidatorMax(timeOfDay("07:00"));
+
+      expect(belowMin({ value: "00:30" } as any)?.["dateMinError"]).toBeTruthy();
+      expect(belowMin({ value: "01:30" } as any)).toBeNull();
+      expect(aboveMax({ value: "08:00" } as any)?.["dateMaxError"]).toBeTruthy();
+      expect(aboveMax({ value: "06:30" } as any)).toBeNull();
+   });
+
+   it("should report equal and out-of-order values through the group validators", async () => {
+      const { comp } = await renderTimeOfDay();
+
+      comp.rangeForm.get("max")?.setValue("01:30");
+      expect(comp.rangeForm.errors?.["minMaxEqual"]).toBe(true);
+
+      comp.rangeForm.get("max")?.setValue("00:30");
+      expect(comp.rangeForm.errors?.["minAfterMax"]).toBe(true);
    });
 });

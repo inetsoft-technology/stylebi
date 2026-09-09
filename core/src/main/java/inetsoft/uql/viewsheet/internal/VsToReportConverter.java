@@ -1863,7 +1863,6 @@ public class VsToReportConverter {
       }
 
       String position = labelInfo.getLabelPosition();
-      int labelH = Math.round(AssetUtil.defh * scalefont);
 
       DefaultTextLens textlens = new DefaultTextLens(labelText);
       TextBoxElementDef textbox = new TextBoxElementDef(report, textlens);
@@ -1881,6 +1880,13 @@ public class VsToReportConverter {
       }
 
       int labelW = (int) Common.stringWidth(labelText, fn) + 6;
+      // Derive the label height from the label font (not a fixed grid row height) so the
+      // space reserved for the label tracks the font size, matching the browser preview and
+      // AbstractVSExporter.getLabelDimensions(). Not scaled by scalefont: applyScaleFont()
+      // only reaches formats in FormatInfo, and LabelInfo carries its own standalone format,
+      // so fn is the unscaled font the label is actually drawn with -- the same font labelW
+      // above is measured with.
+      int labelH = (int) Math.ceil(Common.getHeight(fn));
 
       Rectangle labelBounds;
       Rectangle contentBounds;

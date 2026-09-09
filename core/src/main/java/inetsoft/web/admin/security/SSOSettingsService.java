@@ -186,7 +186,11 @@ public class SSOSettingsService {
       return Tool.split(SreeEnv.getProperty("sso.default.roles"), ',');
    }
 
-   public void updateSSOSettings(SSOSettingsModel model) {
+   /**
+    * @return {@code true} if the settings were valid and applied; {@code false} if validation
+    *         failed and nothing was changed.
+    */
+   public boolean updateSSOSettings(SSOSettingsModel model) {
       final SSOType ssoType = model.activeFilterType();
       SSOType activeFilterType = getActiveFilterType();
 
@@ -207,14 +211,24 @@ public class SSOSettingsService {
             publisher.changeSSOFilterType(SSOType.SAML);
          }
          else {
-            return;
+            return false;
          }
       }
       else if(ssoType == SSOType.OPENID) {
          final OpenIdAttributesModel openIdAttributesModel = model.openIdAttributesModel();
          assert openIdAttributesModel != null;
+
+         if(!validateOpenIdAttributes(openIdAttributesModel)) {
+            return false;
+         }
+
          openIDConfig.setScopes(openIdAttributesModel.scopes());
-         openIDConfig.setIssuer(openIdAttributesModel.issuer());
+         // The EM form always submits issuer as "" (never null) unless OIDC Discovery is used, and
+         // an empty string persists as-is (PropertiesEngine only treats a literal null as "remove").
+         // OpenIDFilterBaseFilter treats a non-null issuer as "set" and requires an exact JWT claim
+         // match, so a persisted "" would fail every login. Normalize blank to null so a
+         // non-Discovery config stays "issuer not set" at runtime, matching the optional contract.
+         openIDConfig.setIssuer(Tool.isEmptyString(openIdAttributesModel.issuer()) ? null : openIdAttributesModel.issuer());
          openIDConfig.setAudience(openIdAttributesModel.audience());
          openIDConfig.setAuthorizationEndpoint(openIdAttributesModel.authorizationEndpoint());
          openIDConfig.setTokenEndpoint(openIdAttributesModel.tokenEndpoint());
@@ -238,6 +252,11 @@ public class SSOSettingsService {
       else if(ssoType == SSOType.CUSTOM) {
          CustomSSOAttributesModel customModel = model.customAttributesModel();
          assert customModel != null;
+
+         if(!validateCustomAttributes(customModel)) {
+            return false;
+         }
+
          customConfig.setClassName(customModel.useJavaClass() ? customModel.javaClassName() : null);
          customConfig.setInlineGroovyClass(
             customModel.useInlineGroovy() ? customModel.inlineGroovyClass() : null);
@@ -273,6 +292,8 @@ public class SSOSettingsService {
          publisher.changeSSOFilterType(SSOType.NONE);
          SreeEnv.setProperty("sso.protocol.type", ssoType.getName());
       }
+
+      return true;
    }
 
    /**
@@ -300,6 +321,58 @@ public class SSOSettingsService {
       }
 
       return valid;
+   }
+
+   /**
+    * Check whether the OpenID attributes are valid before applying changes so we don't get
+    * locked out. The issuer is intentionally not required here: it has no manual input in the EM
+    * UI (it is only ever populated via the OIDC Discovery helper), and OpenIDFilterBaseFilter
+    * treats it as optional at runtime (only adds an extra claim check when it is set), so
+    * requiring it here would reject legitimate configurations that don't use Discovery.
+    */
+   private boolean validateOpenIdAttributes(OpenIdAttributesModel model) {
+      final List<String> missing = new ArrayList<>();
+
+      if(Tool.isEmptyString(model.authorizationEndpoint())) {
+         missing.add("authorization endpoint");
+      }
+
+      if(Tool.isEmptyString(model.tokenEndpoint())) {
+         missing.add("token endpoint");
+      }
+
+      if(Tool.isCloudSecrets()) {
+         if(Tool.isEmptyString(model.secretId())) {
+            missing.add("secret");
+         }
+      }
+      else if(Tool.isEmptyString(model.clientId())) {
+         missing.add("client id");
+      }
+
+      if(!missing.isEmpty()) {
+         LOG.error("Invalid OpenID properties, missing: {}", String.join(", ", missing));
+      }
+
+      return missing.isEmpty();
+   }
+
+   /**
+    * Check whether the Custom SSO attributes are valid before applying changes so we don't get
+    * locked out
+    */
+   private boolean validateCustomAttributes(CustomSSOAttributesModel model) {
+      if(model.useJavaClass() && !Tool.isEmptyString(model.javaClassName())) {
+         return true;
+      }
+
+      if(model.useInlineGroovy() && !Tool.isEmptyString(model.inlineGroovyClass())) {
+         return true;
+      }
+
+      LOG.error("Invalid Custom SSO properties: a Java class name or inline Groovy script " +
+                "is required");
+      return false;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
