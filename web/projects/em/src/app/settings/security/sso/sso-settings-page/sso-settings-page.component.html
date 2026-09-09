@@ -15,7 +15,10 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<em-editor-panel [contentStyle]="editorStyle" [applyDisabled]="!changed || (selection === ssoTypes.SAML && !samlForm?.valid)"
+<em-editor-panel [contentStyle]="editorStyle" [applyDisabled]="!changed ||
+    (selection === ssoTypes.SAML && !samlForm?.valid) ||
+    (selection === ssoTypes.OPENID && !isOpenIdValid()) ||
+    (selection === ssoTypes.CUSTOM && !isCustomValid())"
   (applyClicked)="submit()" (resetClicked)="reset()">
   <div class="em-content-container">
     <mat-card appearance="outlined" class="em-card">
