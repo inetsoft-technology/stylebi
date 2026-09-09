@@ -53,4 +53,17 @@ class PrintInfoTest {
 
       assertDoesNotThrow(info::clone);
    }
+
+   @Test
+   @Tag("core")
+   void clone_nullSize_doesNotThrow() {
+      PrintInfo info = new PrintInfo();
+      info.setSize(null);
+
+      // clone() itself catches any exception and returns null, so a null size NPE here
+      // wouldn't surface as a thrown exception -- assert the return value instead.
+      Object clone = assertDoesNotThrow(info::clone);
+
+      assertNotNull(clone);
+   }
 }
