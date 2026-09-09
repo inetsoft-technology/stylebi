@@ -113,6 +113,52 @@ public class ValueOfColumnTest {
    }
 
    /**
+    * Regression test for Bug #76527: PREVIOUS_YEAR's minDate cache (getMinDate()) must not
+    * leak stale state across facet cells that reuse the same ValueOfColumn instance.
+    *
+    * A faceted chart shares one ValueOfColumn instance across all facet cells
+    * (DataSetIndex.wrapDataSet()), calling calculate() against each cell's own narrower
+    * DataSet in turn. Before the fix, getMinDate() computed its minimum date once and never
+    * recomputed, so a cell whose local data only contained a later year (here, a single
+    * 2022-01-01 row) would freeze minDate at 2022-01-01. A later cell that legitimately
+    * contains both 2021-01-01 and 2022-01-01 would then wrongly have its 2022 row's
+    * "previous year" guard (ValueOfColumn.java ~455-459) evaluate against the stale
+    * 2022-01-01 minDate instead of its own data's true minimum (2021-01-01), incorrectly
+    * returning INVALID instead of the real previous-year value.
+    */
+   @Test
+   void testMinDateNotStaleAcrossFacetCells() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_YEAR);
+      valueOfColumn.setDim("date");
+
+      // Facet cell A: single row, only year 2022.
+      DefaultTableLens cellATable = new DefaultTableLens(new Object[][]{
+         { "date", "id" },
+         { toDate("2022-01-01"), 99 }
+      });
+      VSDataSet cellA = createVSDataSet(cellATable, "date");
+      Object cellAResult = valueOfColumn.calculate(cellA, 0, false, false);
+      assertEquals(CalcColumn.INVALID, cellAResult);
+      valueOfColumn.complete();
+
+      // Facet cell B: same shape as testCalculateWithDataSetOfPreviousYear (known-good in
+      // isolation): 2021 and 2022. Reuses the same valueOfColumn instance, simulating the
+      // next facet cell in a faceted chart.
+      DefaultTableLens cellBTable = new DefaultTableLens(new Object[][]{
+         { "date", "id" },
+         { toDate("2021-01-01"), 4 },
+         { toDate("2022-01-01"), 3 }
+      });
+      VSDataSet cellB = createVSDataSet(cellBTable, "date");
+
+      // Without the fix, getMinDate() is still frozen at cell A's 2022-01-01, so this
+      // wrongly returns INVALID instead of the previous year's value (4).
+      Object cellBResult = valueOfColumn.calculate(cellB, 1, true, false);
+      assertEquals(4, cellBResult);
+   }
+
+   /**
     * check previous range of a dc values
     */
    @Test
