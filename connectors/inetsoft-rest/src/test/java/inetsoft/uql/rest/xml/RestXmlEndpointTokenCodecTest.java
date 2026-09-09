@@ -17,18 +17,16 @@
  */
 package inetsoft.uql.rest.xml;
 
-import inetsoft.uql.schema.XSchema;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.List;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -38,40 +36,79 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code TabularDatasetSchema} types, only JSON/base64 fixtures. Malformed cases are hand-written
  * base64/JSON strings, since a malformed token by definition cannot come from
  * {@link RestXmlEndpointTokenCodec#encode}.
+ *
+ * <p>The {@code responseSchema} fixture JSON text below is COPY-PASTED VERBATIM into
+ * {@code restXmlEndpointToken.test.ts} on the wiz-services side (same constant names in a comment
+ * there) -- per this round's reconcile doc, this is what makes A2 ("Java validation agrees exactly
+ * with {@code validateCuratedSchema}'s TS rules") provable rather than merely asserted: both sides
+ * see the literal same input, not independently re-authored fixtures that could silently diverge.
  */
 class RestXmlEndpointTokenCodecTest {
+   // ----- shared responseSchema fixtures (verbatim in both languages' test files) -----
+
+   private static final String HAPPY_PATH = "{\"title\":\"string\",\"price\":\"double\"}";
+   private static final String HAPPY_PATH_WITH_ARRAY = "{\"title\":\"string\",\"price\":\"double\"," +
+      "\"author\":{\"name\":\"string\",\"id\":\"integer\"}," +
+      "\"reviews\":[{\"rating\":\"integer\",\"comment\":\"string\"}]}";
+   private static final String EMPTY_OBJECT = "{}";
+   private static final String EMPTY_ARRAY = "{\"data\":[]}";
+   private static final String ARRAY_LENGTH_TWO = "{\"data\":[\"string\",\"string\"]}";
+   private static final String BAD_LEAF_TYPE = "{\"amount\":\"decimal\"}";
+   private static final String NUMBER_LITERAL = "{\"amount\":42}";
+   private static final String BOOLEAN_LITERAL = "{\"paid\":true}";
+   private static final String NULL_LITERAL = "{\"description\":null}";
+   private static final String WILDCARD_BESIDE_NAMED = "{\"*\":\"string\",\"id\":\"string\"}";
+   private static final String WILDCARD_ALONE = "{\"metadata\":{\"*\":\"string\"}}";
+
    // ----- valid tokens -----
 
    @Test
-   void decode_roundTripsAValidToken() throws Exception {
-      RestXmlEndpointTokenCodec.DecodedToken original = new RestXmlEndpointTokenCodec.DecodedToken(
-         "/api/books", "/bookstore/book",
-         List.of(new RestXmlEndpointTokenCodec.Column("title", XSchema.STRING, "Book title"),
-                 new RestXmlEndpointTokenCodec.Column("price", XSchema.DOUBLE, null)));
-
-      String token = RestXmlEndpointTokenCodec.encode(original);
+   void decode_roundTripsANestedAndRepeatingTree() throws Exception {
+      JsonNode tree = json(HAPPY_PATH_WITH_ARRAY);
+      String token = RestXmlEndpointTokenCodec.encode("/api/books", "/bookstore/book", tree);
       RestXmlEndpointTokenCodec.DecodedToken decoded = RestXmlEndpointTokenCodec.decode(token);
 
-      assertEquals(original, decoded);
+      assertEquals("/api/books", decoded.suffix());
+      assertEquals("/bookstore/book", decoded.xpath());
+      assertEquals(tree, decoded.responseSchema());
    }
 
    @Test
-   void decode_columnOrderPreserved() throws Exception {
-      RestXmlEndpointTokenCodec.DecodedToken original = new RestXmlEndpointTokenCodec.DecodedToken(
-         "/api/x", "/x",
-         List.of(new RestXmlEndpointTokenCodec.Column("c1", XSchema.STRING, null),
-                 new RestXmlEndpointTokenCodec.Column("c2", XSchema.LONG, null),
-                 new RestXmlEndpointTokenCodec.Column("c3", XSchema.BOOLEAN, null),
-                 new RestXmlEndpointTokenCodec.Column("c4", XSchema.DATE, null)));
+   void decode_bareStringRootAccepted() throws Exception {
+      String token = RestXmlEndpointTokenCodec.encode("/s", "/x", MAPPER.valueToTree("string"));
+      RestXmlEndpointTokenCodec.DecodedToken decoded = RestXmlEndpointTokenCodec.decode(token);
 
-      RestXmlEndpointTokenCodec.DecodedToken decoded =
-         RestXmlEndpointTokenCodec.decode(RestXmlEndpointTokenCodec.encode(original));
-
-      assertEquals(List.of("c1", "c2", "c3", "c4"),
-         decoded.columns().stream().map(RestXmlEndpointTokenCodec.Column::name).toList());
+      assertTrue(decoded.responseSchema().isTextual());
+      assertEquals("string", decoded.responseSchema().asText());
    }
 
-   // ----- malformed tokens (A7): rejected before any other processing -----
+   @ParameterizedTest
+   @MethodSource("everyColumnType")
+   void decode_everyColumnTypeIsAccepted(String columnType) throws Exception {
+      String token = RestXmlEndpointTokenCodec.encode("/s", "/x", MAPPER.valueToTree(columnType));
+      RestXmlEndpointTokenCodec.DecodedToken decoded = RestXmlEndpointTokenCodec.decode(token);
+
+      assertEquals(columnType, decoded.responseSchema().asText());
+   }
+
+   /** The 6-value COLUMN_TYPES vocabulary -- replaces v1's 21-value reflected-XSchema coverage. */
+   static Stream<String> everyColumnType() {
+      return Stream.of("string", "integer", "double", "date", "timeInstant", "boolean");
+   }
+
+   @Test
+   void decode_loneWildcardRootAcceptedAtDecodeTime() throws Exception {
+      // A2's "must agree exactly": validateCuratedSchema accepts a lone "*" (see
+      // curatedResponseSchema.test.ts's "still accepts \"*\" as the only key"), so Java's decode()
+      // must too -- rejecting only happens later, at describeDataset (RestXmlEndpointCatalogTest),
+      // which is a Rest.XML-specific choice, not a codec-level one.
+      String token = base64("{\"version\":2,\"suffix\":\"/s\",\"xpath\":\"/x\",\"responseSchema\":" +
+         WILDCARD_ALONE + "}");
+
+      assertDoesNotThrow(() -> RestXmlEndpointTokenCodec.decode(token));
+   }
+
+   // ----- malformed tokens: rejected before any other processing -----
 
    @Test
    void decode_notBase64_rejected() {
@@ -100,10 +137,11 @@ class RestXmlEndpointTokenCodecTest {
          "json=" + json + ": " + thrown.getMessage());
    }
 
+   // ----- version (A1) -----
+
    @Test
    void decode_versionMissing_rejected() {
-      String token = base64("{\"suffix\":\"/s\",\"xpath\":\"/x\",\"columns\":[" +
-         column("c", "string", null) + "]}");
+      String token = base64("{\"suffix\":\"/s\",\"xpath\":\"/x\",\"responseSchema\":" + HAPPY_PATH + "}");
 
       Exception thrown = assertThrows(Exception.class,
          () -> RestXmlEndpointTokenCodec.decode(token));
@@ -112,8 +150,8 @@ class RestXmlEndpointTokenCodecTest {
 
    @Test
    void decode_versionWrongType_rejected() {
-      String token = base64("{\"version\":\"1\",\"suffix\":\"/s\",\"xpath\":\"/x\",\"columns\":[" +
-         column("c", "string", null) + "]}");
+      String token = base64("{\"version\":\"2\",\"suffix\":\"/s\",\"xpath\":\"/x\"," +
+         "\"responseSchema\":" + HAPPY_PATH + "}");
 
       Exception thrown = assertThrows(Exception.class,
          () -> RestXmlEndpointTokenCodec.decode(token));
@@ -121,9 +159,11 @@ class RestXmlEndpointTokenCodecTest {
    }
 
    @Test
-   void decode_versionWrongValue_rejected() {
-      String token = base64("{\"version\":2,\"suffix\":\"/s\",\"xpath\":\"/x\",\"columns\":[" +
-         column("c", "string", null) + "]}");
+   void decode_version1Rejected_theOldFlatFormatIsDeletedNotMigrated() {
+      // The old v1 shape (`columns` instead of `responseSchema`) is hand-built here since
+      // v1-shaped payloads can no longer come from this class's own encode().
+      String token = base64("{\"version\":1,\"suffix\":\"/s\",\"xpath\":\"/x\",\"columns\":" +
+         "[{\"name\":\"title\",\"type\":\"string\"}]}");
 
       Exception thrown = assertThrows(Exception.class,
          () -> RestXmlEndpointTokenCodec.decode(token));
@@ -132,9 +172,21 @@ class RestXmlEndpointTokenCodecTest {
    }
 
    @Test
+   void decode_versionWrongValue_rejected() {
+      String token = base64("{\"version\":3,\"suffix\":\"/s\",\"xpath\":\"/x\"," +
+         "\"responseSchema\":" + HAPPY_PATH + "}");
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> RestXmlEndpointTokenCodec.decode(token));
+      assertTrue(thrown.getMessage().contains("version"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("3"), thrown.getMessage());
+   }
+
+   // ----- suffix/xpath -----
+
+   @Test
    void decode_suffixKeyAbsent_rejected() {
-      String token = base64("{\"version\":1,\"xpath\":\"/x\",\"columns\":[" +
-         column("c", "string", null) + "]}");
+      String token = base64("{\"version\":2,\"xpath\":\"/x\",\"responseSchema\":" + HAPPY_PATH + "}");
 
       Exception thrown = assertThrows(Exception.class,
          () -> RestXmlEndpointTokenCodec.decode(token));
@@ -143,30 +195,18 @@ class RestXmlEndpointTokenCodecTest {
 
    @Test
    void decode_xpathKeyAbsent_rejected() {
-      String token = base64("{\"version\":1,\"suffix\":\"/s\",\"columns\":[" +
-         column("c", "string", null) + "]}");
+      String token = base64("{\"version\":2,\"suffix\":\"/s\",\"responseSchema\":" + HAPPY_PATH + "}");
 
       Exception thrown = assertThrows(Exception.class,
          () -> RestXmlEndpointTokenCodec.decode(token));
       assertTrue(thrown.getMessage().contains("xpath"), thrown.getMessage());
    }
 
-   @Test
-   void decode_columnsKeyAbsent_rejected() {
-      String token = base64("{\"version\":1,\"suffix\":\"/s\",\"xpath\":\"/x\"}");
-
-      Exception thrown = assertThrows(Exception.class,
-         () -> RestXmlEndpointTokenCodec.decode(token));
-      assertTrue(thrown.getMessage().contains("column"), thrown.getMessage());
-   }
-
-   // ----- blank/null suffix or xpath (A10) -----
-
    @ParameterizedTest
    @ValueSource(strings = {"null", "\"\"", "\"   \""})
    void decode_blankOrNullSuffix_rejected(String suffixLiteral) {
-      String token = base64("{\"version\":1,\"suffix\":" + suffixLiteral + ",\"xpath\":\"/x\"," +
-         "\"columns\":[" + column("c", "string", null) + "]}");
+      String token = base64("{\"version\":2,\"suffix\":" + suffixLiteral + ",\"xpath\":\"/x\"," +
+         "\"responseSchema\":" + HAPPY_PATH + "}");
 
       Exception thrown = assertThrows(Exception.class,
          () -> RestXmlEndpointTokenCodec.decode(token), "suffix=" + suffixLiteral);
@@ -177,8 +217,8 @@ class RestXmlEndpointTokenCodecTest {
    @ParameterizedTest
    @ValueSource(strings = {"null", "\"\"", "\"   \""})
    void decode_blankOrNullXpath_rejected(String xpathLiteral) {
-      String token = base64("{\"version\":1,\"suffix\":\"/s\",\"xpath\":" + xpathLiteral + "," +
-         "\"columns\":[" + column("c", "string", null) + "]}");
+      String token = base64("{\"version\":2,\"suffix\":\"/s\",\"xpath\":" + xpathLiteral + "," +
+         "\"responseSchema\":" + HAPPY_PATH + "}");
 
       Exception thrown = assertThrows(Exception.class,
          () -> RestXmlEndpointTokenCodec.decode(token), "xpath=" + xpathLiteral);
@@ -186,85 +226,143 @@ class RestXmlEndpointTokenCodecTest {
          "xpath=" + xpathLiteral + ": " + thrown.getMessage());
    }
 
-   // ----- empty columns array (A8) -----
+   // ----- responseSchema envelope presence -----
 
    @Test
-   void decode_emptyColumnsArray_rejected() {
-      String token = base64("{\"version\":1,\"suffix\":\"/s\",\"xpath\":\"/x\",\"columns\":[]}");
+   void decode_responseSchemaKeyAbsent_rejected() {
+      String token = base64("{\"version\":2,\"suffix\":\"/s\",\"xpath\":\"/x\"}");
 
       Exception thrown = assertThrows(Exception.class,
          () -> RestXmlEndpointTokenCodec.decode(token));
-      assertTrue(thrown.getMessage().contains("column"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("responseSchema"), thrown.getMessage());
    }
-
-   // ----- column type validation (A9) -----
 
    @Test
-   void decode_columnTypeNotAnXSchemaConstant_rejected() {
-      String token = base64("{\"version\":1,\"suffix\":\"/s\",\"xpath\":\"/x\",\"columns\":[" +
-         column("badcol", "not_a_real_type", null) + "]}");
+   void decode_responseSchemaNull_rejected() {
+      String token = base64("{\"version\":2,\"suffix\":\"/s\",\"xpath\":\"/x\",\"responseSchema\":null}");
 
-      // Assert on the thrown exception, never a returned value -- a wrong implementation that
-      // silently degrades to XSchema.STRING (Datagov-style) instead of throwing must fail this
-      // test, not pass it.
       Exception thrown = assertThrows(Exception.class,
          () -> RestXmlEndpointTokenCodec.decode(token));
-      assertTrue(thrown.getMessage().contains("badcol"), thrown.getMessage());
-      assertTrue(thrown.getMessage().contains("not_a_real_type"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("responseSchema"), thrown.getMessage());
    }
+
+   // ----- responseSchema structural rules (A2): one case per validateCuratedSchema branch -----
 
    @ParameterizedTest
-   @MethodSource("everyXSchemaConstant")
-   void decode_everyXSchemaConstantIsAccepted(String xschemaType) throws Exception {
-      RestXmlEndpointTokenCodec.DecodedToken original = new RestXmlEndpointTokenCodec.DecodedToken(
-         "/s", "/x", List.of(new RestXmlEndpointTokenCodec.Column("c", xschemaType, null)));
+   @MethodSource("rejectedResponseSchemas")
+   void decode_rejectsEveryStructuralViolation(String label, String responseSchemaJson, String expectedSubstring) {
+      String token = base64("{\"version\":2,\"suffix\":\"/s\",\"xpath\":\"/x\",\"responseSchema\":" +
+         responseSchemaJson + "}");
 
-      RestXmlEndpointTokenCodec.DecodedToken decoded =
-         RestXmlEndpointTokenCodec.decode(RestXmlEndpointTokenCodec.encode(original));
-
-      assertEquals(xschemaType, decoded.columns().get(0).type(), "type=" + xschemaType);
+      Exception thrown = assertThrows(Exception.class,
+         () -> RestXmlEndpointTokenCodec.decode(token), label);
+      assertTrue(thrown.getMessage().contains(expectedSubstring),
+         label + ": " + thrown.getMessage());
    }
 
-   /**
-    * Reflects {@link XSchema}'s own fields in THIS test too (not copy-pasted from the codec) so
-    * A9's "valid vocabulary" claim stays tied to {@code XSchema} itself rather than to a copy in
-    * either file that could silently drift.
-    */
-   static Stream<String> everyXSchemaConstant() throws IllegalAccessException {
-      List<String> values = new java.util.ArrayList<>();
-
-      for(Field field : XSchema.class.getDeclaredFields()) {
-         if(field.getType() == String.class &&
-            Modifier.isPublic(field.getModifiers()) &&
-            Modifier.isStatic(field.getModifiers()) &&
-            Modifier.isFinal(field.getModifiers()))
-         {
-            values.add((String) field.get(null));
-         }
-      }
-
-      return values.stream();
+   static Stream<org.junit.jupiter.params.provider.Arguments> rejectedResponseSchemas() {
+      return Stream.of(
+         org.junit.jupiter.params.provider.Arguments.of("empty object", EMPTY_OBJECT, "empty object"),
+         org.junit.jupiter.params.provider.Arguments.of("empty array", EMPTY_ARRAY, "empty array"),
+         org.junit.jupiter.params.provider.Arguments.of("wrong-length (2) array", ARRAY_LENGTH_TWO, "exactly one element"),
+         org.junit.jupiter.params.provider.Arguments.of("bad leaf type", BAD_LEAF_TYPE, "is not one of"),
+         org.junit.jupiter.params.provider.Arguments.of("number literal", NUMBER_LITERAL, "number literal"),
+         org.junit.jupiter.params.provider.Arguments.of("boolean literal", BOOLEAN_LITERAL, "boolean literal"),
+         org.junit.jupiter.params.provider.Arguments.of("null literal", NULL_LITERAL, "null literal"),
+         org.junit.jupiter.params.provider.Arguments.of("wildcard beside named key", WILDCARD_BESIDE_NAMED, "id")
+      );
    }
-
-   // ----- column description: null vs. absent vs. blank -----
 
    @Test
-   void decode_columnDescriptionNullVsAbsentVsBlank() throws Exception {
-      String token = base64("{\"version\":1,\"suffix\":\"/s\",\"xpath\":\"/x\",\"columns\":[" +
-         "{\"name\":\"absent\",\"type\":\"string\"}," +
-         "{\"name\":\"jsonNull\",\"type\":\"string\",\"description\":null}," +
-         "{\"name\":\"blank\",\"type\":\"string\",\"description\":\"\"}," +
-         "{\"name\":\"real\",\"type\":\"string\",\"description\":\"a real description\"}" +
-         "]}");
+   void decode_rejectsOverNodeCap() {
+      StringBuilder wide = new StringBuilder("{");
 
-      RestXmlEndpointTokenCodec.DecodedToken decoded = RestXmlEndpointTokenCodec.decode(token);
+      for(int i = 0; i < 2010; i++) {
+         if(i > 0) {
+            wide.append(",");
+         }
 
-      assertNull(decoded.columns().get(0).description(), "absent key -> null");
-      assertNull(decoded.columns().get(1).description(), "JSON null -> null");
-      assertEquals("", decoded.columns().get(2).description(),
-         "a blank string is preserved as '', not collapsed to null -- this token's data is " +
-         "presumed pre-curated, unlike Datagov's messy live wire format");
-      assertEquals("a real description", decoded.columns().get(3).description());
+         wide.append("\"field").append(i).append("\":\"string\"");
+      }
+
+      wide.append("}");
+
+      String token = base64("{\"version\":2,\"suffix\":\"/s\",\"xpath\":\"/x\",\"responseSchema\":" +
+         wide + "}");
+
+      Exception thrown = assertThrows(Exception.class, () -> RestXmlEndpointTokenCodec.decode(token));
+      assertTrue(thrown.getMessage().contains("node cap"), thrown.getMessage());
+   }
+
+   @Test
+   void decode_rejectsOverDepthCap() {
+      String tree = "\"string\"";
+
+      for(int i = 0; i < 18; i++) {
+         tree = "{\"level\":" + tree + "}";
+      }
+
+      String token = base64("{\"version\":2,\"suffix\":\"/s\",\"xpath\":\"/x\",\"responseSchema\":" +
+         tree + "}");
+
+      Exception thrown = assertThrows(Exception.class, () -> RestXmlEndpointTokenCodec.decode(token));
+      assertTrue(thrown.getMessage().contains("depth cap"), thrown.getMessage());
+   }
+
+   @Test
+   void decode_acceptsTreeAtExactlyTheDepthCap() throws Exception {
+      // MAX_DEPTH (16) nested single-key objects, bottoming out in a leaf -- exactly at the
+      // boundary, not past it (mirrors curatedResponseSchema.test.ts's own "at exactly the caps"
+      // case).
+      String tree = "\"string\"";
+
+      for(int i = 0; i < 16; i++) {
+         tree = "{\"level\":" + tree + "}";
+      }
+
+      String token = base64("{\"version\":2,\"suffix\":\"/s\",\"xpath\":\"/x\",\"responseSchema\":" +
+         tree + "}");
+
+      assertDoesNotThrow(() -> RestXmlEndpointTokenCodec.decode(token));
+   }
+
+   @Test
+   void decode_acceptsTreeAtExactlyTheNodeCap() throws Exception {
+      // MAX_NODES (2000) total nodes: the root object itself counts as node #1, so exactly 1999
+      // leaf fields brings the tree to precisely 2000 -- at the boundary, not past it (mirrors
+      // decode_acceptsTreeAtExactlyTheDepthCap's style; decode_rejectsOverNodeCap already covers
+      // the over-cap side with 2010 fields, which is asymmetric without this positive control).
+      StringBuilder wide = new StringBuilder("{");
+
+      for(int i = 0; i < 1999; i++) {
+         if(i > 0) {
+            wide.append(",");
+         }
+
+         wide.append("\"field").append(i).append("\":\"string\"");
+      }
+
+      wide.append("}");
+
+      String token = base64("{\"version\":2,\"suffix\":\"/s\",\"xpath\":\"/x\",\"responseSchema\":" +
+         wide + "}");
+
+      assertDoesNotThrow(() -> RestXmlEndpointTokenCodec.decode(token));
+   }
+
+   // ----- design §3.5 / reconcile item 4: duplicate flattened column names are a deliberately
+   // accepted, deferred corner case -- neither this codec nor validateCuratedSchema rejects two
+   // tree paths that flatten to the identical dot-joined name, and rejecting it Java-only would
+   // violate A2 by making Java's validation stricter than the TS side's. This test exists so a
+   // future well-intentioned fix that "closes" this gap on only one side gets caught here. -----
+
+   @Test
+   void decode_acceptsDuplicateFlattenedColumnName() throws Exception {
+      String responseSchema = "{\"a\":{\"b\":\"string\"},\"a.b\":\"integer\"}";
+      String token = base64("{\"version\":2,\"suffix\":\"/s\",\"xpath\":\"/x\",\"responseSchema\":" +
+         responseSchema + "}");
+
+      assertDoesNotThrow(() -> RestXmlEndpointTokenCodec.decode(token));
    }
 
    // ----- missing/blank token -----
@@ -280,12 +378,13 @@ class RestXmlEndpointTokenCodecTest {
 
    // ----- helpers -----
 
-   private static String base64(String json) {
-      return Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
+   private static final ObjectMapper MAPPER = new ObjectMapper();
+
+   private static JsonNode json(String text) throws Exception {
+      return MAPPER.readTree(text);
    }
 
-   private static String column(String name, String type, String description) {
-      return "{\"name\":\"" + name + "\",\"type\":\"" + type + "\"" +
-         (description != null ? ",\"description\":\"" + description + "\"" : "") + "}";
+   private static String base64(String json) {
+      return Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
    }
 }

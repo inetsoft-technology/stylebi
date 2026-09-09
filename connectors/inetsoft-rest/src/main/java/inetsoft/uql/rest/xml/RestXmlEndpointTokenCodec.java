@@ -19,12 +19,9 @@ package inetsoft.uql.rest.xml;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.uql.schema.XSchema;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -38,89 +35,76 @@ import java.util.*;
  * <p>The token is standard (non-URL-safe) base64 wrapping a JSON object:
  * <pre>{@code
  * {
- *   "version": 1,
+ *   "version": 2,
  *   "suffix": "/api/books",
  *   "xpath": "/bookstore/book",
- *   "columns": [
- *     { "name": "title", "type": "string", "description": "Book title" },
- *     { "name": "price", "type": "double" }
- *   ]
+ *   "responseSchema": {
+ *     "title": "string",
+ *     "price": "double",
+ *     "author": { "name": "string", "id": "integer" },
+ *     "reviews": [ { "rating": "integer", "comment": "string" } ]
+ *   }
  * }
  * }</pre>
  *
+ * <p>{@code responseSchema} is a curated-schema-shaped tree -- a non-empty object, a length-1
+ * array (the element shape), or a bare {@link #COLUMN_TYPES} string leaf, matching wiz-services'
+ * {@code curatedResponseSchema.ts}'s {@code ResponseSchemaNode}/{@code validateCuratedSchema}
+ * exactly (that TS representation is the one this format reuses, not a new one -- see this
+ * round's design doc). v1's flat {@code columns:[{name,type,description}]} is gone: {@code
+ * version:1} tokens are rejected outright, not migrated.
+ *
  * <p>{@code decode} rejects a structurally invalid token before any other processing, per the
- * charter's A7-A10 requirements -- see the validation order documented on {@link #decode}.
+ * charter's A1/A2 requirements -- see the validation order documented on {@link #decode}.
  */
 final class RestXmlEndpointTokenCodec {
    private RestXmlEndpointTokenCodec() {
    }
 
    /**
-    * One column of the token's flat column list.
+    * The fully-decoded, validated payload of a token. {@code responseSchema} is the raw, already-
+    * validated Jackson tree -- {@link RestXmlEndpointCatalog} walks it directly to flatten it into
+    * columns.
     */
-   record Column(String name, String type, String description) {
+   record DecodedToken(String suffix, String xpath, JsonNode responseSchema) {
    }
 
    /**
-    * The fully-decoded, validated payload of a token.
+    * Builds a syntactically-valid token -- test-support only, not required by the SPI or any
+    * production caller. StyleBI never encodes a token; wiz-services' own
+    * {@code encodeRestXmlEndpointToken} is the real encoder. Its only job is letting a test build a
+    * token without hand-writing base64/JSON.
     */
-   record DecodedToken(String suffix, String xpath, List<Column> columns) {
-   }
-
-   /**
-    * Builds a syntactically-valid token from a {@link DecodedToken} -- test-support only, not
-    * required by the SPI or any production caller. StyleBI never encodes a token; a future,
-    * out-of-scope wiz-side pipeline would. Its only job is letting a test build a token without
-    * hand-writing base64/JSON.
-    */
-   static String encode(DecodedToken token) {
+   static String encode(String suffix, String xpath, JsonNode responseSchema) {
       ObjectNode root = MAPPER.createObjectNode();
       root.put("version", CURRENT_VERSION);
-      root.put("suffix", token.suffix());
-      root.put("xpath", token.xpath());
-
-      ArrayNode columns = root.putArray("columns");
-
-      for(Column c : token.columns()) {
-         ObjectNode column = columns.addObject();
-         column.put("name", c.name());
-         column.put("type", c.type());
-
-         if(c.description() == null) {
-            column.putNull("description");
-         }
-         else {
-            column.put("description", c.description());
-         }
-      }
-
+      root.put("suffix", suffix);
+      root.put("xpath", xpath);
+      root.set("responseSchema", responseSchema);
       return Base64.getEncoder().encodeToString(root.toString().getBytes(StandardCharsets.UTF_8));
    }
 
    /**
     * Decodes and validates {@code token}, rejecting a structurally invalid one before any other
-    * processing (charter: "before any other processing"). Validation order, this class's own
-    * choice:
+    * processing. Validation order, this class's own choice:
     *
     * <ol>
     *   <li>{@code token} null/blank -- rejected.</li>
     *   <li>Not valid base64 -- rejected.</li>
     *   <li>Base64-decoded bytes do not parse as JSON -- rejected.</li>
     *   <li>Parsed JSON is not an object (a bare array/string/number) -- rejected.</li>
-    *   <li>{@code version} missing, not an integer, or not equal to {@link #CURRENT_VERSION} --
-    *       rejected, naming both the expected and found value.</li>
-    *   <li>{@code suffix} missing, null, or blank -- rejected (covers both A7's "missing field"
-    *       and A10's "blank/null field" with one check).</li>
+    *   <li>{@code version} missing, not an integer, or not equal to {@link #CURRENT_VERSION}
+    *       (now {@code 2}) -- rejected, naming both the expected and found value. A {@code
+    *       version:1} token (the old flat format) is simply invalid -- there is no migration
+    *       path.</li>
+    *   <li>{@code suffix} missing, null, or blank -- rejected.</li>
     *   <li>{@code xpath} same check.</li>
-    *   <li>{@code columns} missing, not an array, or empty -- rejected (covers both A7 and A8).</li>
-    *   <li>Each column, in order: {@code name} non-blank, {@code type} non-blank, {@code type} a
-    *       member of {@link XSchema}'s declared constants (A9) -- first bad column fails the whole
-    *       decode (fail-fast, not a batch of collected errors). {@code description} is read as
-    *       nullable text: absent or JSON {@code null} becomes {@code null}; a JSON string is
-    *       passed through verbatim, including a blank string, which stays {@code ""} rather than
-    *       collapsing to {@code null} -- this token's data is presumed curated, not sampled from a
-    *       messy live wire format the way Datagov's is. Anything else (a non-string, non-null
-    *       value) is also treated as absent (mapped to {@code null}), never coerced.</li>
+    *   <li>{@code responseSchema} missing or JSON {@code null} -- rejected.</li>
+    *   <li>{@code responseSchema} recursively validated by {@link #validateTree} -- a line-for-
+    *       line Java port of {@code curatedResponseSchema.ts}'s {@code walk()}: a non-empty
+    *       object (every value recursively valid), a length-1 array (the element recursively
+    *       valid), or a string leaf that is one of {@link #COLUMN_TYPES}. Fail-fast on the first
+    *       bad node, same discipline as {@code walk()}'s own early return.</li>
     * </ol>
     *
     * @throws Exception naming what is wrong, before any network access or further processing.
@@ -161,32 +145,87 @@ final class RestXmlEndpointTokenCodec {
 
       String suffix = requireNonBlankText(root, "suffix");
       String xpath = requireNonBlankText(root, "xpath");
-      JsonNode columnsNode = root.get("columns");
+      JsonNode responseSchema = root.get("responseSchema");
 
-      if(columnsNode == null || !columnsNode.isArray() || columnsNode.isEmpty()) {
-         throw new Exception("Rest.XML endpoint token must declare at least one column in " +
-            "'columns'.");
+      if(responseSchema == null || responseSchema.isNull()) {
+         throw new Exception("Rest.XML endpoint token is missing the 'responseSchema' field.");
       }
 
-      List<Column> columns = new ArrayList<>();
+      validateTree(responseSchema, "$", new int[]{0}, 0);
 
-      for(JsonNode columnNode : columnsNode) {
-         String name = requireNonBlankText(columnNode, "name");
-         String type = requireNonBlankText(columnNode, "type");
+      return new DecodedToken(suffix, xpath, responseSchema);
+   }
 
-         if(!XSCHEMA_TYPES.contains(type)) {
-            throw new Exception("Rest.XML endpoint token column '" + name + "' has type '" +
-               type + "', which is not a recognized XSchema type constant.");
+   /**
+    * A line-for-line Java port of {@code curatedResponseSchema.ts}'s {@code walk()} -- same
+    * branch order, same messages, same caps -- so the two implementations validate the exact same
+    * tree shapes as each other (A2). An {@code int[]} of length 1 stands in for the TS
+    * {@code Budget} mutable-counter object, since Java has no closure over a plain {@code int}.
+    */
+   private static void validateTree(JsonNode node, String at, int[] nodeCount, int depth)
+      throws Exception
+   {
+      nodeCount[0]++;
+
+      if(nodeCount[0] > MAX_NODES) {
+         throw new Exception("Rest.XML endpoint token responseSchema at '" + at +
+            "' exceeds the " + MAX_NODES + "-node cap.");
+      }
+
+      if(depth > MAX_DEPTH) {
+         throw new Exception("Rest.XML endpoint token responseSchema at '" + at +
+            "' exceeds the " + MAX_DEPTH + "-level depth cap.");
+      }
+
+      if(node.isTextual()) {
+         if(!COLUMN_TYPES.contains(node.asText())) {
+            throw new Exception("Rest.XML endpoint token responseSchema at '" + at + "': '" +
+               node.asText() + "' is not one of " + String.join(", ", COLUMN_TYPES) + ".");
          }
 
-         JsonNode descriptionNode = columnNode.get("description");
-         String description = descriptionNode != null && descriptionNode.isTextual()
-            ? descriptionNode.asText() : null;
-
-         columns.add(new Column(name, type, description));
+         return;
       }
 
-      return new DecodedToken(suffix, xpath, columns);
+      if(node.isArray()) {
+         if(node.size() != 1) {
+            throw new Exception("Rest.XML endpoint token responseSchema at '" + at + "': " +
+               (node.isEmpty()
+                  ? "an empty array is indistinguishable from \"not declared\"."
+                  : "array must have exactly one element (the element shape), has " +
+                     node.size() + "."));
+         }
+
+         validateTree(node.get(0), at + "[*]", nodeCount, depth + 1);
+         return;
+      }
+
+      if(node.isObject()) {
+         List<String> keys = new ArrayList<>();
+         node.fieldNames().forEachRemaining(keys::add);   // Jackson ObjectNode: insertion order
+
+         if(keys.isEmpty()) {
+            throw new Exception("Rest.XML endpoint token responseSchema at '" + at + "': an " +
+               "empty object is indistinguishable from \"not declared\".");
+         }
+
+         if(keys.size() > 1 && keys.contains("*")) {
+            List<String> named = keys.stream().filter(k -> !k.equals("*")).toList();
+            throw new Exception("Rest.XML endpoint token responseSchema at '" + at + "': '*' " +
+               "stands for every key of a data-keyed object, so it cannot appear beside named " +
+               "keys (" + String.join(", ", named) + ").");
+         }
+
+         for(String key : keys) {
+            validateTree(node.get(key), "$".equals(at) ? key : at + "." + key, nodeCount, depth + 1);
+         }
+
+         return;
+      }
+
+      String kind = node.isNull() ? "null" : node.isBoolean() ? "boolean" : node.isNumber() ?
+         "number" : node.getNodeType().toString().toLowerCase();
+      throw new Exception("Rest.XML endpoint token responseSchema at '" + at + "': a " + kind +
+         " literal is not a type name -- did a sample value get pasted in?");
    }
 
    private static String requireNonBlankText(JsonNode node, String field) throws Exception {
@@ -200,33 +239,33 @@ final class RestXmlEndpointTokenCodec {
       return value.asText();
    }
 
-   /**
-    * Every {@code public static final String} constant {@link XSchema} itself declares --
-    * reflected once rather than hand-copied, so this set cannot drift from {@code XSchema}'s own
-    * vocabulary.
-    */
-   private static Set<String> reflectXSchemaConstants() {
-      Set<String> types = new HashSet<>();
-
-      for(Field field : XSchema.class.getDeclaredFields()) {
-         if(field.getType() == String.class &&
-            Modifier.isPublic(field.getModifiers()) &&
-            Modifier.isStatic(field.getModifiers()) &&
-            Modifier.isFinal(field.getModifiers()))
-         {
-            try {
-               types.add((String) field.get(null));
-            }
-            catch(IllegalAccessException e) {
-               throw new ExceptionInInitializerError(e);
-            }
-         }
-      }
-
-      return Set.copyOf(types);
-   }
-
-   private static final int CURRENT_VERSION = 1;
+   private static final int CURRENT_VERSION = 2;
    private static final ObjectMapper MAPPER = new ObjectMapper();
-   private static final Set<String> XSCHEMA_TYPES = reflectXSchemaConstants();
+
+   /**
+    * Node and depth caps for {@code responseSchema}, copied FROM {@code curatedResponseSchema.ts}'s
+    * own exported {@code MAX_NODES}/{@code MAX_DEPTH} (presently 2000/16). There is no cross-
+    * language constant-sharing mechanism in this repo in either direction: that TS file already
+    * copies ITS OWN caps from {@code JsonShapeDistiller.DEFAULT_MAX_NODES}/{@code DEFAULT_MAX_DEPTH}
+    * (kept {@code >=}, not equal), and this is now a second, independent copy in the other
+    * direction, for a different purpose (exact parity, not a floor). If either the TS file's
+    * caps or the distiller's caps change, this must be updated by hand to match.
+    */
+   private static final int MAX_NODES = 2000;
+   private static final int MAX_DEPTH = 16;
+
+   /**
+    * The exact 6-word leaf vocabulary {@code curatedResponseSchema.ts}'s own {@code COLUMN_TYPES}
+    * (`shared/types/worksheet.ts`) declares -- a deliberate reversal of v1's reflection-based
+    * approach ({@code reflectXSchemaConstants()}, deleted). v1 needed reflection because ANY
+    * {@code XSchema} constant was a legal column type structurally; v2's legal leaf vocabulary is
+    * this specific 6-word list, which happens to equal 6 particular {@code XSchema} constants'
+    * VALUES. Reflecting over the whole class and filtering would still need a hand-written filter
+    * naming these same six fields, so it buys no drift-safety over naming them directly -- while
+    * referencing {@code XSchema}'s own constants (rather than hand-typed string literals) keeps
+    * each value wired to {@code XSchema} automatically if one of its literal strings ever changed.
+    */
+   private static final Set<String> COLUMN_TYPES = Set.of(
+      XSchema.STRING, XSchema.INTEGER, XSchema.DOUBLE, XSchema.DATE, XSchema.TIME_INSTANT,
+      XSchema.BOOLEAN);
 }

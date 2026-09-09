@@ -17,7 +17,8 @@
  */
 package inetsoft.uql.rest.xml;
 
-import inetsoft.uql.schema.XSchema;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.util.Config;
 import inetsoft.util.ConfigurationContext;
@@ -64,17 +65,15 @@ class RestXmlEndpointCatalogTest {
       }
    }
 
-   private static String token(String suffix, String xpath, RestXmlEndpointTokenCodec.Column... columns) {
-      return RestXmlEndpointTokenCodec.encode(
-         new RestXmlEndpointTokenCodec.DecodedToken(suffix, xpath, List.of(columns)));
+   private static String token(String suffix, String xpath, String responseSchemaJson) throws Exception {
+      return RestXmlEndpointTokenCodec.encode(suffix, xpath, MAPPER.readTree(responseSchemaJson));
    }
 
    // ----- A3: verbatim echo -----
 
    @Test
    void describeDataset_echoesSubmittedTokenVerbatim() throws Exception {
-      String token = token("/api/books", "/bookstore/book",
-         new RestXmlEndpointTokenCodec.Column("title", XSchema.STRING, null));
+      String token = token("/api/books", "/bookstore/book", "\"string\"");
 
       TabularDatasetSchema schema = RestXmlEndpointCatalog.describeDataset(token);
 
@@ -82,32 +81,94 @@ class RestXmlEndpointCatalogTest {
          "datasetId must be the exact submitted String instance -- no re-serialization");
    }
 
-   // ----- A4: columns match exactly, in order -----
+   // ----- A3/A4: nested + repeating tree flattens to the exact dot-joined column set, in order,
+   // types verbatim (no mapping table) -----
 
    @Test
-   void describeDataset_columnsMatchTokenExactlyInOrder() throws Exception {
-      String token = token("/s", "/x",
-         new RestXmlEndpointTokenCodec.Column("title", XSchema.STRING, "Book title"),
-         new RestXmlEndpointTokenCodec.Column("price", XSchema.DOUBLE, null),
-         new RestXmlEndpointTokenCodec.Column("published", XSchema.DATE, "Publication date"));
+   void describeDataset_nestedAndRepeatingTree_flattensToExactColumnsInOrder() throws Exception {
+      String responseSchema = "{\"title\":\"string\",\"price\":\"double\"," +
+         "\"author\":{\"name\":\"string\",\"id\":\"integer\"}," +
+         "\"reviews\":[{\"rating\":\"integer\",\"comment\":\"string\"}]}";
+      String token = token("/s", "/x", responseSchema);
 
       TabularDatasetSchema schema = RestXmlEndpointCatalog.describeDataset(token);
 
-      assertEquals(3, schema.columns().size());
-      assertEquals(new TabularColumn("title", XSchema.STRING, "Book title", null, null),
-         schema.columns().get(0));
-      assertEquals(new TabularColumn("price", XSchema.DOUBLE, null, null, null),
-         schema.columns().get(1));
-      assertEquals(new TabularColumn("published", XSchema.DATE, "Publication date", null, null),
-         schema.columns().get(2));
+      assertEquals(
+         List.of(
+            new TabularColumn("title", "string", null, null, null),
+            new TabularColumn("price", "double", null, null, null),
+            new TabularColumn("author.name", "string", null, null, null),
+            new TabularColumn("author.id", "integer", null, null, null),
+            new TabularColumn("reviews.rating", "integer", null, null, null),
+            new TabularColumn("reviews.comment", "string", null, null, null)
+         ),
+         schema.columns(),
+         "column SET, per-column type, and ORDER must all match the tree's own JSON key order"
+      );
+   }
+
+   // ----- §3.2: bare-string-root produces exactly one "Column"-named column -----
+
+   @Test
+   void describeDataset_bareStringRoot_producesOneColumnNamedColumn() throws Exception {
+      String token = token("/s", "/x", "\"integer\"");
+
+      TabularDatasetSchema schema = RestXmlEndpointCatalog.describeDataset(token);
+
+      assertEquals(List.of(new TabularColumn("Column", "integer", null, null, null)), schema.columns());
+   }
+
+   // ----- §3.3: the "*" wildcard key -----
+
+   @Test
+   void describeDataset_mixedTreeWithWildcardSubtree_producesOnlyTheRealColumn() throws Exception {
+      String responseSchema = "{\"id\":\"string\",\"attrs\":{\"*\":\"string\"}}";
+      String token = token("/s", "/x", responseSchema);
+
+      TabularDatasetSchema schema = RestXmlEndpointCatalog.describeDataset(token);
+
+      assertEquals(List.of(new TabularColumn("id", "string", null, null, null)), schema.columns());
+      assertTrue(schema.columnsMayBeIncomplete());
+   }
+
+   @Test
+   void describeDataset_loneWildcardRoot_throwsNamingWhy() throws Exception {
+      String token = token("/s", "/x", "{\"*\":\"string\"}");
+
+      Exception thrown = assertThrows(Exception.class, () -> RestXmlEndpointCatalog.describeDataset(token));
+      assertTrue(thrown.getMessage().contains("*"), thrown.getMessage());
+   }
+
+   // ----- design §3.5 / reconcile item 4: duplicate flattened column names are a deliberately
+   // accepted, deferred corner case -- describeDataset emits BOTH columns rather than merging,
+   // deduping, or silently dropping one. This is the half of the behavior
+   // RestXmlEndpointTokenCodecTest's decode_acceptsDuplicateFlattenedColumnName alone can't
+   // demonstrate (decode only proves the tree isn't rejected; this proves both columns surface). -----
+
+   @Test
+   void describeDataset_duplicateFlattenedColumnName_emitsBothColumns() throws Exception {
+      String responseSchema = "{\"a\":{\"b\":\"string\"},\"a.b\":\"integer\"}";
+      String token = token("/s", "/x", responseSchema);
+
+      TabularDatasetSchema schema = RestXmlEndpointCatalog.describeDataset(token);
+
+      assertEquals(2, schema.columns().size(), schema.columns().toString());
+      assertEquals(
+         List.of(
+            new TabularColumn("a.b", "string", null, null, null),
+            new TabularColumn("a.b", "integer", null, null, null)
+         ),
+         schema.columns(),
+         "two tree paths flattening to the identical dot-joined name must both surface as " +
+         "columns, not be merged/deduped/one silently dropped"
+      );
    }
 
    // ----- A5: params contains exactly suffix and xpath -----
 
    @Test
    void describeDataset_paramsContainsExactlySuffixAndXpath() throws Exception {
-      String token = token("/api/books", "/bookstore/book",
-         new RestXmlEndpointTokenCodec.Column("title", XSchema.STRING, null));
+      String token = token("/api/books", "/bookstore/book", "\"string\"");
 
       TabularDatasetSchema schema = RestXmlEndpointCatalog.describeDataset(token);
 
@@ -126,19 +187,10 @@ class RestXmlEndpointCatalogTest {
 
    @Test
    void describeDataset_columnsMayBeIncompleteAlwaysTrue() throws Exception {
-      String oneColumn = token("/s", "/x",
-         new RestXmlEndpointTokenCodec.Column("a", XSchema.STRING, null));
-      String tenColumns = token("/s", "/x",
-         new RestXmlEndpointTokenCodec.Column("a", XSchema.STRING, null),
-         new RestXmlEndpointTokenCodec.Column("b", XSchema.STRING, null),
-         new RestXmlEndpointTokenCodec.Column("c", XSchema.STRING, null),
-         new RestXmlEndpointTokenCodec.Column("d", XSchema.STRING, null),
-         new RestXmlEndpointTokenCodec.Column("e", XSchema.STRING, null),
-         new RestXmlEndpointTokenCodec.Column("f", XSchema.STRING, null),
-         new RestXmlEndpointTokenCodec.Column("g", XSchema.STRING, null),
-         new RestXmlEndpointTokenCodec.Column("h", XSchema.STRING, null),
-         new RestXmlEndpointTokenCodec.Column("i", XSchema.STRING, null),
-         new RestXmlEndpointTokenCodec.Column("j", XSchema.STRING, null));
+      String oneColumn = token("/s", "/x", "{\"a\":\"string\"}");
+      String tenColumns = token("/s", "/x", "{\"a\":\"string\",\"b\":\"string\",\"c\":\"string\"," +
+         "\"d\":\"string\",\"e\":\"string\",\"f\":\"string\",\"g\":\"string\",\"h\":\"string\"," +
+         "\"i\":\"string\",\"j\":\"string\"}");
 
       assertTrue(RestXmlEndpointCatalog.describeDataset(oneColumn).columnsMayBeIncomplete());
       assertTrue(RestXmlEndpointCatalog.describeDataset(tenColumns).columnsMayBeIncomplete());
@@ -148,24 +200,34 @@ class RestXmlEndpointCatalogTest {
 
    @Test
    void describeDataset_keyColumnsAlwaysEmpty() throws Exception {
-      String token = token("/s", "/x",
-         new RestXmlEndpointTokenCodec.Column("a", XSchema.STRING, null));
+      String token = token("/s", "/x", "{\"a\":\"string\"}");
 
       TabularDatasetSchema schema = RestXmlEndpointCatalog.describeDataset(token);
 
       assertEquals(List.of(), schema.keyColumns());
    }
 
-   // ----- dataset-level description always null -----
+   // ----- dataset-level description always null (v2 drops description entirely -- decision #6) -----
 
    @Test
    void describeDataset_descriptionAlwaysNull() throws Exception {
-      String token = token("/s", "/x",
-         new RestXmlEndpointTokenCodec.Column("a", XSchema.STRING, null));
+      String token = token("/s", "/x", "{\"a\":\"string\"}");
 
       TabularDatasetSchema schema = RestXmlEndpointCatalog.describeDataset(token);
 
       assertNull(schema.description());
+   }
+
+   // ----- A4: per-column type is the tree leaf VERBATIM, no mapping table -----
+
+   @Test
+   void describeDataset_columnTypeIsLeafVerbatim_everyColumnType() throws Exception {
+      for(String type : new String[]{"string", "integer", "double", "date", "timeInstant", "boolean"}) {
+         String token = token("/s", "/x", "\"" + type + "\"");
+         TabularDatasetSchema schema = RestXmlEndpointCatalog.describeDataset(token);
+
+         assertEquals(type, schema.columns().get(0).type(), "type=" + type);
+      }
    }
 
    // ----- malformed token propagates from the codec -----
@@ -188,8 +250,7 @@ class RestXmlEndpointCatalogTest {
     */
    @Test
    void describeDataset_paramsRoundTripIntoARealRestXMLQuery() throws Exception {
-      String token = token("/api/books", "/bookstore/book",
-         new RestXmlEndpointTokenCodec.Column("title", XSchema.STRING, null));
+      String token = token("/api/books", "/bookstore/book", "\"string\"");
 
       TabularDatasetSchema schema = RestXmlEndpointCatalog.describeDataset(token);
 
@@ -204,5 +265,6 @@ class RestXmlEndpointCatalogTest {
       assertEquals("/bookstore/book", query.getXpath());
    }
 
+   private static final ObjectMapper MAPPER = new ObjectMapper();
    private static ConfigurationContext previous;
 }

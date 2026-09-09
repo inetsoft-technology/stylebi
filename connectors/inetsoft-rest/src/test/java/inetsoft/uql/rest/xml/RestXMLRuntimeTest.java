@@ -17,12 +17,10 @@
  */
 package inetsoft.uql.rest.xml;
 
-import inetsoft.uql.schema.XSchema;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.uql.tabular.TabularCatalogProvider;
 import inetsoft.uql.tabular.TabularDatasetSchema;
 import org.junit.jupiter.api.Test;
-
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -74,9 +72,8 @@ class RestXMLRuntimeTest {
 
    @Test
    void describeDataset_delegatesToRestXmlEndpointCatalog() throws Exception {
-      String token = RestXmlEndpointTokenCodec.encode(new RestXmlEndpointTokenCodec.DecodedToken(
-         "/api/books", "/bookstore/book",
-         List.of(new RestXmlEndpointTokenCodec.Column("title", XSchema.STRING, null))));
+      String token = RestXmlEndpointTokenCodec.encode(
+         "/api/books", "/bookstore/book", MAPPER.readTree("{\"title\":\"string\"}"));
 
       TabularDatasetSchema schema = new RestXMLRuntime().describeDataset(null, token);
 
@@ -92,9 +89,8 @@ class RestXMLRuntimeTest {
 
    @Test
    void describeDataset_neverTouchesDataSource_evenWhenNull_validToken() throws Exception {
-      String token = RestXmlEndpointTokenCodec.encode(new RestXmlEndpointTokenCodec.DecodedToken(
-         "/api/books", "/bookstore/book",
-         List.of(new RestXmlEndpointTokenCodec.Column("title", XSchema.STRING, null))));
+      String token = RestXmlEndpointTokenCodec.encode(
+         "/api/books", "/bookstore/book", MAPPER.readTree("{\"title\":\"string\"}"));
 
       // A real dereference of the null data source would throw NullPointerException, which would
       // mask this assertion entirely -- reaching a normal return proves dataSource is never
@@ -112,4 +108,6 @@ class RestXMLRuntimeTest {
       assertFalse(thrown instanceof NullPointerException, thrown.getClass().getName());
       assertTrue(thrown.getMessage().contains("base64"), thrown.getMessage());
    }
+
+   private static final ObjectMapper MAPPER = new ObjectMapper();
 }
