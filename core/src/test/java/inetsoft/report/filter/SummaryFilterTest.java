@@ -367,6 +367,78 @@ public class SummaryFilterTest {
       Assertions.assertEquals(SummaryFilter.class, deserializedTable.getClass());
    }
 
+   /**
+    * The rows merged into the "Others" bucket must be ordered by their own group level's
+    * sort order, the same as every other group at that level. Gathering them from
+    * several parent groups must not leave them in the order the parents were ranked in.
+    *
+    * This is the shape a chart with a top-N "sort by value" outer dimension produces, and
+    * order-dependent calculations (running total, moving, change/previous) read the
+    * resulting row order. (74910)
+    */
+   @Test
+   public void othersBucketKeepsInnerGroupOrder() {
+      // col1 is ranked by value so the outer groups are gathered out of col2 order;
+      // "d"/"e"/"f"/"g" all fall outside the top 2 and merge into "Others"
+      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", 1, 50},
+         {"b", 2, 40},
+         {"d", 7, 4},
+         {"e", 3, 3},
+         {"f", 9, 2},
+         {"g", 5, 1}
+      });
+
+      final SummaryFilter summary =
+         new SummaryFilter(tbl1, new int[] {0, 1}, new int[] {2}, new SumFormula(), null);
+      summary.setGroupOrder(1, new SortOrder(XConstants.SORT_ASC));
+      summary.setTopN(0, 0, 2, false, true, true);
+      summary.moreRows(Integer.MAX_VALUE);
+
+      XTableUtil.assertEquals(summary, new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", 1, 50.0},
+         {"b", 2, 40.0},
+         {"Others", 3, 3.0},
+         {"Others", 5, 1.0},
+         {"Others", 7, 4.0},
+         {"Others", 9, 2.0},
+      });
+   }
+
+   /**
+    * A descending inner group order must be honoured inside the "Others" bucket too.
+    */
+   @Test
+   public void othersBucketKeepsInnerGroupOrderDesc() {
+      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", 1, 50},
+         {"b", 2, 40},
+         {"d", 7, 4},
+         {"e", 3, 3},
+         {"f", 9, 2},
+         {"g", 5, 1}
+      });
+
+      final SummaryFilter summary =
+         new SummaryFilter(tbl1, new int[] {0, 1}, new int[] {2}, new SumFormula(), null);
+      summary.setGroupOrder(1, new SortOrder(XConstants.SORT_DESC));
+      summary.setTopN(0, 0, 2, false, true, true);
+      summary.moreRows(Integer.MAX_VALUE);
+
+      XTableUtil.assertEquals(summary, new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", 1, 50.0},
+         {"b", 2, 40.0},
+         {"Others", 9, 2.0},
+         {"Others", 7, 4.0},
+         {"Others", 5, 1.0},
+         {"Others", 3, 3.0},
+      });
+   }
+
    private Date date(String date) {
       return new Date(LocalDate.parse(date).atStartOfDay()
                          .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
