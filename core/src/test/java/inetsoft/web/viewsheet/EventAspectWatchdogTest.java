@@ -36,12 +36,20 @@ package inetsoft.web.viewsheet;
  * Behavioral guarantees covered:
  *
  * [G1] A @LoadingMask method whose pjp.proceed() blocks past the configured watchdog timeout
- *      causes the aspect to send a ClearLoadingCommand and a warning MessageCommand to the
- *      client well before pjp.proceed() itself returns.
+ *      causes the aspect to send a ClearLoadingCommand and an INFO MessageCommand to the
+ *      client well before pjp.proceed() itself returns. INFO (not WARNING) is required because
+ *      WARNING is delivered client-side as a blocking modal dialog, which would contradict the
+ *      message's own "you may continue working" text (round-2 review finding #3).
  * [G2] Once pjp.proceed() does return (after being unblocked), postprocess() does not send a
  *      second, redundant ClearLoadingCommand for the same request.
  * [G3] A @LoadingMask method that returns quickly (well under the watchdog timeout) never
  *      triggers the watchdog's ClearLoadingCommand/MessageCommand.
+ * [G4] @LoadingMask(watchdogTimeout = 0) disables the watchdog for that endpoint entirely,
+ *      even when the global loadingmask.watchdog.timeout would otherwise have fired --
+ *      endpoints that execute unbounded runtime queries (e.g. openViewsheet) opt out this way
+ *      (round-2 review finding #4).
+ * [G5] @LoadingMask(watchdogTimeout = N) with N > 0 overrides the global timeout with N for
+ *      that endpoint.
  */
 
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -112,16 +120,30 @@ public class EventAspectWatchdogTest {
       @LoadingMask(true)
       public void forcedMaskMethod() {
       }
+
+      @LoadingMask(value = true, watchdogTimeout = 0)
+      public void unboundedMethod() {
+      }
+
+      @LoadingMask(value = true, watchdogTimeout = 100)
+      public void shortOverrideMethod() {
+      }
    }
 
-   private ProceedingJoinPoint mockJoinPoint(CommandDispatcher dispatcher) throws Throwable {
+   private ProceedingJoinPoint mockJoinPoint(CommandDispatcher dispatcher,
+                                              String methodName) throws Throwable
+   {
       ProceedingJoinPoint pjp = mock(ProceedingJoinPoint.class);
       MethodSignature signature = mock(MethodSignature.class);
-      Method method = AnnotatedTarget.class.getMethod("forcedMaskMethod");
+      Method method = AnnotatedTarget.class.getMethod(methodName);
       when(signature.getMethod()).thenReturn(method);
       when(pjp.getSignature()).thenReturn(signature);
       when(pjp.getArgs()).thenReturn(new Object[] { dispatcher });
       return pjp;
+   }
+
+   private ProceedingJoinPoint mockJoinPoint(CommandDispatcher dispatcher) throws Throwable {
+      return mockJoinPoint(dispatcher, "forcedMaskMethod");
    }
 
    @Test
@@ -157,10 +179,11 @@ public class EventAspectWatchdogTest {
       assertTrue(proceedStarted.await(2, TimeUnit.SECONDS), "proceed() never started");
 
       // [G1] Bounded wait: the watchdog must fire well before pjp.proceed() unblocks (10s away).
+      // Type must be INFO (non-blocking toast), not WARNING (blocking modal) -- see finding #3.
       verify(detached, timeout(2000)).sendCommand(any(ClearLoadingCommand.class));
       verify(detached, timeout(2000)).sendCommand(argThat(cmd ->
          cmd instanceof MessageCommand &&
-         ((MessageCommand) cmd).getType() == MessageCommand.Type.WARNING));
+         ((MessageCommand) cmd).getType() == MessageCommand.Type.INFO));
 
       // The wrapped call is left running in the background rather than interrupted.
       assertTrue(worker.isAlive(), "the blocked call should not be killed by the watchdog");
@@ -190,5 +213,99 @@ public class EventAspectWatchdogTest {
       // [G3] Fast completion: postprocess() sends the normal clear, but the watchdog itself
       // never gets a chance to fire within the (much larger) configured timeout.
       verify(detached, never()).sendCommand(any(MessageCommand.class));
+   }
+
+   @Test
+   void watchdogTimeoutZeroOverrideDisablesWatchdog() throws Throwable {
+      // Global timeout is short enough that, without the per-endpoint override, the watchdog
+      // would fire well within the block below.
+      SreeEnv.setProperty("loadingmask.watchdog.timeout", "100");
+
+      CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+      CommandDispatcher detached = mock(CommandDispatcher.class);
+      when(dispatcher.detach()).thenReturn(detached);
+
+      CountDownLatch proceedStarted = new CountDownLatch(1);
+      CountDownLatch releaseProceed = new CountDownLatch(1);
+      ProceedingJoinPoint pjp = mockJoinPoint(dispatcher, "unboundedMethod");
+      when(pjp.proceed()).thenAnswer(inv -> {
+         proceedStarted.countDown();
+         assertTrue(releaseProceed.await(10, TimeUnit.SECONDS),
+                    "test setup error: releaseProceed was never signaled");
+         return null;
+      });
+
+      Thread worker = new Thread(() -> {
+         try {
+            aspect.clearLoadingMask(pjp);
+         }
+         catch(Throwable t) {
+            throw new RuntimeException(t);
+         }
+      }, "test-stomp-handler-thread-unbounded");
+      worker.start();
+
+      assertTrue(proceedStarted.await(2, TimeUnit.SECONDS), "proceed() never started");
+
+      // [G4] Block for far longer than the global 100ms timeout -- with watchdogTimeout = 0,
+      // the watchdog must never fire (no MessageCommand, no ClearLoadingCommand, on either
+      // dispatcher).
+      Thread.sleep(500);
+      verify(detached, never()).sendCommand(any(MessageCommand.class));
+      verify(dispatcher, never()).sendCommand(any(ClearLoadingCommand.class));
+      assertTrue(worker.isAlive(), "unbounded method should still be running, untouched");
+
+      releaseProceed.countDown();
+      worker.join(5000);
+      assertFalse(worker.isAlive());
+
+      // force=true shows the mask synchronously on the plain dispatcher (not detached), so
+      // postprocess()'s normal (non-watchdog) clear -- since the watchdog never fired -- is
+      // sent on that same plain dispatcher.
+      verify(dispatcher, times(1)).sendCommand(any(ClearLoadingCommand.class));
+      verify(detached, never()).sendCommand(any(MessageCommand.class));
+   }
+
+   @Test
+   void watchdogTimeoutOverrideUsesAnnotationValueInsteadOfGlobal() throws Throwable {
+      // Global timeout is long enough that, if the override were ignored, the watchdog would
+      // not fire during this test.
+      SreeEnv.setProperty("loadingmask.watchdog.timeout", "10000");
+
+      CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+      CommandDispatcher detached = mock(CommandDispatcher.class);
+      when(dispatcher.detach()).thenReturn(detached);
+
+      CountDownLatch proceedStarted = new CountDownLatch(1);
+      CountDownLatch releaseProceed = new CountDownLatch(1);
+      ProceedingJoinPoint pjp = mockJoinPoint(dispatcher, "shortOverrideMethod");
+      when(pjp.proceed()).thenAnswer(inv -> {
+         proceedStarted.countDown();
+         assertTrue(releaseProceed.await(10, TimeUnit.SECONDS),
+                    "test setup error: releaseProceed was never signaled");
+         return null;
+      });
+
+      Thread worker = new Thread(() -> {
+         try {
+            aspect.clearLoadingMask(pjp);
+         }
+         catch(Throwable t) {
+            throw new RuntimeException(t);
+         }
+      }, "test-stomp-handler-thread-short-override");
+      worker.start();
+
+      assertTrue(proceedStarted.await(2, TimeUnit.SECONDS), "proceed() never started");
+
+      // [G5] The 100ms annotation override fires well before the 10s global timeout would.
+      verify(detached, timeout(2000)).sendCommand(any(ClearLoadingCommand.class));
+      verify(detached, timeout(2000)).sendCommand(argThat(cmd ->
+         cmd instanceof MessageCommand &&
+         ((MessageCommand) cmd).getType() == MessageCommand.Type.INFO));
+
+      releaseProceed.countDown();
+      worker.join(5000);
+      assertFalse(worker.isAlive());
    }
 }

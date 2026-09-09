@@ -494,7 +494,8 @@ public class EventAspect {
             .filter(CommandDispatcher.class::isInstance)
             .map(CommandDispatcher.class::cast)
             .findFirst();
-      LoadingMaskAspectTask task = new LoadingMaskAspectTask(force);
+      long watchdogTimeoutOverride = mask != null ? mask.watchdogTimeout() : -1;
+      LoadingMaskAspectTask task = new LoadingMaskAspectTask(force, watchdogTimeoutOverride);
 
       if(mask != null && mask.asyncProxy()) {
          ServiceProxyContext.aspectTasks.get().add(task);
@@ -658,8 +659,9 @@ public class EventAspect {
    }
 
    private final class LoadingMaskAspectTask implements AspectTask {
-      public LoadingMaskAspectTask(boolean force) {
+      public LoadingMaskAspectTask(boolean force, long watchdogTimeoutOverride) {
          this.force = force;
+         this.watchdogTimeoutOverride = watchdogTimeoutOverride;
       }
 
       @Override
@@ -740,8 +742,12 @@ public class EventAspect {
                            watchdogDispatcher.sendCommand(new ClearLoadingCommand());
                         }
 
+                        // INFO (not WARNING) is delivered as a non-blocking toast via
+                        // NotificationsComponent -- WARNING routes to a modal dialog the user
+                        // must dismiss, which would contradict this message's own "you may
+                        // continue working" text.
                         MessageCommand message = new MessageCommand();
-                        message.setType(MessageCommand.Type.WARNING);
+                        message.setType(MessageCommand.Type.INFO);
                         message.setMessage(Catalog.getCatalog().getString(
                            "common.loadingMask.watchdog.timeout"));
                         watchdogDispatcher.sendCommand(message);
@@ -779,6 +785,15 @@ public class EventAspect {
       }
 
       private long getWatchdogTimeout() {
+         // A per-endpoint override (set via @LoadingMask(watchdogTimeout = ...)) takes
+         // precedence over the global default -- e.g. 0 disables the watchdog entirely for
+         // endpoints the product already treats as legitimately unbounded (mirroring
+         // query.runtime.timeout=0), while a positive value tunes it for one endpoint without
+         // affecting the global default used by everything else.
+         if(watchdogTimeoutOverride >= 0) {
+            return watchdogTimeoutOverride;
+         }
+
          try {
             return Long.parseLong(SreeEnv.getProperty("loadingmask.watchdog.timeout", "30000"));
          }
@@ -788,6 +803,7 @@ public class EventAspect {
       }
 
       private final boolean force;
+      private final long watchdogTimeoutOverride;
       private final Lock lock = new ReentrantLock();
       private final AtomicBoolean complete = new AtomicBoolean(false);
       private final AtomicBoolean loading = new AtomicBoolean(false);

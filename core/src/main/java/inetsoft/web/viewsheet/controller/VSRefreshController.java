@@ -49,7 +49,10 @@ public class VSRefreshController {
    /**
     * Refresh a viewsheet
     */
-   @LoadingMask(true)
+   // Same rationale as OpenViewsheetController.openViewsheet: refreshing a viewsheet re-runs
+   // its runtime queries, which the product's query.runtime.timeout=0 default already treats
+   // as legitimately unbounded.
+   @LoadingMask(value = true, watchdogTimeout = 0)
    @MessageMapping("/vs/refresh")
    public void refreshViewsheet(@Payload VSRefreshEvent event, Principal principal,
                                 CommandDispatcher commandDispatcher,
