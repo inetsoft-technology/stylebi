@@ -121,7 +121,11 @@ public class OpenViewsheetController {
     *
     * @throws Exception if the viewsheet could not be opened.
     */
-   @LoadingMask(true)
+   // Opening a viewsheet runs the same runtime query execution the product's own
+   // query.runtime.timeout=0 default already treats as legitimately unbounded (unlike
+   // query.preview.timeout, which only bounds design-time preview) -- so the watchdog's
+   // global default would false-positive on normal, if slow, production reports.
+   @LoadingMask(value = true, watchdogTimeout = 0)
    @MessageMapping("/open")
    @HandleAssetExceptions
    @SwitchOrg

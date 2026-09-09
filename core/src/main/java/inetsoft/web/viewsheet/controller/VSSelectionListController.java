@@ -56,7 +56,7 @@ public class VSSelectionListController {
     * @throws Exception if the selection could not be applied.
     */
    @Undoable
-   @LoadingMask
+   @LoadingMask(watchdogTimeout = 0)
    @ExecutionMonitoring
    @MessageMapping("/selectionList/update/{name}")
    public void applySelection(@DestinationVariable("name") String assemblyName,

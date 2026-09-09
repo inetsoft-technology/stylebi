@@ -34,8 +34,11 @@ public class WSQueryController extends WorksheetController {
       this.wsQueryServiceProxy = wsQueryServiceProxy;
    }
 
+   // Same rationale as OpenViewsheetController.openViewsheet: this executes the worksheet's
+   // runtime query directly, which the product's query.runtime.timeout=0 default already
+   // treats as legitimately unbounded.
    @InitWSExecution
-   @LoadingMask
+   @LoadingMask(watchdogTimeout = 0)
    @MessageMapping("composer/worksheet/query/run")
    public void runQuery(
       @Payload WSAssemblyEvent event, Principal principal,

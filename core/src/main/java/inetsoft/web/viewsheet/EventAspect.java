@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.mv.MVSession;
 import inetsoft.report.composition.*;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
@@ -493,7 +494,8 @@ public class EventAspect {
             .filter(CommandDispatcher.class::isInstance)
             .map(CommandDispatcher.class::cast)
             .findFirst();
-      LoadingMaskAspectTask task = new LoadingMaskAspectTask(force);
+      long watchdogTimeoutOverride = mask != null ? mask.watchdogTimeout() : -1;
+      LoadingMaskAspectTask task = new LoadingMaskAspectTask(force, watchdogTimeoutOverride);
 
       if(mask != null && mask.asyncProxy()) {
          ServiceProxyContext.aspectTasks.get().add(task);
@@ -657,8 +659,9 @@ public class EventAspect {
    }
 
    private final class LoadingMaskAspectTask implements AspectTask {
-      public LoadingMaskAspectTask(boolean force) {
+      public LoadingMaskAspectTask(boolean force, long watchdogTimeoutOverride) {
          this.force = force;
+         this.watchdogTimeoutOverride = watchdogTimeoutOverride;
       }
 
       @Override
@@ -714,6 +717,49 @@ public class EventAspect {
                }
             }, 1000, 1000);
          }
+
+         // Watchdog: the wrapped method (pjp.proceed()) runs synchronously on this thread and
+         // may never return -- e.g. it can block forever on a lock held by some other, unrelated
+         // slow/stuck operation against the same runtime viewsheet (no bounded-wait primitive
+         // exists in that lock today, see UpgradableReadWriteLock). If that happens, this
+         // postprocess() is never reached and the client's loading mask is wedged permanently.
+         // Force-clear the mask and surface an error after a bounded wait, independent of what
+         // is actually stuck, so the endpoint degrades to a recoverable error instead of a
+         // permanent wedge. The underlying call keeps running on this thread in the background;
+         // it is not interrupted, since it may not be safe to do so.
+         long watchdogTimeout = getWatchdogTimeout();
+
+         if(watchdogTimeout > 0) {
+            CommandDispatcher watchdogDispatcher = dispatcher.detach();
+            watchdogTask = new TimerTask() {
+               @Override
+               public void run() {
+                  lock.lock();
+
+                  try {
+                     if(!complete.get() && timedOut.compareAndSet(false, true)) {
+                        if(loading.get()) {
+                           watchdogDispatcher.sendCommand(new ClearLoadingCommand());
+                        }
+
+                        // INFO (not WARNING) is delivered as a non-blocking toast via
+                        // NotificationsComponent -- WARNING routes to a modal dialog the user
+                        // must dismiss, which would contradict this message's own "you may
+                        // continue working" text.
+                        MessageCommand message = new MessageCommand();
+                        message.setType(MessageCommand.Type.INFO);
+                        message.setMessage(Catalog.getCatalog().getString(
+                           "common.loadingMask.watchdog.timeout"));
+                        watchdogDispatcher.sendCommand(message);
+                     }
+                  }
+                  finally {
+                     lock.unlock();
+                  }
+               }
+            };
+            timer.schedule(watchdogTask, watchdogTimeout);
+         }
       }
 
       @Override
@@ -721,7 +767,13 @@ public class EventAspect {
          lock.lock();
 
          try {
-            if(loading.get()) {
+            if(watchdogTask != null) {
+               watchdogTask.cancel();
+            }
+
+            // if the watchdog already fired, it already cleared the mask and warned the
+            // client -- avoid sending a redundant clear for the same show.
+            if(loading.get() && !timedOut.get()) {
                dispatcher.sendCommand(new ClearLoadingCommand());
             }
 
@@ -732,10 +784,31 @@ public class EventAspect {
          }
       }
 
+      private long getWatchdogTimeout() {
+         // A per-endpoint override (set via @LoadingMask(watchdogTimeout = ...)) takes
+         // precedence over the global default -- e.g. 0 disables the watchdog entirely for
+         // endpoints the product already treats as legitimately unbounded (mirroring
+         // query.runtime.timeout=0), while a positive value tunes it for one endpoint without
+         // affecting the global default used by everything else.
+         if(watchdogTimeoutOverride >= 0) {
+            return watchdogTimeoutOverride;
+         }
+
+         try {
+            return Long.parseLong(SreeEnv.getProperty("loadingmask.watchdog.timeout", "30000"));
+         }
+         catch(NumberFormatException e) {
+            return 30000L;
+         }
+      }
+
       private final boolean force;
+      private final long watchdogTimeoutOverride;
       private final Lock lock = new ReentrantLock();
       private final AtomicBoolean complete = new AtomicBoolean(false);
       private final AtomicBoolean loading = new AtomicBoolean(false);
+      private final AtomicBoolean timedOut = new AtomicBoolean(false);
+      private volatile TimerTask watchdogTask;
    }
 
    public static final class SwitchOrgAspectTask implements AspectTask {
