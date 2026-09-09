@@ -259,6 +259,30 @@ class SSOSettingsServiceTest {
       }
    }
 
+   @Test
+   void switchToOpenId_emptyStringIssuer_normalizedToNullBeforePersisting() {
+      // Regression test for review r1 finding 1: the real EM form's issuer control is built with
+      // [""] (not null/undefined), so any edit to the OpenID form submits issuer:"" whenever OIDC
+      // Discovery was never used. PropertiesEngine.setProperty() only treats a literal null as
+      // "remove" -- "" persists as-is -- and OpenIDFilterBaseFilter's `getIssuer() != null` check
+      // then treats a persisted "" as "set", requiring every JWT to carry a literal empty-string
+      // iss claim, which locks out every login. updateSSOSettings() must normalize a blank issuer
+      // to null before calling openIDConfig.setIssuer(...), not just before validation.
+      try(MockedStatic<Tool> toolMock = mockStatic(Tool.class, CALLS_REAL_METHODS)) {
+         toolMock.when(Tool::isCloudSecrets).thenReturn(false);
+
+         boolean result = service.updateSSOSettings(openIdModelMissing(
+            b -> b.issuer("") // exact shape the real frontend submits, not Java null
+                  .authorizationEndpoint("https://idp.example.com/authorize")
+                  .tokenEndpoint("https://idp.example.com/token")
+                  .clientId("client-123")));
+
+         assertTrue(result);
+         verify(openIDConfig).setIssuer(null);
+         verify(openIDConfig, never()).setIssuer("");
+      }
+   }
+
    private SSOSettingsModel openIdModelMissing(
       java.util.function.UnaryOperator<OpenIdAttributesModel.Builder> customizer)
    {

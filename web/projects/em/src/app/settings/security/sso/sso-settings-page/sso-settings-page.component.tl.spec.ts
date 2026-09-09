@@ -381,14 +381,21 @@ describe("SsoSettingsPageComponent - bug #76526 save feedback", () => {
 
    // the backend rejects an incomplete OpenID/Custom config by returning `false` (mirroring the
    // pre-existing SAML validate-then-abort contract) instead of throwing -- submit() must surface
-   // that as an error, not silently treat it as a successful save.
+   // that as an error, not silently treat it as a successful save. submit()'s response-driven
+   // dialog branch is selection-agnostic (it only inspects the boolean POST response), so this
+   // uses SSOType.SAML rather than OPENID -- see review r1 finding 2 / round 2 fix notes: mounting
+   // OpenidSettingsFormComponent (its MatAutocomplete/MatChipGrid CDK plumbing) while MatDialog.open()
+   // is called crashes the vitest worker in this jsdom environment regardless of the mocked response
+   // value, independent of this bug's actual logic. OpenID's own required-field gating is covered
+   // separately below in "required-field gating", and its model round-trip is covered by
+   // openid-settings-form.component.tl.spec.ts, so no coverage is lost by using SAML here.
    it("should show an error dialog when the backend rejects an invalid configuration", async () => {
       server.use(
          http.post("*/api/sso/settings", () => HttpResponse.json(false)),
       );
 
       const { comp, dialogSpy } = await renderComponent();
-      comp.selection = SSOType.OPENID;
+      comp.selection = SSOType.SAML;
       comp.changed = true;
 
       comp.submit();

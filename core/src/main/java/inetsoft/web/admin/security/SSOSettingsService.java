@@ -223,7 +223,12 @@ public class SSOSettingsService {
          }
 
          openIDConfig.setScopes(openIdAttributesModel.scopes());
-         openIDConfig.setIssuer(openIdAttributesModel.issuer());
+         // The EM form always submits issuer as "" (never null) unless OIDC Discovery is used, and
+         // an empty string persists as-is (PropertiesEngine only treats a literal null as "remove").
+         // OpenIDFilterBaseFilter treats a non-null issuer as "set" and requires an exact JWT claim
+         // match, so a persisted "" would fail every login. Normalize blank to null so a
+         // non-Discovery config stays "issuer not set" at runtime, matching the optional contract.
+         openIDConfig.setIssuer(Tool.isEmptyString(openIdAttributesModel.issuer()) ? null : openIdAttributesModel.issuer());
          openIDConfig.setAudience(openIdAttributesModel.audience());
          openIDConfig.setAuthorizationEndpoint(openIdAttributesModel.authorizationEndpoint());
          openIDConfig.setTokenEndpoint(openIdAttributesModel.tokenEndpoint());
