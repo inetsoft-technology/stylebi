@@ -216,6 +216,12 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
       DataRef[] aggregates = cinfo.getRuntimeAggregates();
       DataRef[] dcTempGroups = cinfo.getDcTempGroups();
 
+      // remember the refs the column selection below is built from, so getTableLens0()
+      // can tell whether the refs it resolves against this table are the same ones. (76513)
+      baseRowHeaders = rheaders;
+      baseColHeaders = cheaders;
+      baseAggregates = aggregates;
+
       // apply sequence
       ColumnSelection columns2 = (ColumnSelection) columns.clone();
       columns.clear();
@@ -338,6 +344,15 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
     * Get crosstab result.
     */
    private TableLens getTableLens0() throws Exception {
+      return getTableLens0(true);
+   }
+
+   /**
+    * Get crosstab result.
+    * @param retryOnStaleRefs true to rebuild once if the runtime refs are replaced by
+    * another thread while the base table is being fetched. See isRuntimeRefsStale().
+    */
+   private TableLens getTableLens0(boolean retryOnStaleRefs) throws Exception {
       try {
          aggrs = null;
          sinfo = null;
@@ -380,6 +395,13 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          // deadlocks: it owns the sandbox lock and waits for the monitor while we own the
          // monitor and wait for the sandbox lock. the monitor only needs to cover the
          // runtime ref reads below, which VSCrosstabInfo.update() publishes as a unit.
+         //
+         // the refs must still be read after the fetch, not before: this call appends the
+         // period dimension to the runtime row headers (createBaseTableAssembly), and the
+         // reads below are meant to see that. because the monitor is no longer held across
+         // the fetch, another thread's update() can now publish a new triple in between,
+         // leaving the base table's column selection out of sync with the refs resolved
+         // against it -- isRuntimeRefsStale() detects that and rebuilds once.
          TableLens base = getAssetBaseTableLens(postDrill);
 
          synchronized(cinfo) {
@@ -458,6 +480,12 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
                col = col >= 0 ? col : AssetUtil.findColumn(base, headers[i]);
 
                if(col < 0) {
+                  if(retryOnStaleRefs &&
+                     isRuntimeRefsStale(rheaders, cheaders, aggregates))
+                  {
+                     return getTableLens0(false);
+                  }
+
                   LOG.warn("Column not found: " + headers[i]);
                   throw new MessageException(Catalog.getCatalog().getString(
                           "common.invalidTableColumn", headers[i]),
@@ -466,6 +494,15 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
 
                idxs[i] = col;
             }
+         }
+
+         // oaggs is the pre-fetch clone, so it is indexed below by the post-fetch
+         // aggregate count. a mismatch means the refs moved under us mid-fetch, which
+         // would be an index out of bounds rather than a missing column. (76513)
+         if(retryOnStaleRefs && aggregates.length != oaggs.length &&
+            isRuntimeRefsStale(rheaders, cheaders, aggregates))
+         {
+            return getTableLens0(false);
          }
 
          int[] aggrh = new int[aggregates.length];
@@ -500,6 +537,12 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
                }
 
                if(col < 0) {
+                  if(retryOnStaleRefs &&
+                     isRuntimeRefsStale(rheaders, cheaders, aggregates))
+                  {
+                     return getTableLens0(false);
+                  }
+
                   LOG.warn("Column not found: " + aggregates[i]);
                   throw new ColumnNotFoundException(Catalog.getCatalog().getString(
                      "common.invalidTableColumn", aggregates[i]));
@@ -1183,6 +1226,27 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             dispose();
          }
       }
+   }
+
+   /**
+    * Check if the runtime refs a query result is being resolved against are not the ones
+    * the base table's column selection was built from. That happens when another thread
+    * runs VSCrosstabInfo.update() while the base data is being fetched -- the cinfo
+    * monitor is deliberately not held across that fetch, see getTableLens0() -- and shows
+    * up as a column that cannot be found in the base table. Rebuilding from the current
+    * refs is correct in that case, and better than reporting an invalid column for what
+    * is a transient state. (76513)
+    * @param rheaders the runtime row headers read after the fetch.
+    * @param cheaders the runtime column headers read after the fetch.
+    * @param aggregates the runtime aggregates read after the fetch.
+    * @return true if the refs differ from the ones the base table was built from.
+    */
+   private boolean isRuntimeRefsStale(DataRef[] rheaders, DataRef[] cheaders,
+                                      DataRef[] aggregates)
+   {
+      return !Tool.equalsContent(rheaders, baseRowHeaders) ||
+         !Tool.equalsContent(cheaders, baseColHeaders) ||
+         !Tool.equalsContent(aggregates, baseAggregates);
    }
 
    /**
@@ -2278,6 +2342,10 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
    private static final Logger LOG =
       LoggerFactory.getLogger(AbstractCrosstabVSAQuery.class);
    private boolean appended = false;
+   // the runtime refs the current base table's column selection was built from (76513)
+   private DataRef[] baseRowHeaders;
+   private DataRef[] baseColHeaders;
+   private DataRef[] baseAggregates;
    private DataRef[] nrheaders = null;
    private DataRef[] aggrs = null;
    private DataRef[] oaggrs = null;
