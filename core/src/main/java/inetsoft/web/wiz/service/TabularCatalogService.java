@@ -520,7 +520,7 @@ public class TabularCatalogService {
       dataset.setFields(fields);
       dataset.setCustomExtensions(
          List.of(buildDatasetExtension(dsName, datasourceSubtype, schema.params(),
-            schema.columnsMayBeIncomplete(), objectMapper)));
+            schema.columnsMayBeIncomplete(), schema.sampleable(), objectMapper)));
       return dataset;
    }
 
@@ -574,16 +574,18 @@ public class TabularCatalogService {
     * tell "no params" apart from "not implemented yet" — which is exactly the point: both mean the
     * same thing to a consumer that only wants to know whether it has something to bind with.
     *
-    * {@code columnsMayBeIncomplete} is written only when true, unlike {@code params}' "empty means
-    * absent" convention but for the opposite reason: every dataset that predates this key, and
-    * every dataset from a connector that reads declared metadata, has no way to ever produce it,
-    * and for those ABSENT must mean "complete" — writing it out as {@code false} unconditionally
-    * would say the same thing, so omitting it keeps this method's convention (present only when it
-    * says something) uniform across both keys — see {@link TabularDatasetSchema#columnsMayBeIncomplete()}.
+    * {@code columnsMayBeIncomplete} and {@code sampleable} are written only when true, unlike
+    * {@code params}' "empty means absent" convention but for the opposite reason: every dataset
+    * that predates either key, and every dataset from a connector that has not opted in, has no way
+    * to ever produce a true value, and for those ABSENT must mean the false default — writing it
+    * out as {@code false} unconditionally would say the same thing, so omitting it keeps this
+    * method's convention (present only when it says something) uniform across all three keys — see
+    * {@link TabularDatasetSchema#columnsMayBeIncomplete()} and {@link TabularDatasetSchema#sampleable()}.
     */
    private static OsiCustomExtension buildDatasetExtension(String dsName, String datasourceSubtype,
                                                             Map<String, String> params,
                                                             boolean columnsMayBeIncomplete,
+                                                            boolean sampleable,
                                                             ObjectMapper objectMapper)
    {
       try {
@@ -599,6 +601,10 @@ public class TabularCatalogService {
 
          if(columnsMayBeIncomplete) {
             extData.put("columnsMayBeIncomplete", true);
+         }
+
+         if(sampleable) {
+            extData.put("sampleable", true);
          }
 
          OsiCustomExtension ext = new OsiCustomExtension();
