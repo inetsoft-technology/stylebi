@@ -26,6 +26,11 @@ public class WorksheetStructure {
    private String name;
    private String primaryTable;
    private List<StructureTable> tables = new ArrayList<>();
+   // #76519 — only set by getViewsheetStructure: what kind of base the viewsheet actually has
+   // ("worksheet" | "logicalModel" | "physicalTable"), and that base entry's own path. null for
+   // a plain getWorksheetStructure (worksheet-id) call, which has no viewsheet wrapper to report.
+   private String sourceKind;
+   private String baseEntryPath;
 
    public String getPath() { return path; }
    public void setPath(String path) { this.path = path; }
@@ -35,6 +40,10 @@ public class WorksheetStructure {
    public void setPrimaryTable(String primaryTable) { this.primaryTable = primaryTable; }
    public List<StructureTable> getTables() { return tables; }
    public void setTables(List<StructureTable> tables) { this.tables = tables; }
+   public String getSourceKind() { return sourceKind; }
+   public void setSourceKind(String sourceKind) { this.sourceKind = sourceKind; }
+   public String getBaseEntryPath() { return baseEntryPath; }
+   public void setBaseEntryPath(String baseEntryPath) { this.baseEntryPath = baseEntryPath; }
 
    public static class StructureTable {
       private String name;

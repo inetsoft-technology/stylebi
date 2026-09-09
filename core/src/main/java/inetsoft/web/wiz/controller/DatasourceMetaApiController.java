@@ -141,6 +141,26 @@ public class DatasourceMetaApiController {
    }
 
    /**
+    * #76519 — the viewsheet-scoped sibling {@code /ws/structure/{id}} never had: given a
+    * VIEWSHEET's own asset entry identifier (not a worksheet's), reports the structure of
+    * whatever it is actually bound to — a real base worksheet, or (when there is none) the
+    * viewsheet's own direct logical-model/physical-table binding, via
+    * {@link MetadataApiService#getViewsheetStructure}. Distinguish the two by the response's
+    * {@code sourceKind}.
+    *
+    * @param id the viewsheet asset entry identifier.
+    */
+   @GetMapping("/vs/structure/{id}")
+   public WorksheetStructure getViewsheetStructure(
+      @PathVariable("id") String id,
+      @RequestParam(value = "generation", required = false) Integer generation,
+      Principal principal) throws Exception
+   {
+      return metadataService.getViewsheetStructure(
+         WizUtil.decodeId(id), generation, (XPrincipal) principal);
+   }
+
+   /**
     * Gets all tables and FK relationships for the specified datasource.
     *
     * <p>{@code nameContains}/{@code limit}/{@code cursor} are all optional; omitting all three
