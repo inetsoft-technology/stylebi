@@ -132,10 +132,12 @@ public class OpenWorksheetController extends WorksheetController {
       entry.setProperty("gettingStarted", event.gettingStartedWs() + "");
       // event.runtimeId() is set when the server already opened this worksheet and told the
       // browser to attach to it; opening a second runtime of the same asset would leave the
-      // agent and the user editing different copies. See WorksheetEventService.openWorksheet.
+      // agent and the user editing different copies. event.vsId() is unrelated -- the viewsheet
+      // this worksheet is being opened FROM, for sandbox linking. See
+      // WorksheetEventService.openWorksheet.
       String runtimeId = eventService.openWorksheet(
          principal, entry, event.openAutoSavedFile(), event.createQuery(), event.runtimeId(),
-         commandDispatcher);
+         event.vsId(), commandDispatcher);
 
       getRuntimeViewsheetRef().setRuntimeId(runtimeId);
       runtimeViewsheetManager.sheetOpened(principal, runtimeId);
