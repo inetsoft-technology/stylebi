@@ -87,6 +87,19 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.web.composer.vs.controller.VSLayoutServiceProxy;
 import inetsoft.web.viewsheet.controller.table.BaseTableLoadDataController;
 import inetsoft.web.viewsheet.controller.table.CrosstabDrillController;
+import inetsoft.web.viewsheet.controller.VSSelectionListController;
+import inetsoft.web.viewsheet.controller.VSSelectionContainerController;
+import inetsoft.web.viewsheet.controller.VSComboBoxController;
+import inetsoft.web.viewsheet.controller.VSRadioButtonController;
+import inetsoft.web.viewsheet.controller.VSTextInputController;
+import inetsoft.web.viewsheet.controller.VSCalendarController;
+import inetsoft.web.viewsheet.controller.dialog.VSCheckBoxController;
+import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
+import inetsoft.web.viewsheet.event.HideSelectionListEvent;
+import inetsoft.web.viewsheet.event.MoveSelectionChildEvent;
+import inetsoft.web.viewsheet.event.VSListInputSelectionEvent;
+import inetsoft.web.viewsheet.event.ApplyCheckBoxSelectionEvent;
+import inetsoft.web.viewsheet.event.calendar.CalendarSelectionEvent;
 import inetsoft.web.viewsheet.event.table.DrillCellsEvent;
 import inetsoft.web.viewsheet.event.table.DrillEvent;
 import inetsoft.web.viewsheet.event.table.LoadTableDataEvent;
@@ -372,6 +385,67 @@ public class EventAspectWatchdogTest {
                       method + " forces a fresh runtime-query re-execution and must have the " +
                       "watchdog disabled, like openViewsheet/refreshViewsheet/runQuery/" +
                       "the crosstab drill and table reload endpoints");
+      }
+   }
+
+   @Test
+   void selectionInputAndCalendarApplyEndpointsHaveWatchdogDisabled() throws Throwable {
+      // [G8] Round 5, response to review r4's Gap A/B plus this round's own targeted follow-up
+      // check. Gap A: VSSelectionService.applySelection (lockWrite() -> processChange() ->
+      // processSelections()/getData() association queries, then resetDataMap() for every
+      // downstream data assembly) backs the selection list/container/combo box/radio
+      // button/text input/checkbox apply endpoints below. Gap B (VSInputService.refreshVS0's
+      // conditional full refreshViewsheet(rvs, id, ...) call) reaches the same radio
+      // button/text input endpoints via a second, independent mechanism, so it adds no new
+      // controller methods here. The Calendar endpoints were found by this round's own
+      // targeted check ("does anything else reach an equivalent forced-fresh-query pattern"):
+      // CalendarVSAssembly extends AbstractSelectionVSAssembly (a SelectionVSAssembly, same as
+      // selection list/tree), and VSCalendarService.applyCalendar/clearCalendar both call
+      // applyCalendarInfo() -> box.get().processChange(...) -- the identical
+      // processChange()/processSelections()/resetDataMap() shape as Gap A, just via a
+      // different backing service. (toggleRangeComparison/toggleYearView/toggleDoubleCalendar
+      // go through the bounded, single-assembly VSObjectPropertyService.editObjectProperty()
+      // helper instead, the same already-excluded shape as the ~15 *PropertyDialogControllers
+      // from round 4, so they are correctly left alone.)
+      Method selectionListApply = VSSelectionListController.class.getMethod(
+         "applySelection", String.class, ApplySelectionListEvent.class, Principal.class,
+         CommandDispatcher.class, String.class);
+      Method selectionContainerUpdate = VSSelectionContainerController.class.getMethod(
+         "applySelection", String.class, HideSelectionListEvent.class, String.class,
+         Principal.class, CommandDispatcher.class);
+      Method selectionContainerMoveChild = VSSelectionContainerController.class.getMethod(
+         "applySelection", String.class, MoveSelectionChildEvent.class, Principal.class,
+         CommandDispatcher.class);
+      Method comboBoxApply = VSComboBoxController.class.getMethod(
+         "applySelection", VSListInputSelectionEvent.class, Principal.class,
+         CommandDispatcher.class, String.class);
+      Method radioButtonApply = VSRadioButtonController.class.getMethod(
+         "applySelection", VSListInputSelectionEvent.class, Principal.class,
+         CommandDispatcher.class, String.class);
+      Method textInputApply = VSTextInputController.class.getMethod(
+         "applySelection", VSListInputSelectionEvent.class, Principal.class,
+         CommandDispatcher.class, String.class);
+      Method checkBoxApply = VSCheckBoxController.class.getMethod(
+         "applySelection", ApplyCheckBoxSelectionEvent.class, Principal.class,
+         CommandDispatcher.class, String.class);
+      Method calendarApply = VSCalendarController.class.getMethod(
+         "applyCalendar", String.class, CalendarSelectionEvent.class, Principal.class,
+         CommandDispatcher.class, String.class);
+      Method calendarClear = VSCalendarController.class.getMethod(
+         "clearCalendar", String.class, Principal.class, CommandDispatcher.class, String.class);
+
+      Method[] methods = {
+         selectionListApply, selectionContainerUpdate, selectionContainerMoveChild,
+         comboBoxApply, radioButtonApply, textInputApply, checkBoxApply, calendarApply,
+         calendarClear
+      };
+
+      for(Method method : methods) {
+         LoadingMask mask = method.getAnnotation(LoadingMask.class);
+         assertNotNull(mask, method + " is expected to remain @LoadingMask-annotated");
+         assertEquals(0, mask.watchdogTimeout(),
+                      method + " forces a fresh association/runtime-query re-execution via " +
+                      "processChange()/resetDataMap() and must have the watchdog disabled");
       }
    }
 }
