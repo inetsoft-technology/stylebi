@@ -367,33 +367,60 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             box.getVariableTable().put(XQuery.HINT_IGNORE_MAX_ROWS, "true");
          }
 
-         TableLens base = null;
-         DataRef[] rheaders = null;
-         DataRef[] cheaders = null;
-         DataRef[] aggregates = null;
+         TableLens base;
+         TableAssembly baseTable;
+         DataRef[] rheaders;
+         DataRef[] cheaders;
+         DataRef[] aggregates;
 
+         // Keep the data fetch out of the cinfo monitor. getTableLens() releases and
+         // re-acquires the sandbox lock around the asset cache fetch (76233), so holding
+         // monitor(cinfo) across it inverted the order every write path takes -- sandbox
+         // lock first, then the crosstab info -- and deadlocked the whole viewsheet against
+         // ViewsheetSandbox.updateAssembly() -> VSCrosstabInfo.update(). (76549)
+         //
+         // The monitor still covers the prepare phase, which is what rewrites the runtime
+         // refs and what the reads below must be consistent with. Prepare is not
+         // unconditionally non-blocking though, so this narrowing fixes the reported case
+         // rather than the whole deadlock class. Two prepare paths still release the sandbox
+         // lock while this monitor is held:
+         //   - a crosstab bound to another VS assembly (SourceInfo.VS_ASSEMBLY) reaches
+         //     VSAQuery.createAssemblyTable() -> box.getTableData();
+         //   - for any source type, CubeVSAQuery.createBaseTableAssembly0() calls
+         //     setSharedCondition(box.getBrushingChart(..), ..), and for a brushed chart
+         //     carrying dynamic values that runs a script which can re-enter box.getData().
+         // Both land in ViewsheetSandbox.doExecuteData(), whose lockWrite() first drops this
+         // thread's read lock and then competes for the write lock, so the counterpart can be
+         // any writer that subsequently needs this monitor -- not only a second crosstab
+         // query. Both are pre-existing and out of scope here.
+         //
+         // Narrowing does widen one race: a concurrent prepare for the same crosstab can now
+         // run while this thread's query is in flight, and prepare mutates shared state (the
+         // bound table it registers in box.getWorksheet() under a deterministic name, and the
+         // VSDimensionRefs it re-ranks). ChartVSAQuery handles the equivalent exposure by
+         // querying a private table clone; the crosstab path does not do that yet.
          synchronized(cinfo) {
-            base = getAssetBaseTableLens(postDrill);
-            DataRef[] aggrs = cinfo.getRuntimeAggregates();
+            baseTable = prepareAssetBaseTable(postDrill);
 
-            if(aggrs == null || aggrs.length == 0) {
-               DataRef[] rows = cinfo.getRuntimeRowHeaders();
-               DataRef[] cols = cinfo.getRuntimeColHeaders();
-               return (rows == null || rows.length == 0) &&
-                  (cols == null || cols.length == 0) ? null : base;
-            }
-
-            // show detail? do nothing
-            if(details != null && details.getSize() > 0) {
-               return base;
-            }
-            else if(isDetail() || base == null || cinfo == null) {
-               return null;
-            }
-
+            // read after prepare -- getTableAssembly() rewrites these
+            aggregates = cinfo.getRuntimeAggregates();
             rheaders = cinfo.getRuntimeRowHeaders();
             cheaders = cinfo.getRuntimeColHeaders();
-            aggregates = cinfo.getRuntimeAggregates();
+         }
+
+         base = executeAssetBaseTable(baseTable, cinfo);
+
+         if(aggregates == null || aggregates.length == 0) {
+            return (rheaders == null || rheaders.length == 0) &&
+               (cheaders == null || cheaders.length == 0) ? null : base;
+         }
+
+         // show detail? do nothing
+         if(details != null && details.getSize() > 0) {
+            return base;
+         }
+         else if(isDetail() || base == null) {
+            return null;
          }
 
          DataRef[] oaggs = oldInfo.getRuntimeAggregates();
@@ -1177,11 +1204,17 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
    }
 
    /**
-    * Get the asset base table lens.
+    * Prepare the base table assembly for the asset query.
+    *
+    * <p>This mutates the crosstab runtime refs -- getTableAssembly() rewrites the runtime
+    * row headers and the pushed-down aggregates -- so the caller must hold the
+    * VSCrosstabInfo monitor across it. It must not execute the crosstab's own query; that
+    * is {@link #executeAssetBaseTable(TableAssembly, VSCrosstabInfo)}. (76549)
+    *
     * @param post true if the aggregate is done in post processingj
-    * @return the asset base table lens.
+    * @return the prepared base table assembly, or null if there is nothing to execute.
     */
-   private TableLens getAssetBaseTableLens(boolean post) throws Exception {
+   private TableAssembly prepareAssetBaseTable(boolean post) throws Exception {
       CrosstabDataVSAssembly cassembly = (CrosstabDataVSAssembly) getAssembly();
       VSCrosstabInfo cinfo = cassembly.getVSCrosstabInfo();
       TableAssembly table = getTableAssembly(false, post);
@@ -1251,6 +1284,27 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             conds = ConditionUtil.mergeConditionList(list, JunctionOperator.AND);
             table.setPreRuntimeConditionList(conds);
          }
+      }
+
+      return table;
+   }
+
+   /**
+    * Execute the prepared base table assembly and return the base lens.
+    *
+    * <p>Must NOT be called while holding the VSCrosstabInfo monitor: getTableLens()
+    * releases and restores the sandbox lock around the asset cache fetch, and blocking to
+    * re-acquire that lock while holding the monitor inverts the lock order every write path
+    * uses -- sandbox lock first, then the crosstab info. (76549)
+    *
+    * @param table the prepared base table assembly, may be null.
+    * @return the base table lens, or null if there was nothing to execute.
+    */
+   private TableLens executeAssetBaseTable(TableAssembly table, VSCrosstabInfo cinfo)
+      throws Exception
+   {
+      if(table == null) {
+         return null;
       }
 
       TableLens lens = getTableLens(table);
