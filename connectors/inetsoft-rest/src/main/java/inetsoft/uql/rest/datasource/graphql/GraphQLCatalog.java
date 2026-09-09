@@ -177,16 +177,23 @@ final class GraphQLCatalog {
       Unwrapped u = unwrap(field.path("type"));
       String fieldDescription = emptyToNull(field.path("description").asText(null));
 
-      if("SCALAR".equals(u.kind())) {
-         return FieldAnalysis.columnsOnly(List.of(
-            new TabularColumn(fieldName, mapScalar(u.name()), fieldDescription, null, null)));
-      }
+      if("SCALAR".equals(u.kind()) || "ENUM".equals(u.kind())) {
+         if(u.isList()) {
+            // A list of scalars (Shopify's Product.tags: [String!]! is the everyday case) has
+            // no honest column representation: TabularColumn carries no cardinality, so
+            // emitting one would claim a single value where the JSON at this path is an array.
+            // Dropped and recorded, the same treatment the INTERFACE/UNION branch below gives
+            // for the same underlying reason -- the SPI has no channel for what the schema is
+            // saying here, and mismodelling it silently is worse than reporting the gap.
+            return FieldAnalysis.withClause(List.of(), fieldName + " -> dropped: list of " +
+               u.kind().toLowerCase() + " '" + u.name() + "', which has no single-value column form");
+         }
 
-      if("ENUM".equals(u.kind())) {
          // An enum value always serializes as a string -- a real, always-textual kind the spec
          // defines, not an "unknown" case, so no WARN here (contrast mapScalar's default branch).
+         String columnType = "ENUM".equals(u.kind()) ? XSchema.STRING : mapScalar(u.name());
          return FieldAnalysis.columnsOnly(List.of(
-            new TabularColumn(fieldName, XSchema.STRING, fieldDescription, null, null)));
+            new TabularColumn(fieldName, columnType, fieldDescription, null, null)));
       }
 
       if(u.kind() == null) {
@@ -353,13 +360,20 @@ final class GraphQLCatalog {
          Unwrapped iu = unwrap(inner.path("type"));
          String innerDescription = emptyToNull(inner.path("description").asText(null));
 
-         if("SCALAR".equals(iu.kind())) {
-            result.add(new TabularColumn(fieldName + "." + innerName, mapScalar(iu.name()),
+         if(("SCALAR".equals(iu.kind()) || "ENUM".equals(iu.kind())) && !iu.isList()) {
+            String innerType = "ENUM".equals(iu.kind()) ? XSchema.STRING : mapScalar(iu.name());
+            result.add(new TabularColumn(fieldName + "." + innerName, innerType,
                innerDescription, null, null));
          }
-         else if("ENUM".equals(iu.kind())) {
-            result.add(new TabularColumn(fieldName + "." + innerName, XSchema.STRING,
-               innerDescription, null, null));
+         else if("SCALAR".equals(iu.kind()) || "ENUM".equals(iu.kind())) {
+            // Same rule as analyzeField's own scalar/enum branch, one level down: a list of
+            // scalars has no single-value column form, so it is dropped rather than flattened
+            // into a column that would claim one. DEBUG rather than a structural-notes clause
+            // because a value object's contents are already an implementation detail of its
+            // parent field, not a dataset-level fact the annotation LLM needs.
+            LOG.debug("Dropping list-valued field '{}.{}' on value object '{}' -- a list of {} " +
+               "has no single-value column form", fieldName, innerName, valueTypeName,
+               iu.kind().toLowerCase());
          }
          else {
             LOG.debug("Dropping doubly-nested field '{}.{}' on value object '{}' -- flattening " +
