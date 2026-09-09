@@ -672,4 +672,42 @@ class PropertyAliasesTest {
                             "'locked' must stay writable for " + type);
       }
    }
+
+   /**
+    * Bug #76556 (VFO-016): {@code basicGeneralPaneModel.enabled} has a getter/setter pair on the
+    * six input assemblies' dialog models -- populated on every read, one level below the live
+    * {@code enabled} alias -- but {@code VSInputService}'s apply methods for all six never read
+    * it back. Before this fix, a raw dotted-path write there returned {@code ok:true} and always
+    * read back {@code false}. The {@code enabled} alias itself must keep resolving to, and stay
+    * writable at, the live {@code generalPropPaneModel.enabled} one level up.
+    */
+   @Test
+   void refusesBasicGeneralEnabledOnTheSixInputTypesWhereItIsDead() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("spinner",
+                      "spinnerGeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel." +
+                      "enabled"));
+
+      java.util.Map<String, String> prefixes = java.util.Map.of(
+         "checkbox", "checkboxGeneralPaneModel",
+         "textinput", "textInputGeneralPaneModel",
+         "slider", "sliderGeneralPaneModel",
+         "radiobutton", "radioButtonGeneralPaneModel",
+         "combobox", "comboboxGeneralPaneModel",
+         "spinner", "spinnerGeneralPaneModel");
+
+      for(var entry : prefixes.entrySet()) {
+         String path = entry.getValue() +
+            ".generalPropPaneModel.basicGeneralPaneModel.enabled";
+         assertThrows(IllegalArgumentException.class,
+                      () -> PropertyAliases.resolveForWrite(entry.getKey(), path),
+                      "basicGeneralPaneModel.enabled has no effect on write for " +
+                      entry.getKey());
+
+         assertEquals(entry.getValue() + ".generalPropPaneModel.enabled",
+                      PropertyAliases.resolveForWrite(entry.getKey(), "enabled"),
+                      "the 'enabled' alias must still resolve to, and stay writable at, the " +
+                      "live field for " + entry.getKey());
+      }
+   }
 }
