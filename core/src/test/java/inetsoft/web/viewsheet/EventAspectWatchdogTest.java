@@ -90,6 +90,10 @@ import inetsoft.web.viewsheet.controller.table.CrosstabDrillController;
 import inetsoft.web.viewsheet.event.table.DrillCellsEvent;
 import inetsoft.web.viewsheet.event.table.DrillEvent;
 import inetsoft.web.viewsheet.event.table.LoadTableDataEvent;
+import inetsoft.web.vswizard.controller.VSWizardBindingController;
+import inetsoft.web.vswizard.controller.VSWizardDialogController;
+import inetsoft.web.vswizard.event.OpenVsWizardEvent;
+import inetsoft.web.vswizard.event.RefreshBindingFieldsEvent;
 
 import java.lang.reflect.Method;
 import java.security.Principal;
@@ -343,6 +347,31 @@ public class EventAspectWatchdogTest {
                       method + " directly forces a fresh getVSTableLens() runtime-query " +
                       "re-execution and must have the watchdog disabled, like " +
                       "openViewsheet/refreshViewsheet/runQuery");
+      }
+   }
+
+   @Test
+   void wizardBindingAndDialogOpenEndpointsHaveWatchdogDisabled() throws Throwable {
+      // [G7] Round 4 systematic sweep: bindingTreeNodeChanged forces a fresh runtime-query
+      // re-execution via lockWrite() + resetDataMap(TEMP_CHART_NAME) + CardinalityExecutor/
+      // HierarchyExecutor/IntervalExecutor (wizard chart recommendations); createRuntimeSheet
+      // opens the wizard dialog via the same CoreLifecycleService.refreshViewsheet(...) family
+      // already exempted for openViewsheet/refreshViewsheet. Reflect on the real, shipped
+      // controller methods so a future edit that drops the attribute is caught here.
+      Method bindingTreeNodeChanged = VSWizardBindingController.class.getMethod(
+         "bindingTreeNodeChanged", RefreshBindingFieldsEvent.class, CommandDispatcher.class,
+         Principal.class, String.class);
+      Method createRuntimeSheet = VSWizardDialogController.class.getMethod(
+         "createRuntimeSheet", OpenVsWizardEvent.class, String.class, CommandDispatcher.class,
+         Principal.class);
+
+      for(Method method : new Method[] { bindingTreeNodeChanged, createRuntimeSheet }) {
+         LoadingMask mask = method.getAnnotation(LoadingMask.class);
+         assertNotNull(mask, method + " is expected to remain @LoadingMask-annotated");
+         assertEquals(0, mask.watchdogTimeout(),
+                      method + " forces a fresh runtime-query re-execution and must have the " +
+                      "watchdog disabled, like openViewsheet/refreshViewsheet/runQuery/" +
+                      "the crosstab drill and table reload endpoints");
       }
    }
 }
