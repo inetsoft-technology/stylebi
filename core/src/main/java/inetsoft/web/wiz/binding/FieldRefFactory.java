@@ -32,6 +32,7 @@ import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
+import inetsoft.web.binding.model.GroupCondition;
 import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
@@ -41,7 +42,10 @@ import inetsoft.web.composer.model.condition.ConditionExpression;
 import inetsoft.web.composer.model.condition.ConditionUtil;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Converts between StyleBI's ref models and the agent-facing {@link FieldRef}. */
 public final class FieldRefFactory {
@@ -108,13 +112,97 @@ public final class FieldRefFactory {
          ref.setDateLevel(DateLevels.normalize(field.dateLevel()));
       }
 
-      if(field.namedGroup() != null) {
-         ref.setNamedGroupInfo(resolveNamedGroupInfo(
-            field.namedGroup(), rvs, source, field.column(), refModelService));
+      NamedGroupInfoModel namedGroupInfo = resolveNamedGroupInfo(field, rvs, source, refModelService);
+
+      if(namedGroupInfo != null) {
+         ref.setNamedGroupInfo(namedGroupInfo);
          ref.setOrder(XConstants.SORT_SPECIFIC);
       }
 
       return ref;
+   }
+
+   /**
+    * Resolves whichever of {@code namedGroup} (by name) or {@code namedGroupValues} (inline) the
+    * field carries, or {@code null} if it carries neither. Shared by the chart and table/crosstab
+    * binding paths so both learned this at once rather than one at a time.
+    */
+   public static NamedGroupInfoModel resolveNamedGroupInfo(
+      FieldRef field, RuntimeViewsheet rvs, SourceInfo source,
+      DataRefModelFactoryService refModelService) throws Exception
+   {
+      if(field.namedGroup() != null && field.namedGroupValues() != null) {
+         throw new IllegalArgumentException(
+            "Field '" + field.column() + "' carries both 'namedGroup' (a reference to an " +
+            "existing named group by name) and 'namedGroupValues' (an inline definition) -- " +
+            "pass exactly one.");
+      }
+
+      if(field.namedGroupValues() != null) {
+         return buildInlineNamedGroupInfo(field.namedGroupValues(), field.column());
+      }
+
+      if(field.namedGroup() != null) {
+         return resolveNamedGroupInfo(
+            field.namedGroup(), rvs, source, field.column(), refModelService);
+      }
+
+      return null;
+   }
+
+   /**
+    * Builds an inline, value-list-defined named group ({@code SIMPLE_NAMEDGROUP_INFO}) directly
+    * from the caller's own {@code {name, values}} pairs -- the same shape the Composer's
+    * right-click "Group columns" feature builds, and the one {@code NamedGroupInfoModel}'s own
+    * {@code createNamedGroupInfo} already knows how to turn into a live
+    * {@code SimpleNamedGroupInfo}. Nothing here needs a worksheet or repository lookup, unlike
+    * the by-name path above, because the caller supplied the membership directly.
+    */
+   public static NamedGroupInfoModel buildInlineNamedGroupInfo(
+      FieldRef.NamedGroupValues spec, String column)
+   {
+      if(spec.others() != null) {
+         throw new IllegalArgumentException(
+            "Field '" + column + "'s 'namedGroupValues.others' is not supported -- an inline " +
+            "named group here has no way to bucket unmatched values together (unlike a " +
+            "calc-table cell's inline named group); a value not named in any group renders as " +
+            "its own, ungrouped row. Remove 'others', or list every value that should be " +
+            "grouped explicitly.");
+      }
+
+      if(spec.groups() == null || spec.groups().isEmpty()) {
+         throw new IllegalArgumentException(
+            "Field '" + column + "'s 'namedGroupValues.groups' must be a non-empty list of " +
+            "{name, values} -- an inline named group with no groups in it buckets nothing.");
+      }
+
+      NamedGroupInfoModel model = new NamedGroupInfoModel();
+      model.setType(XNamedGroupInfo.SIMPLE_NAMEDGROUP_INFO);
+      Set<String> seenNames = new HashSet<>();
+
+      for(FieldRef.NamedGroupValues.Clause clause : spec.groups()) {
+         if(clause.name() == null || clause.name().isBlank()) {
+            throw new IllegalArgumentException(
+               "Field '" + column + "'s 'namedGroupValues.groups' has an entry with no " +
+               "non-blank 'name'.");
+         }
+
+         if(clause.values() == null || clause.values().isEmpty()) {
+            throw new IllegalArgumentException(
+               "Field '" + column + "'s 'namedGroupValues' group '" + clause.name() + "' needs " +
+               "a non-empty 'values' list -- a group with no member values matches nothing.");
+         }
+
+         if(!seenNames.add(clause.name())) {
+            throw new IllegalArgumentException(
+               "Field '" + column + "'s 'namedGroupValues.groups' has a duplicate name '" +
+               clause.name() + "' -- list each group name at most once.");
+         }
+
+         model.addGroup(new GroupCondition(clause.name(), clause.values()));
+      }
+
+      return model;
    }
 
    /**
@@ -192,10 +280,30 @@ public final class FieldRefFactory {
       }
 
       if(ref instanceof BDimensionRefModel dimension) {
+         NamedGroupInfoModel ngInfo = dimension.getNamedGroupInfo();
+
+         // An inline group (built by buildInlineNamedGroupInfo, on the write side) has no
+         // real name -- getName() is the hardcoded "Custom" literal, so reporting it as
+         // 'namedGroup' would read back as a reference to a group called "Custom" that
+         // doesn't exist. Reconstruct the inline definition instead, from the same
+         // {name, values} pairs the write side accepted, so a read-modify-write round trip
+         // through this field doesn't silently drop the grouping.
+         if(ngInfo != null && ngInfo.getType() == XNamedGroupInfo.SIMPLE_NAMEDGROUP_INFO) {
+            List<FieldRef.NamedGroupValues.Clause> clauses = new ArrayList<>();
+
+            if(ngInfo.getGroups() != null) {
+               for(GroupCondition group : ngInfo.getGroups()) {
+                  clauses.add(new FieldRef.NamedGroupValues.Clause(group.getName(), group.getValue()));
+               }
+            }
+
+            return new FieldRef(dimension.getColumnValue(), DIMENSION, null,
+                                dimension.getDateLevel(), null, null, null,
+                                new FieldRef.NamedGroupValues(clauses, null));
+         }
+
          return new FieldRef(dimension.getColumnValue(), DIMENSION, null,
-                             dimension.getDateLevel(),
-                             dimension.getNamedGroupInfo() == null
-                                ? null : dimension.getNamedGroupInfo().getName());
+                             dimension.getDateLevel(), ngInfo == null ? null : ngInfo.getName());
       }
 
       return new FieldRef(ref == null ? null : ref.getName(), null, null, null, null);

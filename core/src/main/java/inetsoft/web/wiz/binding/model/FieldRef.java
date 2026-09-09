@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.binding.model;
 
+import java.util.List;
+
 /**
  * The agent-facing shape of one bound field, shared by every binding spec (2a–2e) and
  * embedded by highlights in spec #4.
@@ -48,12 +50,24 @@ package inetsoft.web.wiz.binding.model;
  * @param type             "dimension" or "measure"
  * @param aggregate        aggregate formula, measures only (e.g. "Sum", "Count")
  * @param dateLevel        date grouping level, dimensions only
- * @param namedGroup       named-group name, dimensions only
+ * @param namedGroup       named-group name, dimensions only — resolves against a worksheet-local
+ *                         group ({@code add_named_group}) or a repository-registered predefined
+ *                         one. Mutually exclusive with {@code namedGroupValues}: this names a
+ *                         group that already exists, the other defines one inline.
+ * @param namedGroupValues an inline, value-list-defined named group, dimensions only — the same
+ *                         kind the Composer's own right-click "Group columns" builds (renders
+ *                         with the {@code DataGroup(...)} axis/header label). Unlike
+ *                         {@code namedGroup}, nothing has to exist beforehand: the group and its
+ *                         membership are defined in this call. Has no "bucket the rest together"
+ *                         option — {@link inetsoft.uql.asset.SNamedGroupInfo}, what this builds,
+ *                         carries no such concept; a value not named in any group renders as its
+ *                         own, ungrouped row, the same as it would with no grouping at all.
  * @param chartType        the measure's own GraphTypes code under Multi Style; null everywhere else
  * @param runtimeChartType what that measure resolved to, when it differs from {@code chartType}
  */
 public record FieldRef(String column, String type, String aggregate, String dateLevel,
-                       String namedGroup, Integer chartType, Integer runtimeChartType) {
+                       String namedGroup, Integer chartType, Integer runtimeChartType,
+                       NamedGroupValues namedGroupValues) {
    /**
     * Every caller but the chart read builds a ref with no chart type. Kept so that adding the
     * components did not touch forty-odd construction sites that have nothing to do with charts.
@@ -61,13 +75,39 @@ public record FieldRef(String column, String type, String aggregate, String date
    public FieldRef(String column, String type, String aggregate, String dateLevel,
                    String namedGroup)
    {
-      this(column, type, aggregate, dateLevel, namedGroup, null, null);
+      this(column, type, aggregate, dateLevel, namedGroup, null, null, null);
    }
 
    /** A chart ref whose design-time type is all the read has to report. */
    public FieldRef(String column, String type, String aggregate, String dateLevel,
                    String namedGroup, Integer chartType)
    {
-      this(column, type, aggregate, dateLevel, namedGroup, chartType, null);
+      this(column, type, aggregate, dateLevel, namedGroup, chartType, null, null);
+   }
+
+   /**
+    * The full pre-existing shape (both chart-type components, no inline group) — kept so this
+    * addition did not touch every call site that already named both.
+    */
+   public FieldRef(String column, String type, String aggregate, String dateLevel,
+                   String namedGroup, Integer chartType, Integer runtimeChartType)
+   {
+      this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType, null);
+   }
+
+   /**
+    * An inline, value-list-defined named group — see {@code namedGroupValues} above.
+    *
+    * @param groups one entry per group: its name and the raw member values that belong to it.
+    * @param others reserved, currently always refused when present — {@link #groups} carries
+    *               everything {@link inetsoft.uql.asset.SNamedGroupInfo} can hold; kept as its
+    *               own key (rather than silently accepted and dropped) so a caller who assumes
+    *               this mirrors a calc-table cell's inline named group — which does support
+    *               grouping the leftovers — is told why that assumption does not carry over here,
+    *               instead of the option quietly doing nothing.
+    */
+   public record NamedGroupValues(List<Clause> groups, String others) {
+      /** One named group's membership: {@code name} plus the raw values that belong to it. */
+      public record Clause(String name, List<Object> values) {}
    }
 }
