@@ -35,9 +35,14 @@ import inetsoft.uql.tabular.TabularQuerySchema;
 import inetsoft.uql.tabular.TabularSchemaExtractor;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.tabular.TabularView;
+import inetsoft.uql.tabular.oauth.AuthorizationClient;
+import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
+import inetsoft.web.composer.model.ws.TabularOAuthParams;
 import inetsoft.web.portal.data.DataSourceDefinition;
+import inetsoft.web.portal.data.DataSourceOAuthParamsRequest;
+import inetsoft.web.portal.data.DataSourceOAuthTokens;
 import inetsoft.web.portal.data.DatasourcesService;
 import inetsoft.web.security.PermissionPath;
 import inetsoft.web.security.RequiredPermission;
@@ -549,6 +554,70 @@ public class WizTabularController {
       requireCreatePermission(emptyToNull(parentOf(name)), principal);
 
       return Map.of("duplicate", datasourcesService.checkDuplicate(name));
+   }
+
+   // ─── OAuth authorization ───────────────────────────────────────────────────────────────────
+
+   /**
+    * Resolves a connector's OAuth parameters (client id/secret, scope, authorization/token URIs,
+    * license) from the live bean, for the caller to hand to whichever authorization flow those
+    * parameters describe.
+    *
+    * <p>No path-level permission, for the same reason {@link #refreshTabularView} has none: the
+    * datasource may still be an unsaved draft, so the only question this endpoint can answer is
+    * whether the caller may configure data sources at all.</p>
+    */
+   @PostMapping(value = "/tabular/oauth-params", produces = MediaType.APPLICATION_JSON_VALUE)
+   public TabularOAuthParams getOAuthParameters(
+      @RequestBody DataSourceOAuthParamsRequest request, Principal principal) throws Exception
+   {
+      requireConnectorPermission(principal);
+      beginConnectorSession(principal);
+
+      try {
+         return datasourcesService.getOAuthParams(request);
+      }
+      finally {
+         endConnectorSession();
+      }
+   }
+
+   /**
+    * Writes OAuth tokens obtained by whichever flow {@code /tabular/oauth-params} pointed the
+    * caller at back onto the connector bean, and returns the recomputed form.
+    */
+   @PostMapping(value = "/tabular/oauth-tokens", produces = MediaType.APPLICATION_JSON_VALUE)
+   public DataSourceDefinition setOAuthTokens(
+      @RequestBody DataSourceOAuthTokens tokens, Principal principal) throws Exception
+   {
+      requireConnectorPermission(principal);
+      beginConnectorSession(principal);
+
+      try {
+         return datasourcesService.setOAuthTokens(tokens);
+      }
+      finally {
+         endConnectorSession();
+      }
+   }
+
+   /**
+    * The password-grant OAuth variant: exchanges a username/password directly for tokens against
+    * {@code tokenUri}, with no popup and no third-party broker involved.
+    *
+    * <p>No connector session binding — unlike the two endpoints above, this never reaches
+    * {@code TabularUtil.refreshView} or any other connector reflection call; it is a stateless
+    * HTTP call to the provider's own token endpoint.</p>
+    */
+   @PostMapping(value = "/tabular/oauth-grant-password", produces = MediaType.APPLICATION_JSON_VALUE)
+   public Tokens getPasswordGrantResponse(
+      @RequestBody TabularOAuthParams request, Principal principal) throws Exception
+   {
+      requireConnectorPermission(principal);
+
+      return AuthorizationClient.doPasswordGrantAuth(
+         request.user(), request.password(), request.clientId(), request.clientSecret(),
+         request.scope(), request.tokenUri());
    }
 
    // ─── Browsing a file-based connector, and probing what a target holds ─────────────────────
