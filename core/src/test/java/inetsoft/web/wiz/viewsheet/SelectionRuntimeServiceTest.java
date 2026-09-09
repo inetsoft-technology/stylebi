@@ -220,6 +220,171 @@ class SelectionRuntimeServiceTest {
       assertFalse(result.containsKey("scopedBySearch"));
    }
 
+   /**
+    * A multi-select assembly with nothing previously selected has nothing to diff away, so the
+    * plain-apply behaviour above must be unchanged: exactly one {@code applySelection} call, not a
+    * spurious empty deselect first.
+    */
+   @Test
+   void sendsOnlyOneApplyWhenNothingWasPreviouslySelected() throws Exception {
+      Harness h = harness(list(XConstants.SORT_ASC, false, null));
+
+      h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null, "");
+
+      verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
+                                                    any(Principal.class), any(), anyString());
+   }
+
+   /**
+    * Single-select already gets a full reset for free via {@code unselectChildren}, so the new
+    * diff-and-deselect step must not also fire for it — that would be redundant at best and could
+    * race the reset at worst.
+    */
+   @Test
+   void skipsTheDiffStepForASingleSelectAssembly() throws Exception {
+      SelectionListVSAssembly assembly = list(XConstants.SORT_ASC, true, null);
+      Harness h = harness(assembly);
+
+      h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null, "");
+
+      verify(assembly, never()).getSelectionList();
+      verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
+                                                    any(Principal.class), any(), anyString());
+   }
+
+   /**
+    * A range slider always fully overwrites its own selection per call (index range against every
+    * value), so it must never be diffed — reading its current selection at all would be wasted work
+    * and, unlike list/tree, {@code TimeSliderVSAssembly} was never in scope for this fix.
+    */
+   @Test
+   void neverReadsCurrentSelectionForARangeSlider() throws Exception {
+      TimeSliderVSAssembly slider = mock(TimeSliderVSAssembly.class);
+      TimeSliderVSAssemblyInfo info = mock(TimeSliderVSAssemblyInfo.class);
+      doReturn(info).when(slider).getInfo();
+      Harness h = harness(slider);
+
+      h.service.setSelection("tok", principal(), "Slider1", List.of(List.of("2")), null, null, "");
+
+      verify(slider, never()).getSelectionList();
+      verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
+                                                    any(Principal.class), any(), anyString());
+   }
+
+   // ── the diff-and-deselect step (bug-76548: set_selection accumulated instead of replacing) ────
+
+   /**
+    * The direct regression test for the reported symptom: a value selected by an earlier call and
+    * absent from the new values has to come back as a deselect, or the two calls' selections merge
+    * into a union instead of the second one replacing the first.
+    */
+   @Test
+   void computesADeselectForAValueDroppedFromTheNewSelection() {
+      List<List<String>> current = List.of(List.of("East"));
+      List<List<String>> requested = List.of(List.of("West"));
+
+      assertEquals(List.of(List.of("East")), SelectionRuntimeService.toDeselect(current, requested),
+                  "East was selected by a prior call and is absent from the new values, so it has " +
+                  "to be turned off explicitly -- doApplySelection's multi-select branch never " +
+                  "clears anything on its own");
+   }
+
+   /** Re-selecting exactly the current selection must not churn a spurious deselect/reselect. */
+   @Test
+   void leavesNothingToDeselectWhenTheRequestedValuesAlreadyMatchCurrent() {
+      List<List<String>> current = List.of(List.of("East"), List.of("West"));
+
+      assertEquals(List.of(), SelectionRuntimeService.toDeselect(current, current));
+   }
+
+   /** The diff has to work on whole paths, not just leaf names, once a tree is involved. */
+   @Test
+   void computesTheDeselectDiffForNestedTreePaths() {
+      List<List<String>> current = List.of(List.of("East", "NY"));
+      List<List<String>> requested = List.of(List.of("East", "LA"));
+
+      assertEquals(List.of(List.of("East", "NY")),
+                  SelectionRuntimeService.toDeselect(current, requested));
+   }
+
+   // ── the diffable-assembly gate ───────────────────────────────────────────
+
+   @Test
+   void treatsAFlatSelectionListAsDiffable() {
+      assertTrue(SelectionRuntimeService.isPathDiffable(list(XConstants.SORT_ASC, false, null)));
+   }
+
+   @Test
+   void treatsANonIdModeSelectionTreeAsDiffable() {
+      assertTrue(SelectionRuntimeService.isPathDiffable(tree(XConstants.SORT_ASC, false)));
+   }
+
+   /**
+    * ID mode matches values by {@code Tool.contains} against the whole path array rather than the
+    * depth-indexed walk {@code selectedPaths} produces paths for, so it is deliberately excluded
+    * rather than assumed to work with the same diff.
+    */
+   @Test
+   void excludesAnIdModeSelectionTreeFromTheDiff() {
+      SelectionTreeVSAssembly idTree = tree(XConstants.SORT_ASC, false);
+      when(idTree.isIDMode()).thenReturn(true);
+
+      assertFalse(SelectionRuntimeService.isPathDiffable(idTree));
+   }
+
+   @Test
+   void excludesARangeSliderFromTheDiff() {
+      assertFalse(SelectionRuntimeService.isPathDiffable(mock(TimeSliderVSAssembly.class)));
+   }
+
+   // ── selectedPaths recursion into a SelectionTree ────────────────────────
+
+   /**
+    * A leaf's path has to be sized and positioned by its own level, not hard-coded to length one —
+    * otherwise a value one level deep in a tree would be reported at the wrong position (or with the
+    * wrong path length) once it reaches {@code updateSelectionOfChangedAssembly}'s depth-indexed
+    * matching.
+    */
+   @Test
+   void sizesALeafPathByItsOwnLevelRatherThanAlwaysLengthOne() {
+      SelectionValue ny = mock(SelectionValue.class);
+      when(ny.isSelected()).thenReturn(true);
+      when(ny.getValue()).thenReturn("NY");
+      when(ny.getLevel()).thenReturn(1);
+
+      List<List<String>> paths = SelectionRuntimeService.selectedPaths(new SelectionValue[]{ ny });
+
+      assertEquals(List.of(Arrays.asList(null, "NY")), paths,
+                  "a value at level 1 belongs one segment deep -- a flat length-1 path would name " +
+                  "the wrong node once fed back into a tree apply");
+   }
+
+   /**
+    * Mirrors {@code VSSelectionService.findSelectedPaths}'s own empty-fallback rule: a composite
+    * selected as a whole, with none of its own children individually selected, must still produce a
+    * self-only path rather than vanishing from the result -- otherwise replacing a whole selected
+    * parent node (a common real operation) would compute zero deselect paths, reproducing a bug of
+    * the same shape as the one this fix addresses.
+    */
+   @Test
+   void aSelectedCompositeWithNoSelectedChildrenStillProducesASelfOnlyPath() {
+      CompositeSelectionValue east = mock(CompositeSelectionValue.class);
+      when(east.isSelected()).thenReturn(true);
+      when(east.getValue()).thenReturn("East");
+      when(east.getLevel()).thenReturn(0);
+      // getSelectionList() is left unstubbed (null): SelectionList cannot be constructed or mocked
+      // outside a Spring context (its XSwappable supertype's static initialiser reaches for
+      // SreeEnv), confirmed by executing this exact call in this test class -- Mockito throws
+      // "Cannot instrument class inetsoft.uql.viewsheet.SelectionList because it or one of its
+      // supertypes could not be initialized". A null list is the same "no selected child" shape the
+      // production code sees when a real SelectionList reports zero selected entries, so this
+      // exercises the same branch without needing a real container.
+
+      List<List<String>> paths = SelectionRuntimeService.selectedPaths(new SelectionValue[]{ east });
+
+      assertEquals(List.of(List.of("East")), paths);
+   }
+
    // ── clear ─────────────────────────────────────────────────────────────────
 
    /**
