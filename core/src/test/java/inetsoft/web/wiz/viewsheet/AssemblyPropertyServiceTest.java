@@ -311,15 +311,8 @@ class AssemblyPropertyServiceTest {
    }
 
    /**
-    * Bug #76530 part (b): the exact reported repro (a from-scratch TextInput, {@code columnValue}
-    * carrying the {@code "$(varName)"} reference, {@code table} never set). Before this fix, the
-    * write silently no-opped -- {@code variable} was never read back regardless. Part (a) makes
-    * this shape resolve, so the write must now go through rather than being refused.
-    *
-    * <p>Bug #76555: part (a)'s normalization has since relocated from {@code VSInputService} into
-    * this class's own {@code normalizeVariableTableBinding}, which runs before the achievability
-    * check below -- this test still exercises the same end-to-end shape, just through the new
-    * owner.
+    * The exact reported repro (bug #76530): {@code columnValue} carries the reference,
+    * {@code table} never set. Must resolve and go through, not be refused.
     */
    @Test
    void allowsTheExactReportedReproNowThatColumnValueAloneResolvesToAKnownVariable()
@@ -339,12 +332,7 @@ class AssemblyPropertyServiceTest {
          () -> service.set("tok", principal(), "StartDateInput", patch, ""));
    }
 
-   /**
-    * Bug #76555: proves this class owns the "{@code table} left unset, {@code columnValue} alone
-    * carries the reference" normalization directly -- not just indirectly, via the write above not
-    * throwing -- by asserting {@code normalizeVariableTableBinding} actually mutated {@code
-    * model}'s {@code dataInputPaneModel.table} in place.
-    */
+   /** Proves the normalization actually mutates {@code table}, not just avoids throwing. */
    @Test
    void normalizesColumnValueOnlyIntoTableBeforeTheAchievabilityCheck() throws Exception {
       Worksheet ws = new Worksheet();

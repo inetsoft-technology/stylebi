@@ -309,21 +309,10 @@ public class AssemblyPropertyService {
    }
 
    /**
-    * Bug #76530, relocated here from {@code VSInputService.resolveInputTableBinding} by bug
-    * #76555: {@code table} left unset entirely while {@code columnValue} itself already carries
-    * the {@code "$(varName)"} reference is the shape an AI caller naturally reaches for when only
-    * one field looks like it should hold the variable. {@code VSInputService} is shared with the
-    * interactive Composer UI's own property-dialog save path, so this AI-caller-specific
-    * accommodation lives here instead, in the wiz-only layer -- {@code isKnownVariableName}
-    * itself still runs inside {@code resolveInputTableBinding}'s own raw-{@code $(...)} branch
-    * once the real setter is invoked downstream with the now-normalized {@code table}.
-    *
-    * <p>Runs for every patch to one of {@link PropertyAliases#derivesVariableFlagFromTable}'s
-    * four types, not only when the patch touches {@code dataInputPaneModel.variable} specifically
-    * -- {@code table} needs normalizing from {@code columnValue} regardless of which field this
-    * particular patch happened to touch, matching how {@code VSInputService}'s own setters always
-    * ran this unconditionally on every save. Must run before {@code requireVariableFlagAchievable}
-    * and {@code writeModel} so both see the already-normalized {@code table}.
+    * Normalizes an unset {@code table} to {@code columnValue} when the latter is already a
+    * {@code "$(varName)"} reference (bug #76530/#76555) -- kept AI-only here since
+    * {@code VSInputService} is shared with the interactive UI's save path. Must run before
+    * {@code requireVariableFlagAchievable}/{@code writeModel}.
     */
    private Object normalizeVariableTableBinding(Object model) {
       String table = (String) PropertyPath.get(model, "dataInputPaneModel.table");
@@ -339,25 +328,10 @@ public class AssemblyPropertyService {
    }
 
    /**
-    * Bug #76530: textinput/combobox/slider/spinner's own setter never reads back
-    * {@code dataInputPaneModel.variable} -- the real, persisted flag is always derived from
-    * whether {@code dataInputPaneModel.table} (after {@code VSInputService}'s own
-    * {@code resolveInputTableBinding} normalization, and, before that, this class's own
-    * {@code normalizeVariableTableBinding} above) resolves to a {@code "$(varName)"} reference.
-    * Only invoked when this call's own patch explicitly touches {@code dataInputPaneModel.variable}
-    * (see the caller).
-    *
-    * <p>Bug #76552 (follow-up): the achievable state must be compared against the value the
-    * patch actually <em>requested</em>, not just checked for being merely possible. Checking
-    * achievability alone let {@code variable:false} through unguarded even when the table still
-    * resolves to a variable (the real setter derives {@code true} from the table regardless, so
-    * that write silently failed to take effect -- the same "reports success, changes nothing"
-    * defect this whole check exists to catch, just from the opposite direction), and also
-    * refused a harmless {@code variable:false} on a table that was never a variable to begin
-    * with. {@code dataInputPaneModel.variable} is a primitive {@code boolean}
-    * ({@link inetsoft.web.composer.model.vs.DataInputPaneModel#isVariable()}), and {@code model}
-    * already has this call's patch applied by the caller, so the read below is always the
-    * requested value, never null.
+    * Refuses a {@code dataInputPaneModel.variable} write that doesn't match what the resolved
+    * {@code table}/{@code columnValue} binding can actually achieve (bug #76530/#76552) -- the
+    * real setter always derives the persisted flag from the binding, never from this field
+    * directly, so a mismatched request would otherwise silently no-op or be wrongly refused.
     */
    private void requireVariableFlagAchievable(String type, Object model, Viewsheet vs) {
       boolean requested = (Boolean) PropertyPath.get(model, "dataInputPaneModel.variable");

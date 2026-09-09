@@ -148,13 +148,9 @@ class VSInputTableBindingResolutionTest {
    }
 
    /**
-    * Bug #76555: the "{@code table} left unset, {@code columnValue} alone carries the
-    * {@code "$(varName)"} reference" normalization (added for bug #76530) has been relocated out
-    * of this method into {@code AssemblyPropertyService.normalizeVariableTableBinding} (the
-    * AI-only wiz layer), since this class is also shared with the interactive Composer UI's own
-    * property-dialog save path. {@code resolveInputTableBinding} on its own must therefore leave
-    * an unset {@code table} genuinely unset/unchanged now, even when {@code columnValue} looks
-    * exactly like a variable reference.
+    * Bug #76555: this normalization moved to the AI-only {@code AssemblyPropertyService} layer,
+    * so an unset {@code table} must stay unset here even when {@code columnValue} looks like a
+    * variable reference.
     */
    @Test
    void leavesTableUnsetWhenOnlyColumnValueLooksLikeAVariableReference() throws Exception {
@@ -165,11 +161,9 @@ class VSInputTableBindingResolutionTest {
    }
 
    /**
-    * Same relocation: since this method no longer normalizes the columnValue-only shape at all,
-    * it also no longer validates the variable name referenced that way -- {@code table} comes
-    * back unchanged regardless of whether the variable actually exists (that existence check now
-    * only ever runs, downstream, once a real setter is invoked with a {@code table} that is
-    * itself {@code "$(...)"}-shaped).
+    * Same relocation: no columnValue-only normalization means no existence check on that path
+    * either -- it now only runs downstream, once a real {@code "$(...)"}-shaped {@code table}
+    * reaches a setter.
     */
    @Test
    void leavesTableUnsetEvenWhenTheColumnValueReferencesAVariableThatDoesNotExist()
@@ -181,9 +175,8 @@ class VSInputTableBindingResolutionTest {
    }
 
    /**
-    * The new shape only fires when {@code table} is unset -- an explicit {@code table} value
-    * (even a plain, non-variable table binding) must not be silently overridden by a {@code
-    * columnValue} that happens to look like a variable reference.
+    * An explicit {@code table} value must not be overridden by a {@code columnValue} that happens
+    * to look like a variable reference.
     */
    @Test
    void doesNotOverrideAnExplicitTableWithAColumnValueThatLooksLikeAVariable() throws Exception {
@@ -194,13 +187,9 @@ class VSInputTableBindingResolutionTest {
    }
 
    /**
-    * {@link VSInputService#resolvesToVariableBinding} is the public entry point {@code
-    * AssemblyPropertyService} uses (bug #76530 part b) to decide whether an explicit {@code
-    * dataInputPaneModel.variable} write is achievable. It must agree with {@code
-    * resolveInputTableBinding} on a raw {@code table} value, whether literal or already
-    * {@code "$(...)"}-shaped. The columnValue-only shape (bug #76555) is no longer this method's
-    * concern -- callers (i.e. {@code AssemblyPropertyService}) normalize {@code table} from
-    * {@code columnValue} themselves, before ever reaching this helper.
+    * {@link VSInputService#resolvesToVariableBinding} must agree with
+    * {@code resolveInputTableBinding} on a raw {@code table} value. The columnValue-only shape
+    * (bug #76555) is no longer this method's concern -- callers normalize that themselves first.
     */
    @Test
    void resolvesToVariableBindingAgreesWithTheUnderlyingResolution() {
