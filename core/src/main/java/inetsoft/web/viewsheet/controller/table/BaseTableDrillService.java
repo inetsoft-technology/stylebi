@@ -857,7 +857,14 @@ public abstract class BaseTableDrillService <T extends BaseTableEvent> extends B
     * Get next ref fro drill down.
     */
    private VSDimensionRef getDrillDownRef(VSDimensionRef ref, XCube cube) {
-      return VSUtil.getNextLevelRef(ref, cube, true);
+      VSDimensionRef nref = VSUtil.getNextLevelRef(ref, cube, true);
+
+      // see the comment in CrosstabDrillHandler.drillDownChild()
+      if(nref != null && !VSUtil.isDynamicValue(ref.getDateLevelValue())) {
+         nref.resetOldRuntimeDateLevel();
+      }
+
+      return nref;
    }
 
    /**
