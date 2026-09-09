@@ -42,6 +42,7 @@ import inetsoft.web.composer.model.condition.ConditionExpression;
 import inetsoft.web.composer.model.condition.ConditionUtil;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -279,10 +280,30 @@ public final class FieldRefFactory {
       }
 
       if(ref instanceof BDimensionRefModel dimension) {
+         NamedGroupInfoModel ngInfo = dimension.getNamedGroupInfo();
+
+         // An inline group (built by buildInlineNamedGroupInfo, on the write side) has no
+         // real name -- getName() is the hardcoded "Custom" literal, so reporting it as
+         // 'namedGroup' would read back as a reference to a group called "Custom" that
+         // doesn't exist. Reconstruct the inline definition instead, from the same
+         // {name, values} pairs the write side accepted, so a read-modify-write round trip
+         // through this field doesn't silently drop the grouping.
+         if(ngInfo != null && ngInfo.getType() == XNamedGroupInfo.SIMPLE_NAMEDGROUP_INFO) {
+            List<FieldRef.NamedGroupValues.Clause> clauses = new ArrayList<>();
+
+            if(ngInfo.getGroups() != null) {
+               for(GroupCondition group : ngInfo.getGroups()) {
+                  clauses.add(new FieldRef.NamedGroupValues.Clause(group.getName(), group.getValue()));
+               }
+            }
+
+            return new FieldRef(dimension.getColumnValue(), DIMENSION, null,
+                                dimension.getDateLevel(), null, null, null,
+                                new FieldRef.NamedGroupValues(clauses, null));
+         }
+
          return new FieldRef(dimension.getColumnValue(), DIMENSION, null,
-                             dimension.getDateLevel(),
-                             dimension.getNamedGroupInfo() == null
-                                ? null : dimension.getNamedGroupInfo().getName());
+                             dimension.getDateLevel(), ngInfo == null ? null : ngInfo.getName());
       }
 
       return new FieldRef(ref == null ? null : ref.getName(), null, null, null, null);
