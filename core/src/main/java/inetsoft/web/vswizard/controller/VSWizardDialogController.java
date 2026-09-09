@@ -48,7 +48,7 @@ public class VSWizardDialogController {
       this.securityEngine = securityEngine;
    }
 
-   @LoadingMask
+   @LoadingMask(watchdogTimeout = 0)
    @MessageMapping("/vswizard/dialog/open")
    public void createRuntimeSheet(@Payload OpenVsWizardEvent event,
                                   @LinkUri String linkUri,

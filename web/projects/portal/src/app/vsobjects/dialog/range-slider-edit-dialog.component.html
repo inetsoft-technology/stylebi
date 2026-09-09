@@ -26,11 +26,14 @@
         @if (!isDateType) {
           <input type="number" step="any" class="form-control" formControlName="min">
         }
-        @if (isDateType && timeIncrement !== 't') {
+        @if (isDateType && timeIncrement !== 't' && timeIncrement !== 'time') {
           <input type="date" class="form-control" formControlName="min">
         }
         @if (isDateType && timeIncrement === 't') {
           <input type="datetime-local" class="form-control" formControlName="min">
+        }
+        @if (isDateType && timeIncrement === 'time') {
+          <input type="time" class="form-control" formControlName="min">
         }
         <label>_#(From)</label>
         @if (rangeForm.get('min')?.errors?.['required']) {
@@ -55,11 +58,14 @@
         @if (!isDateType) {
           <input type="number" step="any" class="form-control" formControlName="max">
         }
-        @if (isDateType && timeIncrement !== 't') {
+        @if (isDateType && timeIncrement !== 't' && timeIncrement !== 'time') {
           <input type="date" class="form-control" formControlName="max">
         }
         @if (isDateType && timeIncrement === 't') {
           <input type="datetime-local" class="form-control" formControlName="max">
+        }
+        @if (isDateType && timeIncrement === 'time') {
+          <input type="time" class="form-control" formControlName="max">
         }
         <label>_#(To)</label>
         @if (rangeForm.get('max')?.errors?.['required']) {

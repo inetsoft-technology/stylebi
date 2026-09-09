@@ -37,4 +37,14 @@ public @interface LoadingMask {
     * Flag that indicates if the annotated method calls an asynchronous proxy method.
     */
    boolean asyncProxy() default false;
+
+   /**
+    * Overrides the global loading-mask watchdog timeout (in milliseconds, see
+    * {@code loadingmask.watchdog.timeout}) for this endpoint. A value of {@code 0} disables
+    * the watchdog for this endpoint entirely -- use this for endpoints that, like the
+    * product's own {@code query.runtime.timeout=0} default, are expected to legitimately run
+    * unbounded (e.g. executing a runtime viewsheet/worksheet query). The default, {@code -1},
+    * means "use the global {@code loadingmask.watchdog.timeout} property".
+    */
+   long watchdogTimeout() default -1;
 }

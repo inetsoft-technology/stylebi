@@ -60,7 +60,7 @@ public class VSRadioButtonController {
     * @throws Exception if the selection could not be applied.
     */
    @Undoable
-   @LoadingMask
+   @LoadingMask(watchdogTimeout = 0)
    @MessageMapping("/radioButton/applySelection")
    public void applySelection(@Payload VSListInputSelectionEvent event,
                               Principal principal, CommandDispatcher dispatcher,

@@ -24,6 +24,7 @@ import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.*;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
@@ -36,6 +37,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -368,6 +370,72 @@ public class MovingColumnTest {
       // row 1 (3): window = [1, 3] → avg = 2
       result = movingColumn.calculate(vsDataSet, 1, false, false);
       assertEquals(2.0, result);
+   }
+
+
+   /**
+    * Regression test for the "Moving Average of N misaligned when the dimension's display
+    * sort is not its calendar order" bug, reproduced by the datatest chart suite
+    * (Binding_Spec / binding7).
+    *
+    * A part-date-group dimension (HourOfDay) under a Top-N "Sort By Value" ranking is
+    * plotted in ranking order (5, 11, 1, 2) while a moving window over hours only has
+    * meaning in calendar order (1, 2, 5, 11). Two things have to hold together for the
+    * window to land on the right rows:
+    *
+    * 1. DataSetRouter must navigate in calendar order for such a dimension, so getCondData
+    *    selects the calendar neighbors as the window's members.
+    * 2. MovingColumn must then walk that window in the same order. The sub data set keeps
+    *    the physical (ranking) row order, so walking it by row index averaged the wrong
+    *    neighbors and shifted which rows came out null.
+    *
+    * Centered 3-point average, null at the truncated ends. Calendar order is
+    * 1(173), 2(166), 5(275), 11(320), so hour 2 = avg(173,166,275) and
+    * hour 5 = avg(166,275,320), while the calendar-first and calendar-last hours are null.
+    */
+   @Test
+   void testMovingAverageFollowsCalendarOrderOnValueSortedPartDateDim() {
+      final String dim = "HourOfDay(order_time)";
+      // physical/display order is the Top-N ranking order, not calendar order
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { dim, "Sum(employee_id)" },
+         { 5, 275 },
+         { 11, 320 },
+         { 1, 173 },
+         { 2, 166 }
+      });
+
+      List<Integer> rank = Arrays.asList(5, 11, 1, 2);
+      VSDimensionRef hourRef = mock(VSDimensionRef.class);
+      when(hourRef.getFullName()).thenReturn(dim);
+      when(hourRef.getDateLevel()).thenReturn(XConstants.HOUR_OF_DAY_DATE_GROUP);
+      when(hourRef.getOrder()).thenReturn(XConstants.SORT_VALUE_DESC);
+      when(hourRef.createComparator(org.mockito.ArgumentMatchers.any()))
+         .thenReturn((Comparator) (a, b) -> Integer.compare(rank.indexOf(a), rank.indexOf(b)));
+
+      vsDataSet = new VSDataSet(tb, new VSDataRef[]{ hourRef });
+
+      movingColumn = new MovingColumn("Sum(employee_id)", "Moving Average of 3: Sum(employee_id)");
+      movingColumn.setFormula(new AverageFormula());
+      movingColumn.setPreCnt(1);
+      movingColumn.setNextCnt(1);
+      movingColumn.setIncludeCurrent(true);
+      movingColumn.setShowNull(true);
+      movingColumn.setInnerDim(dim);
+
+      // row 0 = hour 5; calendar window [2, 5, 11] -> (166 + 275 + 320) / 3
+      assertEquals(253.6667,
+                   (Double) movingColumn.calculate(vsDataSet, 0, true, false), 0.0001);
+
+      // row 1 = hour 11, last in calendar order -> truncated window -> null
+      assertNull(movingColumn.calculate(vsDataSet, 1, false, false));
+
+      // row 2 = hour 1, first in calendar order -> truncated window -> null
+      assertNull(movingColumn.calculate(vsDataSet, 2, false, false));
+
+      // row 3 = hour 2; calendar window [1, 2, 5] -> (173 + 166 + 275) / 3
+      assertEquals(204.6667,
+                   (Double) movingColumn.calculate(vsDataSet, 3, false, true), 0.0001);
    }
 
 }

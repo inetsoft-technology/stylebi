@@ -17,9 +17,8 @@
  */
 import { UrlMatchResult, UrlSegment } from "@angular/router";
 
-// Split out of embed-chart.routes.ts so embed-chart.component.ts (which needs the matcher) and
-// embed-chart.routes.ts (which needs EmbedChartComponent, for the "elements" web-component
-// bundle's eager route -- see embedChartRoutesEager below) don't import each other.
+// Split out of embed-chart.routes.ts so embed-chart.component.ts (which needs the matcher to parse
+// its `url` input) and embed-chart.routes.ts don't import each other.
 export function EMBED_CHART_URL_MATCHER(url: UrlSegment[]): UrlMatchResult {
    let result: UrlMatchResult = null;
 

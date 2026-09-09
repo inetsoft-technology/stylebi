@@ -21,11 +21,12 @@ import { EMBED_CHART_URL_MATCHER } from "./embed-chart-url-matcher";
 import { EMBED_CHART_ROUTE_PROVIDERS } from "./embed-chart.route-providers";
 
 // Lazily loaded route used by the full portal app (app.routes.ts's `loadChildren` on this whole
-// module). NOTE: nothing in the "elements" web-component bundle (main-elements.ts) may import
-// this file -- see embed-chart.routes-eager.ts for the equivalent eager route that bundle uses
-// instead, and why (Bug #76468: this file's `import()` below is a hard chunk-split point for
-// esbuild in *any* build that pulls this module in, whether or not embedChartRoutes itself ends
-// up used by that build).
+// module). NOTE: nothing in the "elements" web-component bundle (main-elements.ts) may import this
+// file -- it imports EmbedChartComponent and EMBED_CHART_ROUTE_PROVIDERS directly instead, and uses
+// no routes at all. Bug #76468: this file's `import()` below is a hard chunk-split point for esbuild
+// in *any* build that pulls this module in, whether or not embedChartRoutes itself ends up used by
+// that build, which would split EmbedChartComponent out into a chunk the gulp-concatenated
+// elements.js never references.
 export const embedChartRoutes: Routes = [
    {
       loadComponent: () => import("./embed-chart.component").then(m => m.EmbedChartComponent),

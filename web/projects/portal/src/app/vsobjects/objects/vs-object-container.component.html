@@ -44,7 +44,8 @@
         [class.max-mode]="vsObject.maxMode"
         [class.force-show-toolbar]="forceShowMiniToolbar && isFocused(vsObject)"
         [style.z-index]="getContainerZIndex(vsObject)"
-        (click)="select(i, $event)" (mouseenter)="onMouseEnter(vsObject, $event)">
+        (click)="select(i, $event)" (mouseenter)="onMouseEnter(vsObject, $event)"
+        (mouseleave)="onMouseLeave(vsObject)">
         @if (vsObject.objectType == 'VSAnnotation') {
           <vs-annotation
             (remove)="removeAnnotations.emit()"

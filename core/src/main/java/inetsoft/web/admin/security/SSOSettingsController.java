@@ -66,8 +66,8 @@ public class SSOSettingsController {
       )
    )
    @PostMapping("/api/sso/settings")
-   public void updateSSOSettings(@RequestBody SSOSettingsModel model) {
-      service.updateSSOSettings(model);
+   public boolean updateSSOSettings(@RequestBody SSOSettingsModel model) {
+      return service.updateSSOSettings(model);
    }
 
    private final SSOSettingsService service;

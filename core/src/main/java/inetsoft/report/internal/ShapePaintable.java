@@ -18,6 +18,7 @@
 package inetsoft.report.internal;
 
 import inetsoft.report.*;
+import inetsoft.report.io.viewsheet.ShapeShadowUtil;
 import inetsoft.util.Encoder;
 import inetsoft.util.Tool;
 
@@ -87,6 +88,10 @@ public class ShapePaintable extends BasePaintable {
       Point trans = null;
       Rectangle vclip = getVirtualClip();
       boolean changed = false; // if clip or center changed
+      // a drop shadow falls outside the shape, so the band/page clip below has
+      // to be opened up by however far it reaches or a shape sitting flush
+      // against an edge of its band loses that side of its shadow
+      Insets shadow = ShapeShadowUtil.getShadowInsets(shape.getShadow());
 
       // set clipping region
       if(vclip != null && pageBox != null) {
@@ -117,7 +122,9 @@ public class ShapePaintable extends BasePaintable {
          int x2 = adjX(vclip.x + adj.x + vclip.width, true);
          int y2 = adjY(vclip.y + adj.y + vclip.height, true);
 
-         g.clipRect(x1, y1, x2 - x1, y2 - y1);
+         g.clipRect(x1 - shadow.left, y1 - shadow.top,
+                    (x2 - x1) + shadow.left + shadow.right,
+                    (y2 - y1) + shadow.top + shadow.bottom);
       }
       // if vclip is not set, use pageBox as the container
       else if(pageBox != null) {
@@ -130,8 +137,9 @@ public class ShapePaintable extends BasePaintable {
          }
 
          g.translate(adjX(trans.x, false), adjY(trans.y, false));
-         g.clipRect(0, 0, adjX(pageBox.width, true),
-		    adjY(pageBox.height, true));
+         g.clipRect(-shadow.left, -shadow.top,
+                    adjX(pageBox.width, true) + shadow.left + shadow.right,
+                    adjY(pageBox.height, true) + shadow.top + shadow.bottom);
       }
 
       // this avoids using DimGraphics in designer master layout mode

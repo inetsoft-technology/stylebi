@@ -17,6 +17,7 @@
  */
 package inetsoft.report.gui.viewsheet;
 
+import inetsoft.report.io.viewsheet.ShapeShadowUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.uql.viewsheet.ShapeShadow;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -157,36 +158,15 @@ public class VSFaceUtil {
          return img;
       }
 
-      // tint the shape's alpha channel with the shadow color, positioned where
-      // the shadow falls, then blur that layer on its own so the blur can
-      // spread into the margins without softening the shape itself
-      BufferedImage layer = new BufferedImage(outW, outH, BufferedImage.TYPE_INT_ARGB);
-      Graphics2D g2 = layer.createGraphics();
-
-      try {
-         g2.drawImage(img, insets.left + shadow.getOffsetX(),
-                      insets.top + shadow.getOffsetY(), null);
-         g2.setComposite(AlphaComposite.SrcIn);
-         g2.setColor(shadow.getShadowColor());
-         g2.fillRect(0, 0, outW, outH);
-      }
-      finally {
-         g2.dispose();
-      }
-
-      int blur = shadow.getBlurRadius();
-
-      // getGaussianBlurFilter requires a radius of at least 1
-      if(blur >= 1) {
-         layer = getGaussianBlurFilter(blur, true).filter(layer, null);
-         layer = getGaussianBlurFilter(blur, false).filter(layer, null);
-      }
-
+      BufferedImage layer = ShapeShadowUtil.createShadowLayer(img, shadow, insets);
       BufferedImage out = new BufferedImage(outW, outH, BufferedImage.TYPE_INT_ARGB);
       Graphics2D g3 = out.createGraphics();
 
       try {
-         g3.drawImage(layer, 0, 0, null);
+         if(layer != null) {
+            g3.drawImage(layer, 0, 0, null);
+         }
+
          g3.drawImage(img, insets.left, insets.top, null);
       }
       finally {
@@ -215,50 +195,12 @@ public class VSFaceUtil {
       g2.fillRect(0, 0, shadow.getWidth(), shadow.getHeight());       
       g2.dispose();
       
-      shadow = getGaussianBlurFilter(size, true).filter(shadow, null);
-      shadow = getGaussianBlurFilter(size, false).filter(shadow, null);
+      shadow = ShapeShadowUtil.getGaussianBlurFilter(size, true).filter(shadow, null);
+      shadow = ShapeShadowUtil.getGaussianBlurFilter(size, false).filter(shadow, null);
       
       return shadow;
    }
     
-   private static ConvolveOp getGaussianBlurFilter(int radius,
-                                                   boolean horizontal) 
-   {
-      if(radius < 1) {
-         throw new IllegalArgumentException("Radius must be >= 1");
-      }
-      
-      int size = radius * 2 + 1;
-      float[] data = new float[size];
-      
-      float sigma = radius / 3.0f;
-      float twoSigmaSquare = 2.0f * sigma * sigma;
-      float sigmaRoot = (float) Math.sqrt(twoSigmaSquare * Math.PI);
-      float total = 0.0f;
-      
-      for(int i = -radius; i <= radius; i++) {
-         float distance = i * i;
-         int index = i + radius;
-         data[index] = (float) Math.exp(-distance / twoSigmaSquare) / sigmaRoot;
-         total += data[index];
-      }
-      
-      for(int i = 0; i < data.length; i++) {
-         data[i] /= total;
-      }        
-      
-      Kernel kernel = null;
-
-      if(horizontal) {
-         kernel = new Kernel(size, 1, data);
-      }
-      else {
-         kernel = new Kernel(1, size, data);
-      }
-
-      return new ConvolveOp(kernel, ConvolveOp.EDGE_NO_OP, null);
-   }
-
    /**
     * Get theme id from theme name.
     * @param dsize the default size.
