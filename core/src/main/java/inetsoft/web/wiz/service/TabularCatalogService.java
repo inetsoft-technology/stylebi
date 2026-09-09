@@ -461,6 +461,7 @@ public class TabularCatalogService {
       DatasourceTablesResponse response = new DatasourceTablesResponse();
       response.setTables(tables);
       response.setRelationships(relationships);
+      response.setTruncated(catalog.truncated());
       return response;
    }
 

@@ -37,7 +37,42 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
-public class OneDriveRuntime extends TabularRuntime {
+/**
+ * Runtime support for OneDrive-hosted files, and (as of the OneDrive tabular catalog SPI round)
+ * {@link TabularCatalogProvider} -- {@link #listDatasets}/{@link #describeDataset} below reclassify
+ * this connector from {@code FILE} to {@code METADATA}; see {@link OneDriveCatalog} for the actual
+ * catalog logic and {@link OneDriveCatalogCache} for the enumeration cache.
+ *
+ * <p><b>B11 -- the default PAGED {@code listDatasets(ds, request)} is deliberately NOT
+ * overridden.</b> {@code TabularCatalogProvider}'s default paged implementation re-enumerates the
+ * WHOLE source per page by calling the unpaged {@link #listDatasets(TabularDataSource)} and slicing
+ * the result in memory -- "NOT CHEAP", per that interface's own javadoc. Overriding it with a native
+ * cursor is not available here: Graph's own paging ({@code @odata.nextLink}) is PER FOLDER, while
+ * {@code collectChildren} is a depth-first walk ACROSS folders, so there is no single native cursor
+ * spanning the whole drive to hand back -- an override would have to reimplement the default's own
+ * in-memory slice over that same recursive walk, plus a second cursor grammar to get wrong, for no
+ * benefit. What actually matters given that choice is the COST of the re-enumeration the default
+ * performs per page: on OneDrive that is up to {@link #MAX_GRAPH_REQUESTS} live Microsoft Graph HTTP
+ * requests, against a throttled API this class applies no backoff to (see {@link #collectChildren}) --
+ * not merely "slow" the way ServerFile's equivalent local-disk re-walk is. {@link OneDriveCatalogCache}
+ * is what keeps the picker's own multi-page browsing from multiplying that cost by the page count.
+ */
+public class OneDriveRuntime extends TabularRuntime implements TabularCatalogProvider {
+   @Override
+   public TabularCatalog listDatasets(TabularDataSource<?> dataSource) throws Exception {
+      return OneDriveCatalogCache.catalog((OneDriveDataSource) dataSource);
+   }
+
+   @Override
+   public TabularDatasetSchema describeDataset(TabularDataSource<?> dataSource, String datasetId)
+      throws Exception
+   {
+      return OneDriveCatalog.describeDataset((OneDriveDataSource) dataSource, datasetId);
+   }
+
+   // listRelationships is NOT overridden (D5): a OneDrive file declares no relationships, so the
+   // default (filter an empty edge list, always returning List.of()) is exactly right.
+
    @Override
    public XTableNode runQuery(TabularQuery query, VariableTable params) {
       OneDriveQuery oneDriveQuery = (OneDriveQuery) query;

@@ -62,7 +62,8 @@ class TabularCatalogProviderImplementerCanaryTest {
       "inetsoft.uql.sapjco2.table.SAPTableRuntime",
       "inetsoft.uql.rest.datasource.graphql.GraphQLRuntime",
       "inetsoft.uql.rest.xml.RestXMLRuntime",
-      "inetsoft.uql.serverfile.ServerFileRuntime");
+      "inetsoft.uql.serverfile.ServerFileRuntime",
+      "inetsoft.uql.onedrive.OneDriveRuntime");
 
    @Test
    void knownImplementersAreNotOnClasspath_documentedLimitOfThisModule() {
