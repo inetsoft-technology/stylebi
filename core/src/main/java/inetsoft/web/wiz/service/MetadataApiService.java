@@ -35,6 +35,7 @@ import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.util.XUtil;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.AssetTreeService;
@@ -644,16 +645,121 @@ public class MetadataApiService {
       AssetEntry entry = AssetEntry.createAssetEntry(wsId);
       AbstractSheet sheet = assetRepository.getSheet(entry, principal, true, AssetContent.ALL);
 
-      if(!(sheet instanceof Worksheet worksheet)) {
-         throw new Exception("Worksheet " + wsId + " not found.");
+      if(sheet instanceof Worksheet worksheet) {
+         return buildStructure(worksheet, entry, generation);
       }
 
+      throw new Exception("Worksheet " + wsId + " not found.");
+   }
+
+   /**
+    * #76519 — a viewsheet has no {@code /ws/structure} analogue of its own: when it has no base
+    * worksheet (bound directly to a logical model or physical table), the only structural
+    * description of what it queries is {@link Viewsheet#getBaseWorksheet()}, which the repository
+    * ({@link inetsoft.uql.asset.AbstractAssetEngine#getSheet}, via {@code sheet.update(...)} on any
+    * {@code AssetContent.ALL} load — the same load this method already performs) populates
+    * automatically and generically for ALL three base kinds:
+    *
+    * <ul>
+    *   <li>a real worksheet base ({@code getBaseEntry().isWorksheet()}) — {@code getBaseWorksheet()}
+    *       is that worksheet itself, fetched by the repository;</li>
+    *   <li>a physical table or logical model direct source ({@link Viewsheet#isDirectSource()}) —
+    *       {@code getBaseWorksheet()} is a synthesized, single-table {@code Worksheet}
+    *       ({@code Viewsheet.getWorksheet(...)}, private) whose one {@code TableAssembly}
+    *       ({@code PhysicalBoundTableAssembly}/{@code BoundTableAssembly}) carries a real
+    *       {@code ColumnSelection} built from the entry's own metadata — the exact same table-walk
+    *       this method already performs against a real worksheet's assemblies applies to it
+    *       unchanged, no new column-mapping logic needed.</li>
+    * </ul>
+    *
+    * This is NOT itself the read/write query-execution path — {@code getBaseWorksheet()}'s
+    * synthesized worksheet is never persisted as its own asset, so nothing here lets a caller open
+    * it by a worksheet id of its own. Actually querying it (not just describing its columns) goes
+    * through {@code RuntimeViewsheet.getRuntimeWorksheet()} (wraps the SAME
+    * {@code getBaseWorksheet()} result together with the live viewsheet sandbox's
+    * {@code AssetQuerySandbox}) + {@code WorksheetPreviewService.preview(...)} — confirmed to exist
+    * and already exercised for the logical-model case specifically (see
+    * {@code RuntimeViewsheet.getRuntimeWorksheet()}'s own {@code isLMSource()} shrink-table comment)
+    * — but wiring that up is deliberately out of scope for this method; see
+    * {@code docs/teams/2026-09-08-bug-76519-viewsheet-external-binding/04-fix.md} for the citations
+    * and the follow-up this leaves specified.
+    *
+    * @param vsId the viewsheet asset entry identifier (as returned by, e.g.,
+    *             {@code create_viewsheet}/{@code save_viewsheet}/{@code reload_saved_visualization}).
+    * @throws Exception naming the specific reason: not a viewsheet, or a viewsheet with no base at
+    *                    all (never attached to anything).
+    */
+   public WorksheetStructure getViewsheetStructure(String vsId, Integer generation, XPrincipal principal)
+      throws Exception
+   {
+      if(vsId == null || Tool.isEmptyString(vsId)) {
+         throw new Exception("Invalid request.");
+      }
+
+      AssetEntry entry = AssetEntry.createAssetEntry(vsId);
+      AbstractSheet sheet = assetRepository.getSheet(entry, principal, true, AssetContent.ALL);
+
+      if(!(sheet instanceof Viewsheet viewsheet)) {
+         throw new Exception("Viewsheet " + vsId + " not found.");
+      }
+
+      AssetEntry baseEntry = viewsheet.getBaseEntry();
+
+      if(baseEntry == null) {
+         throw new Exception(
+            "Viewsheet " + vsId + " has no base worksheet or direct binding (never attached).");
+      }
+
+      Worksheet baseWorksheet = viewsheet.getBaseWorksheet();
+
+      if(baseWorksheet == null) {
+         throw new Exception(
+            "Viewsheet " + vsId + " has a base (\"" + baseEntry.toView() +
+            "\") that failed to load.");
+      }
+
+      WorksheetStructure structure = buildStructure(baseWorksheet, entry, generation);
+      structure.setSourceKind(sourceKindOf(baseEntry));
+      structure.setBaseEntryPath(baseEntry.getPath());
+      return structure;
+   }
+
+   /**
+    * Classifies a viewsheet's base entry for {@code WorksheetStructure.sourceKind} — "worksheet"
+    * for a real worksheet base, "logicalModel"/"physicalTable" for a direct source ({@link
+    * Viewsheet#isDirectSource()}'s own two non-query cases), "unknown" only if StyleBI ever adds a
+    * base-entry type this method doesn't recognize (never observed; not reachable via
+    * attach_base_worksheet, which only ever sets one of these three).
+    */
+   static String sourceKindOf(AssetEntry baseEntry) {
+      if(baseEntry.isWorksheet()) {
+         return "worksheet";
+      }
+      else if(baseEntry.isLogicModel()) {
+         return "logicalModel";
+      }
+      else if(baseEntry.isPhysicalTable()) {
+         return "physicalTable";
+      }
+
+      return "unknown";
+   }
+
+   /**
+    * The table-walk shared by {@link #getWorksheetStructure} (a real, persisted worksheet asset)
+    * and {@link #getViewsheetStructure} (a viewsheet's base worksheet, real or synthesized) —
+    * operates purely on an in-memory {@link Worksheet} object, so it does not care which case
+    * produced it.
+    */
+   private WorksheetStructure buildStructure(Worksheet worksheet, AssetEntry entry, Integer generation)
+      throws Exception
+   {
       // Enumerate table assemblies once in sheet order. That order is dependency order: a base /
       // upstream table is added to the sheet before the table that references it, so emitting the
       // kept tables in this order keeps an upstream table ahead of its dependents.
       List<TableAssembly> tableAssemblies = new ArrayList<>();
 
-      for(Assembly assembly : sheet.getAssemblies()) {
+      for(Assembly assembly : worksheet.getAssemblies()) {
          if(assembly instanceof TableAssembly tableAssembly) {
             tableAssemblies.add(tableAssembly);
          }

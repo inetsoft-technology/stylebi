@@ -515,6 +515,29 @@ class MetadataApiServiceStructureTest {
          "a_only", java.util.List.of(), java.util.List.of(), null));
    }
 
+   // ---- sourceKindOf (#76519) ----
+
+   @Test
+   void sourceKindOfWorksheetBase() {
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                        "Sample Queries/customers", null);
+      assertEquals("worksheet", MetadataApiService.sourceKindOf(entry));
+   }
+
+   @Test
+   void sourceKindOfLogicalModelBase() {
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
+                                        "MyDataSource/MyModel", null);
+      assertEquals("logicalModel", MetadataApiService.sourceKindOf(entry));
+   }
+
+   @Test
+   void sourceKindOfPhysicalTableBase() {
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.PHYSICAL_TABLE,
+                                        "accounts", null);
+      assertEquals("physicalTable", MetadataApiService.sourceKindOf(entry));
+   }
+
    // ---- collectUpstreamRefs ----
 
    @Test
