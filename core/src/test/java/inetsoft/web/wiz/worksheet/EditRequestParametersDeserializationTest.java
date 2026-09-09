@@ -76,6 +76,30 @@ class EditRequestParametersDeserializationTest {
    }
 
    /**
+    * queryParams is appended as the LAST field of the canonical record (after {@code rankings}),
+    * matching this file's own established every-new-field-goes-at-the-end convention, so this
+    * confirms it round-trips through the real app ObjectMapper the same way {@code parameters}
+    * does above -- a real caller's add_table request supplying it must not 400 at deserialization.
+    */
+   @Test
+   void deserializesAddTableWithQueryParams() throws Exception {
+      EditRequest req = mapper.readValue("""
+         {
+           "op": "add_table",
+           "table": "Orders",
+           "datasource": "OData/Northwind",
+           "queryParams": {"entitySet": "Orders", "top": 100, "includeAnnotations": true}
+         }
+         """, EditRequest.class);
+
+      assertNotNull(req.queryParams());
+      assertEquals(3, req.queryParams().size());
+      assertEquals("Orders", req.queryParams().get("entitySet"));
+      assertEquals(100, req.queryParams().get("top"));
+      assertEquals(true, req.queryParams().get("includeAnnotations"));
+   }
+
+   /**
     * WBS-029 (bug 76502): {@code variableValues} is now {@code Map<String, Object>} so a JSON
     * array can bind to a genuine multi-value assignment. Confirms the real app
     * {@code ObjectMapper}'s default binding for an untyped {@code Object} map value -- a plain
