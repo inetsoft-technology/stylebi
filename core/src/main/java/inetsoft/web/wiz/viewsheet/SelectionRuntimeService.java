@@ -168,6 +168,19 @@ public class SelectionRuntimeService {
                result.put("scopedBySearch", search);
             }
 
+            if(!single && isPathDiffable(assembly)) {
+               // Multi-select apply is a delta patch -- doApplySelection only ever turns matched
+               // values on, so anything currently selected but missing from the new values has to
+               // be turned off explicitly, or it stays selected alongside them. Single-select
+               // already gets a full reset for free via unselectChildren.
+               List<List<String>> toDeselect = toDeselect(selectedPaths(assembly), values);
+
+               if(!toDeselect.isEmpty()) {
+                  selections.applySelection(runtimeId, assemblyName, deselectEvent(toDeselect),
+                                            user, dispatcher, linkUri);
+               }
+            }
+
             selections.applySelection(runtimeId, assemblyName, applyEvent(values), user, dispatcher,
                                       linkUri);
             result.put("valuesSelected", values.size());
@@ -397,6 +410,13 @@ public class SelectionRuntimeService {
     * <p>{@code SelectionList} cannot be constructed or mocked in a plain unit test — the class fails
     * to initialise outside a Spring context — so the logic worth asserting lives here, over the array
     * the container hands back.
+    *
+    * <p>Recurses into a selected {@link CompositeSelectionValue}'s own children, mirroring
+    * {@code VSSelectionService.findSelectedPaths} (non-ID-mode shape) — a flat, single-level scan
+    * cannot represent a nested selection tree path like {@code ["East","NY"]}. If a selected
+    * composite has no selected child of its own, it still contributes a self-only path (matching
+    * {@code findSelectedPaths}'s empty-fallback), otherwise selecting a whole parent node without
+    * selecting any of its children would silently vanish from the result.
     */
    static List<List<String>> selectedPaths(SelectionValue[] values) {
       if(values == null) {
@@ -406,12 +426,68 @@ public class SelectionRuntimeService {
       List<List<String>> paths = new ArrayList<>();
 
       for(SelectionValue value : values) {
-         if(value != null && value.isSelected()) {
-            paths.add(List.of(value.getValue() == null ? "" : value.getValue()));
+         if(value == null || !value.isSelected()) {
+            continue;
+         }
+
+         int level = value.getLevel();
+         String ownValue = value.getValue() == null ? "" : value.getValue();
+
+         if(value instanceof CompositeSelectionValue composite) {
+            SelectionList childList = composite.getSelectionList();
+            List<List<String>> childPaths =
+               new ArrayList<>(selectedPaths(childList == null ? null :
+                                             childList.getSelectionValues()));
+
+            if(childPaths.isEmpty()) {
+               childPaths.add(new ArrayList<>(Collections.nCopies(level + 1, (String) null)));
+            }
+
+            for(List<String> path : childPaths) {
+               path.set(level, ownValue);
+            }
+
+            paths.addAll(childPaths);
+         }
+         else {
+            List<String> path = new ArrayList<>(Collections.nCopies(level + 1, (String) null));
+            path.set(level, ownValue);
+            paths.add(path);
          }
       }
 
       return paths;
+   }
+
+   /**
+    * What has to be turned off to make {@code current} become {@code requested} — split out from
+    * its caller so the diff itself is testable without a live assembly.
+    */
+   static List<List<String>> toDeselect(List<List<String>> current, List<List<String>> requested) {
+      List<List<String>> toDeselect = new ArrayList<>(current);
+      toDeselect.removeAll(requested);
+      return toDeselect;
+   }
+
+   /**
+    * Whether {@code doApplySelection} treats this assembly's apply as value-diffable (a per-value
+    * delta patch that leaves unmentioned values untouched), so the new diff-and-deselect step is the
+    * right fix for it.
+    *
+    * <p>{@code SelectionListVSAssembly} and a non-ID-mode {@code SelectionTreeVSAssembly} match; a
+    * {@code TimeSliderVSAssembly} already fully overwrites its selection every call and a
+    * {@code CalendarVSAssembly}'s values-apply path is a no-op, so neither needs (or should get) an
+    * extra deselect call. ID-mode {@code SelectionTreeVSAssembly} is deliberately excluded: it
+    * matches values by {@code Tool.contains} against the whole path array rather than the
+    * depth-indexed walk {@link #selectedPaths(SelectionValue[])} produces paths for, so reusing the
+    * same diff here would not be guaranteed correct.
+    */
+   static boolean isPathDiffable(SelectionVSAssembly assembly) {
+      if(assembly instanceof SelectionListVSAssembly) {
+         return true;
+      }
+
+      return assembly instanceof SelectionTreeVSAssembly tree && !tree.isIDMode();
    }
 
    private static SelectionList selectionListOf(SelectionVSAssembly assembly) {
