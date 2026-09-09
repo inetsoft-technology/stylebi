@@ -29,7 +29,9 @@ import java.io.File;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -85,6 +87,39 @@ class ServerFileCatalogOrderTest {
       Files.writeString(new File(root, "b.csv").toPath(), "id\n1\n");
 
       assertEquals(List.of("a.csv", "b.csv", "c.csv"), idsOf(ServerFileCatalog.listDatasets(ds)));
+   }
+
+   // R1-2 (P6 review): the two tests above pass identically with the production .sort(...) call
+   // deleted, because P4's own probe showed this repo's NTFS test runner returns
+   // File#listFiles() in alphabetical order regardless of on-disk creation order -- a real but
+   // INCIDENTAL property of this one filesystem, not a guarantee any filesystem's contract makes.
+   // This is the ONLY test in the class that actually discriminates: it injects a lister returning
+   // a DIFFERENT native order on each of two calls against the same file set, so a connector
+   // trusting native order would return two DIFFERENT results, where one sorting by id always
+   // returns the same one. Manually verified to discriminate: deleting the production
+   // `refs.sort(...)` line and re-running this test alone turns it red
+   // (`expected: [a.csv, b.csv, c.csv] but was: [c.csv, a.csv, b.csv]` on the first call already);
+   // restored immediately after.
+   @Test
+   void enumerationIsSortedById_evenWhenTheNativeListingIsShuffledBetweenCalls() throws Exception {
+      Files.writeString(new File(root, "a.csv").toPath(), "id\n1\n");
+      Files.writeString(new File(root, "b.csv").toPath(), "id\n1\n");
+      Files.writeString(new File(root, "c.csv").toPath(), "id\n1\n");
+
+      File a = new File(root, "a.csv");
+      File b = new File(root, "b.csv");
+      File c = new File(root, "c.csv");
+
+      // Same file set, deliberately different native order per call.
+      Iterator<File[]> orders = List.of(
+         new File[]{ c, a, b },
+         new File[]{ b, c, a }
+      ).iterator();
+      Function<File, File[]> shuffledLister = dir -> orders.next();
+
+      List<String> expected = List.of("a.csv", "b.csv", "c.csv");
+      assertEquals(expected, idsOf(ServerFileCatalog.listDatasets(ds, shuffledLister)));
+      assertEquals(expected, idsOf(ServerFileCatalog.listDatasets(ds, shuffledLister)));
    }
 
    @Test

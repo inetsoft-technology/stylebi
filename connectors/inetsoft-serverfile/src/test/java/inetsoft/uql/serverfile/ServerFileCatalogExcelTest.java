@@ -108,13 +108,59 @@ class ServerFileCatalogExcelTest {
 
       List<String> ids = ServerFileCatalog.listDatasets(ds).datasets().stream()
          .map(TabularDatasetRef::id).sorted().collect(Collectors.toList());
-      assertEquals(List.of("sub#folder/report.xlsx#Data", "sub#folder/report.xlsx#Extra"), ids);
+      // R1-1: the path's own '#' is percent-escaped (%23) before the sheet separator is appended,
+      // so lastIndexOf('#') on the full id always finds the genuine separator, never a '#' that
+      // was really part of the directory name.
+      assertEquals(List.of("sub%23folder/report.xlsx#Data", "sub%23folder/report.xlsx#Extra"), ids);
 
-      // decodeId must split on the LAST '#' -- the file's own relative path contains one, and a
-      // first-'#' split would wrongly cut the path in half instead of isolating the sheet name.
+      // decodeId must split on the LAST unescaped '#' -- the file's own relative path contains
+      // one (now escaped), and a first-'#' split would wrongly cut the path in half instead of
+      // isolating the sheet name.
       TabularDatasetSchema schema =
-         ServerFileCatalog.describeDataset(ds, "sub#folder/report.xlsx#Data");
+         ServerFileCatalog.describeDataset(ds, "sub%23folder/report.xlsx#Data");
       assertEquals(List.of("x"), names(schema));
+   }
+
+   // R1-1, manifestation 1: an ORDINARY, unforced file whose own name contains '#' must still
+   // round-trip and resolve correctly -- not merely fail loudly. Before the path-escaping fix,
+   // this file's bare id ("sales#2026.csv") decoded as path "sales" + sheet "2026.csv" and
+   // describeDataset threw "has no file at 'sales'" for a completely normal file.
+   @Test
+   void aBareHashContainingNonExcelPathRoundTripsAndResolves() throws Exception {
+      java.nio.file.Files.writeString(new File(root, "sales#2026.csv").toPath(), "region\nEast\n");
+
+      List<String> ids = ServerFileCatalog.listDatasets(ds).datasets().stream()
+         .map(TabularDatasetRef::id).collect(Collectors.toList());
+      assertEquals(List.of("sales%232026.csv"), ids);
+
+      TabularDatasetSchema schema = ServerFileCatalog.describeDataset(ds, "sales%232026.csv");
+      assertEquals(List.of("region"), names(schema));
+   }
+
+   // R1-1, manifestation 2: a multi-sheet workbook's sheet suffix must never collide with an
+   // unrelated plain file's own bare id, even when the plain file's name is EXACTLY what the
+   // workbook's "<path>#<sheet>" encoding would have produced unescaped. Before the fix,
+   // "book.xlsx" (sheet "Sheet1.csv") and a plain file literally named "book.xlsx#Sheet1.csv"
+   // both encoded to the identical string "book.xlsx#Sheet1.csv" -- a duplicate id that aborts
+   // the whole catalog (TabularCatalogService's uniqueness check).
+   @Test
+   void aWorkbookSheetSuffixNeverCollidesWithAPlainFilesOwnBareId() throws Exception {
+      writeWorkbook(new File(root, "book.xlsx"), sheet("Sheet1.csv", "a"), sheet("Other", "b"));
+      java.nio.file.Files.writeString(
+         new File(root, "book.xlsx#Sheet1.csv").toPath(), "collision\nx\n");
+
+      List<String> ids = ServerFileCatalog.listDatasets(ds).datasets().stream()
+         .map(TabularDatasetRef::id).sorted().collect(Collectors.toList());
+
+      // No duplicates, and both targets independently resolve to what they actually are.
+      assertEquals(ids.size(), ids.stream().distinct().count(), "duplicate dataset id: " + ids);
+      assertEquals(
+         List.of("book.xlsx#Other", "book.xlsx#Sheet1.csv", "book.xlsx%23Sheet1.csv"),
+         ids);
+
+      assertEquals(List.of("a"), names(ServerFileCatalog.describeDataset(ds, "book.xlsx#Sheet1.csv")));
+      assertEquals(List.of("collision"),
+         names(ServerFileCatalog.describeDataset(ds, "book.xlsx%23Sheet1.csv")));
    }
 
    private static List<String> names(TabularDatasetSchema schema) {

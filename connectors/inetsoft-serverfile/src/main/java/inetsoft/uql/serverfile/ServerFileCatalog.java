@@ -50,10 +50,23 @@ import java.util.*;
  * (wiz's {@code tableMetadataService.ts} splits an id on the LAST {@code #}; wiz's
  * {@code tabularFileProbe.ts} builds ids the same way for the file pipeline this SPI conversion
  * replaces for ServerFile). Decoding here matches that -- split on the LAST {@code #} -- for the
- * same reason: a relative path may contain {@code #}, so the split has to favor the tail. This
- * carries over a pre-existing, unfixed ambiguity for the rare case of a sheet NAME itself
- * containing {@code #} (legal on Excel, unlike {@code :\/?*[]}) -- not introduced by this change,
- * not fixed by it either; see the design doc's D.1.
+ * same reason: a relative path may contain {@code #}, so the split has to favor the tail.
+ *
+ * <p><b>The relative path is percent-escaped before it is used as (or joined into) an id</b> --
+ * {@code #} -> {@code %23}, {@code %} -> {@code %25} (escaped first, so an escaped {@code %23}/
+ * {@code %25} sequence that already existed in a real filename is never re-escaped or
+ * double-unescaped) -- so that {@code lastIndexOf('#')} in a full id always finds the genuine
+ * sheet separator, never a {@code #} that was really part of a plain file or directory NAME. Two
+ * failure modes this closes, found in P6 review (R1-1): (1) an ordinary file like
+ * {@code sales#2026.csv} used to decode as path {@code sales} + sheet {@code 2026.csv} and fail to
+ * resolve, even though nothing is wrong with that file; (2) a multi-sheet workbook
+ * {@code book.xlsx} with a sheet legally named {@code Sheet1.csv} encoded to
+ * {@code book.xlsx#Sheet1.csv} -- identical to the BARE id an unrelated plain file literally named
+ * {@code book.xlsx#Sheet1.csv} would have had, which {@code TabularCatalogService} rejects as a
+ * duplicate id, aborting the whole catalog. Only the PATH is escaped; a sheet NAME itself
+ * containing {@code #} (legal on Excel, unlike {@code :\/?*[]}) is left as the pre-existing,
+ * unfixed ambiguity described in the design doc's D.1 -- escaping the path closes the two failure
+ * modes above without needing to touch that separate, already-accepted residual.
  */
 final class ServerFileCatalog {
    private ServerFileCatalog() {
@@ -68,10 +81,25 @@ final class ServerFileCatalog {
     * called directly by {@link ServerFileRuntime} -- see {@link ServerFileCatalogCache}.
     */
    static TabularCatalog listDatasets(ServerFileDataSource ds) throws Exception {
+      return listDatasets(ds, ServerFileCatalog::listChildren);
+   }
+
+   /**
+    * Test seam (R1-2): {@code lister} replaces the real {@code dir.listFiles()} call, so a test
+    * can drive a DELIBERATELY reordered listing of the same file set between two calls and prove
+    * the sort below is what makes the order stable -- not an incidental property of one real
+    * filesystem's native order, which is not guaranteed stable by any filesystem's own contract and
+    * is exactly the trap {@link TabularCatalog#datasets()}'s javadoc calls out by name. Production
+    * always goes through the one-arg overload above, which always uses {@link #listChildren}; nothing
+    * else calls this overload.
+    */
+   static TabularCatalog listDatasets(ServerFileDataSource ds, java.util.function.Function<File, File[]> lister)
+      throws Exception
+   {
       File root = requireRoot(ds);
       String rootPath = root.getAbsolutePath();
       List<TabularDatasetRef> refs = new ArrayList<>();
-      collect(ds, root, rootPath, refs);
+      collect(ds, root, rootPath, refs, lister);
 
       // Imposed here, not inherited from File#listFiles() (unordered) and not shared with
       // ServerFileUtil.getFileList (the query execution path, whose row order this must not
@@ -80,6 +108,10 @@ final class ServerFileCatalog {
       refs.sort(Comparator.comparing(TabularDatasetRef::id));
 
       return new TabularCatalog(refs, List.of());   // never override listRelationships (C3)
+   }
+
+   private static File[] listChildren(File dir) {
+      return dir.listFiles();
    }
 
    static TabularDatasetSchema describeDataset(ServerFileDataSource ds, String datasetId)
@@ -190,9 +222,10 @@ final class ServerFileCatalog {
    }
 
    private static void collect(ServerFileDataSource ds, File dir, String rootPath,
-                               List<TabularDatasetRef> out) throws Exception
+                               List<TabularDatasetRef> out,
+                               java.util.function.Function<File, File[]> lister) throws Exception
    {
-      File[] children = dir.listFiles();
+      File[] children = lister.apply(dir);
 
       // dir.listFiles() returns null for an unreadable directory or a non-directory; the query
       // path's own ServerFileUtil.getFileList NPEs on this (acceptable there -- catch-and-continue
@@ -205,7 +238,7 @@ final class ServerFileCatalog {
 
       for(File child : children) {
          if(child.isDirectory()) {
-            collect(ds, child, rootPath, out);
+            collect(ds, child, rootPath, out, lister);
             continue;
          }
 
@@ -218,14 +251,14 @@ final class ServerFileCatalog {
          String relativePath = relativize(rootPath, absolutePath);
 
          if(!ServerFileUtil.isExcel(absolutePath)) {
-            out.add(new TabularDatasetRef(relativePath));
+            out.add(new TabularDatasetRef(encodeId(relativePath, null)));
             continue;
          }
 
          String[] sheets = readSheetNames(ds, child, relativePath);
 
          if(sheets.length <= 1) {
-            out.add(new TabularDatasetRef(relativePath));
+            out.add(new TabularDatasetRef(encodeId(relativePath, null)));
          }
          else {
             for(String sheet : sheets) {
@@ -272,14 +305,37 @@ final class ServerFileCatalog {
 
    // ----- id grammar: one encoder, one decoder, so they cannot drift -----
 
+   /**
+    * {@code sheet == null} -- a non-Excel file or a single-sheet workbook -- yields the bare
+    * escaped path, no suffix. Otherwise {@code <escaped path>#<sheet, unescaped>}. Called for
+    * EVERY id this catalog emits (see {@link #collect}), not just the multi-sheet case, so the
+    * escaping is applied uniformly and a bare id can never collide with a suffixed one.
+    */
    private static String encodeId(String relativePath, String sheet) {
-      return relativePath + "#" + sheet;
+      String escapedPath = escapePath(relativePath);
+      return sheet == null ? escapedPath : escapedPath + "#" + sheet;
    }
 
    private static Target decodeId(String datasetId) {
       int idx = datasetId.lastIndexOf('#');
-      return idx < 0 ? new Target(datasetId, null)
-                      : new Target(datasetId.substring(0, idx), datasetId.substring(idx + 1));
+      return idx < 0 ? new Target(unescapePath(datasetId), null)
+                      : new Target(unescapePath(datasetId.substring(0, idx)),
+                                   datasetId.substring(idx + 1));
+   }
+
+   /**
+    * Percent-escapes a relative path so it can never contribute an unescaped {@code #} to an id --
+    * {@code %} first, then {@code #}, so an escape sequence that was already literal text in a
+    * real filename is never re-escaped. See the class javadoc for the two failure modes this
+    * closes (R1-1) and why only the path, never the sheet name, is escaped.
+    */
+   private static String escapePath(String relativePath) {
+      return relativePath.replace("%", "%25").replace("#", "%23");
+   }
+
+   /** Inverse of {@link #escapePath}: undo the LAST-applied escape first ({@code #}, then {@code %}). */
+   private static String unescapePath(String escapedRelativePath) {
+      return escapedRelativePath.replace("%23", "#").replace("%25", "%");
    }
 
    private record Target(String relativePath, String sheet) {}

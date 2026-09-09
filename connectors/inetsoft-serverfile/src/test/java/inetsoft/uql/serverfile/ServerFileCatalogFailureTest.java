@@ -17,9 +17,17 @@
  */
 package inetsoft.uql.serverfile;
 
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import inetsoft.test.SwapperTestConfiguration;
 import inetsoft.uql.tabular.TabularCatalog;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -32,14 +40,21 @@ import static org.junit.jupiter.api.Assertions.*;
  * rather than throwing; "failed" and "genuinely empty" are different claims and both are tested
  * here, deliberately not collapsed into one case.
  *
- * <p>The "unreadable directory mid-walk" and "unopenable workbook" failure modes D.9 also names
- * are exercised structurally by {@link ServerFileCatalog#collect}'s own null-check and by {@link
- * ServerFileCatalog}'s {@code readSheetNames} (both throw named exceptions rather than skipping) --
- * not given dedicated fixture tests here because reliably revoking read permission on a directory
- * is not portable on this repo's Windows test runner (see the SKILL's own caution on this), and a
- * corrupted-workbook fixture would add a Spring test context for a failure mode structurally
- * identical to the ones this class already exercises (throw, don't swallow).
+ * <p>The "unreadable directory mid-walk" failure mode is exercised structurally by {@link
+ * ServerFileCatalog#collect}'s own null-check -- not given a dedicated fixture test because
+ * reliably revoking read permission on a directory is not portable on this repo's Windows test
+ * runner (see the SKILL's own caution on this). The "unopenable workbook" failure mode IS given a
+ * dedicated fixture test below (R1-3, P6 review) -- a corrupt {@code .xlsx} needs no ACLs and is
+ * fully portable, so the earlier justification for skipping it did not actually apply to this one.
+ * Needs the full Spring test context (see {@code ServerFileSpringTestSupport}'s class javadoc):
+ * reading a real, or fake, workbook's sheet list reaches {@code FileSystemService.getInstance()}.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
+                                  ServerFileSpringTestSupport.ConfigBeanConfig.class },
+                      initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 class ServerFileCatalogFailureTest {
    @TempDir
    File root;
@@ -72,6 +87,25 @@ class ServerFileCatalogFailureTest {
       ServerFileDataSource ds = new ServerFileDataSource();
       ds.setName("failure-test-ds-file-root");
       ds.setFile(notADirectory);
+
+      assertThrows(Exception.class, () -> ServerFileCatalog.listDatasets(ds));
+   }
+
+   // R1-3 (P6 review): readSheetNames' catch branch (wrapping ExcelFileSupport.getSheetNames'
+   // exception into a named IOException) had zero coverage. A corrupt/unopenable workbook must
+   // make the WHOLE listDatasets call throw, not silently skip that one file and return a short
+   // (partial) catalog -- the same C4 requirement the directory-level tests above pin, at the
+   // per-file level this time.
+   @Test
+   void anUnopenableWorkbookThrows_ratherThanBeingSkippedFromTheCatalog() throws Exception {
+      // Garbage bytes with a .xlsx extension: not a zip at all, so ExcelFileSupport.getSheetNames
+      // throws, no ACLs/permissions involved -- fully portable, unlike the directory-unreadable
+      // case above.
+      Files.write(new File(root, "corrupt.xlsx").toPath(), "this is not a zip file".getBytes());
+
+      ServerFileDataSource ds = new ServerFileDataSource();
+      ds.setName("failure-test-ds-corrupt-workbook");
+      ds.setFile(root);
 
       assertThrows(Exception.class, () -> ServerFileCatalog.listDatasets(ds));
    }
