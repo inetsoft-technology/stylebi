@@ -263,8 +263,54 @@ public class AssemblyPropertyService {
             requireVariableFlagAchievable(type, model, rvs.getViewsheet());
          }
 
+         model = impliedTipOptionForTipView(model, resolved.values());
+
          writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);
       });
+   }
+
+   /**
+    * A {@code tipView} set to a real assembly name unambiguously means "use Data Tip View" --
+    * but {@code setChartPropertyModel}/{@code setCrosstabPropertyModel} both force {@code tipView}
+    * back to {@code null} whenever {@code tipOption} is {@code false} (read from the model as a
+    * whole, not from this one patch), regardless of what this call itself just wrote there. A
+    * caller that sets {@code tipView} without ALSO setting {@code tipOption:true} in the same
+    * patch therefore gets a silent no-op: {@code set_assembly_properties} reports {@code ok:true},
+    * and the very value this method just wrote is discarded before it ever reaches the real
+    * {@code VSAssemblyInfo} -- live-confirmed for chart (Redmine #76516), and true by the same
+    * source reading for crosstab, which has carried this same {@code tipView} alias -- and the
+    * same latent bug -- since before that ticket.
+    *
+    * <p>Only acts when the resolved patch actually touched a {@code .tipView} path with a
+    * non-blank value, and did NOT also touch that path's sibling {@code .tipOption}. A caller who
+    * sets {@code tipOption} explicitly (to {@code true} or {@code false}) is always left alone --
+    * this only fills in the one combination that would otherwise silently do nothing, per
+    * {@code set_assembly_properties}'s own "forgiving where the intent is unambiguous" rule; it
+    * is not a general-purpose inference and does not guess at any other field.
+    */
+   private static Object impliedTipOptionForTipView(Object model, Collection<String> resolvedPaths) {
+      for(String path : resolvedPaths) {
+         if(!path.endsWith(".tipView")) {
+            continue;
+         }
+
+         Object value = PropertyPath.get(model, path);
+
+         if(value == null || (value instanceof String str && str.isEmpty())) {
+            continue;
+         }
+
+         String tipOptionPath =
+            path.substring(0, path.length() - "tipView".length()) + "tipOption";
+
+         if(resolvedPaths.contains(tipOptionPath)) {
+            continue;
+         }
+
+         model = PropertyPath.set(model, tipOptionPath, true);
+      }
+
+      return model;
    }
 
    /**
