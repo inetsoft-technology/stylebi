@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
 import inetsoft.web.viewsheet.event.SortSelectionListEvent;
 import inetsoft.web.viewsheet.service.VSSelectionService;
@@ -158,6 +159,23 @@ public class SelectionRuntimeService {
                   "'" + assemblyName + "' is single-select, so it cannot hold " + values.size() +
                   " values. Select one value, or pass singleSelect=false in the same call to make " +
                   "it multi-select first.");
+            }
+
+            if(isValueMatchable(assembly)) {
+               // doApplySelection matches each requested value against the live domain and
+               // silently drops anything that doesn't resolve -- no exception, no counter,
+               // nothing the caller could observe. Refuse a typo'd value by name, atomically,
+               // before applying anything, rather than reporting an inflated count for a
+               // partially-applied result.
+               boolean idMode = assembly instanceof SelectionTreeVSAssembly tree && tree.isIDMode();
+               List<List<String>> unmatched =
+                  findUnmatchedPaths(selectionListOf(assembly), values, idMode);
+
+               if(!unmatched.isEmpty()) {
+                  throw new IllegalArgumentException(
+                     "'" + assemblyName + "' has no value matching " + unmatched + " -- confirm " +
+                     "the exact spelling via browse_condition_values before selecting it.");
+               }
             }
 
             String search = searchString(info);
@@ -488,6 +506,129 @@ public class SelectionRuntimeService {
       }
 
       return assembly instanceof SelectionTreeVSAssembly tree && !tree.isIDMode();
+   }
+
+   /**
+    * Whether {@code doApplySelection} matches this assembly's values against a live domain via
+    * {@code updateSelectionOfChangedAssembly}/{@code updateIDSelectionTree} at all -- the only two
+    * types the value-validation below can meaningfully apply to.
+    *
+    * <p>Mirrors {@code doApplySelection}'s own top-level branch exactly (unlike
+    * {@link #isPathDiffable}, which further excludes ID-mode trees for a diff-specific reason, not
+    * a matching one). A {@code TimeSliderVSAssembly} ignores the requested value paths entirely --
+    * it selects by index range ({@code event.getSelectStart()}/{@code getSelectEnd()}) -- and a
+    * {@code CalendarVSAssembly}'s values-apply path is a no-op, so validating value strings against
+    * either would be meaningless.
+    */
+   private static boolean isValueMatchable(SelectionVSAssembly assembly) {
+      return assembly instanceof SelectionListVSAssembly || assembly instanceof SelectionTreeVSAssembly;
+   }
+
+   /** Skipped when the domain isn't known yet -- a cannot-tell case, not a does-not-exist case. */
+   private static List<List<String>> findUnmatchedPaths(SelectionList domain,
+                                                         List<List<String>> values, boolean idMode)
+   {
+      if(domain == null) {
+         return List.of();
+      }
+
+      return findUnmatchedPaths(domain.getSelectionValues(), values, idMode);
+   }
+
+   /**
+    * Split out from its {@code SelectionList} container so it is testable -- {@code SelectionList}
+    * cannot be constructed or mocked outside a Spring context (see {@link #selectedPaths(SelectionValue[])}).
+    *
+    * <p>Mirrors exactly what {@code updateSelectionOfChangedAssembly}/{@code updateIDSelectionTree}
+    * will do when the values are actually applied, rather than a stricter approximation of it -- the
+    * point is to predict the real apply outcome, not to reject something the backend would have
+    * happily accepted.
+    */
+   static List<List<String>> findUnmatchedPaths(SelectionValue[] domain, List<List<String>> values,
+                                                boolean idMode)
+   {
+      List<List<String>> unmatched = new ArrayList<>();
+
+      for(List<String> path : values) {
+         String[] segments = path.toArray(new String[0]);
+         boolean matched = idMode ? matchesAnywhere(domain, segments) : matchesPath(domain, segments, 0);
+
+         if(!matched) {
+            unmatched.add(path);
+         }
+      }
+
+      return unmatched;
+   }
+
+   /**
+    * Mirrors {@code updateSelectionOfChangedAssembly}: resolve {@code path[index]} at this level via
+    * an exact-match lookup (the same match {@code SelectionList.findValue(val, false)} does); if it
+    * resolves to a {@code CompositeSelectionValue} and segments remain, descend into its children;
+    * otherwise -- found and not composite, or the last segment -- stop and call it matched. An
+    * over-long path whose resolvable prefix bottoms out at a leaf before the path ends is still a
+    * match, since that is what the real apply does with it (it just ignores the leftover segments).
+    */
+   private static boolean matchesPath(SelectionValue[] level, String[] path, int index) {
+      if(level == null) {
+         return false;
+      }
+
+      SelectionValue value = findByValue(level, path[index]);
+
+      if(value == null) {
+         return false;
+      }
+
+      if(value instanceof CompositeSelectionValue composite && index < path.length - 1) {
+         SelectionList childList = composite.getSelectionList();
+         return matchesPath(childList == null ? null : childList.getSelectionValues(), path,
+                            index + 1);
+      }
+
+      return true;
+   }
+
+   /** The one-level, non-recursive exact match {@code SelectionList.findValue(val, false)} does. */
+   private static SelectionValue findByValue(SelectionValue[] level, String target) {
+      for(SelectionValue value : level) {
+         if(value != null && Tool.equals(target, value.getValue())) {
+            return value;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Mirrors {@code updateIDSelectionTree}: a flat "does this path array contain a node's value
+    * anywhere in the tree" scan, not a segment-by-segment descent -- ID-mode matches every node
+    * whose value appears anywhere in the requested path array.
+    */
+   private static boolean matchesAnywhere(SelectionValue[] level, String[] path) {
+      if(level == null) {
+         return false;
+      }
+
+      for(SelectionValue value : level) {
+         if(value == null) {
+            continue;
+         }
+
+         if(Tool.contains(path, value.getValue(), true, true, true)) {
+            return true;
+         }
+
+         if(value instanceof CompositeSelectionValue composite) {
+            SelectionList childList = composite.getSelectionList();
+
+            if(matchesAnywhere(childList == null ? null : childList.getSelectionValues(), path)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    private static SelectionList selectionListOf(SelectionVSAssembly assembly) {
