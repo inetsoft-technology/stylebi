@@ -107,21 +107,23 @@ public final class PropertyAliases {
                          "sortOthersLastEnabled", "dateComparisonSupport"));
 
    /**
-    * textinput/combobox/slider/spinner's {@code dataInputPaneModel.variable} (bug #76530): has a
-    * real getter/setter, populated correctly on every read from the persisted
-    * {@code InputVSAssemblyInfo.isVariable()} -- but every one of these four types' setters
+    * textinput/combobox/slider/spinner/checkbox/radiobutton's {@code dataInputPaneModel.variable}
+    * (bug #76530, extended to checkbox/radiobutton by bug #76551): has a real getter/setter,
+    * populated correctly on every read from the persisted
+    * {@code InputVSAssemblyInfo.isVariable()} -- but every one of these six types' setters
     * derives the real, persisted flag solely from whether {@code dataInputPaneModel.table} (after
     * {@code VSInputService.resolveInputTableBinding}'s normalization) is shaped
     * {@code "$(varName)"}. The client's own boolean here is never read back on write, for any of
-    * the four. Unlike a plain {@link #DEAD_FIELDS} entry, a write here is not refused
+    * the six. Unlike a plain {@link #DEAD_FIELDS} entry, a write here is not refused
     * unconditionally -- see {@code AssemblyPropertyService.requireVariableFlagAchievable}, which
     * this set only marks as needing that check, because whether the write is actually honored
-    * depends on the resulting table binding, not on the field alone. CheckBox and RadioButton are
-    * deliberately absent: their setters read {@code dataInputPaneModel.isVariable()} directly (a
-    * different, separate defect -- tracked on its own, not this one).
+    * depends on the resulting table binding, not on the field alone. CheckBox and RadioButton used
+    * to be deliberately absent here (their setters read {@code dataInputPaneModel.isVariable()}
+    * directly), but bug #76551's fix made their {@code VSInputService} setters derive-not-trust
+    * the same way the original four already did, so they now belong in this set too.
     */
    private static final Set<String> VARIABLE_FLAG_DERIVED_TYPES =
-      Set.of("textinput", "combobox", "slider", "spinner");
+      Set.of("textinput", "combobox", "slider", "spinner", "checkbox", "radiobutton");
 
    /**
     * {@code refresh} is aliased through the shared {@link #basicGeneral} helper because it is

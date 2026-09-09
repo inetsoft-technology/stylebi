@@ -569,10 +569,13 @@ public class VSInputService {
       setListValues(checkBoxAssemblyInfo, value, viewsheet, principal);
 
       // TODO validate column/row variable/expression type
-      String table = dataInputPaneModel.getTable();
-      checkBoxAssemblyInfo.setTableName(
-         table == null || "".equals(table.trim()) ? null : table);
-      checkBoxAssemblyInfo.setVariable(table != null && dataInputPaneModel.isVariable());
+      String table = resolveInputTableBinding(viewsheet.getViewsheet().getBaseWorksheet(),
+         viewsheet.getViewsheet(), dataInputPaneModel.getTable(),
+         dataInputPaneModel.getColumnValue());
+      checkBoxAssemblyInfo.setTableName(table == null ? "" : table);
+      checkBoxAssemblyInfo.setVariable(resolvesToVariableBinding(
+         viewsheet.getViewsheet().getBaseWorksheet(), viewsheet.getViewsheet(), table,
+         dataInputPaneModel.getColumnValue()));
 
       checkBoxAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       checkBoxAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
@@ -1321,11 +1324,15 @@ public class VSInputService {
 
       setListValues(radioButtonAssemblyInfo, value, viewsheet, principal);
 
-      String table = dataInputPaneModel.getTable();
+      String table = resolveInputTableBinding(viewsheet.getViewsheet().getBaseWorksheet(),
+         viewsheet.getViewsheet(), dataInputPaneModel.getTable(),
+         dataInputPaneModel.getColumnValue());
       radioButtonAssemblyInfo.setTableName(table == null ? "" : table);
       radioButtonAssemblyInfo.setColumnValue(dataInputPaneModel.getColumnValue());
       radioButtonAssemblyInfo.setRowValue(dataInputPaneModel.getRowValue());
-      radioButtonAssemblyInfo.setVariable(dataInputPaneModel.isVariable());
+      radioButtonAssemblyInfo.setVariable(resolvesToVariableBinding(
+         viewsheet.getViewsheet().getBaseWorksheet(), viewsheet.getViewsheet(), table,
+         dataInputPaneModel.getColumnValue()));
       radioButtonAssemblyInfo.setWriteBackValue(dataInputPaneModel.isWriteBackDirectly());
 
       radioButtonAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
