@@ -239,6 +239,12 @@ class SelectionRuntimeServiceTest {
     * Single-select already gets a full reset for free via {@code unselectChildren}, so the new
     * diff-and-deselect step must not also fire for it — that would be redundant at best and could
     * race the reset at worst.
+    *
+    * <p>{@code getSelectionList()} is still called exactly once here — not zero times — because
+    * value validation (bug-76544) reads the domain regardless of single-vs-multi select; a typo'd
+    * value can be silently dropped on a single-select assembly the same way it can on a multi-select
+    * one. What this test actually guards is that no second {@code applySelection} (the deselect)
+    * fires.
     */
    @Test
    void skipsTheDiffStepForASingleSelectAssembly() throws Exception {
@@ -247,7 +253,7 @@ class SelectionRuntimeServiceTest {
 
       h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null, "");
 
-      verify(assembly, never()).getSelectionList();
+      verify(assembly, times(1)).getSelectionList();
       verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
                                                     any(Principal.class), any(), anyString());
    }
@@ -269,6 +275,111 @@ class SelectionRuntimeServiceTest {
       verify(slider, never()).getSelectionList();
       verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
                                                     any(Principal.class), any(), anyString());
+   }
+
+   // ── value validation (bug-76544: a typo'd value is silently dropped, not refused) ─────────────
+
+   /**
+    * The direct regression test for the reported symptom: {@code updateSelectionOfChangedAssembly}
+    * silently drops any value that doesn't exactly string-match a domain entry, with nothing at any
+    * layer above it ever learning that happened. Refusing atomically, by name, before applying
+    * anything is the fix — not reporting a corrected count for a partially-applied result.
+    */
+   @Test
+   void refusesATypoedValueRatherThanSilentlyDroppingIt() {
+      SelectionValue george = mock(SelectionValue.class);
+      when(george.getValue()).thenReturn("George Services");
+      SelectionValue interstate = mock(SelectionValue.class);
+      when(interstate.getValue()).thenReturn("Interstate Shop");
+      SelectionValue oldWorld = mock(SelectionValue.class);
+      when(oldWorld.getValue()).thenReturn("Old World Insurance");
+
+      SelectionValue[] domain = { george, interstate, oldWorld };
+
+      List<List<String>> unmatched = SelectionRuntimeService.findUnmatchedPaths(domain,
+         List.of(List.of("George Services"), List.of("Interstate Shop"),
+                 List.of("OldWorld Insurance")),
+         false);
+
+      assertEquals(List.of(List.of("OldWorld Insurance")), unmatched);
+   }
+
+   /** Every requested value resolves, so nothing is unmatched — the happy path is unaffected. */
+   @Test
+   void matchesEveryRequestedValueOnTheHappyPath() {
+      SelectionValue east = mock(SelectionValue.class);
+      when(east.getValue()).thenReturn("East");
+      SelectionValue west = mock(SelectionValue.class);
+      when(west.getValue()).thenReturn("West");
+
+      List<List<String>> unmatched = SelectionRuntimeService.findUnmatchedPaths(
+         new SelectionValue[]{ east, west }, List.of(List.of("East"), List.of("West")), false);
+
+      assertEquals(List.of(), unmatched);
+   }
+
+   /**
+    * If the domain isn't known yet, that is a cannot-tell case, not a does-not-exist case — failing
+    * closed here would reject calls that have nothing wrong with them. This is also what keeps every
+    * existing test above passing, since none of the {@code list(...)}/{@code tree(...)} fixtures stub
+    * {@code getSelectionList()}.
+    */
+   @Test
+   void skipsValidationWhenTheDomainIsntKnownYet() throws Exception {
+      Harness h = harness(list(XConstants.SORT_ASC, false, null));
+
+      assertDoesNotThrow(() -> h.service.setSelection(
+         "tok", principal(), "Filter1", List.of(List.of("Anything At All")), null, null, ""));
+   }
+
+   /**
+    * The revision-round edge case: a tree path with more segments than the domain has levels, whose
+    * resolvable prefix bottoms out at a non-composite leaf before the path ends. The real
+    * {@code updateSelectionOfChangedAssembly} applies the selection to that leaf and silently ignores
+    * the leftover segments (it does not require them to resolve to anything) — so this must be a
+    * match, not a false rejection, or the validation would reject values the real backend already
+    * accepts.
+    */
+   @Test
+   void treatsAnOverLongPathThatBottomsOutAtALeafAsAMatch() {
+      SelectionValue east = mock(SelectionValue.class);
+      when(east.getValue()).thenReturn("East");
+      // Not a CompositeSelectionValue: it has no children for the trailing "NY" segment to
+      // resolve against, and the real apply code does not require it to.
+
+      List<List<String>> unmatched = SelectionRuntimeService.findUnmatchedPaths(
+         new SelectionValue[]{ east }, List.of(List.of("East", "NY")), false);
+
+      assertEquals(List.of(), unmatched);
+   }
+
+   /**
+    * ID-mode matches by {@code Tool.contains} against the whole path array — a flat "does this
+    * node's value appear anywhere in the requested array" scan — not by segment-by-segment descent.
+    * A domain node matching only the second element of a two-element requested path still counts as
+    * matched, which a descent-based match (as used for non-ID-mode) would not allow.
+    */
+   @Test
+   void matchesAnIdModeValueAnywhereInTheRequestedPathArray() {
+      SelectionValue ny = mock(SelectionValue.class);
+      when(ny.getValue()).thenReturn("NY");
+
+      List<List<String>> unmatched = SelectionRuntimeService.findUnmatchedPaths(
+         new SelectionValue[]{ ny }, List.of(List.of("East", "NY")), true);
+
+      assertEquals(List.of(), unmatched);
+   }
+
+   /** An ID that appears nowhere in the domain is refused the same as any other unmatched value. */
+   @Test
+   void refusesAnIdModeValueThatMatchesNothing() {
+      SelectionValue east = mock(SelectionValue.class);
+      when(east.getValue()).thenReturn("East");
+
+      List<List<String>> unmatched = SelectionRuntimeService.findUnmatchedPaths(
+         new SelectionValue[]{ east }, List.of(List.of("Nope")), true);
+
+      assertEquals(List.of(List.of("Nope")), unmatched);
    }
 
    // ── the diff-and-deselect step (bug-76548: set_selection accumulated instead of replacing) ────
