@@ -25,6 +25,7 @@ import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.asset.sync.DependencyTransformer;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptEnvRepository;
@@ -139,7 +140,13 @@ public class ScriptLibraryController {
       LibManager lib = libManagerProvider.getManager(principal);
       requireExists(lib, name);
       requirePermission(principal, name, ResourceAction.WRITE);
-      lib.setScript(name, request.text() == null ? "" : request.text());
+      String oldText = lib.getScript(name);
+      String newText = request.text() == null ? "" : request.text();
+      // Keeps the outgoing dependency graph in sync with the new body, the same way
+      // OpenScriptController.saveScript does for a per-sheet script save -- otherwise delete()'s
+      // dependency-safety check above is only as accurate as the last create/update wrote.
+      DependencyHandler.getInstance().updateScriptDependencies(oldText, newText, scriptEntry(name));
+      lib.setScript(name, newText);
 
       if(request.comment() != null) {
          lib.setScriptComment(name, request.comment());
@@ -224,12 +231,16 @@ public class ScriptLibraryController {
    }
 
    /**
-    * Matches {@code checkScriptRemoveable}'s own dependency-lookup entry (GLOBAL_SCOPE) -- the
-    * scope a script's dependency records are actually keyed under, confirmed by reading that
-    * method rather than assumed.
+    * COMPONENT_SCOPE, not GLOBAL_SCOPE -- confirmed against where script dependency records are
+    * actually written and cleaned up: {@code LocalDependencyHandler.updateScriptDependencies} keys
+    * a called function's dependents under COMPONENT_SCOPE, and {@code RemoveAssetController}'s own
+    * post-delete cleanup deletes that same COMPONENT_SCOPE key for the script it just removed.
+    * {@code RemoveAssetController.checkScriptRemoveable} itself looks these records up under
+    * GLOBAL_SCOPE, which never matches and is a pre-existing bug in that method -- not a scope this
+    * controller should copy, even though it was the original model for this method.
     */
    private AssetEntry scriptEntry(String name) {
-      return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCRIPT, name, null);
+      return new AssetEntry(AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, name, null);
    }
 
    private void requirePermission(Principal principal, String name, ResourceAction action) {
