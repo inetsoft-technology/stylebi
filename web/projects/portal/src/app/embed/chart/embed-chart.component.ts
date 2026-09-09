@@ -55,7 +55,7 @@ import { EmbedChartActions } from "./embed-chart-actions";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
 import { EmbedContextMenu } from "../embed-context-menu";
 import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
-import { EMBED_CHART_URL_MATCHER } from "./embed-chart.routes";
+import { EMBED_CHART_URL_MATCHER } from "./embed-chart-url-matcher";
 import { VSChartService } from "../../vsobjects/objects/chart/services/vs-chart.service";
 import { ChartService } from "../../graph/services/chart.service";
 import { DndService } from "../../common/dnd/dnd.service";

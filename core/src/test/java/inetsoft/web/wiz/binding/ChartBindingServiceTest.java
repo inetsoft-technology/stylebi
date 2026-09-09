@@ -377,7 +377,14 @@ class ChartBindingServiceTest {
       assertTrue(thrown.getMessage().contains("geo"));
    }
 
-   /** An aesthetic-only binding is discardable on the same terms as a shelf one: with force. */
+   /**
+    * An aesthetic-only binding is discardable on the same terms as a shelf one: with force. The
+    * new source ({@code ORDER_DETAILS1}, per {@link #chartWithTables}) carries no columns at all,
+    * so the bound "Product" text field cannot resolve against it — {@link #discardBoundFields}
+    * clears it, exactly as a Composer drag-and-drop repoint would via
+    * {@code validateChartColumns}. (There used to be no discard at all here — see the
+    * still-kept-field case right below for the selective half of the same fix.)
+    */
    @Test
    void setSourceProceedsWhenForcedOverAnAestheticOnlyBinding() throws Exception {
       ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
@@ -396,9 +403,71 @@ class ChartBindingServiceTest {
                                   anyString());
       ChartBindingModel posted = captor.getValue().getModel();
       assertEquals("ORDER_DETAILS1", posted.getSource().getSource());
+      assertNull(posted.getTextField(),
+                 "'Product' does not resolve against ORDER_DETAILS1's (empty) column list, so " +
+                 "the forced repoint must discard it -- changeChartRef never reaches " +
+                 "validateChartColumns, so this class's own discardBoundFields is what clears it");
+   }
+
+   /**
+    * The selective half of the same fix: a forced repoint to a source that happens to carry a
+    * column of the same name keeps the field bound to it, rather than clearing every aesthetic
+    * channel unconditionally. This is the word-cloud/candlestick-safety case -- a chart whose
+    * entire binding lives on one aesthetic channel must not lose it just because
+    * {@code discardBoundFields} ran at all.
+    */
+   @Test
+   void setSourceKeepsAnAestheticFieldWhoseColumnStillResolvesInTheNewSource() throws Exception {
+      ChartBindingModel existing =
+         chartWithTablesAndColumns("ORDERS1", "ORDER_DETAILS1", "Product");
+      existing.setSource(assetSource("ORDERS1"));
+      ChartAestheticMutator.setField(existing, "text",
+                                     new FieldRef("Product", "dimension", null, null, null));
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+
+      harness(existing, refs, mock(ChangeChartTypeService.class),
+              mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", true, "");
+
+      ArgumentCaptor<ChangeChartRefEvent> captor =
+         ArgumentCaptor.forClass(ChangeChartRefEvent.class);
+      verify(refs).changeChartRef(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                  anyString());
+      assertNotNull(captor.getValue().getModel().getTextField(),
+                    "'Product' resolves against the new source, so the selective discard must " +
+                    "keep it rather than clearing every bound channel unconditionally");
+   }
+
+   /**
+    * A word cloud's entire binding lives on the text channel ({@code requireNoBoundFields}'s own
+    * javadoc names this as the reason aesthetic channels must be counted at all). Repointed to a
+    * same-shaped sibling table with force, its one binding must survive -- this is exactly the
+    * regression a blanket-clear implementation (rather than the selective,
+    * {@code ChartAestheticMutator.read}-based discard this fix uses) would reintroduce.
+    */
+   @Test
+   void setSourceKeepsAWordCloudsOnlyBindingWhenTheSiblingTableSharesItsColumn() throws Exception {
+      ChartBindingModel existing =
+         chartWithTablesAndColumns("ORDERS1", "ORDERS2", "Product");
+      existing.setSource(assetSource("ORDERS1"));
+      ChartAestheticMutator.setField(existing, "text",
+                                     new FieldRef("Product", "dimension", null, null, null));
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+
+      harness(existing, refs, mock(ChangeChartTypeService.class),
+              mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setSource("tok", principal(), "Chart1", "ORDERS2", true, "");
+
+      ArgumentCaptor<ChangeChartRefEvent> captor =
+         ArgumentCaptor.forClass(ChangeChartRefEvent.class);
+      verify(refs).changeChartRef(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                  anyString());
+      ChartBindingModel posted = captor.getValue().getModel();
+      assertEquals("ORDERS2", posted.getSource().getSource());
       assertNotNull(posted.getTextField(),
-                    "the repoint must not clear the channel itself — validateChartColumns " +
-                    "decides what survives, this write only moves the source");
+                    "a word cloud's only binding must survive a repoint to a same-shaped " +
+                    "sibling table -- losing it here is the exact regression a blanket-clear " +
+                    "aesthetic-channel discard would reintroduce");
    }
 
    /**
@@ -419,6 +488,14 @@ class ChartBindingServiceTest {
       verify(refs).changeChartRef(eq("rt1"), any(), any(Principal.class), any(), anyString());
    }
 
+   /**
+    * The bare {@code ChartDimensionRefModel} placed on x here carries no column name at all
+    * (neither {@code columnValue} nor {@code name} is set), so it cannot resolve against
+    * ORDER_DETAILS1 (which, per {@link #chartWithTables}, carries no columns either) -- the
+    * forced repoint must discard it, which used not to happen at all: {@code setSource(force:
+    * true)} performed no discard of any kind before this fix (bug #76495), so this field would
+    * have survived, stale, pointed at a source that no longer has it.
+    */
    @Test
    void setSourceProceedsWhenForced() throws Exception {
       ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
@@ -434,7 +511,123 @@ class ChartBindingServiceTest {
          ArgumentCaptor.forClass(ChangeChartRefEvent.class);
       verify(refs).changeChartRef(eq("rt1"), captor.capture(), any(Principal.class), any(),
                                   anyString());
-      assertEquals("ORDER_DETAILS1", captor.getValue().getModel().getSource().getSource());
+      ChartBindingModel posted = captor.getValue().getModel();
+      assertEquals("ORDER_DETAILS1", posted.getSource().getSource());
+      assertTrue(posted.getXFields().isEmpty(),
+                 "the pre-existing x-shelf field has no column, so it cannot resolve against the " +
+                 "new source and must be discarded by the forced repoint");
+   }
+
+   /**
+    * The selective half of the same fix on a list shelf: a field whose column still resolves in
+    * the new source is kept, while an unrelated field on the same shelf whose column the new
+    * source lacks is cleared -- matching {@code TableBindingService.discardBoundFields}'s own
+    * "same-shaped repoint keeps matching fields" behavior.
+    */
+   @Test
+   void setSourceKeepsAShelfFieldWhoseColumnStillResolvesButClearsOneThatDoesNot()
+      throws Exception
+   {
+      ChartBindingModel existing =
+         chartWithTablesAndColumns("ORDERS1", "ORDER_DETAILS1", "Product");
+      existing.setSource(assetSource("ORDERS1"));
+      ChartDimensionRefModel kept = new ChartDimensionRefModel();
+      kept.setColumnValue("Product");
+      ChartDimensionRefModel cleared = new ChartDimensionRefModel();
+      cleared.setColumnValue("Region");
+      existing.setXFields(List.of(kept, cleared));
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+
+      harness(existing, refs, mock(ChangeChartTypeService.class),
+              mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", true, "");
+
+      ArgumentCaptor<ChangeChartRefEvent> captor =
+         ArgumentCaptor.forClass(ChangeChartRefEvent.class);
+      verify(refs).changeChartRef(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                  anyString());
+      List<inetsoft.web.binding.model.graph.ChartRefModel> xFields =
+         captor.getValue().getModel().getXFields();
+      assertEquals(1, xFields.size());
+      assertEquals("Product",
+                   ((ChartDimensionRefModel) xFields.get(0)).getColumnValue(),
+                   "the field whose column ('Product') still resolves must be kept");
+   }
+
+   /**
+    * The same selective discard, on an aggregate-bound measure rather than a dimension --
+    * {@code columnNameOf}'s aggregate branch reads {@code getColumnValue()}, not
+    * {@code getFullName()} (a formula display string like "Sum(Sales)" on the production read
+    * path, and null on the set_chart_shelf/set_single_shelf write path -- either way never a raw
+    * column name), so a measure on x/y or a single-value shelf must survive a same-shaped-sibling
+    * repoint exactly like a dimension does. Regression test for the gap CI's own automated review
+    * caught after this fix's first merge: every prior test here exercised only dimensions/geo/
+    * aesthetic fields, so an aggregate always failing to resolve (and therefore always being
+    * discarded, even when its column still existed) shipped unnoticed.
+    */
+   @Test
+   void setSourceKeepsAnAggregateFieldWhoseColumnStillResolvesButClearsOneThatDoesNot()
+      throws Exception
+   {
+      ChartBindingModel existing =
+         chartWithTablesAndColumns("ORDERS1", "ORDER_DETAILS1", "Sales");
+      existing.setSource(assetSource("ORDERS1"));
+      ChartAggregateRefModel kept = new ChartAggregateRefModel();
+      kept.setColumnValue("Sales");
+      kept.setFormula("Sum");
+      ChartAggregateRefModel cleared = new ChartAggregateRefModel();
+      cleared.setColumnValue("Cost");
+      cleared.setFormula("Sum");
+      existing.setYFields(List.of(kept, cleared));
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+
+      harness(existing, refs, mock(ChangeChartTypeService.class),
+              mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", true, "");
+
+      ArgumentCaptor<ChangeChartRefEvent> captor =
+         ArgumentCaptor.forClass(ChangeChartRefEvent.class);
+      verify(refs).changeChartRef(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                  anyString());
+      List<inetsoft.web.binding.model.graph.ChartRefModel> yFields =
+         captor.getValue().getModel().getYFields();
+      assertEquals(1, yFields.size(),
+                   "the aggregate bound to 'Sales' must be kept since that column still resolves " +
+                   "in the new source; the one bound to 'Cost' must be cleared");
+      assertEquals("Sales", ((ChartAggregateRefModel) yFields.get(0)).getColumnValue());
+   }
+
+   /**
+    * Forcing a repoint to the chart's own current table is the no-op exemption
+    * {@code ChartBindingService.discardBoundFields} shares with {@code requireNoBoundFields}
+    * (both guarded by {@code BindingSources.alreadyPointedAt}) -- every field-carrying location
+    * must survive untouched, the same as the non-forced case
+    * {@link #setSourceToTheSameTableDoesNotDemandForce} already covers.
+    */
+   @Test
+   void setSourceToTheSameTableWithForceLeavesEveryFieldUntouched() throws Exception {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      existing.setXFields(List.of(new ChartDimensionRefModel()));
+      existing.setCloseField(new ChartAggregateRefModel());
+      ChartAestheticMutator.setField(existing, "text",
+                                     new FieldRef("Product", "dimension", null, null, null));
+      existing.setGeoFields(List.of(new ChartDimensionRefModel()));
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+
+      harness(existing, refs, mock(ChangeChartTypeService.class),
+              mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setSource("tok", principal(), "Chart1", "ORDERS1", true, "");
+
+      ArgumentCaptor<ChangeChartRefEvent> captor =
+         ArgumentCaptor.forClass(ChangeChartRefEvent.class);
+      verify(refs).changeChartRef(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                  anyString());
+      ChartBindingModel posted = captor.getValue().getModel();
+      assertEquals(1, posted.getXFields().size(), "a same-table repoint must discard nothing");
+      assertNotNull(posted.getCloseField());
+      assertNotNull(posted.getTextField());
+      assertEquals(1, posted.getGeoFields().size());
    }
 
    /**
@@ -477,6 +670,37 @@ class ChartBindingServiceTest {
       }
 
       model.setTables(tables);
+
+      return model;
+   }
+
+   /**
+    * Like {@link #chartWithTables}, but the second (target) table carries the given columns --
+    * for the selective-discard tests, where a repoint's new source needs an actual column list to
+    * resolve a kept field's column name against. {@link #chartWithTables} alone leaves every
+    * table's column list null, which is why a field bound to any column is unconditionally
+    * unresolvable there (every table-repoint test that expects a clear uses that helper; every one
+    * that expects a same-named field to survive uses this one instead).
+    */
+   private static ChartBindingModel chartWithTablesAndColumns(String currentTable,
+                                                               String targetTable,
+                                                               String... targetColumns)
+   {
+      ChartBindingModel model = chartWithTables(currentTable, targetTable);
+
+      for(inetsoft.web.binding.model.BindingModel.SourceTable table : model.getTables()) {
+         if(table.getName().equalsIgnoreCase(targetTable)) {
+            List<inetsoft.web.binding.model.BindingModel.SourceTableColumn> columns =
+               new ArrayList<>();
+
+            for(String column : targetColumns) {
+               columns.add(
+                  new inetsoft.web.binding.model.BindingModel.SourceTableColumn(column, null));
+            }
+
+            table.setColumns(columns);
+         }
+      }
 
       return model;
    }

@@ -198,6 +198,50 @@ class WorksheetPreviewServiceTest {
       assertEquals(3, rows.size());
    }
 
+   // Bug #76517 (WBS-038): a non-null TableLens whose getColCount()/header/row extraction
+   // throws a RuntimeException (e.g. an internal wrapper TableLens with an unset delegate)
+   // previously propagated straight out of preview() as a raw, unactionable exception -
+   // everything after the getTableLens() try/catch (lines 102-122 pre-fix) had no exception
+   // handling at all. This does not reproduce the reporter's exact NPE (whose root cause is
+   // unpinned - see bug-WBS-038/02-refute.md); it proves the narrower, confirmed-safe claim
+   // that ANY RuntimeException thrown while reading columns/rows now surfaces as a
+   // PairingException naming the table, not a bare crash.
+   @Test
+   void throwsPairingExceptionWhenGetColCountThrows() throws Exception {
+      TableLens l = mock(TableLens.class);
+      NullPointerException cause = new NullPointerException(
+         "Cannot invoke \"inetsoft.report.TableLens.getColCount()\" because \"table\" is null");
+      when(l.getColCount()).thenThrow(cause);
+
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
+
+      PairingException ex = assertThrows(PairingException.class,
+                                          () -> service.preview(rws(box), "T", 10));
+      assertEquals("Failed to read result columns for 'T': " +
+                   "Cannot invoke \"inetsoft.report.TableLens.getColCount()\" because \"table\" is null",
+                   ex.getMessage());
+      assertSame(cause, ex.getCause());
+   }
+
+   @Test
+   void throwsPairingExceptionWhenRowExtractionThrows() throws Exception {
+      TableLens l = mock(TableLens.class);
+      when(l.getColCount()).thenReturn(1);
+      when(l.getObject(0, 0)).thenReturn("col");
+      when(l.moreRows(1)).thenReturn(true);
+      RuntimeException cause = new RuntimeException("row read failed");
+      when(l.getObject(1, 0)).thenThrow(cause);
+
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
+
+      PairingException ex = assertThrows(PairingException.class,
+                                          () -> service.preview(rws(box), "T", 10));
+      assertEquals("Failed to read result columns for 'T': row read failed", ex.getMessage());
+      assertSame(cause, ex.getCause());
+   }
+
    @Test
    void usesFallbackHeaderNameWhenObjectIsNull() throws Exception {
       TableLens l = mock(TableLens.class);

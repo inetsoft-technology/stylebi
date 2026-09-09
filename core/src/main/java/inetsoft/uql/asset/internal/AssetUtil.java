@@ -552,6 +552,14 @@ public class AssetUtil {
          return null;
       }
 
+      // Bug #76400: a ColumnRef's own alias (e.g. an aggregate output alias set by
+      // set_group_aggregate) is about to be discarded by the unwrap below. A downstream table
+      // (e.g. the auto per-viewsheet mirror Worksheet.getVSTableAssembly lazily creates) may have
+      // folded that same alias into one of its own columns' bare attribute name (see
+      // MirrorTableAssembly.updateColumnSelection -> AssetUtil.getOuterAttribute), so keep it
+      // around as a last-resort match key in case the raw-attribute match below finds nothing.
+      String origAlias = ref instanceof ColumnRef ? ((ColumnRef) ref).getAlias() : null;
+
       if(ref instanceof ColumnRef) {
          ref = ((ColumnRef) ref).getDataRef();
       }
@@ -603,7 +611,32 @@ public class AssetUtil {
          }
       }
 
-      return column2;
+      if(column2 != null) {
+         return column2;
+      }
+
+      // Bug #76400 fallback: nothing matched the raw attribute name. If the original (pre-unwrap)
+      // ref carried an alias, try it against candidate columns' own bare ATTRIBUTE (not their
+      // alias) -- covers a downstream table whose column selection was rebuilt from a column that
+      // carried this same alias, baking the alias in as that column's own attribute name (e.g.
+      // AssetUtil.getOuterAttribute, used by MirrorTableAssembly.updateColumnSelection). Only a
+      // column with no alias of its own is eligible, so this never masks a genuine, differently-
+      // aliased column that happens to share this bare name.
+      if(origAlias != null && origAlias.length() > 0) {
+         iter = columns.getAttributes();
+
+         while(iter.hasMoreElements()) {
+            ColumnRef dref = (ColumnRef) iter.nextElement();
+
+            if(Tool.equals(dref.getAttribute(), origAlias) &&
+               (dref.getAlias() == null || dref.getAlias().isEmpty()))
+            {
+               return dref;
+            }
+         }
+      }
+
+      return null;
    }
 
    /**
@@ -2717,6 +2750,84 @@ public class AssetUtil {
       if(description != null) {
          target.setProperty("description", description);
       }
+   }
+
+   /**
+    * Checks whether shrinking an unpivot's header column count from {@code oldHcol} to a
+    * smaller {@code newHcol} would move a column into the melted range whose type is
+    * incompatible with it, using the exact {@code sameType}/{@code allNumber} rule
+    * {@link #unpivot(XTable, int)} itself applies once the melt actually executes. This lets a
+    * caller reject the shrink up front (using the source table's declared column types) instead
+    * of letting {@code unpivot} silently coerce the melted column to {@code STRING} and inject
+    * one phantom "column name as data" row per source row.
+    *
+    * @param cs      the pre-unpivot source table's column selection, in column order
+    * @param oldHcol the current header column count
+    * @param newHcol the proposed header column count
+    *
+    * @return {@code null} if the shrink is type-safe (or not actually a shrink), otherwise a
+    *         message naming the first offending column and the conflicting types
+    */
+   public static String checkUnpivotShrinkTypeConflict(ColumnSelection cs, int oldHcol, int newHcol) {
+      if(newHcol >= oldHcol) {
+         return null;
+      }
+
+      int colCount = cs.getAttributeCount();
+
+      // An out-of-range newHcol isn't this helper's bound-check to enforce -- that's the
+      // caller's job (e.g. WorksheetEditService.editUnpivot's own headerColumns check) -- but it
+      // also isn't a type conflict this helper can meaningfully answer, so treat it as no
+      // conflict rather than indexing types[] with it below.
+      if(newHcol < 0 || newHcol >= colCount) {
+         return null;
+      }
+
+      String[] types = new String[colCount];
+
+      for(int i = newHcol; i < colCount; i++) {
+         DataRef ref = cs.getAttribute(i);
+         types[i] = ref instanceof ColumnRef ? ((ColumnRef) ref).getDataType() : XSchema.STRING;
+      }
+
+      boolean sameType = true;
+      boolean allNumber = true;
+
+      for(int i = newHcol + 1; i < colCount; i++) {
+         String t0 = types[i - 1];
+         String t1 = types[i];
+
+         if(!XSchema.isNumericType(t0) || !XSchema.isNumericType(t1)) {
+            allNumber = false;
+         }
+
+         if(!Objects.equals(t0, t1)) {
+            sameType = false;
+         }
+      }
+
+      if(sameType || allNumber) {
+         return null;
+      }
+
+      // The melt is not incremental (it always recomputes over [newHcol, colCount)), but the
+      // columns already at [oldHcol, colCount) are the ones the caller expects to keep their
+      // current type, so they are what a departing column is judged against.
+      String meltType = oldHcol < colCount ? types[oldHcol] : null;
+
+      for(int i = newHcol; i < oldHcol; i++) {
+         String type = types[i];
+         boolean compatible = Objects.equals(type, meltType) ||
+            (XSchema.isNumericType(type) && XSchema.isNumericType(meltType));
+
+         if(!compatible) {
+            String name = cs.getAttribute(i).getName();
+            return name + " cannot move from header to melted columns: it is type '" + type +
+               "' but the melted columns are type '" + meltType + "'.";
+         }
+      }
+
+      return null;
    }
 
    /**

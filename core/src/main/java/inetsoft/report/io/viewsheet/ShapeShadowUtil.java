@@ -41,9 +41,15 @@ public final class ShapeShadowUtil {
 
    /**
     * Check whether the assembly is a shape drawing a configurable shadow.
+    *
+    * Line is excluded: it predates configurable shadow settings and has no
+    * UI/script path to configure one, so it keeps its old fixed-size shadow
+    * (VSShape.paintComponent) instead of the configurable-shadow insets this
+    * class computes.
     */
    public static boolean isShapeShadow(VSAssemblyInfo info) {
       return info instanceof ShapeVSAssemblyInfo &&
+         !(info instanceof LineVSAssemblyInfo) &&
          ((ShapeVSAssemblyInfo) info).isShadow();
    }
 

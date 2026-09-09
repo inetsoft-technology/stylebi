@@ -1984,8 +1984,17 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
       const message = Tool.formatCatalogString("_#(js:viewer.viewsheet.bookmark.deleteSelected)", [bookmark.name])
 
+      // Bug #76453: the Bookmark panel dropdown (.fixed-dropdown, z-index 999900) stays open
+      // until "Yes" is clicked, so the generic Confirm modal (.modal, z-index 10500) rendered
+      // underneath it. Raise this dialog's z-index above the panel's, mirroring the same fix
+      // already applied to the "Remove Bookmarks" batch-delete dialog below.
       ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", message,
-         {"yes": "_#(js:Yes)", "no": "_#(js:No)"})
+         {"yes": "_#(js:Yes)", "no": "_#(js:No)"},
+         <NgbModalOptions> {
+            backdrop: "static",
+            windowClass: "delete-bookmark-confirm-dialog",
+            backdropClass: "delete-bookmark-confirm-dialog-backdrop"
+         })
          .then((buttonClicked) => {
             if(buttonClicked === "yes") {
                this.bookmarkDropdownBtn?.close();

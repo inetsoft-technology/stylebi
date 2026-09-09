@@ -15,19 +15,22 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Routes, UrlSegment } from "@angular/router";
+import { Routes } from "@angular/router";
 import { canDeactivateGuard } from "../../common/services/can-deactivate-guard.service";
-import { createEmbedUrlMatcher } from "../embed-url-matcher";
-import { EmbedChartComponent } from "./embed-chart.component";
+import { EMBED_CHART_URL_MATCHER } from "./embed-chart-url-matcher";
+import { EMBED_CHART_ROUTE_PROVIDERS } from "./embed-chart.route-providers";
 
-export function EMBED_CHART_URL_MATCHER(url: UrlSegment[]) {
-   return createEmbedUrlMatcher(url);
-}
-
+// Lazily loaded route used by the full portal app (app.routes.ts's `loadChildren` on this whole
+// module). NOTE: nothing in the "elements" web-component bundle (main-elements.ts) may import
+// this file -- see embed-chart.routes-eager.ts for the equivalent eager route that bundle uses
+// instead, and why (Bug #76468: this file's `import()` below is a hard chunk-split point for
+// esbuild in *any* build that pulls this module in, whether or not embedChartRoutes itself ends
+// up used by that build).
 export const embedChartRoutes: Routes = [
    {
       loadComponent: () => import("./embed-chart.component").then(m => m.EmbedChartComponent),
       canDeactivate: [canDeactivateGuard],
-      matcher: EMBED_CHART_URL_MATCHER
+      matcher: EMBED_CHART_URL_MATCHER,
+      providers: EMBED_CHART_ROUTE_PROVIDERS
    }
 ];

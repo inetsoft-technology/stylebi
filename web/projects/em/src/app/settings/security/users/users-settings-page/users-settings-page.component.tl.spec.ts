@@ -55,7 +55,7 @@ import { render } from "@testing-library/angular";
 import { provideHttpClient } from "@angular/common/http";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { of, Subject } from "rxjs";
+import { firstValueFrom, of, Subject } from "rxjs";
 import { http, HttpResponse } from "msw";
 
 import { server } from "@test-mocks/server";
@@ -107,7 +107,11 @@ const makeUserNode = (name: string, orgID = "TestOrg"): SecurityTreeNode =>
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface RenderOpts {
-   /** Simulates the provider returned by getProvider() on construction. Empty = skip initial load. */
+   /**
+    * Simulates the provider returned by getProvider(). The component no longer reads it on
+    * construction -- ngOnInit calls refreshProviders() instead (a no-op in these mocks), so
+    * the initial tree load is driven by an onRefresh emission.
+    */
    initialProvider?: string;
    dialogClosesWith?: unknown;
    isSysAdmin?: boolean;
@@ -120,8 +124,8 @@ async function renderComponent(opts: RenderOpts = {}) {
 
    const orgDropdownSpy = {
       onRefresh: onRefreshSubject,
-      // Return "" so changeProvider early-returns and skips the constructor HTTP call.
-      // Tests that need a loaded tree set comp.selectedProvider + comp.model directly.
+      // Tests that need a loaded tree set comp.selectedProvider + comp.model directly, or
+      // push a provider through onRefreshSubject.
       getProvider: vi.fn().mockReturnValue(opts.initialProvider ?? ""),
       authenticationProviders: ["TestProvider"],
       loginUserOrgName: opts.loginUserOrgName ?? "CurrentUser",
@@ -661,6 +665,64 @@ describe("UsersSettingsPageComponent — selfRefreshing guard: ignores self-trig
       onRefreshSubject.next({ provider: "NewProvider", providerChanged: false });
 
       await vi.waitFor(() => expect(comp.selectedProvider).toBe("NewProvider"));
+   });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Group 7b [Risk 3] — init: provider list must be reloaded, never assumed current
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("UsersSettingsPageComponent — init: provider list must be reloaded", () => {
+
+   // 🔁 Regression-sensitive: OrganizationDropdownService caches the provider list for the
+   // whole browser session. A provider added, copied, renamed or removed since the EM page was
+   // loaded is missing from that cache, and getProvider() can name a provider that no longer
+   // exists -- get-security-tree-root then 500s with an NPE on a null provider, and only a
+   // logout/login clears it. ngOnInit must re-fetch the list instead of trusting the cache.
+   it("should reload the provider list on init", async () => {
+      const { orgDropdownSpy } = await renderComponent();
+
+      expect(orgDropdownSpy.refreshProviders).toHaveBeenCalled();
+   });
+
+   // Corollary: the tree request must wait for the reloaded list, so it can never be issued
+   // with a provider name the server no longer knows.
+   it("should not request the security tree until the reloaded list emits a provider", async () => {
+      const { comp, onRefreshSubject } = await renderComponent({
+         initialProvider: "StaleProvider",
+      });
+
+      // treeData is only assigned by refreshTree(), so an unset treeData means no tree
+      // request was prepared for the stale cached provider name
+      expect(comp.treeData).toBeUndefined();
+
+      // registered after render so it takes precedence over renderComponent's catch-all
+      const treeRequests: string[] = [];
+      server.use(
+         http.get("*/api/em/security/user/get-security-tree-root/*", ({ request }) => {
+            treeRequests.push(new URL(request.url).pathname);
+            return HttpResponse.json(DEFAULT_TREE_ROOT);
+         }),
+      );
+
+      onRefreshSubject.next({ provider: "ValidatedProvider", providerChanged: true });
+
+      expect(comp.treeData).toBeDefined();
+      await firstValueFrom(comp.treeData);
+      expect(treeRequests).toEqual([expect.stringContaining("/ValidatedProvider/true")]);
+   });
+
+   // 🔁 Regression-sensitive: the onRefresh subscription used to outlive the component, so a
+   // destroyed Users page kept issuing tree requests for every provider/org change.
+   it("should stop reacting to onRefresh after ngOnDestroy", async () => {
+      const { comp, fixture, onRefreshSubject } = await renderComponent();
+      fixture.destroy();
+
+      onRefreshSubject.next({ provider: "AfterDestroy", providerChanged: false });
+
+      // the handler never ran, so refreshTree() never assigned a new tree request
+      expect(comp.treeData).toBeUndefined();
+      expect(comp.selectedProvider).not.toBe("AfterDestroy");
    });
 });
 

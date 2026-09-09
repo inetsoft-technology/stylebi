@@ -18,6 +18,9 @@
 
 package inetsoft.uql.asset.internal;
 
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,7 +37,9 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @Tag("core")
 public class AssetUtilTest {
@@ -91,5 +96,50 @@ public class AssetUtilTest {
 
       assertEquals(XSchema.DOUBLE, plainNumberType);
       assertEquals(XSchema.DOUBLE, currencyType);
+   }
+
+   private static ColumnRef col(String name, String dataType) {
+      ColumnRef ref = new ColumnRef(new AttributeRef(null, name));
+      ref.setDataType(dataType);
+      return ref;
+   }
+
+   /**
+    * Regression test for a PR #5070 review finding (bug 76517/WBS-036): the fill loop that
+    * populates {@code types[]} was clamped to {@code Math.max(0, newHcol)}, but the
+    * {@code sameType}/{@code allNumber} comparison loop right after it started at the
+    * <em>unclamped</em> {@code newHcol + 1}, so a negative {@code newHcol} indexed
+    * {@code types[-1]} and threw {@code ArrayIndexOutOfBoundsException} instead of the intended
+    * "not this helper's bound-check to enforce" no-conflict result. Every caller is expected to
+    * have its own bound check (see {@code WorksheetEditService.editUnpivot} and
+    * {@code TableUnpivotDialogService.changeUnpivotTableRowHeaders}), but the helper itself must
+    * not crash if one somehow doesn't.
+    */
+   @Test
+   void checkUnpivotShrinkTypeConflictToleratesNegativeNewHcol() {
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(col("region", XSchema.STRING));
+      cs.addAttribute(col("category", XSchema.STRING));
+      cs.addAttribute(col("q1", XSchema.DOUBLE));
+      cs.addAttribute(col("q2", XSchema.DOUBLE));
+
+      String result = assertDoesNotThrow(
+         () -> AssetUtil.checkUnpivotShrinkTypeConflict(cs, 2, -1));
+      assertNull(result, "an out-of-range newHcol is not this helper's conflict to report");
+   }
+
+   @Test
+   void checkUnpivotShrinkTypeConflictToleratesNewHcolAtOrPastColumnCount() {
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(col("region", XSchema.STRING));
+      cs.addAttribute(col("category", XSchema.STRING));
+      cs.addAttribute(col("q1", XSchema.DOUBLE));
+      cs.addAttribute(col("q2", XSchema.DOUBLE));
+
+      // newHcol < oldHcol is still true (4 < 5), so this doesn't short-circuit on the
+      // "not actually a shrink" check -- it must instead survive the >= colCount case cleanly.
+      String result = assertDoesNotThrow(
+         () -> AssetUtil.checkUnpivotShrinkTypeConflict(cs, 5, 4));
+      assertNull(result);
    }
 }

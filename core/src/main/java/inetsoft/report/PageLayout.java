@@ -20,6 +20,7 @@ package inetsoft.report;
 import inetsoft.graph.internal.GTool;
 import inetsoft.report.internal.*;
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.viewsheet.ShapeShadow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -123,6 +124,20 @@ public class PageLayout implements Serializable, Cloneable {
       }
 
       /**
+       * Set the drop shadow to draw behind this shape, or null for none.
+       */
+      public void setShadow(ShapeShadow shadow) {
+         this.shadow = shadow;
+      }
+
+      /**
+       * Get the drop shadow to draw behind this shape, or null for none.
+       */
+      public ShapeShadow getShadow() {
+         return shadow;
+      }
+
+      /**
        * Scale the shape.
        * @param xs x scale 0 to 1.
        * @param ys y scale 0 to 1.
@@ -199,6 +214,7 @@ public class PageLayout implements Serializable, Cloneable {
          style = shape.style;
          xs = shape.xs;
          ys = shape.ys;
+         shadow = shape.shadow;
       }
 
 		/**
@@ -221,6 +237,7 @@ public class PageLayout implements Serializable, Cloneable {
 		private int zindex; // just for previewing vs printlayout.
       private Color color = Color.black; // shape color
       private int style = StyleConstants.THIN_LINE; // line style
+      private ShapeShadow shadow; // drop shadow, null if none
       double xs = 1, ys = 1;
    }
 
@@ -519,6 +536,27 @@ public class PageLayout implements Serializable, Cloneable {
       @Override
       public void paint(Graphics g) {
          Color oc = g.getColor();
+
+         // draw behind the shape's own fill/outline, matching the shadow
+         // direction convention ShapeShadow already establishes on the
+         // viewsheet side. paint(Graphics) is fed whatever the active
+         // export/print pipeline provides (PDF content-stream graphics,
+         // raster graphics, etc.) rather than a single BufferedImage, so this
+         // draws the shadow as its own filled shape offset by direction and
+         // distance instead of reusing VSFaceUtil.addShadow's raster blur --
+         // the blur radius is not applied here, a simplification accepted
+         // because a genuine Gaussian blur is not practical in a
+         // Graphics-only context.
+         ShapeShadow shadow = getShadow();
+
+         if(shadow != null) {
+            Graphics2D sg = (Graphics2D) g.create();
+            sg.translate((int) (shadow.getOffsetX() * xs), (int) (shadow.getOffsetY() * ys));
+            sg.setColor(shadow.getShadowColor());
+            sg.fillRect((int) (getX() * xs), (int) (getY() * ys),
+               (int) (getWidth() * xs), (int) (getHeight() * ys));
+            sg.dispose();
+         }
 
          if(fill != null) {
             Graphics2D g2 = (Graphics2D) g.create();
@@ -999,6 +1037,19 @@ public class PageLayout implements Serializable, Cloneable {
       @Override
       public void paint(Graphics g) {
          Color oc = g.getColor();
+
+         // see Rectangle.paint() for why this is an unblurred offset fill
+         // rather than VSFaceUtil.addShadow's raster blur.
+         ShapeShadow shadow = getShadow();
+
+         if(shadow != null) {
+            Graphics2D sg = (Graphics2D) g.create();
+            sg.translate((int) (shadow.getOffsetX() * xs), (int) (shadow.getOffsetY() * ys));
+            sg.setColor(shadow.getShadowColor());
+            sg.fillOval((int) (getX() * xs), (int) (getY() * ys),
+               (int) (getWidth() * xs), (int) (getHeight() * ys));
+            sg.dispose();
+         }
 
          if(fill != null) {
             Graphics2D g2 = (Graphics2D) g.create();

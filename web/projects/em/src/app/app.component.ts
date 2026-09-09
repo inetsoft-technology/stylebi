@@ -84,7 +84,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
    ngOnInit(): void {
       this.subscription.add(this.currentUserService.getEmCurrentUser().subscribe(userModel => {
-         this.name = userModel.name?.name;
+         this.name = userModel?.name?.name;
       }));
 
       this.subscription.add(this.authzService.getPermissions("").subscribe(p => this.permissions = p));

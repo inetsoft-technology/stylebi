@@ -2610,6 +2610,29 @@ class WorksheetEditServiceMutatorsTest {
       assertNull(ws.getAssembly("J"), "join assembly 'J' should have been removed");
    }
 
+   /** A join something depends on refuses to be removed -- mirrors deleteTable's own guard. */
+   @Test
+   void removeJoinRefusesWhenSomethingIsBuiltOnIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> {
+         ed.addJoin("J", "L", "id", "R", "id", "LEFT", null, null);
+         ed.addMirror("M", "J");
+      });
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeJoin("J")));
+
+      assertTrue(ex.getMessage().contains("built on it"), ex.getMessage());
+      assertNotNull(ws.getAssembly("J"), "the join must still be there");
+      assertNotNull(ws.getAssembly("M"), "and so must the mirror that depends on it");
+   }
+
    // =========================================================================
    // Column-dependency guard tests (Redmine #75968)
    //
@@ -4550,6 +4573,64 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
+    * Same rule as {@link #addConcatenationRejectsColumnsThatDoNotLineUpByType}, reached through the
+    * other entry point: {@code addConcatSubtable} only checked column COUNT, so a subtable whose
+    * column at some position was a different {@code isMergeable} class than the existing subtables'
+    * spliced straight in with no error.
+    */
+   @Test
+   void addConcatSubtableRejectsColumnsThatDoNotLineUpByType() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a =
+         table(ws, "A", col("id", XSchema.INTEGER), col("name", XSchema.STRING));
+      EmbeddedTableAssembly b =
+         table(ws, "B", col("id", XSchema.INTEGER), col("name", XSchema.STRING));
+      EmbeddedTableAssembly c =
+         table(ws, "C", col("id", XSchema.INTEGER), col("amount", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addConcatSubtable("U", "C")));
+
+      assertTrue(ex.getMessage().contains("position 2"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("name"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("amount"), ex.getMessage());
+      assertEquals(2, ((ConcatenatedTableAssembly) ws.getAssembly("U")).getTableAssemblies().length,
+                   "the subtable list must be unchanged when the types do not line up");
+   }
+
+   /**
+    * Companion to the rejection test above: different types are not automatically a mismatch, since
+    * {@code AssetUtil.isMergeable} treats all number types as interchangeable, and likewise date and
+    * timeInstant. This is the case that would have let the original reporter's date/timeInstant
+    * repro still pass, proving the fix does not over-tighten past what {@code addConcatenation}
+    * itself allows.
+    */
+   @Test
+   void addConcatSubtableAcceptsColumnTypesThatMerge() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("n", XSchema.INTEGER), col("s", XSchema.STRING));
+      EmbeddedTableAssembly b = table(ws, "B", col("n", XSchema.INTEGER), col("s", XSchema.STRING));
+      EmbeddedTableAssembly c = table(ws, "C", col("n", XSchema.DOUBLE), col("s", XSchema.CHAR));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION"));
+
+      svc.apply("TOK", agent, ed -> ed.addConcatSubtable("U", "C"));
+
+      assertEquals(3, ((ConcatenatedTableAssembly) ws.getAssembly("U")).getTableAssemblies().length,
+                   "a mergeable column-type pairing must still be accepted");
+   }
+
+   /**
     * With three sources the mismatch is between the third and the first, which pins down that the
     * loop keeps checking past the first pair and names the offending source rather than whichever
     * one happened to come second.
@@ -5724,5 +5805,81 @@ class WorksheetEditServiceMutatorsTest {
       svc.apply("TOK", agent, ed -> ed.deleteVariable("unused"));
 
       assertNull(ws.getAssembly("unused"));
+   }
+
+   // =========================================================================
+   // editUnpivot bound + shrink type-compatibility guard (bug 76517/WBS-036)
+   //
+   // editUnpivot had zero validation: it just called table.setHeaderColumns(headerColumns).
+   // Every unpivot execution re-derives the melt from scratch off the pre-unpivot source table
+   // (AssetUtil.unpivot), so shrinking headerColumns onto a column whose type doesn't match the
+   // melted columns silently coerced the whole melted column to STRING and injected one phantom
+   // "column name as data" row per source row -- see 01-diagnosis.md for the full trace.
+   // =========================================================================
+
+   @Test
+   void editUnpivotRejectsOutOfRangeHeaderColumns() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly src = table(ws, "S",
+         col("region", XSchema.STRING), col("q1", XSchema.DOUBLE), col("q2", XSchema.DOUBLE));
+      ws.addAssembly(src);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addUnpivot("U", "S", 1));
+
+      PairingException negative = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editUnpivot("U", -1)));
+      assertTrue(negative.getMessage().contains("-1"), negative.getMessage());
+
+      PairingException tooLarge = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editUnpivot("U", 3)));
+      assertTrue(tooLarge.getMessage().contains("3"), tooLarge.getMessage());
+
+      assertEquals(1, ((UnpivotTableAssembly) ws.getAssembly("U")).getHeaderColumns(),
+         "a rejected headerColumns change must not be applied");
+   }
+
+   @Test
+   void editUnpivotRejectsTypeIncompatibleShrink() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly src = table(ws, "S",
+         col("region", XSchema.STRING), col("category", XSchema.STRING),
+         col("q1", XSchema.DOUBLE), col("q2", XSchema.DOUBLE));
+      ws.addAssembly(src);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addUnpivot("U", "S", 2));
+
+      // Shrinking to headerColumns=1 would move "category" (string) into the melt range
+      // alongside q1/q2 (double) -- exactly the reported repro's shape.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editUnpivot("U", 1)));
+      assertTrue(ex.getMessage().contains("category"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("string"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("double"), ex.getMessage());
+
+      assertEquals(2, ((UnpivotTableAssembly) ws.getAssembly("U")).getHeaderColumns(),
+         "a rejected shrink must not be applied");
+   }
+
+   @Test
+   void editUnpivotAllowsTypeCompatibleShrink() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly src = table(ws, "S",
+         col("region", XSchema.STRING), col("num1", XSchema.DOUBLE),
+         col("num2", XSchema.DOUBLE), col("num3", XSchema.DOUBLE));
+      ws.addAssembly(src);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addUnpivot("U", "S", 2));
+
+      // Shrinking to headerColumns=1 moves "num1" (double) into a melt range that is already
+      // entirely double -- type-homogeneous, so this must still succeed.
+      svc.apply("TOK", agent, ed -> ed.editUnpivot("U", 1));
+
+      assertEquals(1, ((UnpivotTableAssembly) ws.getAssembly("U")).getHeaderColumns());
    }
 }

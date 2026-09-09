@@ -160,6 +160,9 @@ export class AuthenticationProviderViewComponent implements OnInit, OnDestroy {
                      if(current) {
                         window.open("../logout?fromEm=true", "_self");
                      }
+                     else {
+                        this.orgDropdownService.refreshProviders();
+                     }
                   });
             }
          }
@@ -183,6 +186,11 @@ export class AuthenticationProviderViewComponent implements OnInit, OnDestroy {
             if(this.authenticationProviders.findIndex(p => p.name == status.name) == -1) {
                this.authenticationProviders.push(status);
             }
+
+            // the Users tab and page header read the provider list cached on
+            // OrganizationDropdownService, which otherwise stays stale for the whole
+            // browser session
+            this.orgDropdownService.refreshProviders();
          });
    }
 

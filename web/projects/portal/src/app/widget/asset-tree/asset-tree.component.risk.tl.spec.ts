@@ -31,11 +31,13 @@
  *   Group 7  [Risk 2] — ngOnDestroy: calls assetClientService.disconnect(); unsubscribes subscriptions
  *   Group 8  [Risk 1] — setupAssetClientService: calls assetClientService.connect();
  *                        subscribes to assetChanged
+ *   Group 9  [Risk 3] — current-user failure: the tree must still load when
+ *                        getPortalCurrentUser() errors or emits null (Bug #74027)
  */
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { render } from "@testing-library/angular";
-import { NEVER, of, Subject } from "rxjs";
+import { NEVER, of, Subject, throwError } from "rxjs";
 
 import { AssetTreeComponent } from "./asset-tree.component";
 import { AssetTreeService } from "./asset-tree.service";
@@ -370,5 +372,42 @@ describe("AssetTreeComponent — setupAssetClientService", () => {
       const { comp } = await renderComponent({});
 
       expect(assetChangedSubject.observed).toBe(true);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 9: current-user failure [Risk 3]
+// ---------------------------------------------------------------------------
+
+describe("AssetTreeComponent — current-user failure", () => {
+   // 🔁 Regression-sensitive: Bug #74027. If getPortalCurrentUser() errors and ngOnInit has no
+   //    error handler, loadAssetTree() is never called and the tree stays blank for the life of
+   //    the component — no retry, no error shown. Bug #74480 dropped that handler once already.
+   it("should still load the tree when getPortalCurrentUser() errors", async () => {
+      ASSET_TREE_SERVICE_MOCK.getAssetTreeNode.mockReturnValue(makeTreeResponse());
+      CURRENT_USER_SERVICE_MOCK.getPortalCurrentUser.mockReturnValue(
+         throwError(() => new Error("500")));
+
+      const { comp } = await renderComponent({ datasources: true });
+
+      expect(ASSET_TREE_SERVICE_MOCK.getAssetTreeNode).toHaveBeenCalledTimes(1);
+      expect(comp.root).not.toBeNull();
+      expect(comp.root.data.identifier).toBe("root-id");
+   });
+
+   // 🔁 Regression-sensitive: CurrentUserService maps a failed call to null, so the null emission
+   //    is the path actually taken in production; the tree must load with the default org scope.
+   it("should load the tree with the default scope when the current user is null", async () => {
+      ASSET_TREE_SERVICE_MOCK.getAssetTreeNode.mockReturnValue(makeTreeResponse());
+      CURRENT_USER_SERVICE_MOCK.getPortalCurrentUser.mockReturnValue(of(null));
+
+      const defaultFolder = { path: "Sales", scope: 4 } as any;
+      const { comp } = await renderComponent({ defaultFolder });
+
+      expect(comp.root).not.toBeNull();
+      // currOrgID defaults to "" rather than "SELF", so defaultFolder.scope is used as-is
+      const callArg: LoadAssetTreeNodesEvent =
+         ASSET_TREE_SERVICE_MOCK.getAssetTreeNode.mock.calls[0][0];
+      expect(callArg.getScope()).toBe(4);
    });
 });

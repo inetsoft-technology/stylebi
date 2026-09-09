@@ -908,11 +908,26 @@ public class WorksheetEditService {
       /**
        * Removes an assembly (typically a join assembly) from the worksheet by name.
        *
-       * <p>No-ops if no assembly with {@code name} exists.</p>
-       *
        * @param name the assembly name to remove
+       * @throws PairingException if no assembly with {@code name} exists, or if another
+       *                          assembly is built on it
        */
-      public void removeJoin(String name) {
+      public void removeJoin(String name) throws PairingException {
+         Assembly a = ws.getAssembly(name);
+
+         if(a == null) {
+            throw new PairingException("Join assembly not found in worksheet: " + name);
+         }
+
+         if(AssetEventUtil.hasDependent(a, ws, Set.of(name))) {
+            throw new PairingException(
+               "\"" + name + "\" cannot be removed because other assemblies are built on it. " +
+               "Removing it would leave them referencing an assembly that no longer exists, every " +
+               "query against them failing, and nothing able to repair them. Remove the " +
+               "assemblies that depend on it first -- read_worksheet_model reports each table's " +
+               "sources field, which is what references what.");
+         }
+
          ws.removeAssembly(name);
       }
 
@@ -1549,31 +1564,8 @@ public class WorksheetEditService {
                   (otherCount == 1 ? "" : "s") + ".");
             }
 
-            for(int c = 0; c < colCount; c++) {
-               // Read the type off DataRef rather than narrowing to ColumnRef: skipping a position
-               // whose ref is some other kind would silently leave it unchecked, which is the very
-               // failure this validation exists to prevent.
-               DataRef first = firstColumns.getAttribute(c);
-               DataRef other = otherColumns.getAttribute(c);
-               String ftype = first.getDataType();
-               String otype = other.getDataType();
-
-               // isMergeable dereferences both arguments; a ref with no type at all is not
-               // something this check can speak to, so leave it to the server.
-               if(ftype == null || otype == null) {
-                  continue;
-               }
-
-               if(!AssetUtil.isMergeable(ftype, otype)) {
-                  throw new PairingException(
-                     "Columns are concatenated by position, and position " + (c + 1) +
-                     " does not line up: \"" + sources[0].getName() + "\" has \"" +
-                     first.getAttribute() + "\" (" + ftype + ") while \"" + sources[i].getName() +
-                     "\" has \"" + other.getAttribute() + "\" (" + otype + "), and those types " +
-                     "cannot be merged. Reorder the columns so matching ones share a position, " +
-                     "or change one column's type with change_column_type.");
-               }
-            }
+            checkColumnTypesLineUp(firstColumns, sources[0].getName(),
+                                    otherColumns, sources[i].getName(), colCount);
          }
 
          // Build one operator per adjacent pair.
@@ -1597,6 +1589,49 @@ public class WorksheetEditService {
          ConcatenatedTableAssembly ctbl =
             new ConcatenatedTableAssembly(ws, name, sources, operators);
          placeAssembly(ctbl);
+      }
+
+      /**
+       * Validates that column {@code c} of {@code anchorColumns} is mergeable with column
+       * {@code c} of {@code otherColumns}, for every {@code c} in {@code [0, colCount)}. Shared
+       * by {@link #addConcatenation} and {@link #addConcatSubtable}, which both concatenate by
+       * position and therefore both need the same per-column type gate -- see the comment on
+       * {@link #addConcatenation}'s own call site for why anchoring the comparison choice does
+       * not matter.
+       *
+       * @throws PairingException naming the 1-based position and both column names/types, if any
+       *                          position does not line up.
+       */
+      private static void checkColumnTypesLineUp(ColumnSelection anchorColumns, String anchorName,
+                                                  ColumnSelection otherColumns, String otherName,
+                                                  int colCount)
+         throws PairingException
+      {
+         for(int c = 0; c < colCount; c++) {
+            // Read the type off DataRef rather than narrowing to ColumnRef: skipping a position
+            // whose ref is some other kind would silently leave it unchecked, which is the very
+            // failure this validation exists to prevent.
+            DataRef anchor = anchorColumns.getAttribute(c);
+            DataRef other = otherColumns.getAttribute(c);
+            String atype = anchor.getDataType();
+            String otype = other.getDataType();
+
+            // isMergeable dereferences both arguments; a ref with no type at all is not
+            // something this check can speak to, so leave it to the server.
+            if(atype == null || otype == null) {
+               continue;
+            }
+
+            if(!AssetUtil.isMergeable(atype, otype)) {
+               throw new PairingException(
+                  "Columns are concatenated by position, and position " + (c + 1) +
+                  " does not line up: \"" + anchorName + "\" has \"" + anchor.getAttribute() +
+                  "\" (" + atype + ") while \"" + otherName + "\" has \"" + other.getAttribute() +
+                  "\" (" + otype + "), and those types cannot be merged. Reorder the columns so " +
+                  "matching ones share a position, or change one column's type with " +
+                  "change_column_type.");
+            }
+         }
       }
 
       /**
@@ -2593,8 +2628,10 @@ public class WorksheetEditService {
          }
 
          // Validate column count matches existing subtables.
-         int colCount = existing[0].getColumnSelection(true).getAttributeCount();
-         int newCount = newTable.getColumnSelection(true).getAttributeCount();
+         ColumnSelection anchorColumns = existing[0].getColumnSelection(true);
+         ColumnSelection newColumns = newTable.getColumnSelection(true);
+         int colCount = anchorColumns.getAttributeCount();
+         int newCount = newColumns.getAttributeCount();
 
          if(newCount != colCount) {
             throw new PairingException(
@@ -2602,6 +2639,13 @@ public class WorksheetEditService {
                "concatenated. Existing subtables have " + colCount +
                " columns but \"" + tableName + "\" has " + newCount + ".");
          }
+
+         // Validate column types line up by position against the existing subtables' anchor
+         // column list, mirroring addConcatenation's check -- see checkColumnTypesLineUp for why
+         // comparing against existing[0] rather than the immediately preceding subtable is
+         // equivalent.
+         checkColumnTypesLineUp(anchorColumns, existing[0].getName(), newColumns, tableName,
+                                 colCount);
 
          TableAssembly[] updated = new TableAssembly[existing.length + 1];
          System.arraycopy(existing, 0, updated, 0, existing.length);
@@ -3152,7 +3196,11 @@ public class WorksheetEditService {
        *
        * @param tableName     the UnpivotTableAssembly name
        * @param headerColumns new number of header columns (≥ 1)
-       * @throws PairingException if the assembly is not an UnpivotTableAssembly
+       * @throws PairingException if the assembly is not an UnpivotTableAssembly, headerColumns is
+       *                          out of range, or shrinking would move a column into the melted
+       *                          range whose type is incompatible with it (bug 76517/WBS-036 —
+       *                          unguarded, this silently coerced the melted column to STRING and
+       *                          injected one phantom row per source row)
        */
       public void editUnpivot(String tableName, int headerColumns) throws PairingException {
          Assembly a = ws.getAssembly(tableName);
@@ -3161,8 +3209,28 @@ public class WorksheetEditService {
             throw new PairingException("Not an unpivot table assembly: " + tableName);
          }
 
-         if(table.getHeaderColumns() == headerColumns) {
+         int oldHeaderColumns = table.getHeaderColumns();
+
+         if(oldHeaderColumns == headerColumns) {
             return; // no-op
+         }
+
+         TableAssembly src = table.getTableAssembly();
+         int colCount = src == null ? 0 : src.getColumnSelection(false).getAttributeCount();
+
+         if(headerColumns < 0 || headerColumns >= colCount) {
+            throw new PairingException(
+               "headerColumns (" + headerColumns + ") must be between 0 and " +
+               (colCount - 1) + " (table has " + colCount + " columns).");
+         }
+
+         if(headerColumns < oldHeaderColumns) {
+            String conflict = AssetUtil.checkUnpivotShrinkTypeConflict(
+               src.getColumnSelection(false), oldHeaderColumns, headerColumns);
+
+            if(conflict != null) {
+               throw new PairingException(conflict);
+            }
          }
 
          table.setHeaderColumns(headerColumns);

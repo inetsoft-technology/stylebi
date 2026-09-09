@@ -221,6 +221,11 @@ export class AiAssistantService {
          : this.currentUserService.getPortalCurrentUser();
 
       user$.subscribe(model => {
+         if(!model) {
+            // the current-user call failed; leave the user info unset
+            return;
+         }
+
          this.userId = convertToKey(model.name);
          this.email = model.email?.length > 0 ? model.email[0] : "";
       });

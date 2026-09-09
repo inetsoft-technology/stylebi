@@ -46,6 +46,7 @@ export class SecurityActionsPermissionsComponent {
       this._action = value;
 
       if(value) {
+         this.tableModel = null;
          this.originalModel = null;
          this.loadPermissions(value.type, value.resource, value.grant);
       }

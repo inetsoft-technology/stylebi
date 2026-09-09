@@ -37,10 +37,13 @@
  * pinning isVSContext = true -> "assemblyMain".
  */
 
-import { createDialog } from "./formula-editor-dialog.component.test-helpers";
-import { FormulaEditorDialog } from "./formula-editor-dialog.component";
-import { ViewsheetClientService } from "../../common/viewsheet-client";
+import { of, throwError } from "rxjs";
 import { ConditionOperation } from "../../common/data/condition/condition-operation";
+import { ComponentTool } from "../../common/util/component-tool";
+import { ViewsheetClientService } from "../../common/viewsheet-client";
+import { TreeNodeModel } from "../tree/tree-node-model";
+import { FormulaEditorDialog } from "./formula-editor-dialog.component";
+import { createDialog } from "./formula-editor-dialog.component.test-helpers";
 
 function pairedDialog(): FormulaEditorDialog {
    const { comp } = createDialog();
@@ -329,5 +332,62 @@ describe("FormulaEditorDialog — canPair suppresses an unaddressable location",
       comp.formulaName = "Margin";
 
       expect(comp.canPair).toBe(true);
+   });
+});
+
+describe("FormulaEditorDialog Unit Test", () => {
+   let dialog: FormulaEditorDialog;
+   let editorService: any;
+   let modalService: any;
+
+   beforeEach(() => {
+      editorService = {
+         getColumnTreeNode: vi.fn()
+      };
+      modalService = { open: vi.fn() };
+
+      dialog = new FormulaEditorDialog(editorService, modalService, null, null, null);
+      dialog.vsId = "vs1";
+      dialog.assemblyName = "Table1";
+      dialog.isCube = false;
+      dialog.isCondition = false;
+   });
+
+   afterEach(() => {
+      vi.restoreAllMocks();
+   });
+
+   // Bug #76409 - editing a script-based Detail calc field from the Wizard left the
+   // Formula Editor's right-hand column tree pane empty with no error surfaced, because
+   // getColumnTreeNode() was subscribed to with no error callback. This verifies a failed
+   // request now surfaces a visible error dialog instead of failing silently.
+   it("should show an error dialog when getColumnTreeNode fails, instead of failing silently", () => {
+      const showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog")
+         .mockImplementation(() => Promise.resolve("ok"));
+      editorService.getColumnTreeNode.mockReturnValue(throwError("Server error"));
+
+      (dialog as any).populateColumnTree();
+
+      expect(showMessageDialog).toHaveBeenCalledTimes(1);
+      expect(showMessageDialog.mock.calls[0][1]).toBe("_#(js:Error)");
+      expect(showMessageDialog.mock.calls[0][2]).toBe("Server error");
+
+      // the pane state must not be silently left in a broken/half-populated state
+      expect(dialog.columnTreeRoot).toBeUndefined();
+   });
+
+   it("should populate the column tree on success without showing an error dialog", () => {
+      const showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog");
+      const treeData: TreeNodeModel = <TreeNodeModel> {
+         label: "root",
+         leaf: false,
+         children: []
+      };
+      editorService.getColumnTreeNode.mockReturnValue(of(treeData));
+
+      (dialog as any).populateColumnTree();
+
+      expect(showMessageDialog).not.toHaveBeenCalled();
+      expect(dialog.columnTreeRoot).toBe(treeData);
    });
 });

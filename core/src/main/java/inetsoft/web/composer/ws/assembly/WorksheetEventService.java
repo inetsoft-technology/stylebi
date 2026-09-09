@@ -20,8 +20,11 @@ package inetsoft.web.composer.ws.assembly;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
+import inetsoft.report.composition.ExpiredSheetException;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.*;
 import inetsoft.util.Catalog;
 import inetsoft.web.composer.model.ws.WorksheetModel;
@@ -29,6 +32,8 @@ import inetsoft.web.composer.ws.TableModeService;
 import inetsoft.web.composer.ws.command.*;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -54,33 +59,17 @@ public class WorksheetEventService {
                            commandDispatcher);
    }
 
-   /**
-    * Open the worksheet, or attach to a runtime that is already open.
-    *
-    * <p>{@code existingRuntimeId} is set when the server opened the runtime itself and told the
-    * browser to attach to it — the {@code open_base_worksheet} agent flow. Opening a second
-    * runtime of the same asset there is the defect this parameter exists to prevent: the agent
-    * edits one runtime while the user watches the other, both ends report success, and nothing
-    * surfaces until one save clobbers the other.
-    *
-    * <p>Everything after the runtime exists is identical either way — socket identifiers, the
-    * {@code OpenWorksheetCommand}, the refresh — so only the creation step is skipped. An id
-    * naming a runtime that does not exist, or one owned by another user, fails inside
-    * {@code engine.getWorksheet} on the proxy call rather than quietly opening a fresh one.
-    *
-    * @param existingRuntimeId a runtime to attach to, or {@code null} to open a new one
-    */
    public String openWorksheet(Principal user, AssetEntry entry, boolean openAutoSaved,
-                               boolean gettingStartedCreateQuery, String existingRuntimeId,
+                               boolean gettingStartedCreateQuery, String vsId,
                                CommandDispatcher commandDispatcher) throws Exception
    {
-      String runtimeId = existingRuntimeId != null
-         ? existingRuntimeId : engine.openWorksheet(entry, user);
+      String runtimeId = engine.openWorksheet(entry, user);
       WorksheetEventServiceProxy p = proxy.getIfAvailable();
 
       if(p != null) {
          return p.openWorksheet(
-            runtimeId, user, entry, openAutoSaved, gettingStartedCreateQuery, commandDispatcher);
+            runtimeId, user, entry, openAutoSaved, gettingStartedCreateQuery, vsId,
+            commandDispatcher);
       }
 
       return null;
@@ -90,13 +79,12 @@ public class WorksheetEventService {
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public String openWorksheet(@ClusterProxyKey String id, Principal user, AssetEntry entry,
                                boolean openAutoSaved, boolean gettingStartedCreateQuery,
-                               CommandDispatcher commandDispatcher) throws Exception
+                               String vsId, CommandDispatcher commandDispatcher) throws Exception
    {
       RuntimeWorksheet rws = engine.getWorksheet(id, user);
-      rws.setSocketSessionId(commandDispatcher.getSessionId());
-      rws.setSocketUserName(commandDispatcher.getUserName());
       fixWorksheetMode(rws);
       clearGettingStatedRuntimeWs(rws, gettingStartedCreateQuery);
+      linkViewsheetSandbox(rws, vsId, user);
 
       List errors = (List) AssetRepository.ASSET_ERRORS.get();
 
@@ -192,6 +180,40 @@ public class WorksheetEventService {
       return id;
    }
 
+   /**
+    * Links the sandbox of the worksheet opened as its own document back to the
+    * sandbox of the viewsheet it was opened from (e.g. the base worksheet link in
+    * the composer's bottom status bar), so script expressions referencing viewsheet
+    * assemblies (e.g. worksheet['TextInput1'].value) can resolve. No-op when the
+    * worksheet was not opened from a running viewsheet (vsId is null) or that
+    * viewsheet is no longer open.
+    */
+   private void linkViewsheetSandbox(RuntimeWorksheet rws, String vsId, Principal user) {
+      if(rws == null || vsId == null) {
+         return;
+      }
+
+      try {
+         RuntimeViewsheet rvs = engine.getViewsheet(vsId, user);
+
+         if(rvs == null) {
+            return;
+         }
+
+         ViewsheetSandbox vsbox = rvs.getViewsheetSandbox().orElse(null);
+
+         if(vsbox != null) {
+            rws.getAssetQuerySandbox().setViewsheetSandbox(vsbox);
+         }
+      }
+      catch(ExpiredSheetException e) {
+         // the originating viewsheet is no longer open; nothing to link to
+      }
+      catch(Exception e) {
+         LOG.debug("Unable to link worksheet sandbox to viewsheet {}", vsId, e);
+      }
+   }
+
    private static void clearGettingStatedRuntimeWs(RuntimeWorksheet rws,
                                                    boolean gettingStartedCreateQuery)
    {
@@ -255,4 +277,5 @@ public class WorksheetEventService {
 
    private final ViewsheetService engine;
    private final ObjectProvider<WorksheetEventServiceProxy> proxy;
+   private static final Logger LOG = LoggerFactory.getLogger(WorksheetEventService.class);
 }

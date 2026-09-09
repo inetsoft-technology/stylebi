@@ -228,14 +228,17 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       /**
        * A single group-by dimension.
        *
-       * @param field     source column name
-       * @param dateLevel the date grouping level applied directly to this group (e.g.
-       *                  {@code "QUARTER"}), same vocabulary as set_group_aggregate's
-       *                  {@code dateLevel} / add_date_range_column's {@code dateOption};
-       *                  {@code null} for a plain (non-date-bucketed) group
+       * @param field      source column name
+       * @param dateLevel  the date grouping level applied directly to this group (e.g.
+       *                   {@code "QUARTER"}), same vocabulary as set_group_aggregate's
+       *                   {@code dateLevel} / add_date_range_column's {@code dateOption};
+       *                   {@code null} for a plain (non-date-bucketed) group
+       * @param timeSeries whether this group is treated as a time series (fills gaps in the
+       *                   date range with empty rows), same as set_group_aggregate's
+       *                   {@code timeSeries} flag on this group
        */
       @JsonInclude(JsonInclude.Include.NON_NULL)
-      public record GroupModel(String field, String dateLevel) {}
+      public record GroupModel(String field, String dateLevel, boolean timeSeries) {}
 
       /**
        * A single aggregate measure.
@@ -266,9 +269,38 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param label        display label; may be {@code null}
     * @param type         XSchema data-type string; may be {@code null}
     * @param defaultValue stringified default value; may be {@code null}
+    * @param choices      the variable's "Values" picker, or {@code null} when no picker is
+    *                     configured at all (a plain free-form/text-input variable) — not an
+    *                     empty/default {@code ChoicesModel}
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
-   public record VariableModel(String name, String label, String type, String defaultValue) {}
+   public record VariableModel(String name, String label, String type, String defaultValue,
+                               ChoicesModel choices) {}
+
+   /**
+    * A variable's enumerated "Values" picker, mirroring
+    * {@code WorksheetMutationSupport.VariableChoicesSpec} field-for-field. Embedded
+    * ({@code values}/{@code labels}) and query-mode ({@code table}/{@code labelColumn}/
+    * {@code valueColumn}) sources are mutually exclusive, matching the write side.
+    *
+    * @param values       embedded picker values; {@code null} in query mode
+    * @param labels       display labels parallel to {@code values}; {@code null} in query mode
+    * @param table        worksheet table supplying picker rows (query mode); {@code null} in
+    *                     embedded mode
+    * @param labelColumn  column on {@code table} supplying each row's display label;
+    *                     {@code null} in embedded mode
+    * @param valueColumn  column on {@code table} supplying each row's underlying value;
+    *                     {@code null} in embedded mode
+    * @param displayStyle {@code "none"}, {@code "combobox"}, {@code "list"}, {@code "radio"},
+    *                     or {@code "checkboxes"} — the same vocabulary {@code add_variable}/
+    *                     {@code edit_variable} accept. {@code "date_combobox"} is also possible
+    *                     here (StyleBI's native, non-agent Composer variable dialog can set it)
+    *                     but is read-only: it is not one of the values {@code add_variable}/
+    *                     {@code edit_variable} accept.
+    */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public record ChoicesModel(List<String> values, List<String> labels, String table,
+                              String labelColumn, String valueColumn, String displayStyle) {}
 
    /**
     * A named group assembly in the worksheet.
