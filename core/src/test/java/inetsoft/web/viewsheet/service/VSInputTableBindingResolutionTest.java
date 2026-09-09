@@ -147,6 +147,64 @@ class VSInputTableBindingResolutionTest {
       assertEquals("", resolve(ws, "", null));
    }
 
+   /**
+    * Bug #76530's exact reported repro shape: {@code table} left unset and {@code columnValue}
+    * itself already carrying the {@code "$(varName)"} reference (the natural mistake a caller
+    * makes when only one field looks like it should hold the variable). Must resolve exactly like
+    * setting {@code table} to that same value would.
+    */
+   @Test
+   void resolvesAColumnValueOnlyVariableReferenceWhenTableIsUnset() throws Exception {
+      Worksheet ws = worksheetWithVariable("StartDate");
+
+      assertEquals("$(StartDate)", resolve(ws, null, "$(StartDate)"));
+      assertEquals("$(StartDate)", resolve(ws, "", "$(StartDate)"));
+   }
+
+   /**
+    * The columnValue-only shape must reuse the exact same existence check the raw {@code
+    * "$(...)"}-on-{@code table} branch already gets -- an unknown variable name still throws,
+    * it is not silently accepted just because it arrived via {@code columnValue} instead.
+    */
+   @Test
+   void rejectsAColumnValueOnlyVariableReferenceToAVariableThatDoesNotExist() {
+      Worksheet ws = new Worksheet();
+
+      MessageException ex = assertThrows(MessageException.class,
+         () -> resolve(ws, null, "$(StartDate)"));
+      assertTrue(ex.getMessage().contains("StartDate"), ex.getMessage());
+   }
+
+   /**
+    * The new shape only fires when {@code table} is unset -- an explicit {@code table} value
+    * (even a plain, non-variable table binding) must not be silently overridden by a {@code
+    * columnValue} that happens to look like a variable reference.
+    */
+   @Test
+   void doesNotOverrideAnExplicitTableWithAColumnValueThatLooksLikeAVariable() throws Exception {
+      Worksheet ws = worksheetWithVariable("StartDate");
+      ws.addAssembly(new EmbeddedTableAssembly(ws, "Query1"));
+
+      assertEquals("Query1", resolve(ws, "Query1", "$(StartDate)"));
+   }
+
+   /**
+    * {@link VSInputService#resolvesToVariableBinding} is the public entry point {@code
+    * AssemblyPropertyService} uses (bug #76530 part b) to decide whether an explicit {@code
+    * dataInputPaneModel.variable} write is achievable. It must agree with {@code
+    * resolveInputTableBinding} on both the columnValue-only shape and a plain literal table.
+    */
+   @Test
+   void resolvesToVariableBindingAgreesWithTheUnderlyingResolution() {
+      Worksheet ws = worksheetWithVariable("StartDate");
+      ws.addAssembly(new EmbeddedTableAssembly(ws, "Query1"));
+
+      assertTrue(VSInputService.resolvesToVariableBinding(ws, null, null, "$(StartDate)"));
+      assertTrue(VSInputService.resolvesToVariableBinding(ws, null, "$(StartDate)", null));
+      assertFalse(VSInputService.resolvesToVariableBinding(ws, null, "Query1", null));
+      assertFalse(VSInputService.resolvesToVariableBinding(ws, null, null, null));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static Worksheet worksheetWithVariable(String name) {

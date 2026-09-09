@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.model.vs.RangePaneModel;
 import inetsoft.web.composer.vs.dialog.*;
@@ -252,6 +253,12 @@ public class AssemblyPropertyService {
             requireNoInteriorGapInGaugeRangeValues(model);
          }
 
+         if(PropertyAliases.derivesVariableFlagFromTable(type) &&
+            resolved.containsValue("dataInputPaneModel.variable"))
+         {
+            requireVariableFlagAchievable(type, model, rvs.getViewsheet());
+         }
+
          writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);
       });
    }
@@ -294,6 +301,35 @@ public class AssemblyPropertyService {
                "only have a blank trailing entry (meaning \"extend to the gauge's own max\"), " +
                "not a gap in the middle.");
          }
+      }
+   }
+
+   /**
+    * Bug #76530: textinput/combobox/slider/spinner's own setter never reads back
+    * {@code dataInputPaneModel.variable} -- the real, persisted flag is always derived from
+    * whether {@code dataInputPaneModel.table} (after {@code VSInputService}'s own
+    * {@code resolveInputTableBinding} normalization, which now also accepts a {@code columnValue}
+    * already shaped {@code "$(varName)"} with {@code table} left unset) resolves to a
+    * {@code "$(varName)"} reference. Only invoked when this call's own patch explicitly touches
+    * {@code dataInputPaneModel.variable} (see the caller): when the resulting table binding will
+    * not actually resolve to a variable reference, that touch would otherwise report success and
+    * leave the flag exactly where it already was -- the same "populated on every read, never read
+    * back on write" shape {@link PropertyAliases}'s {@code DEAD_FIELDS} refuses elsewhere, just
+    * conditional on the resulting binding rather than unconditional on the field.
+    */
+   private void requireVariableFlagAchievable(String type, Object model, Viewsheet vs) {
+      String table = (String) PropertyPath.get(model, "dataInputPaneModel.table");
+      String columnValue = (String) PropertyPath.get(model, "dataInputPaneModel.columnValue");
+      Worksheet ws = vs == null ? null : vs.getBaseWorksheet();
+
+      if(!VSInputService.resolvesToVariableBinding(ws, vs, table, columnValue)) {
+         throw new IllegalArgumentException(
+            "'dataInputPaneModel.variable' cannot be set directly on " + type + ". Its real, " +
+            "persisted value is always derived from whether 'dataInputPaneModel.table' (or " +
+            "'columnValue', if shaped \"$(variableName)\") resolves to an existing worksheet " +
+            "variable -- neither does here, so this write would report success and leave " +
+            "'variable' unchanged. Set 'dataInputPaneModel.table' (or 'columnValue') to " +
+            "\"$(variableName)\" for a variable created with add_variable instead.");
       }
    }
 

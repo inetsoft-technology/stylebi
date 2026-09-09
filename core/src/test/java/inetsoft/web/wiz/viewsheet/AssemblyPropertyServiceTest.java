@@ -19,8 +19,11 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
+import inetsoft.uql.asset.DefaultVariableAssembly;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
+import inetsoft.web.composer.model.vs.TextInputPropertyDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -307,11 +310,85 @@ class AssemblyPropertyServiceTest {
                    "the unrelated property must still have been written");
    }
 
+   /**
+    * Bug #76530 part (b): the exact reported repro (a from-scratch TextInput, {@code columnValue}
+    * carrying the {@code "$(varName)"} reference, {@code table} never set). Before this fix, the
+    * write silently no-opped -- {@code variable} was never read back regardless. Part (a) makes
+    * this shape resolve, so the write must now go through rather than being refused.
+    */
+   @Test
+   void allowsTheExactReportedReproNowThatColumnValueAloneResolvesToAKnownVariable()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, ws);
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "$(StartDate)");
+      patch.put("dataInputPaneModel.variable", true);
+
+      assertDoesNotThrow(
+         () -> service.set("tok", principal(), "StartDateInput", patch, ""));
+   }
+
+   /**
+    * Bug #76530 part (b): a patch that explicitly touches {@code dataInputPaneModel.variable}
+    * but leaves both {@code table} and {@code columnValue} unset cannot possibly resolve to a
+    * variable reference -- this write must be refused, by field name, instead of reporting
+    * {@code {"ok":true}} while silently changing nothing (the originally-reported symptom).
+    */
+   @Test
+   void refusesAnExplicitVariableWriteWhenNeitherTableNorColumnValueResolveToAVariable() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, new Worksheet());
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "StartDateInput",
+            Map.of("dataInputPaneModel.variable", true), ""));
+
+      assertTrue(thrown.getMessage().contains("dataInputPaneModel.variable"),
+                 "must name the refused field: " + thrown.getMessage());
+   }
+
+   /**
+    * The achievability check must only fire when the patch actually touches {@code variable} --
+    * an unrelated field write on a TextInput whose current binding is not a variable (the common
+    * case: most TextInputs write back to a literal cell, not a variable) must not be blocked by
+    * state the patch never touched.
+    */
+   @Test
+   void doesNotCheckVariableAchievabilityWhenThePatchDoesNotTouchVariable() throws Exception {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, new Worksheet());
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "StartDateInput",
+         Map.of("dataInputPaneModel.rowValue", "0"), ""));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static AssemblyPropertyService serviceWith(VSAssembly assembly, Object model) {
+      return serviceWith(assembly, model, null, null);
+   }
+
+   private static AssemblyPropertyService serviceWithTextInput(
+      VSAssembly assembly, TextInputPropertyDialogModel model, Worksheet baseWorksheet)
+   {
+      return serviceWith(assembly, model, model, baseWorksheet);
+   }
+
+   private static AssemblyPropertyService serviceWith(
+      VSAssembly assembly, Object model, TextInputPropertyDialogModel textInputModel,
+      Worksheet baseWorksheet)
+   {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(assembly);
+      when(vs.getBaseWorksheet()).thenReturn(baseWorksheet);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getID()).thenReturn("rt1");
@@ -343,6 +420,20 @@ class AssemblyPropertyServiceTest {
          }
       }
 
+      inetsoft.web.viewsheet.service.VSInputService inputService =
+         mock(inetsoft.web.viewsheet.service.VSInputService.class);
+
+      if(textInputModel != null) {
+         try {
+            when(inputService.getTextInputPropertyDialogModel(anyString(), anyString(),
+                                                               any(Principal.class)))
+               .thenReturn(textInputModel);
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+      }
+
       return new AssemblyPropertyService(
          sessions, gauge, mock(ImagePropertyDialogService.class),
          mock(TextPropertyDialogService.class),
@@ -350,7 +441,7 @@ class AssemblyPropertyServiceTest {
          mock(CrosstabPropertyDialogService.class),
          mock(SelectionListPropertyDialogService.class),
          mock(SelectionTreePropertyDialogService.class),
-         mock(inetsoft.web.viewsheet.service.VSInputService.class),
+         inputService,
          mock(RangeSliderPropertyDialogService.class),
          mock(CalendarPropertyDialogService.class), mock(TabPropertyDialogService.class),
          mock(CalcTablePropertyDialogService.class),
