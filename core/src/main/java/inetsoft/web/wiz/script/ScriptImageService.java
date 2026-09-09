@@ -194,9 +194,15 @@ public class ScriptImageService {
 
          if(decoded == null || decoded.getWidth() <= 1 || decoded.getHeight() <= 1) {
             ChartImage whole = getViewsheetImage(rvs, width, height, principal);
+            String fallbackNote = "\"" + assemblyName + "\" can't be rendered on its own — " +
+               "showing the whole viewsheet instead.";
+
+            if(whole.note() != null) {
+               fallbackNote = fallbackNote + " " + whole.note();
+            }
+
             return new ChartImage(whole.pngBytes(), whole.isPng(), whole.width(), whole.height(),
-               "\"" + assemblyName + "\" can't be rendered on its own — showing the whole " +
-               "viewsheet instead.");
+               fallbackNote);
          }
       }
 
