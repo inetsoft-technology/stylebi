@@ -17,15 +17,43 @@
  */
 package inetsoft.uql.rest.datasource.graphql;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
 import inetsoft.uql.rest.json.RestJsonRuntime;
 import inetsoft.uql.tabular.HttpParameter;
+import inetsoft.uql.tabular.TabularCatalog;
+import inetsoft.uql.tabular.TabularCatalogProvider;
+import inetsoft.uql.tabular.TabularDataSource;
+import inetsoft.uql.tabular.TabularDatasetSchema;
 import inetsoft.uql.tabular.TabularQuery;
 
 import java.util.*;
 
-public class GraphQLRuntime extends RestJsonRuntime {
+/**
+ * Shared runtime for {@code graphql}, {@code shopify}, and {@code monday.com} -- all three declare
+ * this class as their {@code TabularService.getRuntimeClass()}. {@link TabularCatalogProvider}'s
+ * two methods below are pure delegation into {@link GraphQLIntrospectionClient} (I/O) and {@link
+ * GraphQLCatalog} (pure schema-walking); see those classes' javadoc for the design, including why
+ * the catalog path never reuses {@link #addParams}/{@link #runQuery}.
+ */
+public class GraphQLRuntime extends RestJsonRuntime implements TabularCatalogProvider {
+   @Override
+   public TabularCatalog listDatasets(TabularDataSource<?> dataSource) throws Exception {
+      JsonNode schema =
+         GraphQLIntrospectionClient.introspect((AbstractGraphQLDataSource<?>) dataSource);
+      return GraphQLCatalog.listDatasets(schema);
+   }
+
+   @Override
+   public TabularDatasetSchema describeDataset(TabularDataSource<?> dataSource, String datasetId)
+      throws Exception
+   {
+      JsonNode schema =
+         GraphQLIntrospectionClient.introspect((AbstractGraphQLDataSource<?>) dataSource);
+      return GraphQLCatalog.describeDataset(schema, datasetId);
+   }
+
    @Override
    public XTableNode runQuery(TabularQuery tabularQuery, VariableTable params) {
       final GraphQLQuery query = (GraphQLQuery) tabularQuery;

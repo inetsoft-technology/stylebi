@@ -60,6 +60,7 @@ class TabularCatalogProviderImplementerCanaryTest {
       "inetsoft.uql.googleanalyticsga4.AnalyticsRuntime",
       "inetsoft.uql.sforce.SForceRuntime",
       "inetsoft.uql.sapjco2.table.SAPTableRuntime",
+      "inetsoft.uql.rest.datasource.graphql.GraphQLRuntime",
       "inetsoft.uql.rest.xml.RestXMLRuntime");
 
    @Test

@@ -1,0 +1,149 @@
+{
+  "data": {
+    "__schema": {
+      "queryType": { "name": "Query" },
+      "types": [
+        {
+          "kind": "OBJECT",
+          "name": "Query",
+          "description": null,
+          "fields": [
+            {
+              "name": "items",
+              "description": null,
+              "args": [],
+              "comment": "Plain list (no connection wrapper) -- a dataset under Rule A the same way bookstore-schema.json's 'products' is.",
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "OBJECT", "name": "Item", "ofType": null }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Item",
+          "description": null,
+          "fields": [
+            {
+              "name": "id",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": { "kind": "SCALAR", "name": "ID", "ofType": null }
+              }
+            },
+            {
+              "name": "name",
+              "description": null,
+              "args": [],
+              "comment": "Contrast case -- a plain, non-list scalar on the same type as 'tags'. Proves the fix discriminates on isList() rather than dropping every scalar/enum field of this type.",
+              "type": { "kind": "SCALAR", "name": "String", "ofType": null }
+            },
+            {
+              "name": "status",
+              "description": null,
+              "args": [],
+              "comment": "Contrast case -- a plain, non-list enum on the same type as 'categories'.",
+              "type": { "kind": "ENUM", "name": "ItemStatus", "ofType": null }
+            },
+            {
+              "name": "tags",
+              "description": null,
+              "args": [],
+              "comment": "Scalar list -- Shopify's Product.tags: [String!]! is the real-world case. Has no honest single-value column form; must be dropped and recorded in the dataset description, never emitted as a single-value column.",
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "SCALAR", "name": "String", "ofType": null }
+                  }
+                }
+              }
+            },
+            {
+              "name": "categories",
+              "description": null,
+              "args": [],
+              "comment": "Enum list -- same rule as 'tags', for the ENUM branch.",
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "ENUM", "name": "Category", "ofType": null }
+                  }
+                }
+              }
+            },
+            {
+              "name": "price",
+              "description": null,
+              "args": [],
+              "comment": "Nested value object, flattened one level (flattenValueObject) -- see Money below.",
+              "type": { "kind": "OBJECT", "name": "Money", "ofType": null }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Money",
+          "description": null,
+          "fields": [
+            {
+              "name": "amount",
+              "description": null,
+              "args": [],
+              "comment": "Plain, non-list scalar inside a value object -- flattens to 'price.amount'.",
+              "type": { "kind": "SCALAR", "name": "Float", "ofType": null }
+            },
+            {
+              "name": "currencyCodes",
+              "description": null,
+              "args": [],
+              "comment": "Scalar list one level down inside a value object -- exercises flattenValueObject's own list-drop branch (DEBUG, no dataset-level clause, since a value object's contents are an implementation detail of its parent field).",
+              "type": {
+                "kind": "NON_NULL", "name": null,
+                "ofType": {
+                  "kind": "LIST", "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL", "name": null,
+                    "ofType": { "kind": "SCALAR", "name": "String", "ofType": null }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "kind": "ENUM",
+          "name": "ItemStatus",
+          "description": null,
+          "enumValues": [
+            { "name": "ACTIVE" },
+            { "name": "ARCHIVED" }
+          ]
+        },
+        {
+          "kind": "ENUM",
+          "name": "Category",
+          "description": null,
+          "enumValues": [
+            { "name": "BOOKS" },
+            { "name": "TOYS" }
+          ]
+        }
+      ]
+    }
+  }
+}

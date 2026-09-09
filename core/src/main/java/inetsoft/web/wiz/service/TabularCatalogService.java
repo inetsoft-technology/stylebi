@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -177,6 +178,108 @@ public class TabularCatalogService {
                "); they must be positionally paired.");
          }
       }
+   }
+
+   /**
+    * The relationships the source declares among a caller-chosen SUBSET of its datasets -- the
+    * tabular counterpart of {@link #listTables(String)}'s full relationship set, for a caller that
+    * has already selected which datasets it wants. Serves {@code POST /datasource/relationships}.
+    *
+    * Unlike {@link #listTables(String)}, an out-of-scope endpoint here is DROPPED, not fatal (see
+    * {@link #filterAndConvertSubsetRelationships} for why) -- {@link #validateRelationshipEndpoints}
+    * is deliberately not reused and not modified.
+    */
+   public List<OsiRelationship> listRelationships(String dsName, Collection<String> datasetIds)
+      throws Exception
+   {
+      TabularCatalogProvider provider = resolveProvider(dsName);
+      TabularDataSource<?> tds = resolveTabularDataSource(dsName);
+
+      List<TabularRelationship> relationships = provider.listRelationships(tds, datasetIds);
+
+      if(relationships == null) {
+         throw new Exception("Data source '" + dsName + "' returned a null relationships list " +
+            "from listRelationships; TabularCatalogProvider implementations must return an empty " +
+            "list, not null, when there are no relationships.");
+      }
+
+      return filterAndConvertSubsetRelationships(dsName, datasetIds, relationships);
+   }
+
+   /**
+    * Validates and converts a SUBSET relationship answer to the wire type.
+    *
+    * Deliberately NOT {@link #validateRelationshipEndpoints}, and does not call it: that method
+    * takes a full {@link TabularCatalog} and throws -- aborting the WHOLE call -- the moment one
+    * endpoint falls outside the dataset id set, which is correct for the full listing (any dangling
+    * endpoint there is a genuine connector defect) but wrong here. {@code listRelationships}'s own
+    * contract already promises both endpoints inside {@code datasetIds}; a connector that violates
+    * it (a bad override -- the default implementation cannot) should have that ONE edge silently
+    * dropped, not take down every other edge in the caller's subset, because "an edge referencing a
+    * dataset outside the current selection" is the EXPECTED case here (spec §5), not a corruption
+    * signal the way it is for the full listing.
+    *
+    * Name-uniqueness and column-shape checks ARE still enforced (same failure mode as
+    * {@link #validateRelationshipEndpoints}: throw, aborting the call) -- those indicate a genuinely
+    * malformed relationship record, independent of subset semantics. The name-uniqueness check runs
+    * over EVERY returned relationship, including ones later dropped for having an out-of-scope
+    * endpoint: a duplicate name is a whole-catalog defect regardless of which subset was asked for,
+    * same reasoning as the full-listing check above -- and the exact trap the tabular-catalog-spi-
+    * connector skill names ("a duplicate relationship name makes TabularCatalogService throw,
+    * taking down the whole catalog"), so the uniqueness check must not be moved after the
+    * out-of-scope `continue` below.
+    */
+   private static List<OsiRelationship> filterAndConvertSubsetRelationships(
+      String dsName, Collection<String> datasetIds, List<TabularRelationship> relationships)
+      throws Exception
+   {
+      Set<String> ids = datasetIds == null ? Set.of() : new HashSet<>(datasetIds);
+      Set<String> seenNames = new HashSet<>();
+      List<OsiRelationship> result = new ArrayList<>();
+
+      for(TabularRelationship rel : relationships) {
+         if(rel == null) {
+            throw new Exception("Data source '" + dsName + "' returned a null relationship entry " +
+               "from listRelationships.");
+         }
+         if(rel.name() == null || rel.name().isBlank()) {
+            throw new Exception("Data source '" + dsName + "' declared a relationship with a " +
+               "blank name from listRelationships.");
+         }
+         if(!seenNames.add(rel.name())) {
+            throw new Exception("Data source '" + dsName + "' declared the relationship name '" +
+               rel.name() + "' more than once from listRelationships; every relationship name " +
+               "must be unique within one catalog.");
+         }
+
+         if(!ids.contains(rel.fromDataset()) || !ids.contains(rel.toDataset())) {
+            continue;   // Expected, not an error -- see this method's javadoc.
+         }
+
+         if(rel.fromColumns() == null || rel.fromColumns().isEmpty() ||
+            rel.toColumns() == null || rel.toColumns().isEmpty())
+         {
+            throw new Exception("Data source '" + dsName + "' declared relationship '" +
+               rel.name() + "' with an empty fromColumns/toColumns list; both must be non-empty " +
+               "and positionally paired.");
+         }
+         if(rel.fromColumns().size() != rel.toColumns().size()) {
+            throw new Exception("Data source '" + dsName + "' declared relationship '" +
+               rel.name() + "' with fromColumns/toColumns of different sizes (" +
+               rel.fromColumns().size() + " vs " + rel.toColumns().size() +
+               "); they must be positionally paired.");
+         }
+
+         OsiRelationship osiRelationship = new OsiRelationship();
+         osiRelationship.setName(rel.name());
+         osiRelationship.setFrom(rel.fromDataset());
+         osiRelationship.setTo(rel.toDataset());
+         osiRelationship.setFromColumns(rel.fromColumns());
+         osiRelationship.setToColumns(rel.toColumns());
+         result.add(osiRelationship);
+      }
+
+      return result;
    }
 
    /**

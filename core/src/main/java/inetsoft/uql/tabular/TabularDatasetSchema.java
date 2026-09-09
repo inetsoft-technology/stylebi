@@ -44,14 +44,27 @@ import java.util.Map;
  *                  dataset-level fact, not a per-column one: every column returned by one
  *                  {@code describeDataset} call comes from the same scan and shares the same trust
  *                  level.
- * @param description the dataset's own description, as the source declares it, verbatim — the
- *                  same contract {@link TabularColumn#description()} carries at column level,
- *                  applied to the dataset as a whole. Null means the connector said nothing about
+ * @param description the dataset's own description. Null means the connector said nothing about
  *                  this dataset — a different statement from an empty string, which would claim
- *                  the source declared a description and it happened to be empty. Never invented:
- *                  a connector must not compose a sentence describing the dataset itself, only pass
- *                  through words the source already published. Worth filling when the source has
- *                  them, because unlike {@code TabularColumn}'s own {@code description}, this one
+ *                  the source declared a description and it happened to be empty.
+ *                  <p>Two different kinds of text are allowed here, and they must stay visibly
+ *                  separate, never blended into one composed sentence: (1) the source's own
+ *                  declared description, verbatim — the same "never invented" contract {@link
+ *                  TabularColumn#description()} carries at column level, applied to the dataset as
+ *                  a whole; and (2), appended as a clearly separated second paragraph, a
+ *                  connector's own STRUCTURAL notes about what its own extraction did — e.g. which
+ *                  nested relationships it chose not to expose as {@link TabularRelationship}s and
+ *                  why. What stays forbidden, for both this field and {@link
+ *                  TabularColumn#description()} (which carries no such carve-out), is inventing
+ *                  SEMANTICS: a connector must never compose a sentence describing what the
+ *                  dataset MEANS, guessing at business intent the source never stated. The
+ *                  distinction holds because this text reaches wiz's annotation LLM as durable,
+ *                  never-overwritten context (see below) — a connector reporting what its own
+ *                  extraction did is true by construction, so it cannot mislead the way a guessed
+ *                  meaning could; laundering a guess into source truth here would corrupt context
+ *                  the LLM is never able to correct against.
+ *                  <p>Worth filling when the source has them, because unlike {@code
+ *                  TabularColumn}'s own {@code description}, this one
  *                  reaches wiz's annotation LLM as durable table-level context: wiz's
  *                  {@code applyAnnotationToDoc} (in
  *                  {@code reconstructFullTableDoc.ts}) only ever overwrites {@code ai_context},
