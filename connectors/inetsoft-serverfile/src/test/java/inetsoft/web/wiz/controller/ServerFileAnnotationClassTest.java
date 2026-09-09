@@ -19,6 +19,7 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.uql.serverfile.ServerFileQuery;
 import inetsoft.uql.serverfile.ServerFileRuntime;
+import inetsoft.uql.serverfile.ServerFileService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -42,5 +43,18 @@ class ServerFileAnnotationClassTest {
    void aServerFileQueryIsAskedForItsMetadataOnceItsRuntimeImplementsTheCatalogSpi() {
       assertEquals("METADATA",
          WizDatabaseController.classifyQueryClass(ServerFileQuery.class, ServerFileRuntime.class));
+   }
+
+   /**
+    * A11's typo-catching half (03-reconcile.md D-5): the ONLY place both the canary's added
+    * literal and the runtime's real FQCN can be compared against each other is here, where the
+    * class is genuinely on the classpath -- {@code core}'s canary cannot see connector classes at
+    * all, so this test does not close that gap, it narrows it. A reviewer still has to diff the
+    * canary's new literal character-by-character against {@code ServerFileService.getRuntimeClass()}'s
+    * (the canary's string in {@code core} is a THIRD copy nothing here compares).
+    */
+   @Test
+   void theRuntimeClassServerFileServiceDeclaresMatchesTheRealClassName() {
+      assertEquals(ServerFileRuntime.class.getName(), new ServerFileService().getRuntimeClass());
    }
 }
