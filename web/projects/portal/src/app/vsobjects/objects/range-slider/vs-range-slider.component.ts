@@ -44,7 +44,8 @@ import { ModelService } from "../../../widget/services/model.service";
 import { DialogService } from "../../../widget/slide-out/dialog-service.service";
 import { RangeSliderActions } from "../../action/range-slider-actions";
 import { ContextProvider } from "../../context-provider.service";
-import { RangeSliderEditDialog } from "../../dialog/range-slider-edit-dialog.component";
+import { RangeSliderEditDialog, TIME_BASE_DATE, TIME_OF_DAY_INCREMENT }
+   from "../../dialog/range-slider-edit-dialog.component";
 import { RangeSliderPropertyDialog } from "../../dialog/range-slider-property-dialog.component";
 import { ApplySelectionListEvent } from "../../event/apply-selection-list-event";
 import { ChangeVSObjectTextEvent } from "../../event/change-vs-object-text-event";
@@ -772,6 +773,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
                                           this.model.values[this.model.labels.length - 1]);
 
          const normalizeStr = (s: string) =>
+            timeIncrement === TIME_OF_DAY_INCREMENT ? `${TIME_BASE_DATE}T${s}` :
             timeIncrement === "t" ? s.replace(" ", "T") : s + "T00:00";
 
          editDialog.currentMin = new Date(normalizeStr(currMinStr));
@@ -794,11 +796,22 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    private extractTimeIncrement(value: string): string {
       const typeMatch = value.match(/^\{([a-zA-Z]+)\s+'/);
       if(typeMatch) {
-         return typeMatch[1].charAt(0);
+         // the server writes the tick values as y/m/d (date levels), t (time of day) or
+         // ts (timestamp). t and ts must be kept apart, they need different input types.
+         switch(typeMatch[1]) {
+         case "t":
+            return TIME_OF_DAY_INCREMENT;
+         case "ts":
+            return "t";
+         default:
+            return typeMatch[1].charAt(0);
+         }
       }
       const sanitized = value.replace(/[a-zA-Z'"{}]/g, "").trim();
-      if(sanitized.includes(":")) { return "t"; }
       const dashCount = (sanitized.match(/-/g) || []).length;
+      if(sanitized.includes(":")) {
+         return dashCount === 0 ? TIME_OF_DAY_INCREMENT : "t";
+      }
       return dashCount === 0 ? "y" : dashCount === 1 ? "m" : "d";
    }
 
@@ -811,6 +824,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          case "d":
             return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
          case "t":
+         case TIME_OF_DAY_INCREMENT:
             return date.getTime();
          default:
             throw new Error(`Unrecognised timeIncrement value: "${timeIncrement}"`);
@@ -820,6 +834,10 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    private labelToTimestamp(timeIncrement: string, value: string): number {
       const match = value.match(/\{[a-zA-Z]+\s+'(.+)'\s*}/);
       const sanitized = match ? match[1] : value.replace(/[a-zA-Z'"{}]/g, "").trim();
+
+      if (timeIncrement === TIME_OF_DAY_INCREMENT) {
+         return new Date(`${TIME_BASE_DATE}T${sanitized}`).getTime();
+      }
 
       if (timeIncrement === "t") {
          return new Date(sanitized.replace(" ", "T")).getTime();
@@ -878,7 +896,8 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
             return { currMinStr, currMaxStr, rangeMinStr, rangeMaxStr };
          }
          case "d":
-         case "t": {
+         case "t":
+         case TIME_OF_DAY_INCREMENT: {
             return this.sanitizeDateLabels(selectStart, selectEnd, rangeMin, rangeMax);
          }
          default : {
