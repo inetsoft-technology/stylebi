@@ -73,3 +73,81 @@ describe("VSObjectContainer z-index boost tiering", () => {
       expect(comp.getContainerZIndex(embeddedVs)).toBe(3 + comp.popUpContentBoostZIndex * 2);
    });
 });
+
+// Bug: the mini-toolbar of an assembly inside an embedded viewsheet is painted 28px *above*
+// that viewsheet's box (MiniToolbar.topY / the forceAbove binding) but is ranked inside the
+// embedded viewsheet assembly's own stacking context, so an outer assembly with a higher
+// z-index painted over it. Verified in a browser against Examples/Hurricane: the toolbar stayed
+// occluded even at z-index 999999, because no descendant z-index can escape its context --
+// which is why the #75916 MINI_TOOLBAR_MIN_ZINDEX floor cannot address this case and the
+// embedded viewsheet's own container has to be lifted instead.
+describe("VSObjectContainer embedded-viewsheet hover boost", () => {
+   const embeddedVs = () => makeVSObject({
+      absoluteName: "Map1", objectType: "VSViewsheet", objectFormat: { zIndex: 6 } as any,
+   });
+
+   it("leaves an un-hovered embedded viewsheet at its authored z-index", () => {
+      const { comp } = makeComponent();
+      expect(comp.getContainerZIndex(embeddedVs())).toBe(6);
+   });
+
+   it("lifts a hovered embedded viewsheet above an outer sibling that outranks it", () => {
+      const { comp } = makeComponent();
+      const vs = embeddedVs();
+      // Examples/Hurricane's real z-order: Map1=6 but Image1/Image2=1006/1007 and, in the
+      // reported case, the banner text outranked the embedded viewsheet too.
+      const outerSibling = makeVSObject({ absoluteName: "Text2", objectFormat: { zIndex: 1005 } as any });
+
+      comp.onMouseEnter(vs, null);
+
+      expect(comp.isHoveredEmbeddedViewsheet(vs)).toBe(true);
+      expect(comp.getContainerZIndex(vs)).toBeGreaterThan(comp.getContainerZIndex(outerSibling));
+      // the toolbar of an assembly inside it rides along on the lifted context
+      expect(comp.getMiniToolbarZIndex(vs)).toBeGreaterThan(comp.getContainerZIndex(outerSibling));
+   });
+
+   it("restores the authored z-index on mouseleave so outer assemblies layer normally again", () => {
+      const { comp } = makeComponent();
+      const vs = embeddedVs();
+
+      comp.onMouseEnter(vs, null);
+      comp.onMouseLeave(vs);
+
+      expect(comp.isHoveredEmbeddedViewsheet(vs)).toBe(false);
+      expect(comp.getContainerZIndex(vs)).toBe(6);
+   });
+
+   it("does not boost a non-embedded-viewsheet assembly on hover", () => {
+      const { comp } = makeComponent();
+      const chart = makeVSObject({ absoluteName: "Chart1", objectFormat: { zIndex: 6 } as any });
+
+      comp.onMouseEnter(chart, null);
+
+      expect(comp.isHoveredEmbeddedViewsheet(chart)).toBe(false);
+      expect(comp.getContainerZIndex(chart)).toBe(6);
+   });
+
+   it("only boosts the embedded viewsheet actually hovered", () => {
+      const { comp } = makeComponent();
+      const hovered = embeddedVs();
+      const other = makeVSObject({
+         absoluteName: "Viewsheet1", objectType: "VSViewsheet", objectFormat: { zIndex: 1008 } as any,
+      });
+
+      comp.onMouseEnter(hovered, null);
+
+      expect(comp.getContainerZIndex(other)).toBe(1008);
+      expect(comp.onMouseLeave(other as any)).toBeUndefined();
+      // a mouseleave from a *different* embedded viewsheet must not clear the hovered one
+      expect(comp.isHoveredEmbeddedViewsheet(hovered)).toBe(true);
+   });
+
+   it("keeps the hover boost below the pop-component/data-tip tiers", () => {
+      const { comp } = makeComponent();
+      const vs = embeddedVs();
+
+      comp.onMouseEnter(vs, null);
+
+      expect(comp.getContainerZIndex(vs)).toBeLessThan(6 + comp.popUpContentBoostZIndex);
+   });
+});
