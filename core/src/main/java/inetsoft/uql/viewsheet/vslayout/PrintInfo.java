@@ -75,9 +75,9 @@ public class PrintInfo implements AssetObject {
     */
    public DimensionD getSize() {
       double ratio = 1 / getUnitRatio(); //Convert inches to current unit
-      DimensionD size = this.size == null ?
+      DimensionD effectiveSize = this.size == null ?
          new DimensionD(DEFAULT_WIDTH, DEFAULT_HEIGHT) : this.size;
-      return new DimensionD(size.getWidth() * ratio, size.getHeight() * ratio);
+      return new DimensionD(effectiveSize.getWidth() * ratio, effectiveSize.getHeight() * ratio);
    }
 
    /**
