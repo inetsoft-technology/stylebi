@@ -41,6 +41,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * a pure function of {@code (row, col)} alone, so two calls naming different measures but both
  * omitting row/col always collapsed onto the SAME {@code TableDataPath}, and every measure but the
  * first lost its highlight.
+ *
+ * <p>Bug 76558 / VSH-001: a plain (non-crosstab) table's {@code colName}-only call had no
+ * resolution at all -- {@code row}/{@code col} stayed at 0/0, landing on column 0's HEADER cell,
+ * which a rendered DATA row never matches, so the highlight was inert on every column.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -180,5 +184,62 @@ class HighlightDialogServiceTest {
                    0.0001);
       assertEquals(10.0, ((Number) table.getObject(discountCell[0], discountCell[1])).doubleValue(),
                    0.0001);
+   }
+
+   // ── resolveNamedColumnCell: bug 76558 / VSH-001 ────────────────────────────
+
+   /**
+    * Bug 76558 / VSH-001: a plain (non-crosstab) table's {@code colName}-only highlight call was
+    * never resolved to a real cell -- {@code row}/{@code col} stayed at their defaulted-to-0 input,
+    * so {@code lens.getTableDataPath(row, col)} always landed on column 0's HEADER cell, and the
+    * stored highlight then matched no rendered DATA row in any column, ever.
+    */
+   @Test
+   void resolvesANamedColumnToTheFirstDataRowOnAPlainTable() {
+      Object[][] data = {
+         { "ORDER_ID", "STATE", "AMOUNT" },
+         { 1, "NY", 100 },
+         { 2, "CA", 200 },
+      };
+      DefaultTableLens table = new DefaultTableLens(data);
+
+      int[] cell = HighlightDialogService.resolveNamedColumnCell(table, "STATE");
+
+      assertArrayEquals(new int[]{ table.getHeaderRowCount(), 1 }, cell,
+                         "STATE is column 1, and the resolved row is the first DATA row, not the " +
+                         "header row");
+   }
+
+   @Test
+   void resolvedNamedColumnCellIsARealDetailPathNotTheHeaderOfColumnZero() {
+      Object[][] data = {
+         { "ORDER_ID", "STATE", "AMOUNT" },
+         { 1, "NY", 100 },
+      };
+      DefaultTableLens table = new DefaultTableLens(data);
+
+      int[] cell = HighlightDialogService.resolveNamedColumnCell(table, "STATE");
+      TableDataPath path = table.getDescriptor().getCellDataPath(cell[0], cell[1]);
+
+      assertEquals(TableDataPath.DETAIL, path.getType(),
+                   "the whole bug: unresolved colName landed on the HEADER path of column 0, " +
+                   "which a rendered DETAIL row never matches");
+      assertArrayEquals(new String[]{ "STATE" }, path.getPath());
+   }
+
+   @Test
+   void leavesTheCellUnresolvedWhenTheNamedColumnDoesNotExist() {
+      Object[][] data = { { "ORDER_ID", "STATE" }, { 1, "NY" } };
+      DefaultTableLens table = new DefaultTableLens(data);
+
+      assertNull(HighlightDialogService.resolveNamedColumnCell(table, "NOT_A_COLUMN"));
+   }
+
+   @Test
+   void leavesTheCellUnresolvedWhenColNameIsAbsentForAPlainTable() {
+      Object[][] data = { { "ORDER_ID", "STATE" }, { 1, "NY" } };
+      DefaultTableLens table = new DefaultTableLens(data);
+
+      assertNull(HighlightDialogService.resolveNamedColumnCell(table, null));
    }
 }

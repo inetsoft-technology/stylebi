@@ -25,6 +25,7 @@ import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.data.SumDataSet;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.TableLens;
+import inetsoft.report.internal.Util;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.GraphTypeUtil;
@@ -100,6 +101,14 @@ public class HighlightDialogService {
             int[] resolved = resolveStackedMeasureCell(cinfo.getRuntimeAggregates(),
                cinfo.isSummarySideBySide(), lens.getHeaderRowCount(), lens.getHeaderColCount(),
                colName);
+
+            if(resolved != null) {
+               row = resolved[0];
+               col = resolved[1];
+            }
+         }
+         else if(colName != null) {
+            int[] resolved = resolveNamedColumnCell(lens, colName);
 
             if(resolved != null) {
                row = resolved[0];
@@ -442,6 +451,34 @@ public class HighlightDialogService {
       return summarySideBySide
          ? new int[] { headerRowCount, headerColCount + index }
          : new int[] { headerRowCount + index, headerColCount };
+   }
+
+   /**
+    * Resolves {@code colName} to a genuine DATA cell -- {@code {row, col}} -- on a non-crosstab
+    * table-type assembly (plain table or calc table); the equivalent of
+    * {@link #resolveStackedMeasureCell} for the case that method's {@code instanceof
+    * CrosstabVSAssembly} guard excludes.
+    *
+    * <p>Without this, {@code colName} was never consulted outside the crosstab branch: {@code row}/
+    * {@code col} stayed whatever the caller passed (defaulting to 0/0), and
+    * {@code lens.getTableDataPath(row, col)} landed on column 0's HEADER cell -- a highlight that
+    * then never matches any rendered DATA row (bug 76558 / VSH-001).
+    *
+    * <p>{@code colName} naming no column on this lens (or absent) returns {@code null}, leaving
+    * {@code row}/{@code col} untouched, same as {@code resolveStackedMeasureCell}'s fallback.
+    */
+   static int[] resolveNamedColumnCell(TableLens lens, String colName) {
+      if(colName == null) {
+         return null;
+      }
+
+      int col = Util.findColumn(lens, colName);
+
+      if(col < 0) {
+         return null;
+      }
+
+      return new int[] { lens.getHeaderRowCount(), col };
    }
 
    /**
