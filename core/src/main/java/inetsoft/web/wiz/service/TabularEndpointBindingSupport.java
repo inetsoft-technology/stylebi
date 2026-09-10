@@ -347,9 +347,16 @@ public final class TabularEndpointBindingSupport {
     *
     * <p>Not only endpoints. Pagination is an ordinary property -- {@code setPaginationType} writes
     * the spec that {@code isPaged()} reads, with nothing in between -- so a target kind addressed
-    * by its parameters rather than by an endpoint name can paginate just as readily. Which kinds
-    * are asked is {@code WorksheetTableService.rowCapRequiredFor}; what this needs to know is that
-    * {@code target} may be absent, since such a kind has no endpoint to name.</p>
+    * by its parameters rather than by an endpoint name can paginate just as readily; {@code target}
+    * may be absent for that reason, since such a kind has no endpoint to name.</p>
+    *
+    * <p>The cap itself is {@link TabularQuery#getMaxRows()} -- the same {@code XQuery} row limit
+    * every render already enforces ({@code AbstractQueryRunner.getTable()} feeds it straight into
+    * both REST runners' {@code hasNext()}, and {@code BoundQuery.getDefinedMaxRows()} folds it into
+    * the effective render-time limit), not a second, parallel concept. The caller is responsible
+    * for calling {@code query.setMaxRows(...)} from whatever field the request carries (e.g.
+    * {@code EditRequest.maxRows()}/{@code WorksheetTable.TabularSource.getMaxRows()}) BEFORE this
+    * check runs -- this method only reads it back.</p>
     */
    public static void requireRowCapWhenPaged(TabularQuery query, String target, String dsName) {
       // Built first so the message reads correctly for a kind that has no target: there is no
@@ -366,11 +373,29 @@ public final class TabularEndpointBindingSupport {
          return;
       }
 
-      if(paged) {
+      if(!paged) {
+         return;
+      }
+
+      int maxRows;
+
+      try {
+         // XQuery.getMaxRows() reads the org-wide row-limit policy via SreeEnv, which needs a live
+         // Spring context -- unavailable the same "we cannot tell" way isPaged() above can be, e.g.
+         // a lightweight unit test with no application context. Same fallback: left alone, not
+         // blocked, rather than a check that cannot run turning into a hard failure.
+         maxRows = query.getMaxRows();
+      }
+      catch(Exception ex) {
+         LOG.debug("Could not read the row cap already applied to {}; not requiring one", subject, ex);
+         return;
+      }
+
+      if(maxRows <= 0) {
          throw new IllegalArgumentException(
             subject + " is paginated, so a row cap is required: without it every render of this " +
-            "table requests pages until the service runs out of data. Choose a row cap for the " +
-            "question being asked.");
+            "table requests pages until the service runs out of data. Set maxRows to a positive " +
+            "value for the question being asked.");
       }
    }
 

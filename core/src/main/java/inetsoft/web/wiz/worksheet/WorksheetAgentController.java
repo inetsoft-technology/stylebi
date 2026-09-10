@@ -723,6 +723,11 @@ public class WorksheetAgentController {
 
          suffix = TabularEndpointBindingSupport.applyEndpointContract(query, pmap, req.endpoint(),
             req.parameters(), null, null, null, dsName);
+
+         if(req.maxRows() != null) {
+            query.setMaxRows(req.maxRows());
+         }
+
          TabularEndpointBindingSupport.requireRowCapWhenPaged(query, req.endpoint(), dsName);
 
          if(req.lookup() != null && !req.lookup().isEmpty()) {
@@ -738,6 +743,11 @@ public class WorksheetAgentController {
 
          suffix = TabularEndpointBindingSupport.applyCustomSuffix(query, pmap, req.suffix(), null,
             dsName);
+
+         if(req.maxRows() != null) {
+            query.setMaxRows(req.maxRows());
+         }
+
          TabularEndpointBindingSupport.requireRowCapWhenPaged(query, req.suffix(), dsName);
 
          if(req.customLookups() != null && !req.customLookups().isEmpty()) {
@@ -831,6 +841,12 @@ public class WorksheetAgentController {
       TabularQuerySchema schema = new TabularSchemaExtractor().extract(query, dataSource.getType());
       String applied = TabularQueryContractSupport.applyQueryContract(
          query, pmap, schema, req.queryParams(), dsName);
+
+      if(req.maxRows() != null) {
+         query.setMaxRows(req.maxRows());
+      }
+
+      TabularEndpointBindingSupport.requireRowCapWhenPaged(query, null, dsName);
 
       String tableName = req.table();
 
