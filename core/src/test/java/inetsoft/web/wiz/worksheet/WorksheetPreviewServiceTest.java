@@ -264,6 +264,33 @@ class WorksheetPreviewServiceTest {
       assertTrue(ex.getMessage().contains("ReferenceError: \"$\" is not defined"));
    }
 
+   // Round-2 review finding on this same bug (#76556 / VFO-017): checkFailedQuery's
+   // wrapExpressionError flag decides the wording, not the actual failure cause - the same
+   // XNodeMetaTable fallback shape is produced by AssetQuery's sqlFailed branch (a raw broken-SQL
+   // worksheet table, no expression column involved) as by an expression-column failure. Passing
+   // true here (as the first cut of this fix did) would misdirect an agent into "checking the
+   // expression columns" for a failure that has nothing to do with any expression, mirroring the
+   // exact pitfall WorksheetTableService.probeExecutable's own comment already calls out for why
+   // it passes false. Pin the raw-cause behavior so a regression back to true fails this test.
+   @Test
+   void surfacesRawCauseWithoutExpressionWrappingForNonExpressionFailure() throws Exception {
+      XNodeMetaTable failedLens = mock(XNodeMetaTable.class);
+      when(failedLens.isFailedQueryDefault()).thenReturn(true);
+      when(failedLens.getFailedQueryMessage())
+         .thenReturn("[Vendor] syntax error near 'GROUP'");
+
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(failedLens);
+
+      PairingException ex = assertThrows(PairingException.class,
+                                          () -> service.preview(rws(box), "T", 10));
+      assertTrue(ex.getMessage().contains("[Vendor] syntax error near 'GROUP'"));
+      assertFalse(ex.getMessage().toLowerCase().contains("expression columns"),
+                  "a non-expression SQL failure must not carry the " +
+                  "\"check the worksheet's expression columns\" hint, which would misdirect: " +
+                  ex.getMessage());
+   }
+
    @Test
    void usesFallbackHeaderNameWhenObjectIsNull() throws Exception {
       TableLens l = mock(TableLens.class);

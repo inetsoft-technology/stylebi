@@ -102,15 +102,17 @@ public class WorksheetPreviewService {
 
       try {
          // lens is non-null here, but a RUNTIME_MODE query that failed (e.g. a JS expression
-         // column throwing) is not surfaced as null — AssetQuery substitutes a design-time
-         // XNodeMetaTable fallback carrying sentinel example data instead. Detect that shape
-         // and surface the real cause rather than returning fabricated rows as if they were
-         // real query results.
-         WizVsService.checkFailedQuery(lens, true);
+         // column throwing, or a raw SQL/infra failure with no expression column involved) is
+         // not surfaced as null — AssetQuery substitutes a design-time XNodeMetaTable fallback
+         // carrying sentinel example data instead. Detect that shape and surface the real cause
+         // rather than returning fabricated rows as if they were real query results. Pass false,
+         // matching WorksheetTableService.probeExecutable: the expression-specific
+         // failedQueryError wrapping would misdirect for a non-expression SQL/infra failure.
+         WizVsService.checkFailedQuery(lens, false);
       }
       catch(IllegalArgumentException e) {
          throw new PairingException("Failed to execute worksheet query for '"
-                                    + tableName + "': " + e.getMessage());
+                                    + tableName + "': " + e.getMessage(), e);
       }
 
       try {
