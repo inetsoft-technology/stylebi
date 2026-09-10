@@ -132,8 +132,10 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
 
    /**
     * Cell height for rendering: the org density default when the user hasn't set a height,
-    * else the stored value. Render/export paths use this; the property dialog and serialization
-    * use the raw getCellHeight() so the stored value round-trips.
+    * else the stored value. Render, export and the property dialog all use this - the dialog
+    * shows the resolved height and compares against it on save, so leaving the field untouched
+    * does not pin it. Only serialization uses the raw getCellHeight(), so the stored value
+    * round-trips.
     */
    public int getEffectiveCellHeight() {
       VizContext ctx = VizContext.of(this);
