@@ -23,7 +23,9 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
 import inetsoft.web.composer.model.vs.*;
@@ -576,6 +578,119 @@ class DateComparisonServiceTest {
       CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
       when(assembly.getVSCrosstabInfo()).thenReturn(crosstabInfo);
       return assembly;
+   }
+
+   // ── reporting a retargeted dimension (chart) ────────────────────────────────
+
+   /**
+    * DCG-008: unlike the crosstab branch above, {@code ChartDcProcessor} mutates the dimension
+    * it found in place first and only clones the already-mutated result onto
+    * {@code VSChartInfo.getDateComparisonRef()} afterward (mutate-then-stash — see
+    * {@code ChartDcProcessor.java} lines 186 then 203-204) — the reverse of the crosstab's
+    * stash-then-mutate order. So the "before" snapshot for a chart cannot come from
+    * {@code getDateComparisonRef()} the way it does for a crosstab (that would compare an
+    * already-retargeted value against itself and always report nothing); it must come from the
+    * untouched design binding ({@code getXFields()}/{@code getYFields()}, which
+    * {@code ChartInfoModelBuilder} never RT-substitutes for a dimension), matched by name
+    * against whichever axis {@code isDcBaseDateOnX()} says the date dimension came from.
+    */
+   @Test
+   void reportsARetargetedDimensionForAChart() throws Exception {
+      VSChartDimensionRef before = mock(VSChartDimensionRef.class);
+      when(before.getName()).thenReturn("Order Date");
+      when(before.getDateLevel()).thenReturn(XConstants.MONTH_DATE_GROUP);
+
+      VSDimensionRef after = mock(VSDimensionRef.class);
+      when(after.getName()).thenReturn("Order Date");
+      when(after.getDateLevel()).thenReturn(XConstants.YEAR_DATE_GROUP);
+
+      VSChartInfo cinfo = mock(VSChartInfo.class);
+      when(cinfo.getDateComparisonRef()).thenReturn(after);
+      when(cinfo.isDcBaseDateOnX()).thenReturn(true);
+      when(cinfo.getXFields()).thenReturn(new ChartRef[] {before});
+      when(cinfo.getRTChartType()).thenReturn(GraphTypes.CHART_BAR);
+
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(cinfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertEquals("Order Date", result.get("retargetedDimension"));
+      assertEquals("month", result.get("retargetedFromLevel"));
+      assertEquals("year", result.get("retargetedToLevel"));
+   }
+
+   /** The retargeted dimension can be on y instead of x, per {@code isDcBaseDateOnX()}. */
+   @Test
+   void findsTheRetargetedChartDimensionOnYWhenNotOnX() throws Exception {
+      VSChartDimensionRef before = mock(VSChartDimensionRef.class);
+      when(before.getName()).thenReturn("Order Date");
+      when(before.getDateLevel()).thenReturn(XConstants.MONTH_DATE_GROUP);
+
+      VSDimensionRef after = mock(VSDimensionRef.class);
+      when(after.getName()).thenReturn("Order Date");
+      when(after.getDateLevel()).thenReturn(XConstants.YEAR_DATE_GROUP);
+
+      VSChartInfo cinfo = mock(VSChartInfo.class);
+      when(cinfo.getDateComparisonRef()).thenReturn(after);
+      when(cinfo.isDcBaseDateOnX()).thenReturn(false);
+      when(cinfo.getYFields()).thenReturn(new ChartRef[] {before});
+      when(cinfo.getRTChartType()).thenReturn(GraphTypes.CHART_BAR);
+
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(cinfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertEquals("Order Date", result.get("retargetedDimension"));
+      assertEquals("year", result.get("retargetedToLevel"));
+   }
+
+   @Test
+   void returnsAnEmptyMapWhenTheChartLevelDidNotActuallyChange() throws Exception {
+      VSChartDimensionRef before = mock(VSChartDimensionRef.class);
+      when(before.getName()).thenReturn("Order Date");
+      when(before.getDateLevel()).thenReturn(XConstants.MONTH_DATE_GROUP);
+
+      VSDimensionRef after = mock(VSDimensionRef.class);
+      when(after.getName()).thenReturn("Order Date");
+      when(after.getDateLevel()).thenReturn(XConstants.MONTH_DATE_GROUP);
+
+      VSChartInfo cinfo = mock(VSChartInfo.class);
+      when(cinfo.getDateComparisonRef()).thenReturn(after);
+      when(cinfo.isDcBaseDateOnX()).thenReturn(true);
+      when(cinfo.getXFields()).thenReturn(new ChartRef[] {before});
+      when(cinfo.getRTChartType()).thenReturn(GraphTypes.CHART_BAR);
+
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(cinfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertFalse(result.containsKey("retargetedDimension"));
+   }
+
+   /** No date comparison actually applied to the chart at all (see describeDateComparisonInactive). */
+   @Test
+   void returnsAnEmptyMapForAChartWhoseDateComparisonRefIsNull() throws Exception {
+      VSChartInfo cinfo = mock(VSChartInfo.class);
+      when(cinfo.getDateComparisonRef()).thenReturn(null);
+      when(cinfo.getRTChartType()).thenReturn(GraphTypes.CHART_BAR);
+
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(cinfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertFalse(result.containsKey("retargetedDimension"));
    }
 
    // ── reporting a chart-type override ─────────────────────────────────────────
