@@ -72,10 +72,36 @@ import java.util.Map;
  *                  {@code preserved} and {@code state} on a table, carrying every other field
  *                  through unchanged — so a description supplied here is input the LLM reads and
  *                  never output the LLM replaces.
+ * @param sampleable true when this connector's {@code describeDataset} target can be re-read
+ *                  cheaply and without side effects to obtain a handful of sample rows — e.g. a
+ *                  local file, as opposed to a metered REST call. Default {@code false}: every
+ *                  existing connector reads a REMOTE, often metered source, so "cannot be sampled
+ *                  for free" is the true default, not a placeholder. {@code TabularCatalogService}
+ *                  writes this into the dataset COMMON extension only when {@code true} — the same
+ *                  "present only when it says something" convention {@link #columnsMayBeIncomplete()}
+ *                  follows — and wiz reads it to decide whether to probe the target for sample rows
+ *                  through the existing generic tabular-probe endpoints. See the ServerFile catalog
+ *                  SPI round's design doc for why this exists: flipping a connector from the file
+ *                  pipeline to this SPI otherwise silently drops the sample rows an annotation pass
+ *                  reads today, because a METADATA target's describe route carries no row payload.
  */
 public record TabularDatasetSchema(String datasetId, List<TabularColumn> columns,
                                    List<String> keyColumns, Map<String, String> params,
-                                   boolean columnsMayBeIncomplete, String description) {
+                                   boolean columnsMayBeIncomplete, String description,
+                                   boolean sampleable) {
+   /**
+    * Compatibility constructor for callers written before {@code sampleable} existed — every
+    * existing connector's construction site. Defaults to {@code false}: none of Cassandra, Hive,
+    * OData, SharePoint Online, ... reads a target that is cheap and side-effect-free to re-read for
+    * sample rows, so "not sampleable" is the true fact about them, not just a compatibility default.
+    */
+   public TabularDatasetSchema(String datasetId, List<TabularColumn> columns,
+                               List<String> keyColumns, Map<String, String> params,
+                               boolean columnsMayBeIncomplete, String description)
+   {
+      this(datasetId, columns, keyColumns, params, columnsMayBeIncomplete, description, false);
+   }
+
    /**
     * Compatibility constructor for callers written before {@code description} existed — every
     * existing connector's construction site. Defaults to {@code null}: "the connector said

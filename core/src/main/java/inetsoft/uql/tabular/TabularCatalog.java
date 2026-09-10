@@ -34,6 +34,33 @@ import java.util.List;
  * @param relationships edges the source declares between datasets in {@code datasets}. Never null;
  *                      empty when the source declares none, or declares none this SPI can express.
  *                      Every fromDataset/toDataset MUST be an id in {@code datasets}.
+ * @param truncated     true when the enumeration behind {@code datasets} stopped at an internal
+ *                      bound (an entry cap, a request-count cap) rather than exhausting the source.
+ *                      {@code datasets} is then a genuine, usable PREFIX -- never a signal to
+ *                      discard it -- but callers of the unpaged {@link TabularCatalogProvider}
+ *                      caller ({@code TabularCatalogService#listTables(String)}) must not treat it
+ *                      as the whole source. Default {@code false} via the 2-arg compatibility
+ *                      constructor below: every connector that reads a bounded, fully-enumerable
+ *                      source (a JDBC-shaped catalog, an EDMX document) never truncates, so "this is
+ *                      everything" is the true fact about them, not a placeholder. Added for the
+ *                      OneDrive catalog SPI round: {@code BrowsableQuery#browseChildren}'s own
+ *                      {@code maxEntries}/internal-request-count bound has no field to report through
+ *                      once a connector enumerates through this SPI instead of the file pipeline's
+ *                      own {@code enumerateTabularFileTargets}, which this replaces for such a
+ *                      connector and which already carried an equivalent {@code truncated} flag on
+ *                      its own {@code EnumeratedTabularFiles} result.
  */
 public record TabularCatalog(List<TabularDatasetRef> datasets,
-                             List<TabularRelationship> relationships) {}
+                             List<TabularRelationship> relationships, boolean truncated) {
+   /**
+    * Compatibility constructor for callers written before {@code truncated} existed -- every
+    * existing connector's construction site (Aerospike, Cassandra, Datagov, Elasticsearch,
+    * GoogleSheets, Hive, MongoDB, OData, OrientDB, GraphQL, ServerFile, SharePoint Online, ...).
+    * Defaults to {@code false}: none of them enumerate through a bounded walk that can stop short --
+    * they read a fully-described catalog (a driver's metadata call, a JDBC-shaped listing) in one
+    * shot, so "not truncated" is the true fact about them, not just a placeholder.
+    */
+   public TabularCatalog(List<TabularDatasetRef> datasets, List<TabularRelationship> relationships) {
+      this(datasets, relationships, false);
+   }
+}

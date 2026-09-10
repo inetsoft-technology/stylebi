@@ -96,6 +96,39 @@ class TabularCatalogServiceTest {
       assertEquals(List.of("ID"), rel.getToColumns());
    }
 
+   /**
+    * G1 (OneDrive catalog SPI round): {@code TabularCatalog.truncated} is not decoration -- it has
+    * a real consumer, this response's own {@code truncated} field, per the SKILL's "a flag nobody
+    * consumes is decoration" warning.
+    */
+   @Test
+   void listTables_truncatedCatalog_isSurfacedOnTheResponse() throws Exception {
+      TabularCatalog catalog = new TabularCatalog(
+         List.of(new TabularDatasetRef("Products")), List.of(), true);
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(catalog, Map.of());
+      TabularCatalogService service =
+         createService(repositoryWithFakeDataSource(), dsName -> runtime);
+
+      DatasourceTablesResponse response = service.listTables(DS_NAME);
+
+      assertTrue(response.isTruncated());
+      // the datasets actually returned are still a USABLE prefix, never discarded -- D2/B9
+      assertEquals(1, response.getTables().size());
+   }
+
+   @Test
+   void listTables_notTruncated_defaultsFalseOnTheResponse() throws Exception {
+      TabularCatalog catalog = new TabularCatalog(
+         List.of(new TabularDatasetRef("Products")), List.of());
+      FakeCatalogRuntime runtime = new FakeCatalogRuntime(catalog, Map.of());
+      TabularCatalogService service =
+         createService(repositoryWithFakeDataSource(), dsName -> runtime);
+
+      DatasourceTablesResponse response = service.listTables(DS_NAME);
+
+      assertFalse(response.isTruncated());
+   }
+
    // ----- paging: listTables(dsName, nameContains, limit, cursor) -----
 
    /**
