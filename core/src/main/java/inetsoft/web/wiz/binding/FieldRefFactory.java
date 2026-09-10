@@ -101,6 +101,10 @@ public final class FieldRefFactory {
             ref.setFormula(field.aggregate());
          }
 
+         if(field.calculateInfo() != null) {
+            ref.setCalculateInfo(field.calculateInfo());
+         }
+
          return ref;
       }
 
@@ -276,7 +280,7 @@ public final class FieldRefFactory {
    public static FieldRef from(DataRefModel ref) {
       if(ref instanceof BAggregateRefModel aggregate) {
          return new FieldRef(aggregate.getColumnValue(), MEASURE, aggregate.getFormula(),
-                             null, null);
+                             null, null, null, null, null, aggregate.getCalculateInfo());
       }
 
       if(ref instanceof BDimensionRefModel dimension) {

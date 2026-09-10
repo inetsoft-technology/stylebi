@@ -190,7 +190,8 @@ public class BindingReadService {
       boolean resolved = runtime != stored && runtime != GraphTypes.CHART_AUTO;
 
       return new FieldRef(ref.column(), ref.type(), ref.aggregate(), ref.dateLevel(),
-                          ref.namedGroup(), stored, resolved ? runtime : null);
+                          ref.namedGroup(), stored, resolved ? runtime : null,
+                          ref.namedGroupValues(), ref.calculateInfo());
    }
 
    private final VSBindingService binding;
