@@ -18,7 +18,6 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
