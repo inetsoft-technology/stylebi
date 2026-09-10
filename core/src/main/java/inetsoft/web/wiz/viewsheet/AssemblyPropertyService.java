@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.model.vs.RangePaneModel;
+import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.web.viewsheet.service.VSInputService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -263,8 +264,64 @@ public class AssemblyPropertyService {
             requireVariableFlagAchievable(type, model, rvs.getViewsheet());
          }
 
+         model = impliedSibling(model, resolved.values(), "tipView", "tipOption", true);
+         model = impliedSibling(model, resolved.values(), "tipPaneModel.alpha",
+                                 "tipPaneModel.tipOption", true);
+         model = impliedSibling(model, resolved.values(), "customTip", "customRB",
+                                 TipCustomizeDialogModel.TipFormat.CUSTOM);
+
          writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);
       });
+   }
+
+   /**
+    * Implies {@code siblingSuffix := impliedValue} whenever the resolved patch sets a path
+    * ending in {@code suffix} to a non-blank value without ALSO setting that path's own sibling
+    * ({@code siblingSuffix}, same parent) in the same patch. A caller who sets the sibling
+    * explicitly (to any value) is always left alone -- this only fills in the one combination
+    * that would otherwise silently do nothing, per {@code set_assembly_properties}'s own
+    * "forgiving where the intent is unambiguous" rule; it does not guess at any other field.
+    *
+    * <p>Three Tip-pane field pairs share this exact shape, each confirmed by reading the real
+    * property-dialog services (Redmine #76516):
+    * <ul>
+    * <li>{@code tipView}/{@code tipOption} -- {@code setChartPropertyModel} et al. force
+    * {@code tipView} back to {@code null} whenever {@code tipOption} is {@code false} (read from
+    * the model as a whole, not from this one patch), regardless of what this call itself just
+    * wrote there.
+    * <li>{@code tipPaneModel.alpha}/{@code tipPaneModel.tipOption} -- the same services only call
+    * {@code setAlphaValue} inside the {@code tipOption == true} branch, so {@code alpha}/
+    * {@code tipAlpha} set alone is silently dropped, not merely left at its old value.
+    * <li>{@code customTip}/{@code customRB} -- {@code customTip} is only applied when
+    * {@code customRB == TipFormat.CUSTOM}; otherwise it is actively nulled out, so
+    * {@code tooltip} set alone (without {@code tooltipMode: "CUSTOM"} in the same patch) does not
+    * merely no-op, it wipes any existing custom tooltip.
+    * </ul>
+    */
+   private static Object impliedSibling(Object model, Collection<String> resolvedPaths,
+                                         String suffix, String siblingSuffix, Object impliedValue)
+   {
+      for(String path : resolvedPaths) {
+         if(!path.endsWith("." + suffix)) {
+            continue;
+         }
+
+         Object value = PropertyPath.get(model, path);
+
+         if(value == null || (value instanceof String str && str.isEmpty())) {
+            continue;
+         }
+
+         String siblingPath = path.substring(0, path.length() - suffix.length()) + siblingSuffix;
+
+         if(resolvedPaths.contains(siblingPath)) {
+            continue;
+         }
+
+         model = PropertyPath.set(model, siblingPath, impliedValue);
+      }
+
+      return model;
    }
 
    /**

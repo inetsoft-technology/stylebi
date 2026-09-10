@@ -615,6 +615,18 @@ public final class PropertyAliases {
       aliases.put("rangeValues", range + ".rangeValues");
       aliases.put("rangeColorValues", range + ".rangeColorValues");
       aliases.put("targetValue", range + ".targetValue");
+
+      // Tip pane (Redmine #76516 item 1 follow-up). Gauge has no Data Tip View mode (no
+      // TipVSAssemblyInfo.setTipOptionValue/setTipViewValue call anywhere in
+      // GaugePropertyDialogService -- only a plain visibility flag plus optional custom text) --
+      // "tipOption" here means "show a tooltip at all", independently gating
+      // gaugeAssemblyInfo.setTooltipVisible, not a radio choice between tooltip/tipView the way
+      // chart's/crosstab's/table's/calcTable's tipOption is. No "alpha"/flyOverViews/tipOnClick
+      // for the same reason -- those are specific to the tipView flyover mechanism gauge does
+      // not have.
+      aliases.put("tooltipVisible", "gaugeGeneralPaneModel.tipPaneModel.tipOption");
+      aliases.put("tooltip", "gaugeGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.customTip");
+      aliases.put("tooltipMode", "gaugeGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.customRB");
       dataOutput(aliases);
       return aliases;
    }
@@ -626,7 +638,12 @@ public final class PropertyAliases {
       aliases.put("alpha", "textGeneralPaneModel.alpha");
       aliases.put("popComponent", "textGeneralPaneModel.popComponent");
       aliases.put("text", "textGeneralPaneModel.textPaneModel.text");
+      // Same shape as gauge()/image() (see gauge()'s comment) -- "tipOption" here predates this
+      // ticket and stays as-is for compatibility; "tooltip"/"tooltipMode" are the missing half of
+      // the same feature, added now.
       aliases.put("tipOption", "textGeneralPaneModel.tipPaneModel.tipOption");
+      aliases.put("tooltip", "textGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.customTip");
+      aliases.put("tooltipMode", "textGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.customRB");
       dataOutput(aliases);
       return aliases;
    }
@@ -640,6 +657,16 @@ public final class PropertyAliases {
       Map<String, String> aliases = new LinkedHashMap<>();
       outputGeneral(aliases, "imageGeneralPaneModel");
       sizePosition(aliases, "imageGeneralPaneModel");
+
+      // Tip pane (Redmine #76516 item 1 follow-up). Same shape as gauge()/text() -- a plain
+      // visibility flag plus optional custom text, no Data Tip View/tipView radio option (that
+      // would be a different pane entirely: image's own separate "Pop Component" feature,
+      // ImageAdvancedPaneModel.popComponent/popOption/popLocation, applied unconditionally by
+      // setImagePropertyDialogModel with no gating relation to tipOption at all -- deliberately
+      // NOT aliased here, out of scope for this ticket).
+      aliases.put("tooltipVisible", "imageGeneralPaneModel.tipPaneModel.tipOption");
+      aliases.put("tooltip", "imageGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.customTip");
+      aliases.put("tooltipMode", "imageGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.customRB");
       dataOutput(aliases);
       return aliases;
    }
@@ -722,6 +749,27 @@ public final class PropertyAliases {
       // zeroes it on read whenever the chart cannot project forward. Exposing the setting without
       // its gate left that looking like a dropped write. Refused for write, with the flags below.
       aliases.put("projectForwardEnabled", "chartLinePaneModel.projectForwardEnabled");
+
+      // General > Tip pane (Redmine #76516 item 1). Mirrors crosstab()'s own tipOption/tipView/
+      // alpha/flyOverViews/flyOnClick/tipOnClick block below -- chart's TipPaneModel is the same
+      // shared dialog-model type, just nested one level deeper under chartGeneralPaneModel rather
+      // than directly under crosstabAdvancedPaneModel. setChartPropertyModel already applies all
+      // of these (tipOption/tipView -> assemblyInfo.setTipOptionValue/setTipViewValue,
+      // customRB/customTip -> vsChartInfo.setToolTipValue/setCombinedToolTipValue) -- this block
+      // only adds the missing alias-table entries, no service-layer change needed.
+      //
+      // "alpha" is deliberately NOT reused here (unlike crosstab(), which has no competing
+      // alpha) -- chart already binds "alpha" to chartPlotOptionsPaneModel.alpha above, a
+      // different setting (chart element opacity, not the flyover popup's). Named "tipAlpha"
+      // instead so the two do not collide.
+      aliases.put("tooltip", "chartGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.customTip");
+      aliases.put("tooltipMode", "chartGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.customRB");
+      aliases.put("tipOption", "chartGeneralPaneModel.tipPaneModel.tipOption");
+      aliases.put("tipView", "chartGeneralPaneModel.tipPaneModel.tipView");
+      aliases.put("tipAlpha", "chartGeneralPaneModel.tipPaneModel.alpha");
+      aliases.put("flyOverViews", "chartGeneralPaneModel.tipPaneModel.flyOverViews");
+      aliases.put("flyOnClick", "chartGeneralPaneModel.tipPaneModel.flyOnClick");
+      aliases.put("tipOnClick", "chartGeneralPaneModel.tipPaneModel.tipOnClick");
       return aliases;
    }
 
@@ -740,6 +788,19 @@ public final class PropertyAliases {
       aliases.put("del", "tableAdvancedPaneModel.del");
       aliases.put("edit", "tableAdvancedPaneModel.edit");
       aliases.put("writeBack", "tableAdvancedPaneModel.writeBack");
+
+      // General > Tip pane (Redmine #76516 item 1 follow-up) -- same TipPaneModel as chart()/
+      // crosstab() below, applied by setTablePropertyModel exactly the same way (with one extra
+      // condition: Data Tip View is skipped when this table's own "form" is true -- unrelated to
+      // aliasing, so not modeled here; a caller sees tipOption/tipView persist either way and
+      // discovers the form interaction from the rendered result, same as any other precondition
+      // this engine does not pre-check). No "alpha" collision here, unlike chart().
+      aliases.put("tipOption", "tableAdvancedPaneModel.tipPaneModel.tipOption");
+      aliases.put("tipView", "tableAdvancedPaneModel.tipPaneModel.tipView");
+      aliases.put("alpha", "tableAdvancedPaneModel.tipPaneModel.alpha");
+      aliases.put("flyOverViews", "tableAdvancedPaneModel.tipPaneModel.flyOverViews");
+      aliases.put("flyOnClick", "tableAdvancedPaneModel.tipPaneModel.flyOnClick");
+      aliases.put("tipOnClick", "tableAdvancedPaneModel.tipPaneModel.tipOnClick");
       return aliases;
    }
 
@@ -947,6 +1008,16 @@ public final class PropertyAliases {
       aliases.put("sortOthersLast", "calcTableAdvancedPaneModel.sortOthersLast");
       aliases.put("headerRowCount", "calcTableAdvancedPaneModel.headerRowCount");
       aliases.put("headerColCount", "calcTableAdvancedPaneModel.headerColCount");
+
+      // General > Tip pane (Redmine #76516 item 1 follow-up) -- same TipPaneModel as chart()/
+      // crosstab()/table() above, applied by setCalcTablePropertyModel exactly the same way. No
+      // "alpha" collision here.
+      aliases.put("tipOption", "calcTableAdvancedPaneModel.tipPaneModel.tipOption");
+      aliases.put("tipView", "calcTableAdvancedPaneModel.tipPaneModel.tipView");
+      aliases.put("alpha", "calcTableAdvancedPaneModel.tipPaneModel.alpha");
+      aliases.put("flyOverViews", "calcTableAdvancedPaneModel.tipPaneModel.flyOverViews");
+      aliases.put("flyOnClick", "calcTableAdvancedPaneModel.tipPaneModel.flyOnClick");
+      aliases.put("tipOnClick", "calcTableAdvancedPaneModel.tipPaneModel.tipOnClick");
       return aliases;
    }
 
