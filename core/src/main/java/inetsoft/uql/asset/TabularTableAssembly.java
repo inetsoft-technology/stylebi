@@ -182,6 +182,11 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
          }
       }
 
+      // Cleared before the attempt, not just set on failure: a query instance reused across
+      // calls (this method's own caller may retry) must not have a stale error from a PRIOR
+      // failed attempt read back as though it explains a fresh empty-columns result.
+      query.setProperty("wizLoadColumnsError", null);
+
       try {
          if(manager != null) {
             query.setProperty("queryManager", manager);
@@ -192,6 +197,16 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
       catch(Exception ex) {
          LOG.warn(
             "Failed to load the columns for the table", ex);
+         // Stashed on the query's own generic property bag -- the same mechanism "queryManager"
+         // above already uses -- rather than propagated, so this method's own contract (log and
+         // return, never throw) is unchanged for every other caller. A wiz caller building a
+         // user-facing "why are there no columns" message reads this back instead of collapsing
+         // every distinct failure (a 404, an auth failure, a malformed response, an unreachable
+         // host) into the same undifferentiated "no columns" text a genuinely-empty-but-successful
+         // response also produces.
+         String detail = ex.getMessage();
+         query.setProperty("wizLoadColumnsError",
+            detail == null || detail.isBlank() ? ex.getClass().getSimpleName() : detail);
       }
 
       ColumnSelection ocolumns = getColumnSelection(false);

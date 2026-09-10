@@ -28,6 +28,8 @@ import inetsoft.uql.util.Config;
 import inetsoft.util.MessageException;
 import inetsoft.web.admin.content.database.DatabaseTypeService;
 import inetsoft.web.admin.content.repository.DatabaseDatasourcesService;
+import inetsoft.web.admin.content.repository.DeletedDataSource;
+import inetsoft.web.admin.content.repository.FolderDeleteResult;
 import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.portal.data.CheckDuplicateResponse;
 import inetsoft.web.portal.data.DataSourceBrowserService;
@@ -186,6 +188,83 @@ class WizDatabaseControllerDeleteMoveTest {
       assertEquals(WizDatasourceDeleteItemResult.PERMISSION_DENIED, result.results().get(1).reason());
       assertFalse(result.results().get(2).ok());
       assertEquals(WizDatasourceDeleteItemResult.UNKNOWN, result.results().get(2).reason());
+   }
+
+   /**
+    * A successful folder delete's result must carry every data source StyleBI actually removed
+    * as part of the cascade, so a wiz-side follow-up can clean up per-path vector-store records.
+    */
+   @Test
+   void delete_folderSuccessCarriesTheDeletedDataSources() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE_FOLDER), eq("Examples"),
+         eq(ResourceAction.DELETE)))
+         .thenReturn(true);
+      List<DeletedDataSource> deleted = List.of(
+         new DeletedDataSource("Examples/ds1", "JDBC"),
+         new DeletedDataSource("Examples/sub/ds2", "REST"));
+      when(fixture.dataSourceBrowserService.deleteDataSourceFolder(
+         eq("Examples"), any(), anyBoolean(), eq(fixture.principal)))
+         .thenReturn(FolderDeleteResult.success(deleted));
+
+      WizDatasourceDeleteResult result = fixture.controller.deleteDatasources(
+         new WizDatasourceDeleteRequest(
+            List.of(new WizDatasourceRef("Examples", "Examples", true)), false),
+         fixture.principal);
+
+      WizDatasourceDeleteItemResult item = result.results().get(0);
+      assertTrue(item.ok());
+      assertEquals(deleted, item.deletedDataSources());
+   }
+
+   /**
+    * A failed (dependency-conflict) folder delete must report {@code deletedDataSources} as
+    * null/absent, same as today's behavior for every other failure reason.
+    */
+   @Test
+   void delete_folderDependencyConflictHasNoDeletedDataSources() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE_FOLDER), eq("Examples"),
+         eq(ResourceAction.DELETE)))
+         .thenReturn(true);
+      when(fixture.dataSourceBrowserService.deleteDataSourceFolder(
+         eq("Examples"), any(), anyBoolean(), eq(fixture.principal)))
+         .thenReturn(FolderDeleteResult.failure(new ConnectionStatus("used by Worksheet1")));
+
+      WizDatasourceDeleteResult result = fixture.controller.deleteDatasources(
+         new WizDatasourceDeleteRequest(
+            List.of(new WizDatasourceRef("Examples", "Examples", true)), false),
+         fixture.principal);
+
+      WizDatasourceDeleteItemResult item = result.results().get(0);
+      assertFalse(item.ok());
+      assertEquals(WizDatasourceDeleteItemResult.HAS_DEPENDENCIES, item.reason());
+      assertEquals("used by Worksheet1", item.dependencyMessage());
+      assertNull(item.deletedDataSources());
+   }
+
+   /**
+    * A non-folder item's result must never populate {@code deletedDataSources}, even on success --
+    * that field only ever means "this was a successful folder delete".
+    */
+   @Test
+   void delete_nonFolderItemNeverPopulatesDeletedDataSources() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE), eq("/orders"), eq(ResourceAction.DELETE)))
+         .thenReturn(true);
+      when(fixture.datasourcesService.deleteDataSource(eq("/orders"), any(), eq(false)))
+         .thenReturn(null);
+
+      WizDatasourceDeleteResult result = fixture.controller.deleteDatasources(
+         new WizDatasourceDeleteRequest(List.of(new WizDatasourceRef("/orders", "orders", false)), false),
+         fixture.principal);
+
+      WizDatasourceDeleteItemResult item = result.results().get(0);
+      assertTrue(item.ok());
+      assertNull(item.deletedDataSources());
    }
 
    // ---- move --------------------------------------------------------------------------------

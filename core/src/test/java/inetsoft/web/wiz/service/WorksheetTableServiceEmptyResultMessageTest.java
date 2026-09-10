@@ -334,6 +334,80 @@ class WorksheetTableServiceEmptyResultMessageTest {
          "Check them against GET /api/wiz/tabular/query-schema"),
          "the no-shape branch's wording must be preserved verbatim for existing consumers: " +
             message);
+      // Merge with #5137: no `wizLoadColumnsError` was set on this query, so the "(...)" clause
+      // that source adds must be absent, not rendered as "()" or similar.
+      assertFalse(message.contains("returned no columns ("), message);
+   }
+
+   // ─── Merge with #5137 (add a READ-gated tabular datasource config endpoint, fix two ───────
+   // ─── queryParams gaps): TabularTableAssembly.loadColumnSelection now stashes a swallowed ───
+   // ─── exception on the query's own property bag. Disjoint from our two sources (D8) -- kept ─
+   // ─── alongside them, not in place of them. ─────────────────────────────────────────────────
+
+   @Test
+   void noShapeWithLoadColumnsErrorIncludesUpstreamsClause() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.reportThrownException("connection refused");
+
+      String message = only(build(query)).getErrorMessage();
+
+      assertTrue(message.contains("returned no columns (connection refused)"),
+         "wizLoadColumnsError, when TabularTableAssembly.loadColumnSelection recovered one, must " +
+            "still reach the message after the merge: " + message);
+   }
+
+   /**
+    * {@code wizLoadColumnsError} is {@code ex.getMessage()}, unsanitized by
+    * {@code TabularTableAssembly.loadColumnSelection} -- without the merged code routing it through
+    * {@code emptyColumnsMessage}'s single {@code singleLine} tail call, an embedded newline here
+    * would hit {@code rootMessage()}'s first-newline truncation exactly as the response shape did
+    * before R1-1 was fixed.
+    */
+   @Test
+   void loadColumnsErrorWithEmbeddedNewlineIsSanitized() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.reportThrownException("connection refused\nX-Injected: not a real header");
+
+      String message = only(build(query)).getErrorMessage();
+
+      assertFalse(message.contains("\n"),
+         "an embedded newline in wizLoadColumnsError must not reach the thrown message: " + message);
+      assertFalse(message.contains("\r"), message);
+      assertTrue(message.contains("Parameters sent"),
+         "text that would follow the injected newline must survive sanitizing: " + message);
+   }
+
+   /**
+    * D11: when {@code wizLoadColumnsError} and {@code CoreTool}'s recovered detail name the same
+    * underlying exception -- both ultimately read {@code Throwable.getMessage()} off it when
+    * {@code loadOutputColumns} itself throws -- the connector-reported suffix is suppressed so the
+    * same sentence is not printed twice.
+    */
+   @Test
+   void duplicateDetailBetweenLoadErrorAndConnectorReportIsSuppressed() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.reportThrownException("timeout");
+      query.reportException("timeout");
+
+      String message = only(build(query)).getErrorMessage();
+
+      assertTrue(message.contains("returned no columns (timeout)"), message);
+      assertFalse(message.contains("The connector reported"),
+         "the same underlying exception must not be printed twice: " + message);
+   }
+
+   @Test
+   void distinctDetailsBothSurvive() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.reportThrownException("auth failed");
+      query.reportException("a genuinely different reason");
+
+      String message = only(build(query)).getErrorMessage();
+
+      assertTrue(message.contains("returned no columns (auth failed)"), message);
+      assertTrue(message.contains("The connector reported: Error executing Rest query: " +
+         "a genuinely different reason"),
+         "two genuinely different recovered details must both survive: " + message);
    }
 
    // ─── A9: the no-shape behaviour generalizes past SERVER_FILE to any connector that never ──

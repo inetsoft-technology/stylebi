@@ -1583,25 +1583,40 @@ public class WorksheetTableService {
     * reads the same slot on the success path — the copy-back in {@code TabularHandler.execute} that
     * fills it runs unconditionally, before the success/failure branch). Both branches may carry an
     * appended exception detail when the connector recovered one — see {@link #recoveredExceptionDetail}.
+    * The no-shape branch may also carry a {@code wizLoadColumnsError} clause (added by #5137,
+    * {@code TabularTableAssembly.loadColumnSelection}'s own catch) — a disjoint third source: it
+    * fires when {@code loadOutputColumns} THROWS, {@code recoveredExceptionDetail}'s source fires
+    * when the REST runner's own fetch loop caught the exception internally and returned normally,
+    * and the shape-present branch fires when nothing failed at all. All three are kept; see
+    * {@link #recoveredExceptionDetail}'s doc for what happens when the first two name the same
+    * underlying exception.
     *
     * <p>Sanitized ONCE, at this single return point, rather than ingredient-by-ingredient: every
     * piece assembled below can originate from data the connector or the caller controls — the
     * response shape's own field NAMES (not just its leaf values — see {@link #singleArrayFieldHint}'s
     * sibling, {@code JsonShapeDistiller.objectShape}, which carries a response's real field names
     * through verbatim), the effective row path (a caller-supplied {@code jsonPath}), {@code
-    * probeDesc} (caller-supplied parameter values), and the recovered exception detail. {@link
-    * #rootMessage} truncates the THROWN message at the first '\n' it finds, so any one of those
-    * silently drops everything appended after it — the exact silent-misinformation class this whole
-    * method exists to remove. One sanitize call here is right by construction for whatever a future
-    * ingredient adds; sanitizing four separate pieces is right only until someone adds a fifth.</p>
+    * probeDesc} (caller-supplied parameter values), {@code wizLoadColumnsError} (also an unsanitized
+    * {@code Throwable.getMessage()}), and the recovered exception detail. {@link #rootMessage}
+    * truncates the THROWN message at the first '\n' it finds, so any one of those silently drops
+    * everything appended after it — the exact silent-misinformation class this whole method exists
+    * to remove. One sanitize call here is right by construction for whatever a future ingredient
+    * adds; sanitizing each ingredient separately is right only until someone adds one more.</p>
     */
    private String emptyColumnsMessage(TabularQuery query, String dsName, String probeDesc) {
       Object shape = query.getResponseShape();
-      String detail = recoveredExceptionDetail();
+      // Cleared before every attempt by TabularTableAssembly.loadColumnSelection (see that method),
+      // so non-null here means loadOutputColumns actually threw during THIS probe, not a stale
+      // value from an earlier call on a reused query instance.
+      Object loadError = query.getProperty("wizLoadColumnsError");
+      String detail = recoveredExceptionDetail(loadError);
       String message;
 
       if(shape == null) {
-         message = "The query on '" + dsName + "' returned no columns. Parameters sent: " + probeDesc +
+         String loadErrorClause = loadError == null ? "" : " (" + loadError + ")";
+
+         message = "The query on '" + dsName + "' returned no columns" + loadErrorClause +
+            ". Parameters sent: " + probeDesc +
             ". Check them against GET /api/wiz/tabular/query-schema — in particular that each " +
             "one applies to the others, since one that does not is stored and never read — and " +
             "that the data source's credentials are valid; the underlying cause is in the " +
@@ -1696,15 +1711,30 @@ public class WorksheetTableService {
     * un-sanitized HERE deliberately: {@link #emptyColumnsMessage} sanitizes the whole assembled
     * message exactly once, at its single return point, rather than each ingredient sanitizing
     * itself.
+    *
+    * @param alreadyReported the {@code wizLoadColumnsError} value already folded into the message
+    *                        being assembled, or null. Both sources ultimately read
+    *                        {@code Throwable.getMessage()} off the same exception when {@code
+    *                        loadOutputColumns} itself throws (as opposed to the runner's own fetch
+    *                        loop swallowing it internally, which is the case this source exists
+    *                        for) — when {@code alreadyReported}'s text is already present in what
+    *                        this source recovered, the suffix is omitted so the same sentence is
+    *                        not printed twice.
     */
-   private String recoveredExceptionDetail() {
+   private String recoveredExceptionDetail(Object alreadyReported) {
       UserMessage msg = CoreTool.getUserMessage();
 
       if(msg == null || msg.getMessage() == null || msg.getMessage().isBlank()) {
          return "";
       }
 
-      return " The connector reported: " + msg.getMessage().trim();
+      String oneLine = msg.getMessage().trim();
+
+      if(alreadyReported != null && oneLine.contains(String.valueOf(alreadyReported).trim())) {
+         return "";
+      }
+
+      return " The connector reported: " + oneLine;
    }
 
    /**

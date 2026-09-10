@@ -22,10 +22,13 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.viewsheet.service.ExportResponse;
 import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.model.WizExportReportEvent;
@@ -42,6 +45,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+import java.awt.Dimension;
 import java.io.ByteArrayOutputStream;
 import java.security.Principal;
 import java.util.List;
@@ -437,6 +441,79 @@ class WizViewsheetExportControllerTest {
       // pptx never touches the dashboard/print-layout machinery
       verify(builder, never()).build(any(), any(), any(), any(), any());
       verify(wizVsService, never()).persistViewsheet(any(), any(), any());
+   }
+
+   /**
+    * bug-76110 round 2 regression (tester-found): enlargeChartForSlide() must only shrink a
+    * chart's rendered height when that chart actually has its own insightsMarkdown to place in
+    * the freed region -- otherwise a chart with no insights would render at half its old height
+    * for no reason, leaving unexplained blank space on its slide. Exercises the real
+    * enlargeChartForSlide() sizing logic against the real ChartVSAssembly/VSAssemblyInfo
+    * setPixelSize() contract, which the happy-path test above does not: there,
+    * RuntimeViewsheet.getViewsheet() is an unstubbed mock returning null, so
+    * enlargeChartForSlide() returns immediately without ever touching an assembly's pixel size.
+    * Viewsheet/ChartVSAssembly/VSAssemblyInfo are mocked rather than constructed for real --
+    * ChartVSAssembly's real constructor needs a live Spring application context this plain
+    * Mockito-only test class does not stand up (confirmed: constructing one directly here fails
+    * with "Shutdown Spring application context is not available"), but mocking only requires the
+    * type hierarchy for the instanceof check, not a working constructor.
+    */
+   @Test
+   void enlargeChartForSlideOnlyShrinksAChartThatHasItsOwnInsights() throws Exception {
+      ViewsheetService vs = mock(ViewsheetService.class);
+      WizVsService wizVsService = mock(WizVsService.class);
+      WizPrintLayoutBuilder builder = mock(WizPrintLayoutBuilder.class);
+      VSExportService exportService = mock(VSExportService.class);
+      PptxDeckMerger merger = mock(PptxDeckMerger.class);
+      SecurityEngine sec = mock(SecurityEngine.class);
+      Principal principal = mock(Principal.class);
+      HttpServletResponse servletResponse = mock(HttpServletResponse.class);
+      when(servletResponse.getOutputStream()).thenReturn(capturingOutputStream(new ByteArrayOutputStream()));
+      when(sec.checkPermission(eq(principal), eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION),
+         eq("Export"), eq(ResourceAction.READ))).thenReturn(true);
+
+      String withInsightsId = managedChartIdentifier("with-insights");
+      String noInsightsId = managedChartIdentifier("no-insights");
+
+      Viewsheet vsWithInsights = mock(Viewsheet.class);
+      ChartVSAssembly chartWithInsights = mock(ChartVSAssembly.class);
+      VSAssemblyInfo infoWithInsights = mock(VSAssemblyInfo.class);
+      when(chartWithInsights.getVSAssemblyInfo()).thenReturn(infoWithInsights);
+      when(vsWithInsights.getAssemblies()).thenReturn(new Assembly[] { chartWithInsights });
+      RuntimeViewsheet rvsWithInsights = mock(RuntimeViewsheet.class);
+      when(rvsWithInsights.getViewsheet()).thenReturn(vsWithInsights);
+
+      Viewsheet vsNoInsights = mock(Viewsheet.class);
+      ChartVSAssembly chartNoInsights = mock(ChartVSAssembly.class);
+      VSAssemblyInfo infoNoInsights = mock(VSAssemblyInfo.class);
+      when(chartNoInsights.getVSAssemblyInfo()).thenReturn(infoNoInsights);
+      when(vsNoInsights.getAssemblies()).thenReturn(new Assembly[] { chartNoInsights });
+      RuntimeViewsheet rvsNoInsights = mock(RuntimeViewsheet.class);
+      when(rvsNoInsights.getViewsheet()).thenReturn(vsNoInsights);
+
+      when(vs.openViewsheet(argThat(e -> e != null && e.toIdentifier().equals(withInsightsId)), eq(principal), eq(true)))
+         .thenReturn("rt-with");
+      when(vs.openViewsheet(argThat(e -> e != null && e.toIdentifier().equals(noInsightsId)), eq(principal), eq(true)))
+         .thenReturn("rt-without");
+      when(vs.getViewsheet("rt-with", principal)).thenReturn(rvsWithInsights);
+      when(vs.getViewsheet("rt-without", principal)).thenReturn(rvsNoInsights);
+      when(merger.mergeSlides(any(), any(), any())).thenReturn("%PPTX-fake".getBytes());
+
+      WizViewsheetExportController ctrl = new WizViewsheetExportController(
+         vs, wizVsService, builder, exportService, sec, merger);
+
+      WizExportReportEvent ev = new WizExportReportEvent();
+      ev.setFormat("pptx");
+      ev.setTitle("Board");
+      ev.setCharts(List.of(
+         chartEntry(withInsightsId, "First", "cap", 0, "Some finding."),
+         chartEntry(noInsightsId, "Second", "cap two", 1)));
+
+      ResponseEntity<?> resp = ctrl.exportReport(ev, principal, servletResponse);
+
+      assertNull(resp);
+      verify(infoWithInsights).setPixelSize(new Dimension(1200, 300));
+      verify(infoNoInsights).setPixelSize(new Dimension(1200, 600));
    }
 
    @Test

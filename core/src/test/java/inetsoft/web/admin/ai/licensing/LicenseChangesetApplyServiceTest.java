@@ -307,6 +307,92 @@ class LicenseChangesetApplyServiceTest {
       verify(licenseKeySettingsService).removeServerKey("K1");
    }
 
+   /** Bug 76567: a throw that fires strictly BEFORE the second item's own mutating call
+    * ({@code addServerKey}) means that item was never touched -- unlike the previous test (which
+    * throws AT the mutating call), this must not by itself force {@code rollback-failed} when the
+    * first item's own rollback is independently verified clean. The throw is injected via
+    * {@code parseLicense("K2")}'s own re-verification call inside {@code applyAdd}
+    * (LicenseChangesetApplyService.java's applyAdd, called strictly before
+    * {@code addServerKey(key)}) -- made to return cleanly on its first two invocations (the
+    * plan-hash-building resolve() and apply()'s own fresh top-of-method re-resolve) and throw only
+    * on its third (applyAdd's own re-verification for K2). */
+   @Test void unknownStateBeforeMutationDoesNotForceRollbackFailedWhenRollbackIsClean()
+      throws Exception
+   {
+      when(licenseManager.parseLicense("K1")).thenReturn(valid("K1"));
+      when(licenseManager.parseLicense("K2"))
+         .thenReturn(valid("K2"))
+         .thenReturn(valid("K2"))
+         .thenThrow(new RuntimeException("simulated resolve failure for K2"));
+      String hash = planService.resolve(request("task", List.of(add("K1"), add("K2")))).planHash();
+
+      LicenseApplyRequest req = applyRequest("task", hash, "looks good", null, add("K1"), add("K2"));
+      LicenseApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      verify(licenseKeySettingsService, never()).addServerKey("K2");
+      verify(licenseKeySettingsService).addServerKey("K1");
+      verify(licenseKeySettingsService).removeServerKey("K1");
+      assertTrue(installed.isEmpty());
+   }
+
+   /** Bug 76567, REMOVE-verb variant matching the reporter's literal repro (a two-key remove
+    * changeset). {@code applyRemove} has no {@code parseLicense}-equivalent pre-mutation call, so
+    * the "throw before mutating call" is injected via {@code licenseManager.getInstalledLicenses()}
+    * (used by {@code findInstalled} inside {@code applyRemove}), made to throw only on the specific
+    * invocation that corresponds to K2's own turn in the loop. */
+   @Test void unknownStateBeforeMutationDoesNotForceRollbackFailedForRemoveWhenRollbackIsClean()
+      throws Exception
+   {
+      installed.add(valid("K1"));
+      installed.add(valid("K2"));
+      // K1's rollback re-adds it via addServerKey, which re-parses the key -- stubbed so the
+      // rollback path's re-installed License is well-formed, matching
+      // rollbackOfRemoveCarriesClaimingNodeDriftAdvisory's own precedent.
+      when(licenseManager.parseLicense("K1")).thenReturn(valid("K1"));
+      String hash = planService.resolve(request("task", List.of(remove("K1"), remove("K2"))))
+         .planHash();
+
+      // Counting getInstalledLicenses() invocations from here (the earlier hash-computing resolve()
+      // call above is not counted): 1st = apply()'s own fresh top-of-method resolve(); 2nd =
+      // apply()'s installedCountNow re-derivation; 3rd = applyRemove(K1)'s findInstalled; 4th =
+      // applyRemove(K1)'s own post-removeServerKey verification (isInstalled); 5th =
+      // applyRemove(K2)'s findInstalled -- strictly before K2's own removeServerKey call, so
+      // throwing here reproduces "throw before the mutating call" for K2.
+      List<Set<License>> snapshotAtCallTime = new ArrayList<>();
+      doAnswer(inv -> {
+         Set<License> snapshot = new LinkedHashSet<>(installed);
+         snapshotAtCallTime.add(snapshot);
+
+         if(snapshotAtCallTime.size() == 5) {
+            throw new RuntimeException("simulated lookup failure for K2");
+         }
+
+         return snapshot;
+      }).when(licenseManager).getInstalledLicenses();
+
+      LicenseApplyRequest req = applyRequest("task", hash, "looks good", true, remove("K1"),
+                                             remove("K2"));
+      LicenseApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      verify(licenseKeySettingsService, never()).removeServerKey("K2");
+      verify(licenseKeySettingsService).removeServerKey("K1");
+      verify(licenseKeySettingsService).addServerKey("K1");
+      assertTrue(installed.stream().anyMatch(l -> "K1".equals(l.key())));
+      assertTrue(installed.stream().anyMatch(l -> "K2".equals(l.key())));
+   }
+
    @Test void rollbackFailureReportsRollbackFailedNamingTheKey() throws Exception {
       when(licenseManager.parseLicense("K1")).thenReturn(valid("K1"));
       when(licenseManager.parseLicense("K2")).thenReturn(valid("K2"));

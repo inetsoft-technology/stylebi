@@ -4151,8 +4151,11 @@ class WorksheetAgentControllerTest {
 
       FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
 
+      // "endpoint" supplied alongside "jsonPath" -- otherwise required-param enforcement (added
+      // since) reports the missing "endpoint" first, which is correct but not what this test
+      // isolates (a plain, non-composite property filling cleanly).
       EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, null, null,
-         null, null, Map.of("jsonPath", "$.data"));
+         null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
 
       inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
       org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
