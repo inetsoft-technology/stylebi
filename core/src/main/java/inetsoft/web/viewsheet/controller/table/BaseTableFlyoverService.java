@@ -205,7 +205,14 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
    }
 
    /**
-    * Execute the runtime viewsheet with the given condition list
+    * Execute the runtime viewsheet with the given condition list.
+    *
+    * Two flyover requests (e.g. from two different source assemblies that both fly over the
+    * same target, or whose source tables coincide) can otherwise run this concurrently on
+    * different threads while only holding the sandbox's shared read lock, racing on the
+    * target's query state and on the source table's pre-runtime condition list save/restore.
+    * Serialize per touched assembly (narrower than a full per-runtimeId lock) so unrelated
+    * flyovers on the same viewsheet are not blocked.
     */
    private void applyFlyovers(String name, VSAssembly comp,
                               RuntimeViewsheet rvs, Worksheet ws,
@@ -222,6 +229,61 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
          ws.getAssembly(comp.getTableName());
       TipVSAssemblyInfo minfo = (TipVSAssemblyInfo) comp.getVSAssemblyInfo();
       String[] views = minfo.getFlyoverViews();
+
+      if(views == null || views.length == 0) {
+         return;
+      }
+
+      TreeSet<String> lockNames = new TreeSet<>();
+
+      if(tassembly != null) {
+         lockNames.add(tassembly.getName());
+      }
+
+      for(String view : views) {
+         VSAssembly tip = comp.getViewsheet().getAssembly(view);
+
+         if(tip != null && !view.equals(name)) {
+            lockNames.add(tip.getAbsoluteName());
+         }
+      }
+
+      List<Object> locks = new ArrayList<>();
+
+      for(String lockName : lockNames) {
+         locks.add(box.get().getFlyoverLock(lockName));
+      }
+
+      applyFlyoversLocked(locks, 0, name, comp, rvs, clist, linkUri, dispatcher, tassembly, views);
+   }
+
+   /**
+    * Recursively acquire the given locks (already sorted into a deterministic order by the
+    * caller to avoid deadlock against another request acquiring an overlapping lock set), then
+    * run the actual flyover apply/execute/restore logic while holding all of them.
+    */
+   private void applyFlyoversLocked(List<Object> locks, int index, String name, VSAssembly comp,
+                                    RuntimeViewsheet rvs, ConditionList clist, String linkUri,
+                                    CommandDispatcher dispatcher, AbstractTableAssembly tassembly,
+                                    String[] views) throws Exception
+   {
+      if(index >= locks.size()) {
+         doApplyFlyovers(name, comp, rvs, clist, linkUri, dispatcher, tassembly, views);
+         return;
+      }
+
+      synchronized(locks.get(index)) {
+         applyFlyoversLocked(locks, index + 1, name, comp, rvs, clist, linkUri, dispatcher,
+                              tassembly, views);
+      }
+   }
+
+   private void doApplyFlyovers(String name, VSAssembly comp, RuntimeViewsheet rvs,
+                                ConditionList clist, String linkUri,
+                                CommandDispatcher dispatcher, AbstractTableAssembly tassembly,
+                                String[] views) throws Exception
+   {
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       ConditionList preList = null;
 
       if(tassembly != null) {
@@ -229,10 +291,6 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
       }
 
       ArrayList<Integer> hints = new ArrayList<>();
-
-      if(views == null || views.length == 0) {
-         return;
-      }
 
       for(String view : views) {
          VSAssembly tip = comp.getViewsheet().getAssembly(view);
