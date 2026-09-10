@@ -26,8 +26,11 @@ import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.internal.DateCompareAbleAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
+import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.uql.viewsheet.internal.StandardPeriods;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -96,7 +99,8 @@ public class DateComparisonService {
    public Map<String, Object> read(String sessionToken, Principal user, String assemblyName)
       throws Exception
    {
-      String runtimeId = sessions.resolve(sessionToken, user).getID();
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      String runtimeId = rvs.getID();
       DateComparisonPaneModel model =
          comparisonService.getDateComparison(runtimeId, assemblyName, user);
 
@@ -124,6 +128,29 @@ public class DateComparisonService {
          }
 
          return out;
+      }
+
+      // model fetched above is this assembly's OWN DateComparisonPaneModel — a default,
+      // unset one whenever comparisonShareFrom is set, since a sharing assembly never carries
+      // its own DateComparisonInfo (see setDateComparison()). "enabled:true" alone would then
+      // report Chart2's own defaults (comparisonOption=VALUE, useFacet=false, ...) as if they
+      // were real settings. When sharing, resolve the populated fields through to the share
+      // source's actual config instead — DateComparisonUtil.getDateComparison() already
+      // performs this resolution (including one level of nested sharing) for every
+      // rendering-facing caller.
+      if(hasShareFrom) {
+         Viewsheet vs = rvs.getViewsheet();
+         VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+         VSAssemblyInfo info = assembly == null ? null : assembly.getVSAssemblyInfo();
+
+         if(info instanceof DateCompareAbleAssemblyInfo) {
+            DateComparisonInfo resolved =
+               DateComparisonUtil.getDateComparison((DateCompareAbleAssemblyInfo) info, vs);
+
+            if(resolved != null) {
+               model = new DateComparisonPaneModel(resolved);
+            }
+         }
       }
 
       out.put("enabled", true);

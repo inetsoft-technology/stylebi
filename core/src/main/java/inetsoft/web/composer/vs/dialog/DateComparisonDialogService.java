@@ -109,7 +109,7 @@ public class DateComparisonDialogService {
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly vsAssembly = vs.getAssembly(objectId);
       VSAssemblyInfo info = vsAssembly == null ? null : vsAssembly.getVSAssemblyInfo();
-      return DateComparisonUtil.isDateComparisonDefined(info, false);
+      return DateComparisonUtil.isDateComparisonDefined(info, true);
    }
 
    @ClusterWriteMethod
