@@ -315,13 +315,16 @@ public class WizViewsheetExportController {
 
    /**
     * Enlarge the chart/table assemblies in a to-be-exported single-viz runtime so the PPTX render
-    * fills the merged 16:9 slide instead of landing at the small saved size in the top-left corner.
-    * PPTVSExporter renders each chart at its assembly pixel size (scaled by PIXEL_TO_POINT=0.75 to
-    * slide points) and sizes the slide to fit it, so a ~400px saved chart becomes a small image on
-    * the 960x540pt deck. Sizing the assembly to {@link #PPTX_CHART_W_PX}x{@link #PPTX_CHART_H_PX}
-    * (1200x600px -> 900x450pt) below a caption-height offset makes the exported chart fill the
-    * slide below PptxDeckMerger's caption band, and renders it at full resolution (no upscaling).
-    * Runtime-only (a throwaway export runtime) — the saved asset is untouched.
+    * fills its reserved region of the merged 16:9 slide instead of landing at the small saved size
+    * in the top-left corner. PPTVSExporter renders each chart at its assembly pixel size (scaled by
+    * PIXEL_TO_POINT=0.75 to slide points) and sizes the slide to fit it, so a ~400px saved chart
+    * becomes a small image on the 960x540pt deck. Sizing the assembly to
+    * {@link #PPTX_CHART_W_PX}x{@link #PPTX_CHART_H_PX} (1200x300px -> 900x225pt) below a
+    * caption-height offset makes the exported chart fill the top of the slide below
+    * PptxDeckMerger's caption band, at full resolution (no upscaling), while leaving the bottom of
+    * the slide free for that same chart's own insights text (bug-76110 round 2 — see
+    * PoiPptxDeckMerger.CHART_INSIGHTS_TOP_PT/HEIGHT_PT, which must stay in sync with this height if
+    * either changes). Runtime-only (a throwaway export runtime) — the saved asset is untouched.
     */
    private void enlargeChartForSlide(RuntimeViewsheet rvs) {
       Viewsheet vs = rvs != null ? rvs.getViewsheet() : null;
@@ -344,12 +347,15 @@ public class WizViewsheetExportController {
       }
    }
 
-   // 1200x600px * 0.75 = 900x450pt; offset 40x96px = 30x72pt leaves room for the caption band that
-   // PptxDeckMerger adds at the top of the merged 960x540pt slide.
+   // 1200x300px * 0.75 = 900x225pt; offset 40x96px = 30x72pt leaves room for the caption band that
+   // PptxDeckMerger adds at the top of the merged 960x540pt slide. The 300px height (down from a
+   // full-slide 600px, bug-76110 round 2) deliberately stops well short of filling the slide, so
+   // PptxDeckMerger.CHART_INSIGHTS_TOP_PT/HEIGHT_PT has real room below the chart for that same
+   // chart's own insights text on the same slide.
    private static final int PPTX_CHART_X_PX = 40;
    private static final int PPTX_CHART_Y_PX = 96;
    private static final int PPTX_CHART_W_PX = 1200;
-   private static final int PPTX_CHART_H_PX = 600;
+   private static final int PPTX_CHART_H_PX = 300;
 
    private final ViewsheetService viewsheetService;
    private final WizVsService wizVsService;
