@@ -44,6 +44,13 @@ import java.util.List;
  * extending PPTVSExporter itself — PPTVSExporter has no multi-slide mechanism today (it calls
  * XMLSlideShow.createSlide() exactly once) and is shared by every PowerPoint export in the
  * product, not just wiz's.
+ *
+ * <p>Each chart's own insights text shares that chart's slide (bug-76110 round 2): the imported
+ * chart picture is pre-sized upstream ({@code WizViewsheetExportController.enlargeChartForSlide})
+ * to occupy only the top of the slide, and {@link #addInsightsSlides} packs as much of the
+ * chart's insightsMarkdown as fits into the reserved region below it, spilling anything left
+ * over into additional "(cont'd)" insights-only slides. A failed chart's placeholder slide
+ * reserves no such region, so its insights always get their own dedicated slide(s).
  */
 public class PoiPptxDeckMerger implements PptxDeckMerger {
    @Override
@@ -54,6 +61,12 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
          addTitleSlide(merged, title, recap);
 
          for(ChartSlide slide : slides) {
+            // Only a successfully-imported chart slide reserves a region for its own insights
+            // (addFailurePlaceholder draws no picture and leaves nothing to reserve room below —
+            // out of scope here, Redmine #76535). Left null for a failed chart so
+            // addInsightsSlides falls back to giving its insights their own dedicated slide(s).
+            XSLFSlide chartSlide = null;
+
             if(slide.failed()) {
                XSLFSlide target = merged.createSlide();
                addFailurePlaceholder(target, slide.title());
@@ -63,19 +76,19 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
                try(XMLSlideShow source =
                   new XMLSlideShow(new ByteArrayInputStream(slide.singleSlideDeckBytes())))
                {
-                  XSLFSlide target = merged.createSlide();
-                  target.importContent(source.getSlides().get(0));
+                  chartSlide = merged.createSlide();
+                  chartSlide.importContent(source.getSlides().get(0));
 
                   // Added AFTER importContent, not before: empirically verified (see this
                   // task's report) that importContent REPLACES the target slide's shape tree
                   // wholesale — a caption added before importContent is wiped out. Adding it
                   // after is the only ordering under which it survives.
-                  addCaption(target, slide.title(), slide.caption());
+                  addCaption(chartSlide, slide.title(), slide.caption());
                }
             }
 
             if(slide.insightsMarkdown() != null && !slide.insightsMarkdown().isBlank()) {
-               addInsightsSlides(merged, slide.title(), slide.insightsMarkdown());
+               addInsightsSlides(merged, chartSlide, slide.title(), slide.insightsMarkdown());
             }
          }
 
@@ -208,14 +221,22 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       box.setText("Failed to render: " + (title == null ? "" : title));
    }
 
-   /** Appends one or more insights-only slides, rendering the insights markdown as styled
-    *  paragraphs/bullets/headers (bold + italic runs preserved). Blocks are packed onto slides by
+   /** Places a chart's insightsMarkdown as far as it fits into the reserved region below its own
+    *  imported picture ({@code chartSlide}, non-null — see {@link #CHART_INSIGHTS_TOP_PT}/
+    *  {@link #CHART_INSIGHTS_HEIGHT_PT}), then appends one or more additional insights-only
+    *  "(cont'd)" slides for anything left over. When {@code chartSlide} is null (a failed
+    *  chart's placeholder reserves no such region), every block goes straight to dedicated
+    *  insights-only slide(s), matching the pre-bug-76110-round-2 behavior. Either way, blocks are
+    *  rendered as styled paragraphs/bullets/headers (bold + italic runs preserved) and packed by
     *  estimated height so nothing is truncated; a single block taller than a whole slide falls
-    *  back to a plain word-split across slides. Every insights slide carries a title identifying
-    *  the chart it belongs to ("Insights: <chart title>", or bare "Insights" with no chart
-    *  title); slides after the first for the same chart append " (cont'd)" so it's clear a
-    *  continuation slide is still the same chart's insights, not a new topic. */
-   private void addInsightsSlides(XMLSlideShow show, String chartTitle, String insightsMarkdown) {
+    *  back to a plain word-split across slides. The first page carries a title identifying the
+    *  chart it belongs to ("Insights: <chart title>", or bare "Insights" with no chart title);
+    *  every later page appends " (cont'd)" so it's clear a continuation slide is still the same
+    *  chart's insights, not a new topic — this holds whether the first page landed on the chart's
+    *  own slide or, for a failed chart, on a dedicated one. */
+   private void addInsightsSlides(XMLSlideShow show, XSLFSlide chartSlide, String chartTitle,
+                                   String insightsMarkdown)
+   {
       List<MarkdownModel.Block> blocks = MarkdownModel.parse(insightsMarkdown);
 
       if(blocks.isEmpty()) {
@@ -225,35 +246,48 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       double boxWidthPt = SLIDE_WIDTH_PT - 2 * MARGIN_PT;
       // Content budget shrinks by the title box's reserved height: the title now occupies space
       // the content box used to have exclusive use of.
-      double boxHeightPt = SLIDE_HEIGHT_PT - 2 * MARGIN_PT - INSIGHTS_TITLE_HEIGHT_PT;
+      double fullPageHeightPt = SLIDE_HEIGHT_PT - 2 * MARGIN_PT - INSIGHTS_TITLE_HEIGHT_PT;
+      double firstPageHeightPt = chartSlide != null
+         ? CHART_INSIGHTS_CONTENT_HEIGHT_PT : fullPageHeightPt;
 
       List<List<MarkdownModel.Block>> pages = new ArrayList<>();
       List<MarkdownModel.Block> current = new ArrayList<>();
       double used = 0;
+      double capacity = firstPageHeightPt;
 
       for(MarkdownModel.Block block : blocks) {
          double h = estimateBlockHeightPt(block, boxWidthPt);
 
-         if(h > boxHeightPt) {
-            // Pathological single block taller than a slide: flush, then split its plain text.
+         if(h > fullPageHeightPt) {
+            // Pathological single block taller than even a full slide: flush, then split its
+            // plain text. Judged against fullPageHeightPt, not the current (possibly smaller)
+            // capacity — a block that only doesn't fit the chart-slide's reduced budget belongs
+            // on the next full page, not chunked.
             if(!current.isEmpty()) {
                pages.add(current);
                current = new ArrayList<>();
                used = 0;
+               capacity = fullPageHeightPt;
             }
 
-            for(String chunk : chunkInsightsText(block.plainText())) {
+            // capacity still reflects whatever page this chunked block's first chunk actually
+            // lands on (the chart slide's smaller region, if nothing was flushed above and this
+            // is still page 0; a full page otherwise) — chunkInsightsText sizes only its first
+            // chunk to that budget, and every later chunk to a full page.
+            for(String chunk : chunkInsightsText(block.plainText(), capacity)) {
                pages.add(List.of(new MarkdownModel.Block(MarkdownModel.BlockType.PARAGRAPH, 0,
                   List.of(new MarkdownModel.Span(chunk, false, false)))));
             }
 
+            capacity = fullPageHeightPt; // later blocks, if any, start a fresh full page
             continue;
          }
 
-         if(used + h > boxHeightPt && !current.isEmpty()) {
+         if(used + h > capacity && !current.isEmpty()) {
             pages.add(current);
             current = new ArrayList<>();
             used = 0;
+            capacity = fullPageHeightPt; // every page after the first is a full-height slide
          }
 
          current.add(block);
@@ -268,23 +302,41 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
          ? "Insights" : "Insights: " + chartTitle;
 
       for(int i = 0; i < pages.size(); i++) {
-         XSLFSlide slide = show.createSlide();
-         addInsightsTitle(slide, i == 0 ? heading : heading + " (cont'd)");
+         String pageHeading = i == 0 ? heading : heading + " (cont'd)";
 
-         XSLFTextBox box = slide.createTextBox();
-         box.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT + INSIGHTS_TITLE_HEIGHT_PT,
-            boxWidthPt, boxHeightPt));
+         if(i == 0 && chartSlide != null) {
+            addInsightsTitle(chartSlide, pageHeading, CHART_INSIGHTS_TOP_PT);
 
-         for(MarkdownModel.Block block : pages.get(i)) {
-            appendBlock(box, block, INSIGHTS_FONT_SIZE_PT);
+            XSLFTextBox box = chartSlide.createTextBox();
+            box.setAnchor(new Rectangle2D.Double(MARGIN_PT,
+               CHART_INSIGHTS_TOP_PT + INSIGHTS_TITLE_HEIGHT_PT, boxWidthPt,
+               CHART_INSIGHTS_CONTENT_HEIGHT_PT));
+
+            for(MarkdownModel.Block block : pages.get(i)) {
+               appendBlock(box, block, INSIGHTS_FONT_SIZE_PT);
+            }
+         }
+         else {
+            XSLFSlide slide = show.createSlide();
+            addInsightsTitle(slide, pageHeading, MARGIN_PT);
+
+            XSLFTextBox box = slide.createTextBox();
+            box.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT + INSIGHTS_TITLE_HEIGHT_PT,
+               boxWidthPt, fullPageHeightPt));
+
+            for(MarkdownModel.Block block : pages.get(i)) {
+               appendBlock(box, block, INSIGHTS_FONT_SIZE_PT);
+            }
          }
       }
    }
 
-   /** Title box for an insights-only slide, styled like the chart caption boxes (bold, ACCENT). */
-   private void addInsightsTitle(XSLFSlide slide, String text) {
+   /** Title box for an insights page, styled like the chart caption boxes (bold, ACCENT), placed
+    *  at {@code topPt} — {@link #MARGIN_PT} for a dedicated insights-only slide, or
+    *  {@link #CHART_INSIGHTS_TOP_PT} when it shares the chart's own slide. */
+   private void addInsightsTitle(XSLFSlide slide, String text, double topPt) {
       XSLFTextBox titleBox = slide.createTextBox();
-      titleBox.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT,
+      titleBox.setAnchor(new Rectangle2D.Double(MARGIN_PT, topPt,
          SLIDE_WIDTH_PT - 2 * MARGIN_PT, INSIGHTS_TITLE_HEIGHT_PT));
       titleBox.setText(text);
       styleBox(titleBox, true, INSIGHTS_TITLE_FONT_PT, ACCENT);
@@ -357,9 +409,12 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
     *  java.awt.Font/FontMetrics — confirmed to work without a display) and splits plainText into
     *  that many characters per chunk, snapping each split point back to the nearest preceding
     *  space so a word is never broken across two slides. The one exception is a single token
-    *  longer than an entire slide's budget, which is hard-split (pathological input, not expected
-    *  from real insights text). */
-   private List<String> chunkInsightsText(String plainText) {
+    *  longer than a chunk's own budget, which is hard-split (pathological input, not expected
+    *  from real insights text). Only the first produced chunk is sized to {@code
+    *  firstChunkHeightPt} (the chart slide's smaller reserved region, or a full page's height when
+    *  there is no such region to reuse); every later chunk gets a full page's budget, since each
+    *  one becomes its own full-height insights slide. */
+   private List<String> chunkInsightsText(String plainText, double firstChunkHeightPt) {
       Font font = new Font(Font.SANS_SERIF, Font.PLAIN, (int) INSIGHTS_FONT_SIZE_PT);
       BufferedImage measuring = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
       Graphics2D g = measuring.createGraphics();
@@ -367,25 +422,31 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       g.dispose();
 
       double boxWidthPt = SLIDE_WIDTH_PT - 2 * MARGIN_PT;
-      double boxHeightPt = SLIDE_HEIGHT_PT - 2 * MARGIN_PT - INSIGHTS_TITLE_HEIGHT_PT;
+      double fullPageHeightPt = SLIDE_HEIGHT_PT - 2 * MARGIN_PT - INSIGHTS_TITLE_HEIGHT_PT;
       double avgCharWidthPt = fm.stringWidth("abcdefghijklmnopqrstuvwxyz") / 26.0;
       int charsPerLine = Math.max(1, (int) (boxWidthPt / avgCharWidthPt));
-      int linesPerSlide = Math.max(1, (int) (boxHeightPt / fm.getHeight()));
-      int charsPerSlide = charsPerLine * linesPerSlide;
+      int charsForFirstChunk =
+         charsPerLine * Math.max(1, (int) (firstChunkHeightPt / fm.getHeight()));
+      int charsPerFullSlide =
+         charsPerLine * Math.max(1, (int) (fullPageHeightPt / fm.getHeight()));
 
       List<String> chunks = new ArrayList<>();
       String remaining = plainText.trim();
+      boolean first = true;
 
       while(!remaining.isEmpty()) {
-         if(remaining.length() <= charsPerSlide) {
+         int budget = first ? charsForFirstChunk : charsPerFullSlide;
+         first = false;
+
+         if(remaining.length() <= budget) {
             chunks.add(remaining);
             break;
          }
 
-         int splitAt = remaining.lastIndexOf(' ', charsPerSlide);
+         int splitAt = remaining.lastIndexOf(' ', budget);
 
          if(splitAt <= 0) {
-            splitAt = charsPerSlide; // pathological: no space within budget — hard split
+            splitAt = budget; // pathological: no space within budget — hard split
          }
 
          chunks.add(remaining.substring(0, splitAt).trim());
@@ -414,4 +475,14 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
    private static final int CAPTION_BOX_HEIGHT_PT = 44;
    /** Floor for caption auto-shrink — below this it stops being a readable heading. */
    private static final double CAPTION_MIN_FONT_PT = 12.0;
+   /** Top of the region reserved below the imported chart picture for that chart's own insights
+    *  (bug-76110 round 2). Must stay in sync with
+    *  {@code WizViewsheetExportController.PPTX_CHART_Y_PX}/{@code PPTX_CHART_H_PX}, which is what
+    *  actually leaves this area free by pre-rendering the chart shorter than the full slide. */
+   private static final double CHART_INSIGHTS_TOP_PT = 305;
+   /** Total height of the reserved region below the chart, including the insights title box. */
+   private static final double CHART_INSIGHTS_HEIGHT_PT = 195;
+   /** Height left for insights body content once the title box's own height is subtracted. */
+   private static final double CHART_INSIGHTS_CONTENT_HEIGHT_PT =
+      CHART_INSIGHTS_HEIGHT_PT - INSIGHTS_TITLE_HEIGHT_PT;
 }
