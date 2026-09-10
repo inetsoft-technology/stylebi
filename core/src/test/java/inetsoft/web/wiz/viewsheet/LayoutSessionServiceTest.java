@@ -268,6 +268,44 @@ class LayoutSessionServiceTest {
       assertTrue(thrown.getMessage().contains("Does Not Exist"), thrown.getMessage());
    }
 
+   /**
+    * Bug #76584: a viewsheet that has never had a print layout configured
+    * ({@code LayoutInfo.printLayout == null}, the true default -- no {@code installPrintLayout()}
+    * call, unlike every other test in this file) must fail loud with the same
+    * {@code IllegalArgumentException} an unknown layout name gets, not throw
+    * {@code NullPointerException} from {@code VSLayoutService.findViewsheetLayout}'s
+    * {@code Optional.of(null)}.
+    */
+   @Test
+   void mutateLayoutOnUnconfiguredPrintLayoutFailsLoud() throws Exception {
+      Fixture fx = new Fixture();
+      // Deliberately not calling installPrintLayout() -- masterVs's LayoutInfo (set by the
+      // Viewsheet constructor) still has printLayout == null.
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.mutateLayout("tok1", AGENT, PRINT_LAYOUT,
+                                        (clone, master, cloneRuntimeId, dispatcher) -> {}));
+
+      assertTrue(thrown.getMessage().contains(PRINT_LAYOUT), thrown.getMessage());
+   }
+
+   /**
+    * The read path ({@code get_layout}) shares the identical
+    * {@code resolveClone -> findViewsheetLayout} crash site as the mutate path above -- confirmed
+    * by the bug-76584 refutation pass reading {@code resolveForRead}'s catch clause, which passes
+    * a {@code RuntimeException} (including the pre-fix NPE) straight through unchanged.
+    */
+   @Test
+   void resolveForReadOnUnconfiguredPrintLayoutFailsLoud() throws Exception {
+      Fixture fx = new Fixture();
+      // Deliberately not calling installPrintLayout(), same as above.
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.resolveForRead("tok1", AGENT, PRINT_LAYOUT));
+
+      assertTrue(thrown.getMessage().contains(PRINT_LAYOUT), thrown.getMessage());
+   }
+
    // ── fixture ───────────────────────────────────────────────────────────────
 
    /**
