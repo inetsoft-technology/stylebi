@@ -197,6 +197,25 @@ class TabularQueryContractSupportTest {
       assertTrue(ex.getMessage().contains("id"), ex.getMessage());
    }
 
+   /**
+    * KNOWN, ACCEPTED GAP -- documents current behavior, does not assert it is desirable.
+    * "Repos"'s nested "id" parameter is required once "parameters" is SUPPLIED (see
+    * {@link #rejectsMissingRequiredParameter} above), but "parameters" itself is a composite
+    * (Kind A) top-level property, and {@code applyQueryContract} deliberately excludes
+    * composite-typed params from its top-level required check (composite required-ness is
+    * endpoint-/choice-dependent; see the comment above that check). So omitting the "parameters"
+    * key ENTIRELY -- as opposed to supplying it empty, which IS caught -- is not rejected here,
+    * even though "Repos" has a required nested parameter once "parameters" is chosen at all.
+    */
+   @Test
+   void anOmittedRequiredCompositeIsNotCaughtByThisCheck_knownGap() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      apply(query, params("endpoint", "Repos"));
+
+      assertEquals("Repos", query.getEndpoint());
+   }
+
    @Test
    void rejectsUnknownNestedParameterName() {
       FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();

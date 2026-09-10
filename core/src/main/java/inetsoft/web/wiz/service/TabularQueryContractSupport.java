@@ -119,11 +119,21 @@ public final class TabularQueryContractSupport {
       // Collected as one report, not one round trip per missing field, matching every other
       // "report everything wrong before making a live call" check in this file.
       //
-      // Composite-typed params (Kind A, e.g. "parameters") are deliberately excluded: a composite
-      // can be legitimately absent as a whole (an endpoint with no required path parameters has
-      // nothing to fill), and its OWN required elements are already checked, once supplied, by
-      // fillNamedSkeleton below -- requiring the composite KEY itself to always be present would
-      // reject callers who correctly omitted an empty/inapplicable one.
+      // Composite-typed params (Kind A, e.g. "parameters") are deliberately excluded, and this
+      // leaves a KNOWN, NOT-CLOSED gap: a composite marked required=true that is omitted from
+      // queryParams ENTIRELY is caught by nothing -- not this check (excluded here) and not
+      // fillNamedSkeleton below (which only ever visits keys the caller actually supplied). This
+      // is a pre-existing gap, not introduced by this change, and is left open deliberately
+      // rather than closed unconditionally: a composite's required-ness is frequently
+      // endpoint-/choice-dependent (e.g. an endpoint with no required path parameters has nothing
+      // to fill), and this static, top-level annotation has no way to distinguish "always
+      // required" from "required once some endpoint/value is chosen" the way isConditional() does
+      // for simple visibility gates. Requiring the composite KEY itself to always be present
+      // would reject callers who correctly omitted an empty/inapplicable one -- see
+      // FakeNamedConnectorQuery#getParameters and TabularQueryContractSupportTest's
+      // setsEndpointAndBuildsSuffix-family tests, which supply "endpoint" with no "parameters"
+      // key and correctly expect success. Closing this gap properly would need per-endpoint-aware
+      // validation this check doesn't have the context to do.
       List<String> missingRequired = new ArrayList<>();
 
       for(TabularQuerySchema.Param param : schema.getParams()) {
@@ -134,7 +144,7 @@ public final class TabularQueryContractSupport {
          PropertyMeta prop = pmap.get(param.getName());
          Class<?> type = prop == null ? null : prop.getDescriptor().getPropertyType();
 
-         if(type != null && TabularSchemaExtractor.isCompositeType(type) && type != File.class) {
+         if(type != null && TabularSchemaExtractor.isCompositeType(type)) {
             continue;
          }
 
