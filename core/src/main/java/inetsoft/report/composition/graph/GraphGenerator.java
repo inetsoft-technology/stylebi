@@ -5887,11 +5887,6 @@ public abstract class GraphGenerator {
             ((HighlightRef) refs[i]).getHighlightGroup() != null)
          {
             list.add(0, (HighlightRef) refs[i]);
-            continue;
-         }
-
-         if(refs[i] instanceof ChartAggregateRef && refs[i].isMeasure()) {
-            list.add(0, (ChartAggregateRef) refs[i]);
          }
       }
 
