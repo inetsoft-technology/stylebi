@@ -96,7 +96,9 @@ public class DateComparisonService {
     *                     {@code endDate}/{@code endToday}/{@code toDate}/{@code inclusive} and
     *                     with {@code interval} (StyleBI does not expose interval sub-windows for
     *                     a custom period — see {@code DateComparisonInfo.getIntervalConditions()},
-    *                     ticket 64217).
+    *                     ticket 64217). Each {@link CustomPeriod}'s {@code start}/{@code end} must
+    *                     be a literal date string — expressions and variables are not supported
+    *                     (see {@link CustomPeriod}).
     */
    public record Comparison(Integer periods, String level, String endDate, boolean endToday,
                             String interval, Boolean useFacet, Boolean onlyShowMostRecentDate,
@@ -113,7 +115,13 @@ public class DateComparisonService {
       }
    }
 
-   /** One caller-defined date-range pair, e.g. {@code {start: "2026-03-01", end: "2026-03-15"}}. */
+   /**
+    * One caller-defined date-range pair, e.g. {@code {start: "2026-03-01", end: "2026-03-15"}}.
+    * {@code start}/{@code end} must be literal date strings — expressions and variables (e.g.
+    * {@code $(startDate)}) are not supported here; {@code setDynamic()} stores them as plain
+    * values without the variable/expression-type detection {@code DynamicValueModel}'s own
+    * {@code (String)} constructor performs.
+    */
    public record CustomPeriod(String start, String end) {}
 
    /** The current settings, normalized. Never echoes the raw cell format. */
@@ -688,6 +696,21 @@ public class DateComparisonService {
          }
 
          periods.getCustomPeriodPaneModel().setDatePeriods(datePeriods);
+
+         // A custom period never exposes an interval sub-window (see
+         // requireNoStandardPeriodFields()'s Javadoc), but IntervalPaneModel is not itself
+         // gated on isCustom() — DateComparisonPaneModel.toDateComparisonInfo() reads it
+         // unconditionally. Left alone, an interval set by an earlier standard-period call
+         // would sit inert while custom, then silently reactivate if a later call switches
+         // back to a standard period without repeating 'interval'. Reset the level back to
+         // its "no interval" sentinel here so the interval/customPeriods mutual exclusion
+         // holds across calls, not just within one.
+         IntervalPaneModel interval = model.getIntervalPaneModel();
+
+         if(interval != null) {
+            setDynamic(interval.getLevel(), String.valueOf(DateComparisonInfo.ALL));
+         }
+
          return;
       }
 

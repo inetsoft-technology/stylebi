@@ -625,6 +625,57 @@ class DateComparisonServiceTest {
                  "a custom period must not also report the meaningless standard-period defaults");
    }
 
+   /**
+    * Round-1 review finding: {@code requireNoStandardPeriodFields()} only refuses combining
+    * {@code interval} with {@code customPeriods} within the same call — it can't (and
+    * structurally shouldn't have to) see an interval left behind by an earlier, different call.
+    * Before this fix, {@code apply()}'s {@code customPeriods} branch never touched
+    * {@code IntervalPaneModel}, so a stale interval from an earlier standard-period call sat
+    * inert while custom, then would silently reactivate the moment the assembly's period next
+    * became standard again with no {@code interval} field repeated.
+    *
+    * <p>{@code apply()} itself refuses a wiz call that switches an already-custom period back to
+    * standard outright ({@link #refusesToReplaceACustomPeriodWithoutSayingSo}) — that switch-back
+    * is only reachable today via the manual Angular Composer editing the assembly directly (see
+    * {@code 03-fix.md}'s "before this PR, only reachable via the manual Composer" note), which
+    * this wiz-only test file cannot drive. So the {@code periods.setCustom(false)} step below
+    * stands in for that out-of-band switch-back, isolating what this fix actually controls: that
+    * entering {@code customPeriods} left no stale interval behind for such a switch-back to find.
+    */
+   @Test
+   void switchingToCustomPeriodsClearsAStaleIntervalSoItDoesNotSilentlyReactivate()
+      throws Exception
+   {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+
+      // Call 1: standard period with an interval.
+      h.service.set("tok", principal(), "Chart1", new DateComparisonService.Comparison(
+         4, "quarter", null, true, "monthToDate", null, null, null, null, null, null), "");
+      assertEquals(String.valueOf(DateComparisonInfo.MONTH_TO_DATE),
+                   model.getIntervalPaneModel().getLevel().getValue());
+
+      // Call 2: switch to customPeriods. The stale interval must be cleared, not just left inert.
+      h.service.set("tok", principal(), "Chart1", customPeriods(
+         new DateComparisonService.CustomPeriod("2026-03-01", "2026-03-15")), "");
+      assertEquals(String.valueOf(DateComparisonInfo.ALL),
+                  model.getIntervalPaneModel().getLevel().getValue(),
+                  "the interval left behind by call 1 must be reset when switching to custom");
+
+      // Stand in for an out-of-band switch back to standard (see the Javadoc above) — apply()
+      // itself refuses to do this for a wiz call, so this reaches the same model state a human
+      // editing the Composer's Interval pane directly would leave behind.
+      model.getPeriodPaneModel().setCustom(false);
+
+      // Call 3: a standard period with no 'interval' field at all. The stale monthToDate value
+      // from call 1 must not silently reactivate.
+      h.service.set("tok", principal(), "Chart1", new DateComparisonService.Comparison(
+         2, "year", null, true, null, null, null, null, null, null, null), "");
+      assertEquals(String.valueOf(DateComparisonInfo.ALL),
+                  model.getIntervalPaneModel().getLevel().getValue(),
+                  "a call with no 'interval' field must not reactivate a stale earlier value");
+   }
+
    @Test
    void convertsThePaneModelBeforePostingIt() throws Exception {
       Harness h = harness(model());
