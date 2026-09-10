@@ -1523,12 +1523,6 @@ public class WorksheetTableService {
          query.setMaxRows(src.getMaxRows());
       }
 
-      // Same guard the Composer's own add_table takes (WorksheetAgentController.addTabularTable /
-      // addQueryParamsTable) -- this write path shares TabularEndpointBindingSupport with those but,
-      // until now, never called this check, so a paginated tabular table could be built here with no
-      // cap and no warning at all.
-      TabularEndpointBindingSupport.requireRowCapWhenPaged(query, null, dsName);
-
       // How many rows to report back, carried ON THE QUERY because the runner is the only place that
       // sees a response and it is the only thing that can sample one. Zero when the caller did not
       // ask, which is the default: sampling is opt-in, so a table built without this field runs

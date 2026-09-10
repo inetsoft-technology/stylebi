@@ -68,6 +68,7 @@ import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.service.FakeCustomRestQuery;
 import inetsoft.web.wiz.service.FakeNamedConnectorQuery;
 import inetsoft.web.wiz.service.MetadataApiService;
 import inetsoft.web.wiz.service.RenderNotReadyException;
@@ -372,6 +373,45 @@ class WorksheetAgentControllerTest {
       if(endpoint != null) body.put("endpoint", endpoint);
       if(suffix != null) body.put("suffix", suffix);
       if(queryParams != null) body.put("queryParams", queryParams);
+
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+   }
+
+   /**
+    * Same {@code add_table} endpoint/suffix shape as {@link #addTabularTableRequest}, but also
+    * carrying {@code maxRows} -- built through the real app {@link ObjectMapper}, the same
+    * technique {@link #addQueryParamsTableRequest} uses, since hand-counting nulls to a new
+    * position in the 70+ field positional record risks the exact silent off-by-one that technique
+    * exists to avoid.
+    */
+   private static EditRequest addTabularTableRequestWithMaxRows(
+      String table, String datasource, String endpoint, String suffix, Integer maxRows)
+      throws Exception
+   {
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "add_table");
+      if(table != null) body.put("table", table);
+      if(datasource != null) body.put("datasource", datasource);
+      if(endpoint != null) body.put("endpoint", endpoint);
+      if(suffix != null) body.put("suffix", suffix);
+      if(maxRows != null) body.put("maxRows", maxRows);
+
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+   }
+
+   /** Same as {@link #addQueryParamsTableRequest}, but also carrying {@code maxRows}. */
+   private static EditRequest addQueryParamsTableRequestWithMaxRows(
+      String table, String datasource, Map<String, Object> queryParams, Integer maxRows)
+      throws Exception
+   {
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "add_table");
+      if(table != null) body.put("table", table);
+      if(datasource != null) body.put("datasource", datasource);
+      if(queryParams != null) body.put("queryParams", queryParams);
+      if(maxRows != null) body.put("maxRows", maxRows);
 
       ObjectMapper mapper = new WebConfig().objectMapper();
       return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
@@ -3796,6 +3836,150 @@ class WorksheetAgentControllerTest {
       }
    }
 
+   /**
+    * Regression for round-1 review finding 2 on the row-cap PR: proves
+    * {@code TabularEndpointBindingSupport.requireRowCapWhenPaged} is actually WIRED into
+    * {@code addTabularTable}'s endpoint branch, not just exercised in isolation by
+    * {@code TabularEndpointBindingSupportTest}. {@code FakeNamedConnectorQuery}'s "Paged" endpoint
+    * (see its own doc) reports {@code isPaged() == true} with no {@code maxRows} supplied.
+    */
+   @Test
+   void addTabularTableRejectsPagedEndpointWithoutMaxRows() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      EditRequest req = addTabularTableRequestWithMaxRows(
+         "t1", "MyDatasource", "Paged", null, null);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> ctrl.edit("TOK-TT9", req, agent));
+         assertTrue(ex.getMessage().contains("paginated"), ex.getMessage());
+         verifyNoInteractions(editSvc);
+      }
+   }
+
+   /** Same wiring as {@link #addTabularTableRejectsPagedEndpointWithoutMaxRows}, but a positive
+    *  {@code maxRows} must satisfy the check and let execution reach {@code editService}. */
+   @Test
+   void addTabularTableAllowsPagedEndpointWithMaxRows() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      EditRequest req = addTabularTableRequestWithMaxRows(
+         "t1", "MyDatasource", "Paged", null, 500);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         assertDoesNotThrow(() -> ctrl.edit("TOK-TT10", req, agent),
+            "a positive maxRows must satisfy the row-cap check on a paginated endpoint");
+         verify(editSvc).applyOnRuntime(eq("TOK-TT10"), eq(agent), any());
+      }
+   }
+
+   /**
+    * Same regression as {@link #addTabularTableRejectsPagedEndpointWithoutMaxRows}, for the
+    * generic/custom (suffix) branch instead of the named-connector (endpoint) one.
+    * {@code FakeCustomRestQuery} has no {@code endpoint} property (so {@code addTabularTable}
+    * dispatches to the suffix branch) and reports {@code isPaged() == true} only for
+    * {@code suffix == "/paged"} -- see its own doc.
+    */
+   @Test
+   void addTabularTableRejectsPagedSuffixWithoutMaxRows() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeCustomRestQuery query = new FakeCustomRestQuery();
+
+      EditRequest req = addTabularTableRequestWithMaxRows(
+         "t1", "MyDatasource", null, "/paged", null);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> ctrl.edit("TOK-TT11", req, agent));
+         assertTrue(ex.getMessage().contains("paginated"), ex.getMessage());
+         verifyNoInteractions(editSvc);
+      }
+   }
+
+   /** Same wiring as {@link #addTabularTableRejectsPagedSuffixWithoutMaxRows}, but a positive
+    *  {@code maxRows} must satisfy the check and let execution reach {@code editService}. */
+   @Test
+   void addTabularTableAllowsPagedSuffixWithMaxRows() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeCustomRestQuery query = new FakeCustomRestQuery();
+
+      EditRequest req = addTabularTableRequestWithMaxRows(
+         "t1", "MyDatasource", null, "/paged", 500);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         assertDoesNotThrow(() -> ctrl.edit("TOK-TT12", req, agent),
+            "a positive maxRows must satisfy the row-cap check on a paginated suffix");
+         verify(editSvc).applyOnRuntime(eq("TOK-TT12"), eq(agent), any());
+      }
+   }
+
    // ---------------------------------------------------------------------------
    // add_table with queryParams — naming for addQueryParamsTable()
    // ---------------------------------------------------------------------------
@@ -3989,6 +4173,108 @@ class WorksheetAgentControllerTest {
          // editService.applyOnRuntime is only reached AFTER applyQueryContract succeeds -- if
          // jsonPath had not been threaded through at all, this mock would never be touched.
          verify(editSvc).applyOnRuntime(eq("TOK-QP7"), eq(agent), any());
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+   }
+
+   /**
+    * Regression for round-1 review finding 2 on the row-cap PR: proves
+    * {@code TabularEndpointBindingSupport.requireRowCapWhenPaged} is actually wired into
+    * {@code addQueryParamsTable} too, not just {@code addTabularTable}'s two branches.
+    * {@code queryParams.endpoint = "Paged"} drives {@code FakeNamedConnectorQuery.isPaged()} to
+    * {@code true} the same way the endpoint-form test above does; the connector-agnostic
+    * queryParams form has no {@code endpoint} concept of its own, but reuses the same fixture
+    * property here purely as a paged/unpaged toggle.
+    */
+   @Test
+   void addQueryParamsTableRejectsPagedConnectorWithoutMaxRows() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeNamedConnector");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      EditRequest req = addQueryParamsTableRequestWithMaxRows(
+         "t1", "MyDatasource", Map.of("endpoint", "Paged"), null);
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> ctrl.edit("TOK-QP8", req, agent));
+         assertTrue(ex.getMessage().contains("paginated"), ex.getMessage());
+         verifyNoInteractions(editSvc);
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+   }
+
+   /** Same wiring as {@link #addQueryParamsTableRejectsPagedConnectorWithoutMaxRows}, but a
+    *  positive {@code maxRows} must satisfy the check and let execution reach {@code editService}. */
+   @Test
+   void addQueryParamsTableAllowsPagedConnectorWithMaxRows() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeNamedConnector");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      EditRequest req = addQueryParamsTableRequestWithMaxRows(
+         "t1", "MyDatasource", Map.of("endpoint", "Paged"), 500);
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         assertDoesNotThrow(() -> ctrl.edit("TOK-QP9", req, agent),
+            "a positive maxRows must satisfy the row-cap check on a paginated connector");
+         verify(editSvc).applyOnRuntime(eq("TOK-QP9"), eq(agent), any());
       }
       finally {
          configContext.setApplicationContext(realAppContext);
