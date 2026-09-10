@@ -2218,8 +2218,8 @@ public class WizVsService {
                syncMode, existingTarget, replacedAssembly, previousPrimaryAssembly);
 
             if(carryCondition(model.isKeepCondition(), replaceInPlace) &&
-               displacedForCondition instanceof DataVSAssembly oldDataAsm &&
-               assembly instanceof DataVSAssembly newDataAsm)
+               displacedForCondition instanceof DynamicBindableVSAssembly oldDataAsm &&
+               assembly instanceof DynamicBindableVSAssembly newDataAsm)
             {
                ConditionList cond = oldDataAsm.getPreConditionList();
 
