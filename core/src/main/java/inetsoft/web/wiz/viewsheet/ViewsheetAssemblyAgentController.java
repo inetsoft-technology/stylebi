@@ -19,13 +19,18 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.model.LayoutModel;
 import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -37,14 +42,19 @@ import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.MessageException;
 import inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService;
 import inetsoft.web.adhoc.model.FontInfo;
+import inetsoft.web.viewsheet.service.ExportResponse;
+import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.script.ScriptImageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.security.Principal;
 import java.util.Base64;
 import java.util.List;
@@ -90,7 +100,9 @@ public class ViewsheetAssemblyAgentController {
                                    LayoutReadService layoutReadService,
                                    PrintDeviceLayoutPropertyService printDeviceLayoutPropertyService,
                                    LayoutMutationService layoutMutationService,
-                                   LayoutUndoService layoutUndoService)
+                                   LayoutUndoService layoutUndoService,
+                                   VSExportService exportService,
+                                   SecurityEngine securityEngine)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -120,6 +132,8 @@ public class ViewsheetAssemblyAgentController {
       this.printDeviceLayoutPropertyService = printDeviceLayoutPropertyService;
       this.layoutMutationService = layoutMutationService;
       this.layoutUndoService = layoutUndoService;
+      this.exportService = exportService;
+      this.securityEngine = securityEngine;
    }
 
    public record JoinRequest(String code) {}
@@ -312,6 +326,107 @@ public class ViewsheetAssemblyAgentController {
       return new ImageResponse(Base64.getEncoder().encodeToString(image.pngBytes()),
                                image.isPng() ? "png" : "svg",
                                image.width(), image.height(), image.note());
+   }
+
+   /**
+    * {@code export_viewsheet}. Produces a real downloadable export file for the live, paired
+    * runtime's CURRENT state (whatever filters/selections this session has applied) -- distinct
+    * from {@link #image}, which renders a PNG for the calling agent's own inspection, not a
+    * user-deliverable file. Delegates to {@link VSExportService#exportViewsheet}, the same
+    * primitive {@code WizViewsheetExportController} already uses for a composed dashboard's own
+    * export, but against THIS session's already-resolved {@link RuntimeViewsheet} rather than
+    * reopening one from an asset identifier.
+    *
+    * <p>Writes the exported bytes directly to {@code servletResponse} (same
+    * {@code Content-Type}/{@code Content-Disposition} shape the human Viewer's own export
+    * download gets, and the same direct-servlet-write pattern {@code WizViewsheetExportController}
+    * already uses -- see its own comment for why: no combination of this app's registered
+    * {@code HttpMessageConverter}s can write an arbitrary byte[]/Resource body as e.g.
+    * {@code application/pdf}) rather than base64-encoding into a JSON body. A base64 JSON
+    * envelope would force the whole file through the calling agent's own token budget just to
+    * relay it to disk -- StyleBI's UI export was already a plain byte stream; this endpoint
+    * matches that instead of wrapping it. Returning {@code null} tells Spring MVC the response is
+    * already fully handled.
+    *
+    * <p>{@code target} (a single table/chart assembly) is only supported for {@code format=PNG}
+    * so far, reusing {@link #image}'s own {@link ScriptImageService#getAssemblyImage} -- a single
+    * table/chart to Excel/CSV/PDF/PowerPoint/HTML/Snapshot needs a materially different mechanism
+    * ({@code AssemblyImageServiceProxy}'s cluster-aware table/chart export, per
+    * {@code ExportController}'s own {@code /export/vs-table}/{@code /export/vs-chart} split) not
+    * yet wired here; refused by name rather than silently exporting the whole sheet instead.
+    */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/export")
+   public ResponseEntity<?> export(@PathVariable String sessionToken,
+                                   @RequestParam String format,
+                                   @RequestParam(required = false) String target,
+                                   @RequestParam(required = false) Boolean match,
+                                   @RequestParam(required = false) Boolean expandSelections,
+                                   @RequestParam(required = false) Boolean current,
+                                   Principal user, HttpServletResponse servletResponse)
+      throws Exception
+   {
+      requireEnabled();
+
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export",
+                                         ResourceAction.READ))
+      {
+         throw new SecurityException("No permission for viewsheet export.");
+      }
+
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      int formatType = toFormatType(format);
+
+      if(target != null && !target.isBlank()) {
+         if(formatType != FileFormatInfo.EXPORT_TYPE_PNG) {
+            throw new IllegalArgumentException(
+               "export_viewsheet: 'target' is only supported with format=PNG for now (a single " +
+               "table/chart export to Excel/PowerPoint/PDF/HTML/CSV is not yet implemented) -- " +
+               "omit 'target' to export the whole viewsheet in '" + format + "', or use " +
+               "get_viewsheet_image for a PNG preview of just this assembly.");
+         }
+
+         ScriptImageService.ChartImage image = imageService.getAssemblyImage(rvs, target, null, null, user);
+         writeAttachment(servletResponse, image.pngBytes(), "image/png", target + ".png");
+         return null;
+      }
+
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+      exportService.exportViewsheet(rvs, formatType, match == null || match,
+         expandSelections != null && expandSelections, current == null || current, false, false,
+         new String[0], false, new ExportResponse(out), user);
+
+      writeAttachment(servletResponse, out.toByteArray(), VSExportService.getMime(formatType),
+         "export." + VSExportService.getSuffix(formatType));
+      return null;
+   }
+
+   private static void writeAttachment(HttpServletResponse response, byte[] bytes, String mime,
+                                       String filename) throws IOException
+   {
+      response.setContentType(mime);
+      response.setHeader("Content-Disposition",
+         ContentDisposition.attachment().filename(filename).build().toString());
+      response.setContentLength(bytes.length);
+      response.getOutputStream().write(bytes);
+      response.getOutputStream().flush();
+   }
+
+   private static int toFormatType(String format) {
+      if(format != null) {
+         switch(format.toLowerCase()) {
+            case "excel": return FileFormatInfo.EXPORT_TYPE_EXCEL;
+            case "powerpoint": return FileFormatInfo.EXPORT_TYPE_POWERPOINT;
+            case "pdf": return FileFormatInfo.EXPORT_TYPE_PDF;
+            case "png": return FileFormatInfo.EXPORT_TYPE_PNG;
+            case "html": return FileFormatInfo.EXPORT_TYPE_HTML;
+            case "csv": return FileFormatInfo.EXPORT_TYPE_CSV;
+            case "snapshot": return FileFormatInfo.EXPORT_TYPE_SNAPSHOT;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "export_viewsheet: 'format' must be one of Excel, PowerPoint, PDF, PNG, HTML, CSV, " +
+         "Snapshot, got '" + format + "'.");
    }
 
    public record PropertyPatchRequest(String assembly, Map<String, Object> properties) {}
@@ -1642,4 +1757,6 @@ public class ViewsheetAssemblyAgentController {
    private final PrintDeviceLayoutPropertyService printDeviceLayoutPropertyService;
    private final LayoutMutationService layoutMutationService;
    private final LayoutUndoService layoutUndoService;
+   private final VSExportService exportService;
+   private final SecurityEngine securityEngine;
 }
