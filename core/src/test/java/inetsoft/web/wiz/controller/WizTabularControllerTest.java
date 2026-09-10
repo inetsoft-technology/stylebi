@@ -26,10 +26,15 @@ import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.tabular.*;
+import inetsoft.uql.tabular.oauth.AuthorizationClient;
+import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.uql.util.Config;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.MessageException;
+import inetsoft.web.composer.model.ws.TabularOAuthParams;
 import inetsoft.web.portal.data.DataSourceDefinition;
+import inetsoft.web.portal.data.DataSourceOAuthParamsRequest;
+import inetsoft.web.portal.data.DataSourceOAuthTokens;
 import inetsoft.web.portal.data.DatasourcesService;
 import inetsoft.web.wiz.model.WizTabularBrowseResult;
 import inetsoft.web.wiz.model.WizTabularListing;
@@ -428,6 +433,108 @@ class WizTabularControllerTest {
       when(datasourcesService.checkDuplicate("mongo")).thenReturn(true);
 
       assertEquals(Boolean.TRUE, controller.checkDuplicate("mongo", principal).get("duplicate"));
+   }
+
+   @Test
+   void oauthParamsDelegatesToTheService() throws Exception {
+      DataSourceOAuthParamsRequest request = DataSourceOAuthParamsRequest.builder()
+         .clientId("clientId")
+         .clientSecret("clientSecret")
+         .scope("scope")
+         .authorizationUri("authorizationUri")
+         .tokenUri("tokenUri")
+         .flags("oauthFlags")
+         .dataSource(definition("github"))
+         .build();
+      TabularOAuthParams resolved = TabularOAuthParams.builder()
+         .license("key")
+         .clientId("resolved-client-id")
+         .build();
+      when(datasourcesService.getOAuthParams(request)).thenReturn(resolved);
+
+      assertSame(resolved, controller.getOAuthParameters(request, principal));
+   }
+
+   @Test
+   void oauthParamsRefusesWithoutConnectorPermission() throws Exception {
+      when(securityEngine.checkPermission(any(), any(ResourceType.class), anyString(),
+                                          any(ResourceAction.class))).thenReturn(false);
+
+      DataSourceOAuthParamsRequest request = DataSourceOAuthParamsRequest.builder()
+         .clientId("clientId")
+         .clientSecret("clientSecret")
+         .scope("scope")
+         .authorizationUri("authorizationUri")
+         .tokenUri("tokenUri")
+         .flags("oauthFlags")
+         .dataSource(definition("github"))
+         .build();
+
+      assertThrows(SecurityException.class,
+                   () -> controller.getOAuthParameters(request, principal));
+      verify(datasourcesService, never()).getOAuthParams(any());
+   }
+
+   @Test
+   void oauthTokensDelegatesToTheService() throws Exception {
+      DataSourceOAuthTokens tokens = DataSourceOAuthTokens.builder()
+         .accessToken("token")
+         .dataSource(definition("github"))
+         .method("updateTokens")
+         .build();
+      DataSourceDefinition recomputed = definition("github");
+      when(datasourcesService.setOAuthTokens(tokens)).thenReturn(recomputed);
+
+      assertSame(recomputed, controller.setOAuthTokens(tokens, principal));
+   }
+
+   @Test
+   void oauthTokensRefusesWithoutConnectorPermission() throws Exception {
+      when(securityEngine.checkPermission(any(), any(ResourceType.class), anyString(),
+                                          any(ResourceAction.class))).thenReturn(false);
+
+      DataSourceOAuthTokens tokens = DataSourceOAuthTokens.builder()
+         .dataSource(definition("github"))
+         .method("updateTokens")
+         .build();
+
+      assertThrows(SecurityException.class, () -> controller.setOAuthTokens(tokens, principal));
+      verify(datasourcesService, never()).setOAuthTokens(any());
+   }
+
+   @Test
+   void oauthGrantPasswordCallsAuthorizationClientDirectly() throws Exception {
+      TabularOAuthParams request = TabularOAuthParams.builder()
+         .license("key")
+         .user("bob")
+         .password("secret")
+         .tokenUri("https://example.com/token")
+         .build();
+      Tokens tokens = Tokens.builder().accessToken("token").issued(0L).expiration(0L).build();
+
+      try(MockedStatic<AuthorizationClient> client = mockStatic(AuthorizationClient.class)) {
+         client.when(() -> AuthorizationClient.doPasswordGrantAuth(
+                        "bob", "secret", null, null, null, "https://example.com/token"))
+            .thenReturn(tokens);
+
+         assertSame(tokens, controller.getPasswordGrantResponse(request, principal));
+      }
+   }
+
+   @Test
+   void oauthGrantPasswordRefusesWithoutConnectorPermission() throws Exception {
+      when(securityEngine.checkPermission(any(), any(ResourceType.class), anyString(),
+                                          any(ResourceAction.class))).thenReturn(false);
+
+      TabularOAuthParams request = TabularOAuthParams.builder()
+         .license("key")
+         .user("bob")
+         .password("secret")
+         .tokenUri("https://example.com/token")
+         .build();
+
+      assertThrows(SecurityException.class,
+                   () -> controller.getPasswordGrantResponse(request, principal));
    }
 
    /*

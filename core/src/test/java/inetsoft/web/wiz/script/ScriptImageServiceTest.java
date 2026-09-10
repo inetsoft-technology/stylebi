@@ -20,7 +20,10 @@ package inetsoft.web.wiz.script;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
@@ -64,6 +67,18 @@ class ScriptImageServiceTest {
       ChartVSAssembly chart = new ChartVSAssembly(vs, chartName);
       chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Table1"));
       vs.addAssembly(chart);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      return rvs;
+   }
+
+   /** Builds a viewsheet with a single SelectionList assembly set to the given show type. */
+   private RuntimeViewsheet viewsheetWithSelectionList(String name, int showType) {
+      Viewsheet vs = new Viewsheet();
+      SelectionListVSAssembly selectionList = new SelectionListVSAssembly(vs, name);
+      ((SelectionListVSAssemblyInfo) selectionList.getVSAssemblyInfo()).setShowType(showType);
+      vs.addAssembly(selectionList);
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
@@ -244,6 +259,47 @@ class ScriptImageServiceTest {
    }
 
    /**
+    * Bug #76541 round 2: {@code getAssemblyImage}'s own fallback branch was constructing a brand
+    * new {@code ChartImage} with only its own "can't be rendered on its own" text, discarding
+    * whatever note the internal {@code getViewsheetImage} call had already computed — so a caller
+    * targeting a dropdown-mode SelectionList by name directly (the most natural way to
+    * investigate this bug) got no disclosure at all. SelectionList is never one of the types
+    * {@code AssemblyImageService} supports directly, so it always takes this fallback branch.
+    */
+   @Test
+   void assemblyFallbackNoteIncludesTheDropdownDisclosureWhenTargetIsADropdownSelectionList() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithSelectionList(
+         "Selection1", SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+
+      byte[] placeholder = fakePng(1, 1);
+      BinaryTransfer transfer = mock(BinaryTransfer.class);
+      AssemblyImageService.ImageRenderResult result =
+         new AssemblyImageService.ImageRenderResult(true, transfer, 1, 1);
+
+      AssemblyImageService imageService = mock(AssemblyImageService.class);
+      when(imageService.processGetAssemblyImage(
+         eq(rvs), anyString(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+         isNull(), eq(0), eq(0), eq(0), any(), eq(false), eq(true)))
+         .thenReturn(result);
+
+      BinaryTransferService binaryTransferService = mock(BinaryTransferService.class);
+      when(binaryTransferService.getData(transfer)).thenReturn(placeholder);
+
+      VSExportService exportService = mock(VSExportService.class);
+      stubExport(exportService, fakePng(400, 300));
+
+      ScriptImageService svc = new ScriptImageService(imageService, binaryTransferService, exportService);
+      ScriptImageService.ChartImage img = svc.getAssemblyImage(
+         rvs, "Selection1", null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertNotNull(img.note());
+      assertTrue(img.note().contains("can't be rendered on its own"),
+                 "must keep the fallback's own explanation, got: [" + img.note() + "]");
+      assertTrue(img.note().contains("dropdown-mode selection list") && img.note().contains("empty box"),
+                 "must include the dropdown disclosure, got: [" + img.note() + "]");
+   }
+
+   /**
     * Charts default to {@code titleVisible=true} ({@code ChartVSAssemblyInfo}'s own
     * {@code titleInfo} field init), so this hides the title explicitly — otherwise it would be
     * indistinguishable from {@link #attachesATitleNoteWhenTheChartsTitleIsVisible}.
@@ -327,6 +383,116 @@ class ScriptImageServiceTest {
          rvs, null, null, TestPrincipals.user("alice", "host-org"));
 
       assertNull(img.note());
+   }
+
+   /**
+    * Bug #76541: {@code VSSelectionListHelper.write} only draws a selection list's rows/values
+    * when {@code getShowType() == SelectionVSAssemblyInfo.LIST_SHOW_TYPE} — no export format
+    * (SVG/PNG/HTML/PDF) substitutes any dropdown chrome, so a dropdown-mode selection list renders
+    * as a blank box with no warning. Composer/Viewer render it correctly; only static exports are
+    * affected.
+    */
+   @Test
+   void attachesANoteWhenTheViewsheetHasADropdownSelectionList() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithSelectionList(
+         "Selection1", SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      VSExportService exportService = mock(VSExportService.class);
+      stubExport(exportService, fakePng(400, 300));
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+      ScriptImageService.ChartImage img = svc.getViewsheetImage(
+         rvs, null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertNotNull(img.note());
+      assertTrue(img.note().contains("Selection1"));
+   }
+
+   /**
+    * Regression guard for the note added for bug #76541 — a list-mode SelectionList is drawn
+    * correctly by the export pipeline, so it must not start firing this note too.
+    */
+   @Test
+   void doesNotAttachANoteWhenTheSelectionListIsInListMode() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithSelectionList(
+         "Selection1", SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      VSExportService exportService = mock(VSExportService.class);
+      stubExport(exportService, fakePng(400, 300));
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+      ScriptImageService.ChartImage img = svc.getViewsheetImage(
+         rvs, null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertNull(img.note());
+   }
+
+   /**
+    * Multiple dropdown-mode SelectionLists in one viewsheet must all be named, comma-joined, with
+    * plural grammar ("are ... lists" / "them") rather than the singular phrasing used for one.
+    */
+   @Test
+   void notesAllDropdownSelectionListsWithPluralPhrasingWhenThereAreTwoOrMore() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      SelectionListVSAssembly first = new SelectionListVSAssembly(vs, "Selection1");
+      ((SelectionListVSAssemblyInfo) first.getVSAssemblyInfo())
+         .setShowType(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      vs.addAssembly(first);
+      SelectionListVSAssembly second = new SelectionListVSAssembly(vs, "Selection2");
+      ((SelectionListVSAssemblyInfo) second.getVSAssemblyInfo())
+         .setShowType(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      vs.addAssembly(second);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      stubExport(exportService, fakePng(400, 300));
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+      ScriptImageService.ChartImage img = svc.getViewsheetImage(
+         rvs, null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertNotNull(img.note());
+      assertTrue(img.note().contains("Selection1"));
+      assertTrue(img.note().contains("Selection2"));
+      assertTrue(img.note().contains("are dropdown-mode selection lists"));
+      assertTrue(img.note().contains("them"));
+   }
+
+   /**
+    * A list-mode SelectionList renders correctly and must not be swept into the note just because
+    * a sibling dropdown-mode SelectionList is also on the sheet — only the dropdown one is named,
+    * with singular phrasing.
+    */
+   @Test
+   void notesOnlyTheDropdownSelectionListWhenAListModeOneIsAlsoPresent() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      SelectionListVSAssembly listMode = new SelectionListVSAssembly(vs, "ListMode1");
+      ((SelectionListVSAssemblyInfo) listMode.getVSAssemblyInfo())
+         .setShowType(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      vs.addAssembly(listMode);
+      SelectionListVSAssembly dropdown = new SelectionListVSAssembly(vs, "Dropdown1");
+      ((SelectionListVSAssemblyInfo) dropdown.getVSAssemblyInfo())
+         .setShowType(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      vs.addAssembly(dropdown);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      stubExport(exportService, fakePng(400, 300));
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+      ScriptImageService.ChartImage img = svc.getViewsheetImage(
+         rvs, null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertNotNull(img.note());
+      assertTrue(img.note().contains("Dropdown1"));
+      assertFalse(img.note().contains("ListMode1"));
+      assertTrue(img.note().contains("is a dropdown-mode selection list"));
    }
 
    @Test

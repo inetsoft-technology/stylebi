@@ -62,7 +62,7 @@ public class VSSelectionContainerController {
     * @throws Exception if the selection could not be applied.
     */
    @Undoable
-   @LoadingMask
+   @LoadingMask(watchdogTimeout = 0)
    @MessageMapping("/selectionContainer/update/{name}")
    public void applySelection(@DestinationVariable("name") String assemblyName,
                               @Payload HideSelectionListEvent event,
@@ -83,7 +83,7 @@ public class VSSelectionContainerController {
     * @throws Exception    if failed to move the child
     */
    @Undoable
-   @LoadingMask
+   @LoadingMask(watchdogTimeout = 0)
    @MessageMapping("/selectionContainer/moveChild/{name}")
    public void applySelection(@DestinationVariable("name") String assemblyName,
                               @Payload MoveSelectionChildEvent event,

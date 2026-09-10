@@ -22,6 +22,7 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.web.wiz.pairing.PairingException;
+import inetsoft.web.wiz.service.WizVsService;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -97,6 +98,21 @@ public class WorksheetPreviewService {
          }
 
          throw new PairingException("Table not found or produced no data: " + tableName);
+      }
+
+      try {
+         // lens is non-null here, but a RUNTIME_MODE query that failed (e.g. a JS expression
+         // column throwing, or a raw SQL/infra failure with no expression column involved) is
+         // not surfaced as null — AssetQuery substitutes a design-time XNodeMetaTable fallback
+         // carrying sentinel example data instead. Detect that shape and surface the real cause
+         // rather than returning fabricated rows as if they were real query results. Pass false,
+         // matching WorksheetTableService.probeExecutable: the expression-specific
+         // failedQueryError wrapping would misdirect for a non-expression SQL/infra failure.
+         WizVsService.checkFailedQuery(lens, false);
+      }
+      catch(IllegalArgumentException e) {
+         throw new PairingException("Failed to execute worksheet query for '"
+                                    + tableName + "': " + e.getMessage(), e);
       }
 
       try {

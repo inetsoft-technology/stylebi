@@ -146,6 +146,8 @@ public class MovingColumn extends AbstractColumn {
       }
 
       Formula formula = (Formula) this.formula.clone();
+      // rows of 'data' in the order the window is walked; null means physical row order
+      int[] window = null;
 
       // dimension?
       if(innerDim != null) {
@@ -168,6 +170,14 @@ public class MovingColumn extends AbstractColumn {
                   break;
                }
             }
+
+            // getCondData picks the window's members by the dimension's navigation order, so
+            // the window must be walked in that order too. The sub data set holds only those
+            // members but keeps them in physical row order, which differs whenever the
+            // dimension's display sort differs from its navigation order (e.g. a Top-N "Sort
+            // By Value" ranking on HourOfDay); walking it by row index then averages the
+            // wrong neighbors and puts the truncated-window nulls on the wrong rows.
+            window = orderRowsByDim(data2, router);
          }
 
          data = data2;
@@ -181,24 +191,71 @@ public class MovingColumn extends AbstractColumn {
          }
       }
 
-      int rcnt = data.getRowCount();
+      int pos = row;
+
+      if(window != null) {
+         pos = -1;
+
+         for(int i = 0; i < window.length; i++) {
+            if(window[i] == row) {
+               pos = i;
+               break;
+            }
+         }
+
+         // should not happen: window is a permutation of the sub data set's rows
+         if(pos < 0) {
+            window = null;
+            pos = row;
+         }
+      }
+
+      int rcnt = window == null ? data.getRowCount() : window.length;
+
       formula.reset();
 
       // add all data from row - pre count to row + next count
-      for(int i = Math.max(0, row - preCnt);
-         i < Math.min(rcnt, row + nextCnt + 1); i++)
+      for(int i = Math.max(0, pos - preCnt);
+         i < Math.min(rcnt, pos + nextCnt + 1); i++)
       {
-         if(i == row) {
+         int r = window == null ? i : window[i];
+
+         if(r == row) {
             if(includeCurrent) {
                formula.addValue(val);
             }
          }
          else {
-            formula.addValue(data.getData(field, i));
+            formula.addValue(data.getData(field, r));
          }
       }
 
       return formula.getResult();
+   }
+
+   /**
+    * Get the rows of the data set ordered by the position of their dimension value in the
+    * router, i.e. in the order previous/next navigation walks them. Values the router does
+    * not know sort first, and rows sharing a dimension value keep their relative row order.
+    */
+   private int[] orderRowsByDim(DataSet data, Router router) {
+      int cnt = data.getRowCount();
+      Integer[] rows = new Integer[cnt];
+
+      for(int i = 0; i < cnt; i++) {
+         rows[i] = i;
+      }
+
+      Arrays.sort(rows, Comparator.comparingInt(
+         r -> router.getIndex(data.getData(innerDim, r))));
+
+      int[] arr = new int[cnt];
+
+      for(int i = 0; i < cnt; i++) {
+         arr[i] = rows[i];
+      }
+
+      return arr;
    }
 
    /**

@@ -107,6 +107,25 @@ public final class PropertyAliases {
                          "sortOthersLastEnabled", "dateComparisonSupport"));
 
    /**
+    * textinput/combobox/slider/spinner/checkbox/radiobutton's {@code dataInputPaneModel.variable}
+    * (bug #76530, extended to checkbox/radiobutton by bug #76551): has a real getter/setter,
+    * populated correctly on every read from the persisted
+    * {@code InputVSAssemblyInfo.isVariable()} -- but every one of these six types' setters
+    * derives the real, persisted flag solely from whether {@code dataInputPaneModel.table} (after
+    * {@code VSInputService.resolveInputTableBinding}'s normalization) is shaped
+    * {@code "$(varName)"}. The client's own boolean here is never read back on write, for any of
+    * the six. Unlike a plain {@link #DEAD_FIELDS} entry, a write here is not refused
+    * unconditionally -- see {@code AssemblyPropertyService.requireVariableFlagAchievable}, which
+    * this set only marks as needing that check, because whether the write is actually honored
+    * depends on the resulting table binding, not on the field alone. CheckBox and RadioButton used
+    * to be deliberately absent here (their setters read {@code dataInputPaneModel.isVariable()}
+    * directly), but bug #76551's fix made their {@code VSInputService} setters derive-not-trust
+    * the same way the original four already did, so they now belong in this set too.
+    */
+   private static final Set<String> VARIABLE_FLAG_DERIVED_TYPES =
+      Set.of("textinput", "combobox", "slider", "spinner", "checkbox", "radiobutton");
+
+   /**
     * {@code refresh} is aliased through the shared {@link #basicGeneral} helper because it is
     * genuinely applied for the input assemblies (checkbox/combobox/radiobutton/slider/spinner/
     * textinput, via {@code VSInputService}) and for submit (via
@@ -129,6 +148,21 @@ public final class PropertyAliases {
     * {@code LockableVSAssembly} state directly.
     */
    private static final Set<String> LOCKED_LIVE_TYPES = Set.of("image", "line", "oval", "rectangle");
+
+   /**
+    * {@code basicGeneralPaneModel.enabled} is aliased through the shared {@link #basicGeneral}
+    * helper's own comment as dead everywhere -- "the Editable flag wearing the wrong name" -- but
+    * only the six input assemblies routed through {@code VSInputService} are confirmed here: their
+    * read methods (checkbox/textinput/slider/radiobutton/combobox/spinner, one apply method each)
+    * populate {@code basicGeneralPaneModel}'s name/primary/visible/refresh (and combobox's
+    * editable) from the real assembly, but never {@code enabled}; their write methods read
+    * {@code isPrimary()}/{@code getVisible()}/{@code isRefresh()} (and combobox's
+    * {@code isEditable()}) back, but never {@code isEnabled()}. A raw dotted-path write there
+    * reports success and changes nothing -- the live switch is the {@code enabled} alias, one
+    * level up at {@code generalPropPaneModel.enabled}.
+    */
+   private static final Set<String> BASIC_GENERAL_ENABLED_DEAD_TYPES =
+      Set.of("checkbox", "textinput", "slider", "radiobutton", "combobox", "spinner");
 
    private static final Map<String, TypeAliases> REGISTRY = registry();
 
@@ -155,6 +189,15 @@ public final class PropertyAliases {
 
    public static Set<String> coveredTypes() {
       return Collections.unmodifiableSet(REGISTRY.keySet());
+   }
+
+   /**
+    * Whether {@code assemblyType}'s setter derives {@code dataInputPaneModel.variable} from
+    * {@code dataInputPaneModel.table} rather than reading the field back -- see {@link
+    * #VARIABLE_FLAG_DERIVED_TYPES}.
+    */
+   public static boolean derivesVariableFlagFromTable(String assemblyType) {
+      return VARIABLE_FLAG_DERIVED_TYPES.contains(normalize(assemblyType));
    }
 
    /**
@@ -239,6 +282,16 @@ public final class PropertyAliases {
             "populated on every read, but this type's apply method never reads it back -- a " +
             "write would report success and change nothing. Use edit(op:\"set_lock\") to " +
             "lock/unlock this assembly instead.";
+      }
+
+      if("enabled".equals(leaf) && pathOrKey.contains("basicGeneralPaneModel") &&
+         BASIC_GENERAL_ENABLED_DEAD_TYPES.contains(normalizedType))
+      {
+         return "'basicGeneralPaneModel.enabled' is read-only on " + normalizedType + ". It has " +
+            "a getter/setter pair on the dialog model, populated on every read, but this type's " +
+            "apply method never reads it back -- a write would report success and change " +
+            "nothing. Use the 'enabled' alias instead, which resolves to the live " +
+            "generalPropPaneModel.enabled.";
       }
 
       return null;

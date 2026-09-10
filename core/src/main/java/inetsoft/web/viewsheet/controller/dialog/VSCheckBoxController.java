@@ -54,7 +54,7 @@ public class VSCheckBoxController {
     * @throws Exception if the selection could not be applied.
     */
    @Undoable
-   @LoadingMask
+   @LoadingMask(watchdogTimeout = 0)
    @MessageMapping("/checkBox/applySelection")
    public void applySelection(@Payload ApplyCheckBoxSelectionEvent event,
                               Principal principal, CommandDispatcher dispatcher,

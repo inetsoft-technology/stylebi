@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.model.vs.RangePaneModel;
 import inetsoft.web.composer.vs.dialog.*;
@@ -246,10 +247,20 @@ public class AssemblyPropertyService {
             model = PropertyPath.set(model, entry.getValue(), patch.get(entry.getKey()));
          }
 
+         if(PropertyAliases.derivesVariableFlagFromTable(type)) {
+            model = normalizeVariableTableBinding(model);
+         }
+
          if(type.equals("gauge") && resolved.values().stream()
             .anyMatch(path -> path.startsWith("gaugeAdvancedPaneModel.rangePaneModel")))
          {
             requireNoInteriorGapInGaugeRangeValues(model);
+         }
+
+         if(PropertyAliases.derivesVariableFlagFromTable(type) &&
+            resolved.containsValue("dataInputPaneModel.variable"))
+         {
+            requireVariableFlagAchievable(type, model, rvs.getViewsheet());
          }
 
          writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);
@@ -294,6 +305,53 @@ public class AssemblyPropertyService {
                "only have a blank trailing entry (meaning \"extend to the gauge's own max\"), " +
                "not a gap in the middle.");
          }
+      }
+   }
+
+   /**
+    * Normalizes an unset {@code table} to {@code columnValue} when the latter is already a
+    * {@code "$(varName)"} reference (bug #76530/#76555) -- kept AI-only here since
+    * {@code VSInputService} is shared with the interactive UI's save path. Must run before
+    * {@code requireVariableFlagAchievable}/{@code writeModel}.
+    */
+   private Object normalizeVariableTableBinding(Object model) {
+      String table = (String) PropertyPath.get(model, "dataInputPaneModel.table");
+      String columnValue = (String) PropertyPath.get(model, "dataInputPaneModel.columnValue");
+
+      if((table == null || table.isEmpty()) && columnValue != null &&
+         columnValue.startsWith("$(") && columnValue.endsWith(")"))
+      {
+         return PropertyPath.set(model, "dataInputPaneModel.table", columnValue);
+      }
+
+      return model;
+   }
+
+   /**
+    * Refuses a {@code dataInputPaneModel.variable} write that doesn't match what the resolved
+    * {@code table}/{@code columnValue} binding can actually achieve (bug #76530/#76552) -- the
+    * real setter always derives the persisted flag from the binding, never from this field
+    * directly, so a mismatched request would otherwise silently no-op or be wrongly refused.
+    */
+   private void requireVariableFlagAchievable(String type, Object model, Viewsheet vs) {
+      boolean requested = (Boolean) PropertyPath.get(model, "dataInputPaneModel.variable");
+      String table = (String) PropertyPath.get(model, "dataInputPaneModel.table");
+      String columnValue = (String) PropertyPath.get(model, "dataInputPaneModel.columnValue");
+      Worksheet ws = vs == null ? null : vs.getBaseWorksheet();
+      boolean achieved = VSInputService.resolvesToVariableBinding(ws, vs, table, columnValue);
+
+      if(requested != achieved) {
+         throw new IllegalArgumentException(
+            "'dataInputPaneModel.variable' cannot be set to " + requested + " on " + type +
+            ". Its real, persisted value is always derived from whether " +
+            "'dataInputPaneModel.table' (or 'columnValue', if shaped \"$(variableName)\") " +
+            "resolves to an existing worksheet variable -- it currently " +
+            (achieved ? "does" : "does not") + ", so this write would report success and leave " +
+            "'variable' " + achieved + ". " + (requested
+               ? "Set 'dataInputPaneModel.table' (or 'columnValue') to \"$(variableName)\" for " +
+                 "a variable created with add_variable instead."
+               : "Set 'dataInputPaneModel.table' (or 'columnValue') to a non-variable binding " +
+                 "instead, or leave 'dataInputPaneModel.variable' out of the patch."));
       }
    }
 

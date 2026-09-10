@@ -39,7 +39,10 @@ public class BaseTableLoadDataController {
       this.baseTableLoadDataService = baseTableLoadDataService;
    }
 
-   @LoadingMask
+   // Same rationale as VSRefreshController.refreshViewsheet: this endpoint's sole purpose is
+   // to call getVSTableLens() and force a fresh runtime query, which the product's
+   // query.runtime.timeout=0 default already treats as legitimately unbounded.
+   @LoadingMask(watchdogTimeout = 0)
    @ExecutionMonitoring
    @MessageMapping("/table/reload-table-data")
    public void eventHandler(@Payload LoadTableDataEvent event, Principal principal,

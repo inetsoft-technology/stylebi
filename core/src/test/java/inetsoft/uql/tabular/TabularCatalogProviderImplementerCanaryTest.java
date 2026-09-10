@@ -61,7 +61,6 @@ class TabularCatalogProviderImplementerCanaryTest {
       "inetsoft.uql.sforce.SForceRuntime",
       "inetsoft.uql.sapjco2.table.SAPTableRuntime",
       "inetsoft.uql.rest.datasource.graphql.GraphQLRuntime",
-      "inetsoft.uql.rest.xml.RestXMLRuntime",
       "inetsoft.uql.serverfile.ServerFileRuntime",
       "inetsoft.uql.onedrive.OneDriveRuntime");
 

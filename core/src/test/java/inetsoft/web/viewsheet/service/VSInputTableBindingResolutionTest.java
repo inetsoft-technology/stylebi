@@ -147,6 +147,61 @@ class VSInputTableBindingResolutionTest {
       assertEquals("", resolve(ws, "", null));
    }
 
+   /**
+    * Bug #76555: this normalization moved to the AI-only {@code AssemblyPropertyService} layer,
+    * so an unset {@code table} must stay unset here even when {@code columnValue} looks like a
+    * variable reference.
+    */
+   @Test
+   void leavesTableUnsetWhenOnlyColumnValueLooksLikeAVariableReference() throws Exception {
+      Worksheet ws = worksheetWithVariable("StartDate");
+
+      assertNull(resolve(ws, null, "$(StartDate)"));
+      assertEquals("", resolve(ws, "", "$(StartDate)"));
+   }
+
+   /**
+    * Same relocation: no columnValue-only normalization means no existence check on that path
+    * either -- it now only runs downstream, once a real {@code "$(...)"}-shaped {@code table}
+    * reaches a setter.
+    */
+   @Test
+   void leavesTableUnsetEvenWhenTheColumnValueReferencesAVariableThatDoesNotExist()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+
+      assertNull(resolve(ws, null, "$(StartDate)"));
+   }
+
+   /**
+    * An explicit {@code table} value must not be overridden by a {@code columnValue} that happens
+    * to look like a variable reference.
+    */
+   @Test
+   void doesNotOverrideAnExplicitTableWithAColumnValueThatLooksLikeAVariable() throws Exception {
+      Worksheet ws = worksheetWithVariable("StartDate");
+      ws.addAssembly(new EmbeddedTableAssembly(ws, "Query1"));
+
+      assertEquals("Query1", resolve(ws, "Query1", "$(StartDate)"));
+   }
+
+   /**
+    * {@link VSInputService#resolvesToVariableBinding} must agree with
+    * {@code resolveInputTableBinding} on a raw {@code table} value. The columnValue-only shape
+    * (bug #76555) is no longer this method's concern -- callers normalize that themselves first.
+    */
+   @Test
+   void resolvesToVariableBindingAgreesWithTheUnderlyingResolution() {
+      Worksheet ws = worksheetWithVariable("StartDate");
+      ws.addAssembly(new EmbeddedTableAssembly(ws, "Query1"));
+
+      assertFalse(VSInputService.resolvesToVariableBinding(ws, null, null, "$(StartDate)"));
+      assertTrue(VSInputService.resolvesToVariableBinding(ws, null, "$(StartDate)", null));
+      assertFalse(VSInputService.resolvesToVariableBinding(ws, null, "Query1", null));
+      assertFalse(VSInputService.resolvesToVariableBinding(ws, null, null, null));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static Worksheet worksheetWithVariable(String name) {

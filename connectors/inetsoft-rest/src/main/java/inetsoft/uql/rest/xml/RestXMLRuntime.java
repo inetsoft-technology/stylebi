@@ -20,40 +20,12 @@ package inetsoft.uql.rest.xml;
 import inetsoft.uql.rest.AbstractRestQuery;
 import inetsoft.uql.rest.AbstractRestRuntime;
 import inetsoft.uql.rest.QueryRunner;
-import inetsoft.uql.tabular.TabularCatalog;
-import inetsoft.uql.tabular.TabularCatalogProvider;
-import inetsoft.uql.tabular.TabularDataSource;
-import inetsoft.uql.tabular.TabularDatasetSchema;
 
-public class RestXMLRuntime extends AbstractRestRuntime implements TabularCatalogProvider {
+public class RestXMLRuntime extends AbstractRestRuntime {
    @Override
    protected QueryRunner getQueryRunner(AbstractRestQuery q) {
       final RestXMLQuery query = (RestXMLQuery) q;
       final XMLRestDataIteratorStrategyFactory factory = new XMLRestDataIteratorStrategyFactory();
       return new RestXMLQueryRunner(query, factory);
-   }
-
-   /**
-    * Always throws: Rest.XML's dataset structure (URL suffix, XPath, columns) is declared per
-    * query, not on the data source itself, so there is no server-side resource list to enumerate.
-    */
-   @Override
-   public TabularCatalog listDatasets(TabularDataSource<?> dataSource) throws Exception {
-      throw new Exception("Rest.XML does not support catalog enumeration: its dataset " +
-         "structure (URL suffix, XPath, columns) is declared per-query, not on the data " +
-         "source itself, so there is no server-side resource list to enumerate. Describe a " +
-         "specific endpoint directly via describeDataset with an opaque endpoint token instead.");
-   }
-
-   /**
-    * {@code dataSource} is intentionally unused: the whole point of the opaque-token design is
-    * that {@code RestXMLDataSource} carries nothing (just a bare URL) the token doesn't already
-    * carry itself.
-    */
-   @Override
-   public TabularDatasetSchema describeDataset(TabularDataSource<?> dataSource, String datasetId)
-      throws Exception
-   {
-      return RestXmlEndpointCatalog.describeDataset(datasetId);
    }
 }

@@ -779,6 +779,7 @@ public class ValueOfColumn extends AbstractColumn {
    public void complete() {
       subs = null;
       subsRoot = null;
+      minDate = null;
    }
 
    @Override

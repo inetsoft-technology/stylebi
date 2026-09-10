@@ -37,6 +37,7 @@ import { ViewsheetInfo } from "../../../../vsobjects/data/viewsheet-info";
 import { VSInputModel } from "../../../../vsobjects/model/vs-input-model";
 import { VSLineModel } from "../../../../vsobjects/model/vs-line-model";
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
+import { VSShapeModel } from "../../../../vsobjects/model/vs-shape-model";
 import { VSSelectionContainerModel } from "../../../../vsobjects/model/vs-selection-container-model";
 import { VSTabModel } from "../../../../vsobjects/model/vs-tab-model";
 import { DebounceService } from "../../../../widget/services/debounce.service";
@@ -474,6 +475,18 @@ export class LayoutObject implements OnInit, OnDestroy {
       return this.model.objectModel &&
          this.model.objectModel.objectType == "VSLine" &&
          this.lineModel.startLeft == this.lineModel.endLeft;
+   }
+
+   /**
+    * A rectangle/oval with a drop shadow paints outside its own box, so the
+    * object container must not clip it. Only these two object types can, so
+    * the .object-container overflow stays hidden for everything else.
+    */
+   hasShapeShadow(): boolean {
+      const objectType = this.model.objectModel?.objectType;
+
+      return (objectType == "VSRectangle" || objectType == "VSOval") &&
+         !!(<VSShapeModel> this.model.objectModel).shadow;
    }
 
    get resizeable(): boolean {

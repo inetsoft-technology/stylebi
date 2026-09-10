@@ -159,7 +159,13 @@ public class RunningTotalColumn extends AbstractColumn {
 
          Object firstBreakByVal = baseData.getData(breakBy, row);
          long interval = getInterval(data, sortedRow);
-         Object currentInnerVal = (innerDim != null) ? baseData.getData(innerDim, row) : null;
+         // only accumulate by date when the accumulation dimension is a dimension of its
+         // own. when innerDim IS the breakBy column, every row of a group carries the
+         // same date, so a date walk would add the whole group to every row; the order
+         // then lives in the row order and nowhere else -- it may even be a dimension
+         // innerDim cannot see, such as a colour aesthetic. (74910)
+         Object currentInnerVal = innerDim != null && !Tool.equals(innerDim, breakBy)
+            ? baseData.getData(innerDim, row) : null;
 
          if(currentInnerVal instanceof Date) {
             // Root dataset row order may not be chronological when sort-by-value
@@ -203,6 +209,10 @@ public class RunningTotalColumn extends AbstractColumn {
                }
             }
          }
+         // accumulate backwards through the root dataset until the breakBy value
+         // changes. the query is responsible for establishing that row order, and for
+         // the "Others" bucket SummaryFilter.MergedGroupNode.sortMergedNodes() is what
+         // puts the merged rows back into their own group level's order.
          else {
             for(int i = row; i >= 0; i--) {
                Object breakByVal = baseData.getData(breakBy, i);

@@ -569,10 +569,13 @@ public class VSInputService {
       setListValues(checkBoxAssemblyInfo, value, viewsheet, principal);
 
       // TODO validate column/row variable/expression type
-      String table = dataInputPaneModel.getTable();
-      checkBoxAssemblyInfo.setTableName(
-         table == null || "".equals(table.trim()) ? null : table);
-      checkBoxAssemblyInfo.setVariable(table != null && dataInputPaneModel.isVariable());
+      String table = resolveInputTableBinding(viewsheet.getViewsheet().getBaseWorksheet(),
+         viewsheet.getViewsheet(), dataInputPaneModel.getTable(),
+         dataInputPaneModel.getColumnValue());
+      checkBoxAssemblyInfo.setTableName(table == null ? "" : table);
+      checkBoxAssemblyInfo.setVariable(resolvesToVariableBinding(
+         viewsheet.getViewsheet().getBaseWorksheet(), viewsheet.getViewsheet(), table,
+         dataInputPaneModel.getColumnValue()));
 
       checkBoxAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       checkBoxAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
@@ -1321,11 +1324,15 @@ public class VSInputService {
 
       setListValues(radioButtonAssemblyInfo, value, viewsheet, principal);
 
-      String table = dataInputPaneModel.getTable();
+      String table = resolveInputTableBinding(viewsheet.getViewsheet().getBaseWorksheet(),
+         viewsheet.getViewsheet(), dataInputPaneModel.getTable(),
+         dataInputPaneModel.getColumnValue());
       radioButtonAssemblyInfo.setTableName(table == null ? "" : table);
       radioButtonAssemblyInfo.setColumnValue(dataInputPaneModel.getColumnValue());
       radioButtonAssemblyInfo.setRowValue(dataInputPaneModel.getRowValue());
-      radioButtonAssemblyInfo.setVariable(dataInputPaneModel.isVariable());
+      radioButtonAssemblyInfo.setVariable(resolvesToVariableBinding(
+         viewsheet.getViewsheet().getBaseWorksheet(), viewsheet.getViewsheet(), table,
+         dataInputPaneModel.getColumnValue()));
       radioButtonAssemblyInfo.setWriteBackValue(dataInputPaneModel.isWriteBackDirectly());
 
       radioButtonAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
@@ -3836,6 +3843,25 @@ public class VSInputService {
       throw new MessageException("Unknown table binding '" + table + "' for this input. " +
          "It does not match a worksheet table or a worksheet variable; use " +
          "\"$(variableName)\" to bind to a variable.");
+   }
+
+   /**
+    * Whether {@code table}/{@code columnValue}, once run through {@link
+    * #resolveInputTableBinding}'s normalization above, resolve to a {@code "$(varName)"}
+    * worksheet-variable reference.
+    *
+    * <p>Exposed (bug #76530) so {@code AssemblyPropertyService} can refuse an explicit
+    * {@code dataInputPaneModel.variable} write that this class's own setters would otherwise
+    * silently fail to honor: {@code setTextInputPropertyDialogModel}/
+    * {@code setComboboxPropertyDialogModel}/{@code setSliderPropertyDialogModel}/
+    * {@code setSpinnerPropertyDialogModel} never read {@code dataInputPaneModel.isVariable()} at
+    * all -- the persisted flag is always this method's own answer, derived from {@code table}.
+    */
+   public static boolean resolvesToVariableBinding(Worksheet ws, Viewsheet vs, String table,
+                                                    String columnValue)
+   {
+      String resolved = resolveInputTableBinding(ws, vs, table, columnValue);
+      return resolved != null && resolved.startsWith("$(") && resolved.endsWith(")");
    }
 
    private static boolean isKnownVariableName(Worksheet ws, Viewsheet vs, String name) {

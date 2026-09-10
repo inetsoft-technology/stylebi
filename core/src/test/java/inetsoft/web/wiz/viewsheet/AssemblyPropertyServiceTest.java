@@ -19,8 +19,13 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
+import inetsoft.uql.asset.DefaultVariableAssembly;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
+import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
+import inetsoft.web.composer.model.vs.TextInputPropertyDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -307,11 +312,296 @@ class AssemblyPropertyServiceTest {
                    "the unrelated property must still have been written");
    }
 
+   /**
+    * The exact reported repro (bug #76530): {@code columnValue} carries the reference,
+    * {@code table} never set. Must resolve and go through, not be refused.
+    */
+   @Test
+   void allowsTheExactReportedReproNowThatColumnValueAloneResolvesToAKnownVariable()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, ws);
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "$(StartDate)");
+      patch.put("dataInputPaneModel.variable", true);
+
+      assertDoesNotThrow(
+         () -> service.set("tok", principal(), "StartDateInput", patch, ""));
+   }
+
+   /** Proves the normalization actually mutates {@code table}, not just avoids throwing. */
+   @Test
+   void normalizesColumnValueOnlyIntoTableBeforeTheAchievabilityCheck() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, ws);
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "$(StartDate)");
+      patch.put("dataInputPaneModel.variable", true);
+
+      service.set("tok", principal(), "StartDateInput", patch, "");
+
+      assertEquals("$(StartDate)", model.getDataInputPaneModel().getTable(),
+                   "normalizeVariableTableBinding must write 'table', not just avoid throwing");
+   }
+
+   /**
+    * Bug #76530 part (b): a patch that explicitly touches {@code dataInputPaneModel.variable}
+    * but leaves both {@code table} and {@code columnValue} unset cannot possibly resolve to a
+    * variable reference -- this write must be refused, by field name, instead of reporting
+    * {@code {"ok":true}} while silently changing nothing (the originally-reported symptom).
+    */
+   @Test
+   void refusesAnExplicitVariableWriteWhenNeitherTableNorColumnValueResolveToAVariable() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, new Worksheet());
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "StartDateInput",
+            Map.of("dataInputPaneModel.variable", true), ""));
+
+      assertTrue(thrown.getMessage().contains("dataInputPaneModel.variable"),
+                 "must name the refused field: " + thrown.getMessage());
+   }
+
+   /**
+    * The achievability check must only fire when the patch actually touches {@code variable} --
+    * an unrelated field write on a TextInput whose current binding is not a variable (the common
+    * case: most TextInputs write back to a literal cell, not a variable) must not be blocked by
+    * state the patch never touched.
+    */
+   @Test
+   void doesNotCheckVariableAchievabilityWhenThePatchDoesNotTouchVariable() throws Exception {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, new Worksheet());
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "StartDateInput",
+         Map.of("dataInputPaneModel.rowValue", "0"), ""));
+   }
+
+   /**
+    * Bug #76552 (follow-up to #76530/PR #5100): the achievability check must compare the
+    * <em>requested</em> value, not merely whether a variable binding is possible. A patch
+    * requesting {@code variable:false} while {@code columnValue} still resolves to a known
+    * variable must be refused -- the real setter would still derive {@code variable=true} from
+    * the table's shape regardless of this patch, so the write would report success and silently
+    * leave {@code variable} at {@code true}. This is the exact gap #5100's own 3 tests left
+    * uncovered: they only ever requested {@code variable:true}.
+    */
+   @Test
+   void refusesAnExplicitVariableFalseWriteWhenTheBindingStillResolvesToAVariable() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, ws);
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "$(StartDate)");
+      patch.put("dataInputPaneModel.variable", false);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "StartDateInput", patch, ""));
+
+      assertTrue(thrown.getMessage().contains("dataInputPaneModel.variable"),
+                 "must name the refused field: " + thrown.getMessage());
+   }
+
+   /**
+    * Bug #76552 (follow-up to #76530/PR #5100): the mirror image of the case above -- requesting
+    * {@code variable:false} when the table was never a variable to begin with is a harmless
+    * no-op and must be allowed, not refused. Before this fix, the achievability check only asked
+    * "can this resolve to a variable" (no), which wrongly refused every {@code false} request
+    * regardless of whether it matched the current binding.
+    */
+   @Test
+   void allowsAnExplicitVariableFalseWriteWhenTheBindingAlreadyDoesNotResolveToAVariable()
+      throws Exception
+   {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, new Worksheet());
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "StartDateInput",
+         Map.of("dataInputPaneModel.variable", false), ""));
+   }
+
+   // ── checkbox/radiobutton (bug #76551) ────────────────────────────────────
+   //
+   // Same four cases as TextInput above, now that checkbox/radiobutton are in
+   // PropertyAliases.VARIABLE_FLAG_DERIVED_TYPES too. This only exercises the AI/wiz-layer
+   // achievability check (requireVariableFlagAchievable) -- VSInputService is mocked here, so it
+   // never runs the real setCheckboxPropertyModel/setRadioButtonPropertyModel body. The setter's
+   // own derive-not-trust behavior (the interactive Composer UI's own protection) is covered
+   // separately by CheckBoxRadioButtonTableBindingSetterTest.
+
+   @Test
+   void allowsTheExactReportedReproNowThatColumnValueAloneResolvesToAKnownVariableForCheckbox()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, ws);
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "$(StartDate)");
+      patch.put("dataInputPaneModel.variable", true);
+
+      assertDoesNotThrow(
+         () -> service.set("tok", principal(), "StartDateCheckbox", patch, ""));
+   }
+
+   @Test
+   void refusesAnExplicitVariableWriteWhenNeitherTableNorColumnValueResolveToAVariableForCheckbox() {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "StartDateCheckbox",
+            Map.of("dataInputPaneModel.variable", true), ""));
+
+      assertTrue(thrown.getMessage().contains("dataInputPaneModel.variable"),
+                 "must name the refused field: " + thrown.getMessage());
+   }
+
+   @Test
+   void refusesAnExplicitVariableFalseWriteWhenTheBindingStillResolvesToAVariableForCheckbox() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, ws);
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "$(StartDate)");
+      patch.put("dataInputPaneModel.variable", false);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "StartDateCheckbox", patch, ""));
+
+      assertTrue(thrown.getMessage().contains("dataInputPaneModel.variable"),
+                 "must name the refused field: " + thrown.getMessage());
+   }
+
+   @Test
+   void allowsAnExplicitVariableFalseWriteWhenTheBindingAlreadyDoesNotResolveToAVariableForCheckbox()
+      throws Exception
+   {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "StartDateCheckbox",
+         Map.of("dataInputPaneModel.variable", false), ""));
+   }
+
+   @Test
+   void allowsTheExactReportedReproNowThatColumnValueAloneResolvesToAKnownVariableForRadioButton()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      RadioButtonPropertyDialogModel model = new RadioButtonPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithRadioButton(mock(RadioButtonVSAssembly.class), model, ws);
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "$(StartDate)");
+      patch.put("dataInputPaneModel.variable", true);
+
+      assertDoesNotThrow(
+         () -> service.set("tok", principal(), "StartDateRadio", patch, ""));
+   }
+
+   @Test
+   void refusesAnExplicitVariableWriteWhenNeitherTableNorColumnValueResolveToAVariableForRadioButton() {
+      RadioButtonPropertyDialogModel model = new RadioButtonPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithRadioButton(mock(RadioButtonVSAssembly.class), model, new Worksheet());
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "StartDateRadio",
+            Map.of("dataInputPaneModel.variable", true), ""));
+
+      assertTrue(thrown.getMessage().contains("dataInputPaneModel.variable"),
+                 "must name the refused field: " + thrown.getMessage());
+   }
+
+   @Test
+   void refusesAnExplicitVariableFalseWriteWhenTheBindingStillResolvesToAVariableForRadioButton() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      RadioButtonPropertyDialogModel model = new RadioButtonPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithRadioButton(mock(RadioButtonVSAssembly.class), model, ws);
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "$(StartDate)");
+      patch.put("dataInputPaneModel.variable", false);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "StartDateRadio", patch, ""));
+
+      assertTrue(thrown.getMessage().contains("dataInputPaneModel.variable"),
+                 "must name the refused field: " + thrown.getMessage());
+   }
+
+   @Test
+   void allowsAnExplicitVariableFalseWriteWhenTheBindingAlreadyDoesNotResolveToAVariableForRadioButton()
+      throws Exception
+   {
+      RadioButtonPropertyDialogModel model = new RadioButtonPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithRadioButton(mock(RadioButtonVSAssembly.class), model, new Worksheet());
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "StartDateRadio",
+         Map.of("dataInputPaneModel.variable", false), ""));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static AssemblyPropertyService serviceWith(VSAssembly assembly, Object model) {
+      return serviceWith(assembly, model, null, null);
+   }
+
+   private static AssemblyPropertyService serviceWithTextInput(
+      VSAssembly assembly, TextInputPropertyDialogModel model, Worksheet baseWorksheet)
+   {
+      return serviceWith(assembly, model, model, baseWorksheet);
+   }
+
+   private static AssemblyPropertyService serviceWithCheckbox(
+      VSAssembly assembly, CheckboxPropertyDialogModel model, Worksheet baseWorksheet)
+   {
+      return serviceWith(assembly, model, model, baseWorksheet);
+   }
+
+   private static AssemblyPropertyService serviceWithRadioButton(
+      VSAssembly assembly, RadioButtonPropertyDialogModel model, Worksheet baseWorksheet)
+   {
+      return serviceWith(assembly, model, model, baseWorksheet);
+   }
+
+   private static AssemblyPropertyService serviceWith(
+      VSAssembly assembly, Object model, Object inputModel,
+      Worksheet baseWorksheet)
+   {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(assembly);
+      when(vs.getBaseWorksheet()).thenReturn(baseWorksheet);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getID()).thenReturn("rt1");
@@ -343,6 +633,30 @@ class AssemblyPropertyServiceTest {
          }
       }
 
+      inetsoft.web.viewsheet.service.VSInputService inputService =
+         mock(inetsoft.web.viewsheet.service.VSInputService.class);
+
+      try {
+         if(inputModel instanceof TextInputPropertyDialogModel textInputModel) {
+            when(inputService.getTextInputPropertyDialogModel(anyString(), anyString(),
+                                                               any(Principal.class)))
+               .thenReturn(textInputModel);
+         }
+         else if(inputModel instanceof CheckboxPropertyDialogModel checkboxModel) {
+            when(inputService.getCheckBoxPropertyModel(anyString(), anyString(),
+                                                        any(Principal.class)))
+               .thenReturn(checkboxModel);
+         }
+         else if(inputModel instanceof RadioButtonPropertyDialogModel radioButtonModel) {
+            when(inputService.getRadioButtonPropertyModel(anyString(), anyString(),
+                                                           any(Principal.class)))
+               .thenReturn(radioButtonModel);
+         }
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
       return new AssemblyPropertyService(
          sessions, gauge, mock(ImagePropertyDialogService.class),
          mock(TextPropertyDialogService.class),
@@ -350,7 +664,7 @@ class AssemblyPropertyServiceTest {
          mock(CrosstabPropertyDialogService.class),
          mock(SelectionListPropertyDialogService.class),
          mock(SelectionTreePropertyDialogService.class),
-         mock(inetsoft.web.viewsheet.service.VSInputService.class),
+         inputService,
          mock(RangeSliderPropertyDialogService.class),
          mock(CalendarPropertyDialogService.class), mock(TabPropertyDialogService.class),
          mock(CalcTablePropertyDialogService.class),

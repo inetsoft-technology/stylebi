@@ -294,7 +294,10 @@ public class PrintInfo implements AssetObject {
    public Object clone() {
       try {
          PrintInfo info2 = (PrintInfo) super.clone();
-         info2.size = (DimensionD) size.clone();
+
+         if(size != null) {
+            info2.size = (DimensionD) size.clone();
+         }
 
          return info2;
       }
@@ -303,6 +306,10 @@ public class PrintInfo implements AssetObject {
          return null;
       }
    }
+
+   // Letter size in inches, matching PaperSize's "Letter [8.5x11 in]" entry.
+   private static final double DEFAULT_WIDTH = 8.5;
+   private static final double DEFAULT_HEIGHT = 11;
 
    private String paperType;
    private DimensionD size;

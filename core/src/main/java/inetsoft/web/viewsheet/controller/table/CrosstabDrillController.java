@@ -40,8 +40,11 @@ public class CrosstabDrillController {
       this.crosstabDrillService = crosstabDrillService;
    }
 
+   // Same rationale as VSRefreshController.refreshViewsheet: drilling forces a fresh
+   // getVSTableLens() re-execution of the crosstab's runtime query, which the product's
+   // query.runtime.timeout=0 default already treats as legitimately unbounded.
    @Undoable
-   @LoadingMask
+   @LoadingMask(watchdogTimeout = 0)
    @MessageMapping("/table/drill")
    public void eventHandler(@Payload DrillEvent event, Principal principal,
                             CommandDispatcher dispatcher, @LinkUri String linkUri)
@@ -52,7 +55,7 @@ public class CrosstabDrillController {
    }
 
    @Undoable
-   @LoadingMask(true)
+   @LoadingMask(value = true, watchdogTimeout = 0)
    @MessageMapping("/table/drill/cells")
    public void drill(@Payload DrillCellsEvent event, Principal principal,
                      CommandDispatcher dispatcher, @LinkUri String linkUri)

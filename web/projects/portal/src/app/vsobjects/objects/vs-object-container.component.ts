@@ -194,6 +194,9 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    public containerHasVerticalScrollbar = true;
    private subscriptions = new Subscription();
    public forceShowMiniToolbar: boolean = false;
+   // absoluteName of the embedded viewsheet (VSViewsheet) the pointer is currently inside, if
+   // any -- see getContainerZIndex/isHoveredEmbeddedViewsheet.
+   private hoveredEmbeddedVS: string = null;
    protected maxZIndex: number;
    private _keyNavigation: Observable<FocusObjectEventModel>;
    private focusSub: Subscription;
@@ -599,7 +602,19 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    // embedded-viewsheet or max-mode assemblies), easily exceeding any hardcoded CSS z-index.
    getContainerZIndex(vsObject: VSObjectModel): number {
       if(!this.isActivePopComponent(vsObject) && !this.needsZIndexBoost(vsObject)) {
-         return this.zIndex(vsObject);
+         // The mini-toolbar of an assembly *inside* an embedded viewsheet is painted above that
+         // viewsheet's own box (MiniToolbar.topY subtracts MINI_TOOLBAR_HEIGHT, and the
+         // forceAbove binding forces that even for an assembly at the embedded viewsheet's very
+         // top) while still being ranked inside this element's stacking context. It therefore
+         // cannot escape this context no matter how large getMiniToolbarZIndex() makes it, so an
+         // outer assembly with a higher z-index paints over it (#75916 follow-up). Lift the whole
+         // embedded viewsheet while it is hovered. Only while hovered: outer assemblies are
+         // legitimately authored above an embedded viewsheet, and permanently reordering them
+         // would break those layouts. The boost stays well below popUpContentBoostZIndex so it
+         // never competes with the max-mode/pop-component/data-tip tiers below.
+         return this.isHoveredEmbeddedViewsheet(vsObject)
+            ? this.zIndex(vsObject) + GuiTool.MINI_TOOLBAR_MIN_ZINDEX
+            : this.zIndex(vsObject);
       }
 
       const isDataTipBoost = this.isActiveDataTipBoost(vsObject);
@@ -859,6 +874,28 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
 
    onMouseEnter(vsObject: VSObjectModel, event: any): void {
       this.miniToolbarService.handleMouseEnter(vsObject?.absoluteName, event);
+
+      if(vsObject?.objectType === "VSViewsheet") {
+         this.hoveredEmbeddedVS = vsObject.absoluteName;
+      }
+   }
+
+   // Paired with onMouseEnter's VSViewsheet arm. The mini-toolbars of the assemblies inside an
+   // embedded viewsheet are DOM descendants of that assembly's ".vs-object-parent-container",
+   // so moving the pointer from the embedded content onto one of those toolbars does not fire
+   // mouseleave here -- the boost survives long enough to click a toolbar button.
+   onMouseLeave(vsObject: VSObjectModel): void {
+      if(vsObject?.objectType === "VSViewsheet" &&
+         this.hoveredEmbeddedVS === vsObject.absoluteName)
+      {
+         this.hoveredEmbeddedVS = null;
+      }
+   }
+
+   // True while the pointer is inside this embedded viewsheet (or one of its assemblies'
+   // mini-toolbars). See getContainerZIndex for why that has to lift the whole subtree.
+   isHoveredEmbeddedViewsheet(vsObject: VSObjectModel): boolean {
+      return !!this.hoveredEmbeddedVS && this.hoveredEmbeddedVS === vsObject.absoluteName;
    }
 
    getChartDataAnnotations(vsObject: VSObjectModel): VSAnnotationModel[] {

@@ -294,6 +294,10 @@ public class CrosstabDrillHandler
             dimRef.setDateLevelValue(ref.getDateLevelValue());
             dimRef.setDateLevel(level);
          }
+         else if(dimRef != null && !VSUtil.isDynamicValue(dimRef.getDateLevelValue())) {
+            // see the comment in drillDownChild()
+            dimRef.resetOldRuntimeDateLevel();
+         }
       }
 
       if(index < 0) {
@@ -546,6 +550,15 @@ public class CrosstabDrillHandler
          if(nref != null && VSUtil.isVariableValue(ref.getDateLevelValue())) {
             int level = nref.getDateLevel();
             nref.setDateLevel(level);
+         }
+         else if(nref != null && !VSUtil.isDynamicValue(ref.getDateLevelValue())) {
+            // the child is cloned from the parent level, so it carries the parent's
+            // tracked runtime date level. clear it, otherwise the next update() reports
+            // runtimeDateLevelChange() and removeUselessChildRefs() drops the hierarchy
+            // from the CrosstabTree on every execution, which in turn lets
+            // CrosstabTree.updateChildRef() copy the parent level's options (including
+            // the sort order) over this dimension. (crosstab sort on a drilled level)
+            nref.resetOldRuntimeDateLevel();
          }
 
          childRef = nref;

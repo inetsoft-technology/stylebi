@@ -50,7 +50,7 @@ import java.util.Map;
  *   <li>{@code set_sort} — {@code table}, {@code field}, {@code direction} ("ASC" | "DESC")</li>
  *   <li>{@code add_join} — {@code name}, {@code leftTable}, {@code leftKey}, {@code rightTable}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys} instead of single key fields. For three or more tables joined in a single call, supply {@code joinPaths} instead (each a {leftTable, leftKey, rightTable, rightKey, joinType} edge) — {@code leftTable}/{@code leftKey}/{@code rightTable}/{@code rightKey}/{@code joinType}/{@code leftKeys}/{@code rightKeys} are ignored when {@code joinPaths} is present</li>
  *   <li>{@code remove_join} — {@code name}</li>
- *   <li>{@code add_table} — {@code table}, optional {@code datasource} (when provided, creates a bound table from the named datasource); optional {@code logicalModel} (when provided alongside datasource, {@code table} is an entity name within that logical model); optional {@code endpoint} (+ optional {@code parameters}/{@code lookup}/{@code lookupExpandArrays}/{@code lookupTopLevelOnly}) to bind a named REST/JSON connector's pre-built endpoint (and, optionally, one of its pre-built "Join With" lookup chains) instead of a physical table or logical model entity — {@code table} then names the NEW worksheet table rather than a physical path; optional {@code suffix} (+ optional {@code customLookups}) to bind a GENERIC/CUSTOM REST-JSON datasource's hand-authored URL suffix (and, optionally, up to 5 hand-authored custom lookup levels) instead — mutually exclusive with {@code endpoint}/{@code parameters}/{@code lookup}</li>
+ *   <li>{@code add_table} — {@code table}, optional {@code datasource} (when provided, creates a bound table from the named datasource); optional {@code logicalModel} (when provided alongside datasource, {@code table} is an entity name within that logical model); optional {@code endpoint} (+ optional {@code parameters}/{@code lookup}/{@code lookupExpandArrays}/{@code lookupTopLevelOnly}) to bind a named REST/JSON connector's pre-built endpoint (and, optionally, one of its pre-built "Join With" lookup chains) instead of a physical table or logical model entity — {@code table} then names the NEW worksheet table rather than a physical path; optional {@code suffix} (+ optional {@code customLookups}) to bind a GENERIC/CUSTOM REST-JSON datasource's hand-authored URL suffix (and, optionally, up to 5 hand-authored custom lookup levels) instead — mutually exclusive with {@code endpoint}/{@code parameters}/{@code lookup}; or optional {@code queryParams} (a flat connector-property map) for a METADATA/FILE/Rest.XML datasource with no predefined endpoint catalogue and no simple URL-suffix shape — mutually exclusive with all of the above</li>
  *   <li>{@code edit_condition} — {@code table}, {@code field}, {@code operation}, {@code values}</li>
  *   <li>{@code edit_expression} — {@code table}, {@code name}, {@code expression}, {@code type}, {@code sql}</li>
  *   <li>{@code edit_join} — {@code name}, {@code leftKey}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys}</li>
@@ -409,8 +409,61 @@ public record EditRequest(
     * established in a single call instead of the second overwriting the first. {@code null} or
     * absent is equivalent to an empty list (clears all ranking).
     */
-   List<WorksheetMutationSupport.RankingSpec> rankings
+   List<WorksheetMutationSupport.RankingSpec> rankings,
+   /**
+    * Connector-specific property values for add_table, keyed by the connector's OWN property
+    * names (not a Composer-invented shape) — e.g. an OData entity set name, a Cassandra table
+    * name, a file's {@code fileFolder}/{@code excelSheet}, or a Rest.XML endpoint's
+    * {@code suffix}/{@code xpath}/{@code schema}. Fill it against
+    * {@code GET .../tabular/query-schema}'s response for the datasource. Mutually exclusive
+    * with {@code endpoint}/{@code suffix}/{@code parameters}/{@code lookup}/
+    * {@code customLookups} — this is the fourth, independent add_table form, for a datasource
+    * whose target space is not enumerable through {@code list_endpoint_lookups} (METADATA,
+    * FILE, Rest.XML, and plain Rest when it needs more than a bare suffix). There is no
+    * separate "target id" field: the remote target's own identity (an entity set name, a table
+    * name, a file path) is itself one entry in this map, exactly like wiz-services' own
+    * {@code tabularSource.queryParams} shape — not a second addressing scheme.
+    */
+   Map<String, Object> queryParams
 ) {
+   /**
+    * Compatibility constructor for callers built before {@code queryParams} was added, but after
+    * {@code rankings} — defaults {@code queryParams} to {@code null}.
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables,
+      String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
+      List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups, Boolean crosstab,
+      List<String> labels, WorksheetMutationSupport.VariableChoicesSpec choices,
+      List<WorksheetMutationSupport.JoinPathSpec> joinPaths, Boolean mergeable,
+      Boolean visibleInViewsheet, Boolean confirmed, Integer rowCount, Boolean concatDistinct,
+      List<WorksheetMutationSupport.RankingSpec> rankings)
+   {
+      this(op, table, column, name, type, newName, field, operation, values, direction, groups,
+           aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType,
+           visible, tables, source, concatType, conditions, ranking, headerColumns, dateOption,
+           boundaries, datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row, col,
+           value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
+           groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
+           sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
+           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, joinPaths,
+           mergeable, visibleInViewsheet, confirmed, rowCount, concatDistinct, rankings, null);
+   }
+
    /**
     * Compatibility constructor for callers built before {@code rankings} was added, but after
     * {@code confirmed}/{@code rowCount}/{@code concatDistinct} — defaults {@code rankings} to
