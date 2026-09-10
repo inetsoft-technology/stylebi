@@ -52,7 +52,9 @@ import inetsoft.uql.tabular.TabularUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import inetsoft.util.Catalog;
+import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
+import inetsoft.util.UserMessage;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.portal.controller.database.DataSourceService;
@@ -1547,6 +1549,12 @@ public class WorksheetTableService {
       probeVars.put(XQuery.HINT_MAX_ROWS,
                     String.valueOf(Math.max(20, src.getSampleRows() == null ? 0 : src.getSampleRows())));
 
+      // Clear any user-message residue from an earlier table in this same batch. createTables loops
+      // over every requested table on ONE thread and nothing clears CoreTool's per-thread message
+      // list between iterations (see recoveredExceptionDetail) — without this, a message left behind
+      // by an earlier table's connector could be read below and misattributed to THIS table's probe.
+      CoreTool.clearUserMessage();
+
       // A null QueryManager, matching what TabularTableAssembly.dependencyChanged passes and what
       // buildSqlTable uses for its own column resolution. Taking an AssetQuerySandbox instead would
       // mean either disposing it — leaving the "queryManager" property pointing at a dead object on
@@ -1562,16 +1570,117 @@ public class WorksheetTableService {
       ColumnSelection columns = table.getColumnSelection(false);
 
       if(columns == null || columns.getAttributeCount() == 0) {
-         throw new IllegalArgumentException(
-            "The query on '" + dsName + "' returned no columns. Parameters sent: " + probeDesc +
-            ". Check them against GET /api/wiz/tabular/query-schema — in particular that each " +
-            "one applies to the others, since one that does not is stored and never read — and " +
-            "that the data source's credentials are valid; the underlying cause is in the " +
-            "server log for this request.");
+         throw new IllegalArgumentException(emptyColumnsMessage(query, dsName, probeDesc));
       }
 
       worksheet.addAssembly(table);
       return table;
+   }
+
+   /**
+    * The two-branch empty-columns message. Branch is decided by {@code query.getResponseShape()}:
+    * non-null iff the request returned a parseable body (see {@link #applyResponseShape}, which
+    * reads the same slot on the success path — the copy-back in {@code TabularHandler.execute} that
+    * fills it runs unconditionally, before the success/failure branch). Both branches may carry an
+    * appended exception detail when the connector recovered one — see {@link #recoveredExceptionDetail}.
+    */
+   private String emptyColumnsMessage(TabularQuery query, String dsName, String probeDesc) {
+      Object shape = query.getResponseShape();
+      String detail = recoveredExceptionDetail();
+
+      if(shape == null) {
+         return "The query on '" + dsName + "' returned no columns. Parameters sent: " + probeDesc +
+            ". Check them against GET /api/wiz/tabular/query-schema — in particular that each " +
+            "one applies to the others, since one that does not is stored and never read — and " +
+            "that the data source's credentials are valid; the underlying cause is in the " +
+            "server log for this request." + detail;
+      }
+
+      String rowPath = effectiveRowPath(query);
+      String rowPathClause = rowPath == null ? "" : " Rows were read from '" + rowPath + "'.";
+      String truncatedClause = query.isResponseShapeTruncated()
+         ? " (capped — some fields may be missing from this description)" : "";
+      String hint = singleArrayFieldHint(shape, rowPath);
+      String hintClause = hint == null ? "" : " The rows look like they belong at '" + hint + "'.";
+
+      return "The query on '" + dsName + "' completed successfully and returned a response, but " +
+         "selected zero rows — for a JSON REST endpoint, columns are derived from the rows " +
+         "returned, so zero rows means zero columns." + rowPathClause + " The response's shape " +
+         "was: " + shape + truncatedClause + "." + hintClause + " Parameters sent: " + probeDesc +
+         ". This is not a connection or credentials problem — the request itself succeeded. If " +
+         "this is unexpected, check the parameters (especially any date range or id filter) " +
+         "against the endpoint's actual data." + detail;
+   }
+
+   /**
+    * The connector's own answer to "where are the rows", when it has one — reflective, so core never
+    * imports a connector type such as {@code RestJsonQuery}. Returns null for any connector with no
+    * such method (ServerFile, a generic non-JSON connector, ...), which the caller must treat as
+    * "omit the clause," never as "assume '$'."
+    */
+   private String effectiveRowPath(TabularQuery query) {
+      try {
+         Object path = query.getClass().getMethod("getValidJsonPath").invoke(query);
+         return path instanceof String s && !s.isBlank() ? s : null;
+      }
+      catch(Exception ex) {
+         return null;
+      }
+   }
+
+   /**
+    * A best-effort suggestion for where rows actually are, used only when the response's shape
+    * names exactly one top-level field holding an array — an object with two or more array-valued
+    * fields, or none, is ambiguous and returns null rather than guess: a wrong guess is worse than
+    * no hint. Also null when the candidate is already what {@code rowPath} points to, since then
+    * there is nothing new to tell the caller.
+    */
+   private String singleArrayFieldHint(Object shape, String rowPath) {
+      if(shape instanceof List<?>) {
+         return "$".equals(rowPath) ? null : "$";
+      }
+
+      if(!(shape instanceof Map<?, ?> map)) {
+         return null;
+      }
+
+      String onlyArrayField = null;
+
+      for(Map.Entry<?, ?> entry : map.entrySet()) {
+         if(entry.getValue() instanceof List) {
+            if(onlyArrayField != null) {
+               return null;
+            }
+
+            onlyArrayField = String.valueOf(entry.getKey());
+         }
+      }
+
+      if(onlyArrayField == null) {
+         return null;
+      }
+
+      String candidate = "$." + onlyArrayField + "[*]";
+      return candidate.equals(rowPath) ? null : candidate;
+   }
+
+   /**
+    * The connector's own exception detail, if it recovered and reported one during the probe just
+    * run — see {@code AbstractQueryRunner.logException}, relayed onto this thread by
+    * {@code AbstractRestRuntime.runQuery}'s worker-thread handoff. Sanitized to one line: {@link
+    * #rootMessage} truncates the thrown message at the first '\n', and {@code UserMessage.merge()}
+    * joins multiple recovered messages with '\n' — an unsanitized suffix here would otherwise be
+    * silently cut, or silently cut everything appended after it.
+    */
+   private String recoveredExceptionDetail() {
+      UserMessage msg = CoreTool.getUserMessage();
+
+      if(msg == null || msg.getMessage() == null || msg.getMessage().isBlank()) {
+         return "";
+      }
+
+      String oneLine = msg.getMessage().replace('\n', ' ').replace('\r', ' ').trim();
+      return " The connector reported: " + oneLine;
    }
 
    /**
