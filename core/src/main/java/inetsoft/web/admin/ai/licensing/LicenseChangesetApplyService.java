@@ -33,6 +33,7 @@ import java.security.Principal;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -121,6 +122,12 @@ public class LicenseChangesetApplyService {
          List<Undo> undoable = new ArrayList<>();
          List<RollbackFailure> unknownStateFailures = new ArrayList<>();
          boolean failed = false;
+         // Whether the item that threw (if any) had already entered its own mutating call
+         // (addServerKey/removeServerKey) before the throw -- only that case is a genuine
+         // partial-mutation risk that must force STATUS_ROLLBACK_FAILED on its own; a throw that
+         // fires strictly before the mutating call means the item was never touched, so it must
+         // not by itself override an otherwise fully-verified rollback (bug 76567).
+         boolean unknownStateMutationEntered = false;
 
          List<LicenseChangeRequest> originals = req.getChanges();
 
@@ -128,10 +135,11 @@ public class LicenseChangesetApplyService {
             PlanChange change = plan.changes().get(i);
             LicenseChangeRequest original = originals.get(i);
             String key = change.property();
+            AtomicBoolean mutationEntered = new AtomicBoolean(false);
 
             try {
                applyOne(txId, plan.task(), key, original, backupRef, reviewOutcome, user, results,
-                       undoable);
+                       undoable, mutationEntered);
             }
             catch(Exception e) {
                // A throw carries no verifiable before/after evidence for THIS change -- must never
@@ -140,6 +148,7 @@ public class LicenseChangesetApplyService {
                                                    messageOf(e), null));
                unknownStateFailures.add(new RollbackFailure(key,
                   "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+               unknownStateMutationEntered = mutationEntered.get();
                failed = true;
                break;
             }
@@ -156,18 +165,22 @@ public class LicenseChangesetApplyService {
          }
 
          Map<String, String> rollbackAdvisories = new LinkedHashMap<>();
-         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
-         failures.addAll(rollback(txId, plan.task(), undoable, backupRef, reviewOutcome, user,
-                                  rollbackAdvisories));
+         List<RollbackFailure> rollbackOwnFailures = rollback(txId, plan.task(), undoable, backupRef,
+                                                              reviewOutcome, user, rollbackAdvisories);
          List<LicenseApplyOutcome> finalResults = results.stream()
             .map(o -> mergeAdvisory(o, rollbackAdvisories.get(o.property())))
             .collect(Collectors.toList());
 
-         if(failures.isEmpty()) {
+         // An unknownStateFailures entry only forces rollback-failed when that item's own mutating
+         // call had actually been entered (a real partial-mutation risk); if it never touched the
+         // server, it must not by itself override an otherwise fully-verified rollback.
+         if(rollbackOwnFailures.isEmpty() && !unknownStateMutationEntered) {
             return new LicenseApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLED_BACK,
                                           backupRef, Collections.unmodifiableList(finalResults), null);
          }
 
+         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
+         failures.addAll(rollbackOwnFailures);
          LOG.error("License changeset {} rollback failed; keys still changed: {}", txId,
                   failures.stream().map(RollbackFailure::property).collect(Collectors.joining(", ")));
          return new LicenseApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLBACK_FAILED,
@@ -181,16 +194,19 @@ public class LicenseChangesetApplyService {
 
    private void applyOne(String txId, String task, String key, LicenseChangeRequest original,
                          String backupRef, String reviewOutcome, Principal user,
-                         List<LicenseApplyOutcome> results, List<Undo> undoable)
+                         List<LicenseApplyOutcome> results, List<Undo> undoable,
+                         AtomicBoolean mutationEntered)
       throws Exception
    {
       String verb = LicenseChangePlanService.requireVerb("apply." + key, original.getVerb());
 
       if(LicenseChangeRequest.VERB_ADD.equals(verb)) {
-         applyAdd(txId, task, key, backupRef, reviewOutcome, user, results, undoable);
+         applyAdd(txId, task, key, backupRef, reviewOutcome, user, results, undoable,
+                  mutationEntered);
       }
       else {
-         applyRemove(txId, task, key, backupRef, reviewOutcome, user, results, undoable);
+         applyRemove(txId, task, key, backupRef, reviewOutcome, user, results, undoable,
+                    mutationEntered);
       }
    }
 
@@ -201,7 +217,7 @@ public class LicenseChangesetApplyService {
     * parse result changed, is refused here rather than acted on against stale evidence. */
    private void applyAdd(String txId, String task, String key, String backupRef,
                          String reviewOutcome, Principal user, List<LicenseApplyOutcome> results,
-                         List<Undo> undoable)
+                         List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Exception
    {
       boolean alreadyInstalled = isInstalled(key);
@@ -224,6 +240,7 @@ public class LicenseChangesetApplyService {
          return;
       }
 
+      mutationEntered.set(true);
       licenseKeySettingsService.addServerKey(key);
 
       boolean verified = isInstalled(key);
@@ -244,7 +261,7 @@ public class LicenseChangesetApplyService {
 
    private void applyRemove(String txId, String task, String key, String backupRef,
                             String reviewOutcome, Principal user, List<LicenseApplyOutcome> results,
-                            List<Undo> undoable)
+                            List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Exception
    {
       Optional<License> current = findInstalled(key);
@@ -258,6 +275,7 @@ public class LicenseChangesetApplyService {
       }
 
       String before = LicenseKeyProjection.of(current.get()).canonical();
+      mutationEntered.set(true);
       licenseKeySettingsService.removeServerKey(key);
 
       boolean verified = !isInstalled(key);
