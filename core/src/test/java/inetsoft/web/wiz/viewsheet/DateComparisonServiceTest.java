@@ -28,9 +28,11 @@ import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.DateCompareAbleAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInterval;
 import inetsoft.uql.viewsheet.internal.StandardPeriods;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
 import org.junit.jupiter.api.Tag;
@@ -331,6 +333,85 @@ class DateComparisonServiceTest {
       Map<String, Object> read = harness(model()).service.read("tok", principal(), "Chart1");
 
       assertFalse(read.containsKey("shareFrom"));
+   }
+
+   /**
+    * Bug #76522 (DCG-003), second half. {@code model} fetched at the top of {@code read()} is
+    * always the TARGET assembly's own {@code DateComparisonPaneModel} -- a default-constructed,
+    * unset one whenever {@code comparisonShareFrom} is set, since a sharing assembly never
+    * carries its own {@code DateComparisonInfo}. Reporting {@code enabled:true} with THAT model's
+    * fields would surface Chart2's un-set defaults (comparisonOption=VALUE, useFacet=false) as if
+    * they were Chart1's real, live configuration -- a plausible-but-wrong result. The fields must
+    * resolve through {@code comparisonShareFrom} to the share source's actual
+    * {@code DateComparisonInfo} instead.
+    */
+   @Test
+   void resolvesSharedFieldsThroughToTheShareSourcesRealConfigOnRead() throws Exception {
+      VSAssemblyInfo targetInfo = mock(VSAssemblyInfo.class,
+         withSettings().extraInterfaces(DateCompareAbleAssemblyInfo.class));
+      when(((DateCompareAbleAssemblyInfo) targetInfo).getComparisonShareFrom())
+         .thenReturn("Chart1");
+      VSAssembly targetAssembly = mock(VSAssembly.class);
+      when(targetAssembly.getVSAssemblyInfo()).thenReturn(targetInfo);
+
+      DateComparisonInfo sourceDcInfo = new DateComparisonInfo();
+      sourceDcInfo.setComparisonOption(Calculator.CHANGE);
+      sourceDcInfo.setUseFacet(true);
+      VSAssemblyInfo sourceInfo = mock(VSAssemblyInfo.class,
+         withSettings().extraInterfaces(DateCompareAbleAssemblyInfo.class));
+      when(((DateCompareAbleAssemblyInfo) sourceInfo).getDateComparisonInfo())
+         .thenReturn(sourceDcInfo);
+      VSAssembly sourceAssembly = mock(VSAssembly.class);
+      when(sourceAssembly.getVSAssemblyInfo()).thenReturn(sourceInfo);
+
+      Harness h = harness(model(), targetAssembly);
+      when(h.vs().getAssembly("Chart1")).thenReturn(sourceAssembly);
+
+      DateComparisonDialogModel shareModel = new DateComparisonDialogModel();
+      shareModel.setShareFromAssembly("Chart1");
+      when(h.comparisons().getShare(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(shareModel);
+
+      Map<String, Object> read = h.service.read("tok", principal(), "Chart2");
+
+      assertEquals(true, read.get("enabled"));
+      assertEquals("change", read.get("comparisonOption"),
+                  "must reflect Chart1's (the share source's) real comparisonOption, not " +
+                  "Chart2's own unset default");
+      assertEquals(true, read.get("useFacet"),
+                  "must reflect Chart1's real useFacet, not Chart2's own unset default");
+   }
+
+   /**
+    * When the share chain does not resolve to a real config (e.g. a stale/broken
+    * {@code comparisonShareFrom}), {@code DateComparisonUtil.getDateComparison} returns
+    * {@code null} -- {@code read()} must fall back to the target's own (default) model rather
+    * than throwing.
+    */
+   @Test
+   void fallsBackToTheOwnModelWhenTheShareSourceDoesNotResolve() throws Exception {
+      VSAssemblyInfo targetInfo = mock(VSAssemblyInfo.class,
+         withSettings().extraInterfaces(DateCompareAbleAssemblyInfo.class));
+      when(((DateCompareAbleAssemblyInfo) targetInfo).getComparisonShareFrom())
+         .thenReturn("Chart1");
+      VSAssembly targetAssembly = mock(VSAssembly.class);
+      when(targetAssembly.getVSAssemblyInfo()).thenReturn(targetInfo);
+
+      Harness h = harness(model(), targetAssembly);
+      // Overrides harness()'s own default "every name resolves to the target assembly" stub --
+      // here "Chart1" must resolve to nothing, simulating a share source that cannot be found,
+      // so DateComparisonUtil.getDateComparison() returns null.
+      when(h.vs().getAssembly("Chart1")).thenReturn(null);
+
+      DateComparisonDialogModel shareModel = new DateComparisonDialogModel();
+      shareModel.setShareFromAssembly("Chart1");
+      when(h.comparisons().getShare(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(shareModel);
+
+      Map<String, Object> read = h.service.read("tok", principal(), "Chart2");
+
+      assertEquals(true, read.get("enabled"));
+      assertEquals("Chart1", read.get("shareFrom"));
    }
 
    // ── toDate / inclusive (period level) ────────────────────────────────────
@@ -1197,7 +1278,7 @@ class DateComparisonServiceTest {
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(DateComparisonService service, ViewsheetSessionService sessions,
-                          DateComparisonDialogService comparisons) {}
+                          DateComparisonDialogService comparisons, Viewsheet vs) {}
 
    private static Harness harness(DateComparisonPaneModel model) {
       return harness(model, null);
@@ -1234,7 +1315,8 @@ class DateComparisonServiceTest {
          throw new IllegalStateException(e);
       }
 
-      return new Harness(new DateComparisonService(sessions, comparisons), sessions, comparisons);
+      return new Harness(new DateComparisonService(sessions, comparisons), sessions, comparisons,
+                         vs);
    }
 
    private static Principal principal() {
