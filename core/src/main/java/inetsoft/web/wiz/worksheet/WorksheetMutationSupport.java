@@ -1779,7 +1779,7 @@ public final class WorksheetMutationSupport {
                cl.append(new ConditionItem(ref, resolved, node.level()));
             }
             else {
-               Condition c = new Condition(dtype);
+               AssetCondition c = new AssetCondition(dtype);
                c.setOperation(op);
 
                if(isEqualInclusive(spec.operation())) {
