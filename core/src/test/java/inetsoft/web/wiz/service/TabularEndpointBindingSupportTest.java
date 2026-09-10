@@ -20,8 +20,8 @@ package inetsoft.web.wiz.service;
 import inetsoft.uql.tabular.PropertyMeta;
 import inetsoft.uql.tabular.RestParameter;
 import inetsoft.uql.tabular.TabularUtil;
+import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.worksheet.WorksheetMutationSupport;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -36,8 +36,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@link FakeLegacyEndpointQuery}/{@link FakeCustomRestQuery} -- real (non-mock) {@code TabularQuery}
  * instances, since the class under test works entirely through {@code TabularUtil}'s bean-property
  * reflection, which a mock cannot stand in for.
+ *
+ * <p>{@code @WizAgentTestSupport} (rather than a bare {@code @Tag("core")}) is required as of the
+ * {@code requireRowCapWhenPaged} coverage below: that method reads {@code TabularQuery.getMaxRows()},
+ * which goes through {@code SreeEnv}/{@code ConfigurationContext} to apply the org-wide row-limit
+ * policy -- unavailable without the minimal Spring context this annotation boots.</p>
  */
-@Tag("core")
+@WizAgentTestSupport
 class TabularEndpointBindingSupportTest {
 
    // ─── applyEndpointContract (named connector) ──────────────────────────────
@@ -140,6 +145,39 @@ class TabularEndpointBindingSupportTest {
 
       assertDoesNotThrow(
          () -> TabularEndpointBindingSupport.requireRowCapWhenPaged(query, "Repos", "myds"));
+   }
+
+   /**
+    * The cap itself is the ordinary {@code XQuery} row limit ({@link
+    * inetsoft.uql.tabular.TabularQuery#getMaxRows()}/{@code setMaxRows}), not a second, parallel
+    * concept -- setting a positive value is what should let a paged endpoint through.
+    */
+   @Test
+   void requireRowCapWhenPagedAllowsAPagedEndpointOnceMaxRowsIsSet() throws Exception {
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+      TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, "Paged", null, null, null, null, "myds");
+      query.setMaxRows(500);
+
+      assertDoesNotThrow(
+         () -> TabularEndpointBindingSupport.requireRowCapWhenPaged(query, "Paged", "myds"));
+   }
+
+   /**
+    * {@code 0} must not be read as "a cap was chosen" -- it is {@code XQuery}'s own "unlimited"
+    * sentinel, so treating it as a valid cap would silently defeat the whole check.
+    */
+   @Test
+   void requireRowCapWhenPagedTreatsZeroMaxRowsAsStillUnset() throws Exception {
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+      TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, "Paged", null, null, null, null, "myds");
+      query.setMaxRows(0);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> TabularEndpointBindingSupport.requireRowCapWhenPaged(query, "Paged", "myds"));
    }
 
    // ─── applyLookupChain (named connector) ───────────────────────────────────
