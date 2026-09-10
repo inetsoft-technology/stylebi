@@ -291,7 +291,8 @@ public class WizViewsheetExportController {
 
       try {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-         enlargeChartForSlide(rvs);
+         boolean hasInsights = chart.getInsightsMarkdown() != null && !chart.getInsightsMarkdown().isBlank();
+         enlargeChartForSlide(rvs, hasInsights);
          ByteArrayOutputStream out = new ByteArrayOutputStream();
          exportService.exportViewsheet(rvs, FileFormatInfo.EXPORT_TYPE_POWERPOINT, false, false, true,
             false, false, new String[0], false, new ExportResponse(out), principal);
@@ -319,19 +320,26 @@ public class WizViewsheetExportController {
     * in the top-left corner. PPTVSExporter renders each chart at its assembly pixel size (scaled by
     * PIXEL_TO_POINT=0.75 to slide points) and sizes the slide to fit it, so a ~400px saved chart
     * becomes a small image on the 960x540pt deck. Sizing the assembly to
-    * {@link #PPTX_CHART_W_PX}x{@link #PPTX_CHART_H_PX} (1200x300px -> 900x225pt) below a
-    * caption-height offset makes the exported chart fill the top of the slide below
-    * PptxDeckMerger's caption band, at full resolution (no upscaling), while leaving the bottom of
-    * the slide free for that same chart's own insights text (bug-76110 round 2 — see
+    * {@link #PPTX_CHART_W_PX}x{@link #PPTX_CHART_FULL_H_PX} below a caption-height offset makes the
+    * exported chart fill the whole slide below PptxDeckMerger's caption band, at full resolution
+    * (no upscaling) -- today's behavior for a chart with no insights of its own.
+    * <p>{@code hasInsights} (bug-76110 round 2) picks a shorter
+    * {@link #PPTX_CHART_WITH_INSIGHTS_H_PX} instead, leaving the bottom of the slide free for that
+    * same chart's own insights text on the same slide (see
     * PoiPptxDeckMerger.CHART_INSIGHTS_TOP_PT/HEIGHT_PT, which must stay in sync with this height if
-    * either changes). Runtime-only (a throwaway export runtime) — the saved asset is untouched.
+    * either changes) -- only worth shrinking for when something will actually occupy the freed
+    * region; a chart with no insights markdown keeps the original full height instead of rendering
+    * shorter for no reason. Runtime-only (a throwaway export runtime) — the saved asset is
+    * untouched.
     */
-   private void enlargeChartForSlide(RuntimeViewsheet rvs) {
+   private void enlargeChartForSlide(RuntimeViewsheet rvs, boolean hasInsights) {
       Viewsheet vs = rvs != null ? rvs.getViewsheet() : null;
 
       if(vs == null || vs.getAssemblies() == null) {
          return;
       }
+
+      int heightPx = hasInsights ? PPTX_CHART_WITH_INSIGHTS_H_PX : PPTX_CHART_FULL_H_PX;
 
       for(var assembly : vs.getAssemblies()) {
          // Charts render as a scaled image and tables/crosstabs as a native PPT table; both are
@@ -342,20 +350,25 @@ public class WizViewsheetExportController {
          {
             inetsoft.uql.viewsheet.VSAssembly vsa = (inetsoft.uql.viewsheet.VSAssembly) assembly;
             vsa.getVSAssemblyInfo().setPixelOffset(new java.awt.Point(PPTX_CHART_X_PX, PPTX_CHART_Y_PX));
-            vsa.getVSAssemblyInfo().setPixelSize(new java.awt.Dimension(PPTX_CHART_W_PX, PPTX_CHART_H_PX));
+            vsa.getVSAssemblyInfo().setPixelSize(new java.awt.Dimension(PPTX_CHART_W_PX, heightPx));
          }
       }
    }
 
-   // 1200x300px * 0.75 = 900x225pt; offset 40x96px = 30x72pt leaves room for the caption band that
-   // PptxDeckMerger adds at the top of the merged 960x540pt slide. The 300px height (down from a
-   // full-slide 600px, bug-76110 round 2) deliberately stops well short of filling the slide, so
-   // PptxDeckMerger.CHART_INSIGHTS_TOP_PT/HEIGHT_PT has real room below the chart for that same
-   // chart's own insights text on the same slide.
+   // offset 40x96px = 30x72pt leaves room for the caption band that PptxDeckMerger adds at the
+   // top of the merged 960x540pt slide.
    private static final int PPTX_CHART_X_PX = 40;
    private static final int PPTX_CHART_Y_PX = 96;
    private static final int PPTX_CHART_W_PX = 1200;
-   private static final int PPTX_CHART_H_PX = 300;
+   // 1200x600px * 0.75 = 900x450pt: fills the whole slide below the caption band -- used when the
+   // chart has no insights of its own, so there is nothing to reserve room for (today's original,
+   // pre-bug-76110-round-2 behavior).
+   private static final int PPTX_CHART_FULL_H_PX = 600;
+   // 1200x300px * 0.75 = 900x225pt: stops well short of filling the slide (bug-76110 round 2), so
+   // PptxDeckMerger.CHART_INSIGHTS_TOP_PT/HEIGHT_PT has real room below the chart for that same
+   // chart's own insights text on the same slide. Only used when the chart actually has
+   // insightsMarkdown to place there.
+   private static final int PPTX_CHART_WITH_INSIGHTS_H_PX = 300;
 
    private final ViewsheetService viewsheetService;
    private final WizVsService wizVsService;
