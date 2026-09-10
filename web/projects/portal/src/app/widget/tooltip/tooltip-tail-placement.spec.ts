@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
-   buildChromePaths, computeTailPlacement, tailRadius, TOOLTIP_INSET
+   buildChromePaths, computeTailPlacement, TAIL_HALF_WIDTH, tailRadius, TOOLTIP_INSET
 } from "./tooltip-tail-placement";
 
 // Host 206x106 => inner box 200x100 once the 3px inset is removed.
@@ -152,6 +152,32 @@ describe("buildChromePaths", () => {
          const c = buildChromePaths(200, 100, side, 50);
          expect(c.borderPath.match(/Q/g)?.length).toBe(4);
       }
+   });
+
+   // An edge shorter than 2 * (radius + half-width) cannot seat the opening between the corner
+   // arcs, and clampToEdge centres the tail there rather than clamping it onto a range that has
+   // gone empty. The radius has to give way, or the opening lands inside the arcs and the border
+   // doubles back on itself.
+   it("keeps the tail opening clear of the corner arcs on a short edge", () => {
+      for(const edge of [4, 10, 20, 25, 29, 30, 60, 200]) {
+         const halfWidth = Math.min(TAIL_HALF_WIDTH, edge / 2);
+
+         for(const side of ["top", "bottom", "left", "right"] as const) {
+            const horizontal = side === "top" || side === "bottom";
+            const c = buildChromePaths(horizontal ? edge : 200, horizontal ? 100 : edge,
+                                       side, edge / 2);
+
+            expect(c.radius).toBeGreaterThanOrEqual(0);
+            expect(c.radius + halfWidth).toBeLessThanOrEqual(edge / 2 + 1e-9);
+            expect(c.borderPath.match(/Q/g)?.length).toBe(4);
+         }
+      }
+   });
+
+   it("leaves the radius alone once the edge can seat the opening", () => {
+      // 2 * (8 + 6.7) = 29.4, so 30 is the first whole edge that keeps the full radius
+      expect(buildChromePaths(30, 100, "top", 15).radius).toBe(8);
+      expect(buildChromePaths(200, 30, "left", 15).radius).toBe(8);
    });
 });
 

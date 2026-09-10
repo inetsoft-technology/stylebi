@@ -646,8 +646,10 @@ describe("VSSpinner — startHold / cancelHold", () => {
       expect(comp.model.value).toBe(0);
    });
 
-   it("should step once, emit, and mark an unapplied change after the initial delay", () => {
-      const { comp } = createComponent({ model: makeModel({ value: 0, increment: 20 }) });
+   it("should step once, emit, and dispatch the change after the initial delay", () => {
+      const { comp, viewsheetClient } = createComponent({
+         model: makeModel({ value: 0, increment: 20 })
+      });
       const emitted: string[] = [];
       comp.spinnerClicked.subscribe(v => emitted.push(v));
 
@@ -656,7 +658,12 @@ describe("VSSpinner — startHold / cancelHold", () => {
 
       expect(comp.model.value).toBe(20);
       expect(emitted).toEqual([comp.model.absoluteName]);
-      expect((comp as any).unappliedChange).toBe(true);
+      // the mock model is refresh=true and the debounce mock is synchronous, so the step
+      // flushes inline and changeValue0 clears unappliedChange - assert the dispatch instead
+      expect(viewsheetClient.sendEvent).toHaveBeenCalledWith(
+         "/events/composer/viewsheet/vsSpinner/changeValue",
+         expect.objectContaining({ value: 20 })
+      );
    });
 
    it("should repeat stepping every 60ms after the initial delay", () => {
@@ -730,8 +737,10 @@ describe("VSSpinner — startHold / cancelHold", () => {
 // ---------------------------------------------------------------------------
 
 describe("VSSpinner — onIncrementClick / onDecrementClick", () => {
-   it("should step up by increment, emit, and mark an unapplied change", () => {
-      const { comp } = createComponent({ model: makeModel({ value: 0, increment: 20, max: 100 }) });
+   it("should step up by increment, emit, and dispatch the change", () => {
+      const { comp, viewsheetClient } = createComponent({
+         model: makeModel({ value: 0, increment: 20, max: 100 })
+      });
       const emitted: string[] = [];
       comp.spinnerClicked.subscribe(v => emitted.push(v));
 
@@ -739,7 +748,11 @@ describe("VSSpinner — onIncrementClick / onDecrementClick", () => {
 
       expect(comp.model.value).toBe(20);
       expect(emitted).toEqual([comp.model.absoluteName]);
-      expect((comp as any).unappliedChange).toBe(true);
+      // see the startHold case: the step flushes inline, so unappliedChange is already false
+      expect(viewsheetClient.sendEvent).toHaveBeenCalledWith(
+         "/events/composer/viewsheet/vsSpinner/changeValue",
+         expect.objectContaining({ value: 20 })
+      );
    });
 
    it("should do nothing when isIncrementDisabled is true", () => {

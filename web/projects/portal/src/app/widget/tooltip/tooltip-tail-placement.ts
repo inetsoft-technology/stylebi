@@ -169,9 +169,16 @@ export interface ChromeGeometry {
 export function buildChromePaths(boxWidth: number, boxHeight: number, tailSide: TailSide,
                                  tailOffset: number): ChromeGeometry
 {
-   const r = tailRadius();
-   const tw = TAIL_HALF_WIDTH;
    const l = TAIL_LENGTH;
+   // The tailed edge has to seat the opening between the two corner arcs. clampToEdge() centres
+   // the tail once the edge is too short to hold a radius plus a half-width on both sides, and a
+   // centred offset below that threshold would put the opening inside the arcs - the L commands
+   // then double back and the outline self-intersects at both corners. Shrink the radius, and the
+   // half-width after it, so the opening always clears the arcs. Both are inert above the
+   // threshold (2 * (radius + half-width)), which is every box the current padding can produce.
+   const edge = tailSide === "top" || tailSide === "bottom" ? boxWidth : boxHeight;
+   const tw = Math.min(TAIL_HALF_WIDTH, edge / 2);
+   const r = Math.max(0, Math.min(tailRadius(), edge / 2 - tw));
    const bL = l, bT = l, bR = l + boxWidth, bB = l + boxHeight;
    let borderPath: string;
    let tailPath: string;
