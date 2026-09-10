@@ -260,21 +260,176 @@ class SelectionRuntimeServiceTest {
 
    /**
     * A range slider always fully overwrites its own selection per call (index range against every
-    * value), so it must never be diffed — reading its current selection at all would be wasted work
-    * and, unlike list/tree, {@code TimeSliderVSAssembly} was never in scope for this fix.
+    * value), so it must never be <i>diffed</i> like a list/tree — that invariant is unaffected by
+    * VFO-009 below and still holds via {@link #excludesARangeSliderFromTheDiff}.
+    *
+    * <p><b>Superseded by VFO-009 (2026-09-10):</b> this used to also assert
+    * {@code verify(slider, never()).getSelectionList()} — true under the old (buggy) plain
+    * value-array apply, which never looked at the slider's own bucket list at all and so never
+    * actually filtered anything (see the range-slider section below). Resolving requested values
+    * into a bucket-index range genuinely needs that list, so a slider now legitimately reads it.
     */
    @Test
-   void neverReadsCurrentSelectionForARangeSlider() throws Exception {
+   void throwsWhenARangeSliderHasNoBucketsToSelectFrom() throws Exception {
       TimeSliderVSAssembly slider = mock(TimeSliderVSAssembly.class);
       TimeSliderVSAssemblyInfo info = mock(TimeSliderVSAssemblyInfo.class);
       doReturn(info).when(slider).getInfo();
       Harness h = harness(slider);
 
-      h.service.setSelection("tok", principal(), "Slider1", List.of(List.of("2")), null, null, "");
+      // SelectionList cannot be constructed or mocked outside a Spring context (see the
+      // class-level note on selectedPaths(SelectionValue[]) below), so getSelectionList() returns
+      // null here (Mockito's default) -- this exercises the integration wiring
+      // (setSelection -> bucketsOf -> sliderBucketRange) without real bucket data. The
+      // bucket-resolution logic itself is unit tested directly, over SelectionValue[], in the
+      // range-slider section below.
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setSelection("tok", principal(), "Slider1", List.of(List.of("2")), null,
+                                      null, ""));
 
-      verify(slider, never()).getSelectionList();
-      verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
-                                                    any(Principal.class), any(), anyString());
+      assertTrue(e.getMessage().contains("Slider1"), e.getMessage());
+      verify(h.selections, never()).applySelection(anyString(), anyString(), any(),
+                                                   any(Principal.class), any(), anyString());
+   }
+
+   // ── range slider bucket resolution (VFO-009: set_selection was a total no-op on a range
+   // slider -- doApplySelection's TimeSliderVSAssembly branch never reads event.getValues(), only
+   // event.getSelectStart()/getSelectEnd(), which the plain value-array apply above never set) ──
+
+   /** Every requested value matches a bucket exactly, so nothing is clamped. */
+   @Test
+   void resolvesRangeSliderValuesIntoABucketIndexRange() {
+      SelectionValue b0 = mock(SelectionValue.class);
+      when(b0.getValue()).thenReturn("0");
+      SelectionValue b1 = mock(SelectionValue.class);
+      when(b1.getValue()).thenReturn("1");
+      SelectionValue b2 = mock(SelectionValue.class);
+      when(b2.getValue()).thenReturn("2");
+      SelectionValue[] buckets = { b0, b1, b2 };
+
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      int[] range = SelectionRuntimeService.sliderBucketRange("Slider1", buckets,
+         List.of(List.of("0"), List.of("2")), clamped);
+
+      assertArrayEquals(new int[]{ 0, 2 }, range);
+      assertEquals(List.of(), clamped);
+   }
+
+   /**
+    * A single requested value narrows to a one-bucket range ({@code start == end}), not the whole
+    * slider — the exact shape the original bug reported as a total no-op.
+    */
+   @Test
+   void narrowsToASingleBucketWhenOnlyOneValueIsRequested() {
+      SelectionValue b0 = mock(SelectionValue.class);
+      when(b0.getValue()).thenReturn("0");
+      SelectionValue b1 = mock(SelectionValue.class);
+      when(b1.getValue()).thenReturn("1");
+
+      int[] range = SelectionRuntimeService.sliderBucketRange("Slider1",
+         new SelectionValue[]{ b0, b1 }, List.of(List.of("1")), new ArrayList<>());
+
+      assertArrayEquals(new int[]{ 1, 1 }, range);
+   }
+
+   /**
+    * An out-of-range numeric bound clamps to the nearest bucket rather than being refused outright
+    * — matching {@link #requireSortOrder}-style forgiving-on-unambiguous-intent — but the
+    * substitution has to be disclosed, the same way {@code scopedBySearch} discloses an apply
+    * landing on a narrower scope than the literal request.
+    */
+   @Test
+   void clampsAnOutOfRangeNumericBoundToTheNearestBucketAndDisclosesIt() {
+      SelectionValue b0 = mock(SelectionValue.class);
+      when(b0.getValue()).thenReturn("0");
+      SelectionValue b18 = mock(SelectionValue.class);
+      when(b18.getValue()).thenReturn("18");
+
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      int[] range = SelectionRuntimeService.sliderBucketRange("Slider1",
+         new SelectionValue[]{ b0, b18 }, List.of(List.of("500")), clamped);
+
+      assertArrayEquals(new int[]{ 1, 1 }, range, "500 is nearer to bucket 18 (index 1) than 0");
+      assertEquals(1, clamped.size());
+      assertEquals("500", clamped.get(0).get("requested"));
+      assertEquals("18", clamped.get(0).get("applied"));
+   }
+
+   /** A value that neither matches a bucket nor parses as a number is refused by name. */
+   @Test
+   void refusesARangeSliderValueThatMatchesNoBucketAndIsntNumeric() {
+      SelectionValue b0 = mock(SelectionValue.class);
+      when(b0.getValue()).thenReturn("0");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> SelectionRuntimeService.bucketIndex("Slider1", new SelectionValue[]{ b0 }, "nope"));
+
+      assertTrue(e.getMessage().contains("nope"), e.getMessage());
+   }
+
+   /** A slider has no hierarchy, so a multi-segment path is refused rather than silently flattened. */
+   @Test
+   void refusesAMultiSegmentPathOnARangeSlider() {
+      SelectionValue b0 = mock(SelectionValue.class);
+      when(b0.getValue()).thenReturn("0");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> SelectionRuntimeService.sliderBucketRange("Slider1", new SelectionValue[]{ b0 },
+            List.of(List.of("0", "1")), new ArrayList<>()));
+
+      assertTrue(e.getMessage().contains("no hierarchy"), e.getMessage());
+   }
+
+   /**
+    * {@code doApplySelection} decrements {@code selectEnd} by one when the slider is not
+    * upper-inclusive, so the sent value has to be one past the wanted index for that decrement to
+    * land back on it; an upper-inclusive slider sends the index unchanged.
+    */
+   @Test
+   void adjustsTheEndBucketForANonUpperInclusiveSlider() {
+      assertEquals(5, SelectionRuntimeService.adjustedEnd(true, 5));
+      assertEquals(6, SelectionRuntimeService.adjustedEnd(false, 5));
+   }
+
+   /** "Nothing filtered" on a range slider is every bucket selected, not an empty/null state. */
+   @Test
+   void treatsEveryBucketSelectedAsTheFullRange() {
+      SelectionValue b0 = mock(SelectionValue.class);
+      when(b0.isSelected()).thenReturn(true);
+      SelectionValue b1 = mock(SelectionValue.class);
+      when(b1.isSelected()).thenReturn(true);
+
+      assertTrue(SelectionRuntimeService.isFullRangeSelected(new SelectionValue[]{ b0, b1 }));
+      assertTrue(SelectionRuntimeService.isFullRangeSelected(new SelectionValue[0]),
+                "a slider with no buckets at all has nothing to filter, so it counts as full range");
+   }
+
+   @Test
+   void treatsAnyUnselectedBucketAsNotTheFullRange() {
+      SelectionValue b0 = mock(SelectionValue.class);
+      when(b0.isSelected()).thenReturn(true);
+      SelectionValue b1 = mock(SelectionValue.class);
+      when(b1.isSelected()).thenReturn(false);
+
+      assertFalse(SelectionRuntimeService.isFullRangeSelected(new SelectionValue[]{ b0, b1 }));
+   }
+
+   /**
+    * The integration-wiring half of the {@code clearedCount} fix: a range slider that reports
+    * itself as already at full range (here, via the same "no buckets stubbed" shape
+    * {@link #throwsWhenARangeSliderHasNoBucketsToSelectFrom} uses — {@code isFullRangeSelected}
+    * treats zero buckets as full range) must report {@code clearedCount: 0} and never call
+    * {@code applySelection} — unlike the old bookkeeping, which would have misreported "20 buckets
+    * were filtering" on a slider nobody ever touched.
+    */
+   @Test
+   void reportsZeroClearedCountForAnAlreadyFullRangeSlider() throws Exception {
+      TimeSliderVSAssembly slider = mock(TimeSliderVSAssembly.class);
+      Harness h = harness(slider);
+
+      Map<String, Object> result = h.service.clearSelection("tok", principal(), "Slider1", "");
+
+      assertEquals(0, result.get("clearedCount"));
+      verifyNoInteractions(h.selections);
    }
 
    // ── value validation (bug-76544: a typo'd value is silently dropped, not refused) ─────────────

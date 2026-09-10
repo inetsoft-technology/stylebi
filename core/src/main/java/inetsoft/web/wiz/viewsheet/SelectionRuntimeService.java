@@ -199,8 +199,32 @@ public class SelectionRuntimeService {
                }
             }
 
-            selections.applySelection(runtimeId, assemblyName, applyEvent(values), user, dispatcher,
-                                      linkUri);
+            if(assembly instanceof TimeSliderVSAssembly slider) {
+               // doApplySelection's TimeSliderVSAssembly branch never reads event.getValues() --
+               // it only reads event.getSelectStart()/getSelectEnd(), two bucket-index ints. A
+               // plain value-array apply (what every other assembly type above uses) is a total
+               // no-op here, silently: no exception, and the response still claims success.
+               SelectionValue[] buckets = bucketsOf(slider);
+               List<Map<String, Object>> clamped = new ArrayList<>();
+               int[] range = sliderBucketRange(assemblyName, buckets, values, clamped);
+               ApplySelectionListEvent event = new ApplySelectionListEvent();
+               event.setType(ApplySelectionListEvent.Type.APPLY);
+               event.setSelectStart(range[0]);
+               event.setSelectEnd(adjustedEnd(slider.isUpperInclusive(), range[1]));
+               selections.applySelection(runtimeId, assemblyName, event, user, dispatcher, linkUri);
+
+               if(!clamped.isEmpty()) {
+                  // A requested bound outside the slider's actual bucket range was silently
+                  // substituted with the nearest one -- disclose which, the same way
+                  // scopedBySearch discloses a write landing on a narrower scope than asked.
+                  result.put("clampedBounds", clamped);
+               }
+            }
+            else {
+               selections.applySelection(runtimeId, assemblyName, applyEvent(values), user, dispatcher,
+                                         linkUri);
+            }
+
             result.put("valuesSelected", values.size());
          }
       });
@@ -228,17 +252,42 @@ public class SelectionRuntimeService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
-         List<List<String>> current = selectedPaths(assembly);
 
          result.put("assembly", assemblyName);
          result.put("type", describe(assembly));
-         result.put("clearedCount", current.size());
 
-         if(!current.isEmpty()) {
-            // The client composes "unselect" the same way: send every currently selected value back
-            // with selected=false. There is no single clear endpoint for one assembly.
-            selections.applySelection(runtimeId, assemblyName, deselectEvent(current), user,
-                                      dispatcher, linkUri);
+         if(assembly instanceof TimeSliderVSAssembly slider) {
+            // "Nothing selected" on a range slider is represented as EVERY bucket marked
+            // selected (the full range), not an empty/null state like a list/tree -- so the
+            // list/tree clearedCount bookkeeping below (raw count of selected nodes) is
+            // meaningless here: a genuinely untouched slider would misreport every one of its
+            // buckets as "was filtering". And the list/tree deselect event is a no-op on a
+            // slider for the same reason set_selection's plain value-array apply was (see
+            // above) -- doApplySelection's TimeSlider branch never reads it -- so clearing an
+            // actually-filtered slider needs its own full-range apply, not deselectEvent.
+            SelectionValue[] buckets = bucketsOf(slider);
+            boolean fullRange = isFullRangeSelected(buckets);
+            result.put("clearedCount", fullRange ? 0 : buckets.length);
+
+            if(!fullRange && buckets.length > 0) {
+               ApplySelectionListEvent event = new ApplySelectionListEvent();
+               event.setType(ApplySelectionListEvent.Type.APPLY);
+               event.setSelectStart(0);
+               event.setSelectEnd(adjustedEnd(slider.isUpperInclusive(), buckets.length - 1));
+               selections.applySelection(runtimeId, assemblyName, event, user, dispatcher, linkUri);
+            }
+         }
+         else {
+            List<List<String>> current = selectedPaths(assembly);
+            result.put("clearedCount", current.size());
+
+            if(!current.isEmpty()) {
+               // The client composes "unselect" the same way: send every currently selected
+               // value back with selected=false. There is no single clear endpoint for one
+               // assembly.
+               selections.applySelection(runtimeId, assemblyName, deselectEvent(current), user,
+                                         dispatcher, linkUri);
+            }
          }
       });
 
@@ -629,6 +678,148 @@ public class SelectionRuntimeService {
       }
 
       return false;
+   }
+
+   // ── range slider bucket resolution ──────────────────────────────────────────
+
+   /**
+    * The result of resolving one requested Range Slider bound to a bucket: which index it landed
+    * on, the bucket's own value (what actually gets applied), and whether that differs from what
+    * was requested (an out-of-range numeric bound clamped to the nearest bucket).
+    */
+   record BucketResolution(int index, String appliedValue, boolean clamped) {}
+
+   /**
+    * Resolves every requested value into the {@code [start, end]} bucket-index range a Range
+    * Slider apply should select, collecting a disclosure entry for each bound that had to be
+    * clamped. {@code values} is one bucket-value per single-segment path -- a slider has no
+    * hierarchy, so anything longer is refused.
+    */
+   static int[] sliderBucketRange(String assemblyName, SelectionValue[] buckets,
+                                  List<List<String>> values, List<Map<String, Object>> clampedOut)
+   {
+      if(buckets.length == 0) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' has no values to select from yet.");
+      }
+
+      int start = Integer.MAX_VALUE;
+      int end = Integer.MIN_VALUE;
+
+      for(List<String> path : values) {
+         if(path.size() != 1) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is a range slider, which has no hierarchy -- each value " +
+               "must be a single bound, not a path of " + path.size() + ".");
+         }
+
+         BucketResolution resolved = bucketIndex(assemblyName, buckets, path.get(0));
+         start = Math.min(start, resolved.index());
+         end = Math.max(end, resolved.index());
+
+         if(resolved.clamped()) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("requested", path.get(0));
+            entry.put("applied", resolved.appliedValue());
+            clampedOut.add(entry);
+         }
+      }
+
+      return new int[]{start, end};
+   }
+
+   /**
+    * Resolves one requested bound to a bucket index: an exact match against a bucket's own raw
+    * {@code SelectionValue.getValue()} first (the same value the assembly's own apply/clear paths
+    * compare, per {@code TimeSliderSelection.populateNumberList}/{@code populateDateList}); failing
+    * that, for a value that parses as a number, the numerically nearest bucket -- clamping an
+    * out-of-range bound to the slider's actual extent rather than refusing it, matching this file's
+    * existing forgiving-on-unambiguous-intent convention ({@link #requireSortOrder}'s aliases).
+    * Anything else (unparseable, no exact match) fails loud by name rather than silently landing on
+    * some default.
+    */
+   static BucketResolution bucketIndex(String assemblyName, SelectionValue[] buckets,
+                                       String requested)
+   {
+      for(int i = 0; i < buckets.length; i++) {
+         if(buckets[i] != null && Tool.equals(requested, buckets[i].getValue())) {
+            return new BucketResolution(i, buckets[i].getValue(), false);
+         }
+      }
+
+      Double requestedNumber = parseNumeric(requested);
+
+      if(requestedNumber != null) {
+         int nearest = -1;
+         double nearestDistance = Double.MAX_VALUE;
+
+         for(int i = 0; i < buckets.length; i++) {
+            Double bucketNumber = buckets[i] == null ? null : parseNumeric(buckets[i].getValue());
+
+            if(bucketNumber == null) {
+               continue;
+            }
+
+            double distance = Math.abs(bucketNumber - requestedNumber);
+
+            if(distance < nearestDistance) {
+               nearestDistance = distance;
+               nearest = i;
+            }
+         }
+
+         if(nearest >= 0) {
+            return new BucketResolution(nearest, buckets[nearest].getValue(), true);
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' has no bucket matching '" + requested + "'.");
+   }
+
+   private static Double parseNumeric(String value) {
+      if(value == null) {
+         return null;
+      }
+
+      try {
+         return Double.parseDouble(value);
+      }
+      catch(NumberFormatException e) {
+         return null;
+      }
+   }
+
+   /**
+    * {@code doApplySelection} decrements {@code selectEnd} by one when the slider is not
+    * upper-inclusive, so the index actually wanted has to be sent one past itself for that
+    * decrement to land back on it.
+    */
+   static int adjustedEnd(boolean upperInclusive, int endIndex) {
+      return upperInclusive ? endIndex : endIndex + 1;
+   }
+
+   /**
+    * Whether every bucket is currently selected -- the Range Slider's own representation of "not
+    * filtering anything", unlike a list/tree's empty/null state.
+    */
+   static boolean isFullRangeSelected(SelectionValue[] buckets) {
+      if(buckets.length == 0) {
+         return true;
+      }
+
+      for(SelectionValue bucket : buckets) {
+         if(bucket == null || !bucket.isSelected()) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   private static SelectionValue[] bucketsOf(TimeSliderVSAssembly slider) {
+      SelectionList list = slider.getSelectionList();
+      return list == null ? new SelectionValue[0] : list.getSelectionValues();
    }
 
    private static SelectionList selectionListOf(SelectionVSAssembly assembly) {
