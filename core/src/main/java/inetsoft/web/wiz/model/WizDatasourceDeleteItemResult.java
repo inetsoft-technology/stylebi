@@ -18,19 +18,27 @@
 
 package inetsoft.web.wiz.model;
 
+import inetsoft.web.admin.content.repository.DeletedDataSource;
+
+import java.util.List;
+
 /**
  * One item's outcome from a {@code /datasources/delete} call.
  *
- * @param path              the item's path, echoed back so the caller can pair a result with the
- *                          request it made.
- * @param ok                whether the item was deleted.
- * @param reason            null when {@code ok}. Otherwise one of {@code PERMISSION_DENIED},
- *                          {@code HAS_DEPENDENCIES}, {@code UNKNOWN}.
- * @param dependencyMessage present only when {@code reason} is {@code HAS_DEPENDENCIES} — the
- *                          server-locale message describing what depends on this item.
+ * @param path               the item's path, echoed back so the caller can pair a result with the
+ *                           request it made.
+ * @param ok                 whether the item was deleted.
+ * @param reason             null when {@code ok}. Otherwise one of {@code PERMISSION_DENIED},
+ *                           {@code HAS_DEPENDENCIES}, {@code UNKNOWN}.
+ * @param dependencyMessage  present only when {@code reason} is {@code HAS_DEPENDENCIES} — the
+ *                           server-locale message describing what depends on this item.
+ * @param deletedDataSources present only when this item is a successfully deleted FOLDER: every
+ *                           data source actually removed as part of the cascade, with its type.
+ *                           Null (not just empty) for a non-folder item or a failed delete.
  */
 public record WizDatasourceDeleteItemResult(
-   String path, boolean ok, String reason, String dependencyMessage)
+   String path, boolean ok, String reason, String dependencyMessage,
+   List<DeletedDataSource> deletedDataSources)
 {
    public static final String PERMISSION_DENIED = "PERMISSION_DENIED";
    public static final String HAS_DEPENDENCIES = "HAS_DEPENDENCIES";

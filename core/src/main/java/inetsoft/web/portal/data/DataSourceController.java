@@ -107,7 +107,8 @@ public class DataSourceController {
                                                   Principal principal)
    {
       String fullPath = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, path, principal);
-      return dataSourceBrowserService.deleteDataSourceFolder(path, fullPath, force, principal);
+      return dataSourceBrowserService.deleteDataSourceFolder(path, fullPath, force, principal)
+         .status();
    }
 
    /**

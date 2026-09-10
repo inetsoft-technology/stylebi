@@ -35,6 +35,7 @@ import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.web.admin.content.repository.FolderDeleteResult;
 import inetsoft.web.admin.content.repository.RepositoryObjectService;
 import inetsoft.web.admin.model.NameLabelTuple;
 import inetsoft.web.admin.security.ConnectionStatus;
@@ -504,7 +505,7 @@ public class DataSourceBrowserService {
          actionName = ActionRecord.ACTION_NAME_DELETE,
          objectType = ActionRecord.OBJECT_TYPE_FOLDER
    )
-   public ConnectionStatus deleteDataSourceFolder(
+   public FolderDeleteResult deleteDataSourceFolder(
       String path, @SuppressWarnings("unused") @AuditObjectName String auditPath, boolean force,
       Principal principal)
    {
