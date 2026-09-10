@@ -78,13 +78,13 @@ import static org.mockito.Mockito.when;
  * folder-delete-cascade path (hardcoded null principal). See
  * docs/teams/2026-09-10-bug-76545-checksheetremoveable-fixsafety/02-root-cause.md.
  *
- * Also covers guard A (the entry-validity/QUERY_SCOPE check in getSheetDependencies) as a
- * correctness invariant a fix must not silently break -- per that root-cause document, guard
- * A producing a clear common.invalidEntry error for a malformed entry is a correctness
- * concern, not a security boundary (three independent investigations found no caller
- * population for whom its absence changes what they can access), but a naive fix that
- * bypasses getSheetDependencies entirely must not turn that loud error into a silent
- * removable-no-dependents answer.
+ * Also covers guards A, B and C (the entry-validity/QUERY_SCOPE check, the storage-null check,
+ * and the parent-folder-containment check in getSheetDependencies) as correctness invariants a
+ * fix must not silently break -- per that root-cause document, each of these guards producing a
+ * clear MessageException for a malformed entry is a correctness concern, not a security boundary
+ * (three independent investigations found no caller population for whom guard A's absence
+ * changes what they can access), but a naive fix that bypasses getSheetDependencies entirely
+ * must not turn any of these loud errors into a silent removable-no-dependents answer.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(
@@ -212,6 +212,47 @@ class CheckSheetRemoveableStaleStoreTest {
          "Guard A (entry-validity/QUERY_SCOPE check) must reject this malformed entry with a "
          + "clear error today -- a fix that bypasses getSheetDependencies entirely must not turn "
          + "this into a silent removable-no-dependents answer");
+   }
+
+   // Guard B: storage == null must still be rejected with a clear error, not silently treated
+   // as "no dependents".
+
+   @Test
+   void guardB_nullStorage_stillThrowsInvalidStorage() {
+      AssetEntry entryW = worksheetEntry("F/W5");
+      engine.istore = null;
+
+      assertThrows(MessageException.class,
+         () -> engine.checkSheetRemoveable(entryW, () -> "testuser"),
+         "Guard B (storage == null) must reject this entry with a clear error today -- a fix "
+         + "that bypasses getSheetDependencies entirely must not turn this into a silent "
+         + "removable-no-dependents answer");
+   }
+
+   // Guard C: an entry whose parent folder does not actually contain it must still be rejected
+   // with a clear error, not silently treated as "no dependents".
+
+   @Test
+   void guardC_entryNotContainedInParentFolder_stillThrowsNotContainedEntry() throws Exception {
+      AssetEntry entryW = worksheetEntry("F/W6");
+      seedFolderWithoutEntry("F");
+
+      assertThrows(MessageException.class,
+         () -> engine.checkSheetRemoveable(entryW, () -> "testuser"),
+         "Guard C (parent-folder-containment check) must reject this entry with a clear error "
+         + "today -- a fix that bypasses getSheetDependencies entirely must not turn this into a "
+         + "silent removable-no-dependents answer");
+   }
+
+   private void seedFolderWithoutEntry(String folderPath) throws Exception {
+      AssetEntry folder = folderEntry(folderPath);
+      AssetFolder assetFolder =
+         (AssetFolder) storage.getXMLSerializable(folder.toIdentifier(), null);
+
+      if(assetFolder == null) {
+         assetFolder = new AssetFolder();
+         storage.putXMLSerializable(folder.toIdentifier(), assetFolder);
+      }
    }
 
    private void seedFolderAndSheet(String folderPath, AssetEntry wsEntry) throws Exception {
