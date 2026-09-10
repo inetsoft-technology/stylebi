@@ -149,6 +149,21 @@ public final class PropertyAliases {
     */
    private static final Set<String> LOCKED_LIVE_TYPES = Set.of("image", "line", "oval", "rectangle");
 
+   /**
+    * {@code basicGeneralPaneModel.enabled} is aliased through the shared {@link #basicGeneral}
+    * helper's own comment as dead everywhere -- "the Editable flag wearing the wrong name" -- but
+    * only the six input assemblies routed through {@code VSInputService} are confirmed here: their
+    * read methods (checkbox/textinput/slider/radiobutton/combobox/spinner, one apply method each)
+    * populate {@code basicGeneralPaneModel}'s name/primary/visible/refresh (and combobox's
+    * editable) from the real assembly, but never {@code enabled}; their write methods read
+    * {@code isPrimary()}/{@code getVisible()}/{@code isRefresh()} (and combobox's
+    * {@code isEditable()}) back, but never {@code isEnabled()}. A raw dotted-path write there
+    * reports success and changes nothing -- the live switch is the {@code enabled} alias, one
+    * level up at {@code generalPropPaneModel.enabled}.
+    */
+   private static final Set<String> BASIC_GENERAL_ENABLED_DEAD_TYPES =
+      Set.of("checkbox", "textinput", "slider", "radiobutton", "combobox", "spinner");
+
    private static final Map<String, TypeAliases> REGISTRY = registry();
 
    private PropertyAliases() {
@@ -267,6 +282,16 @@ public final class PropertyAliases {
             "populated on every read, but this type's apply method never reads it back -- a " +
             "write would report success and change nothing. Use edit(op:\"set_lock\") to " +
             "lock/unlock this assembly instead.";
+      }
+
+      if("enabled".equals(leaf) && pathOrKey.contains("basicGeneralPaneModel") &&
+         BASIC_GENERAL_ENABLED_DEAD_TYPES.contains(normalizedType))
+      {
+         return "'basicGeneralPaneModel.enabled' is read-only on " + normalizedType + ". It has " +
+            "a getter/setter pair on the dialog model, populated on every read, but this type's " +
+            "apply method never reads it back -- a write would report success and change " +
+            "nothing. Use the 'enabled' alias instead, which resolves to the live " +
+            "generalPropPaneModel.enabled.";
       }
 
       return null;
