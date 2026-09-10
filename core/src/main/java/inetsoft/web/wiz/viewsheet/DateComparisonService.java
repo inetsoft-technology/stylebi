@@ -210,6 +210,21 @@ public class DateComparisonService {
     * produces {@code getDateComparisonRef()}, so it is a definitive answer, not a guess. Trying
     * row first and falling back to column would misreport an unrelated, untouched dimension's
     * level if a crosstab happened to bind a same-named date dimension on both shelves.
+    *
+    * <p>A chart needs the opposite before/after pairing. {@code CrosstabDcProcessor} stashes the
+    * pre-retarget clone on {@code getDateComparisonRef()} <i>before</i> mutating the live ref
+    * (stash-then-mutate), but {@code ChartDcProcessor.process()} mutates the dimension it found
+    * in place first and only clones it into {@code VSChartInfo.getDateComparisonRef()}
+    * afterward (mutate-then-stash — see {@code ChartDcProcessor.java} lines 186 then 203..204).
+    * So for a chart, {@code getDateComparisonRef()} already holds the <i>after</i> level, not a
+    * "before" snapshot; reusing it as "before" the way the crosstab branch does would compare an
+    * already-retargeted value against itself and always report nothing. Instead, "before" comes
+    * from the untouched design binding — {@code VSChartInfo.getXFields()}/{@code getYFields()},
+    * which {@code ChartInfoModelBuilder} never RT-substitutes for a dimension (only for
+    * {@code VSChartAggregateRef} measures) — matched by name against the axis
+    * {@code VSChartInfo.isDcBaseDateOnX()} says the date dimension actually came from (the same
+    * flag {@code ChartDcProcessor.process()} sets before it starts mutating, so — like the
+    * crosstab's row/column flag — it is a definitive answer, not a guess).
     */
    private static Map<String, Object> describeRetargetedDimension(RuntimeViewsheet rvs,
                                                                    String assemblyName)
@@ -218,29 +233,51 @@ public class DateComparisonService {
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
-      if(!(assembly instanceof CrosstabVSAssembly)) {
+      if(assembly instanceof CrosstabVSAssembly) {
+         VSCrosstabInfo crosstabInfo = ((CrosstabVSAssembly) assembly).getVSCrosstabInfo();
+         VSDataRef before = crosstabInfo == null ? null : crosstabInfo.getDateComparisonRef();
+
+         if(!(before instanceof VSDimensionRef)) {
+            return out;
+         }
+
+         VSDimensionRef beforeDim = (VSDimensionRef) before;
+         DataRef[] shelf = crosstabInfo.isDateComparisonOnRow() ?
+            crosstabInfo.getRuntimeRowHeaders() : crosstabInfo.getRuntimeColHeaders();
+         VSDimensionRef afterDim = findDimensionByName(shelf, beforeDim.getName());
+
+         if(afterDim == null || afterDim.getDateLevel() == beforeDim.getDateLevel()) {
+            return out;
+         }
+
+         out.put("retargetedDimension", beforeDim.getName());
+         out.put("retargetedFromLevel", levelWord(beforeDim.getDateLevel()));
+         out.put("retargetedToLevel", levelWord(afterDim.getDateLevel()));
          return out;
       }
 
-      VSCrosstabInfo crosstabInfo = ((CrosstabVSAssembly) assembly).getVSCrosstabInfo();
-      VSDataRef before = crosstabInfo == null ? null : crosstabInfo.getDateComparisonRef();
+      if(assembly instanceof ChartVSAssembly) {
+         VSChartInfo cinfo = ((ChartVSAssembly) assembly).getVSChartInfo();
+         VSDataRef after = cinfo == null ? null : cinfo.getDateComparisonRef();
 
-      if(!(before instanceof VSDimensionRef)) {
+         if(!(after instanceof VSDimensionRef)) {
+            return out;
+         }
+
+         VSDimensionRef afterDim = (VSDimensionRef) after;
+         DataRef[] designShelf = cinfo.isDcBaseDateOnX() ? cinfo.getXFields() : cinfo.getYFields();
+         VSDimensionRef beforeDim = findDimensionByName(designShelf, afterDim.getName());
+
+         if(beforeDim == null || beforeDim.getDateLevel() == afterDim.getDateLevel()) {
+            return out;
+         }
+
+         out.put("retargetedDimension", afterDim.getName());
+         out.put("retargetedFromLevel", levelWord(beforeDim.getDateLevel()));
+         out.put("retargetedToLevel", levelWord(afterDim.getDateLevel()));
          return out;
       }
 
-      VSDimensionRef beforeDim = (VSDimensionRef) before;
-      DataRef[] shelf = crosstabInfo.isDateComparisonOnRow() ?
-         crosstabInfo.getRuntimeRowHeaders() : crosstabInfo.getRuntimeColHeaders();
-      VSDimensionRef afterDim = findDimensionByName(shelf, beforeDim.getName());
-
-      if(afterDim == null || afterDim.getDateLevel() == beforeDim.getDateLevel()) {
-         return out;
-      }
-
-      out.put("retargetedDimension", beforeDim.getName());
-      out.put("retargetedFromLevel", levelWord(beforeDim.getDateLevel()));
-      out.put("retargetedToLevel", levelWord(afterDim.getDateLevel()));
       return out;
    }
 
