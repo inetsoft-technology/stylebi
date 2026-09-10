@@ -395,12 +395,21 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       String name = requireBookmarkName(request.name(), "update_bookmark");
-      int type = toTypeInt(request.type());
-      boolean readOnly = request.readOnly() == null || request.readOnly();
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireOwnBookmark(rvs, name, user, "update_bookmark",
             "no bookmark named '" + name + "' exists yet. Use create_bookmark for a new one.");
+
+         // 'type'/'readOnly' omitted means "leave the existing visibility alone" -- refresh the
+         // captured state only. Only defaulted (private/read-only) when there is, unexpectedly,
+         // no existing bookmark to read a current value from.
+         VSBookmarkInfo existing = rvs.getBookmarks().stream()
+            .filter(b -> b.getName().equals(name) && java.util.Objects.equals(b.getOwner(), ownerOf(user)))
+            .findFirst().orElse(null);
+         int type = request.type() != null ? toTypeInt(request.type())
+            : existing != null ? existing.getType() : VSBookmarkInfo.PRIVATE;
+         boolean readOnly = request.readOnly() != null ? request.readOnly()
+            : existing != null ? existing.isReadOnly() : true;
 
          requireOk(vsBookmarkService.addBookmarkToViewSheet(rvs, name, type, readOnly, true, user),
                    "update_bookmark");

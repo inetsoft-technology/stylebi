@@ -2417,6 +2417,39 @@ class ViewsheetAssemblyAgentControllerTest {
       verifyNoInteractions(vsBookmarkService);
    }
 
+   /**
+    * Regression: omitting type/readOnly used to default them (private/read-only), silently
+    * resetting an existing shared/writable bookmark's visibility on every "just refresh the
+    * captured state" call. Now reads the current bookmark's own type/readOnly and reuses them
+    * when the request doesn't specify.
+    */
+   @Test
+   void updateBookmark_preservesExistingTypeAndReadOnlyWhenOmitted() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      when(rvs.getBookmarks()).thenReturn(List.of(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE, admin, false,
+                            System.currentTimeMillis())));
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(eq(rvs), eq("Q1 Report"),
+         eq(VSBookmarkInfo.ALLSHARE), eq(false), eq(true), any(Principal.class)))
+         .thenReturn(ok);
+
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+      controller.updateBookmark("tok",
+         new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, null),
+         principal());
+
+      verify(vsBookmarkService).addBookmarkToViewSheet(eq(rvs), eq("Q1 Report"),
+         eq(VSBookmarkInfo.ALLSHARE), eq(false), eq(true), any(Principal.class));
+   }
+
    @Test
    void deleteBookmark_refusesWhenTheNameDoesNotExist() throws Exception {
       ViewsheetSessionService sessions = realMutatingSessions();
