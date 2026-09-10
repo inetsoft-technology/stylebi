@@ -25,7 +25,10 @@ import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
+import inetsoft.uql.viewsheet.internal.DateComparisonInterval;
+import inetsoft.uql.viewsheet.internal.StandardPeriods;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
 import org.junit.jupiter.api.Tag;
@@ -719,6 +722,137 @@ class DateComparisonServiceTest {
          h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
 
       assertFalse(result.containsKey("dateComparisonInactive"));
+   }
+
+   // ── reporting useFacet as inapplicable ──────────────────────────────────────
+
+   /**
+    * A {@code DateComparisonInfo} with the given period level and interval granularity.
+    *
+    * <p>{@code StandardPeriods}/{@code DateComparisonInterval}'s real {@code getDateLevel()}/
+    * {@code getGranularity()} route through {@code DynamicValue}, which touches {@code VSUtil}'s
+    * static init (a full Spring context) — unavailable here, so both are mocked to hand back a
+    * plain int directly, the same way {@link #model()} already mocks the pane models it builds.
+    */
+   private static DateComparisonInfo dcInfo(int periodLevel, int granularity, int comparisonOption) {
+      StandardPeriods periods = mock(StandardPeriods.class);
+      when(periods.getDateLevel()).thenReturn(periodLevel);
+
+      DateComparisonInterval interval = mock(DateComparisonInterval.class);
+      when(interval.getGranularity()).thenReturn(granularity);
+
+      DateComparisonInfo dcInfo = mock(DateComparisonInfo.class, CALLS_REAL_METHODS);
+      dcInfo.setDateComparisonPeriods(periods);
+      dcInfo.setDateComparisonInterval(interval);
+      dcInfo.setComparisonOption(comparisonOption);
+      return dcInfo;
+   }
+
+   private static ChartVSAssembly chartWithDcInfo(DateComparisonInfo dcInfo) {
+      VSChartInfo cinfo = mock(VSChartInfo.class);
+      when(cinfo.getRTChartType()).thenReturn(GraphTypes.CHART_BAR);
+      when(cinfo.getDateComparisonRef()).thenReturn(mock(VSDataRef.class));
+
+      ChartVSAssemblyInfo assemblyInfo = mock(ChartVSAssemblyInfo.class);
+      when(assemblyInfo.getDateComparisonInfo()).thenReturn(dcInfo);
+
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(cinfo);
+      when(assembly.getChartInfo()).thenReturn(assemblyInfo);
+      return assembly;
+   }
+
+   /**
+    * DCG-007: a plain year-over-year comparison (period level == interval granularity, both
+    * year) with a value-only comparisonOption — {@code ChartDcProcessor.process()}'s {@code
+    * periodRef} never gets created (its {@code StandardPeriods} branch is gated behind {@code
+    * !periodLevelSameAsGranularityLevel()}), so the entire {@code useFacet}-branching block that
+    * would place the period dimension on an axis never runs, and the value-plus consumer
+    * ({@code isValuePlus()}) is also inapplicable for a value-only comparison. {@code useFacet}
+    * genuinely has zero rendering effect here.
+    */
+   @Test
+   void reportsUseFacetInapplicableForAPlainYearOverYearComparison() throws Exception {
+      DateComparisonInfo dcInfo = dcInfo(XConstants.YEAR_DATE_GROUP, DateComparisonInfo.YEAR,
+                                         Calculator.VALUE);
+      ChartVSAssembly assembly = chartWithDcInfo(dcInfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result = h.service.set("tok", principal(), "Chart1", facetOnly(), "");
+
+      assertEquals(true, result.get("useFacetInapplicable"));
+      String reason = (String) result.get("reason");
+      assertTrue(reason.contains("granularity"), reason);
+   }
+
+   /**
+    * The period level differs from the interval granularity (a quarterly breakdown within a
+    * yearly comparison) — {@code periodLevelSameAsGranularityLevel()} is false, {@code periodRef}
+    * gets created, and {@code useFacet} has its usual axis-placement effect. Must not be flagged.
+    */
+   @Test
+   void doesNotReportUseFacetInapplicableWhenPeriodLevelDiffersFromGranularity() throws Exception {
+      DateComparisonInfo dcInfo = dcInfo(XConstants.YEAR_DATE_GROUP,
+                                         DateComparisonInfo.QUARTER, Calculator.VALUE);
+      ChartVSAssembly assembly = chartWithDcInfo(dcInfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result = h.service.set("tok", principal(), "Chart1", facetOnly(), "");
+
+      assertFalse(result.containsKey("useFacetInapplicable"));
+   }
+
+   /**
+    * Same dead {@code periodRef} gate as the first test, but {@code comparisonOption} is
+    * {@code changeAndValue} — {@code isValuePlus()} is true, so {@code useFacet} still affects
+    * {@code ChartDcProcessor.updateDateComparisonChartType()}'s Line-vs-Point choice even though
+    * the axis-placement consumer is dead. Must not be flagged as wholly inapplicable.
+    */
+   @Test
+   void doesNotReportUseFacetInapplicableWhenTheValuePlusConsumerIsStillActive() throws Exception {
+      DateComparisonInfo dcInfo = dcInfo(XConstants.YEAR_DATE_GROUP, DateComparisonInfo.YEAR,
+                                         DateComparisonInfo.CHANGE_VALUE);
+      ChartVSAssembly assembly = chartWithDcInfo(dcInfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result = h.service.set("tok", principal(), "Chart1", facetOnly(), "");
+
+      assertFalse(result.containsKey("useFacetInapplicable"));
+   }
+
+   /** {@code useFacet} was not requested at all — nothing to report, regardless of the gates. */
+   @Test
+   void doesNotReportUseFacetInapplicableWhenUseFacetWasNotRequested() throws Exception {
+      DateComparisonInfo dcInfo = dcInfo(XConstants.YEAR_DATE_GROUP, DateComparisonInfo.YEAR,
+                                         Calculator.VALUE);
+      ChartVSAssembly assembly = chartWithDcInfo(dcInfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertFalse(result.containsKey("useFacetInapplicable"));
+   }
+
+   /**
+    * The comparison never took effect on this chart at all ({@code getDateComparisonRef()} is
+    * null) — {@code describeDateComparisonInactive} already reports that; this must not also
+    * report {@code useFacetInapplicable} for an unrelated, misattributed reason.
+    */
+   @Test
+   void doesNotReportUseFacetInapplicableWhenTheWholeComparisonIsInactive() throws Exception {
+      VSChartInfo cinfo = mock(VSChartInfo.class);
+      when(cinfo.getRTChartType()).thenReturn(GraphTypes.CHART_BAR);
+      when(cinfo.getDateComparisonRef()).thenReturn(null);
+
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(cinfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result = h.service.set("tok", principal(), "Chart1", facetOnly(), "");
+
+      assertEquals(true, result.get("dateComparisonInactive"));
+      assertFalse(result.containsKey("useFacetInapplicable"));
    }
 
    // ── comparisonOption ─────────────────────────────────────────────────────

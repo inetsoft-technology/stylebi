@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
+import inetsoft.uql.viewsheet.internal.StandardPeriods;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -152,7 +153,11 @@ public class DateComparisonService {
     * effect at all — its date field isn't on x/y, or its chart type doesn't support date
     * comparison to begin with — reports {@code dateComparisonInactive:true} and a {@code reason}
     * (see {@link #describeDateComparisonInactive}) instead of silently returning as if it
-    * applied.
+    * applied. For a chart where the comparison did apply but a requested {@code useFacet:true}
+    * has no rendering effect on it (the comparison's period level already matches its interval
+    * granularity, with no value-plus rendering to fall back on either), reports
+    * {@code useFacetInapplicable:true} and a {@code reason}
+    * (see {@link #describeUseFacetInapplicable}).
     */
    public Map<String, Object> set(String sessionToken, Principal user, String assemblyName,
                                   Comparison comparison, String linkUri) throws Exception
@@ -180,6 +185,7 @@ public class DateComparisonService {
          result.putAll(describeRetargetedDimension(rvs, assemblyName));
          result.putAll(describeChartTypeOverride(rvs, assemblyName, beforeChartType));
          result.putAll(describeDateComparisonInactive(rvs, assemblyName));
+         result.putAll(describeUseFacetInapplicable(rvs, assemblyName, comparison));
       });
 
       return result;
@@ -374,6 +380,73 @@ public class DateComparisonService {
             "group, color, shape, or text.");
       }
 
+      return out;
+   }
+
+   /**
+    * {@code useFacet} is genuinely read by {@code ChartDcProcessor} (unlike a dead flag), but its
+    * one axis-placement consumer (the {@code periodRef != null} block, {@code ChartDcProcessor
+    * .process():110-165}) only ever creates a {@code periodRef} for a {@code StandardPeriods}
+    * comparison when {@code DateComparisonInfo.periodLevelSameAsGranularityLevel()} is false — the
+    * common case of a plain N-over-N comparison with no distinct interval breakdown (e.g. a
+    * year-over-year comparison with no quarterly/monthly granularity override) makes that method
+    * return true, so {@code periodRef} stays null and this whole block — every line that reads
+    * {@code useFacet} — never runs. The flag's only other consumer ({@code
+    * ChartDcProcessor.updateDateComparisonChartType():806}, choosing Line vs. Point for the
+    * secondary "change" series) is gated behind {@code DateComparisonInfo.isValuePlus()}
+    * separately, so {@code useFacet} still has an effect there even when the axis-placement
+    * consumer is dead — this only reports {@code useFacetInapplicable} when both are inactive.
+    *
+    * <p>Only meaningful for a chart ({@code useFacet} has no crosstab consumer at all), and only
+    * when the comparison itself actually applied to it — {@link #describeDateComparisonInactive}
+    * already reports the case where it didn't (wrong chart type, or no date field on x/y), and
+    * that message already covers {@code useFacet} having no effect too, for an unrelated reason;
+    * reporting both here would be redundant and would misname the cause.
+    *
+    * <p>Not a chart, {@code useFacet:true} was not requested, or the comparison had (or would
+    * still have, via the value-plus consumer) some rendering effect: returns an empty map.
+    */
+   private static Map<String, Object> describeUseFacetInapplicable(RuntimeViewsheet rvs,
+                                                                    String assemblyName,
+                                                                    Comparison comparison)
+   {
+      Map<String, Object> out = new LinkedHashMap<>();
+
+      if(comparison.useFacet() == null || !comparison.useFacet()) {
+         return out;
+      }
+
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof ChartVSAssembly)) {
+         return out;
+      }
+
+      VSChartInfo cinfo = ((ChartVSAssembly) assembly).getVSChartInfo();
+
+      if(cinfo == null || cinfo.getDateComparisonRef() == null) {
+         return out;
+      }
+
+      DateComparisonInfo dcInfo = ((ChartVSAssembly) assembly).getChartInfo().getDateComparisonInfo();
+
+      if(dcInfo == null) {
+         return out;
+      }
+
+      boolean periodAxisPlacementDead = dcInfo.getPeriods() instanceof StandardPeriods &&
+         dcInfo.periodLevelSameAsGranularityLevel();
+
+      if(!periodAxisPlacementDead || dcInfo.isValuePlus()) {
+         return out;
+      }
+
+      out.put("useFacetInapplicable", true);
+      out.put("reason", "faceting has no effect when the comparison's period level already " +
+         "matches its interval granularity — there is no separate breakdown left to place on " +
+         "the opposite axis. A finer interval granularity than the period level (e.g. a " +
+         "quarterly breakdown within a yearly comparison) is needed for useFacet to take effect.");
       return out;
    }
 
