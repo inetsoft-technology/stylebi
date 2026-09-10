@@ -55,7 +55,7 @@ public final class ConditionVocabulary {
    private static final Map<String, Integer> OPERATORS = operators();
 
    /** Operators that take no values at all. */
-   private static final Set<String> VALUELESS = Set.of("null");
+   private static final Set<String> VALUELESS = Set.of("null", "is_null");
 
    /** Operators that take exactly two. */
    private static final Set<String> PAIRED = Set.of("between");
