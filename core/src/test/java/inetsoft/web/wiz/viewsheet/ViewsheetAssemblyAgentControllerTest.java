@@ -2320,6 +2320,44 @@ class ViewsheetAssemblyAgentControllerTest {
       ), result);
    }
 
+   /**
+    * Regression for a review finding: {@code isDefault}/{@code isCurrent} used to compare
+    * bookmark NAME only, ignoring owner. Two different users can legitimately share a bookmark
+    * name (an admin's shared "Q1 Report" and this caller's own private "Q1 Report") -- only the
+    * one that actually matches on BOTH name and owner should be flagged.
+    */
+   @Test
+   void listBookmarks_defaultAndCurrentFlagsDistinguishSameNameDifferentOwner() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      IdentityID admin = new IdentityID("admin", "host-org");
+      IdentityID caller = new IdentityID("caller", "host-org");
+      VSBookmarkInfo adminsShared = new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE, admin,
+                                                       true, System.currentTimeMillis());
+      VSBookmarkInfo callersOwn = new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.PRIVATE, caller,
+                                                     false, System.currentTimeMillis());
+      when(rvs.getBookmarks()).thenReturn(List.of(adminsShared, callersOwn));
+      // The default/current bookmark is the ADMIN's "Q1 Report" -- the caller's own same-named
+      // one must NOT be flagged just because the names match.
+      when(rvs.getDefaultBookmark()).thenReturn(new VSBookmark.DefaultBookmark("Q1 Report", admin));
+      when(rvs.getOpenedBookmark()).thenReturn(adminsShared);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerForBookmarks(sessions, mock(VSBookmarkService.class));
+
+      List<ViewsheetAssemblyAgentController.BookmarkInfo> result =
+         controller.listBookmarks("tok", principal());
+
+      assertEquals(List.of(
+         new ViewsheetAssemblyAgentController.BookmarkInfo(
+            "Q1 Report", "shared", "admin", true, true, true),
+         new ViewsheetAssemblyAgentController.BookmarkInfo(
+            "Q1 Report", "private", "caller", false, false, false)
+      ), result);
+   }
+
    @Test
    void createBookmark_refusesANameCollisionWithoutCallingTheService() throws Exception {
       ViewsheetSessionService sessions = realMutatingSessions();
@@ -2391,8 +2429,35 @@ class ViewsheetAssemblyAgentControllerTest {
 
       IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
          () -> controller.deleteBookmark("tok",
-            new ViewsheetAssemblyAgentController.BookmarkNameRequest("Missing"), principal()));
+            new ViewsheetAssemblyAgentController.BookmarkNameRequest("Missing"), "", principal()));
       assertTrue(thrown.getMessage().contains("no bookmark named"));
+      verifyNoInteractions(vsBookmarkService);
+   }
+
+   /**
+    * Regression for a review finding: {@code list_bookmarks} shows shared/group bookmarks owned
+    * by OTHER users, but delete/update/set-default only ever act on the caller's own. Without
+    * this distinction, an agent that saw such a bookmark via list_bookmarks and then tried to
+    * act on it got a plain "no bookmark named X" -- indistinguishable from "that name is free".
+    */
+   @Test
+   void deleteBookmark_distinguishesNotOwnedFromNotExisting() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(false);
+      IdentityID admin = new IdentityID("admin", "host-org");
+      when(rvs.getBookmarks()).thenReturn(List.of(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE, admin, true,
+                            System.currentTimeMillis())));
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.deleteBookmark("tok",
+            new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), "", principal()));
+      assertTrue(thrown.getMessage().contains("owned by someone else"));
       verifyNoInteractions(vsBookmarkService);
    }
 
@@ -2410,7 +2475,7 @@ class ViewsheetAssemblyAgentControllerTest {
       VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
       ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
       controller.deleteBookmark("tok",
-         new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), principal());
+         new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), "", principal());
 
       ArgumentCaptor<VSEditBookmarkEvent> captor = ArgumentCaptor.forClass(VSEditBookmarkEvent.class);
       verify(vsBookmarkService).deleteBookmark(eq("runtime-1"), captor.capture(),
@@ -2436,7 +2501,7 @@ class ViewsheetAssemblyAgentControllerTest {
       VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
       ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
       controller.deleteBookmark("tok",
-         new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), principal());
+         new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), "", principal());
 
       ArgumentCaptor<VSEditBookmarkEvent> captor = ArgumentCaptor.forClass(VSEditBookmarkEvent.class);
       verify(vsBookmarkService).deleteBookmark(eq("runtime-1"), captor.capture(),
@@ -2467,6 +2532,7 @@ class ViewsheetAssemblyAgentControllerTest {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
       wireMutate(sessions, rvs);
+      stubSavedAsset(rvs);
 
       ViewsheetAssemblyAgentController controller =
          controllerForBookmarks(sessions, mock(VSBookmarkService.class));
@@ -2479,9 +2545,46 @@ class ViewsheetAssemblyAgentControllerTest {
       assertEquals("Q1 Report", captor.getValue().getName());
    }
 
-   /** A {@code ViewsheetSessionService} whose {@code mutate} really invokes the given lambda
-    *  against a test double, mirroring the real method's contract closely enough for these
-    *  tests without needing a live session/runtime. */
+   /**
+    * Regression for a review finding: {@code set_default_bookmark} previously called
+    * {@link RuntimeViewsheet#setDefaultBookmark} directly, which silently no-ops (no exception,
+    * nothing persisted) for an unsaved (temporary-scope) viewsheet instead of a clear error --
+    * the same "silently succeeds without doing anything" class of bug this PR's delete_bookmark
+    * owner fix set out to close elsewhere in this file.
+    */
+   @Test
+   void setDefaultBookmark_refusesOnAnUnsavedTemporaryScopeViewsheet() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      wireMutate(sessions, rvs);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.getScope()).thenReturn(AssetRepository.TEMPORARY_SCOPE);
+      when(vs.getRuntimeEntry()).thenReturn(entry);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerForBookmarks(sessions, mock(VSBookmarkService.class));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.setDefaultBookmark("tok",
+            new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), principal()));
+      assertTrue(thrown.getMessage().contains("must be saved"));
+      verify(rvs, never()).setDefaultBookmark(any());
+   }
+
+   private static void stubSavedAsset(RuntimeViewsheet rvs) {
+      Viewsheet vs = mock(Viewsheet.class);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.getScope()).thenReturn(AssetRepository.GLOBAL_SCOPE);
+      when(vs.getRuntimeEntry()).thenReturn(entry);
+      when(rvs.getViewsheet()).thenReturn(vs);
+   }
+
+   /** A bare, unconfigured mock -- every call site pairs this with a {@link #wireMutate} call
+    *  right after, which is what actually makes {@code mutate} invoke the given lambda. */
    private static ViewsheetSessionService realMutatingSessions() {
       return mock(ViewsheetSessionService.class);
    }

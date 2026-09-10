@@ -350,8 +350,10 @@ public class ViewsheetAssemblyAgentController {
          .map(info -> new BookmarkInfo(
             info.getName(), toTypeString(info.getType()),
             info.getOwner() == null ? null : info.getOwner().getName(), info.isReadOnly(),
-            defaultBookmark != null && info.getName().equals(defaultBookmark.getName()),
-            opened != null && info.getName().equals(opened.getName())))
+            defaultBookmark != null && info.getName().equals(defaultBookmark.getName()) &&
+               java.util.Objects.equals(info.getOwner(), defaultBookmark.getOwner()),
+            opened != null && info.getName().equals(opened.getName()) &&
+               java.util.Objects.equals(info.getOwner(), opened.getOwner())))
          .collect(Collectors.toList());
    }
 
@@ -397,11 +399,8 @@ public class ViewsheetAssemblyAgentController {
       boolean readOnly = request.readOnly() == null || request.readOnly();
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         if(!rvs.containsBookmark(name, ownerOf(user))) {
-            throw new IllegalArgumentException(
-               "update_bookmark: no bookmark named '" + name + "' exists yet. Use " +
-               "create_bookmark for a new one.");
-         }
+         requireOwnBookmark(rvs, name, user, "update_bookmark",
+            "no bookmark named '" + name + "' exists yet. Use create_bookmark for a new one.");
 
          requireOk(vsBookmarkService.addBookmarkToViewSheet(rvs, name, type, readOnly, true, user),
                    "update_bookmark");
@@ -419,23 +418,23 @@ public class ViewsheetAssemblyAgentController {
     */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks/delete")
    public void deleteBookmark(@PathVariable String sessionToken,
-                              @RequestBody BookmarkNameRequest request, Principal user)
+                              @RequestBody BookmarkNameRequest request,
+                              @RequestParam(required = false, defaultValue = "") String linkUri,
+                              Principal user)
       throws Exception
    {
       requireEnabled();
       String name = requireBookmarkName(request.name(), "delete_bookmark");
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         if(!rvs.containsBookmark(name, ownerOf(user))) {
-            throw new IllegalArgumentException(
-               "delete_bookmark: no bookmark named '" + name + "'. list_bookmarks reports what exists.");
-         }
+         requireOwnBookmark(rvs, name, user, "delete_bookmark",
+            "no bookmark named '" + name + "'. list_bookmarks reports what exists.");
 
          VSEditBookmarkEvent event = ImmutableVSEditBookmarkEvent.builder()
             .vsBookmarkInfoModel(VSBookmarkInfoModel.builder().name(name).owner(ownerOf(user)).build())
             .confirmed(false)
             .build();
-         vsBookmarkService.deleteBookmark(runtimeId, event, user, dispatcher, "");
+         vsBookmarkService.deleteBookmark(runtimeId, event, user, dispatcher, linkUri);
       });
    }
 
@@ -450,10 +449,13 @@ public class ViewsheetAssemblyAgentController {
       String name = requireBookmarkName(request.name(), "set_default_bookmark");
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         if(!rvs.containsBookmark(name, ownerOf(user))) {
+         requireOwnBookmark(rvs, name, user, "set_default_bookmark",
+            "no bookmark named '" + name + "'. list_bookmarks reports what exists.");
+
+         if(rvs.getViewsheet().getRuntimeEntry().getScope() == AssetRepository.TEMPORARY_SCOPE) {
             throw new IllegalArgumentException(
-               "set_default_bookmark: no bookmark named '" + name + "'. list_bookmarks reports " +
-               "what exists.");
+               "set_default_bookmark: the viewsheet must be saved before a default bookmark can " +
+               "be set.");
          }
 
          rvs.setDefaultBookmark(new VSBookmark.DefaultBookmark(name, ownerOf(user)));
@@ -470,6 +472,33 @@ public class ViewsheetAssemblyAgentController {
 
    private static IdentityID ownerOf(Principal user) {
       return IdentityID.getIdentityIDFromKey(user.getName());
+   }
+
+   /**
+    * Guards update_bookmark/delete_bookmark/set_default_bookmark: all three only operate on the
+    * caller's OWN bookmarks, but {@code list_bookmarks} shows shared/group bookmarks owned by
+    * other users too. Without this, an agent that sees such a bookmark via list_bookmarks and
+    * then tries to act on it gets a plain "no bookmark named X" -- indistinguishable from "that
+    * name is free" -- and is liable to retry via create_bookmark instead of realizing it simply
+    * doesn't own the one it saw.
+    */
+   private static void requireOwnBookmark(RuntimeViewsheet rvs, String name, Principal user,
+                                          String tool, String notFoundMessage)
+   {
+      if(rvs.containsBookmark(name, ownerOf(user))) {
+         return;
+      }
+
+      boolean visibleUnderAnotherOwner =
+         rvs.getBookmarks().stream().anyMatch(b -> b.getName().equals(name));
+
+      if(visibleUnderAnotherOwner) {
+         throw new IllegalArgumentException(
+            tool + ": bookmark '" + name + "' exists but is owned by someone else -- " + tool +
+            " only works on bookmarks you own.");
+      }
+
+      throw new IllegalArgumentException(tool + ": " + notFoundMessage);
    }
 
    private static void requireOk(MessageCommand command, String tool) {
