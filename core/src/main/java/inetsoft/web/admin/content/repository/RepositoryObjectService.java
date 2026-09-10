@@ -225,11 +225,10 @@ public class RepositoryObjectService {
 
                break;
             case RepositoryEntry.DATA_SOURCE_FOLDER:
-               ConnectionStatus dataSourceFolder =
-                  removeDataSourceFolder(node.path(), force, principal);
+               FolderDeleteResult folderResult = removeDataSourceFolder(node.path(), force, principal);
 
-               if(dataSourceFolder != null) {
-                  return dataSourceFolder;
+               if(folderResult.status() != null) {
+                  return folderResult.status();
                }
 
                break;
@@ -521,24 +520,86 @@ public class RepositoryObjectService {
       return null;
    }
 
-   public synchronized ConnectionStatus removeDataSourceFolder(String dxname,
-                                                               boolean force,
-                                                               Principal principal)
+   public synchronized FolderDeleteResult removeDataSourceFolder(String dxname, boolean force,
+                                                                  Principal principal)
    {
-      List<String> sources = dataSourceRegistry.getSubDataSourceNames(dxname);
+      // Phase 1: check everything, delete nothing yet. allNestedDataSourceNames() reaches every
+      // nested data source at any depth, not just this folder's immediate children -- that is the
+      // fix for the bug where a data source several sub-folders deep skipped both checks entirely.
+      List<String> allSources = allNestedDataSourceNames(dxname);
+      List<DeletedDataSource> toDelete = new ArrayList<>();
 
-      for(String source : sources) {
+      for(String source : allSources) {
+         ConnectionStatus status = checkAssetEntryDependencies(source, AssetEntry.Type.DATA_SOURCE, force);
+
+         if(status != null) {
+            return FolderDeleteResult.failure(status);
+         }
+
+         if(!securityProvider.checkPermission(principal, ResourceType.DATA_SOURCE, source,
+                                              ResourceAction.DELETE))
+         {
+            return FolderDeleteResult.failure(new ConnectionStatus(Catalog.getCatalog(principal)
+               .getString("Permission denied to delete datasource")));
+         }
+
+         toDelete.add(new DeletedDataSource(source, readSourceType(source)));
+      }
+
+      // Phase 2: every check passed, so it is now safe to actually delete. Reuses the exact
+      // mechanism this method already used for its (previously incomplete) immediate-children loop.
+      for(String source : allSources) {
          ConnectionStatus status = deleteDataSource(source, force, principal);
 
          if(status != null) {
-            return status;
+            // Extremely unlikely after the phase-1 checks above (something changed between the two
+            // loops), but must not be swallowed: some sources in this loop may already be deleted at
+            // this point, so failing loudly here is strictly better than silently continuing to the
+            // folder-level delete below on top of partial state.
+            return FolderDeleteResult.failure(status);
          }
       }
 
+      // Still recurses internally and still deletes the data sources above a second time from its
+      // own point of view -- harmless and NOT a change from today's behavior: by the time this runs
+      // every one of them is already gone from the registry, so its own getEntries() lookup no
+      // longer lists them and there is nothing left for it to touch a second time. Left as-is
+      // because it is also the only thing that removes the FOLDER entry itself.
       dataSourceRegistry.removeDataSourceFolder(dxname);
       securityProvider.removePermission(ResourceType.DATA_SOURCE_FOLDER, dxname);
 
-      return null;
+      return FolderDeleteResult.success(toDelete);
+   }
+
+   /**
+    * Every data source nested under this folder, at any depth -- not just the immediate children
+    * {@code getSubDataSourceNames(dxname)} (without {@code allChild=true}) would return.
+    */
+   private List<String> allNestedDataSourceNames(String dxname) {
+      AssetEntry[] entries = dataSourceRegistry.getEntries(dxname + "/", AssetEntry.Type.DATA_SOURCE);
+      List<String> names = new ArrayList<>(entries.length);
+
+      for(AssetEntry entry : entries) {
+         names.add(entry.getPath());
+      }
+
+      return names;
+   }
+
+   /**
+    * {@code XDataSource.getType()} for a data source about to be deleted, or null if it could not
+    * be read -- mirrors DataSourceBrowserService.getDataSources()'s own tolerance for a data source
+    * that fails to load. The type is only used by callers doing cleanup keyed on it; a data source
+    * that cannot even be loaded is still deletable.
+    */
+   private String readSourceType(String dxname) {
+      try {
+         XDataSource dataSource = dataSourceRegistry.getDataSource(dxname);
+         return dataSource == null ? null : dataSource.getType();
+      }
+      catch(Throwable ex) {
+         return null;
+      }
    }
 
    private ConnectionStatus checkAssetEntryDependencies(String path, AssetEntry.Type type,

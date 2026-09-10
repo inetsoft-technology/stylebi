@@ -39,6 +39,7 @@ import inetsoft.web.admin.content.database.*;
 import inetsoft.web.admin.content.database.types.*;
 import inetsoft.web.admin.content.repository.DataSourceSettingsModel;
 import inetsoft.web.admin.content.repository.DatabaseDatasourcesService;
+import inetsoft.web.admin.content.repository.FolderDeleteResult;
 import inetsoft.web.admin.model.NameLabelTuple;
 import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.portal.data.CheckDuplicateResponse;
@@ -827,35 +828,46 @@ public class WizDatabaseController {
 
             if(!securityEngine.checkPermission(principal, type, item.path(), ResourceAction.DELETE)) {
                results.add(new WizDatasourceDeleteItemResult(
-                  item.path(), false, WizDatasourceDeleteItemResult.PERMISSION_DENIED, null));
+                  item.path(), false, WizDatasourceDeleteItemResult.PERMISSION_DENIED, null, null));
                continue;
             }
 
-            ConnectionStatus status = item.folder()
-               ? dataSourceBrowserService.deleteDataSourceFolder(item.path(),
-                    Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, item.path(), principal),
-                    force, principal)
-               : datasourcesService.deleteDataSource(item.path(),
-                    databaseDatasourcesService.getDataSourceAuditPath(
-                       item.path(), nameOnlyDefinition(item.name()), principal),
-                    force);
+            if(item.folder()) {
+               FolderDeleteResult folderResult = dataSourceBrowserService.deleteDataSourceFolder(
+                  item.path(),
+                  Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, item.path(), principal),
+                  force, principal);
 
-            if(status != null) {
-               // A message when force=false hit a dependency conflict (or, for a folder, when a
-               // child datasource lacked DELETE). Both surface the same way here; the portal
-               // cannot and need not distinguish them further than "show me the message".
-               results.add(new WizDatasourceDeleteItemResult(
-                  item.path(), false, WizDatasourceDeleteItemResult.HAS_DEPENDENCIES,
-                  status.getStatus()));
+               if(folderResult.status() != null) {
+                  results.add(new WizDatasourceDeleteItemResult(
+                     item.path(), false, WizDatasourceDeleteItemResult.HAS_DEPENDENCIES,
+                     folderResult.status().getStatus(), null));
+               }
+               else {
+                  results.add(new WizDatasourceDeleteItemResult(
+                     item.path(), true, null, null, folderResult.deletedDataSources()));
+               }
             }
             else {
-               results.add(new WizDatasourceDeleteItemResult(item.path(), true, null, null));
+               ConnectionStatus status = datasourcesService.deleteDataSource(item.path(),
+                  databaseDatasourcesService.getDataSourceAuditPath(
+                     item.path(), nameOnlyDefinition(item.name()), principal),
+                  force);
+
+               if(status != null) {
+                  results.add(new WizDatasourceDeleteItemResult(
+                     item.path(), false, WizDatasourceDeleteItemResult.HAS_DEPENDENCIES,
+                     status.getStatus(), null));
+               }
+               else {
+                  results.add(new WizDatasourceDeleteItemResult(item.path(), true, null, null, null));
+               }
             }
          }
          catch(Exception ex) {
             LOG.warn("Failed to delete {}: {}", item.path(), ex.getMessage());
             results.add(new WizDatasourceDeleteItemResult(
-               item.path(), false, WizDatasourceDeleteItemResult.UNKNOWN, null));
+               item.path(), false, WizDatasourceDeleteItemResult.UNKNOWN, null, null));
          }
       }
 
