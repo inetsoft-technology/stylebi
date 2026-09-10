@@ -157,6 +157,11 @@ public abstract class VSTableDataHelper extends ExporterHelper {
    protected Rectangle2D getObjectPixelBounds(TableDataVSAssemblyInfo info,
       VSTableLens lens, CoordinateHelper vHelper)
    {
+      if(lens == null) {
+         Point pos = info.getPixelOffset();
+         return new Rectangle2D.Double(pos.x, pos.y, 0, 0);
+      }
+
       boolean match = getExporter().isMatchLayout();
       Rectangle tableRange = getTableRectangle(info, lens);
       Dimension size = new Dimension(tableRange.width, tableRange.height);

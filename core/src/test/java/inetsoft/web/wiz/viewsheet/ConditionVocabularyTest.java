@@ -286,6 +286,15 @@ class ConditionVocabularyTest {
                       List.of(clause("Region", "null", List.of("x"), null)), FIELDS));
    }
 
+   @Test
+   void acceptsIsNullWithNoValues() {
+      Object[] list = ConditionVocabulary.toConditionList(
+         List.of(clause("Region", "is_null", List.of(), null)), FIELDS);
+
+      assertEquals(1, list.length);
+      assertEquals(XCondition.NULL, ((ConditionModel) list[0]).getOperation());
+   }
+
    // ── round trip ────────────────────────────────────────────────────────────
 
    @Test
