@@ -121,6 +121,32 @@ class TabularQueryContractSupportTest {
       assertTrue(ex.getMessage().contains("endpoint"), ex.getMessage());
    }
 
+   /**
+    * "endpoint" ({@code @Property(required = true)}, no {@code visibleMethod} gate) is
+    * unconditionally required on {@link FakeNamedConnectorQuery} -- omitting it ENTIRELY from
+    * {@code queryParams} (as opposed to sending it with a bad value, which the per-param checks
+    * below already cover) went unchecked before: the fill loop only ever iterates
+    * {@code queryParams.keySet()}, so a key nobody sent had no code path that ever noticed its
+    * absence, and the request went out with the connector's blank default instead of failing loud.
+    */
+   @Test
+   void rejectsAnEntirelyOmittedTopLevelRequiredParameter() {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> apply(query, params("requestType", "GET")));
+      assertTrue(ex.getMessage().contains("endpoint"), ex.getMessage());
+   }
+
+   @Test
+   void rejectsABlankTopLevelRequiredParameterTheSameAsAnOmittedOne() {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> apply(query, params("endpoint", "  ")));
+      assertTrue(ex.getMessage().contains("endpoint"), ex.getMessage());
+   }
+
    // ─── endpoint selection + tagsMethod validation (named connector) ─────────
 
    @Test
@@ -196,8 +222,12 @@ class TabularQueryContractSupportTest {
    void refusesKindBCompositeByName() {
       FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
 
+      // "endpoint" supplied alongside the thing actually under test -- otherwise required-param
+      // enforcement (added since) reports the missing "endpoint" first, which is correct but not
+      // what this test isolates.
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-         () -> apply(query, params("additionalParameters", Map.of("x", "1"))));
+         () -> apply(query, params(
+            "endpoint", "Repos", "additionalParameters", Map.of("x", "1"))));
       assertTrue(ex.getMessage().contains("additionalParameters"), ex.getMessage());
       assertTrue(ex.getMessage().contains("not supported yet"), ex.getMessage());
    }
@@ -307,8 +337,11 @@ class TabularQueryContractSupportTest {
    void rejectsSilentNoOpOnNamedConnectorQuery() {
       FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
 
+      // "endpoint" supplied alongside "suffix" -- otherwise required-param enforcement (added
+      // since) reports the missing "endpoint" first, which is correct but not what this test
+      // isolates (the silent no-op on "suffix").
       IllegalStateException ex = assertThrows(IllegalStateException.class,
-         () -> apply(query, params("suffix", "/v1/widgets/{id}")));
+         () -> apply(query, params("endpoint", "Repos", "suffix", "/v1/widgets/{id}")));
       assertTrue(ex.getMessage().contains("suffix"), ex.getMessage());
    }
 

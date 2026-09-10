@@ -296,6 +296,65 @@ class TabularSchemaExtractorTest {
       return new TabularSchemaExtractor().extract(new FixtureQuery(), FixtureQuery.TYPE);
    }
 
+   // ─── extractDataSourceConfig ───────────────────────────────────────────────
+   // The TabularDataSourceConfig counterpart of extract(TabularQuery, ...) above -- same
+   // reflection, pointed at a TabularDataSource instead of a TabularQuery, so a datasource's own
+   // connection-level config (base URL, credentials) can be read the same way a query's settable
+   // parameters already are. See docs/tabular for the design (composer-chat's own
+   // get_tabular_datasource_config tool is the caller-facing side of this).
+
+   @Test
+   void extractDataSourceConfigReportsNonPasswordValues() {
+      FixtureTabularDataSource ds = new FixtureTabularDataSource();
+      ds.setUrl("https://example.com/api");
+
+      TabularDataSourceConfig.Field url =
+         fieldNamed(new TabularSchemaExtractor().extractDataSourceConfig(ds), "url");
+
+      assertFalse(url.isPassword());
+      assertEquals("https://example.com/api", url.getValue());
+   }
+
+   @Test
+   void extractDataSourceConfigRedactsAConfiguredPasswordFieldsValue() {
+      FixtureTabularDataSource ds = new FixtureTabularDataSource();
+      ds.setApiKey("s3cr3t");
+
+      TabularDataSourceConfig.Field apiKey =
+         fieldNamed(new TabularSchemaExtractor().extractDataSourceConfig(ds), "apiKey");
+
+      assertTrue(apiKey.isPassword());
+      assertNull(apiKey.getValue(), "a password field must never carry its actual value");
+      assertTrue(apiKey.isConfigured(), "but whether one is set must still be reported");
+   }
+
+   @Test
+   void extractDataSourceConfigReportsAnUnsetPasswordFieldAsNotConfigured() {
+      TabularDataSourceConfig.Field apiKey = fieldNamed(
+         new TabularSchemaExtractor().extractDataSourceConfig(new FixtureTabularDataSource()), "apiKey");
+
+      assertTrue(apiKey.isPassword());
+      assertNull(apiKey.getValue());
+      assertFalse(apiKey.isConfigured());
+   }
+
+   @Test
+   void extractDataSourceConfigCarriesTheDataSourceType() {
+      assertEquals("Fixture",
+         new TabularSchemaExtractor().extractDataSourceConfig(new FixtureTabularDataSource())
+            .getDataSourceType());
+   }
+
+   private static TabularDataSourceConfig.Field fieldNamed(TabularDataSourceConfig config,
+                                                            String name)
+   {
+      return config.getFields().stream()
+         .filter(f -> name.equals(f.getName()))
+         .findFirst()
+         .orElseThrow(() -> new AssertionError("no field named '" + name + "', got " +
+            config.getFields().stream().map(TabularDataSourceConfig.Field::getName).toList()));
+   }
+
    private static ConfigurationContext previous;
 
    public enum Mode { NONE, CURSOR, LINK }

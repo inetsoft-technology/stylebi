@@ -112,6 +112,45 @@ public final class TabularQueryContractSupport {
             dsName + "'. It accepts: " + String.join(", ", new TreeSet<>(pmap.keySet())) + ".");
       }
 
+      // A SCALAR param that is unconditionally required (isRequired(), never "required once some
+      // other value is chosen" -- see TabularQuerySchema.Param#isRequired's own javadoc) but
+      // simply absent from queryParams was never checked here: the loop below only ever iterates
+      // queryParams.keySet(), so a key nobody sent is a key nobody's absence is ever noticed for.
+      // Collected as one report, not one round trip per missing field, matching every other
+      // "report everything wrong before making a live call" check in this file.
+      //
+      // Composite-typed params (Kind A, e.g. "parameters") are deliberately excluded: a composite
+      // can be legitimately absent as a whole (an endpoint with no required path parameters has
+      // nothing to fill), and its OWN required elements are already checked, once supplied, by
+      // fillNamedSkeleton below -- requiring the composite KEY itself to always be present would
+      // reject callers who correctly omitted an empty/inapplicable one.
+      List<String> missingRequired = new ArrayList<>();
+
+      for(TabularQuerySchema.Param param : schema.getParams()) {
+         if(!param.isRequired()) {
+            continue;
+         }
+
+         PropertyMeta prop = pmap.get(param.getName());
+         Class<?> type = prop == null ? null : prop.getDescriptor().getPropertyType();
+
+         if(type != null && TabularSchemaExtractor.isCompositeType(type) && type != File.class) {
+            continue;
+         }
+
+         Object value = queryParams.get(param.getName());
+
+         if(value == null || (value instanceof String s && s.isBlank())) {
+            missingRequired.add(param.getName());
+         }
+      }
+
+      if(!missingRequired.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'" + dsName + "' requires " + String.join(", ", missingRequired) +
+            " -- queryParams is missing " + (missingRequired.size() == 1 ? "it" : "them") + ".");
+      }
+
       validateCustomLookupUrls(queryParams);
 
       List<String> order = topologicalSort(queryParams.keySet(), schema, dsName);

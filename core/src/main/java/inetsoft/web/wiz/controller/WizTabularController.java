@@ -27,6 +27,7 @@ import inetsoft.uql.XRepository;
 import inetsoft.uql.tabular.BrowsableQuery;
 import inetsoft.uql.tabular.LayoutCreator;
 import inetsoft.uql.tabular.TabularDataSource;
+import inetsoft.uql.tabular.TabularDataSourceConfig;
 import inetsoft.uql.tabular.TabularEditor;
 import inetsoft.uql.tabular.TabularQuery;
 import inetsoft.uql.tabular.TabularQueryParamsSchemaBuilder;
@@ -324,6 +325,44 @@ public class WizTabularController {
       finally {
          endConnectorSession();
       }
+   }
+
+   /**
+    * The data source's OWN connection-level configuration -- base URL, host, tenant, whatever
+    * else the connector declares -- as opposed to {@code /tabular/query-schema}, which describes
+    * the QUERY built against it. Answers "what is this source actually pointed at" without the
+    * caller having to build a throwaway query and hope a value happens to be readable off it.
+    *
+    * <p>Gated on READ, like {@code /tabular/query-schema} and unlike {@code /tabular/definition}
+    * next to it: every credential-shaped field is redacted (see
+    * {@link TabularDataSourceConfig.Field#isPassword()}) to only "is one configured", never the
+    * value, which is what makes a READ gate correct here where it is not for
+    * {@code /tabular/definition}'s clear-text secrets.</p>
+    *
+    * @param path      the data source's full repository path.
+    * @param principal the current user.
+    *
+    * @return the redacted connection configuration.
+    */
+   @GetMapping(value = "/tabular/datasource-config", produces = MediaType.APPLICATION_JSON_VALUE)
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.DATA_SOURCE, actions = ResourceAction.READ
+      )
+   })
+   public TabularDataSourceConfig getDataSourceConfig(
+      @PermissionPath @RequestParam("path") String path, Principal principal) throws Exception
+   {
+      requireTabularDataSource(path);
+
+      XDataSource dataSource = xrepository.getDataSource(path);
+
+      if(dataSource == null) {
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST, "Data source not found: " + path);
+      }
+
+      return new TabularSchemaExtractor().extractDataSourceConfig(dataSource);
    }
 
    @GetMapping(value = "/tabular/definition", produces = MediaType.APPLICATION_JSON_VALUE)

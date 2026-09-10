@@ -602,6 +602,68 @@ class WizTabularControllerTest {
       }
    }
 
+   // ─── getDataSourceConfig: the data source's own redacted connection config ────────
+
+   private static TabularDataSourceConfig.Field fieldNamed(TabularDataSourceConfig config,
+                                                            String name)
+   {
+      return config.getFields().stream()
+         .filter(f -> name.equals(f.getName()))
+         .findFirst()
+         .orElseThrow(() -> new AssertionError("no field named '" + name + "', got " +
+            config.getFields().stream().map(TabularDataSourceConfig.Field::getName).toList()));
+   }
+
+   @Test
+   void getDataSourceConfigReportsNonPasswordValuesAndRedactsPasswordOnes() throws Exception {
+      FixtureTabularDataSource ds =
+         new FixtureTabularDataSource();
+      ds.setUrl("https://example.com/api");
+      ds.setApiKey("s3cr3t");
+
+      when(xrepository.getDataSource(eq("myds"))).thenReturn(ds);
+
+      TabularDataSourceConfig config = controller.getDataSourceConfig("myds", principal);
+
+      TabularDataSourceConfig.Field url = fieldNamed(config, "url");
+      assertFalse(url.isPassword());
+      assertEquals("https://example.com/api", url.getValue());
+
+      TabularDataSourceConfig.Field apiKey = fieldNamed(config, "apiKey");
+      assertTrue(apiKey.isPassword());
+      assertNull(apiKey.getValue(), "a password field must never carry its actual value");
+      assertTrue(apiKey.isConfigured());
+   }
+
+   @Test
+   void getDataSourceConfigReportsAnUnsetPasswordFieldAsNotConfigured() throws Exception {
+      when(xrepository.getDataSource(eq("myds")))
+         .thenReturn(new FixtureTabularDataSource());
+
+      TabularDataSourceConfig.Field apiKey =
+         fieldNamed(controller.getDataSourceConfig("myds", principal), "apiKey");
+
+      assertNull(apiKey.getValue());
+      assertFalse(apiKey.isConfigured());
+   }
+
+   @Test
+   void getDataSourceConfigRejectsANonTabularDataSource() throws Exception {
+      when(xrepository.getDataSource(eq("myds"))).thenReturn(mock(JDBCDataSource.class));
+
+      assertThrows(UnsupportedDatasourceException.class,
+         () -> controller.getDataSourceConfig("myds", principal));
+   }
+
+   @Test
+   void getDataSourceConfigAnswersBadRequestWhenTheDataSourceIsGone() throws Exception {
+      when(xrepository.getDataSource(eq("myds"))).thenReturn(null);
+
+      ResponseStatusException e = assertThrows(ResponseStatusException.class,
+         () -> controller.getDataSourceConfig("myds", principal));
+      assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
+   }
+
    // ─── browseTabularFiles: BrowsableQuery connectors (e.g. OneDrive) ────────
 
    private WizTabularBrowseResult browseWith(FakeBrowsableQuery query, WizTabularBrowseRequest request)
