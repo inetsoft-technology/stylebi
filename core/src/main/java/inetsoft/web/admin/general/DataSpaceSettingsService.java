@@ -262,6 +262,58 @@ public class DataSpaceSettingsService extends BackupSupport {
    }
 
    /**
+    * Lists every surviving ai-snapshot for the given admin-chat transaction, oldest first.
+    *
+    * <p>Snapshot filenames are deterministically {@code admin-<transactionId>-<timestamp>.zip}
+    * (see {@link inetsoft.web.admin.ai.AdminBackupService#backup}/{@link #getBackFile}) - but
+    * {@code transactionId} is caller-supplied for a standalone {@code backup()} call (not only
+    * the hyphen-free system-generated ids {@code apply_*_changes} itself produces), so a plain
+    * {@code startsWith("admin-" + transactionId + "-")} would incorrectly match an unrelated
+    * transaction whose own id happens to be a hyphen-delimited extension of this one - e.g. a
+    * lookup for {@code "chg-1"} would also match a snapshot actually named for
+    * {@code "chg-1-retry"}. Since the trailing timestamp segment (and any
+    * {@link ExternalStorageService#getAvailableFile} collision disambiguator) is always purely
+    * numeric and never contains a hyphen, the last hyphen in the filename is always the
+    * transactionId/timestamp boundary regardless of how many hyphens {@code transactionId} itself
+    * contains - so the match strips the leading {@code "admin-"} and everything from the LAST
+    * hyphen onward, then requires the remainder to equal {@code transactionId} exactly, not as a
+    * prefix.
+    *
+    * @param transactionId the admin-chat transaction to look up; not validated here (see
+    *                       {@link inetsoft.web.admin.ai.AdminBackupService#backup}'s own
+    *                       {@code requireSafePathSegment} check for the caller-facing validation).
+    * @return the surviving snapshots for this transaction, oldest first; empty if none survive or
+    *         none were ever taken - never an error for an unknown or never-snapshotted id.
+    */
+   public List<AiSnapshotInfo> listAiSnapshots(String transactionId) {
+      String prefix = "admin" + BACKUP_PATH_SPLIT;
+
+      return this.externalStorageService.listFiles(AI_SNAPSHOT_FOLDER).stream()
+         .filter(f -> f.endsWith(".zip") && f.startsWith(prefix))
+         .filter(f -> transactionId.equals(extractTransactionId(f, prefix)))
+         .map(f -> new AiSnapshotInfo(AI_SNAPSHOT_FOLDER + "/" + f, getTimestamp(f)))
+         .sorted(Comparator.comparingLong(AiSnapshotInfo::timestamp))
+         .toList();
+   }
+
+   /**
+    * Recovers the transactionId encoded in an ai-snapshot filename, or {@code null} if
+    * {@code fileName} does not match the {@code admin-<transactionId>-<suffix>} shape at all
+    * (e.g. it has no further hyphen after the leading {@code "admin-"}, which
+    * {@link #listAiSnapshots}'s caller then simply skips rather than throwing on).
+    */
+   private static String extractTransactionId(String fileName, String prefix) {
+      String rest = fileName.substring(prefix.length());
+      int lastDash = rest.lastIndexOf(BACKUP_PATH_SPLIT);
+
+      if(lastDash < 0) {
+         return null;
+      }
+
+      return rest.substring(0, lastDash);
+   }
+
+   /**
     * Gets the configured {@code ai.snapshot.count}. A non-numeric value logs a warning naming
     * the property and the offending value, then falls back to {@link #DEFAULT_AI_SNAPSHOT_COUNT}
     * -- the same shape as {@code ScheduleTask.getTaskTimeout}.

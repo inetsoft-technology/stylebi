@@ -18,6 +18,7 @@
 package inetsoft.web.admin.ai;
 
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.web.admin.general.AiSnapshotInfo;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -116,11 +117,32 @@ class AdminAiControllerTest {
    // site-admin gate (#5)
    // -------------------------------------------------------------------------
 
+   @Test void listSnapshotsThrowsForbiddenWithoutBearerToken() {
+      RequestContextHolder.setRequestAttributes(
+         new ServletRequestAttributes(new MockHttpServletRequest()));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.listSnapshots("chg-1", principal));
+
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(backupService);
+   }
+
    @Test void backupThrowsForbiddenForNonSiteAdmin() {
       when(orgManager.isSiteAdmin(principal)).thenReturn(false);
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
          () -> controller.backup(Map.of("transactionId", "chg-1"), principal));
+
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(backupService);
+   }
+
+   @Test void listSnapshotsThrowsForbiddenForNonSiteAdmin() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.listSnapshots("chg-1", principal));
 
       assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
       verifyNoInteractions(backupService);
@@ -158,6 +180,25 @@ class AdminAiControllerTest {
 
       assertEquals("admin-chg-1-123.zip", actual.get("backupRef"));
       verify(backupService).backup("chg-1");
+   }
+
+   @Test void listSnapshotsDelegatesToServiceAndShapesTheResponse() {
+      List<AiSnapshotInfo> expected = List.of(
+         new AiSnapshotInfo("ai-snapshots/admin-chg-1-20260101120000.zip", 20260101120000L));
+      when(backupService.listSnapshots("chg-1")).thenReturn(expected);
+
+      List<AiSnapshotInfo> actual = controller.listSnapshots("chg-1", principal);
+
+      assertEquals(expected, actual);
+      verify(backupService).listSnapshots("chg-1");
+   }
+
+   @Test void listSnapshotsReturnsEmptyListWhenNoneSurvive() {
+      when(backupService.listSnapshots("chg-1")).thenReturn(List.of());
+
+      List<AiSnapshotInfo> actual = controller.listSnapshots("chg-1", principal);
+
+      assertTrue(actual.isEmpty());
    }
 
    @Test void previewDelegatesToService() {

@@ -45,6 +45,11 @@ package inetsoft.web.admin.general;
  *      must not turn a successful backup into a reported failure (a null path, which
  *      AdminBackupService escalates into an IOException that aborts the whole changeset apply).
  *      The guard is scoped to pruning only - a failure in the write itself still fails.
+ * [G10] listAiSnapshots(transactionId) is the read-only counterpart to backup(): it lists every
+ *       surviving ai-snapshot for one transaction, matching by transactionId exactly (not by
+ *       startsWith), since a caller-supplied transactionId may itself contain hyphens and a naive
+ *       prefix filter would incorrectly match an unrelated transaction whose id is a
+ *       hyphen-delimited extension of the queried one (bug 76553's confirmed refutation finding).
  */
 
 import ch.qos.logback.classic.Level;
@@ -427,5 +432,69 @@ class DataSpaceSettingsServiceTest {
       finally {
          logger.detachAppender(appender);
       }
+   }
+
+   // -------------------------------------------------------------------------
+   // [G10] listAiSnapshots -- the read-only counterpart to backup()
+   // -------------------------------------------------------------------------
+
+   // The refuter's specific required regression case: querying "chg-1" must return exactly its own
+   // two files, not "chg-12"'s (no separating hyphen) or "chg-1-retry"'s (a hyphen-delimited
+   // extension of "chg-1" - the case a naive startsWith("admin-chg-1-") prefix filter would wrongly
+   // match) or an unrelated non-admin file.
+   @Test
+   void listAiSnapshots_returnsOnlyTheExactTransactionsFiles() {
+      when(externalStorageService.listFiles("ai-snapshots")).thenReturn(List.of(
+         "admin-chg-1-20260101120000.zip",
+         "admin-chg-1-20260102120000.zip",
+         "admin-chg-12-20260103120000.zip",
+         "admin-chg-1-retry-20260104120000.zip",
+         "unrelated-file-20260105120000.zip"));
+
+      List<AiSnapshotInfo> actual = service.listAiSnapshots("chg-1");
+
+      assertEquals(2, actual.size());
+      assertEquals("ai-snapshots/admin-chg-1-20260101120000.zip", actual.get(0).path());
+      assertEquals(20260101120000L, actual.get(0).timestamp());
+      assertEquals("ai-snapshots/admin-chg-1-20260102120000.zip", actual.get(1).path());
+      assertEquals(20260102120000L, actual.get(1).timestamp());
+   }
+
+   // Oldest-first ordering, independent of listFiles' own return order.
+   @Test
+   void listAiSnapshots_ordersOldestFirst() {
+      when(externalStorageService.listFiles("ai-snapshots")).thenReturn(List.of(
+         "admin-chg-2-20260103120000.zip",
+         "admin-chg-2-20260101120000.zip",
+         "admin-chg-2-20260102120000.zip"));
+
+      List<AiSnapshotInfo> actual = service.listAiSnapshots("chg-2");
+
+      assertEquals(3, actual.size());
+      assertEquals(20260101120000L, actual.get(0).timestamp());
+      assertEquals(20260102120000L, actual.get(1).timestamp());
+      assertEquals(20260103120000L, actual.get(2).timestamp());
+   }
+
+   // A transactionId with no matching files returns an empty list, not an error - the zero-row
+   // landmine this fix was chosen specifically to avoid.
+   @Test
+   void listAiSnapshots_returnsEmptyListWhenNoneMatch() {
+      when(externalStorageService.listFiles("ai-snapshots")).thenReturn(List.of(
+         "admin-chg-1-20260101120000.zip"));
+
+      List<AiSnapshotInfo> actual = service.listAiSnapshots("chg-999-never-snapshotted");
+
+      assertTrue(actual.isEmpty());
+   }
+
+   // An empty folder is also a normal, empty-list answer.
+   @Test
+   void listAiSnapshots_returnsEmptyListWhenFolderIsEmpty() {
+      when(externalStorageService.listFiles("ai-snapshots")).thenReturn(List.of());
+
+      List<AiSnapshotInfo> actual = service.listAiSnapshots("chg-1");
+
+      assertTrue(actual.isEmpty());
    }
 }
