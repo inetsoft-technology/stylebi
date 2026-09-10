@@ -157,12 +157,14 @@ class ProviderChangesetApplyServiceTest {
    @Test void throwMidApplyRollsBackEarlierChangeButReportsRollbackFailedForTheUnknownState()
       throws Exception
    {
-      // change 2's own add throws -- its state is unknown and must never be reported as rolled
-      // back, even though change 1's own rollback succeeds (section 6/2.5 of the guide).
+      // change 2's own add succeeds (mutates state) but its post-add verification read throws --
+      // this is the one call shape addCreateAuthentication's local pre-mutation catch does NOT
+      // cover, so it is still a genuine unknown state that must never be reported as rolled back,
+      // even though change 1's own rollback succeeds (section 6/2.5 of the guide). (A throw from
+      // addAuthenticationProvider itself is, post bug-76563-fix, always pre-mutation and reported
+      // as a clean per-entry failure instead -- see the guard-clause-refusal tests below.)
       doThrow(new RuntimeException("simulated race: duplicate name"))
-         .when(authenticationProviderService)
-         .addAuthenticationProvider(argThat(m -> m != null && "p2".equals(m.providerName())),
-                                    eq("p2"), eq(user));
+         .when(authenticationProviderService).getAuthenticationProvider(eq("p2"));
 
       var result = service.apply(applyRequest("create p1 then p2",
          createFile(ProviderChain.AUTHENTICATION, "p1"), createFile(ProviderChain.AUTHENTICATION, "p2")),
@@ -178,10 +180,9 @@ class ProviderChangesetApplyServiceTest {
    }
 
    @Test void undoRunsNewestFirst() throws Exception {
+      // Post-add verification throws, same genuine-unknown-state shape as the test above.
       doThrow(new RuntimeException("boom"))
-         .when(authenticationProviderService)
-         .addAuthenticationProvider(argThat(m -> m != null && "p3".equals(m.providerName())),
-                                    eq("p3"), eq(user));
+         .when(authenticationProviderService).getAuthenticationProvider(eq("p3"));
 
       service.apply(applyRequest("create p1, p2, p3",
          createFile(ProviderChain.AUTHENTICATION, "p1"), createFile(ProviderChain.AUTHENTICATION, "p2"),
@@ -195,10 +196,9 @@ class ProviderChangesetApplyServiceTest {
    }
 
    @Test void anUndoThatItselfFailsIsReportedAlongsideTheUnknownStateFailure() throws Exception {
+      // Post-add verification throws, same genuine-unknown-state shape as the tests above.
       doThrow(new RuntimeException("boom"))
-         .when(authenticationProviderService)
-         .addAuthenticationProvider(argThat(m -> m != null && "p2".equals(m.providerName())),
-                                    eq("p2"), eq(user));
+         .when(authenticationProviderService).getAuthenticationProvider(eq("p2"));
       doThrow(new RuntimeException("rollback also fails"))
          .when(authenticationProviderService)
          .removeAuthenticationProvider(anyInt(), eq("p1"), eq(user));
@@ -220,10 +220,9 @@ class ProviderChangesetApplyServiceTest {
 
    @Test void deleteRollbackDisclosesTheRestoredAtEndAdvisoryAsAFirstClassField() throws Exception {
       seedHealthyAuthentication("keep", "victim");
+      // Post-add verification throws, same genuine-unknown-state shape as the tests above.
       doThrow(new RuntimeException("boom"))
-         .when(authenticationProviderService)
-         .addAuthenticationProvider(argThat(m -> m != null && "boom".equals(m.providerName())),
-                                    eq("boom"), eq(user));
+         .when(authenticationProviderService).getAuthenticationProvider(eq("boom"));
 
       var result = service.apply(applyRequest("delete victim then create boom",
          deleteAuth("victim"), createFile(ProviderChain.AUTHENTICATION, "boom")), user);
@@ -285,6 +284,94 @@ class ProviderChangesetApplyServiceTest {
       service.apply(applyRequest("delete victim", deleteAuth("victim")), user);
 
       verify(authenticationProviderService).removeAuthenticationProvider(eq(2), eq("victim"), eq(user));
+   }
+
+   // -------------------------------------------------------------------------
+   // bug #76563 -- pre-mutation create/delete refusals are clean per-entry failures, never
+   // reported as unknown-state rollback-failed (root cause: apply()'s single generic catch could
+   // not distinguish a pre-mutation validation refusal from a genuine unknown-state exception).
+   // -------------------------------------------------------------------------
+
+   @Test void createAuthenticationGuardClauseRefusalIsReportedAsCleanFailedNotRollbackFailed()
+      throws Exception
+   {
+      doThrow(new MessageException("Authentication provider named \"p1\" already exists"))
+         .when(authenticationProviderService).addAuthenticationProvider(any(), eq("p1"), eq(user));
+
+      var result = service.apply(applyRequest("create p1", createFile(ProviderChain.AUTHENTICATION, "p1")),
+                                 user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      assertEquals(1, result.results().size());
+      assertEquals(AdminChangeRecord.STATUS_FAILED, result.results().get(0).status());
+      assertTrue(result.results().get(0).error().contains("already exists"));
+      assertFalse(authChainNames.contains("p1"));
+   }
+
+   @Test void createAuthorizationGuardClauseRefusalIsReportedAsCleanFailedNotRollbackFailed()
+      throws Exception
+   {
+      doThrow(new MessageException("Authorization provider named \"z1\" already exists"))
+         .when(authorizationProviderService).addAuthorizationProvider(any(), eq("z1"), eq(user));
+
+      var result = service.apply(applyRequest("create z1", createFile(ProviderChain.AUTHORIZATION, "z1")),
+                                 user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      assertEquals(1, result.results().size());
+      assertEquals(AdminChangeRecord.STATUS_FAILED, result.results().get(0).status());
+      assertTrue(result.results().get(0).error().contains("already exists"));
+      assertFalse(authzChainNames.contains("z1"));
+   }
+
+   @Test void deleteAuthenticationPreflightRaceAtApplyTimeIsReportedAsCleanFailedNotRollbackFailed()
+      throws Exception
+   {
+      // Both deletes pass their own preflight independently at plan-resolve time (each, checked
+      // alone against the still-intact two-provider chain, leaves one provider behind). Only once
+      // victim1 is actually removed at apply time does victim2's own apply-time preflight
+      // re-check (ProviderChangesetApplyService.java, not the plan-time one) see an
+      // about-to-be-empty chain and refuse -- a real race between plan and apply, not a fixture
+      // artifact.
+      seedHealthyAuthentication("victim1", "victim2");
+
+      var result = service.apply(
+         applyRequest("delete both", deleteAuth("victim1"), deleteAuth("victim2")), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      var victim2Outcome = result.results().stream()
+         .filter(o -> o.property().contains("victim2")).findFirst().orElseThrow();
+      assertEquals(AdminChangeRecord.STATUS_FAILED, victim2Outcome.status());
+      assertTrue(victim2Outcome.error().contains("no remaining provider"));
+      // victim2 was never removed; victim1's delete was rolled back (recreated).
+      assertTrue(authChainNames.contains("victim1"));
+      assertTrue(authChainNames.contains("victim2"));
+   }
+
+   @Test void deleteAuthorizationPreflightRaceAtApplyTimeIsReportedAsCleanFailedNotRollbackFailed()
+      throws Exception
+   {
+      authzChainNames.add("z1");
+      authzModels.put("z1", AuthorizationProviderModel.builder()
+         .providerName("z1").providerType(SecurityProviderType.FILE).build());
+      authzChainNames.add("z2");
+      authzModels.put("z2", AuthorizationProviderModel.builder()
+         .providerName("z2").providerType(SecurityProviderType.FILE).build());
+
+      var result = service.apply(
+         applyRequest("delete both", deleteAuthz("z1"), deleteAuthz("z2")), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      var z2Outcome = result.results().stream()
+         .filter(o -> o.property().contains("z2")).findFirst().orElseThrow();
+      assertEquals(AdminChangeRecord.STATUS_FAILED, z2Outcome.status());
+      assertTrue(z2Outcome.error().contains("zero remaining providers"));
+      assertTrue(authzChainNames.contains("z1"));
+      assertTrue(authzChainNames.contains("z2"));
    }
 
    // -------------------------------------------------------------------------
@@ -439,6 +526,14 @@ class ProviderChangesetApplyServiceTest {
       ProviderChangeRequest change = new ProviderChangeRequest();
       change.setVerb("delete");
       change.setChain("authentication");
+      change.setName(name);
+      return change;
+   }
+
+   private static ProviderChangeRequest deleteAuthz(String name) {
+      ProviderChangeRequest change = new ProviderChangeRequest();
+      change.setVerb("delete");
+      change.setChain("authorization");
       change.setName(name);
       return change;
    }

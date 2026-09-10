@@ -200,7 +200,21 @@ public class ProviderChangesetApplyService {
          builder.providerType(SecurityProviderType.FILE);
       }
 
-      authenticationProviderService.addAuthenticationProvider(builder.build(), name, user);
+      try {
+         authenticationProviderService.addAuthenticationProvider(builder.build(), name, user);
+      }
+      catch(Exception e) {
+         // A refusal here (name collision, unlicensed provider type, or a live checkParameters()
+         // validation failure such as an unresolvable LDAP host) is provably pre-mutation --
+         // addAuthenticationProvider's only mutation tail (providerList.add/chain.setProviders)
+         // cannot itself throw -- so this is a clean per-entry failure, never an unknown-state
+         // rollback-failed.
+         results.add(new ProviderApplyOutcome(key, null, null, AdminChangeRecord.STATUS_FAILED,
+                                              messageOf(e), null));
+         writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
+                   null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+         return;
+      }
 
       AuthenticationProviderModel after =
          tryGet(() -> authenticationProviderService.getAuthenticationProvider(name),
@@ -229,7 +243,17 @@ public class ProviderChangesetApplyService {
          .providerType(SecurityProviderType.FILE)
          .build();
 
-      authorizationProviderService.addAuthorizationProvider(model, name, user);
+      try {
+         authorizationProviderService.addAuthorizationProvider(model, name, user);
+      }
+      catch(Exception e) {
+         // Same pre-mutation reasoning as applyCreateAuthentication's catch above.
+         results.add(new ProviderApplyOutcome(key, null, null, AdminChangeRecord.STATUS_FAILED,
+                                              messageOf(e), null));
+         writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
+                   null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+         return;
+      }
 
       List<SecurityProviderStatus> afterList =
          authorizationProviderService.getProviderListModel().providers();
@@ -297,7 +321,22 @@ public class ProviderChangesetApplyService {
    {
       AuthenticationProviderModel before = authenticationProviderService.getAuthenticationProvider(name);
       String beforeProjection = ProviderProjection.projectAuthenticationProvider(before);
-      planService.requireAuthenticationDeletePreflight("apply." + key, name, user);
+
+      try {
+         planService.requireAuthenticationDeletePreflight("apply." + key, name, user);
+      }
+      catch(IllegalArgumentException e) {
+         // Preflight is a pure read-only simulate-and-check, structurally prior to the actual
+         // removeAuthenticationProvider mutation below -- a refusal here (e.g. self-lockout) is a
+         // clean per-entry failure, never an unknown-state rollback-failed.
+         results.add(new ProviderApplyOutcome(key, beforeProjection, null,
+                                              AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
+         writeAudit(txId, task, key, ActionRecord.ACTION_NAME_DELETE, AdminChangeRecord.ACTION_APPLY,
+                   beforeProjection, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome,
+                   user);
+         return;
+      }
+
       int index = indexOfName(authenticationProviderService.getProviderListModel().providers(), name);
 
       if(index < 0) {
@@ -334,7 +373,20 @@ public class ProviderChangesetApplyService {
    {
       AuthorizationProviderModel before = authorizationProviderService.getAuthorizationProvider(name);
       String beforeProjection = ProviderProjection.projectAuthorizationProvider(before);
-      planService.requireAuthorizationDeletePreflight("apply." + key, name);
+
+      try {
+         planService.requireAuthorizationDeletePreflight("apply." + key, name);
+      }
+      catch(IllegalArgumentException e) {
+         // Same pre-mutation reasoning as applyDeleteAuthentication's catch above.
+         results.add(new ProviderApplyOutcome(key, beforeProjection, null,
+                                              AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
+         writeAudit(txId, task, key, ActionRecord.ACTION_NAME_DELETE, AdminChangeRecord.ACTION_APPLY,
+                   beforeProjection, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome,
+                   user);
+         return;
+      }
+
       int index = indexOfName(authorizationProviderService.getProviderListModel().providers(), name);
 
       if(index < 0) {
