@@ -22,9 +22,11 @@ import inetsoft.test.*;
 import inetsoft.uql.asset.DefaultVariableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.web.composer.model.vs.CalendarPropertyDialogModel;
 import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
+import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
 import inetsoft.web.composer.model.vs.TextInputPropertyDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import org.junit.jupiter.api.Tag;
@@ -571,6 +573,118 @@ class AssemblyPropertyServiceTest {
          Map.of("dataInputPaneModel.variable", false), ""));
    }
 
+   // ── showType alias/domain (bug #76542) ───────────────────────────────────
+   //
+   // selectionGeneralPaneModel.showType and calendarAdvancedPaneModel.showType share the short
+   // alias "showType" but have different, overlapping int domains (Selection: list=0/dropdown=1;
+   // Calendar: calendar=1/dropdown=2) -- a leaf-name-only canonicalization would silently misapply
+   // "dropdown" on whichever collides. canonicalShowType is keyed by the resolved full path
+   // instead, so these tests exercise both paths explicitly.
+
+   @Test
+   void canonicalizesDropdownTokenOnASelectionListShowType() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      service.set("tok", principal(), "Selection1", Map.of("showType", "dropdown"), "");
+
+      assertEquals(1, model.getSelectionGeneralPaneModel().getShowType());
+   }
+
+   @Test
+   void canonicalizesDropdownTokenCaseInsensitivelyOnASelectionListShowType() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      service.set("tok", principal(), "Selection1", Map.of("showType", "Dropdown"), "");
+
+      assertEquals(1, model.getSelectionGeneralPaneModel().getShowType());
+   }
+
+   @Test
+   void canonicalizesListTokenOnASelectionListShowType() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      service.set("tok", principal(), "Selection1", Map.of("showType", "list"), "");
+
+      assertEquals(0, model.getSelectionGeneralPaneModel().getShowType());
+   }
+
+   /**
+    * The regression test that would catch a wrongly-leaf-name-keyed implementation: Calendar's
+    * "dropdown" is a different int (2) from Selection's (1), because Calendar's own showType
+    * domain also has a "calendar" mode value that collides with Selection's dropdown value (1).
+    */
+   @Test
+   void canonicalizesDropdownTokenOnACalendarShowTypeToItsOwnDomain() throws Exception {
+      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCalendar(mock(CalendarVSAssembly.class), model);
+
+      service.set("tok", principal(), "Calendar1", Map.of("showType", "dropdown"), "");
+
+      assertEquals(2, model.getCalendarAdvancedPaneModel().getShowType());
+   }
+
+   @Test
+   void canonicalizesCalendarTokenOnACalendarShowType() throws Exception {
+      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCalendar(mock(CalendarVSAssembly.class), model);
+
+      service.set("tok", principal(), "Calendar1", Map.of("showType", "calendar"), "");
+
+      assertEquals(1, model.getCalendarAdvancedPaneModel().getShowType());
+   }
+
+   @Test
+   void refusesAnUnrecognizedShowTypeTokenNamingTheValidValues() {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Selection1", Map.of("showType", "combobox"), ""));
+
+      assertTrue(thrown.getMessage().contains("combobox"));
+      assertTrue(thrown.getMessage().contains("list"), "must name the valid tokens: " +
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("dropdown"), "must name the valid tokens: " +
+                 thrown.getMessage());
+   }
+
+   /**
+    * An out-of-domain numeric value must be rejected too, not just silently stored -- {@code 2}
+    * is Calendar's dropdown, not a valid SelectionList showType (0 or 1).
+    */
+   @Test
+   void refusesAnOutOfDomainNumericShowTypeOnASelectionList() {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Selection1", Map.of("showType", 2), ""));
+
+      assertTrue(thrown.getMessage().contains("2"));
+   }
+
+   /** An already-numeric, in-domain value must still work exactly as before -- no regression. */
+   @Test
+   void stillAcceptsAnAlreadyNumericInDomainShowTypeOnASelectionList() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      service.set("tok", principal(), "Selection1", Map.of("showType", 1), "");
+
+      assertEquals(1, model.getSelectionGeneralPaneModel().getShowType());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static AssemblyPropertyService serviceWith(VSAssembly assembly, Object model) {
@@ -593,6 +707,18 @@ class AssemblyPropertyServiceTest {
       VSAssembly assembly, RadioButtonPropertyDialogModel model, Worksheet baseWorksheet)
    {
       return serviceWith(assembly, model, model, baseWorksheet);
+   }
+
+   private static AssemblyPropertyService serviceWithSelectionList(
+      VSAssembly assembly, SelectionListPropertyDialogModel model)
+   {
+      return serviceWith(assembly, model, null, null);
+   }
+
+   private static AssemblyPropertyService serviceWithCalendar(
+      VSAssembly assembly, CalendarPropertyDialogModel model)
+   {
+      return serviceWith(assembly, model, null, null);
    }
 
    private static AssemblyPropertyService serviceWith(
@@ -633,6 +759,33 @@ class AssemblyPropertyServiceTest {
          }
       }
 
+      SelectionListPropertyDialogService selectionList =
+         mock(SelectionListPropertyDialogService.class);
+
+      if(model instanceof SelectionListPropertyDialogModel selectionListModel) {
+         try {
+            when(selectionList.getSelectionListPropertyModel(anyString(), anyString(),
+                                                              any(Principal.class)))
+               .thenReturn(selectionListModel);
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+      }
+
+      CalendarPropertyDialogService calendar = mock(CalendarPropertyDialogService.class);
+
+      if(model instanceof CalendarPropertyDialogModel calendarModel) {
+         try {
+            when(calendar.getCalendarPropertyModel(anyString(), anyString(),
+                                                   any(Principal.class)))
+               .thenReturn(calendarModel);
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+      }
+
       inetsoft.web.viewsheet.service.VSInputService inputService =
          mock(inetsoft.web.viewsheet.service.VSInputService.class);
 
@@ -662,11 +815,11 @@ class AssemblyPropertyServiceTest {
          mock(TextPropertyDialogService.class),
          mock(ChartPropertyDialogService.class), mock(TableViewPropertyDialogService.class),
          mock(CrosstabPropertyDialogService.class),
-         mock(SelectionListPropertyDialogService.class),
+         selectionList,
          mock(SelectionTreePropertyDialogService.class),
          inputService,
          mock(RangeSliderPropertyDialogService.class),
-         mock(CalendarPropertyDialogService.class), mock(TabPropertyDialogService.class),
+         calendar, mock(TabPropertyDialogService.class),
          mock(CalcTablePropertyDialogService.class),
          mock(GroupContainerPropertyDialogService.class),
          mock(LinePropertyDialogService.class), mock(OvalPropertyDialogService.class),

@@ -20,6 +20,8 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.web.composer.model.vs.RangePaneModel;
 import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.web.viewsheet.service.VSInputService;
@@ -244,7 +246,8 @@ public class AssemblyPropertyService {
          // to absorb the rebuild — see PropertyPath's own note), the wither produces a new
          // instance and the original reference silently stops reflecting the write.
          for(Map.Entry<String, String> entry : resolved.entrySet()) {
-            model = PropertyPath.set(model, entry.getValue(), patch.get(entry.getKey()));
+            Object value = canonicalShowType(type, entry.getValue(), patch.get(entry.getKey()));
+            model = PropertyPath.set(model, entry.getValue(), value);
          }
 
          if(PropertyAliases.derivesVariableFlagFromTable(type)) {
@@ -353,6 +356,95 @@ public class AssemblyPropertyService {
                : "Set 'dataInputPaneModel.table' (or 'columnValue') to a non-variable binding " +
                  "instead, or leave 'dataInputPaneModel.variable' out of the patch."));
       }
+   }
+
+   /**
+    * {@code showType}'s domain, keyed by the alias-resolved <b>full path</b> rather than by the
+    * short property name both share -- {@code selectionGeneralPaneModel.showType} (SelectionList
+    * and SelectionTree) and {@code calendarAdvancedPaneModel.showType} (Calendar) are aliased
+    * under the identical short name {@code "showType"}, but their int domains are different and
+    * overlapping: {@code 1} means "dropdown" for Selection ({@link
+    * SelectionVSAssemblyInfo#DROPDOWN_SHOW_TYPE}) and "calendar" mode for Calendar ({@link
+    * CalendarVSAssemblyInfo#CALENDAR_SHOW_TYPE}), whose own dropdown is {@code 2} ({@link
+    * CalendarVSAssemblyInfo#DROPDOWN_SHOW_TYPE}). A table keyed by leaf name alone would silently
+    * misapply "dropdown" on one of the two -- so this is keyed by the resolved path, the same
+    * reason {@link #canonicalShowType} needs it rather than {@code PropertyPath}'s leaf-name-keyed
+    * {@code CONSTRAINED_STRINGS}.
+    *
+    * <p>Only {@code showType} is covered here. {@code sortType} (a bitmask, more complex),
+    * {@code mode}, {@code linkType}, {@code rangeType}, {@code refType} and {@code newObjectType}
+    * are the same class of gap (a closed int domain with no alias/validation), but out of scope
+    * for this fix.
+    */
+   private static final Map<String, Map<String, Integer>> SHOW_TYPE_DOMAINS;
+
+   static {
+      Map<String, Integer> selection = new LinkedHashMap<>();
+      selection.put("list", SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      selection.put("dropdown", SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+
+      Map<String, Integer> calendar = new LinkedHashMap<>();
+      calendar.put("calendar", CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE);
+      calendar.put("dropdown", CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+
+      Map<String, Map<String, Integer>> domains = new LinkedHashMap<>();
+      domains.put("selectionGeneralPaneModel.showType", selection);
+      domains.put("calendarAdvancedPaneModel.showType", calendar);
+      SHOW_TYPE_DOMAINS = Collections.unmodifiableMap(domains);
+   }
+
+   /**
+    * Canonicalizes a {@code showType} value before it reaches {@code PropertyPath.set/coerce()},
+    * the same way {@link ChartRegionPropertyService#canonicalRotation} pre-transforms
+    * {@code rotation} for its own service: {@code showType} is a plain primitive {@code int} on
+    * both models it can resolve to, so {@code PropertyPath.coerce()}'s numeric branch never
+    * consults any alias/domain table -- a token like {@code "dropdown"} falls straight to
+    * {@code Double.parseDouble} and fails with no valid values named, and an out-of-domain int
+    * (e.g. {@code 2} on a SelectionList) is silently stored as-is.
+    *
+    * <p>Additive: any path with no entry in {@link #SHOW_TYPE_DOMAINS} (i.e. every property this
+    * service writes except {@code showType}) is returned unchanged.
+    */
+   private static Object canonicalShowType(String type, String resolvedPath, Object value) {
+      Map<String, Integer> domain = SHOW_TYPE_DOMAINS.get(resolvedPath);
+
+      if(domain == null) {
+         return value;
+      }
+
+      String text = value == null ? "" : String.valueOf(value).trim();
+
+      for(Map.Entry<String, Integer> token : domain.entrySet()) {
+         if(token.getKey().equalsIgnoreCase(text)) {
+            return token.getValue();
+         }
+      }
+
+      try {
+         int parsed = (int) Double.parseDouble(text);
+
+         if(domain.containsValue(parsed)) {
+            return parsed;
+         }
+      }
+      catch(NumberFormatException ignore) {
+         // falls through to the error below
+      }
+
+      StringBuilder allowed = new StringBuilder();
+
+      for(Map.Entry<String, Integer> token : domain.entrySet()) {
+         if(allowed.length() > 0) {
+            allowed.append(", ");
+         }
+
+         allowed.append("'").append(token.getKey()).append("' (").append(token.getValue())
+            .append(")");
+      }
+
+      throw new IllegalArgumentException(
+         "'showType' on a " + type + " accepts only " + allowed + "; '" + value +
+         "' is not one of them.");
    }
 
    // ── convention dispatch ───────────────────────────────────────────────────
