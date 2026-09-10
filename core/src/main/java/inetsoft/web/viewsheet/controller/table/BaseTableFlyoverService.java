@@ -97,7 +97,27 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
             clist = new ConditionList();
          }
 
-         applyFlyovers(name, comp, rvs, box.get().getWorksheet(), clist, linkUri, dispatcher);
+         Worksheet ws = box.get().getWorksheet();
+
+         // applyFlyovers() serializes per touched assembly via a synchronized(flyoverLock)
+         // region (see applyFlyoversLocked/getFlyoverLock) that wraps executeView()/
+         // coreLifecycleService.execute() for the flyover targets. Those calls can reach
+         // ViewsheetSandbox.doExecuteData(), which does a real read-to-write lock upgrade
+         // (lockWrite()) that blocks until every thread's read lock on this sandbox is
+         // released. If this thread kept holding its own read lock (acquired above) while
+         // blocked entering another thread's flyoverLock monitor, and that other thread is
+         // itself blocked in lockWrite() waiting on this thread's read lock, the two threads
+         // deadlock. Release this thread's locks before entering the flyoverLock region and
+         // restore them after, mirroring the same unlockAll()/restoreLocks() pattern
+         // ViewsheetSandbox.doExecuteData() already uses around query.getData() (bug 74001).
+         box.get().unlockAll();
+
+         try {
+            applyFlyovers(name, comp, rvs, ws, clist, linkUri, dispatcher);
+         }
+         finally {
+            box.get().restoreLocks();
+         }
       }
       finally {
          box.get().unlockRead();
@@ -209,10 +229,17 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
     *
     * Two flyover requests (e.g. from two different source assemblies that both fly over the
     * same target, or whose source tables coincide) can otherwise run this concurrently on
-    * different threads while only holding the sandbox's shared read lock, racing on the
-    * target's query state and on the source table's pre-runtime condition list save/restore.
-    * Serialize per touched assembly (narrower than a full per-runtimeId lock) so unrelated
-    * flyovers on the same viewsheet are not blocked.
+    * different threads, racing on the target's query state and on the source table's
+    * pre-runtime condition list save/restore. Serialize per touched assembly (narrower than
+    * a full per-runtimeId lock) so unrelated flyovers on the same viewsheet are not blocked.
+    *
+    * Callers must not hold the sandbox's own read/write lock while calling this method: the
+    * synchronized region acquired below wraps calls (executeView()/coreLifecycleService.execute())
+    * that can reach ViewsheetSandbox.doExecuteData()'s read-to-write lock upgrade, which blocks
+    * until every thread's sandbox lock is released. Holding this thread's own sandbox lock while
+    * blocked entering another thread's per-assembly lock — while that thread is blocked in the
+    * lock upgrade waiting on this thread's lock — deadlocks. See eventHandler()'s
+    * unlockAll()/restoreLocks() around this call.
     */
    private void applyFlyovers(String name, VSAssembly comp,
                               RuntimeViewsheet rvs, Worksheet ws,
