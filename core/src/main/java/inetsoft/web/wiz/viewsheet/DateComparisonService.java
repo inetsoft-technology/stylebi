@@ -89,11 +89,32 @@ public class DateComparisonService {
     *                  today, within its level (e.g. Jan 1 - Mar 15 for a quarter, not the whole
     *                  quarter) — the standard period pane's own "to date" checkbox
     * @param inclusive whether the period's end date is included in its range
+    * @param customPeriods an arbitrary, caller-defined list of start/end date-range pairs (e.g.
+    *                     "March 1-15 this year" vs. "March 1-15 last year") — StyleBI's
+    *                     {@code CustomPeriods}, a peer to the standard period shape above, not a
+    *                     variant of it. Mutually exclusive with {@code periods}/{@code level}/
+    *                     {@code endDate}/{@code endToday}/{@code toDate}/{@code inclusive} and
+    *                     with {@code interval} (StyleBI does not expose interval sub-windows for
+    *                     a custom period — see {@code DateComparisonInfo.getIntervalConditions()},
+    *                     ticket 64217).
     */
    public record Comparison(Integer periods, String level, String endDate, boolean endToday,
                             String interval, Boolean useFacet, Boolean onlyShowMostRecentDate,
                             String comparisonOption, String shareAssembly, Boolean toDate,
-                            Boolean inclusive) {}
+                            Boolean inclusive, List<CustomPeriod> customPeriods) {
+      /** Backward-compatible with every call site that predates {@code customPeriods}. */
+      public Comparison(Integer periods, String level, String endDate, boolean endToday,
+                        String interval, Boolean useFacet, Boolean onlyShowMostRecentDate,
+                        String comparisonOption, String shareAssembly, Boolean toDate,
+                        Boolean inclusive)
+      {
+         this(periods, level, endDate, endToday, interval, useFacet, onlyShowMostRecentDate,
+              comparisonOption, shareAssembly, toDate, inclusive, null);
+      }
+   }
+
+   /** One caller-defined date-range pair, e.g. {@code {start: "2026-03-01", end: "2026-03-15"}}. */
+   public record CustomPeriod(String start, String end) {}
 
    /** The current settings, normalized. Never echoes the raw cell format. */
    public Map<String, Object> read(String sessionToken, Principal user, String assemblyName)
@@ -536,6 +557,11 @@ public class DateComparisonService {
          throw new IllegalArgumentException("set_date_comparison needs a comparison.");
       }
 
+      if(hasCustomPeriods(comparison)) {
+         requireNoStandardPeriodFields(comparison);
+         return;
+      }
+
       boolean hasEnd = comparison.endDate() != null && !comparison.endDate().isBlank();
 
       // The anchor is only required when the period is actually being set. Demanding it on every
@@ -579,7 +605,42 @@ public class DateComparisonService {
          || comparison.endToday()
          || comparison.interval() != null
          || comparison.toDate() != null
-         || comparison.inclusive() != null;
+         || comparison.inclusive() != null
+         || hasCustomPeriods(comparison);
+   }
+
+   private static boolean hasCustomPeriods(Comparison comparison) {
+      return comparison.customPeriods() != null && !comparison.customPeriods().isEmpty();
+   }
+
+   /**
+    * {@code customPeriods} (StyleBI's {@code CustomPeriods}) and a standard period (StyleBI's
+    * {@code StandardPeriods}) are peers behind {@code DateComparisonPeriods}, not one a variant
+    * of the other — {@code PeriodPaneModel} can hold only one at a time. {@code interval} is
+    * refused too, mirroring the engine's own restriction: {@code
+    * DateComparisonInfo.getIntervalConditions()} does not expose interval sub-windows (e.g.
+    * month-to-date) for a custom period (ticket 64217), so accepting one here would silently do
+    * nothing once applied.
+    */
+   private static void requireNoStandardPeriodFields(Comparison comparison) {
+      if(comparison.periods() != null || comparison.level() != null
+         || (comparison.endDate() != null && !comparison.endDate().isBlank())
+         || comparison.endToday() || comparison.toDate() != null
+         || comparison.inclusive() != null)
+      {
+         throw new IllegalArgumentException(
+            "'customPeriods' cannot be combined with 'periods'/'level'/'endDate'/'endToday'/" +
+            "'toDate'/'inclusive' — a custom date-comparison period is a peer to a standard " +
+            "period, not composable with one. Pass only 'customPeriods' to set a custom " +
+            "period, or drop it to set a standard one.");
+      }
+
+      if(comparison.interval() != null) {
+         throw new IllegalArgumentException(
+            "'interval' cannot be combined with 'customPeriods'. StyleBI's date-comparison " +
+            "engine does not expose an interval sub-window (e.g. monthToDate) for a custom " +
+            "period. Drop 'interval', or use 'periods'/'level' instead of 'customPeriods'.");
+      }
    }
 
    private static void apply(DateComparisonPaneModel model, Comparison comparison) {
@@ -609,11 +670,33 @@ public class DateComparisonService {
          return;
       }
 
+      // A caller who explicitly lists start/end pairs is deliberately asking for a custom
+      // period, unlike the accidental "just set useFacet" case the guard below exists to
+      // prevent — so switching an existing standard period to custom here is allowed outright,
+      // symmetric with allowing a deliberate switch the other way (see below).
+      if(hasCustomPeriods(comparison)) {
+         periods.setCustom(true);
+         List<DatePeriodModel> datePeriods = new ArrayList<>();
+
+         for(CustomPeriod period : comparison.customPeriods()) {
+            DatePeriodModel periodModel = new DatePeriodModel();
+            periodModel.setStart(new DynamicValueModel());
+            periodModel.setEnd(new DynamicValueModel());
+            setDynamic(periodModel.getStart(), period.start());
+            setDynamic(periodModel.getEnd(), period.end());
+            datePeriods.add(periodModel);
+         }
+
+         periods.getCustomPeriodPaneModel().setDatePeriods(datePeriods);
+         return;
+      }
+
       if(periods.isCustom()) {
          throw new IllegalArgumentException(
             "This assembly uses a custom date-comparison period, and setting a standard period " +
             "here would discard it with no way back. Clear the comparison first if that is what " +
-            "you want; setting a custom period is not supported by this tool yet.");
+            "you want, or pass 'customPeriods' instead of 'periods'/'level' to set a new custom " +
+            "period.");
       }
 
       periods.setCustom(false);
@@ -811,6 +894,12 @@ public class DateComparisonService {
       }
 
       out.put("custom", periods.isCustom());
+
+      if(periods.isCustom()) {
+         out.put("customPeriods", describeCustomPeriods(periods.getCustomPeriodPaneModel()));
+         return out;
+      }
+
       StandardPeriodPaneModel standard = periods.getStandardPeriodPaneModel();
 
       if(standard != null) {
@@ -820,6 +909,32 @@ public class DateComparisonService {
          out.put("endDate", standard.isToDayAsEndDay() ? null : value(standard.getEndDay()));
          out.put("inclusive", standard.isInclusive());
          out.put("toDate", standard.isToDate());
+      }
+
+      return out;
+   }
+
+   /**
+    * The custom-period peer to the standard-period fields above — an assembly whose comparison
+    * was built via the manual UI's Custom Periods tab has no {@code preCount}/{@code dateLevel}/
+    * etc. at all, so this reads back the actual {@code start}/{@code end} pairs instead.
+    */
+   private static List<Map<String, Object>> describeCustomPeriods(CustomPeriodPaneModel custom) {
+      List<Map<String, Object>> out = new ArrayList<>();
+
+      if(custom == null || custom.getDatePeriods() == null) {
+         return out;
+      }
+
+      for(DatePeriodModel period : custom.getDatePeriods()) {
+         if(period == null) {
+            continue;
+         }
+
+         Map<String, Object> entry = new LinkedHashMap<>();
+         entry.put("start", value(period.getStart()));
+         entry.put("end", value(period.getEnd()));
+         out.add(entry);
       }
 
       return out;

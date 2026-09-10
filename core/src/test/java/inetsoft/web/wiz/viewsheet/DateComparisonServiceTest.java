@@ -78,6 +78,13 @@ class DateComparisonServiceTest {
                                                   null, null, null, null);
    }
 
+   private static DateComparisonService.Comparison customPeriods(
+      DateComparisonService.CustomPeriod... periods)
+   {
+      return new DateComparisonService.Comparison(null, null, null, false, null, null, null,
+                                                  null, null, null, null, java.util.List.of(periods));
+   }
+
    /**
     * {@code apply} ran {@code periods.setCustom(false)} unconditionally, and {@code validate}
     * demanded an end anchor on every call. So a caller who only wanted {@code useFacet: true} had
@@ -500,6 +507,122 @@ class DateComparisonServiceTest {
          () -> harness(model).service.set("tok", principal(), "Chart1", comparison, ""));
 
       assertTrue(thrown.getMessage().contains("interval"), thrown.getMessage());
+   }
+
+   // ── customPeriods ─────────────────────────────────────────────────────────
+
+   /**
+    * DCG-005: StyleBI's engine already fully supports an arbitrary N-way custom date-range-pair
+    * comparison ({@code CustomPeriods}/{@code DatePeriod}, rendered by {@code ChartDcProcessor}
+    * and exercised daily by the manual Composer's own Custom Periods tab) — the gap was entirely
+    * in this wiz-only bridge, which never had a wire path for it. This pins the write side: a
+    * {@code customPeriods} list marks the period pane custom and writes each start/end pair.
+    */
+   @Test
+   void setsACustomPeriodFromAnArbitraryStartEndList() throws Exception {
+      DateComparisonPaneModel model = model();
+
+      harness(model).service.set("tok", principal(), "Chart1", customPeriods(
+         new DateComparisonService.CustomPeriod("2026-03-01", "2026-03-15"),
+         new DateComparisonService.CustomPeriod("2025-03-01", "2025-03-15")), "");
+
+      PeriodPaneModel periods = model.getPeriodPaneModel();
+      assertTrue(periods.isCustom());
+      java.util.List<DatePeriodModel> datePeriods =
+         periods.getCustomPeriodPaneModel().getDatePeriods();
+      assertEquals(2, datePeriods.size());
+      assertEquals("2026-03-01", datePeriods.get(0).getStart().getValue());
+      assertEquals("2026-03-15", datePeriods.get(0).getEnd().getValue());
+      assertEquals("2025-03-01", datePeriods.get(1).getStart().getValue());
+      assertEquals("2025-03-15", datePeriods.get(1).getEnd().getValue());
+   }
+
+   /**
+    * Setting customPeriods on an assembly that already has a standard period is a deliberate,
+    * explicit ask — unlike the accidental "just set useFacet" case the standard-period guard
+    * exists to prevent — so it is allowed outright, not refused.
+    */
+   @Test
+   void switchingAnExistingStandardPeriodToCustomIsAllowed() throws Exception {
+      DateComparisonPaneModel model = model();
+      assertFalse(model.getPeriodPaneModel().isCustom());
+
+      harness(model).service.set("tok", principal(), "Chart1", customPeriods(
+         new DateComparisonService.CustomPeriod("2026-03-01", "2026-03-15")), "");
+
+      assertTrue(model.getPeriodPaneModel().isCustom());
+   }
+
+   /**
+    * {@code customPeriods} is a peer to the standard-period shape, not composable with it —
+    * mutual exclusion mirrors the same-file pattern for endDate/endToday.
+    */
+   @Test
+   void refusesCustomPeriodsCombinedWithAStandardPeriodField() {
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         4, "year", null, false, null, null, null, null, null, null, null,
+         java.util.List.of(new DateComparisonService.CustomPeriod("2026-03-01", "2026-03-15")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> DateComparisonService.requireEndAnchor(comparison));
+
+      assertTrue(thrown.getMessage().contains("customPeriods"), thrown.getMessage());
+   }
+
+   /**
+    * StyleBI's own {@code DateComparisonInfo.getIntervalConditions()} does not expose an interval
+    * sub-window for a custom period (ticket 64217) — mirrored here rather than invented, since
+    * silently accepting the combination would apply the periods and drop the interval with no
+    * error.
+    */
+   @Test
+   void refusesCustomPeriodsCombinedWithInterval() {
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         null, null, null, false, "monthToDate", null, null, null, null, null, null,
+         java.util.List.of(new DateComparisonService.CustomPeriod("2026-03-01", "2026-03-15")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> DateComparisonService.requireEndAnchor(comparison));
+
+      assertTrue(thrown.getMessage().contains("interval"), thrown.getMessage());
+   }
+
+   /** The read-back side: a custom period reports its actual start/end pairs, not the standard
+    *  period pane's meaningless defaults. */
+   @Test
+   void readsBackACustomPeriodsStartEndPairs() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.getPeriodPaneModel().setCustom(true);
+      DatePeriodModel period1 = new DatePeriodModel();
+      period1.setStart(dynamic());
+      period1.getStart().setValue("2026-03-01");
+      period1.setEnd(dynamic());
+      period1.getEnd().setValue("2026-03-15");
+      DatePeriodModel period2 = new DatePeriodModel();
+      period2.setStart(dynamic());
+      period2.getStart().setValue("2025-03-01");
+      period2.setEnd(dynamic());
+      period2.getEnd().setValue("2025-03-15");
+      model.getPeriodPaneModel().getCustomPeriodPaneModel()
+         .setDatePeriods(java.util.List.of(period1, period2));
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1");
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> periodOut = (Map<String, Object>) read.get("period");
+      assertEquals(true, periodOut.get("custom"));
+      @SuppressWarnings("unchecked")
+      java.util.List<Map<String, Object>> customPeriodsOut =
+         (java.util.List<Map<String, Object>>) periodOut.get("customPeriods");
+      assertEquals(2, customPeriodsOut.size());
+      assertEquals("2026-03-01", customPeriodsOut.get(0).get("start"));
+      assertEquals("2026-03-15", customPeriodsOut.get(0).get("end"));
+      assertEquals("2025-03-01", customPeriodsOut.get(1).get("start"));
+      assertEquals("2025-03-15", customPeriodsOut.get(1).get("end"));
+      assertFalse(periodOut.containsKey("periods"),
+                 "a custom period must not also report the meaningless standard-period defaults");
    }
 
    @Test
