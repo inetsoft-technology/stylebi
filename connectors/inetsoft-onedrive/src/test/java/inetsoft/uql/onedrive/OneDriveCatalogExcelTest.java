@@ -32,6 +32,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.function.Function;
@@ -117,6 +118,34 @@ class OneDriveCatalogExcelTest {
       assertTrue(ex.getMessage().contains("Sheet1"), ex.getMessage());
       assertTrue(ex.getMessage().contains("Sheet2"), ex.getMessage());
       assertTrue(ex.getMessage().contains("2 sheets"), ex.getMessage());
+   }
+
+   // ----- describeDataset's sheet-list guard must be null-safe against BOTH of
+   //       getExcelSheetNames()'s sentinel returns, not just the not-yet-downloaded one -----
+
+   @Test
+   void excelSheetNamesSwallowedExceptionSentinelThrowsNamedRefusal_notNPE() {
+      // getExcelSheetNames() has two sentinels: [""] when nothing was ever downloaded (covered by
+      // singleSheetWorkbookDescribesWithExactlyOneId... never hitting this branch at all), and
+      // [null] -- its own uninitialised `new String[1]`, returned as-is when the sheet-name read
+      // itself throws and is swallowed by that method's own catch(Exception). A corrupt-workbook
+      // fixture can't reach this branch: a failed download/parse already makes
+      // getColumnDefinition() return null columns, which describeDataset refuses earlier, before
+      // ever calling getExcelSheetNames(). So the query is stubbed directly here -- a real,
+      // successful download/parse (the same fixture as the passing single-sheet case above),
+      // with only getExcelSheetNames() overridden to return the swallowed-exception sentinel.
+      Function<OneDriveDataSource, OneDriveQuery> factory = ds -> {
+         OneDriveQuery query = spy(new OneDriveQuery());
+         doAnswer(invocation -> readFixture("TestExcelSingleSheet.xlsx")).when(query).getFile();
+         doReturn(new String[]{ null }).when(query).getExcelSheetNames();
+         return query;
+      };
+
+      Exception ex = assertThrows(Exception.class, () -> OneDriveCatalog.describeDataset(
+         dataSource(), "Test/TestExcelSingleSheet.xlsx", factory));
+
+      assertInstanceOf(IOException.class, ex);
+      assertTrue(ex.getMessage().contains("could not read the sheet"), ex.getMessage());
    }
 
    @Configuration

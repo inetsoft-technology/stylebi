@@ -201,11 +201,16 @@ final class OneDriveCatalog {
          // non-null and this reads the already-local temp file, no second download.
          String[] sheets = query.getExcelSheetNames();
 
-         if(sheets == null || sheets.length == 0 || (sheets.length == 1 && sheets[0].isEmpty())) {
-            // getExcelSheetNames() answers a one-element array holding "" when nothing was ever
-            // downloaded (P-1) -- reachable here only if the download silently produced a temp file
-            // that then failed to parse as a workbook, since a genuine download failure already
-            // returned null columns above.
+         if(sheets == null || sheets.length == 0 ||
+            (sheets.length == 1 && (sheets[0] == null || sheets[0].isEmpty())))
+         {
+            // getExcelSheetNames() has two sentinel returns, neither a genuine sheet list:
+            // a one-element array holding "" when nothing was ever downloaded (P-1) -- reachable
+            // here only if the download silently produced a temp file that then failed to parse as
+            // a workbook, since a genuine download failure already returned null columns above --
+            // and a one-element array holding null when the sheet-name read itself threw and was
+            // swallowed by that method's own catch(Exception), leaving its uninitialised
+            // `new String[1]` to be returned as-is.
             throw new IOException("Data source '" + ds.getName() + "' could not read the sheet " +
                "list of '" + path + "'.");
          }
