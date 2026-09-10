@@ -788,8 +788,10 @@ public class WorksheetAgentController {
             // Mirrors WorksheetTableService.buildTabularTable's empty-column check -- without this
             // the assembly persists with zero columns and the agent is told "success" for a table
             // nothing can bind to.
+            Object loadError = query.getProperty("wizLoadColumnsError");
             throw new PairingException("The request to '" + target + "' of '" + dsName +
-               "' returned no columns. URL suffix sent: " + suffix + ". Check the parameter " +
+               "' returned no columns" + (loadError == null ? "" : " (" + loadError + ")") +
+               ". URL suffix sent: " + suffix + ". Check the parameter " +
                "values and datasource credentials -- see the server log for the cause.");
          }
 
@@ -875,9 +877,11 @@ public class WorksheetAgentController {
          ColumnSelection columns = assembly.getColumnSelection(false);
 
          if(columns == null || columns.getAttributeCount() == 0) {
-            throw new PairingException("The request to '" + dsName + "' returned no columns. " +
-               "Properties sent: " + applied + ". Check the parameter values and datasource " +
-               "credentials -- see the server log for the cause.");
+            Object loadError = query.getProperty("wizLoadColumnsError");
+            throw new PairingException("The request to '" + dsName + "' returned no columns" +
+               (loadError == null ? "" : " (" + loadError + ")") + ". Properties sent: " +
+               applied + ". Check the parameter values and datasource credentials -- see the " +
+               "server log for the cause.");
          }
 
          return null;

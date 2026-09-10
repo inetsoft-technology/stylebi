@@ -112,6 +112,55 @@ public final class TabularQueryContractSupport {
             dsName + "'. It accepts: " + String.join(", ", new TreeSet<>(pmap.keySet())) + ".");
       }
 
+      // A SCALAR param that is unconditionally required (isRequired(), never "required once some
+      // other value is chosen" -- see TabularQuerySchema.Param#isRequired's own javadoc) but
+      // simply absent from queryParams was never checked here: the loop below only ever iterates
+      // queryParams.keySet(), so a key nobody sent is a key nobody's absence is ever noticed for.
+      // Collected as one report, not one round trip per missing field, matching every other
+      // "report everything wrong before making a live call" check in this file.
+      //
+      // Composite-typed params (Kind A, e.g. "parameters") are deliberately excluded, and this
+      // leaves a KNOWN, NOT-CLOSED gap: a composite marked required=true that is omitted from
+      // queryParams ENTIRELY is caught by nothing -- not this check (excluded here) and not
+      // fillNamedSkeleton below (which only ever visits keys the caller actually supplied). This
+      // is a pre-existing gap, not introduced by this change, and is left open deliberately
+      // rather than closed unconditionally: a composite's required-ness is frequently
+      // endpoint-/choice-dependent (e.g. an endpoint with no required path parameters has nothing
+      // to fill), and this static, top-level annotation has no way to distinguish "always
+      // required" from "required once some endpoint/value is chosen" the way isConditional() does
+      // for simple visibility gates. Requiring the composite KEY itself to always be present
+      // would reject callers who correctly omitted an empty/inapplicable one -- see
+      // FakeNamedConnectorQuery#getParameters and TabularQueryContractSupportTest's
+      // setsEndpointAndBuildsSuffix-family tests, which supply "endpoint" with no "parameters"
+      // key and correctly expect success. Closing this gap properly would need per-endpoint-aware
+      // validation this check doesn't have the context to do.
+      List<String> missingRequired = new ArrayList<>();
+
+      for(TabularQuerySchema.Param param : schema.getParams()) {
+         if(!param.isRequired()) {
+            continue;
+         }
+
+         PropertyMeta prop = pmap.get(param.getName());
+         Class<?> type = prop == null ? null : prop.getDescriptor().getPropertyType();
+
+         if(type != null && TabularSchemaExtractor.isCompositeType(type)) {
+            continue;
+         }
+
+         Object value = queryParams.get(param.getName());
+
+         if(value == null || (value instanceof String s && s.isBlank())) {
+            missingRequired.add(param.getName());
+         }
+      }
+
+      if(!missingRequired.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'" + dsName + "' requires " + String.join(", ", missingRequired) +
+            " -- queryParams is missing " + (missingRequired.size() == 1 ? "it" : "them") + ".");
+      }
+
       validateCustomLookupUrls(queryParams);
 
       List<String> order = topologicalSort(queryParams.keySet(), schema, dsName);

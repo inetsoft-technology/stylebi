@@ -1562,8 +1562,10 @@ public class WorksheetTableService {
       ColumnSelection columns = table.getColumnSelection(false);
 
       if(columns == null || columns.getAttributeCount() == 0) {
+         Object loadError = query.getProperty("wizLoadColumnsError");
          throw new IllegalArgumentException(
-            "The query on '" + dsName + "' returned no columns. Parameters sent: " + probeDesc +
+            "The query on '" + dsName + "' returned no columns" +
+            (loadError == null ? "" : " (" + loadError + ")") + ". Parameters sent: " + probeDesc +
             ". Check them against GET /api/wiz/tabular/query-schema — in particular that each " +
             "one applies to the others, since one that does not is stored and never read — and " +
             "that the data source's credentials are valid; the underlying cause is in the " +

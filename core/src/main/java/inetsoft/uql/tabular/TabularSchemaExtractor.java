@@ -127,6 +127,67 @@ public class TabularSchemaExtractor {
    }
 
    /**
+    * Extracts the current, redacted connection-level configuration of a data source itself --
+    * the {@code TabularDataSourceConfig} counterpart of {@link #extract(TabularQuery, String)},
+    * which describes the QUERY built against it instead.
+    *
+    * <p>Same reflection {@link #extract(TabularQuery, String)} already runs
+    * ({@link TabularUtil#findProperties}), pointed at {@code dataSource}'s own class rather than
+    * a query class -- {@code TabularDataSource} subclasses declare their connection fields
+    * (URL, host, tenant, whatever else) with the identical {@code @Property} annotation a query's
+    * fields carry, so no per-connector code is needed here any more than in {@code extract}
+    * itself. A property carrying {@code @Property(password = true)} -- every credential field
+    * already declares this, since it is the same flag {@code TabularQueryContractSupport}'s own
+    * redaction relies on -- never has its value read into the response; only whether one is set.
+    *
+    * @param dataSource the data source instance to describe. {@code null} is not accepted --
+    *                    the caller resolves the path to an instance first, the same as every
+    *                    other entry point in this package.
+    *
+    * @return the redacted configuration, or an empty field list if reflection finds nothing
+    *         (a data source type with no {@code @Property}-annotated connection state).
+    */
+   public TabularDataSourceConfig extractDataSourceConfig(XDataSource dataSource) {
+      TabularDataSourceConfig config = new TabularDataSourceConfig();
+      config.setDataSourceType(dataSource.getType());
+
+      List<TabularDataSourceConfig.Field> fields = new ArrayList<>();
+
+      for(PropertyMeta prop : TabularUtil.findProperties(dataSource.getClass())) {
+         TabularDataSourceConfig.Field field = new TabularDataSourceConfig.Field();
+         field.setName(prop.getName());
+         field.setLabel(prop.getDisplayLabel());
+
+         Property property = prop.getProperty();
+         boolean password = property != null && property.password();
+         field.setPassword(password);
+
+         Object value;
+
+         try {
+            value = prop.getValue(dataSource);
+         }
+         catch(Exception ex) {
+            LOG.debug("Could not read '{}' off {}", prop.getName(), dataSource.getClass(), ex);
+            value = null;
+         }
+
+         if(password) {
+            field.setConfigured(value != null && !String.valueOf(value).isBlank());
+         }
+         else {
+            field.setValue(value == null ? null : String.valueOf(value));
+         }
+
+         fields.add(field);
+      }
+
+      config.setFields(fields);
+
+      return config;
+   }
+
+   /**
     * Of the named parameters, those that do not apply to the query as it currently stands.
     *
     * <p>The counterpart of the dependency matrix, asked of one configured query rather than of a
