@@ -294,7 +294,7 @@ public class VSLayoutService {
       LayoutInfo info = viewsheet.getLayoutInfo();
 
       if(Catalog.getCatalog().getString("Print Layout").equals(name)) {
-         return Optional.of(info.getPrintLayout());
+         return Optional.ofNullable(info.getPrintLayout());
       }
       else {
          return info.getViewsheetLayouts()
