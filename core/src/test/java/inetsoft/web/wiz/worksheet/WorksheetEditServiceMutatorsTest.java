@@ -4105,6 +4105,31 @@ class WorksheetEditServiceMutatorsTest {
       assertNotNull(ws.getAssembly("M"), "and so must the mirror that depends on it");
    }
 
+   /**
+    * The mirror case above and {@code removeJoinRefusesWhenSomethingIsBuiltOnIt} each cover one
+    * side of this guard, but neither exercises deleteTable with a join itself as the dependent
+    * (Redmine #76582): deleting one of a join's source tables must be refused the same way, not
+    * leave the join pointing at a table that no longer exists.
+    */
+   @Test
+   void deleteTableRefusesWhenJoinDependsOnIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.deleteTable("L")));
+
+      assertTrue(ex.getMessage().contains("built on it"), ex.getMessage());
+      assertNotNull(ws.getAssembly("L"), "the table must still be there");
+      assertNotNull(ws.getAssembly("J"), "and so must the join that depends on it");
+   }
+
    /** A table nothing depends on still deletes — the guard must not block ordinary deletion. */
    @Test
    void deleteTableStillDeletesWhenNothingDependsOnIt() throws Exception {
