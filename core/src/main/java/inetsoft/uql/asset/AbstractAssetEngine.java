@@ -44,7 +44,6 @@ import inetsoft.web.RecycleUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.xml.sax.SAXParseException;
 
 import java.lang.ref.WeakReference;
 import java.security.Principal;
@@ -2301,20 +2300,45 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    public void checkSheetRemoveable(AssetEntry entry, Principal user)
      throws Exception
    {
-      try {
-         List<Object> aentries = new ArrayList<>();
-
-         AssetEntry[] entries = getSheetDependencies(entry, user);
-         Collections.addAll(aentries, entries);
-
-         if(aentries.size() > 0) {
-            DependencyException ex = new DependencyException(entry);
-            ex.addDependencies(aentries.toArray(new Object[0]));
-            throw ex;
-         }
+      if(!entry.isSheet() || !supportsScope(entry.getScope()) ||
+         !entry.isValid() || entry.getScope() == QUERY_SCOPE)
+      {
+         throw new MessageException(catalog.getString(
+            "common.invalidEntry", entry));
       }
-      catch(SAXParseException | MissingAssetClassNameException ex) {
-         // ignore if the sheet can't be read
+
+      IndexedStorage storage = getStorage(entry);
+
+      if(storage == null) {
+         throw new MessageException(catalog.getString(
+            "common.invalidStorage", entry));
+      }
+
+      checkAssetPermission(user, entry, ResourceAction.READ);
+
+      AssetEntry pentry = entry.getParent();
+      AssetFolder pfolder = getParentFolder(entry, storage);
+
+      if(!pfolder.containsEntry(entry)) {
+         MessageException ex = new MessageException(catalog.getString(
+            "common.notContainedEntry", pentry, entry));
+         ex.setKeywords("NOT_CONTAINED_ENTRY");
+         throw ex;
+      }
+
+      List<AssetObject> rawEntries = DependencyTool.getDependencies(entry.toIdentifier());
+      AssetEntry[] entries = rawEntries.stream()
+         .filter(AssetEntry.class::isInstance)
+         .map(AssetEntry.class::cast)
+         .filter(e -> !RecycleUtils.isInRecycleBin(e.getPath()))
+         .toArray(AssetEntry[]::new);
+      List<Object> aentries = new ArrayList<>();
+      Collections.addAll(aentries, entries);
+
+      if(aentries.size() > 0) {
+         DependencyException ex = new DependencyException(entry);
+         ex.addDependencies(aentries.toArray(new Object[0]));
+         throw ex;
       }
    }
 
