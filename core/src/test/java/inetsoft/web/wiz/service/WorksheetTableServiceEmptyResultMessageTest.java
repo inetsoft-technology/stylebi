@@ -175,7 +175,16 @@ class WorksheetTableServiceEmptyResultMessageTest {
       FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
       query.reportResponseShape(Map.of("data", List.of()), false);
 
-      String message = only(build(query)).getErrorMessage();
+      WorksheetTableResponse response = only(build(query));
+      // C1, named explicitly (review round 1): every other test on this branch asserts on
+      // getErrorMessage() without checking isSuccess() first, so a future "don't throw when a
+      // shape exists" regression would surface as an uninformative NPE rather than a named
+      // charter-C1 failure. This is the shape-present sibling of the check
+      // noShapeBehavesTheSameForAnyConnectorThatNeverPopulatesOne already has on the no-shape branch.
+      assertFalse(response.isSuccess(),
+         "C1: zero rows must never become a successful build, even when a shape was recovered");
+
+      String message = response.getErrorMessage();
 
       assertTrue(message.contains("completed successfully"),
          "shape present must state the request succeeded: " + message);
@@ -212,6 +221,105 @@ class WorksheetTableServiceEmptyResultMessageTest {
       assertTrue(message.contains("capped"),
          "a truncated shape must say so, per TabularQuery's own not-present/not-reached " +
             "distinction: " + message);
+   }
+
+   // ─── R1-1 (review round 1, blocker): connector-/caller-controlled text embedded in the ────
+   // ─── message must never carry a raw newline through to the thrown message ─────────────────
+
+   /**
+    * {@code JsonShapeDistiller} replaces every leaf VALUE with a fixed type-name literal, but
+    * carries a response's real field NAMES through verbatim as map keys. A JSON object key may
+    * legally contain a literal newline ({@code {"a\nb": []}} is valid JSON), and {@code
+    * Map.toString()} renders it raw. Built directly here rather than routed through the real
+    * distiller -- the point is that {@code emptyColumnsMessage} sanitizes whatever shape it is
+    * given, not that the distiller happens not to produce this today.
+    */
+   @Test
+   void shapeKeyWithEmbeddedNewlineIsSanitized() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.reportResponseShape(Map.of("a\nb", List.of()), false);
+
+      String message = only(build(query)).getErrorMessage();
+
+      assertFalse(message.contains("\n"),
+         "an embedded newline in a shape's field name must not reach the thrown message -- " +
+            "rootMessage() truncates at the first one: " + message);
+      assertFalse(message.contains("\r"), message);
+      assertTrue(message.contains("Parameters sent"),
+         "text that would follow the injected newline must survive sanitizing, not be silently " +
+            "truncated: " + message);
+   }
+
+   /**
+    * The row path comes from the connector's {@code getValidJsonPath()}, which on a real connector
+    * returns the caller-supplied {@code jsonPath} from {@code queryParams} -- caller-controlled
+    * text, independent of anything the response itself contains.
+    */
+   @Test
+   void rowPathWithEmbeddedNewlineIsSanitized() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.reportResponseShape(Map.of("data", List.of()), false);
+      query.setJsonPath("$.data[*]\nX-Injected: not really a header");
+
+      String message = only(build(query)).getErrorMessage();
+
+      assertFalse(message.contains("\n"),
+         "an embedded newline in the caller-supplied row path must not reach the thrown " +
+            "message: " + message);
+      assertFalse(message.contains("\r"), message);
+      assertTrue(message.contains("Parameters sent"),
+         "text that would follow the injected newline must survive sanitizing: " + message);
+   }
+
+   // ─── singleArrayFieldHint coverage (verifier finding, P4): every branch, not just the ─────
+   // ─── one-array-field fixture every other test above happens to use ─────────────────────────
+
+   @Test
+   void noArrayFieldEmitsNoHint() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.reportResponseShape(Map.of("id", "string", "count", "double"), false);
+
+      String message = only(build(query)).getErrorMessage();
+
+      assertFalse(message.contains("belong at"),
+         "a shape with no array-valued field must not guess a hint: " + message);
+   }
+
+   @Test
+   void twoArrayFieldsAreAmbiguousAndEmitNoHint() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.reportResponseShape(Map.of("data", List.of(), "errors", List.of()), false);
+
+      String message = only(build(query)).getErrorMessage();
+
+      assertFalse(message.contains("belong at"),
+         "two candidate array fields is ambiguous -- per D2, omit rather than guess: " + message);
+   }
+
+   @Test
+   void nestedArrayIsNotDetectedAtTheTopLevel() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.reportResponseShape(Map.of("envelope", Map.of("data", List.of())), false);
+
+      String message = only(build(query)).getErrorMessage();
+
+      assertFalse(message.contains("belong at"),
+         "an array nested below the top level must not be guessed at -- no false positive, " +
+            "no invented path: " + message);
+   }
+
+   @Test
+   void bareTopLevelArrayShapeHintsTheRootPath() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.reportResponseShape(List.of(Map.of("id", "string")), false);
+      // Deliberately mismatched, so the hint (root path "$") differs from the row path in effect
+      // and is therefore not suppressed by singleArrayFieldHint's "nothing new to say" check.
+      query.setJsonPath("$.wrong");
+
+      String message = only(build(query)).getErrorMessage();
+
+      assertTrue(message.contains("The rows look like they belong at '$'"),
+         "a shape that is itself a top-level array must hint the root path: " + message);
    }
 
    // ─── A2: shape absent -> unchanged wording ─────────────────────────────────────────────────

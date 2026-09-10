@@ -1583,33 +1583,57 @@ public class WorksheetTableService {
     * reads the same slot on the success path — the copy-back in {@code TabularHandler.execute} that
     * fills it runs unconditionally, before the success/failure branch). Both branches may carry an
     * appended exception detail when the connector recovered one — see {@link #recoveredExceptionDetail}.
+    *
+    * <p>Sanitized ONCE, at this single return point, rather than ingredient-by-ingredient: every
+    * piece assembled below can originate from data the connector or the caller controls — the
+    * response shape's own field NAMES (not just its leaf values — see {@link #singleArrayFieldHint}'s
+    * sibling, {@code JsonShapeDistiller.objectShape}, which carries a response's real field names
+    * through verbatim), the effective row path (a caller-supplied {@code jsonPath}), {@code
+    * probeDesc} (caller-supplied parameter values), and the recovered exception detail. {@link
+    * #rootMessage} truncates the THROWN message at the first '\n' it finds, so any one of those
+    * silently drops everything appended after it — the exact silent-misinformation class this whole
+    * method exists to remove. One sanitize call here is right by construction for whatever a future
+    * ingredient adds; sanitizing four separate pieces is right only until someone adds a fifth.</p>
     */
    private String emptyColumnsMessage(TabularQuery query, String dsName, String probeDesc) {
       Object shape = query.getResponseShape();
       String detail = recoveredExceptionDetail();
+      String message;
 
       if(shape == null) {
-         return "The query on '" + dsName + "' returned no columns. Parameters sent: " + probeDesc +
+         message = "The query on '" + dsName + "' returned no columns. Parameters sent: " + probeDesc +
             ". Check them against GET /api/wiz/tabular/query-schema — in particular that each " +
             "one applies to the others, since one that does not is stored and never read — and " +
             "that the data source's credentials are valid; the underlying cause is in the " +
             "server log for this request." + detail;
       }
+      else {
+         String rowPath = effectiveRowPath(query);
+         String rowPathClause = rowPath == null ? "" : " Rows were read from '" + rowPath + "'.";
+         String truncatedClause = query.isResponseShapeTruncated()
+            ? " (capped — some fields may be missing from this description)" : "";
+         String hint = singleArrayFieldHint(shape, rowPath);
+         String hintClause = hint == null ? "" : " The rows look like they belong at '" + hint + "'.";
 
-      String rowPath = effectiveRowPath(query);
-      String rowPathClause = rowPath == null ? "" : " Rows were read from '" + rowPath + "'.";
-      String truncatedClause = query.isResponseShapeTruncated()
-         ? " (capped — some fields may be missing from this description)" : "";
-      String hint = singleArrayFieldHint(shape, rowPath);
-      String hintClause = hint == null ? "" : " The rows look like they belong at '" + hint + "'.";
+         message = "The query on '" + dsName + "' completed successfully and returned a response, " +
+            "but selected zero rows — for a JSON REST endpoint, columns are derived from the rows " +
+            "returned, so zero rows means zero columns." + rowPathClause + " The response's shape " +
+            "was: " + shape + truncatedClause + "." + hintClause + " Parameters sent: " + probeDesc +
+            ". This is not a connection or credentials problem — the request itself succeeded. If " +
+            "this is unexpected, check the parameters (especially any date range or id filter) " +
+            "against the endpoint's actual data." + detail;
+      }
 
-      return "The query on '" + dsName + "' completed successfully and returned a response, but " +
-         "selected zero rows — for a JSON REST endpoint, columns are derived from the rows " +
-         "returned, so zero rows means zero columns." + rowPathClause + " The response's shape " +
-         "was: " + shape + truncatedClause + "." + hintClause + " Parameters sent: " + probeDesc +
-         ". This is not a connection or credentials problem — the request itself succeeded. If " +
-         "this is unexpected, check the parameters (especially any date range or id filter) " +
-         "against the endpoint's actual data." + detail;
+      return singleLine(message);
+   }
+
+   /**
+    * Collapse to one line. Applied exactly once, to the fully-assembled {@code
+    * emptyColumnsMessage} — see that method's doc for why sanitizing the whole is preferred over
+    * sanitizing each ingredient that might carry connector- or caller-controlled text.
+    */
+   private static String singleLine(String message) {
+      return message.replace('\n', ' ').replace('\r', ' ');
    }
 
    /**
@@ -1667,10 +1691,11 @@ public class WorksheetTableService {
    /**
     * The connector's own exception detail, if it recovered and reported one during the probe just
     * run — see {@code AbstractQueryRunner.logException}, relayed onto this thread by
-    * {@code AbstractRestRuntime.runQuery}'s worker-thread handoff. Sanitized to one line: {@link
-    * #rootMessage} truncates the thrown message at the first '\n', and {@code UserMessage.merge()}
-    * joins multiple recovered messages with '\n' — an unsanitized suffix here would otherwise be
-    * silently cut, or silently cut everything appended after it.
+    * {@code AbstractRestRuntime.runQuery}'s worker-thread handoff. {@code UserMessage.merge()} joins
+    * multiple recovered messages with '\n', so this can itself carry an embedded newline — left
+    * un-sanitized HERE deliberately: {@link #emptyColumnsMessage} sanitizes the whole assembled
+    * message exactly once, at its single return point, rather than each ingredient sanitizing
+    * itself.
     */
    private String recoveredExceptionDetail() {
       UserMessage msg = CoreTool.getUserMessage();
@@ -1679,8 +1704,7 @@ public class WorksheetTableService {
          return "";
       }
 
-      String oneLine = msg.getMessage().replace('\n', ' ').replace('\r', ' ').trim();
-      return " The connector reported: " + oneLine;
+      return " The connector reported: " + msg.getMessage().trim();
    }
 
    /**
