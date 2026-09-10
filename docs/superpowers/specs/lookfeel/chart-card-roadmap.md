@@ -536,6 +536,19 @@ mark; and the value axis's runtime clone (`VGraphPair:1338-1341`) is intentional
 [the forward-half design](../2026-08-14-seed-mark-forward-half-design.md)'s dated 2026-08-24 block. Do not
 report them as new.
 
+**The per-value colour provenance mark is ungated, and that is the decision rather than an omission.**
+`VSFrameVisitor.syncColors` marks a render's palette-index assignments as derived for every chart, marked
+or not, and the wrapper keeps a derived colour out of the asset for every chart too — the one behaviour
+change in this track that is not behind a mark. Gating either half on the mark re-opens the defect the
+pair was written to close: Revert clears the derived colours, the next render of the now-unmarked chart
+writes them back as *static*, and a later Modernize's `clearDerivedColors()` cannot remove a static
+colour, so the re-modernized chart renders the legacy palette. **What a legacy sheet already holds is
+untouched** — a persisted colour parses back through `setColor`, never `setDerivedColor`, so it stays
+static and frozen exactly as before. What changes for a legacy sheet is that a render stops freezing
+*new* per-value colours into the asset, which is what B3 in
+[the manual test plan](../../plans/2026-08-24-palette-revert-manual-tests.md) pins, deliberately on a
+legacy chart.
+
 **The seed mark is complete and has paid for all six items it existed to free.** What used to be "M, XL,
 six items" is closed. The one thing it left behind was the bookmark path, which was never one of the six,
 and that is closed too.

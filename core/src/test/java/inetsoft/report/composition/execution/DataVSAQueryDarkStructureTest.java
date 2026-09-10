@@ -103,7 +103,8 @@ class DataVSAQueryDarkStructureTest {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       XTableStyle style = styleWithZebra();
-      DataVSAQuery.applyModernTableStructure(style, VizContext.ofGate());
+      DataVSAQuery.applyModernTableStructure(style, VizContext.ofGate(),
+                                             XTableUtil.getDefaultTableLens());
       assertEquals(new Color(0x2D2B30), regularSpecBackground(style),
                    "dark zebra applied through the gated zebraBackground() accessor");
    }
@@ -113,8 +114,53 @@ class DataVSAQueryDarkStructureTest {
       // modern on, dark off: the dark interior accessors return null, so the shipped stripe stands
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       XTableStyle style = styleWithZebra();
-      DataVSAQuery.applyModernTableStructure(style, VizContext.ofGate());
+      DataVSAQuery.applyModernTableStructure(style, VizContext.ofGate(),
+                                             XTableUtil.getDefaultTableLens());
       assertEquals(new Color(0xF5F5F5), regularSpecBackground(style),
                    "light-modern leaves the shipped #F5F5F5 stripe");
+   }
+
+   private int groupTotalSpecCount(XTableStyle style) {
+      int count = 0;
+
+      for(int i = 0; i < style.getSpecificationCount(); i++) {
+         int type = style.getSpecification(i).getType();
+
+         if(type == XTableStyle.Specification.ROW_GROUP_TOTAL ||
+            type == XTableStyle.Specification.COL_GROUP_TOTAL)
+         {
+            count++;
+         }
+      }
+
+      return count;
+   }
+
+   @Test
+   void aPlainLensGetsNoGroupSubtotalSpecs() {
+      // the matchers return false for every cell without a crosstab, and findSpec walks the specs
+      // per cell per attribute, so a plain table must not carry them at all
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      XTableStyle style = styleWithZebra();
+      DataVSAQuery.applyModernTableStructure(style, VizContext.ofGate(),
+                                             XTableUtil.getDefaultTableLens());
+      assertEquals(0, groupTotalSpecCount(style), "no crosstab => no group-total specs");
+      assertEquals(XTableStyle.Specification.REGULAR, style.getSpecification(0).getType(),
+                   "the shipped zebra stripe is still the first spec findSpec reaches");
+   }
+
+   @Test
+   void aCrosstabGetsBothAxesAtEveryLevel() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      XTableStyle style = styleWithZebra();
+      DataVSAQuery.applyModernGroupSubtotals(style, null, VizContext.ofGate(), true);
+      assertEquals(20, groupTotalSpecCount(style), "levels 0-9 on both axes");
+
+      for(int i = 0; i < 20; i++) {
+         int type = style.getSpecification(i).getType();
+         assertTrue(type == XTableStyle.Specification.ROW_GROUP_TOTAL ||
+                    type == XTableStyle.Specification.COL_GROUP_TOTAL,
+                    "group-total specs precede the zebra stripe so they win on total cells");
+      }
    }
 }

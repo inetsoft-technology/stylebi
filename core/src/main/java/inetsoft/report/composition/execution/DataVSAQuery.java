@@ -130,13 +130,13 @@ public abstract class DataVSAQuery extends VSAQuery {
                // overlay the modern structure palette onto the cloned Default Style so it acts as a
                // default the user cell/column/row format still overrides; non-default styles untouched.
                // sname is the canonical (non-localized) style name, so the constant match is locale-safe
-               VizContext ctx = VizContext.of(((VSAssembly) getAssembly()).getVSAssemblyInfo());
+               VizContext ctx = VizContext.of(tinfo);
 
                if(style instanceof XTableStyle &&
                   TableDataVSAssemblyInfo.DEFAULT_STYLE.equals(sname) &&
                   ctx.modern)
                {
-                  applyModernTableStructure((XTableStyle) style, ctx);
+                  applyModernTableStructure((XTableStyle) style, ctx, data);
                }
 
                style.setTable(data);
@@ -237,7 +237,7 @@ public abstract class DataVSAQuery extends VSAQuery {
     * and trailer keys affect only crosstabs (plain tables have no header/trailer bands); body borders
     * fall through for the regions not set explicitly. Every value is a default the user format beats.
     */
-   static void applyModernTableStructure(XTableStyle style, VizContext ctx) {
+   static void applyModernTableStructure(XTableStyle style, VizContext ctx, TableLens table) {
       Color gridline = VSTableStructureDefaults.gridlineColor(ctx);
       Color separator = VSTableStructureDefaults.headerSeparator(ctx);
       style.put("body.rcolor", gridline);
@@ -277,7 +277,7 @@ public abstract class DataVSAQuery extends VSAQuery {
       }
 
       applyDarkZebra(style, VSTableStructureDefaults.zebraBackground(ctx));
-      applyModernGroupSubtotals(style, bandForeground, ctx);
+      applyModernGroupSubtotals(style, bandForeground, ctx, hasCrosstab(table));
    }
 
    /**
@@ -300,14 +300,30 @@ public abstract class DataVSAQuery extends VSAQuery {
    }
 
    /**
+    * Whether this lens carries the crosstab the group-total specs match against. Resolved with the
+    * same call XTableStyle.setTable() makes, off the same lens, so it answers exactly what the
+    * matchers would see.
+    */
+   private static boolean hasCrosstab(TableLens table) {
+      return table != null && Util.getCrosstab(table) != null;
+   }
+
+   /**
     * Prepend data-borne group-subtotal emphasis specs so interior crosstab subtotals get a distinct
     * background. Group-total specs must precede the shipped zebra spec (findSpec returns the first
-    * match) so they win over alternating-row color on total cells. Levels 0-9 cover both axes; each
-    * spec self-guards (matchRowGroup/matchColGroup return false for a non-crosstab lens or a level past
-    * the header count), so plain tables are unaffected. Grand totals stay distinct: XTableStyle resolves
-    * the trailer band before per-cell specs, so trailer-row/col.background (grand total) still wins.
+    * match) so they win over alternating-row color on total cells. Levels 0-9 cover both axes; a
+    * level past the header count self-guards (matchRowGroup/matchColGroup return false). Skipped
+    * outright without a crosstab: the matchers return false for every cell there, and findSpec walks
+    * the specs per cell per attribute, so the twenty would be scanned on every plain modern table
+    * for nothing.
     */
-   static void applyModernGroupSubtotals(XTableStyle style, Color foreground, VizContext ctx) {
+   static void applyModernGroupSubtotals(XTableStyle style, Color foreground, VizContext ctx,
+                                         boolean crosstab)
+   {
+      if(!crosstab) {
+         return;
+      }
+
       Color subtotal = VSTableStructureDefaults.subtotalBackground(ctx);
       int pos = 0;
 
