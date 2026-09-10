@@ -37,10 +37,17 @@ import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.VSBookmark;
+import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.MessageException;
 import inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService;
 import inetsoft.web.adhoc.model.FontInfo;
+import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.event.ImmutableVSEditBookmarkEvent;
+import inetsoft.web.viewsheet.event.VSEditBookmarkEvent;
+import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
+import inetsoft.web.viewsheet.service.VSBookmarkService;
 import inetsoft.web.wiz.script.ScriptImageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +57,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * REST surface for agent-driven viewsheet layout editing.
@@ -90,7 +98,8 @@ public class ViewsheetAssemblyAgentController {
                                    LayoutReadService layoutReadService,
                                    PrintDeviceLayoutPropertyService printDeviceLayoutPropertyService,
                                    LayoutMutationService layoutMutationService,
-                                   LayoutUndoService layoutUndoService)
+                                   LayoutUndoService layoutUndoService,
+                                   VSBookmarkService vsBookmarkService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -120,6 +129,7 @@ public class ViewsheetAssemblyAgentController {
       this.printDeviceLayoutPropertyService = printDeviceLayoutPropertyService;
       this.layoutMutationService = layoutMutationService;
       this.layoutUndoService = layoutUndoService;
+      this.vsBookmarkService = vsBookmarkService;
    }
 
    public record JoinRequest(String code) {}
@@ -312,6 +322,185 @@ public class ViewsheetAssemblyAgentController {
       return new ImageResponse(Base64.getEncoder().encodeToString(image.pngBytes()),
                                image.isPng() ? "png" : "svg",
                                image.width(), image.height(), image.note());
+   }
+
+   public record BookmarkInfo(String name, String type, String owner, boolean readOnly,
+                              boolean isDefault, boolean isCurrent) {}
+
+   public record SaveBookmarkRequest(String name, String type, Boolean readOnly) {}
+
+   public record BookmarkNameRequest(String name) {}
+
+   /**
+    * {@code list_bookmarks}. {@link RuntimeViewsheet#getBookmarks()} already resolves to the
+    * caller's own visible set (their own bookmarks plus any shared/group ones others made
+    * visible to them) and injects the synthetic "(Home)" entry -- no separate filtering needed
+    * here.
+    */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks")
+   public List<BookmarkInfo> listBookmarks(@PathVariable String sessionToken, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      VSBookmark.DefaultBookmark defaultBookmark = rvs.getDefaultBookmark();
+      VSBookmarkInfo opened = rvs.getOpenedBookmark();
+
+      return rvs.getBookmarks().stream()
+         .map(info -> new BookmarkInfo(
+            info.getName(), toTypeString(info.getType()),
+            info.getOwner() == null ? null : info.getOwner().getName(), info.isReadOnly(),
+            defaultBookmark != null && info.getName().equals(defaultBookmark.getName()),
+            opened != null && info.getName().equals(opened.getName())))
+         .collect(Collectors.toList());
+   }
+
+   /**
+    * {@code create_bookmark}. Refuses a name collision itself (checked before the write, per this
+    * package's own robustness convention) rather than relying on
+    * {@link VSBookmarkService#addBookmarkToViewSheet}'s own {@code confirmed} flag, which exists
+    * for an interactive "replace?" dialog this headless caller has no use for -- always writes
+    * with {@code confirmed=true} once the collision check has already run.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks")
+   public void createBookmark(@PathVariable String sessionToken,
+                              @RequestBody SaveBookmarkRequest request, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      String name = requireBookmarkName(request.name(), "create_bookmark");
+      int type = toTypeInt(request.type());
+      boolean readOnly = request.readOnly() == null || request.readOnly();
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         if(rvs.containsBookmark(name, ownerOf(user))) {
+            throw new IllegalArgumentException(
+               "create_bookmark: a bookmark named '" + name + "' already exists. Use " +
+               "update_bookmark to overwrite it, or pick a different name.");
+         }
+
+         requireOk(vsBookmarkService.addBookmarkToViewSheet(rvs, name, type, readOnly, true, user),
+                   "create_bookmark");
+      });
+   }
+
+   /** {@code update_bookmark}. Refuses when {@code name} does NOT already exist -- the mirror
+    *  image of {@link #createBookmark}'s own collision guard. */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks/update")
+   public void updateBookmark(@PathVariable String sessionToken,
+                              @RequestBody SaveBookmarkRequest request, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      String name = requireBookmarkName(request.name(), "update_bookmark");
+      int type = toTypeInt(request.type());
+      boolean readOnly = request.readOnly() == null || request.readOnly();
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         if(!rvs.containsBookmark(name, ownerOf(user))) {
+            throw new IllegalArgumentException(
+               "update_bookmark: no bookmark named '" + name + "' exists yet. Use " +
+               "create_bookmark for a new one.");
+         }
+
+         requireOk(vsBookmarkService.addBookmarkToViewSheet(rvs, name, type, readOnly, true, user),
+                   "update_bookmark");
+      });
+   }
+
+   /**
+    * {@code delete_bookmark}. Delegates the actual removal to
+    * {@link VSBookmarkService#deleteBookmark} (called with {@code confirmed=false}, not because
+    * this caller can answer a confirmation prompt, but because that is what makes it run its own
+    * schedule-task-usage check -- {@code confirmed=true} skips that check entirely) so the
+    * schedule-task guard stays exactly the one the human Viewer's own delete uses, rather than a
+    * reimplementation here. Existence itself is checked first: {@code removeBookmark} silently
+    * no-ops on an unknown name otherwise.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks/delete")
+   public void deleteBookmark(@PathVariable String sessionToken,
+                              @RequestBody BookmarkNameRequest request, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      String name = requireBookmarkName(request.name(), "delete_bookmark");
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         if(!rvs.containsBookmark(name, ownerOf(user))) {
+            throw new IllegalArgumentException(
+               "delete_bookmark: no bookmark named '" + name + "'. list_bookmarks reports what exists.");
+         }
+
+         VSEditBookmarkEvent event = ImmutableVSEditBookmarkEvent.builder()
+            .vsBookmarkInfoModel(VSBookmarkInfoModel.builder().name(name).owner(ownerOf(user)).build())
+            .confirmed(false)
+            .build();
+         vsBookmarkService.deleteBookmark(runtimeId, event, user, dispatcher, "");
+      });
+   }
+
+   /** {@code set_default_bookmark}. Requires the viewsheet to already be a saved asset --
+    *  {@link RuntimeViewsheet#setDefaultBookmark} persists to the asset's own bookmark store. */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks/set-default")
+   public void setDefaultBookmark(@PathVariable String sessionToken,
+                                  @RequestBody BookmarkNameRequest request, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      String name = requireBookmarkName(request.name(), "set_default_bookmark");
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         if(!rvs.containsBookmark(name, ownerOf(user))) {
+            throw new IllegalArgumentException(
+               "set_default_bookmark: no bookmark named '" + name + "'. list_bookmarks reports " +
+               "what exists.");
+         }
+
+         rvs.setDefaultBookmark(new VSBookmark.DefaultBookmark(name, ownerOf(user)));
+      });
+   }
+
+   private static String requireBookmarkName(String name, String tool) {
+      if(name == null || name.isBlank()) {
+         throw new IllegalArgumentException(tool + " requires 'name' -- the bookmark's name.");
+      }
+
+      return name;
+   }
+
+   private static IdentityID ownerOf(Principal user) {
+      return IdentityID.getIdentityIDFromKey(user.getName());
+   }
+
+   private static void requireOk(MessageCommand command, String tool) {
+      if(command.getType() != MessageCommand.Type.OK) {
+         throw new IllegalArgumentException(tool + ": " + command.getMessage());
+      }
+   }
+
+   private static String toTypeString(int type) {
+      switch(type) {
+         case VSBookmarkInfo.ALLSHARE: return "shared";
+         case VSBookmarkInfo.GROUPSHARE: return "group";
+         default: return "private";
+      }
+   }
+
+   private static int toTypeInt(String type) {
+      if(type == null || type.isBlank() || "private".equalsIgnoreCase(type)) {
+         return VSBookmarkInfo.PRIVATE;
+      }
+
+      if("shared".equalsIgnoreCase(type)) {
+         return VSBookmarkInfo.ALLSHARE;
+      }
+
+      if("group".equalsIgnoreCase(type)) {
+         return VSBookmarkInfo.GROUPSHARE;
+      }
+
+      throw new IllegalArgumentException(
+         "'type' must be one of private, shared, group, got '" + type + "'.");
    }
 
    public record PropertyPatchRequest(String assembly, Map<String, Object> properties) {}
@@ -1642,4 +1831,5 @@ public class ViewsheetAssemblyAgentController {
    private final PrintDeviceLayoutPropertyService printDeviceLayoutPropertyService;
    private final LayoutMutationService layoutMutationService;
    private final LayoutUndoService layoutUndoService;
+   private final VSBookmarkService vsBookmarkService;
 }
