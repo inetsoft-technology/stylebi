@@ -114,7 +114,9 @@ body {
 }
 
 .bd-selected-assembly {
-  border: 1px dotted var(--inet-primary-color) !important;
+  // active, not selected: the class binds to isFocused(). --inet-viz-active-border is the
+  // outline-no-fill token that names this state; --inet-viz-selected-border is the teal family.
+  border: 1px dotted var(--inet-viz-active-border) !important;
 }
 
 .bd-highlight-med-filler {
