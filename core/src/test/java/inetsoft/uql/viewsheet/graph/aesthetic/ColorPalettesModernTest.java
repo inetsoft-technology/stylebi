@@ -86,4 +86,27 @@ class ColorPalettesModernTest {
          assertNotNull(frame.getDefaultColor(i), "index " + (i + 1) + " must not be null");
       }
    }
+
+   @Test
+   void contrastIsRegisteredWithEightColors() {
+      assertTrue(ColorPalettes.getPaletteNames().contains("Contrast"),
+                 "Contrast palette must be declared in defaults.css");
+
+      CategoricalColorFrame contrast = ColorPalettes.getPalette("Contrast");
+      assertNotNull(contrast);
+      assertEquals(8, contrast.getColorCount());
+
+      for(int i = 0; i < 8; i++) {
+         assertNotNull(contrast.getDefaultColor(i), "index " + (i + 1) + " must not be null");
+      }
+
+      assertEquals(new Color(0x0B3D91), contrast.getDefaultColor(0));
+      assertEquals(new Color(0x5FA83C), contrast.getDefaultColor(7));
+   }
+
+   // Default must be declared first: the picker's index-0 fallback relies on it.
+   @Test
+   void defaultIsStillDeclaredFirst() {
+      assertEquals("Default", ColorPalettes.getPaletteNames().iterator().next());
+   }
 }

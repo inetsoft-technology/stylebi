@@ -862,3 +862,35 @@ ChartPalette[name='Heat 24'][index='23'] {
 ChartPalette[name='Heat 24'][index='24'] {
   color: #ffcc99;
 }
+
+ChartPalette[name='Contrast'][index='1'] {
+   color: #0b3d91;
+}
+
+ChartPalette[name='Contrast'][index='2'] {
+   color: #f5943f;
+}
+
+ChartPalette[name='Contrast'][index='3'] {
+   color: #b04ab8;
+}
+
+ChartPalette[name='Contrast'][index='4'] {
+   color: #f7d22e;
+}
+
+ChartPalette[name='Contrast'][index='5'] {
+   color: #a8330a;
+}
+
+ChartPalette[name='Contrast'][index='6'] {
+   color: #7cc4ee;
+}
+
+ChartPalette[name='Contrast'][index='7'] {
+   color: #00947f;
+}
+
+ChartPalette[name='Contrast'][index='8'] {
+   color: #5fa83c;
+}
