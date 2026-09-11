@@ -405,9 +405,14 @@ public class TableBindingService {
                           Map<String, Object> options) throws Exception
    {
       // Unlike every other mutator below, this one is allowed to actually change percentageBy
-      // — so it must not have preserveUntouchedPercentageBy undo whatever it just set.
+      // — but only when this call's own options map carries that key. TableBindingMutator
+      // .setCrosstabOptions only calls setPercentageByValue when options.containsKey
+      // ("percentageBy"); an options-only write that omits it (e.g. {"rowTotals": true}) must
+      // still have the manufactured default reset, or it reopens this same bug through a
+      // narrower trigger.
+      boolean changesPercentageBy = options != null && options.containsKey("percentageBy");
       apply(sessionToken, user, assemblyName,
-            model -> TableBindingMutator.setOptions(model, options), false, false);
+            model -> TableBindingMutator.setOptions(model, options), false, !changesPercentageBy);
    }
 
    public Map<String, Object> optionVocabulary() {

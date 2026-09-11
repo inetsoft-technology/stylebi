@@ -597,6 +597,37 @@ class TableBindingServiceTest {
                    "not a genuine, caller-requested change");
    }
 
+   /**
+    * The reset gate must key on whether <em>this call's</em> {@code options} map actually
+    * contains {@code "percentageBy"}, not on which method was invoked -- {@code
+    * TableBindingMutator#setCrosstabOptions} only calls {@code setPercentageByValue} when that
+    * key is present, so a {@code set_table_options} call that touches only e.g. {@code
+    * rowTotals} must still have the manufactured default reset, or it reopens bug #76574 through
+    * a narrower, easily-reachable trigger.
+    */
+   @Test
+   void setOptionsWithoutPercentageByStillResetsTheManufacturedDefault() throws Exception {
+      CrosstabBindingModel existing = withTables("ORDERS");
+      existing.setSource(new inetsoft.web.binding.model.SourceInfo());
+      existing.getSource().setSource("ORDERS");
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region")));
+      CrosstabOptionInfo manufactured = new CrosstabOptionInfo();
+      manufactured.setPercentageByValue("1"); // stand-in for the constructor's null-to-"1" coalesce
+      existing.setOption(manufactured);
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(new VSCrosstabInfo());
+
+      harness(assembly, existing, bindings)
+         .setOptions("tok", principal(), "Crosstab1", Map.of("rowTotals", true));
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertNull(posted.getOption().getPercentageByValue(),
+                "a set_table_options call that never mentioned percentageBy must not persist " +
+                "the manufactured display default -- the live crosstab's own percentageBy was " +
+                "never actually set");
+   }
+
    private static CrosstabBindingModel withTables(String... names) {
       CrosstabBindingModel model = new CrosstabBindingModel();
       List<BindingModel.SourceTable> tables = new ArrayList<>();
