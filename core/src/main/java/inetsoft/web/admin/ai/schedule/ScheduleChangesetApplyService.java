@@ -70,11 +70,15 @@ public class ScheduleChangesetApplyService {
    }
 
    /**
-    * Resolves, gates on the plan hash, then executes.
+    * Resolves, gates on the plan hash and task token, then executes.
     *
     * @throws AdminChangesetApplyService.PlanHashMismatchException if the hash is missing or stale
     *         (maps to HTTP 409) -- the exception type is reused verbatim from the properties area
     *         (spec §6), not redeclared.
+    * @throws AdminChangesetApplyService.TaskTokenMismatchException if the taskToken is missing,
+    *         malformed, or was issued for a different planHash (also maps to HTTP 409, also reused
+    *         verbatim) -- the audit record must be written from the token's verified narrative,
+    *         never from this request's own (unverified) task field.
     * @throws Exception if the Tier-2 backup fails, in which case nothing was applied.
     */
    public ApplyResult apply(ScheduleApplyRequest req, Principal user) throws Exception {
@@ -85,6 +89,15 @@ public class ScheduleChangesetApplyService {
 
          if(req.getPlanHash() == null || !plan.planHash().equals(req.getPlanHash())) {
             throw new AdminChangesetApplyService.PlanHashMismatchException(plan);
+         }
+
+         String reviewedTask;
+
+         try {
+            reviewedTask = TaskAuditToken.verify(req.getTaskToken(), plan.planHash());
+         }
+         catch(TaskAuditToken.TaskTokenException e) {
+            throw new AdminChangesetApplyService.TaskTokenMismatchException(plan, e.getMessage());
          }
 
          if(plan.requiresAgentSignoff() &&
@@ -110,11 +123,11 @@ public class ScheduleChangesetApplyService {
 
             try {
                if(ScheduleChangeRequest.VERB_CREATE.equals(original.getVerb())) {
-                  applyCreate(txId, plan.task(), taskId, original.getSpec(), backupRef,
+                  applyCreate(txId, reviewedTask, taskId, original.getSpec(), backupRef,
                              req.getReviewOutcome(), user, results, undoable);
                }
                else {
-                  applyDelete(txId, plan.task(), taskId, backupRef, req.getReviewOutcome(), user,
+                  applyDelete(txId, reviewedTask, taskId, backupRef, req.getReviewOutcome(), user,
                              results, undoable);
                }
             }
@@ -154,7 +167,7 @@ public class ScheduleChangesetApplyService {
          }
 
          List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
-         failures.addAll(rollback(txId, plan.task(), undoable, backupRef, req.getReviewOutcome(),
+         failures.addAll(rollback(txId, reviewedTask, undoable, backupRef, req.getReviewOutcome(),
                                   user));
 
          if(failures.isEmpty()) {

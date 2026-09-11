@@ -139,6 +139,16 @@ public class AdminScheduleController {
                     "plan", ex.current());
    }
 
+   @ExceptionHandler(AdminChangesetApplyService.TaskTokenMismatchException.class)
+   @ResponseStatus(HttpStatus.CONFLICT)
+   @ResponseBody
+   public Map<String, Object> handleTaskTokenMismatch(
+      AdminChangesetApplyService.TaskTokenMismatchException ex)
+   {
+      return Map.of("status", "conflict", "error", String.valueOf(ex.getMessage()),
+                    "plan", ex.current());
+   }
+
    private final AdminScheduleGateway scheduleGateway;
    private final ScheduleChangePlanService planService;
    private final ScheduleChangesetApplyService applyService;
