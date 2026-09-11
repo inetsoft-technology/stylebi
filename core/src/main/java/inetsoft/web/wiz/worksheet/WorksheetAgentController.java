@@ -1191,10 +1191,12 @@ public class WorksheetAgentController {
    }
 
    /**
-    * Return up to {@code limit} data rows from the named table in the live worksheet.
+    * Return up to {@code limit} data rows from the named table in the live worksheet,
+    * starting after the first {@code offset} rows.
     *
     * @param sessionToken the token obtained at join time
     * @param table        the table assembly name to query
+    * @param offset       number of leading data rows to skip; 0-based, defaults to 0
     * @param limit        maximum rows to return (capped at 200; defaults to 50)
     * @param user         the authenticated agent principal
     * @return list of row maps, each keyed by column name
@@ -1204,6 +1206,7 @@ public class WorksheetAgentController {
    @GetMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/preview")
    public List<Map<String, Object>> preview(@PathVariable String sessionToken,
                                              @RequestParam String table,
+                                             @RequestParam(defaultValue = "0") int offset,
                                              @RequestParam(defaultValue = "50") int limit,
                                              Principal user)
       throws PairingException
@@ -1211,7 +1214,7 @@ public class WorksheetAgentController {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
       RuntimeWorksheet rws = editService.resolve(sessionToken, user);
-      return previewService.preview(rws, table, Math.min(limit, 200));
+      return previewService.preview(rws, table, offset, Math.min(limit, 200));
    }
 
    /**
