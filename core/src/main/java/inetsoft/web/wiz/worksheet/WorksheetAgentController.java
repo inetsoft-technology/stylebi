@@ -287,6 +287,29 @@ public class WorksheetAgentController {
    {
       requireEnabled();
 
+      // add_table's extraProperties requires endpoint/suffix identity and excludes queryParams
+      // (which is already its own complete, self-sufficient form) -- checked first, before either
+      // of those blocks, for the same reason queryParams's own contradiction checks below are
+      // checked first: a request carrying extraProperties in a combination this field doesn't
+      // support must get ITS OWN contradiction error, not be silently routed into a form that
+      // never reads it.
+      if("add_table".equals(req.op()) && req.extraProperties() != null && !req.extraProperties().isEmpty()) {
+         boolean hasQueryParams = req.queryParams() != null && !req.queryParams().isEmpty();
+         boolean hasEndpoint = req.endpoint() != null && !req.endpoint().isBlank();
+         boolean hasSuffix = req.suffix() != null && !req.suffix().isBlank();
+
+         if(hasQueryParams) {
+            throw new PairingException("add_table cannot carry extraProperties together with " +
+               "queryParams -- queryParams is already its own complete, self-sufficient form.");
+         }
+
+         if(!hasEndpoint && !hasSuffix) {
+            throw new PairingException("add_table's extraProperties requires endpoint or " +
+               "suffix -- use queryParams instead for a datasource addressed without an " +
+               "endpoint/suffix identity.");
+         }
+      }
+
       // add_table with queryParams binds a TabularTableAssembly via the SAME generic,
       // connector-agnostic path WorksheetTableService.buildTabularTable uses for wiz-services'
       // /ws/table -- see addQueryParamsTable's own doc comment for why this is a fourth,
@@ -769,6 +792,29 @@ public class WorksheetAgentController {
             TabularEndpointBindingSupport.applyCustomLookupChain(query, pmap, req.customLookups(),
                dsName);
          }
+      }
+
+      if(req.extraProperties() != null && !req.extraProperties().isEmpty()) {
+         if(req.extraProperties().containsKey("endpoint") || req.extraProperties().containsKey("suffix")) {
+            throw new PairingException("add_table's extraProperties cannot set 'endpoint' or " +
+               "'suffix' -- their identity is already established by the endpoint/suffix field " +
+               "on this call.");
+         }
+
+         // applyQueryContract's own required-field check validates presence WITHIN the map it is
+         // given, not against the live query -- so the identity value already resolved above via
+         // TabularEndpointBindingSupport has to be re-supplied here too, or a connector whose
+         // endpoint/suffix property is itself required (e.g. FakeNamedConnectorQuery's endpoint)
+         // would be rejected as "missing" what this call already set moments earlier. Re-writing
+         // it to the SAME value it already holds is a no-op on the query.
+         Map<String, Object> contractParams = new java.util.LinkedHashMap<>(req.extraProperties());
+         contractParams.put(namedConnector ? "endpoint" : "suffix",
+            namedConnector ? req.endpoint() : req.suffix());
+
+         TabularQuerySchema extraSchema =
+            new TabularSchemaExtractor().extract(query, dataSource.getType());
+         TabularQueryContractSupport.applyQueryContract(
+            query, pmap, extraSchema, contractParams, dsName);
       }
 
       String tableName = req.table();
