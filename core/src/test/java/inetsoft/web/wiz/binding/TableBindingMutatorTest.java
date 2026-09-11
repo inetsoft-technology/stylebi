@@ -745,6 +745,30 @@ class TableBindingMutatorTest {
       assertEquals("Sales", model.getRows().get(0).getRankingCol());
    }
 
+   /**
+    * VTB-006: clearing a ranking must also clear the "group others" flag it carried, and that
+    * cleared flag must stick across a subsequent shelf resubmission (copyOf()'s job is only to
+    * preserve whatever the model currently holds, per VTB-004).
+    */
+   @Test
+   void clearingRankingClearsGroupOthersAcrossAShelfResubmission() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
+                                     new DimensionSortRanking.Ranking("top", 5, "Sales", true));
+
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
+                                     new DimensionSortRanking.Ranking("none", null, null, null));
+
+      // The filed repro: resubmit the identical field list to the same shelf after the clear.
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+
+      assertFalse(model.getRows().get(0).isGroupOthers(),
+         "a cleared ranking's 'group others' flag must not be copied forward by a shelf resubmission");
+   }
+
    @Test
    void addFieldPreservesSortOnAFieldThatStaysAtTheSamePosition() {
       CrosstabBindingModel model = new CrosstabBindingModel();

@@ -120,6 +120,7 @@ public final class DimensionSortRanking {
          dimension.setRankingOption(String.valueOf(XCondition.NONE));
          dimension.setRankingN(null);
          dimension.setRankingCol(null);
+         dimension.setGroupOthers(false);
          return;
       }
 
