@@ -69,7 +69,7 @@ class SelectionRuntimeServiceTest {
       Harness h = harness(list(XConstants.SORT_DESC, false, null));
 
       Map<String, Object> result =
-         h.service.setSelection("tok", principal(), "Filter1", null, "desc", null, "");
+         h.service.setSelection("tok", principal(), "Filter1", null, null, "desc", null, null, "");
 
       assertEquals(0, result.get("sortCycles"));
       verify(h.selections, never()).sortSelection(anyString(), anyString(), any(),
@@ -81,7 +81,7 @@ class SelectionRuntimeServiceTest {
    void cyclesTwiceInsideASingleMutate() throws Exception {
       Harness h = harness(list(XConstants.SORT_ASC, false, null));
 
-      h.service.setSelection("tok", principal(), "Filter1", null, "specific", null, "");
+      h.service.setSelection("tok", principal(), "Filter1", null, null, "specific", null, null, "");
 
       verify(h.selections, times(2)).sortSelection(anyString(), anyString(), any(),
                                                    any(Principal.class), any(), anyString());
@@ -97,7 +97,8 @@ class SelectionRuntimeServiceTest {
       Harness h = harness(slider);
 
       Exception e = assertThrows(IllegalArgumentException.class,
-         () -> h.service.setSelection("tok", principal(), "Slider1", null, "asc", null, ""));
+         () -> h.service.setSelection("tok", principal(), "Slider1", null, null, "asc", null, null,
+                                      ""));
 
       assertTrue(e.getMessage().contains("no sort order"), e.getMessage());
    }
@@ -109,7 +110,7 @@ class SelectionRuntimeServiceTest {
    void togglesSelectionStyleOnlyWhenItDiffers() throws Exception {
       Harness already = harness(list(XConstants.SORT_ASC, true, null));
 
-      already.service.setSelection("tok", principal(), "Filter1", null, null, true, "");
+      already.service.setSelection("tok", principal(), "Filter1", null, null, null, true, null, "");
 
       verify(already.selections, never()).toggleSelectionStyle(anyString(), anyString(),
                                                                any(Principal.class), any(),
@@ -117,7 +118,7 @@ class SelectionRuntimeServiceTest {
 
       Harness differs = harness(list(XConstants.SORT_ASC, false, null));
 
-      differs.service.setSelection("tok", principal(), "Filter1", null, null, true, "");
+      differs.service.setSelection("tok", principal(), "Filter1", null, null, null, true, null, "");
 
       verify(differs.selections, times(1)).toggleSelectionStyle(anyString(), anyString(),
                                                                 any(Principal.class), any(),
@@ -131,7 +132,8 @@ class SelectionRuntimeServiceTest {
 
       Exception e = assertThrows(IllegalArgumentException.class,
          () -> h.service.setSelection("tok", principal(), "Filter1",
-                                      List.of(List.of("East"), List.of("West")), null, null, ""));
+                                      List.of(List.of("East"), List.of("West")), null, null, null,
+                                      null, ""));
 
       assertTrue(e.getMessage().contains("single-select"), e.getMessage());
    }
@@ -145,7 +147,7 @@ class SelectionRuntimeServiceTest {
       Harness h = harness(list(XConstants.SORT_ASC, true, null));
 
       h.service.setSelection("tok", principal(), "Filter1",
-                             List.of(List.of("East"), List.of("West")), null, false, "");
+                             List.of(List.of("East"), List.of("West")), null, null, false, null, "");
 
       verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
                                                     any(Principal.class), any(), anyString());
@@ -162,7 +164,8 @@ class SelectionRuntimeServiceTest {
    void sendsAPlainApplyThatCannotFlipTheSelectionStyle() throws Exception {
       Harness h = harness(list(XConstants.SORT_ASC, false, null));
 
-      h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("East")), null, null, "");
+      h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("East")), null, null,
+                             null, null, "");
 
       ArgumentCaptor<ApplySelectionListEvent> sent =
          ArgumentCaptor.forClass(ApplySelectionListEvent.class);
@@ -183,8 +186,8 @@ class SelectionRuntimeServiceTest {
    void sendsATreeValueAsAPath() throws Exception {
       Harness h = harness(tree(XConstants.SORT_ASC, false));
 
-      h.service.setSelection("tok", principal(), "Tree1", List.of(List.of("East", "NY")), null,
-                             null, "");
+      h.service.setSelection("tok", principal(), "Tree1", List.of(List.of("East", "NY")), null, null,
+                             null, null, "");
 
       ArgumentCaptor<ApplySelectionListEvent> sent =
          ArgumentCaptor.forClass(ApplySelectionListEvent.class);
@@ -204,7 +207,7 @@ class SelectionRuntimeServiceTest {
       Harness h = harness(list(XConstants.SORT_ASC, false, "Eas"));
 
       Map<String, Object> result = h.service.setSelection(
-         "tok", principal(), "Filter1", List.of(List.of("East")), null, null, "");
+         "tok", principal(), "Filter1", List.of(List.of("East")), null, null, null, null, "");
 
       assertEquals("Eas", result.get("scopedBySearch"));
    }
@@ -215,7 +218,7 @@ class SelectionRuntimeServiceTest {
       Harness h = harness(list(XConstants.SORT_ASC, false, null));
 
       Map<String, Object> result = h.service.setSelection(
-         "tok", principal(), "Filter1", List.of(List.of("East")), null, null, "");
+         "tok", principal(), "Filter1", List.of(List.of("East")), null, null, null, null, "");
 
       assertFalse(result.containsKey("scopedBySearch"));
    }
@@ -229,7 +232,8 @@ class SelectionRuntimeServiceTest {
    void sendsOnlyOneApplyWhenNothingWasPreviouslySelected() throws Exception {
       Harness h = harness(list(XConstants.SORT_ASC, false, null));
 
-      h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null, "");
+      h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null,
+                             null, null, "");
 
       verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
                                                     any(Principal.class), any(), anyString());
@@ -251,7 +255,8 @@ class SelectionRuntimeServiceTest {
       SelectionListVSAssembly assembly = list(XConstants.SORT_ASC, true, null);
       Harness h = harness(assembly);
 
-      h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null, "");
+      h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null,
+                             null, null, "");
 
       verify(assembly, times(1)).getSelectionList();
       verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
@@ -284,7 +289,7 @@ class SelectionRuntimeServiceTest {
       // range-slider section below.
       Exception e = assertThrows(IllegalArgumentException.class,
          () -> h.service.setSelection("tok", principal(), "Slider1", List.of(List.of("2")), null,
-                                      null, ""));
+                                      null, null, null, ""));
 
       assertTrue(e.getMessage().contains("Slider1"), e.getMessage());
       verify(h.selections, never()).applySelection(anyString(), anyString(), any(),
@@ -484,7 +489,8 @@ class SelectionRuntimeServiceTest {
       Harness h = harness(list(XConstants.SORT_ASC, false, null));
 
       assertDoesNotThrow(() -> h.service.setSelection(
-         "tok", principal(), "Filter1", List.of(List.of("Anything At All")), null, null, ""));
+         "tok", principal(), "Filter1", List.of(List.of("Anything At All")), null, null, null, null,
+         ""));
    }
 
    /**
@@ -601,6 +607,166 @@ class SelectionRuntimeServiceTest {
    @Test
    void excludesARangeSliderFromTheDiff() {
       assertFalse(SelectionRuntimeService.isPathDiffable(mock(TimeSliderVSAssembly.class)));
+   }
+
+   // ── deselectTargets (the ancestor-flag-residue fix) ─────────────────────
+
+   /**
+    * The direct regression test for the newly-found symptom: switching a SelectionTree's
+    * selection to a sibling at the SAME depth left the old branch's top-level node accumulated
+    * alongside the new one, because a leaf-level deselect never clears the ancestor flag a prior
+    * select had set. Removing "NY/New York" with nothing else remaining under "NY" must resolve
+    * to a single "NY"-level deselect target, not the leaf path — that's what reaches
+    * {@code unselectChildren} and actually clears NY's own stale flag.
+    */
+   @Test
+   void collapsesALeafDeselectToItsRootAncestorWhenNothingElseRemainsUnderIt() {
+      List<List<String>> current = List.of(List.of("NY", "New York"));
+      List<List<String>> toRemove = List.of(List.of("NY", "New York"));
+
+      assertEquals(List.of(List.of("NY")),
+                  SelectionRuntimeService.deselectTargets(current, toRemove),
+                  "NY has no other selected child left, so clearing it at the NY level (which " +
+                  "cascades via unselectChildren) is what actually clears NY's own residual flag");
+   }
+
+   /**
+    * The precise case the fix has to get right in the other direction: a sibling under the SAME
+    * ancestor must survive. Collapsing to the ancestor here would wrongly clear "NY/Buffalo" too,
+    * so the exact leaf path is what has to be sent.
+    */
+   @Test
+   void keepsTheExactLeafWhenASiblingUnderTheSameAncestorStaysSelected() {
+      List<List<String>> current = List.of(List.of("NY", "New York"), List.of("NY", "Buffalo"));
+      List<List<String>> toRemove = List.of(List.of("NY", "New York"));
+
+      assertEquals(List.of(List.of("NY", "New York")),
+                  SelectionRuntimeService.deselectTargets(current, toRemove),
+                  "Buffalo is still selected under NY, so collapsing to the NY-level ancestor " +
+                  "would clear a selection the caller never asked to remove");
+   }
+
+   /** Removing several branches at once collapses each independently and de-duplicates. */
+   @Test
+   void collapsesEachRemovedBranchIndependently() {
+      List<List<String>> current = List.of(List.of("NY", "New York"), List.of("FL", "Orlando"));
+      List<List<String>> toRemove = current;
+
+      assertEquals(List.of(List.of("NY"), List.of("FL")),
+                  SelectionRuntimeService.deselectTargets(current, toRemove));
+   }
+
+   /** A flat SelectionList has no ancestors to collapse to — every path is already one segment. */
+   @Test
+   void isANoOpForAFlatSelectionListsSingleSegmentPaths() {
+      List<List<String>> current = List.of(List.of("East"), List.of("West"));
+      List<List<String>> toRemove = List.of(List.of("East"));
+
+      assertEquals(List.of(List.of("East")),
+                  SelectionRuntimeService.deselectTargets(current, toRemove));
+   }
+
+   // ── additive and deselect (the accumulate-vs-replace design gap) ────────
+
+   /**
+    * additive:true is the caller explicitly opting into "just add" -- the automatic replace-diff
+    * must not fire, so whatever was selected before survives alongside the new value.
+    */
+   @Test
+   void additiveTrueSkipsTheReplaceDiff() throws Exception {
+      Harness h = harness(list(XConstants.SORT_ASC, false, null));
+
+      h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null,
+                             null, true, "");
+
+      verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
+                                                    any(Principal.class), any(), anyString());
+   }
+
+   /**
+    * Without additive, the default stays full-replace -- bug-76548's own fix is unchanged. No
+    * prior selection is stubbed here (matching every other "domain not yet known" fixture in
+    * this file), so there is nothing to diff away in this particular call, but the point is that
+    * additive being unset/false runs the exact same code path as before this change existed, not
+    * a new one -- the diff step itself is exercised end-to-end above
+    * ({@code collapsesALeafDeselectToItsRootAncestorWhenNothingElseRemainsUnderIt} et al.) and by
+    * bug-76548's own pre-existing tests.
+    */
+   @Test
+   void defaultsToTheReplaceDiffWithoutAdditive() throws Exception {
+      Harness h = harness(list(XConstants.SORT_ASC, false, null));
+
+      h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null,
+                             null, null, "");
+
+      verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
+                                                    any(Principal.class), any(), anyString());
+   }
+
+   /**
+    * An explicit deselect list reaches the endpoint as a deselect event for exactly those values.
+    *
+    * <p>{@code getSelectionList()} is left unstubbed (null, the same "domain not yet known"
+    * shape every other integration test in this file uses — {@code SelectionList} cannot be
+    * mocked outside a Spring context) — so {@code selectedPaths(assembly)} sees an empty current
+    * selection here, not a real one. That does not weaken this test: {@link #deselectTargets}
+    * degenerates safely against an empty {@code current} (every requested path's own first
+    * segment always qualifies as its shortest clearable prefix, since nothing remains to protect),
+    * so the exact single-segment "East" path this asserts is what a real populated selection
+    * would produce too — this test is about the wiring reaching {@code applySelection} with the
+    * right value, not about the ancestor-collapse logic itself (covered directly, over
+    * {@code List<List<String>>}, above).
+    */
+   @Test
+   void explicitDeselectRemovesExactlyTheNamedValues() throws Exception {
+      Harness h = harness(list(XConstants.SORT_ASC, false, null));
+
+      Map<String, Object> result = h.service.setSelection("tok", principal(), "Filter1", null,
+         List.of(List.of("East")), null, null, null, "");
+
+      assertEquals(1, result.get("deselected"));
+      ArgumentCaptor<ApplySelectionListEvent> sent =
+         ArgumentCaptor.forClass(ApplySelectionListEvent.class);
+      verify(h.selections).applySelection(anyString(), anyString(), sent.capture(),
+                                          any(Principal.class), any(), anyString());
+      assertArrayEquals(new String[]{ "East" }, sent.getValue().getValues().get(0).getValue());
+      assertFalse(sent.getValue().getValues().get(0).isSelected());
+   }
+
+   /** Naming the same value in both 'values' and 'deselect' is a contradiction, refused by name. */
+   @Test
+   void refusesAValueNamedInBothValuesAndDeselect() {
+      Harness h = harness(list(XConstants.SORT_ASC, false, null));
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("East")),
+                                      List.of(List.of("East")), null, null, null, ""));
+
+      assertTrue(e.getMessage().contains("East"), e.getMessage());
+   }
+
+   /** 'deselect' only makes sense where the replace-diff already applies -- same gate, same reason. */
+   @Test
+   void refusesDeselectOnARangeSlider() {
+      TimeSliderVSAssembly slider = mock(TimeSliderVSAssembly.class);
+      TimeSliderVSAssemblyInfo info = mock(TimeSliderVSAssemblyInfo.class);
+      doReturn(info).when(slider).getInfo();
+      Harness h = harness(slider);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setSelection("tok", principal(), "Slider1", null,
+                                      List.of(List.of("2")), null, null, null, ""));
+
+      assertTrue(e.getMessage().contains("range slider"), e.getMessage());
+   }
+
+   /** 'deselect' alone (no 'values') is a legitimate call -- "just remove these" needs no new add. */
+   @Test
+   void acceptsDeselectAloneWithNoValues() throws Exception {
+      Harness h = harness(list(XConstants.SORT_ASC, false, null));
+
+      assertDoesNotThrow(() -> h.service.setSelection("tok", principal(), "Filter1", null,
+         List.of(List.of("East")), null, null, null, ""));
    }
 
    // ── selectedPaths recursion into a SelectionTree ────────────────────────
@@ -745,7 +911,7 @@ class SelectionRuntimeServiceTest {
 
       Exception e = assertThrows(IllegalArgumentException.class,
          () -> h.service.setSelection("tok", principal(), "Nope", List.of(List.of("x")), null,
-                                      null, ""));
+                                      null, null, null, ""));
 
       assertTrue(e.getMessage().contains("Nope"), e.getMessage());
       verifyNoInteractions(h.selections);
@@ -757,7 +923,7 @@ class SelectionRuntimeServiceTest {
 
       Exception e = assertThrows(IllegalArgumentException.class,
          () -> h.service.setSelection("tok", principal(), "Chart1", List.of(List.of("x")), null,
-                                      null, ""));
+                                      null, null, null, ""));
 
       assertTrue(e.getMessage().contains("not a selection assembly"), e.getMessage());
       verifyNoInteractions(h.selections);
@@ -768,7 +934,8 @@ class SelectionRuntimeServiceTest {
       Harness h = harness(list(XConstants.SORT_ASC, false, null));
 
       assertThrows(IllegalArgumentException.class,
-         () -> h.service.setSelection("tok", principal(), "Filter1", null, null, null, ""));
+         () -> h.service.setSelection("tok", principal(), "Filter1", null, null, null, null, null,
+                                      ""));
    }
 
    @Test
@@ -776,7 +943,7 @@ class SelectionRuntimeServiceTest {
       Harness h = harness(list(XConstants.SORT_ASC, false, null));
 
       Map<String, Object> result = h.service.setSelection(
-         "tok", principal(), "Filter1", List.of(List.of("East")), null, null, "");
+         "tok", principal(), "Filter1", List.of(List.of("East")), null, null, null, null, "");
 
       assertEquals(true, result.get("persistsOnSave"),
                    "writeStateContent writes the selection on the save path, so a caller must know");

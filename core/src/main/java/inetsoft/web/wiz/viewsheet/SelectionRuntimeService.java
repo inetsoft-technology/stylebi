@@ -98,19 +98,47 @@ public class SelectionRuntimeService {
     *
     * @param values      the values to select. For a tree, each entry is a path from the root, so
     *                    {@code ["East","NY"]} selects NY under East. Null leaves the selection alone.
+    *                    On a list or non-ID-mode tree, {@code values} <b>replaces</b> the current
+    *                    selection by default (bug-76548) — pass {@code additive:true} to make it
+    *                    add to the current selection instead, without touching anything else.
+    * @param deselect    values/paths to explicitly remove from the current selection, independent
+    *                    of {@code additive} — the counterpart to {@code values} for a caller that
+    *                    knows exactly what to un-check without needing to first read (or
+    *                    re-specify) everything that should stay selected. Same shape as
+    *                    {@code values}; null or empty leaves the selection alone. Only valid on a
+    *                    list or non-ID-mode tree (the only assemblies {@code values}'s own replace
+    *                    diff already applies to).
     * @param sortOrder   {@code asc} | {@code desc} | {@code specific}, or null to leave it.
     * @param singleSelect whether the assembly should accept one value only, or null to leave it.
+    * @param additive    when true, {@code values} only adds — the automatic replace-diff (deselect
+    *                    anything current but unmentioned) is skipped. Ignored where that diff
+    *                    never ran anyway (single-select, a range slider, ID-mode tree, calendar).
     */
    public Map<String, Object> setSelection(String sessionToken, Principal user, String assemblyName,
-                                           List<List<String>> values, String sortOrder,
-                                           Boolean singleSelect, String linkUri)
+                                           List<List<String>> values, List<List<String>> deselect,
+                                           String sortOrder, Boolean singleSelect, Boolean additive,
+                                           String linkUri)
       throws Exception
    {
       requireName(assemblyName);
 
-      if(values == null && sortOrder == null && singleSelect == null) {
+      boolean hasDeselect = deselect != null && !deselect.isEmpty();
+
+      if(values == null && sortOrder == null && singleSelect == null && !hasDeselect) {
          throw new IllegalArgumentException(
-            "Nothing to do — give at least one of 'values', 'sortOrder' or 'singleSelect'.");
+            "Nothing to do — give at least one of 'values', 'deselect', 'sortOrder' or " +
+            "'singleSelect'.");
+      }
+
+      if(values != null && hasDeselect) {
+         List<List<String>> overlap = new ArrayList<>(values);
+         overlap.retainAll(deselect);
+
+         if(!overlap.isEmpty()) {
+            throw new IllegalArgumentException(
+               "'values' and 'deselect' both name " + overlap + " — that's a contradiction: " +
+               "select it or remove it, not both in the same call.");
+         }
       }
 
       final Integer targetSort = sortOrder == null ? null : requireSortOrder(sortOrder);
@@ -186,15 +214,18 @@ public class SelectionRuntimeService {
                result.put("scopedBySearch", search);
             }
 
-            if(!single && isPathDiffable(assembly)) {
+            if(!single && isPathDiffable(assembly) && !Boolean.TRUE.equals(additive)) {
                // Multi-select apply is a delta patch -- doApplySelection only ever turns matched
                // values on, so anything currently selected but missing from the new values has to
                // be turned off explicitly, or it stays selected alongside them. Single-select
-               // already gets a full reset for free via unselectChildren.
-               List<List<String>> toDeselect = toDeselect(selectedPaths(assembly), values);
+               // already gets a full reset for free via unselectChildren. additive:true is the
+               // caller explicitly opting out of this replace behaviour -- see the javadoc above.
+               List<List<String>> currentPaths = selectedPaths(assembly);
+               List<List<String>> toRemove = toDeselect(currentPaths, values);
 
-               if(!toDeselect.isEmpty()) {
-                  selections.applySelection(runtimeId, assemblyName, deselectEvent(toDeselect),
+               if(!toRemove.isEmpty()) {
+                  selections.applySelection(runtimeId, assemblyName,
+                                            deselectEvent(deselectTargets(currentPaths, toRemove)),
                                             user, dispatcher, linkUri);
                }
             }
@@ -226,6 +257,24 @@ public class SelectionRuntimeService {
             }
 
             result.put("valuesSelected", values.size());
+         }
+
+         if(hasDeselect) {
+            if(!isPathDiffable(assembly)) {
+               throw new IllegalArgumentException(
+                  "'" + assemblyName + "' is " + describe(assembly) + " -- 'deselect' only works " +
+                  "on a selection list or a non-ID-mode selection tree. Use clear_selection to " +
+                  "remove everything, or set_selection's plain 'values' for a range slider.");
+            }
+
+            List<List<String>> currentPaths = selectedPaths(assembly);
+            List<List<String>> targets = deselectTargets(currentPaths, deselect);
+
+            if(!targets.isEmpty()) {
+               selections.applySelection(runtimeId, assemblyName, deselectEvent(targets), user,
+                                         dispatcher, linkUri);
+               result.put("deselected", deselect.size());
+            }
          }
       });
 
@@ -284,8 +333,10 @@ public class SelectionRuntimeService {
             if(!current.isEmpty()) {
                // The client composes "unselect" the same way: send every currently selected
                // value back with selected=false. There is no single clear endpoint for one
-               // assembly.
-               selections.applySelection(runtimeId, assemblyName, deselectEvent(current), user,
+               // assembly. Cleared via deselectTargets (not the leaf paths directly) for the
+               // same reason set_selection's own diff-deselect does -- see that javadoc.
+               selections.applySelection(runtimeId, assemblyName,
+                                         deselectEvent(deselectTargets(current, current)), user,
                                          dispatcher, linkUri);
             }
          }
@@ -534,6 +585,80 @@ public class SelectionRuntimeService {
       List<List<String>> toDeselect = new ArrayList<>(current);
       toDeselect.removeAll(requested);
       return toDeselect;
+   }
+
+   /**
+    * The actual paths to send in a deselect event for {@code toRemove}, given everything
+    * currently selected ({@code current}) — not simply {@code toRemove} itself.
+    *
+    * <p><b>The bug this works around:</b> a deselect event only clears its exact TARGET (deepest)
+    * node's own {@code selected} flag in the shared {@code updateSelectionOfChangedAssembly} —
+    * unlike a select, which also marks every ancestor along the path selected via its own
+    * {@code isParent && selected} branch, a deselect's matching condition is
+    * {@code isParent && false}, always false, so an ancestor's own flag is never cleared there.
+    * Left stale, that flag resurfaces on the very next read: {@link #selectedPaths} treats "a
+    * composite selected as a whole with no selected children of its own" as a legitimate
+    * top-level selection in its own right (an empty-fallback rule this file needs for the
+    * opposite, genuinely-correct case of a whole parent node selected on purpose) — so an
+    * ancestor whose one live child was just deselected gets reported right back as if it had been
+    * freshly selected on its own, reappearing in the very next diff as a spurious "currently
+    * selected" path that was never actually requested. A caller who changes one leaf under a
+    * previously-selected branch (even to a sibling at the exact same depth) sees the old branch's
+    * top level accumulate alongside the new selection instead of being replaced by it.
+    *
+    * <p><b>The fix:</b> for each path being removed, find the SHORTEST prefix (from its root)
+    * that, once {@code toRemove} is applied, no remaining selected path shares — the highest
+    * ancestor whose entire subtree is safe to fully clear. Deselecting there instead of at the
+    * exact leaf reaches the same leaf via the shared method's own {@code unselectChildren}
+    * cascade, but also correctly clears every ancestor flag along the way, since nothing under it
+    * is meant to survive. Falls back to the leaf path itself if no such prefix is found (should
+    * not happen in practice, since the leaf itself is always a valid, if maximally specific,
+    * choice). Entirely a wiz-layer fix — {@code updateSelectionOfChangedAssembly} itself is
+    * untouched, so this carries no risk to the Composer UI or any other caller sharing it.
+    *
+    * <p>A no-op for a flat {@code SelectionListVSAssembly}: every path there is already exactly
+    * one segment, so the shortest-prefix search always lands on the path itself, unchanged.
+    */
+   static List<List<String>> deselectTargets(List<List<String>> current, List<List<String>> toRemove) {
+      List<List<String>> remaining = new ArrayList<>(current);
+      remaining.removeAll(toRemove);
+
+      List<List<String>> targets = new ArrayList<>();
+
+      for(List<String> path : toRemove) {
+         List<String> target = path;
+
+         for(int len = 1; len <= path.size(); len++) {
+            List<String> prefix = path.subList(0, len);
+
+            if(remaining.stream().noneMatch(p -> startsWithPath(p, prefix))) {
+               target = prefix;
+               break;
+            }
+         }
+
+         List<String> copy = new ArrayList<>(target);
+
+         if(!targets.contains(copy)) {
+            targets.add(copy);
+         }
+      }
+
+      return targets;
+   }
+
+   private static boolean startsWithPath(List<String> path, List<String> prefix) {
+      if(path.size() < prefix.size()) {
+         return false;
+      }
+
+      for(int i = 0; i < prefix.size(); i++) {
+         if(!Objects.equals(path.get(i), prefix.get(i))) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    /**
