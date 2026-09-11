@@ -418,6 +418,30 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Same as {@link #addQueryParamsTableRequest}, but also carrying {@code parameters}/
+    * {@code lookup}/{@code customLookups} -- the three endpoint/suffix-only fields
+    * {@code addQueryParamsTable} silently ignores unless {@code editOp} rejects the
+    * combination up front.
+    */
+   private static EditRequest addQueryParamsTableRequestWithConflictingField(
+      String table, String datasource, Map<String, Object> queryParams,
+      Map<String, String> parameters, List<String> lookup,
+      List<Map<String, Object>> customLookups) throws Exception
+   {
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "add_table");
+      if(table != null) body.put("table", table);
+      if(datasource != null) body.put("datasource", datasource);
+      if(queryParams != null) body.put("queryParams", queryParams);
+      if(parameters != null) body.put("parameters", parameters);
+      if(lookup != null) body.put("lookup", lookup);
+      if(customLookups != null) body.put("customLookups", customLookups);
+
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+   }
+
+   /**
     * Builds a {@code delete_table} EditRequest -- a plainly destructive op that routes through
     * {@code editService}, so a scope guard that failed to fire would show up as a real write
     * attempt rather than an early return.
@@ -4021,6 +4045,70 @@ class WorksheetAgentControllerTest {
       PairingException ex = assertThrows(PairingException.class,
          () -> ctrl.edit("TOK-QP2", req, agent));
       assertTrue(ex.getMessage().contains("queryParams together with endpoint or suffix"),
+         ex.getMessage());
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addQueryParamsTableRejectsQueryParamsTogetherWithParameters() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addQueryParamsTableRequestWithConflictingField("t1", "MyDatasource",
+         Map.of("entitySet", "Orders"), Map.of("id", "123"), null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-QP7", req, agent));
+      assertTrue(ex.getMessage().contains("queryParams together with parameters"),
+         ex.getMessage());
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addQueryParamsTableRejectsQueryParamsTogetherWithLookup() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addQueryParamsTableRequestWithConflictingField("t1", "MyDatasource",
+         Map.of("entitySet", "Orders"), null, List.of("Issue Event"), null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-QP8", req, agent));
+      assertTrue(ex.getMessage().contains("queryParams together with lookup"),
+         ex.getMessage());
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addQueryParamsTableRejectsQueryParamsTogetherWithCustomLookups() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addQueryParamsTableRequestWithConflictingField("t1", "MyDatasource",
+         Map.of("entitySet", "Orders"), null, null,
+         List.of(Map.of("url", "/v1/events", "jsonPath", "$.data", "key", "id")));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-QP9", req, agent));
+      assertTrue(ex.getMessage().contains("queryParams together with customLookups"),
          ex.getMessage());
       verifyNoInteractions(dataSourceService);
       verifyNoInteractions(editSvc);
