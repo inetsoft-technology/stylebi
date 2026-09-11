@@ -861,6 +861,131 @@ class AssemblyHyperlinkServiceTest {
       assertNull(read.get("colName"));
    }
 
+   // ── VHL-004: self:true reads back targetFrame:"SELF", not "" ───────────────
+
+   /**
+    * {@code HyperlinkDialogService.getHyperlinkDialogModel} blanks {@code targetFrame} to
+    * {@code ""} and reports the fact via {@code self} whenever the persisted
+    * {@code Hyperlink.targetFrame} was the literal {@code "SELF"} -- {@code describe()} must
+    * reconstruct that literal for this tool's own contract to hold.
+    */
+   @Test
+   void selfWithARealLinkReadsBackTargetFrameAsSelf() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(Hyperlink.WEB_LINK);
+      model.setWebLink("https://example.com");
+      model.setSelf(true);
+      model.setTargetFrame("");
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1", null);
+
+      assertEquals("SELF", read.get("targetFrame"));
+   }
+
+   /**
+    * A never-linked assembly also carries {@code self=true} by default
+    * ({@code HyperlinkDialogService.java:182}, taken whenever {@code hyperlink == null}) -- not
+    * because a "SELF" target frame was ever persisted. Reporting {@code targetFrame:"SELF"} here
+    * would fabricate a link property for an assembly that has no link at all, so this must stay
+    * as the model's own (unset) target frame, mirroring the real Angular dialog's own guard
+    * ({@code hyperlink-dialog.component.ts:309-310}, which only rewrites for
+    * {@code linkType !== NONE}).
+    */
+   @Test
+   void selfDefaultOnANeverLinkedAssemblyDoesNotFabricateTargetFrameSelf() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(HyperlinkDialogService.NONE);
+      model.setSelf(true);
+      model.setTargetFrame("");
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1", null);
+
+      assertEquals("none", read.get("linkType"));
+      assertNotEquals("SELF", read.get("targetFrame"));
+   }
+
+   // ── VHL-001: chart data-point and axis-label links share one storage slot ──
+
+   /**
+    * {@code HyperlinkDialogService.getHyperlinkDialogModel} only sets {@code model.colName} from
+    * its chart branch, so a non-null model colName here (outside a title/empty-plot-link ask) is
+    * exactly the shape where {@code axis:true} and a plain call resolve to the same
+    * {@code ChartRef}'s single {@code Hyperlink} slot. The response must disclose that plainly.
+    */
+   @Test
+   void disclosesTheSharedStorageForAnOrdinaryChartFieldAddressedByColName() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setColName("Revenue");
+
+      Map<String, Object> read = harness(model).service.read(
+         "tok", principal(), "Chart1",
+         new AssemblyHyperlinkService.Region(null, null, "Revenue", true, false, false, false));
+
+      assertEquals(true, read.get("axisAndDataPointShareLink"));
+   }
+
+   /** A title link lives on {@code ChartVSAssemblyInfo} itself, independent of any ChartRef. */
+   @Test
+   void doesNotDiscloseSharedStorageForATitleLink() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setColName("Revenue");
+
+      Map<String, Object> read = harness(model).service.read(
+         "tok", principal(), "Chart1",
+         new AssemblyHyperlinkService.Region(null, null, null, false, false, true, false));
+
+      assertEquals(false, read.get("axisAndDataPointShareLink"));
+   }
+
+   /** A table cell has no colName-addressed ChartRef at all -- nothing is shared. */
+   @Test
+   void doesNotDiscloseSharedStorageWhenTheModelCarriesNoColName() throws Exception {
+      Map<String, Object> read = harness(new HyperlinkDialogModel())
+         .service.read("tok", principal(), "Table1",
+                       new AssemblyHyperlinkService.Region(2, 1, "Sales", false, false, false,
+                                                           false));
+
+      assertEquals(false, read.get("axisAndDataPointShareLink"));
+   }
+
+   // ── VHL-003: link.bookmark silently dropped ─────────────────────────────────
+
+   @Test
+   void bookmarkIsRefusedForAWebLink() {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Chart1", null,
+                             link("linkType", "web", "webLink", "https://example.com",
+                                  "bookmark", "Q3"),
+                             ""));
+
+      assertTrue(thrown.getMessage().contains("bookmark"));
+      assertTrue(thrown.getMessage().contains("web"));
+   }
+
+   @Test
+   void bookmarkIsRefusedForAMessageLink() {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Chart1", null,
+                             link("linkType", "message", "webLink", "hello",
+                                  "bookmark", "Q3"),
+                             ""));
+
+      assertTrue(thrown.getMessage().contains("bookmark"));
+   }
+
+   // The "matches an existing bookmark" / "matches none" cases call the real, unmocked
+   // VSUtil.getBookmarks (via Mockito.mockStatic) -- that class's static initializer touches
+   // Spring-context-dependent caching, so those two live in
+   // AssemblyHyperlinkServiceBookmarkValidationTest, bootstrapped the same way
+   // ComposerBindingControllerTest bootstraps it, rather than dragging that setup into this
+   // file's fast, plain-Mockito harness for every other test in it.
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(AssemblyHyperlinkService service, ViewsheetSessionService sessions,
