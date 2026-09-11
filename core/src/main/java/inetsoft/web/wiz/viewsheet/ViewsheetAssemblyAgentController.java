@@ -895,7 +895,8 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       return selectionService.setSelection(sessionToken, user, request.assembly(), request.values(),
-                                          request.sortOrder(), request.singleSelect(), linkUri);
+                                          request.deselect(), request.sortOrder(),
+                                          request.singleSelect(), request.additive(), linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/clear")
@@ -924,7 +925,8 @@ public class ViewsheetAssemblyAgentController {
    }
 
    public record SelectionRequest(String assembly, java.util.List<java.util.List<String>> values,
-                                  String sortOrder, Boolean singleSelect) {}
+                                  java.util.List<java.util.List<String>> deselect, String sortOrder,
+                                  Boolean singleSelect, Boolean additive) {}
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/calendar/display")
    public Map<String, Object> setCalendarDisplay(@PathVariable String sessionToken,
