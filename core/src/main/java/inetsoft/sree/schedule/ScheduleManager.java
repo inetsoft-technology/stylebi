@@ -1088,7 +1088,7 @@ public class ScheduleManager {
             continue;
          }
 
-         if(type == Identity.USER && identityID.equals(task.getOwner())) {
+         if((type == Identity.USER || type == Identity.GROUP) && identityID.equals(task.getOwner())) {
             i.remove();
             continue;
          }
@@ -1162,7 +1162,7 @@ public class ScheduleManager {
             continue;
          }
 
-         if(type == Identity.USER && identityID.equals(task.getOwner())) {
+         if((type == Identity.USER || type == Identity.GROUP) && identityID.equals(task.getOwner())) {
             ownedTasks.add(task.getName());
             continue;
          }
@@ -1202,7 +1202,7 @@ public class ScheduleManager {
             continue;
          }
 
-         if(type == Identity.USER && oname.equals(task.getOwner())) {
+         if((type == Identity.USER || type == Identity.GROUP) && oname.equals(task.getOwner())) {
             String oldTaskId = task.getTaskId();
             this.getOrgTaskMap(orgID).remove(getTaskIdentifier(oldTaskId, orgID));
             task.setOwner(id);
