@@ -84,7 +84,9 @@ public class TableBindingService {
             ? data.getSourceInfo() : null;
          requireSourceForFieldWrite(assemblyName, shelf, model.getSource(),
                                     fields == null ? 0 : fields.size());
+         String livePercentageBy = livePercentageByValue(assembly);
          TableBindingMutator.setShelf(model, shelf, fields, rvs, source, refModelService);
+         TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
 
          ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
          event.setName(assemblyName);
@@ -402,8 +404,10 @@ public class TableBindingService {
    public void setOptions(String sessionToken, Principal user, String assemblyName,
                           Map<String, Object> options) throws Exception
    {
+      // Unlike every other mutator below, this one is allowed to actually change percentageBy
+      // — so it must not have preserveUntouchedPercentageBy undo whatever it just set.
       apply(sessionToken, user, assemblyName,
-            model -> TableBindingMutator.setOptions(model, options));
+            model -> TableBindingMutator.setOptions(model, options), false, false);
    }
 
    public Map<String, Object> optionVocabulary() {
@@ -484,7 +488,7 @@ public class TableBindingService {
    private void apply(String sessionToken, Principal user, String assemblyName,
                       Consumer<BaseTableBindingModel> mutation) throws Exception
    {
-      apply(sessionToken, user, assemblyName, mutation, false);
+      apply(sessionToken, user, assemblyName, mutation, false, true);
    }
 
    /**
@@ -507,7 +511,9 @@ public class TableBindingService {
          VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
          inetsoft.uql.asset.SourceInfo source = assembly instanceof DataVSAssembly data
             ? data.getSourceInfo() : null;
+         String livePercentageBy = livePercentageByValue(assembly);
          mutation.accept(model, rvs, source);
+         TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
 
          ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
          event.setName(assemblyName);
@@ -520,9 +526,28 @@ public class TableBindingService {
                       Consumer<BaseTableBindingModel> mutation, boolean allowCalcTable)
       throws Exception
    {
+      apply(sessionToken, user, assemblyName, mutation, allowCalcTable, true);
+   }
+
+   /**
+    * @param preservePercentageBy see {@link TableBindingMutator#preserveUntouchedPercentageBy} --
+    *                             {@code false} only for {@link #setOptions}, the one wiz call
+    *                             allowed to actually change {@code percentageBy}.
+    */
+   private void apply(String sessionToken, Principal user, String assemblyName,
+                      Consumer<BaseTableBindingModel> mutation, boolean allowCalcTable,
+                      boolean preservePercentageBy)
+      throws Exception
+   {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName, allowCalcTable);
+         VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
+         String livePercentageBy = preservePercentageBy ? livePercentageByValue(assembly) : null;
          mutation.accept(model);
+
+         if(preservePercentageBy) {
+            TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
+         }
 
          ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
          event.setName(assemblyName);
@@ -532,6 +557,21 @@ public class TableBindingService {
          // trading a reported problem for an unreported one.
          bindingModelService.setBinding(runtimeId, event, user, dispatcher);
       });
+   }
+
+   /**
+    * The live crosstab's own, never-manufactured {@code percentageBy}, read directly off the
+    * real assembly before this call's mutation runs -- {@code null} for a crosstab that has
+    * never had {@code set_table_options(percentageBy: ...)} called on it (or for anything that
+    * is not a crosstab). See {@link TableBindingMutator#preserveUntouchedPercentageBy}.
+    */
+   private static String livePercentageByValue(VSAssembly assembly) {
+      if(!(assembly instanceof CrosstabVSAssembly crosstab)) {
+         return null;
+      }
+
+      VSCrosstabInfo info = crosstab.getVSCrosstabInfo();
+      return info == null ? null : info.getPercentageByValue();
    }
 
    private BaseTableBindingModel requireTableBinding(RuntimeViewsheet rvs, String assemblyName) {

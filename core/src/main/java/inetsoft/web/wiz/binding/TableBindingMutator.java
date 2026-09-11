@@ -843,6 +843,33 @@ public final class TableBindingMutator {
    // ── options (2d Phase 3) ──────────────────────────────────────────────────
 
    /**
+    * Undoes {@code CrosstabOptionInfo(CrosstabVSAssembly)}'s null-to-{@code "1"} (col) display
+    * default on a wiz write that never asked to change {@code percentageBy}.
+    *
+    * <p>That constructor manufactures {@code "1"} purely so a never-configured crosstab has
+    * something to show when a binding model snapshot is built for it — but {@code
+    * VSCrosstabBindingFactory.updateAssembly()} persists whatever the model's option carries
+    * onto the live assembly unconditionally, on every write, not just an options write. Without
+    * this, the very first wiz touch to a never-configured crosstab — a shelf edit, a sort,
+    * anything, not just {@code set_table_options} — silently and permanently set {@code
+    * percentageBy} to {@code "col"} as a side effect.
+    *
+    * <p>Every caller in {@code TableBindingService} except {@code setOptions} passes the live
+    * assembly's own {@code VSCrosstabInfo.getPercentageByValue()}, read before the mutation, as
+    * {@code livePercentageByValue} — {@code setOptions} is the one call allowed to actually
+    * change it, so it never calls this at all.
+    */
+   public static void preserveUntouchedPercentageBy(BaseTableBindingModel model,
+                                                    String livePercentageByValue)
+   {
+      if(livePercentageByValue == null && model instanceof CrosstabBindingModel crosstab &&
+         crosstab.getOption() != null)
+      {
+         crosstab.getOption().setPercentageByValue(null);
+      }
+   }
+
+   /**
     * Crosstab and table options.
     *
     * <p><b>The crosstab totals are string-typed booleans</b> — {@code rowTotalVisibleValue} and
