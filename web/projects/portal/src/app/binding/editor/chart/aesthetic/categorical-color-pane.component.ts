@@ -109,7 +109,9 @@ export class CategoricalColorPane extends CategoricalFramePane implements OnInit
     */
    private getColorPalettes(): Observable<any> {
       const params = new HttpParams()
-         .set("orgId", createAssetEntry(this.assetId).organization);
+         .set("orgId", createAssetEntry(this.assetId).organization)
+         .set("vsId", this.vsId)
+         .set("assemblyName", this.assemblyName);
 
       return this.modelService.getModel(COLOR_PALETTES_URI, params);
    }

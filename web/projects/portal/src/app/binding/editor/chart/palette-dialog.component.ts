@@ -40,10 +40,15 @@ export class PaletteDialog {
    _reversed: boolean = false;
 
    get paletteSelectOptions(): CustomSelectOption<number>[] {
-      return (this.colorPalettes || []).map((palette, index) => ({
-         value: index,
-         label: palette.name
-      }));
+      const selected = this.displayPalette == null ? -1 : this._selectedIndex;
+
+      return (this.colorPalettes || [])
+         .map((palette, index) => ({ palette, index }))
+         .filter(({ palette, index }) => !palette.hidden || index === selected)
+         .map(({ palette, index }) => ({
+            value: index,
+            label: palette.name
+         }));
    }
 
    get displayPalette(): CategoricalColorModel {

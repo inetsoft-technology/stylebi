@@ -25,10 +25,15 @@ import {
 } from "../../../widget/color-picker/palette-test-fixtures";
 import { PaletteDialog } from "./palette-dialog.component";
 
-function palette(name: string, head: string[]): CategoricalColorModel {
+const HEAT_HEAD: string[] = [
+   "#663300", "#914800", "#bd5e00", "#e97400", "#ff8a15", "#ffa041", "#ffb66d", "#ffcc99"
+];
+
+function palette(name: string, head: string[], hidden = false): CategoricalColorModel {
    const model = new CategoricalColorModel();
    model.name = name;
    model.colors = palette40(head);
+   model.hidden = hidden;
    return model;
 }
 
@@ -77,5 +82,43 @@ describe("PaletteDialog pre-selection", () => {
       custom[3] = "#123456";
       const dialog = dialogWith(custom.concat(LEGACY_TAIL));
       expect(dialog.displayPalette.name).toBe("Default");
+   });
+});
+
+describe("PaletteDialog hidden palettes", () => {
+   function dialogWithHidden(currentColors: string[]): PaletteDialog {
+      const dialog = new PaletteDialog();
+      dialog.colorPalettes = [
+         palette("Default", LEGACY_HEAD),
+         palette("Modern", MODERN_HEAD),
+         palette("Heat 8", HEAT_HEAD, true)
+      ];
+      const curr = new CategoricalColorModel();
+      curr.colors = currentColors;
+      dialog.currPalette = curr;
+      return dialog;
+   }
+
+   it("drops a hidden palette from the dropdown", () => {
+      const dialog = dialogWithHidden(palette40(MODERN_HEAD));
+      expect(dialog.paletteSelectOptions.map((o) => o.label)).toEqual(["Default", "Modern"]);
+   });
+
+   it("keeps a hidden palette in the dropdown when the chart is using it", () => {
+      const dialog = dialogWithHidden(palette40(HEAT_HEAD));
+      expect(dialog.displayPalette.name).toBe("Heat 8");
+      expect(dialog.paletteSelectOptions.map((o) => o.label))
+         .toEqual(["Default", "Modern", "Heat 8"]);
+   });
+
+   // value indexes the unfiltered colorPalettes array, not the filtered list
+   it("keeps option values aligned with the unfiltered array", () => {
+      const dialog = dialogWithHidden(palette40(MODERN_HEAD));
+      expect(dialog.paletteSelectOptions.map((o) => o.value)).toEqual([0, 1]);
+   });
+
+   it("does not repaint a chart sitting on a hidden palette", () => {
+      const dialog = dialogWithHidden(palette40(HEAT_HEAD));
+      expect(dialog.displayPalette.colors).toEqual(palette40(HEAT_HEAD));
    });
 });
