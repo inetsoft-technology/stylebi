@@ -25,8 +25,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class ScheduleApplyRequest extends ScheduleChangePlanRequest {
    public String getPlanHash() { return planHash; }
    public void setPlanHash(String v) { this.planHash = v; }
+   public String getTaskToken() { return taskToken; }
+   public void setTaskToken(String v) { this.taskToken = v; }
    public String getReviewOutcome() { return reviewOutcome; }
    public void setReviewOutcome(String v) { this.reviewOutcome = v; }
 
-   private String planHash, reviewOutcome;
+   private String planHash, taskToken, reviewOutcome;
 }

@@ -18,18 +18,24 @@
 package inetsoft.web.admin.ai.schedule;
 
 import inetsoft.web.api.schedule.*;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.util.Tool;
+import inetsoft.util.audit.Audit;
+import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.ApplyResult;
+import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.TaskAuditToken;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Answers;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -56,20 +62,47 @@ class ScheduleChangesetApplyServiceTest {
    @Mock private Principal user;
    private ScheduleChangePlanService planService;
    private ScheduleChangesetApplyService service;
+   private MockedStatic<SreeEnv> sreeEnv;
    private MockedStatic<Tool> tool;
+   private MockedStatic<Audit> auditStatic;
+   private Audit auditMock;
 
    @BeforeEach void setUp() {
       planService = new ScheduleChangePlanService(scheduleGateway, scheduleManager);
       service = new ScheduleChangesetApplyService(planService, scheduleGateway, scheduleManager,
                                                    backupService);
+      // writeAudit's Tool.getHost() call falls through to SreeEnv.getProperty("local.host.name")
+      // when unset; a lenient, unstubbed static mock returns null there instead of throwing
+      // ShutdownException for a Spring context that isn't up in this unit test, same as
+      // AdminChangesetApplyServiceTest's own setUp.
+      sreeEnv = mockStatic(SreeEnv.class, withSettings().strictness(Strictness.LENIENT));
       tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
       tool.when(() -> Tool.encryptPassword(anyString()))
          .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+      tool.when(() -> Tool.decryptPassword(anyString()))
+         .thenAnswer(inv -> {
+            String s = inv.getArgument(0);
+
+            if(!s.startsWith("TKN:")) {
+               throw new IllegalArgumentException("not a token");
+            }
+
+            return s.substring(4);
+         });
+
+      // writeAudit calls the static Audit.getInstance() singleton directly (no injectable
+      // AdminChangeService to intercept, unlike properties) -- mock it statically so tests can
+      // inspect what task narrative actually reached the audit record.
+      auditMock = mock(Audit.class);
+      auditStatic = mockStatic(Audit.class, withSettings().strictness(Strictness.LENIENT));
+      auditStatic.when(Audit::getInstance).thenReturn(auditMock);
    }
 
    @AfterEach void tearDown() {
+      sreeEnv.close();
       tool.close();
+      auditStatic.close();
    }
 
    // -------------------------------------------------------------------------
@@ -124,6 +157,60 @@ class ScheduleChangesetApplyServiceTest {
       verify(scheduleGateway).removeScheduleTask(eq("t1"), any(), eq(user));
    }
 
+   // The core regression proof for a create: the audit record's taskDescription must come from
+   // the taskToken's embedded (reviewed) narrative, not from this apply request's own (possibly
+   // diverged) task field.
+   @Test void auditsThePreviewedTaskForACreateEvenWhenApplyTaskDiffers() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      when(scheduleManager.getScheduleTask(taskId))
+         .thenReturn(null)
+         .thenReturn(null)
+         .thenReturn(sreeTask("t1", "admin"));
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ScheduleApplyRequest req = requestWithDivergentApplyTask(
+         "reviewed: create t1", "totally different apply-time text", createChange(spec));
+
+      ApplyResult result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(auditMock, atLeastOnce()).auditAdminChange(captor.capture(), eq(user));
+      assertTrue(captor.getAllValues().stream()
+         .allMatch(r -> "reviewed: create t1".equals(r.getTaskDescription())));
+   }
+
+   // Same proof for a delete.
+   @Test void auditsThePreviewedTaskForADeleteEvenWhenApplyTaskDiffers() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask existing = sreeTask("t1", "admin");
+      when(scheduleManager.getScheduleTask("t1"))
+         .thenReturn(existing)
+         .thenReturn(existing)
+         .thenReturn(existing)
+         .thenReturn(null);
+      when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
+      when(scheduleGateway.getScheduleTask(eq("t1"), any(), eq(user)))
+         .thenReturn(dtoTask("t1", "admin"));
+      when(scheduleGateway.getTaskConditions(eq("t1"), any(), eq(user)))
+         .thenReturn(new ScheduleConditionList());
+      when(scheduleGateway.getTaskActions(eq("t1"), any(), eq(user)))
+         .thenReturn(new ScheduleActionList());
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ScheduleApplyRequest req = requestWithDivergentApplyTask(
+         "reviewed: delete t1", "totally different apply-time text", deleteChange("t1"));
+
+      ApplyResult result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(auditMock, atLeastOnce()).auditAdminChange(captor.capture(), eq(user));
+      assertTrue(captor.getAllValues().stream()
+         .allMatch(r -> "reviewed: delete t1".equals(r.getTaskDescription())));
+   }
+
    // -------------------------------------------------------------------------
    // gates
    // -------------------------------------------------------------------------
@@ -156,6 +243,60 @@ class ScheduleChangesetApplyServiceTest {
       IllegalArgumentException ex =
          assertThrows(IllegalArgumentException.class, () -> service.apply(req, user));
       assertTrue(ex.getMessage().contains("reviewOutcome"));
+   }
+
+   @Test void rejectsAMissingTaskToken() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+
+      ScheduleApplyRequest req = applyRequest("create a task", createChange(spec));
+      req.setTaskToken(null);
+
+      AdminChangesetApplyService.TaskTokenMismatchException ex = assertThrows(
+         AdminChangesetApplyService.TaskTokenMismatchException.class,
+         () -> service.apply(req, user));
+      assertTrue(ex.getMessage().startsWith("taskToken:"));
+      assertNotNull(ex.current());
+      verify(scheduleGateway, never())
+         .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
+                          any(), any(), any(), any(), any(), eq(user));
+   }
+
+   @Test void rejectsABlankTaskToken() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+
+      ScheduleApplyRequest req = applyRequest("create a task", createChange(spec));
+      req.setTaskToken("   ");
+
+      assertThrows(AdminChangesetApplyService.TaskTokenMismatchException.class,
+         () -> service.apply(req, user));
+   }
+
+   @Test void rejectsATaskTokenIssuedForADifferentPlan() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      CreateScheduleTaskRequest otherSpec = createSpec("t2", "admin");
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      String otherTaskId =
+         ScheduleManager.getTaskId(otherSpec.getOwner().convertToKey(), otherSpec.getName());
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      when(scheduleManager.getScheduleTask(otherTaskId)).thenReturn(null);
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      when(scheduleGateway.hasDeletePermission(otherTaskId, user)).thenReturn(true);
+
+      ScheduleApplyRequest req = applyRequest("create a task", createChange(spec));
+      ScheduleApplyRequest otherPlan = applyRequest("create another task", createChange(otherSpec));
+      req.setTaskToken(otherPlan.getTaskToken());
+
+      assertThrows(AdminChangesetApplyService.TaskTokenMismatchException.class,
+         () -> service.apply(req, user));
+      verify(scheduleGateway, never())
+         .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
+                          any(), any(), any(), any(), any(), eq(user));
    }
 
    // -------------------------------------------------------------------------
@@ -289,12 +430,37 @@ class ScheduleChangesetApplyServiceTest {
       ScheduleChangePlanRequest probe = new ScheduleChangePlanRequest();
       probe.setTask(task);
       probe.setChanges(List.of(changes));
-      String hash = planService.resolve(probe, user).planHash();
+      ResolvedPlan resolved = planService.resolve(probe, user);
 
       ScheduleApplyRequest req = new ScheduleApplyRequest();
       req.setTask(task);
       req.setChanges(List.of(changes));
-      req.setPlanHash(hash);
+      req.setPlanHash(resolved.planHash());
+      req.setTaskToken(resolved.taskToken());
+      req.setReviewOutcome("approved");
+      return req;
+   }
+
+   /**
+    * Builds an apply request whose taskToken was issued for a DIFFERENT task string than the one
+    * this request's own {@code task} field carries -- the shape a caller previewing an honest
+    * description then applying with different text produces. Mirrors {@code
+    * AdminChangesetApplyServiceTest#requestWithDivergentApplyTask}.
+    */
+   private ScheduleApplyRequest requestWithDivergentApplyTask(String previewTask, String applyTask,
+                                                               ScheduleChangeRequest... changes)
+      throws Exception
+   {
+      ScheduleChangePlanRequest preview = new ScheduleChangePlanRequest();
+      preview.setTask(previewTask);
+      preview.setChanges(List.of(changes));
+      ResolvedPlan previewed = planService.resolve(preview, user);
+
+      ScheduleApplyRequest req = new ScheduleApplyRequest();
+      req.setTask(applyTask);
+      req.setChanges(List.of(changes));
+      req.setPlanHash(previewed.planHash());
+      req.setTaskToken(previewed.taskToken());
       req.setReviewOutcome("approved");
       return req;
    }
