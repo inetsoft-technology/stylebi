@@ -1148,6 +1148,14 @@ public abstract class VSAQuery {
     * getTableLens()), which defeats it. Releasing here restores that invariant regardless of
     * which path reached the cache. The assembly mutations happen before this call and the
     * fetch itself does not mutate assembly state, so it is safe to release.
+    *
+    * <p><b>Callers must not hold any object monitor that a sandbox-lock holder can need.</b>
+    * restoreLocks() blocks re-acquiring the sandbox lock, so holding such a monitor across
+    * this call inverts the lock order every write path uses -- the write path takes the
+    * sandbox lock first and the assembly info monitor second -- and deadlocks the whole
+    * viewsheet. That is what AbstractCrosstabVSAQuery.getTableLens0() did with the
+    * VSCrosstabInfo monitor until 76549. The same caution applies to any nested fetch that
+    * reaches ViewsheetSandbox.doExecuteData(), which releases the locks the same way.
     */
    private TableLens getDataWithoutSandboxLock(TableAssembly table, AssetQuerySandbox wbox,
                                                Set ignored, int mode, boolean limited,

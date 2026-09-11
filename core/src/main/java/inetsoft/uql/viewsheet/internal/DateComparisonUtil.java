@@ -21,6 +21,8 @@ import inetsoft.util.*;
 import inetsoft.util.data.CommonKVModel;
 import inetsoft.graph.*;
 import inetsoft.graph.aesthetic.VisualFrame;
+import inetsoft.graph.coord.Coordinate;
+import inetsoft.graph.coord.FacetCoord;
 import inetsoft.graph.data.CalcColumn;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.GraphElement;
@@ -642,22 +644,35 @@ public class DateComparisonUtil {
 
          // Compute which part cells have data from the most recent (current) year.
          // Orphaned cells — those with only comparison-year data — should be excluded
-         // from the x-axis scale so they don't produce spurious labels. Skip this in facet
-         // mode: there, "part" identifies the facet itself (e.g. DayOfWeek), and the
-         // heuristic's sort-order-based "hasn't chronologically reached this part yet" test
-         // is meaningless for a facet dimension — a facet with no row in the most recent
-         // period isn't a future bucket, it's a facet whose most recent period happens to be
-         // absent (see Bug #76388: DayOfWeek facets 5-7 have real data for every period
-         // except the last, and excluding them entirely from every period is wrong; the
-         // per-facet sub-chart already correctly shows only the periods that actually have
-         // data for it once this exclusion doesn't run first). Also skip this for
-         // "Compare Data Of: All" (isCompareAll()) -- that mode intentionally shows every
-         // part of each comparison period unclipped, so a part the in-progress current
-         // period hasn't reached yet (e.g. December while the current year is only a few
-         // months in) is not an orphan -- it's real historical data for the prior periods
-         // and must still render. Applying the heuristic there silently dropped whole
-         // weeks/months of valid comparison-year data. (Bug #76389)
-         final Set<Object> validParts = info.isFacet() || dcInfo.isCompareAll() ?
+         // from the x-axis scale so they don't produce spurious labels. Skip this when the
+         // part column is itself one of the dimensions the graph is faceted on: there,
+         // "part" identifies the facet rather than a position on a chronologically
+         // progressing axis, and the heuristic's sort-order-based "hasn't chronologically
+         // reached this part yet" test is meaningless — a facet with no row in the most
+         // recent period isn't a future bucket, it's a facet whose most recent period
+         // happens to be absent (see Bug #76388: DayOfWeek facets 5-7 have real data for
+         // every period except the last, and excluding them entirely from every period is
+         // wrong; the per-facet sub-chart already correctly shows only the periods that
+         // actually have data for it once this exclusion doesn't run first).
+         //
+         // The test is deliberately narrower than info.isFacet(). That flag is a single
+         // chart-wide boolean (GraphGenerator.createCoord() sets it from
+         // "coordinate instanceof FacetCoord"), so it is true whenever *any* axis carries
+         // two or more dimensions — including when an unrelated dimension (e.g. Region)
+         // shares the axis while the part column is still a plain chronological one. In
+         // that case the heuristic is still meaningful and must run, otherwise a genuinely
+         // unreached future part (e.g. December while the current year has only reached
+         // April) renders for the prior comparison periods. (Bug #76518)
+         //
+         // Also skip this for "Compare Data Of: All" (isCompareAll()) -- that mode
+         // intentionally shows every part of each comparison period unclipped, so a part
+         // the in-progress current period hasn't reached yet is not an orphan -- it's real
+         // historical data for the prior periods and must still render. Applying the
+         // heuristic there silently dropped whole weeks/months of valid comparison-year
+         // data. (Bug #76389)
+         final boolean partIsFacetDim =
+            info.isFacet() && isFacetedField(egraph.getCoordinate(), partCol);
+         final Set<Object> validParts = partIsFacetDim || dcInfo.isCompareAll() ?
             Collections.emptySet() :
             computeValidParts(data, periodCol, partCol, startDate);
 
@@ -707,6 +722,53 @@ public class DateComparisonUtil {
             }
          }
       }
+   }
+
+   /**
+    * Check whether a field is one of the dimensions the graph is actually faceted on, i.e. it
+    * supplies a scale of a {@link FacetCoord}'s outer coordinate rather than of the innermost
+    * plot coordinate.
+    *
+    * <p>{@link VSChartInfo#isFacet()} cannot answer this: it is a single chart-wide boolean set
+    * from "coordinate instanceof FacetCoord", true whenever any axis carries two or more
+    * dimensions, regardless of which of them ended up as the facet levels.
+    * GraphGenerator.createCoord() consumes the innermost dimension of each axis as the plot axis
+    * and wraps every remaining outer dimension in a FacetCoord, so the coordinate tree built
+    * there is the authoritative record of what was faceted on. (Bug #76518)</p>
+    */
+   private static boolean isFacetedField(Coordinate coord, String field) {
+      if(field == null || !(coord instanceof FacetCoord)) {
+         return false;
+      }
+
+      FacetCoord facet = (FacetCoord) coord;
+      Coordinate outer = facet.getOuterCoordinate();
+
+      if(outer != null) {
+         for(Scale scale : outer.getScales()) {
+            String[] fields = scale == null ? null : scale.getFields();
+
+            // match on fields[0] exactly as applyDateRange()'s part-scale lookup does, so the
+            // two always agree on which scale is the part column's.
+            if(fields != null && fields.length > 0 && Tool.equals(field, fields[0])) {
+               return true;
+            }
+         }
+      }
+
+      // multi-level facets are nested: createCoord() wraps the previous FacetCoord as the inner
+      // coordinate of the next one, so keep walking inward.
+      Coordinate[] inners = facet.getInnerCoordinates();
+
+      if(inners != null) {
+         for(Coordinate inner : inners) {
+            if(isFacetedField(inner, field)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -2003,6 +2065,26 @@ public class DateComparisonUtil {
       }
 
       return dim.getFullName();
+   }
+
+   /**
+    * Move the calendar back to the first day of its own week, honoring the calendar's
+    * configured {@link Calendar#getFirstDayOfWeek()}.
+    *
+    * <p>The obvious <code>-(DAY_OF_WEEK - 1)</code> rewind is only correct when the week
+    * starts on Sunday: <code>DAY_OF_WEEK</code> is always Sunday-anchored and is unaffected
+    * by {@link Calendar#setFirstDayOfWeek(int)}. With any other week start it lands on a day
+    * in the wrong week, so the <code>WEEK_OF_MONTH</code>/<code>WEEK_OF_YEAR</code> read that
+    * normally follows disagrees with the week start the same calendar is configured for --
+    * including producing week 0, which is outside the domain the callers encode.
+    *
+    * @return the same calendar, for chaining.
+    */
+   public static Calendar moveToWeekStart(Calendar calendar) {
+      int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
+      calendar.add(Calendar.DATE, -((dayOfWeek - calendar.getFirstDayOfWeek() + 7) % 7));
+
+      return calendar;
    }
 
    public static boolean adjustCalendarByForceWM(Calendar calendar, int forceWM) {

@@ -22,6 +22,7 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.test.*;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.util.Tool;
+import inetsoft.util.script.ScriptException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -388,6 +389,34 @@ public class CalcFieldFormulaTest {
    // -----------------------------------------------------------------------
    // Script evaluation: expression combining child formula results
    // -----------------------------------------------------------------------
+
+   // -----------------------------------------------------------------------
+   // Regression test for Bug #76566: a null ScriptEnv (e.g. AssetQuerySandbox
+   // handed out a null senv snapshot) must fail as a clear, diagnosable
+   // ScriptException, not an unhandled NullPointerException.
+   // -----------------------------------------------------------------------
+
+   @Test
+   void getResult_nullScriptEnv_throwsScriptExceptionNotNPE() {
+      // Warm the static script compile cache for this expression using a real
+      // ScriptEnv first, so the null-senv instance below hits a cache hit
+      // (see ScriptCache.get) instead of exercising the unrelated compile path.
+      buildSingleChildFormula("SUM", new SumFormula(), "SUM");
+
+      CalcFieldFormula formula = new CalcFieldFormula(
+         "SUM",
+         new String[]{ "SUM" },
+         new Formula[]{ new SumFormula() },
+         new int[]{ 0 },
+         null,
+         box.getScope()
+      );
+      formula.addValue(new Object[]{ null, Double.valueOf(5.0) });
+
+      ScriptException ex = assertThrows(ScriptException.class, formula::getResult);
+      assertTrue(ex.getMessage().contains("ScriptEnv is not available"));
+      assertInstanceOf(NullPointerException.class, ex.getCause());
+   }
 
    @Test
    void getResult_withSumChildFormula_scriptEvaluatesCorrectly() {

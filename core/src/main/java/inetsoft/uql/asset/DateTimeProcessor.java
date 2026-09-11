@@ -166,6 +166,10 @@ class DateTimeProcessor {
          int weekOfMonth = getWeekOfMonth();
 
          if(weekOfMonth < 1) {
+            // NOTE: -7 lands in the week *before* this date's own week, so the weekOfMonth
+            // read below is one short of what datePart('wy') computes for the same date. It
+            // only feeds the forceDcToDateWeekOfMonth comparison, which a forced value of 1-5
+            // can never reach from here, so the returned month is unaffected either way.
             jcalendar.add(Calendar.DATE, -7);
          }
 
@@ -248,6 +252,11 @@ class DateTimeProcessor {
     */
    public final Timestamp getYearOfFullWeek(int forceDcToDateWeekOfMonth) {
       GregorianCalendar calendar = new GregorianCalendar();
+      // a bare GregorianCalendar starts the week wherever the JVM default locale says, which
+      // is unrelated to the week.start this processor (and every sibling method) uses. The
+      // set(DAY_OF_WEEK, getFirstDayOfWeek()) rewind below then landed in the wrong week and
+      // the year could come out off by one.
+      calendar.setFirstDayOfWeek(firstDay);
       calendar.setMinimalDaysInFirstWeek(7);
       calendar.setTime(new Date(time));
       calendar.set(Calendar.DAY_OF_WEEK, calendar.getFirstDayOfWeek());

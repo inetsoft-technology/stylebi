@@ -4533,10 +4533,19 @@ public final class Tool extends CoreTool {
       return sb.toString();
    }
 
+   /**
+    * Get the first day of the week, as a {@link Calendar} day-of-week constant.
+    *
+    * <p>This is determined solely by the <code>week.start</code> property. When the property
+    * is missing or is not a valid day name, {@link Calendar#SUNDAY} is used. The value is
+    * deliberately <em>not</em> derived from the locale: the locale of the calling thread is
+    * the viewing user's, so a locale-derived week start made the same dashboard bucket
+    * weeks differently for different users, and disagreed with the Sunday-based week
+    * expressions that {@link inetsoft.uql.asset.DateRangeRef} pushes down to SQL.
+    */
    public static int getFirstDayOfWeek() {
       String firstDayProperty = Tool.firstDayProperty.get();
-      Locale locale = ThreadContext.getLocale();
-      String key = firstDayProperty + locale;
+      String key = String.valueOf(firstDayProperty);
 
       return firstDayOfWeeks.computeIfAbsent(key, k -> {
          Integer firstDay = null;
@@ -4568,12 +4577,27 @@ public final class Tool extends CoreTool {
          }
 
          if(firstDay == null) {
-            Calendar c = GregorianCalendar.getInstance(locale);
-            firstDay = c.getFirstDayOfWeek();
+            if(firstDayProperty != null && !firstDayProperty.trim().isEmpty()) {
+               LOG.info("Ignoring invalid week.start value \"" + firstDayProperty +
+                           "\", using Sunday. Valid values are Sunday through Saturday.");
+            }
+
+            firstDay = Calendar.SUNDAY;
          }
 
          return firstDay;
       });
+   }
+
+   /**
+    * Discard the cached week start so that a <code>week.start</code> change made through the
+    * Enterprise Manager takes effect immediately, rather than after the property cache
+    * timeout. Without this, {@link #getFirstDayOfWeek()} and {@link #getWeekStart()} (which
+    * reads the property directly) can disagree for the length of that timeout.
+    */
+   public static void clearWeekStartCache() {
+      firstDayProperty.updateValue();
+      firstDayOfWeeks.clear();
    }
 
    public static String getWeekStart() {

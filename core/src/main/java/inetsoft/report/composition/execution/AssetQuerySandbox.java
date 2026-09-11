@@ -399,7 +399,10 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       resetTableLens();
       resetDefaultColumnSelection();
 
-      senv = null;
+      synchronized(lock) {
+         senv = null;
+      }
+
       scope = null;
    }
 
@@ -1546,8 +1549,11 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
          }
 
          scope = null;
-         senv = null;
          vprovider2 = null;
+      }
+
+      synchronized(lock) {
+         senv = null;
       }
    }
 
@@ -1919,7 +1925,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    private Hashtable<String, SelectionVSAssembly> selections; // selection assembly map,
    private ViewsheetSandbox vsbox;
    private AssetQueryScope scope; // scope for executing formulas
-   private ScriptEnv senv; // scripting env for executing scripts
+   private volatile ScriptEnv senv; // scripting env for executing scripts
    private final MVSession mvsession;
    private final Set<String> nolimit; // tables to ignore time limit
    private QueryManager queryMgr; // track pending queries

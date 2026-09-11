@@ -252,6 +252,34 @@ describe("ChartActions", () => {
       // expect(menuActions[1].actions[2].visible()).toBeFalsy();
    });
 
+   // Bug #76577, target line labels are non-interactive decorations and should not
+   // offer the Highlight menu item since configuring it has no rendering effect.
+   it("should not show highlight action when a target line label is selected", () => {
+      const model: VSChartModel = createModel();
+      model.chartType = GraphTypes.CHART_BAR;
+      model.chartSelection = {
+         chartObject: <Plot> {
+            areaName: "plot_area",
+            bounds: null,
+            layoutBounds: null,
+            tiles: null,
+            regions: [],
+            secondary: false,
+            xboundaries: [],
+            yboundaries: [],
+            showReferenceLine: false,
+            showPlotResizers: false,
+         },
+         regions: [ createRegion() ]
+      };
+      model.regionMetaDictionary = [{areaType: "label", hasMeasure: false}];
+      const actions = new ChartActions(model, popService, composerContext);
+      const menuActions = actions.menuActions;
+      const action = menuActions[1].actions[3];
+      expect(action.id()).toBe("chart highlight");
+      expect(action.visible()).toBeFalsy();
+   });
+
    // Bug #17179
    it("should have visible title property action when axis title is selected", () => {
       const model = createModel();

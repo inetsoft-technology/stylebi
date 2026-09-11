@@ -422,14 +422,17 @@ public class JavaScriptEngine {
 
       if(dateVal != null) {
          Calendar cal = CoreTool.calendar.get();
-         int oldStart = applyWeekStart ? cal.getFirstDayOfWeek() : 0;
+         int oldStart = cal.getFirstDayOfWeek();
          int minFirstWeek = cal.getMinimalDaysInFirstWeek();
 
          try {
-            if(applyWeekStart) {
-               cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
-            }
-
+            // CoreTool.calendar is a shared ThreadLocal that other callers leave mutated
+            // (CalcDateTime.date() sets its first day and never restores it), so pin the
+            // week start explicitly in both branches rather than inheriting whatever ran
+            // earlier on this pooled thread. Without applyWeekStart the week parts here
+            // have always been Sunday-based; that is now true of the WEEK_OF_MONTH reads
+            // as well as the rewind, instead of half of each.
+            cal.setFirstDayOfWeek(applyWeekStart ? Tool.getFirstDayOfWeek() : Calendar.SUNDAY);
             cal.setMinimalDaysInFirstWeek(7);
             cal.setTime(dateVal);
 
@@ -440,7 +443,7 @@ public class JavaScriptEngine {
                return cal.get(Calendar.MONTH) % 3 + 1;
             // month of quarter of full week
             case "wmq":
-               cal.add(Calendar.DATE, -(cal.get(Calendar.DAY_OF_WEEK) - 1));
+               DateComparisonUtil.moveToWeekStart(cal);
                DateComparisonUtil.adjustCalendarByForceWM(cal, forceDcToDateWeekOfMonth);
 
                return cal.get(Calendar.MONTH) % 3 + 1;
@@ -449,8 +452,7 @@ public class JavaScriptEngine {
                return DateComparisonUtil.getWeekOfQuarter(cal, cal.getFirstDayOfWeek());
                // week of year
             case "wy":
-               int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
-               cal.add(Calendar.DATE, -(dayOfWeek - 1));
+               DateComparisonUtil.moveToWeekStart(cal);
                int weekOfMonth = cal.get(Calendar.WEEK_OF_MONTH);
 
                if(DateComparisonUtil.adjustCalendarByForceWM(cal, forceDcToDateWeekOfMonth)) {
@@ -480,7 +482,7 @@ public class JavaScriptEngine {
 
                // if week-of-month is before the 1st week, it's the last week of previous month.
                if(val < 1 && "wm".equals(interval)) {
-                  cal.add(Calendar.DATE, -(cal.get(Calendar.DAY_OF_WEEK) - 1));
+                  DateComparisonUtil.moveToWeekStart(cal);
                   val = cal.get(field);
                }
 
@@ -488,10 +490,7 @@ public class JavaScriptEngine {
             }
          }
          finally {
-            if(applyWeekStart) {
-               cal.setFirstDayOfWeek(oldStart);
-            }
-
+            cal.setFirstDayOfWeek(oldStart);
             cal.setMinimalDaysInFirstWeek(minFirstWeek);
          }
       }

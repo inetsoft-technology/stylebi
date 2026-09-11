@@ -739,6 +739,11 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
    {
       TableLens lens = (TableLens) box.getData(name);
       RuntimeCalcTableLens rlens = (RuntimeCalcTableLens) Util.getNestedTable(lens, RuntimeCalcTableLens.class);
+
+      if(lens == null || rlens == null) {
+         return true;
+      }
+
       boolean isEmpty = true;
 
       for(int i = 0; i < rowcols.length; i++) {

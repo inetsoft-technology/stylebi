@@ -194,6 +194,10 @@ export class VSChartActionHandler extends AbstractActionHandler {
          const dialog: ChartPropertyDialog = this.showDialog(
             ChartPropertyDialog, options,
             (result: ChartPropertyDialogModel) => {
+               if(!result) {
+                  return;
+               }
+
                const result0: ChartPropertyDialogModel = Tool.clone(result);
                // clear delete info and keep index in sync
                result.chartAdvancedPaneModel.chartTargetLinesPaneModel.deletedIndexList = [];

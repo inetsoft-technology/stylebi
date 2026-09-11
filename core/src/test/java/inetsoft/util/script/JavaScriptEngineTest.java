@@ -520,6 +520,115 @@ class JavaScriptEngineTest {
       assertEquals(0, JavaScriptEngine.datePartForceWeekOfMonth("d", null, false, -1));
    }
 
+   // The "wy"/"wm"/"wmq" date parts rewound to the preceding *Sunday*
+   // (-(DAY_OF_WEEK - 1)) even when the calendar was configured for another week start,
+   // so a date landed in the wrong week bucket and could produce week-of-month 0 -- an
+   // encoding the (month + 1) * 10 + weekOfMonth scheme has no room for. These pin the
+   // rewind to the configured week start.
+   @Test
+   void testWeekDatePartsMondayWeekStart() {
+      WeekStartUtil.withWeekStart("monday", () -> {
+         // 2021-01-04 (Mon) starts the first full week of January; 2021-01-01 (Fri) through
+         // 2021-01-03 (Sun) belong to the Dec 28 - Jan 3 week, i.e. December's 4th week.
+         assertEquals(11, JavaScriptEngine.datePart("wy", toDate("2021-01-04T00:00"), true));
+         assertEquals(11, JavaScriptEngine.datePart("wy", toDate("2021-01-05T00:00"), true));
+         assertEquals(124, JavaScriptEngine.datePart("wy", toDate("2021-01-01T00:00"), true));
+         // a Sunday: the day the old Sunday-anchored rewind got most wrong, because it is
+         // the *last* day of a Monday-start week.
+         assertEquals(124, JavaScriptEngine.datePart("wy", toDate("2021-01-03T00:00"), true));
+
+         assertEquals(3, JavaScriptEngine.datePart("wmq", toDate("2021-01-01T00:00"), true));
+         assertEquals(4, JavaScriptEngine.datePart("wm", toDate("2021-01-01T00:00"), true));
+      });
+   }
+
+   // Regression guard: the fix must be a strict no-op when the week starts on Sunday, since
+   // (dow - 1 + 7) % 7 == dow - 1 for firstDayOfWeek == SUNDAY. These are the values the
+   // Sunday-anchored code produced.
+   @Test
+   void testWeekDatePartsSundayWeekStartUnchanged() {
+      WeekStartUtil.withWeekStart("sunday", () -> {
+         assertEquals(11, JavaScriptEngine.datePart("wy", toDate("2021-01-03T00:00"), true));
+         assertEquals(11, JavaScriptEngine.datePart("wy", toDate("2021-01-05T00:00"), true));
+         assertEquals(124, JavaScriptEngine.datePart("wy", toDate("2021-01-01T00:00"), true));
+         assertEquals(3, JavaScriptEngine.datePart("wmq", toDate("2021-01-01T00:00"), true));
+         assertEquals(4, JavaScriptEngine.datePart("wm", toDate("2021-01-01T00:00"), true));
+         assertEquals(2, JavaScriptEngine.datePart("wq", toDate("2025-04-15T00:00"), true));
+      });
+   }
+
+   // CoreTool.calendar is a shared ThreadLocal and CalcDateTime.date() leaves its first day
+   // of week set, so the applyWeekStart=false form of datePart -- which is the documented
+   // 2-arg script signature -- used to depend on what had run earlier on the same pooled
+   // thread. It must be Sunday-based no matter what.
+   @Test
+   void testDatePartWithoutWeekStartIsUnaffectedByTheSharedCalendar() {
+      Calendar shared = inetsoft.util.CoreTool.calendar.get();
+      int old = shared.getFirstDayOfWeek();
+
+      try {
+         // 2021-01-03 is a Sunday: it is week 1 of January under a Sunday start but the
+         // last day of December's 4th week under a Monday start, so the two disagree.
+         java.util.Date date = toDate("2021-01-03T00:00");
+
+         shared.setFirstDayOfWeek(Calendar.MONDAY);
+
+         // week.start is Monday too, to prove applyWeekStart=false ignores both of them.
+         WeekStartUtil.withWeekStart("monday", () ->
+            assertEquals(11, JavaScriptEngine.datePart("wy", date, false),
+                         "datePart without applyWeekStart must stay Sunday-based, not " +
+                            "inherit the shared calendar's first day of week"));
+
+         assertEquals(Calendar.MONDAY, shared.getFirstDayOfWeek(),
+                      "datePart must restore the shared calendar's first day of week");
+      }
+      finally {
+         shared.setFirstDayOfWeek(old);
+      }
+   }
+
+   // Every day of the same week must land in the same "wy" bucket. When the rewind and the
+   // WEEK_OF_MONTH read disagreed about where the week starts, a single week split into two
+   // buckets -- the phantom leading bar in the reported Year_WeekToDate chart.
+   @ParameterizedTest
+   @org.junit.jupiter.params.provider.ValueSource(strings = { "sunday", "monday", "wednesday" })
+   void testWeekOfYearIsConstantWithinAWeek(String weekStart) {
+      WeekStartUtil.withWeekStart(weekStart, () -> {
+         Calendar cal = new GregorianCalendar();
+         cal.setFirstDayOfWeek(inetsoft.util.Tool.getFirstDayOfWeek());
+         cal.setMinimalDaysInFirstWeek(7);
+         cal.clear();
+         cal.set(2020, Calendar.JANUARY, 1, 12, 0, 0);
+
+         double weekValue = -1;
+         int dayInWeek = -1;
+
+         for(int i = 0; i < 731; i++) {
+            java.util.Date day = cal.getTime();
+            double value = JavaScriptEngine.datePart("wy", day, true);
+
+            assertTrue(value >= 11 && value <= 125,
+                       "wy out of the (month+1)*10+weekOfMonth domain for " + day +
+                          " (" + weekStart + " week start): " + value);
+            assertTrue(value % 10 >= 1,
+                       "wy encodes week-of-month 0 for " + day +
+                          " (" + weekStart + " week start): " + value);
+
+            if(cal.get(Calendar.DAY_OF_WEEK) == cal.getFirstDayOfWeek()) {
+               weekValue = value;
+               dayInWeek = 0;
+            }
+            else if(dayInWeek >= 0) {
+               assertEquals(weekValue, value,
+                            "wy changed mid-week at " + day + " (" + weekStart +
+                               " week start)");
+            }
+
+            cal.add(Calendar.DATE, 1);
+         }
+      });
+   }
+
    @Test
    @Disabled("Task 5.3: scope-chain name enumeration (getNames/getDisplayNames/getIds) was " +
       "a Rhino-era instance method operating on Rhino Scriptable scopes; under GraalJS this " +

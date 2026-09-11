@@ -137,6 +137,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this.entry = entry;
       this.nolimit = new HashSet<>();
       this.qmgrs = new ConcurrentHashMap<>();
+      this.flyoverLocks = new ConcurrentHashMap<>();
       this.dmap = new DataMap();
       this.dKeyMap = new DataMap();
       this.fmap = new HashMap<>();
@@ -523,6 +524,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       return qmgr;
+   }
+
+   /**
+    * Get the lock object used to serialize concurrent flyover requests (e.g. two different
+    * source assemblies flying over the same target) that would otherwise race on the target
+    * assembly's shared query/condition state. One lock per assembly name, scoped to this
+    * sandbox instance so it is reclaimed with it, mirroring {@link #getQueryManager(String)}.
+    */
+   public Object getFlyoverLock(String name) {
+      return flyoverLocks.computeIfAbsent(name, k -> new Object());
    }
 
    /**
@@ -4032,8 +4043,19 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             EmbeddedTableAssembly eassembly = (EmbeddedTableAssembly) ass;
             // resolve the column from the current column selection instead of relying on
             // iassembly.getColumn(), which is only refreshed on a full sandbox reset and
-            // may be stale if the binding was changed without reopening the viewsheet
-            DataRef column = eassembly.getColumnSelection(false).getAttribute(iassembly.getColumnValue());
+            // may be stale if the binding was changed without reopening the viewsheet.
+            // use the runtime column value so a variable or expression binding resolves
+            // to the column it evaluates to instead of the literal $(var)/=expr text.
+            String cname = iassembly.getRuntimeColumnValue();
+            DataRef column = cname == null
+               ? null : eassembly.getColumnSelection(false).getAttribute(cname);
+
+            // a dynamic value that has not been executed yet resolves to null, fall back
+            // to the column resolved by InputVSAssemblyInfo.update()
+            if(column == null) {
+               column = iassembly.getColumn();
+            }
+
             int row = iassembly.getRow();
 
             if(column != null && row > 0) {
@@ -8239,6 +8261,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private final boolean outputNullToZero = "true".equals(SreeEnv.getProperty("output.null.to.zero"));
    private final Set<String> nolimit; // tables to ignore time limit
    private final Map<String, QueryManager> qmgrs; // specific query manager for each assembly
+   private final Map<String, Object> flyoverLocks; // per-assembly lock for flyover coordination
    private long selectionTS; // selection timestamp
    private long touchTS = -1; // touch timestamp of data changes
    private long execTS = -1; // last execution time

@@ -29,7 +29,7 @@ import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSFieldValue;
-import inetsoft.util.ThreadContext;
+import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -45,7 +45,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.List;
-import java.util.Locale;
 
 import static inetsoft.test.XTableUtil.date;
 
@@ -166,19 +165,16 @@ public class DCMergeDatePartFilterTest {
    // failed when the first day of week was not Sunday, leaving drill-to-detail one week off.
    @Test
    public void testWeekOfYearEquivalenceUsesCellDateNonSundayWeekStart() {
-      Locale oldLocale = ThreadContext.getLocale();
-
-      try {
-         // Locale.UK uses Monday as the first day of week (no week.start property set), which
-         // is the configuration under which the previous fix failed.
-         ThreadContext.setLocale(Locale.UK);
+      WeekStartUtil.withWeekStart("monday", () -> {
          Assertions.assertEquals(Calendar.MONDAY, Tool.getFirstDayOfWeek(),
                                  "test requires a non-Sunday first day of week");
 
-         Date cellDate = date("2020-02-06");
+         // 2020-01-02 (Thu) belongs to the Dec 30 - Jan 5 week, i.e. December 2019's 5th
+         // week, while the 2021 bar sharing its axis position falls in January's 1st week.
+         Date cellDate = date("2020-01-02");
          // The bucket carries the comparison (other-year) period's week part value; here the
          // 2021 bar's week is shared with the 2020 bar at the same axis position.
-         int storedPartValue = weekOfYearPart(date("2021-02-04"));
+         int storedPartValue = weekOfYearPart(date("2021-01-07"));
          int actualWeekPart = weekOfYearPart(cellDate);
 
          Assertions.assertNotEquals(actualWeekPart, storedPartValue,
@@ -214,10 +210,7 @@ public class DCMergeDatePartFilterTest {
             "equivalence cell expected when the stored week differs from the cell's actual week");
          Assertions.assertEquals(actualWeekPart, ((Number) equivalenceCell.getValue(0)).intValue(),
             "equivalence week must match the cell's actual date, not the stored part value");
-      }
-      finally {
-         ThreadContext.setLocale(oldLocale);
-      }
+      });
    }
 
    // Bug #75351: Same-Day comparison groups by the sequential week-of-year ('ww'), which already
@@ -226,10 +219,7 @@ public class DCMergeDatePartFilterTest {
    // even in the same non-Sunday boundary scenario where the legacy 'wy' encoding diverges.
    @Test
    public void testSequentialWeekSkipsEquivalence() {
-      Locale oldLocale = ThreadContext.getLocale();
-
-      try {
-         ThreadContext.setLocale(Locale.UK);
+      WeekStartUtil.withWeekStart("monday", () -> {
          Assertions.assertEquals(Calendar.MONDAY, Tool.getFirstDayOfWeek(),
                                  "test requires a non-Sunday first day of week");
 
@@ -258,10 +248,7 @@ public class DCMergeDatePartFilterTest {
          DCMergeDatePartFilter.MergePartCell mpc = (DCMergeDatePartFilter.MergePartCell) cell;
          Assertions.assertNull(mpc.getEquivalenceCell(),
             "sequential-week part must skip the equivalence remap (it is already aligned)");
-      }
-      finally {
-         ThreadContext.setLocale(oldLocale);
-      }
+      });
    }
 
    // Mirrors JavaScriptEngine.datePart("ww", date, true): the sequential week-of-year value
@@ -280,7 +267,7 @@ public class DCMergeDatePartFilterTest {
       cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
       cal.setMinimalDaysInFirstWeek(7);
       cal.setTime(dt);
-      cal.add(Calendar.DATE, -(cal.get(Calendar.DAY_OF_WEEK) - 1));
+      DateComparisonUtil.moveToWeekStart(cal);
       return (cal.get(Calendar.MONTH) + 1) * 10 + cal.get(Calendar.WEEK_OF_MONTH);
    }
 }
