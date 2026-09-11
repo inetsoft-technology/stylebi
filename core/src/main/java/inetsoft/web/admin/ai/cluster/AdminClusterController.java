@@ -165,6 +165,16 @@ public class AdminClusterController {
                     "plan", ex.current());
    }
 
+   @ExceptionHandler(AdminChangesetApplyService.TaskTokenMismatchException.class)
+   @ResponseStatus(HttpStatus.CONFLICT)
+   @ResponseBody
+   public Map<String, Object> handleTaskTokenMismatch(
+      AdminChangesetApplyService.TaskTokenMismatchException ex)
+   {
+      return Map.of("status", "conflict", "error", String.valueOf(ex.getMessage()),
+                    "plan", ex.current());
+   }
+
    private final ClusterChangePlanService planService;
    private final ClusterChangesetApplyService applyService;
    private final ServerClusterClient client;

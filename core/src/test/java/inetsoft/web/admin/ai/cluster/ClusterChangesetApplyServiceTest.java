@@ -23,6 +23,7 @@ import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
+import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.cluster.ClusterEnabledModel;
 import inetsoft.web.admin.cluster.ClusterService;
 import inetsoft.web.cluster.ServerClusterClient;
@@ -70,6 +71,16 @@ class ClusterChangesetApplyServiceTest {
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
       tool.when(() -> Tool.encryptPassword(anyString()))
          .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+      tool.when(() -> Tool.decryptPassword(anyString()))
+         .thenAnswer(inv -> {
+            String s = inv.getArgument(0);
+
+            if(!s.startsWith("TKN:")) {
+               throw new IllegalArgumentException("not a token");
+            }
+
+            return s.substring(4);
+         });
    }
 
    @AfterEach void tearDown() {
@@ -95,6 +106,43 @@ class ClusterChangesetApplyServiceTest {
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> service.apply(req, user));
       assertTrue(ex.getMessage().contains("reviewOutcome"));
+   }
+
+   // -------------------------------------------------------------------------
+   // taskToken gate -- audit-pinning parity with AdminChangesetApplyService (bug #76588)
+   // -------------------------------------------------------------------------
+
+   @Test void applyThrowsTaskTokenMismatchOnMissingToken() {
+      stubStatus("s1", ServerClusterStatus.Status.OK, false);
+      String hash = planService.resolve(request("task", List.of(pause("s1")))).planHash();
+      ClusterApplyRequest req = applyRequest("task", hash, "looks good", pause("s1"));
+      req.setTaskToken(null);
+
+      AdminChangesetApplyService.TaskTokenMismatchException ex = assertThrows(
+         AdminChangesetApplyService.TaskTokenMismatchException.class,
+         () -> service.apply(req, user));
+      assertTrue(ex.getMessage().startsWith("taskToken:"));
+      assertNotNull(ex.current());
+   }
+
+   @Test void applyThrowsTaskTokenMismatchOnBlankToken() {
+      stubStatus("s1", ServerClusterStatus.Status.OK, false);
+      String hash = planService.resolve(request("task", List.of(pause("s1")))).planHash();
+      ClusterApplyRequest req = applyRequest("task", hash, "looks good", pause("s1"));
+      req.setTaskToken("   ");
+
+      assertThrows(AdminChangesetApplyService.TaskTokenMismatchException.class,
+         () -> service.apply(req, user));
+   }
+
+   @Test void applyThrowsTaskTokenMismatchOnTokenIssuedForDifferentPlanHash() {
+      stubStatus("s1", ServerClusterStatus.Status.OK, false);
+      String hash = planService.resolve(request("task", List.of(pause("s1")))).planHash();
+      ClusterApplyRequest req = applyRequest("task", hash, "looks good", pause("s1"));
+      req.setTaskToken(TaskAuditToken.issue("not-the-real-hash", "task"));
+
+      assertThrows(AdminChangesetApplyService.TaskTokenMismatchException.class,
+         () -> service.apply(req, user));
    }
 
    // -------------------------------------------------------------------------
@@ -310,6 +358,30 @@ class ClusterChangesetApplyServiceTest {
       assertNull(record.getOrganizationId());
    }
 
+   @Test void auditsThePreviewedTaskNarrativeEvenWhenApplyRequestTaskDiffers() throws Exception {
+      stubStatus("s1", ServerClusterStatus.Status.OK, false);
+      String hash = planService.resolve(request("raise pause count", List.of(pause("s1")))).planHash();
+      // The token is issued for the previewed task, but the apply request's own task field carries
+      // different text -- exactly the shape the fix must not let win.
+      ClusterApplyRequest req = applyRequest("raise pause count", hash, "looks good", pause("s1"));
+      req.setTask("totally different apply-time text");
+      Audit auditInstance = mock(Audit.class);
+      tool.when(Tool::getHost).thenReturn("test-host");
+
+      doAnswer(inv -> { stubStatus("s1", ServerClusterStatus.Status.OK, true); return null; })
+         .when(clusterService).pauseServers(new String[] { "s1" });
+
+      try(MockedStatic<Audit> audit = mockStatic(Audit.class)) {
+         audit.when(Audit::getInstance).thenReturn(auditInstance);
+         var result = service.apply(req, user);
+         assertEquals(ClusterChangesetApplyService.STATUS_APPLIED, result.status());
+      }
+
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(auditInstance).auditAdminChange(captor.capture(), eq(user));
+      assertEquals("raise pause count", captor.getValue().getTaskDescription());
+   }
+
    // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------
@@ -354,6 +426,7 @@ class ClusterChangesetApplyServiceTest {
       req.setChanges(List.of(changes));
       req.setPlanHash(planHash);
       req.setReviewOutcome(reviewOutcome);
+      req.setTaskToken(TaskAuditToken.issue(planHash, task));
       return req;
    }
 }

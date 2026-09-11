@@ -23,6 +23,7 @@ import inetsoft.util.audit.*;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.cluster.ClusterService;
 import inetsoft.web.cluster.ServerClusterClient;
 import inetsoft.web.cluster.ServerClusterStatus;
@@ -103,6 +104,15 @@ public class ClusterChangesetApplyService {
             throw new AdminChangesetApplyService.PlanHashMismatchException(plan);
          }
 
+         String reviewedTask;
+
+         try {
+            reviewedTask = TaskAuditToken.verify(req.getTaskToken(), plan.planHash());
+         }
+         catch(TaskAuditToken.TaskTokenException e) {
+            throw new AdminChangesetApplyService.TaskTokenMismatchException(plan, e.getMessage());
+         }
+
          if(req.getReviewOutcome() == null || req.getReviewOutcome().trim().isEmpty()) {
             throw new IllegalArgumentException(
                "reviewOutcome: required -- risk: high is unconditional for this area (01-spec.md " +
@@ -119,7 +129,7 @@ public class ClusterChangesetApplyService {
             ClusterChangeRequest original = originals.get(i);
 
             try {
-               applyOne(txId, plan.task(), change, original, reviewOutcome, user, results);
+               applyOne(txId, reviewedTask, change, original, reviewOutcome, user, results);
             }
             catch(Exception e) {
                // A throw carries no verifiable before/after evidence for THIS entry, but must never
@@ -128,7 +138,7 @@ public class ClusterChangesetApplyService {
                String message = messageOf(e);
                results.add(new ClusterApplyOutcome(server, change.currentValue(), null, STATUS_FAILED,
                                                     message));
-               writeAudit(txId, plan.task(), server, change.currentValue(), null, STATUS_FAILED,
+               writeAudit(txId, reviewedTask, server, change.currentValue(), null, STATUS_FAILED,
                          reviewOutcome, user);
             }
          }
