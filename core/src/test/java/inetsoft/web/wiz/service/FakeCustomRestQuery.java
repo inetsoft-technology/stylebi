@@ -47,6 +47,7 @@ import java.util.List;
 @View(vertical = true, value = {
    @View1("suffix"),
    @View1("jsonPath"),
+   @View1("paginationMode"),
    @View1("lookupUrl0"),
    @View1("lookupJsonPath0"),
    @View1("lookupKey0"),
@@ -75,10 +76,14 @@ public class FakeCustomRestQuery extends TabularQuery {
     * pattern for the generic/custom (no {@code endpoint} property) shape: a custom REST-JSON
     * connector's pagination is driven by its own connector-specific properties, not a name lookup,
     * so this fixture ties it to the one property the suffix form actually sets -- {@code suffix}
-    * itself -- rather than adding an unrelated property no caller sets.
+    * itself -- rather than adding an unrelated property no caller sets. Also tied to {@link
+    * #paginationMode}, a real, independently-settable {@code @Property} (mirroring {@code
+    * RestJsonQuery.setPaginationType}), so a test can drive {@code isPaged()} to {@code true}
+    * purely through a reflective property write (e.g. via {@code extraProperties}) on a
+    * suffix that is NOT itself {@code "/paged"} -- the row-cap guard's own bypass regression.
     */
    public boolean isPaged() {
-      return "/paged".equals(suffix);
+      return "/paged".equals(suffix) || "PAGE_COUNT".equals(paginationMode);
    }
 
    @Property(label = "Json Path")
@@ -88,6 +93,15 @@ public class FakeCustomRestQuery extends TabularQuery {
 
    public void setJsonPath(String jsonPath) {
       this.jsonPath = jsonPath;
+   }
+
+   @Property(label = "Pagination Mode")
+   public String getPaginationMode() {
+      return paginationMode;
+   }
+
+   public void setPaginationMode(String paginationMode) {
+      this.paginationMode = paginationMode;
    }
 
    @Property(label = "Lookup Url 0")
@@ -235,6 +249,7 @@ public class FakeCustomRestQuery extends TabularQuery {
    private static final int LIMIT = 2;
    private String suffix;
    private String jsonPath;
+   private String paginationMode;
    private final List<String> lookupUrls = new ArrayList<>();
    private final List<String> lookupJsonPaths = new ArrayList<>();
    private final List<String> lookupKeys = new ArrayList<>();

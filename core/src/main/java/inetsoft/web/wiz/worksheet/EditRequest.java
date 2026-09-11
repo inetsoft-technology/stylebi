@@ -429,7 +429,19 @@ public record EditRequest(
     * name, a file path) is itself one entry in this map, exactly like wiz-services' own
     * {@code tabularSource.queryParams} shape — not a second addressing scheme.
     */
-   Map<String, Object> queryParams
+   Map<String, Object> queryParams,
+   /**
+    * Additional connector-specific properties to set on the query alongside {@code endpoint} or
+    * {@code suffix} (+ optional {@code lookup}/{@code customLookups}) — e.g. a row-selection
+    * path ({@code jsonPath} for a JSON connector, {@code xpath} for Rest.XML), an expand-arrays
+    * toggle, a timeout, a request type, or pagination settings. Keyed by the connector's OWN
+    * property names, exactly like {@code queryParams} — call {@code GET .../tabular/query-schema}
+    * to learn them. Requires {@code endpoint} or {@code suffix} to also be present (use
+    * {@code queryParams} instead for a datasource addressed without an endpoint/suffix identity);
+    * mutually exclusive with {@code queryParams}. Must not contain {@code endpoint} or
+    * {@code suffix} as a key — that identity is already established by the dedicated field.
+    */
+   Map<String, Object> extraProperties
 ) {
    /**
     * Compatibility constructor for callers built before {@code queryParams} was added, but after
@@ -715,5 +727,44 @@ public record EditRequest(
            groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
            sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
            lookupTopLevelOnly, suffix, customLookups, crosstab, labels, null);
+   }
+
+   /**
+    * Compatibility constructor for callers built before {@code extraProperties} was added, but
+    * after {@code queryParams} — defaults {@code extraProperties} to {@code null}.
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables,
+      String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
+      List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups, Boolean crosstab,
+      List<String> labels, WorksheetMutationSupport.VariableChoicesSpec choices,
+      List<WorksheetMutationSupport.JoinPathSpec> joinPaths, Boolean mergeable,
+      Boolean visibleInViewsheet, Boolean confirmed, Integer rowCount, Boolean concatDistinct,
+      List<WorksheetMutationSupport.RankingSpec> rankings, Map<String, Object> queryParams)
+   {
+      this(op, table, column, name, type, newName, field, operation, values, direction, groups,
+           aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType,
+           visible, tables, source, concatType, conditions, ranking, headerColumns, dateOption,
+           boundaries, datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row, col,
+           value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
+           groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
+           sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
+           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, joinPaths,
+           mergeable, visibleInViewsheet, confirmed, rowCount, concatDistinct, rankings,
+           queryParams, null);
    }
 }
