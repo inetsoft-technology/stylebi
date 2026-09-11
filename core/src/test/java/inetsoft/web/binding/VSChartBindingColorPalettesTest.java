@@ -95,9 +95,27 @@ class VSChartBindingColorPalettesTest {
                  "a classic chart is offered every palette");
    }
 
+   // A mark that cannot be resolved must not take the list down with it: the mark decides which
+   // names carry the flag, never which palettes are returned. The null service makes the lookup
+   // throw, which is the failure this fallback exists for.
+   @Test
+   void anUnresolvableMarkStillReturnsEveryPalette() throws Exception {
+      VSChartBindingController controller = newController();
+      int total = ColorPalettes.getPaletteNames().size();
+
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      CategoricalColorModel[] palettes =
+         controller.getColorPalettes(null, "vs-1", "Chart1", null);
+
+      assertEquals(total, palettes.length, "a failed mark lookup must not shorten the list");
+      assertEquals(9, Arrays.stream(palettes).filter(CategoricalColorModel::isHidden).count(),
+                   "the fallback resolves through the org gate, which is on here");
+   }
+
    // Builds the endpoint with only the factory its own code path exercises - it only ever
    // wraps ColorPalettes.getPalette() results, which are always CategoricalColorFrame - so no
-   // Spring context or cluster wiring is needed to reach the real flag-attaching loop.
+   // Spring context or cluster wiring is needed to reach the real flag-attaching loop. The null
+   // service is also what makes the mark lookup throw in the fallback test above.
    private VSChartBindingController newController() {
       List<VisualFrameModelFactory<?, ?>> factories =
          List.of(new ColorFrameModelFactory.CategoricalColorFactory());

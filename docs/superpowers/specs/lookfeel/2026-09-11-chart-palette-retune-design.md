@@ -94,6 +94,14 @@ luminance across a 0.05-0.66 span, and the slot order interleaves the ladder so 
 three-series chart draws from opposite ends. `Contrast` gets **no dark variant**: its contract is
 paper and projection.
 
+**The two rules pull against each other at the tail, and the interleave wins.** Ordering for the
+low-cardinality case means the weakest consecutive pair is slot 7 to slot 8 — Teal `#00947F` at
+0.2271 and Green `#5FA83C` at 0.3076, a contrast ratio of 1.29, adjacent rungs in the same hue
+family. The separation rule still holds there (0.0805 apart, above the 0.05 floor), and the pair is
+only reachable at seven or more categories. Accepted rather than reordered: the slot order is the
+design's, and moving a member to widen that pair narrows the two- and three-series case the order
+exists to serve. Recorded so a later reviewer does not re-derive it.
+
 Eight slots is a supported shape. `Soft` already ships at 8, and `PaletteDialog.saveChanges()`
 splices a short palette over the first *n* colours while preserving the chart's existing tail.
 
@@ -271,6 +279,14 @@ what makes it safe is the default tier holding those colours, not anything this 
 
 **A "hard-fail with a migration warning" for `Gray` has nowhere to live.** There is no name lookup
 at load time to fail in.
+
+**`getPaletteIndex()`'s missing counter reset is not reachable, and no ticket is needed.** An
+earlier reading of this branch filed it as a latent defect made likelier by short palettes. That is
+wrong. A false reversed match needs the forward loop to score at least one and the reverse loop to
+add at least one, and both start at `j = 0` against the same `currPalette.colors[0]` — so it
+requires a palette whose first colour equals its last. None of the fourteen in `defaults.css` does,
+`Contrast` included (`#0b3d91` / `#5fa83c`). The counter is sloppy and cannot produce a wrong match
+against any registered palette.
 
 ## Files touched
 
