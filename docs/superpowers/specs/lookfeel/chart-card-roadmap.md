@@ -1555,6 +1555,7 @@ own.
 
 | Item | Commit |
 |---|---|
+| **The dark active-border value.** `--inet-viz-active-border` was the one token whose dark-block entry re-pointed at the *light* primary accent rather than taking a dark value, so every assembly's focus outline drew `#E58A2A` on a dark card while the selected cell four lines away in the same stylesheet drew teal. Predates the whole track — `0d2cdd433a`, 2024-07-12 — and is not a regression from the dark pass or the palette re-tune. **Two of the recording ticket's three framing questions fell to measurement rather than taste**: matching the cell's teal would have collapsed the active/selected split `_viz-tokens.scss:100` documents as deliberate *and* fed a family this file ranks for retirement; and going neutral, which the palette-coordination decision test argues for in the abstract, measures ΔE **0.060** against `Modern Dark`'s slate `#94A3B8` — worse than the orange it replaces. The value is `var(--inet-primary-color-dark)`, `#C96F12`, the brand accent's existing deep step: ΔE 0.155 here and 0.130 against the re-tuned palette, both clear of the design set's 0.106 line, at 4.23:1 on the card. **A dark accent has to go deeper, not lighter** — every `Modern Dark` member is high-lightness by design, so lightness is the axis that separates. The ticket also had the blast radius wrong in both directions: the class occurs **once** in the repo, not across composer and viewer (the composer solved this for its own handles long ago, at `editable-object-container.component.scss:42`), but its overlay div is a *preceding sibling* of the wrapper carrying `viz-modern`/`viz-dark`, so no dark token could reach it and the reachability half was unmentioned. Design: [the dark active-border value](./2026-09-11-dark-active-border-design.md) | *"Give the viz active border a dark value"* · *"Draw the assembly focus outline in the dark accent"* |
 | Phase 9B dark mode — every server-rendered surface, chart included | *"Visualization Phase 9B: org-scoped dark mode"* |
 | Inline-SVG chart rendering coupled to the modern gate | *"Couple inline-SVG chart rendering to the modern visualization gate"* |
 | Data-mark-anchored tooltip tail | *"point the tooltip tail at the hovered data mark"* |
@@ -1690,6 +1691,11 @@ note above already gives.
   cross-widget consistency.
 - **Whether the teal selection family has an owner.** It is unchanged in `_viz-tokens.scss:51-53`, and v3
   deleted the paragraphs that tracked it without resolving it.
+  **2026-09-11: still open, and now with one fewer consumer to migrate.** The dark active-border work
+  deliberately did *not* point the assembly focus outline at this family — it is an *active* affordance,
+  which `_viz-tokens.scss:100` keeps on the accent on purpose, and the family's `#2DD4BF` measures
+  ΔE 0.072 from the re-tuned dark palette's own teal. Pointing chrome at it would have made the
+  retirement more expensive, not less.
 
 ---
 
