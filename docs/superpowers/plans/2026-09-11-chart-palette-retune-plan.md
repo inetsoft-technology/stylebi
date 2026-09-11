@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** `Modern` and `Modern Dark` render the redesigned eight head colours, `Contrast` joins the palette picker, and the picker's list is scoped by the chart's own provenance mark so a modern chart is no longer offered the eight single-hue ramps.
+**Goal:** `Modern` and `Modern Dark` render the redesigned eight head colours, `Contrast` joins the palette picker, and the picker's list is scoped by the chart's own provenance mark so a modern chart is no longer offered the nine retired palettes — the eight single-hue ramps plus Pastel.
 
 **Architecture:** Palette data plus one endpoint change plus a dropdown filter. The eight head hexes move in two places that must agree — `defaults.css` and the `MODERN_HEAD`/`DARK_HEAD` fallback constants. A new `hiddenPaletteNames(VizContext)` in `VSChartPaletteDefaults` names what a modern chart should not be offered; the endpoint attaches it to the response as a per-palette `hidden` flag rather than dropping entries, and the dialog filters its dropdown. Nothing in `inetsoft.graph` changes, no colour-frame class is added, and no persisted contract moves.
 

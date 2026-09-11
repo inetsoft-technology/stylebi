@@ -133,10 +133,11 @@ class VizContextReadFlipTest {
    @Test
    void onlyTheDocumentedSitesStillReadTheOrgGate() throws Exception {
       // per-package spot checks, kept for their clearer failure messages; the tree-wide assertion
-      // below is the actual guard. ofGate() survives in exactly one call site: the parameterless
-      // ChartColorPaletteController bootstrap GET, which has no assembly to resolve a mark from.
+      // below is the actual guard. Two call sites survive, both with no assembly to resolve a mark
+      // from: the ChartColorPaletteController bootstrap GET, and the palette picker's
+      // absent-assembly branch in web/binding, which this per-package check does not cover.
       assertEquals(1, countOfGateIn("web/portal/controller"),
-                   "ChartColorPaletteController is the one deliberate survivor");
+                   "ChartColorPaletteController is the survivor in this package");
       assertEquals(0, countOfGateIn("report/composition"),
                    "query and lens resolve per assembly");
       assertEquals(0, countOfGateIn("web/viewsheet/controller"),

@@ -129,4 +129,18 @@ describe("PaletteDialog hidden palettes", () => {
       const dialog = dialogWithHidden(palette40(HEAT_HEAD));
       expect(dialog.paletteSelectOptions).toContainEqual({ value: 2, label: "Heat 8" });
    });
+
+   // a reversed match sets _selectedIndex the same way a forward one does, so the entry the
+   // chart is on survives the filter whichever direction it matched. displayPalette carries no
+   // name on the reversed branch - it builds a colours-only model - so the label is asserted
+   // through the options, which read the unfiltered array
+   it("keeps a hidden palette that matched reversed", () => {
+      const dialog = dialogWithHidden(palette40(HEAT_HEAD).slice().reverse());
+
+      // reading the options resolves the match; _reversed is still its initial false until then
+      expect(dialog.paletteSelectOptions.map((o) => o.label))
+         .toEqual(["Default", "Modern", "Heat 8"]);
+      expect(dialog._reversed).toBe(true);
+      expect(dialog._selectedIndex).toBe(2);
+   });
 });

@@ -40,6 +40,8 @@ export class PaletteDialog {
    _reversed: boolean = false;
 
    get paletteSelectOptions(): CustomSelectOption<number>[] {
+      // read displayPalette first: it resolves _selectedIndex from -1, so reading the field
+      // directly would drop the palette a chart is on from its own dropdown
       const selected = this.displayPalette == null ? -1 : this._selectedIndex;
 
       return (this.colorPalettes || [])

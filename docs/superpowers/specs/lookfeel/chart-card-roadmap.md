@@ -1737,7 +1737,7 @@ needed, or simply removed if the parenthetical has lost its explanatory value by
   the four seeded values and the mechanism inventory. **Supersedes the roadmap's seed-mark analysis
   below**, which still lists version-blindness as the open question
 - [2026-09-11-chart-palette-retune-design.md](./2026-09-11-chart-palette-retune-design.md) —
-  **decided, not implemented.** The chart's categorical *series* palette, which nothing in this file
+  **implemented, in review.** The chart's categorical *series* palette, which nothing in this file
   covers: re-tunes the eight head colours of `Modern` and `Modern Dark`, adds `Contrast`, and gates the
   palette picker on the assembly's `VizMark` rather than the org property. Not to be confused with the
   **Chart interior dark palette** row in Done, which was plot chrome. **Read its Corrections section

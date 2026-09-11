@@ -46,10 +46,20 @@ classic 40 regardless of the CSS.
    reduced list. A classic chart keeps all of today's names. `Contrast` is offered to both, because
    an accessibility palette is not a look-and-feel choice.
 3. **One authority; the org gate is only the absent-assembly default.** The binding picker resolves
-   `VizContext.of(mark)` from the chart's own `VizMark`. A caller with no assembly to resolve — the
-   target-band colour pane included — falls through to `VizContext.ofGate()` as the null-branch
-   default. That pane deliberately shows every palette regardless: it cannot tell a classic chart
-   from a modern one, and filtering it on the org gate would hide retired palettes from classic
+   `VizContext.of(mark)` from the chart's own `VizMark`. A caller with no assembly to resolve falls
+   through to `VizContext.ofGate()` as the null-branch default, and a mark that cannot be resolved
+   falls back the same way rather than failing the request — the mark decides which names carry the
+   flag, never which palettes are returned.
+
+   **Three hosts render `categorical-color-pane`, and only one supplies assembly context.**
+   `color-field-mc` (the binding editor) passes `vsId`, `assemblyName` and `assetId`. The other two —
+   `visual-dropdown-pane` and the date-comparison pane — pass none of the three, and that is
+   pre-existing: `ngOnInit` calls `createAssetEntry(this.assetId).organization`, and
+   `createAssetEntry` returns `null` for an unparseable id, so both throw before the request is
+   made. Neither can reach the org-gate branch at all until that is fixed, which is a separate
+   defect. The target-band pane is a fourth caller, through `b-categorical-color-pane`, and it does
+   null-guard that call; it deliberately shows every palette, because it cannot tell a classic chart
+   from a modern one and filtering it on the org gate would hide retired palettes from classic
    charts in a modern org.
 4. **Ramps are out of scope.** `Variance`, `Amber` and `Teal` are `LinearColorFrame` work, not CSS
    (see Corrections below).
@@ -251,8 +261,13 @@ The opening this leaves: a modern chart whose old head colours were pinned into 
 `applyModernPalette` — the user tier wins over defaults unconditionally. That chart's rendered
 colours then match no registered palette, the dialog shows `Default` selected, and a no-op OK
 repaints it to the classic legacy 40 — the exact hazard section 3 exists to prevent, arriving
-through a door section 3 did not consider. This needs a manual check; it is not something an
-automated test can cover.
+through a door section 3 did not consider. It is not something an automated test can cover.
+
+**Checked manually on 2026-09-11 and it does not occur.** A dashboard created under the modern gate
+before the re-tune still pre-selects `Modern` in the palette dialog afterwards, so the stored head
+is re-resolved as described rather than stranding the chart on an unmatched colour list. Recorded
+here so the next re-tune does not have to re-derive it — though the check is worth repeating, since
+what makes it safe is the default tier holding those colours, not anything this branch enforces.
 
 **A "hard-fail with a migration warning" for `Gray` has nowhere to live.** There is no name lookup
 at load time to fail in.

@@ -48,6 +48,8 @@ import inetsoft.web.viewsheet.SwitchOrg;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -243,12 +245,8 @@ public class VSChartBindingController {
       Principal principal)
       throws Exception
    {
-      // absent assembly resolves through the org gate; its flags are unread by any UI -
-      // don't gate the target-band pane on them, it can't tell classic charts from modern ones
-      VizContext ctx = Tool.isEmptyString(vsId) || Tool.isEmptyString(assemblyName)
-         ? VizContext.ofGate()
-         : VizContext.of(chartBindingService.getChartVizMark(vsId, assemblyName, principal));
-      Set<String> hidden = VSChartPaletteDefaults.hiddenPaletteNames(ctx);
+      Set<String> hidden = VSChartPaletteDefaults.hiddenPaletteNames(
+         pickerContext(vsId, assemblyName, principal));
       String[] names = ColorPalettes.getPaletteNames().toArray(new String[0]);
       CategoricalColorModel[] palettes = new CategoricalColorModel[names.length];
 
@@ -265,6 +263,32 @@ public class VSChartBindingController {
       return palettes;
    }
 
+   /**
+    * The context a palette picker's hidden flags are computed from.
+    *
+    * A caller with no assembly resolves through the org gate. Its flags are unread by any UI, and
+    * the target-band pane must not be gated on them - it cannot tell a classic chart from a modern
+    * one, so gating it would hide the retired palettes from classic charts in a modern org.
+    *
+    * A mark that cannot be resolved falls back the same way rather than failing the request. The
+    * mark decides which names carry the flag, never which palettes are returned, so a stale or
+    * expired runtime should not take the whole list down with it.
+    */
+   private VizContext pickerContext(String vsId, String assemblyName, Principal principal) {
+      if(Tool.isEmptyString(vsId) || Tool.isEmptyString(assemblyName)) {
+         return VizContext.ofGate();
+      }
+
+      try {
+         return VizContext.of(chartBindingService.getChartVizMark(vsId, assemblyName, principal));
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to resolve the chart's mark for the palette picker", ex);
+         return VizContext.ofGate();
+      }
+   }
+
    private final VisualFrameModelFactoryService visualService;
    private VSChartBindingServiceProxy chartBindingService;
+   private static final Logger LOG = LoggerFactory.getLogger(VSChartBindingController.class);
 }
