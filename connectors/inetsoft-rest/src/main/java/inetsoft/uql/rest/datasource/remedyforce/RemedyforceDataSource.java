@@ -18,27 +18,38 @@
 package inetsoft.uql.rest.datasource.remedyforce;
 
 import inetsoft.uql.rest.datasource.salesforce.SalesforceDataSource;
-import inetsoft.uql.tabular.View;
-import inetsoft.uql.tabular.View1;
-import inetsoft.util.credential.CredentialType;
+import inetsoft.uql.tabular.*;
 
 @View(vertical = true, value = {
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
    @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
-   @View1(value = "user", visibleMethod = "useCredential"),
-   @View1(value = "password", visibleMethod = "useCredential"),
-   @View1(value = "securityToken", visibleMethod = "useCredential"),
+   @View1("authType"),
+   @View1(value = "user", visibleMethod = "useCredentialForPassword"),
+   @View1(value = "password", visibleMethod = "useCredentialForPassword"),
+   @View1(value = "securityToken", visibleMethod = "useCredentialForPassword"),
+   @View1(value = "clientId", visibleMethod = "useCredentialForOauth"),
+   @View1(value = "clientSecret", visibleMethod = "useCredentialForOauth"),
+   @View1(type = ViewType.LABEL, text = "redirect.uri.description", colspan = 2,
+          visibleMethod = "useCredentialForOauth"),
+   @View1(
+      type = ViewType.BUTTON,
+      text = "Authorize",
+      visibleMethod = "isOauth",
+      button = @Button(
+         type = ButtonType.OAUTH, method = "updateTokens", oauth = @Button.OAuth,
+         dependsOn = { "clientId", "clientSecret", "credentialId" },
+         enabledMethod = "authorizeEnabled"
+      )
+   ),
+   @View1(value = "accessToken", visibleMethod = "isOauth"),
+   @View1(value = "refreshToken", visibleMethod = "isOauth"),
+   @View1(value = "instanceUrl", visibleMethod = "isOauth"),
 })
 public class RemedyforceDataSource extends SalesforceDataSource<RemedyforceDataSource> {
    static final String TYPE = "Rest.Remedyforce";
 
    public RemedyforceDataSource() {
       super(TYPE, RemedyforceDataSource.class);
-   }
-
-   @Override
-   protected CredentialType getCredentialType() {
-      return CredentialType.PASSWORD_SECURITY_TOKEN;
    }
 
    @Override

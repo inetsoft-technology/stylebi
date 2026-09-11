@@ -21,6 +21,7 @@ import com.github.benmanes.caffeine.cache.*;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
+import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.util.Tool;
 import inetsoft.util.credential.*;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -49,14 +50,109 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
       setAuthType(AuthType.NONE);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD_OAUTH2_WITH_FLAGS;
+   }
+
+   /**
+    * The base {@link AbstractRestDataSource} implementation only allows a "Use Secret ID" cloud
+    * credential for {@code AuthType.BASIC}/{@code OAUTH}, but this connector's legacy mode is
+    * {@code AuthType.NONE}. Include it so Legacy Password mode keeps the cloud-secret support it
+    * had before this class used {@code PASSWORD_OAUTH2_WITH_FLAGS} (previously
+    * {@code PASSWORD_SECURITY_TOKEN}, which always allowed it).
+    */
+   @Override
+   protected boolean supportCredentialId() {
+      AuthType type = getAuthType();
+      return type == AuthType.NONE || type == AuthType.OAUTH;
+   }
+
+   // Not part of the PASSWORD_OAUTH2_WITH_FLAGS credential, so stored as a plain
+   // (manually encrypted) field, same as the inherited accessToken/refreshToken fields are
+   // for credential types that don't carry them.
    @Property(label = "Security Token", required = true, password = true)
-   @PropertyEditor(dependsOn = "useCredentialId")
    public String getSecurityToken() {
-      return ((SecurityTokenCredential) getCredential()).getSecurityToken();
+      return securityToken;
    }
 
    public void setSecurityToken(String securityToken) {
-      ((SecurityTokenCredential) getCredential()).setSecurityToken(securityToken);
+      this.securityToken = securityToken;
+   }
+
+   public boolean useCredentialForPassword() {
+      return useCredential() && !isOauth();
+   }
+
+   /**
+    * Restricts the inherited authentication type dropdown to the two modes this connector
+    * actually implements — {@link AuthType#BASIC}/{@code TWO_STEP}/{@code KERBEROS} are not
+    * supported here and would otherwise silently fall back to the legacy SOAP login.
+    */
+   @Override
+   @Property(label="Authentication")
+   @PropertyEditor(tags={"NONE", "OAUTH"}, labels={"Username/Password (Legacy)", "OAuth 2.0"})
+   public AuthType getAuthType() {
+      return super.getAuthType();
+   }
+
+   @Override
+   @PropertyEditor(enabled = false, dependsOn = "useCredentialId")
+   public String getAuthorizationUri() {
+      return getOAuthHostUrl() + "/services/oauth2/authorize";
+   }
+
+   @Override
+   public void setAuthorizationUri(String authorizationUri) {
+      // computed from the login URL; not directly editable
+   }
+
+   @Override
+   @PropertyEditor(enabled = false, dependsOn = "useCredentialId")
+   public String getTokenUri() {
+      return getOAuthHostUrl() + "/services/oauth2/token";
+   }
+
+   @Override
+   public void setTokenUri(String tokenUri) {
+      // computed from the login URL; not directly editable
+   }
+
+   @Override
+   @PropertyEditor(enabled = false, dependsOn = "useCredentialId")
+   public String getScope() {
+      String scope = super.getScope();
+      return scope == null || scope.isEmpty() ? "api refresh_token" : scope;
+   }
+
+   @Override
+   @PropertyEditor(enabled = false, dependsOn = "useCredentialId")
+   public String getOauthFlags() {
+      // Salesforce Connected/External Client Apps require PKCE for the Authorization Code flow.
+      return "pkce";
+   }
+
+   /**
+    * Captures the {@code instance_url} that Salesforce returns alongside the access/refresh
+    * tokens (a non-standard OAuth field), in addition to the standard token bookkeeping.
+    */
+   @Override
+   public void updateTokens(Tokens tokens) {
+      super.updateTokens(tokens);
+
+      if(tokens.properties() != null && tokens.properties().get("instance_url") != null) {
+         setInstanceUrl(String.valueOf(tokens.properties().get("instance_url")));
+      }
+   }
+
+   @Property(label = "Instance URL")
+   @PropertyEditor(enabled = false)
+   public String getInstanceUrl() {
+      return instanceUrl;
+   }
+
+   public void setInstanceUrl(String instanceUrl) {
+      this.instanceUrl = instanceUrl;
    }
 
    @Override
@@ -92,6 +188,53 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
       return "https://login.salesforce.com/services/Soap/u/35.0";
    }
 
+   /**
+    * @return the scheme+host portion of {@link #getLoginUrl()}, used to derive the OAuth
+    *         authorization/token endpoints for the same org (production, sandbox, etc).
+    */
+   private String getOAuthHostUrl() {
+      String loginUrl = getLoginUrl();
+      int index = loginUrl.indexOf("/services/");
+      return index < 0 ? loginUrl : loginUrl.substring(0, index);
+   }
+
+   @Override
+   public void writeContents(PrintWriter writer) {
+      super.writeContents(writer);
+
+      if(instanceUrl != null) {
+         writer.format("<instanceUrl><![CDATA[%s]]></instanceUrl>%n", instanceUrl);
+      }
+
+      if(securityToken != null) {
+         writer.format(
+            "<securityToken><![CDATA[%s]]></securityToken>%n", Tool.encryptPassword(securityToken));
+      }
+   }
+
+   @Override
+   public void parseContents(Element root) throws Exception {
+      super.parseContents(root);
+      instanceUrl = Tool.getChildValueByTagName(root, "instanceUrl");
+      String token = Tool.getChildValueByTagName(root, "securityToken");
+
+      // Data sources saved before this class used PASSWORD_OAUTH2_WITH_FLAGS stored the
+      // security token nested inside the legacy <PasswordCredential> node (written by
+      // LocalSecurityTokenCredential, back when getCredentialType() was
+      // PASSWORD_SECURITY_TOKEN). Fall back to that location so upgrades don't drop it.
+      if(token == null) {
+         Element legacyCredential = Tool.getChildNodeByTagName(root, "PasswordCredential");
+
+         if(legacyCredential != null) {
+            token = Tool.getChildValueByTagName(legacyCredential, "securityToken");
+         }
+      }
+
+      if(token != null) {
+         securityToken = Tool.decryptPassword(token);
+      }
+   }
+
    @Override
    public boolean equals(Object o) {
       if(this == o) {
@@ -102,12 +245,18 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
          return false;
       }
 
-      return super.equals(o);
+      if(!super.equals(o)) {
+         return false;
+      }
+
+      SalesforceDataSource<?> that = (SalesforceDataSource<?>) o;
+      return Objects.equals(securityToken, that.securityToken) &&
+         Objects.equals(instanceUrl, that.instanceUrl);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), getSecurityToken());
+      return Objects.hash(super.hashCode(), getSecurityToken(), instanceUrl);
    }
 
    private SalesforceSession getSession() {
@@ -120,6 +269,10 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
    }
 
    private static SalesforceSession createSession(SalesforceDataSource dataSource) {
+      if(dataSource.getAuthType() == AuthType.OAUTH) {
+         return createOAuthSession(dataSource);
+      }
+
       byte[] content;
 
       try {
@@ -198,6 +351,27 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
       }
    }
 
+   /**
+    * Builds a session from the OAuth 2.0 access token, instead of SOAP {@code login()}.
+    */
+   private static SalesforceSession createOAuthSession(SalesforceDataSource dataSource) {
+      dataSource.refreshTokens();
+      String instanceUrl = dataSource.getInstanceUrl();
+      String accessToken = dataSource.getAccessToken();
+
+      if(instanceUrl == null || instanceUrl.isEmpty() || accessToken == null || accessToken.isEmpty()) {
+         throw new RuntimeException(
+            "Salesforce OAuth authorization has not been completed for this data source");
+      }
+
+      int index = instanceUrl.indexOf("/services/");
+      String serverUrl = index < 0 ?
+         URI.create(instanceUrl).resolve("/services").toString() :
+         instanceUrl.substring(0, index + 9);
+
+      return new SalesforceSession(serverUrl, accessToken);
+   }
+
    private static final class SalesforceSession {
       SalesforceSession(String url, String sessionId) {
          this.url = url;
@@ -225,4 +399,7 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
          .maximumSize(20)
          .build(SalesforceDataSource::createSession);
    }
+
+   private String instanceUrl;
+   private String securityToken;
 }
