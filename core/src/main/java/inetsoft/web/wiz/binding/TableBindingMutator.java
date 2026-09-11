@@ -480,6 +480,16 @@ public final class TableBindingMutator {
 
             ref.setOrder(XConstants.SORT_SPECIFIC);
          }
+         else if((ref.getOrder() & XConstants.SORT_SPECIFIC) != 0 &&
+            (ref.getNamedGroupInfo() == null || ref.getNamedGroupInfo().getType() == 0) &&
+            (ref.getManualOrder() == null || ref.getManualOrder().isEmpty()))
+         {
+            // ref may have carried SORT_SPECIFIC forward from a matched previous ref (copyOf())
+            // whose named group this incoming field no longer supplies -- strip it so the model
+            // doesn't carry SORT_SPECIFIC with nothing backing it. Mirrors the same self-heal
+            // BDimensionRefModel.createDataRef() already applies at conversion time.
+            ref.setOrder(ref.getOrder() & ~XConstants.SORT_SPECIFIC);
+         }
 
          out.add(ref);
       }

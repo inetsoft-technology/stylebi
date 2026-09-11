@@ -807,6 +807,53 @@ class TableBindingMutatorTest {
    }
 
    /**
+    * PR #5178 review round 1 (Important): {@code copyOf()} carries {@code order} forward from
+    * the matched previous ref unconditionally, but the named-group reapply block below it only
+    * ever SETS {@code SORT_SPECIFIC} when the incoming field supplies {@code namedGroupValues}/
+    * {@code namedGroup} -- there was no path to clear it back off when the incoming field drops
+    * the group. A field previously bound to a named group, resubmitted at the same column/index
+    * without {@code namedGroupValues}/{@code namedGroup}, must not be left at
+    * {@code SORT_SPECIFIC} with no {@code namedGroupInfo} backing it. Mirrors the self-heal
+    * {@code BDimensionRefModel.createDataRef()} already applies at conversion time.
+    */
+   @Test
+   void resubmittingANamedGroupedFieldWithoutNamedGroupClearsSortSpecific() throws Exception {
+      Condition condition = mock(Condition.class);
+      when(condition.getOperation()).thenReturn(Condition.EQUAL_TO);
+      when(condition.getValues()).thenReturn(List.of("CA"));
+      ConditionList conditionList = new ConditionList();
+      conditionList.append(new ConditionItem(new AttributeRef(null, "REGION"), condition, 0));
+      NamedGroupInfo namedGroupInfo = new NamedGroupInfo();
+      namedGroupInfo.setGroupCondition("West", conditionList);
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn("Coastal");
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource()).thenReturn(QUERY1_SOURCE);
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "REGION"));
+      when(ngAssembly.getNamedGroupInfo()).thenReturn(namedGroupInfo);
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[]{ ngAssembly });
+
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dimWithNamedGroup("REGION", "Coastal")),
+                                   rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
+      assertEquals(XConstants.SORT_SPECIFIC, model.getRows().get(0).getOrder());
+
+      // Resubmit REGION at the same index WITHOUT namedGroupValues/namedGroup -- dropping it.
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("REGION")),
+                                   rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
+
+      BDimensionRefModel dim = model.getRows().get(0);
+      assertEquals(0, dim.getOrder() & XConstants.SORT_SPECIFIC,
+         "order must not be left with the SORT_SPECIFIC bit set once the named group backing " +
+         "it is dropped");
+      assertNull(dim.getNamedGroupInfo(),
+         "namedGroupInfo is null here, so order being SORT_SPECIFIC would be inconsistent");
+   }
+
+   /**
     * Documents strategy (a)'s accepted boundary, not a bug: matching is by absolute shelf
     * index, not by following a field across an edit elsewhere on the shelf. Removing CATEGORY
     * (index 0) shifts ORDER_DATE from index 1 to index 0, so the new index-0 field no longer
