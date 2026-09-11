@@ -172,6 +172,9 @@ public class VSChartFlyoverService extends VSChartControllerService<VSChartFlyov
          int hint = hints.remove(0);
 
          if(hint != VSAssembly.NONE_CHANGED) {
+            // cancel any query still in flight for this tip assembly from a
+            // prior, now-superseded hover event before starting the new one
+            box.getQueryManager(tip.getAbsoluteName()).cancel();
             execute(rvs, tip.getAbsoluteName(), linkUri, hint, dispatcher);
             refreshVSAssembly(rvs, view, dispatcher);
          }
