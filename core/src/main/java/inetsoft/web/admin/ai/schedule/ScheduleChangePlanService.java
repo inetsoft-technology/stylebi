@@ -193,6 +193,20 @@ public class ScheduleChangePlanService {
          throw new IllegalArgumentException(label + ".taskId: no task exists with id \"" + taskId + "\"");
       }
 
+      // Non-removable is a structural, permission-independent refusal -- the server marks a
+      // built-in/internal task (e.g. the 3 bundled maintenance tasks) or a synthesized data-cycle
+      // task as removable=false unconditionally, the same flag the EM task list's own Delete
+      // button is disabled on (Bug #76598). No caller, including the task's own owner or a Site
+      // Administrator, can delete it, so this must be checked and refused before -- and
+      // independently of -- the owner-ADMIN permission check below, which answers a different
+      // question ("do you have authority") than this one ("does this operation exist at all").
+      if(!existing.isRemovable()) {
+         throw new IllegalArgumentException(
+            label + ".taskId: \"" + taskId + "\" is a built-in/system task and cannot be deleted " +
+            "-- the server marks it non-removable for every caller regardless of permission, the " +
+            "same restriction the Enterprise Manager task list enforces by disabling Delete for it");
+      }
+
       // Inverse-permission preflight (spec §4): a delete's rollback is a re-create of the captured
       // task, which needs ADMIN over the owner (and executeAsID, if set) -- a strictly stronger
       // requirement than the DELETE this verb itself needs. Refuse now rather than mid-rollback.
