@@ -30,7 +30,9 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.*;
 import inetsoft.web.binding.model.*;
@@ -234,9 +236,17 @@ public class VSChartBindingController {
    @RequestMapping(value = "/api/composer/chart/colorpalettes", method = RequestMethod.GET)
    @HandleExceptions
    @SwitchOrg
-   public CategoricalColorModel[] getColorPalettes(@OrganizationID String orgId, Principal principal)
+   public CategoricalColorModel[] getColorPalettes(
+      @OrganizationID String orgId,
+      @RequestParam(required = false, value = "vsId") String vsId,
+      @RequestParam(required = false, value = "assemblyName") String assemblyName,
+      Principal principal)
       throws Exception
    {
+      VizContext ctx = vsId == null || assemblyName == null
+         ? VizContext.ofGate()
+         : VizContext.of(chartBindingService.getChartVizMark(vsId, assemblyName, principal));
+      Set<String> hidden = VSChartPaletteDefaults.hiddenPaletteNames(ctx);
       String[] names = ColorPalettes.getPaletteNames().toArray(new String[0]);
       CategoricalColorModel[] palettes = new CategoricalColorModel[names.length];
 
@@ -246,6 +256,7 @@ public class VSChartBindingController {
          wrapper.setVisualFrame(palette);
          CategoricalColorModel model = visualService.createVisualFrameModel(wrapper);
          model.setName(names[i]);
+         model.setHidden(hidden.contains(names[i]));
          palettes[i] = model;
       }
 
