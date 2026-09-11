@@ -23,6 +23,9 @@ import inetsoft.sree.schedule.ScheduleTaskMetaData;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
 import inetsoft.web.admin.ai.*;
+import inetsoft.web.security.auth.MissingResourceException;
+import inetsoft.web.security.auth.ResourceExistsException;
+import inetsoft.web.security.auth.UnauthorizedAccessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -118,12 +121,12 @@ public class ScheduleChangesetApplyService {
                              results, undoable);
                }
             }
-            catch(PreflightCaptureFailedException e) {
-               // Thrown only from applyDelete's captureSpec call, which runs entirely before any
-               // mutating call -- unlike a throw from the mutation itself, this proves nothing
-               // was changed, so it must NOT contribute an unknown-state RollbackFailure (there is
-               // nothing to roll back). Same shape as IdentityChangesetApplyService's non-
-               // compensable-delete branch.
+            catch(PreMutationFailedException e) {
+               // Thrown from applyDelete's captureSpec call (read-only by construction) or from
+               // applyCreate's addScheduleTask call after confirming the task still doesn't exist
+               // -- either way, this proves nothing was changed, so it must NOT contribute an
+               // unknown-state RollbackFailure (there is nothing to roll back). Same shape as
+               // IdentityChangesetApplyService's non-compensable-delete branch.
                results.add(new ApplyOutcome(taskId, null, null, AdminChangeRecord.STATUS_FAILED,
                                             messageOf(e.getCause())));
                failed = true;
@@ -181,10 +184,28 @@ public class ScheduleChangesetApplyService {
    {
       ScheduleTaskMetaData meta = new ScheduleTaskMetaData(spec.getName(),
                                                             spec.getOwner().convertToKey());
-      scheduleGateway.addScheduleTask(meta, spec.isEnabled(), spec.isDeleteIfNotScheduledToRun(),
-         spec.getStartDate(), spec.getEndDate(), spec.getDescription(), spec.getLocale(),
-         spec.getExecuteAsID(), spec.getConditions(), spec.getActions(), spec.getOwner().getOrgID(),
-         null, user);
+
+      try {
+         scheduleGateway.addScheduleTask(meta, spec.isEnabled(), spec.isDeleteIfNotScheduledToRun(),
+            spec.getStartDate(), spec.getEndDate(), spec.getDescription(), spec.getLocale(),
+            spec.getExecuteAsID(), spec.getConditions(), spec.getActions(),
+            spec.getOwner().getOrgID(), null, user);
+      }
+      catch(ResourceExistsException | MissingResourceException | UnauthorizedAccessException |
+            IllegalArgumentException e)
+      {
+         // These are exactly the exception types addScheduleTask's own guard clauses throw --
+         // checkPermission/checkOwnerPermission/checkActionOrgBoundary
+         // (UnauthorizedAccessException), the pre-existing-task guard (ResourceExistsException/
+         // MissingResourceException), and convertAction's request-shape validation
+         // (IllegalArgumentException, including the bookmarkUsers guard from ASC-004) -- every
+         // one of them runs strictly before addScheduleTask's only persistence call
+         // (scheduleManager.setScheduleTask), so a throw here proves the task was never created.
+         // Distinct from a throw from that persistence call itself (falls through to the generic
+         // catch below), which leaves the post-mutation state genuinely unknown
+         // (Redmine #76610, ASC-005).
+         throw new PreMutationFailedException(e);
+      }
 
       String after = ScheduleXmlProjection.project(scheduleManager.getScheduleTask(taskId));
       boolean verified = after != null;
@@ -218,7 +239,7 @@ public class ScheduleChangesetApplyService {
       catch(Exception e) {
          // Read-only, runs strictly before removeScheduleTask below -- a throw here proves
          // nothing was mutated yet, distinct from a throw during/after the mutating call.
-         throw new PreflightCaptureFailedException(e);
+         throw new PreMutationFailedException(e);
       }
 
       scheduleGateway.removeScheduleTask(taskId, orgId, user);
@@ -372,11 +393,13 @@ public class ScheduleChangesetApplyService {
       final CreateScheduleTaskRequest recreateSpec;
    }
 
-   /** Signals that {@link #applyDelete}'s preflight {@link #captureSpec} call failed, strictly
-    * before the mutating {@code removeScheduleTask} call -- distinct from a throw during/after
-    * the mutating call, which leaves the post-mutation state genuinely unknown. */
-   private static final class PreflightCaptureFailedException extends RuntimeException {
-      PreflightCaptureFailedException(Throwable cause) {
+   /** Signals a failure confirmed to have happened strictly before this change's mutating call --
+    * either {@link #applyDelete}'s preflight {@link #captureSpec} read, or one of the known
+    * guard-clause exception types {@link #applyCreate}'s {@code addScheduleTask} call can only
+    * throw before its own persistence call -- distinct from a throw during/after the mutating
+    * call, which leaves the post-mutation state genuinely unknown. */
+   private static final class PreMutationFailedException extends RuntimeException {
+      PreMutationFailedException(Throwable cause) {
          super(cause);
       }
    }

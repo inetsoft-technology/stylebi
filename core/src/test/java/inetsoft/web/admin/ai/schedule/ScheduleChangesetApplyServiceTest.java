@@ -210,6 +210,31 @@ class ScheduleChangesetApplyServiceTest {
       verify(scheduleGateway, never()).removeScheduleTask(anyString(), any(), eq(user));
    }
 
+   // IllegalArgumentException is one of the exception types addScheduleTask's own guard clauses
+   // are structurally guaranteed to throw before its only persistence call (here representing
+   // ASC-004's bookmarkUsers validation, thrown from convertAction) -- applyCreate must classify
+   // it as pre-mutation, unlike throwMidApplyIsReportedAsUnknownStateAndRollbackFailed above
+   // (whose mocked IllegalStateException is not one of these known types, and must still be
+   // treated as unknown-state). Redmine #76610, ASC-005.
+   @Test void createPreMutationBuildFailureIsReportedAsRolledBackNotRollbackFailed() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      doThrow(new IllegalArgumentException("boom")).when(scheduleGateway)
+         .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
+                          any(), any(), any(), any(), any(), eq(user));
+
+      ScheduleApplyRequest req = applyRequest("create a task", createChange(spec));
+
+      ApplyResult result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      verify(scheduleGateway, never()).removeScheduleTask(anyString(), any(), eq(user));
+   }
+
    // N-change plan: the first change (create) succeeds, the second (delete of an unrelated task)
    // fails verification -- rollback must undo the first, newest-first (trivially, since it's the
    // only undoable one), by deleting what it created.
