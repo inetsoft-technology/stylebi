@@ -54,6 +54,24 @@ class CoreHasNoConnectorKnowledgeTest {
          "annotation's catalog path must not depend on the query-builder schema contract");
    }
 
+   /**
+    * Charter C6 (tabular empty-result error report, 2026-09-10): {@code WorksheetTableService}
+    * reads a connector's {@code getValidJsonPath()} (the effective row path, for the empty-columns
+    * message) reflectively -- {@code Class.getMethod("getValidJsonPath").invoke(query)} -- so that
+    * core never needs a compile-time reference to {@code RestJsonQuery} or any other type under
+    * {@code inetsoft.uql.rest}. This scans the same way as the test above: a raw Latin-1 read of
+    * the compiled class file's constant pool, which would contain the connector package name as a
+    * UTF-8 constant if an import (or any other compile-time reference) existed.
+    */
+   @Test
+   void worksheetTableServiceReferencesNoRestConnectorType() throws IOException {
+      String classFile = classFileAsLatin1(WorksheetTableService.class);
+
+      assertFalse(classFile.contains("inetsoft/uql/rest"),
+         "WorksheetTableService must reach RestJsonQuery.getValidJsonPath() only by reflection, " +
+            "never by importing an inetsoft-rest connector type");
+   }
+
    private String classFileAsLatin1(Class<?> clazz) throws IOException {
       String resourceName = clazz.getSimpleName() + ".class";
 
