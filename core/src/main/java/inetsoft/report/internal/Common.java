@@ -1398,7 +1398,15 @@ public class Common extends Util {
          else if((align & H_RIGHT) != 0 && nbound.width != w) {
             // @by mikec, fix the line off of text.
             // @see bug1135784206363
-            lineoff.setElementAt(nbound.width - w - 1, i);
+            // bug #76574 (VTB-010): when the text is wider than the cell (w >
+            // nbound.width), this would go negative, positioning the string's start
+            // to the left of the clip rect paintText() sets to nbound -- silently
+            // discarding the leading, most-significant characters (e.g. a right-
+            // aligned number's high-order digits) while keeping the least-significant
+            // tail visible, which reads as a shorter but plausible, wrong value.
+            // Clamp to 0 so an overflowing string is clipped on the right (its
+            // least-significant end) instead of the left.
+            lineoff.setElementAt(Math.max(0f, nbound.width - w - 1), i);
          }
          else {
             lineoff.setElementAt((float) 0, i);
