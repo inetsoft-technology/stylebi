@@ -70,7 +70,7 @@ export class ScrollableTableDirective implements AfterContentInit, AfterContentC
 
       const tableStyle = window.getComputedStyle(table);
 
-      if(tbody.style.height == null) {
+      if(!tbody.style.height) {
          let tableHeight: string;
 
          if(tableStyle.maxHeight && tableStyle.maxHeight !== "none") {
