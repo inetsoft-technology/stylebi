@@ -55,6 +55,19 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
       return CredentialType.PASSWORD_OAUTH2_WITH_FLAGS;
    }
 
+   /**
+    * The base {@link AbstractRestDataSource} implementation only allows a "Use Secret ID" cloud
+    * credential for {@code AuthType.BASIC}/{@code OAUTH}, but this connector's legacy mode is
+    * {@code AuthType.NONE}. Include it so Legacy Password mode keeps the cloud-secret support it
+    * had before this class used {@code PASSWORD_OAUTH2_WITH_FLAGS} (previously
+    * {@code PASSWORD_SECURITY_TOKEN}, which always allowed it).
+    */
+   @Override
+   protected boolean supportCredentialId() {
+      AuthType type = getAuthType();
+      return type == AuthType.NONE || type == AuthType.OAUTH;
+   }
+
    // Not part of the PASSWORD_OAUTH2_WITH_FLAGS credential, so stored as a plain
    // (manually encrypted) field, same as the inherited accessToken/refreshToken fields are
    // for credential types that don't carry them.
@@ -205,6 +218,18 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
       instanceUrl = Tool.getChildValueByTagName(root, "instanceUrl");
       String token = Tool.getChildValueByTagName(root, "securityToken");
 
+      // Data sources saved before this class used PASSWORD_OAUTH2_WITH_FLAGS stored the
+      // security token nested inside the legacy <PasswordCredential> node (written by
+      // LocalSecurityTokenCredential, back when getCredentialType() was
+      // PASSWORD_SECURITY_TOKEN). Fall back to that location so upgrades don't drop it.
+      if(token == null) {
+         Element legacyCredential = Tool.getChildNodeByTagName(root, "PasswordCredential");
+
+         if(legacyCredential != null) {
+            token = Tool.getChildValueByTagName(legacyCredential, "securityToken");
+         }
+      }
+
       if(token != null) {
          securityToken = Tool.decryptPassword(token);
       }
@@ -224,12 +249,14 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
          return false;
       }
 
-      return Objects.equals(securityToken, ((SalesforceDataSource<?>) o).securityToken);
+      SalesforceDataSource<?> that = (SalesforceDataSource<?>) o;
+      return Objects.equals(securityToken, that.securityToken) &&
+         Objects.equals(instanceUrl, that.instanceUrl);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), getSecurityToken());
+      return Objects.hash(super.hashCode(), getSecurityToken(), instanceUrl);
    }
 
    private SalesforceSession getSession() {
@@ -332,7 +359,7 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
       String instanceUrl = dataSource.getInstanceUrl();
       String accessToken = dataSource.getAccessToken();
 
-      if(instanceUrl == null || accessToken == null || accessToken.isEmpty()) {
+      if(instanceUrl == null || instanceUrl.isEmpty() || accessToken == null || accessToken.isEmpty()) {
          throw new RuntimeException(
             "Salesforce OAuth authorization has not been completed for this data source");
       }
