@@ -714,6 +714,192 @@ class TableBindingMutatorTest {
       assertTrue(described.containsKey("Region"));
    }
 
+   // ── sort/ranking survives a shelf rewrite (VTB-004, Redmine #76574) ────────
+   //
+   // setShelf/dimensions() used to build a brand-new BDimensionRefModel for every field on
+   // every write, discarding order/rankingOpt/rankingN/rankingCol/manualOrder/groupOthers/
+   // namedOthers even for a field that did not change. The fix matches a new field to the
+   // shelf's own previous list by same absolute index + same column (case-insensitive) + same
+   // date level -- the same position-keyed identity requireDimension/pruneOrphanedSuppression
+   // already use to disambiguate a column bound twice, not a dateLevel-content key. See
+   // 03-fix.md for why that (strategy (a)) was chosen over matching by (column, dateLevel)
+   // alone (strategy (b)).
+
+   @Test
+   void resubmittingTheIdenticalFieldListPreservesSortAndRanking() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+      TableBindingMutator.setSort(model, "rows", "Region", null,
+                                  new DimensionSortRanking.Sort("desc", null, null));
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
+                                     new DimensionSortRanking.Ranking("top", 5, "Sales", null));
+
+      // The filed repro: resubmit the identical field list to the same shelf.
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+
+      assertEquals(XConstants.SORT_DESC, model.getRows().get(0).getOrder(),
+         "an unchanged field's sort must survive a shelf resubmission");
+      assertEquals("5", model.getRows().get(0).getRankingN());
+      assertEquals("Sales", model.getRows().get(0).getRankingCol());
+   }
+
+   @Test
+   void addFieldPreservesSortOnAFieldThatStaysAtTheSamePosition() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setSort(model, "rows", "Region", null,
+                                  new DimensionSortRanking.Sort("desc", null, null));
+
+      TableBindingMutator.addField(model, "rows", dim("Year"), null); // appended after Region
+
+      assertEquals(XConstants.SORT_DESC, model.getRows().get(0).getOrder(),
+         "REGION stays at index 0, so appending YEAR after it must not reset its sort");
+   }
+
+   @Test
+   void removeFieldPreservesSortOnAFieldThatStaysAtTheSamePosition() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region"), dim("Category")));
+      TableBindingMutator.setSort(model, "rows", "Region", null,
+                                  new DimensionSortRanking.Sort("desc", null, null));
+
+      TableBindingMutator.removeField(model, "rows", "Category");
+
+      assertEquals(XConstants.SORT_DESC, model.getRows().get(0).getOrder(),
+         "REGION stays at index 0 after removing the later CATEGORY field, so its sort must " +
+         "survive");
+   }
+
+   @Test
+   void moveFieldPreservesSortOnAFieldThatStaysOnTheSameShelfAtTheSamePosition() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region"), dim("Category")));
+      TableBindingMutator.setSort(model, "rows", "Region", null,
+                                  new DimensionSortRanking.Sort("desc", null, null));
+
+      TableBindingMutator.moveField(model, "rows", "cols", "Category", null);
+
+      assertEquals(1, model.getRows().size());
+      assertEquals(XConstants.SORT_DESC, model.getRows().get(0).getOrder(),
+         "REGION stays at rows index 0, so moving CATEGORY off the shelf must not reset its " +
+         "sort");
+   }
+
+   @Test
+   void resubmittingADuplicateBoundColumnKeepsEachOccurrencesSortSeparate() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(dated("ORDER_DATE", "year"), dated("ORDER_DATE", "quarter")));
+      TableBindingMutator.setSort(model, "rows", "ORDER_DATE", 0,
+         new DimensionSortRanking.Sort("desc", null, null));
+      TableBindingMutator.setSort(model, "rows", "ORDER_DATE", 1,
+         new DimensionSortRanking.Sort("manual", null, List.of("Q1", "Q2", "Q3", "Q4")));
+
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(dated("ORDER_DATE", "year"), dated("ORDER_DATE", "quarter")));
+
+      assertEquals(XConstants.SORT_DESC, model.getRows().get(0).getOrder(),
+         "the year occurrence's sort must not cross-contaminate with the quarter occurrence's");
+      assertEquals(XConstants.SORT_SPECIFIC, model.getRows().get(1).getOrder());
+      assertEquals(List.of("Q1", "Q2", "Q3", "Q4"), model.getRows().get(1).getManualOrder());
+   }
+
+   /**
+    * PR #5178 review round 1 (Important): {@code copyOf()} carries {@code order} forward from
+    * the matched previous ref unconditionally, but the named-group reapply block below it only
+    * ever SETS {@code SORT_SPECIFIC} when the incoming field supplies {@code namedGroupValues}/
+    * {@code namedGroup} -- there was no path to clear it back off when the incoming field drops
+    * the group. A field previously bound to a named group, resubmitted at the same column/index
+    * without {@code namedGroupValues}/{@code namedGroup}, must not be left at
+    * {@code SORT_SPECIFIC} with no {@code namedGroupInfo} backing it. Mirrors the self-heal
+    * {@code BDimensionRefModel.createDataRef()} already applies at conversion time.
+    */
+   @Test
+   void resubmittingANamedGroupedFieldWithoutNamedGroupClearsSortSpecific() throws Exception {
+      Condition condition = mock(Condition.class);
+      when(condition.getOperation()).thenReturn(Condition.EQUAL_TO);
+      when(condition.getValues()).thenReturn(List.of("CA"));
+      ConditionList conditionList = new ConditionList();
+      conditionList.append(new ConditionItem(new AttributeRef(null, "REGION"), condition, 0));
+      NamedGroupInfo namedGroupInfo = new NamedGroupInfo();
+      namedGroupInfo.setGroupCondition("West", conditionList);
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn("Coastal");
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource()).thenReturn(QUERY1_SOURCE);
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "REGION"));
+      when(ngAssembly.getNamedGroupInfo()).thenReturn(namedGroupInfo);
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[]{ ngAssembly });
+
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dimWithNamedGroup("REGION", "Coastal")),
+                                   rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
+      assertEquals(XConstants.SORT_SPECIFIC, model.getRows().get(0).getOrder());
+
+      // Resubmit REGION at the same index WITHOUT namedGroupValues/namedGroup -- dropping it.
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("REGION")),
+                                   rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
+
+      BDimensionRefModel dim = model.getRows().get(0);
+      assertEquals(0, dim.getOrder() & XConstants.SORT_SPECIFIC,
+         "order must not be left with the SORT_SPECIFIC bit set once the named group backing " +
+         "it is dropped");
+      assertNull(dim.getNamedGroupInfo(),
+         "namedGroupInfo is null here, so order being SORT_SPECIFIC would be inconsistent");
+   }
+
+   /**
+    * Documents strategy (a)'s accepted boundary, not a bug: matching is by absolute shelf
+    * index, not by following a field across an edit elsewhere on the shelf. Removing CATEGORY
+    * (index 0) shifts ORDER_DATE from index 1 to index 0, so the new index-0 field no longer
+    * matches "the same position" ORDER_DATE held, and its sort resets to default instead of
+    * surviving.
+    */
+   @Test
+   void removingAnEarlierFieldShiftsALaterFieldsIndexSoItsSortIsNotPreserved() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Category"), dim("ORDER_DATE")));
+      TableBindingMutator.setSort(model, "rows", "ORDER_DATE", null,
+         new DimensionSortRanking.Sort("desc", null, null));
+
+      TableBindingMutator.removeField(model, "rows", "Category");
+
+      assertEquals(1, model.getRows().size());
+      assertEquals(XConstants.SORT_ASC, model.getRows().get(0).getOrder(),
+         "ORDER_DATE shifted from index 1 to index 0, so strategy (a) does not preserve its " +
+         "sort across this edit -- accepted boundary, not a bug");
+   }
+
+   /**
+    * Refuter's edge case on 02-refute.md: {@code requireKnownMeasure} validation only runs from
+    * {@link TableBindingMutator#setSort}/{@link TableBindingMutator#setRanking}, never from
+    * {@code setShelf}/{@code dimensions()} -- so a preserved ranking reference can go stale if
+    * its aggregate is removed in a companion edit. Confirmed here that this does not throw or
+    * otherwise corrupt the model; it is a pre-existing gap in {@code requireKnownMeasure}'s
+    * coverage, out of scope for VTB-004's own fix (see 03-fix.md).
+    */
+   @Test
+   void removingTheReferencedAggregateLeavesAStaleRankingReferenceRatherThanBreaking() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
+         new DimensionSortRanking.Ranking("top", 5, "Sales", null));
+
+      TableBindingMutator.removeField(model, "aggregates", "Sales");
+
+      assertEquals("Sales", model.getRows().get(0).getRankingCol(),
+         "removing the referenced aggregate neither clears nor validates a preserved ranking " +
+         "reference -- it goes stale rather than erroring, a pre-existing gap noted for the " +
+         "record, not fixed here");
+   }
+
    // ── column labels (2d Phase 2) ────────────────────────────────────────────
 
    /**
