@@ -794,6 +794,8 @@ public class WorksheetAgentController {
          }
       }
 
+      final String extraApplied;
+
       if(req.extraProperties() != null && !req.extraProperties().isEmpty()) {
          if(req.extraProperties().containsKey("endpoint") || req.extraProperties().containsKey("suffix")) {
             throw new PairingException("add_table's extraProperties cannot set 'endpoint' or " +
@@ -813,8 +815,18 @@ public class WorksheetAgentController {
 
          TabularQuerySchema extraSchema =
             new TabularSchemaExtractor().extract(query, dataSource.getType());
-         TabularQueryContractSupport.applyQueryContract(
+         extraApplied = TabularQueryContractSupport.applyQueryContract(
             query, pmap, extraSchema, contractParams, dsName);
+
+         // extraProperties is applied after the row-cap guard below has already run once for the
+         // endpoint/suffix form -- if it set a pagination-triggering property (e.g.
+         // paginationType), the query only becomes paged now, so the guard must re-run or an
+         // uncapped paginated query would slip through untouched.
+         TabularEndpointBindingSupport.requireRowCapWhenPaged(
+            query, namedConnector ? req.endpoint() : req.suffix(), dsName);
+      }
+      else {
+         extraApplied = null;
       }
 
       String tableName = req.table();
@@ -852,7 +864,10 @@ public class WorksheetAgentController {
             Object loadError = query.getProperty("wizLoadColumnsError");
             throw new PairingException("The request to '" + target + "' of '" + dsName +
                "' returned no columns" + (loadError == null ? "" : " (" + loadError + ")") +
-               ". URL suffix sent: " + suffix + ". Check the parameter " +
+               ". URL suffix sent: " + suffix +
+               (extraApplied == null || extraApplied.isBlank() ? "" :
+                  ". Extra properties sent: " + extraApplied) +
+               ". Check the parameter " +
                "values and datasource credentials -- see the server log for the cause.");
          }
 
