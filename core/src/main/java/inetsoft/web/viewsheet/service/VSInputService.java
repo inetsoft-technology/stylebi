@@ -2808,8 +2808,15 @@ public class VSInputService {
 
       int hint;
 
-      rvs.setSocketSessionId(dispatcher.getSessionId());
-      rvs.setSocketUserName(dispatcher.getUserName());
+      // Only adopt the dispatcher's socket session when it actually has one (a real STOMP
+      // dispatcher from a native browser controller). A CapturingCommandDispatcher (used by the
+      // wiz agent's InputValueService) has no real session and would otherwise clobber the
+      // already-correct paired-browser session id, silently disabling
+      // SheetAgentBroadcastService's refresh broadcast for every agent-driven input change.
+      if(dispatcher.getSessionId() != null) {
+         rvs.setSocketSessionId(dispatcher.getSessionId());
+         rvs.setSocketUserName(dispatcher.getUserName());
+      }
 
       box.get().lockWrite();
 
