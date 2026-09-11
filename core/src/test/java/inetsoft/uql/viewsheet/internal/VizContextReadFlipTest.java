@@ -144,15 +144,19 @@ class VizContextReadFlipTest {
    }
 
    @Test
-   void exactlyOneDocumentedSiteStillReadsTheOrgGate() throws Exception {
+   void exactlyTwoDocumentedSitesStillReadTheOrgGate() throws Exception {
       // tree-wide on purpose: per-package assertions left four of this phase's own sites uncovered,
-      // and a new package could add a fifth. The survivor is named, so a regression elsewhere fails
-      // even if the total happens to stay at one.
+      // and a new package could add a fifth. Both survivors are named, so a regression elsewhere
+      // fails even if the total happens to stay at two.
       java.util.List<String> callers = filesCallingOfGate();
 
-      assertEquals(java.util.List.of("ChartColorPaletteController.java"), callers,
-                   "ChartColorPaletteController is the one deliberate survivor: a parameterless "
-                   + "bootstrap GET with no assembly in scope, returning a global swatch list");
+      assertEquals(
+         java.util.List.of("ChartColorPaletteController.java", "VSChartBindingController.java"),
+         callers,
+         "two deliberate survivors: ChartColorPaletteController is a parameterless bootstrap GET "
+         + "with no assembly in scope, returning a global swatch list; "
+         + "VSChartBindingController.getColorPalettes falls back to the gate only on its "
+         + "absent-assembly branch, which has no vsId/assemblyName to resolve a mark from");
    }
 
    private static java.util.List<String> filesCallingOfGate() throws Exception {
