@@ -136,12 +136,19 @@ public final class TableBindingMutator {
       }
 
       switch(name) {
-         case "rows" -> ((CrosstabBindingModel) model).setRows(
-            dimensions(refs, rvs, source, refModelService));
-         case "cols" -> ((CrosstabBindingModel) model).setCols(
-            dimensions(refs, rvs, source, refModelService));
-         case "groups" -> ((TableBindingModel) model).setGroups(
-            dimensions(refs, rvs, source, refModelService));
+         case "rows", "cols", "groups" -> {
+            // Captured before the overwrite below, so an unchanged field at the same position
+            // keeps its sort/ranking instead of dimensions() building it a fresh default one --
+            // see dimensions()'s own note on why this is matched by position, not just column.
+            List<BDimensionRefModel> previous = dimensionsOf(model, name);
+            List<BDimensionRefModel> next = dimensions(refs, previous, rvs, source, refModelService);
+
+            switch(name) {
+               case "rows" -> ((CrosstabBindingModel) model).setRows(next);
+               case "cols" -> ((CrosstabBindingModel) model).setCols(next);
+               default -> ((TableBindingModel) model).setGroups(next);
+            }
+         }
          case "details" -> ((TableBindingModel) model).setDetails(details(refs));
          default -> model.setAggregates(aggregates(refs));
       }
@@ -424,17 +431,34 @@ public final class TableBindingMutator {
     * overload too.
     */
    private static List<BDimensionRefModel> dimensions(List<FieldRef> fields) {
-      return dimensions(fields, null, null, null);
+      return dimensions(fields, List.of(), null, null, null);
    }
 
-   private static List<BDimensionRefModel> dimensions(List<FieldRef> fields, RuntimeViewsheet rvs,
+   /**
+    * @param previous the shelf's own {@code BDimensionRefModel} list before this write, so a
+    *                 field that is unchanged keeps its sort/ranking instead of resetting to
+    *                 {@code BDimensionRefModel}'s class defaults on every write (VTB-004).
+    *                 Matched by <b>same absolute index + same column (case-insensitive) + same
+    *                 date level</b> -- the same position-keyed identity {@link #requireDimension}
+    *                 and {@code pruneOrphanedSuppression} already use to disambiguate a column
+    *                 bound twice on one shelf, not a content-only key. This deliberately does
+    *                 NOT survive an insert/remove of a different field earlier on the shelf
+    *                 shifting a later, untouched field's index -- that field's sort/ranking is
+    *                 not preserved in that case, which is accepted as this strategy's known
+    *                 boundary rather than a defect (see the regression test that documents it).
+    */
+   private static List<BDimensionRefModel> dimensions(List<FieldRef> fields,
+                                                       List<BDimensionRefModel> previous,
+                                                       RuntimeViewsheet rvs,
                                                        SourceInfo source,
                                                        DataRefModelFactoryService refModelService)
    {
       List<BDimensionRefModel> out = new ArrayList<>();
 
-      for(FieldRef field : fields) {
-         BDimensionRefModel ref = new BDimensionRefModel();
+      for(int i = 0; i < fields.size(); i++) {
+         FieldRef field = fields.get(i);
+         BDimensionRefModel match = i < previous.size() ? previous.get(i) : null;
+         BDimensionRefModel ref = matches(match, field) ? copyOf(match) : new BDimensionRefModel();
          ref.setName(field.column());
          ref.setColumnValue(field.column());
 
@@ -461,6 +485,43 @@ public final class TableBindingMutator {
       }
 
       return out;
+   }
+
+   /** Whether {@code previous} is the same occurrence of the same column as {@code field}. */
+   private static boolean matches(BDimensionRefModel previous, FieldRef field) {
+      if(previous == null || field.column() == null) {
+         return false;
+      }
+
+      String previousColumn = previous.getColumnValue() == null
+         ? previous.getName() : previous.getColumnValue();
+
+      if(previousColumn == null || !previousColumn.equalsIgnoreCase(field.column())) {
+         return false;
+      }
+
+      String previousLevel = previous.getDateLevel();
+      String incomingLevel = DateLevels.normalize(field.dateLevel());
+      boolean previousUnset = previousLevel == null || previousLevel.isBlank() ||
+         "-1".equals(previousLevel);
+      boolean incomingUnset = incomingLevel == null || "-1".equals(incomingLevel);
+
+      return previousUnset && incomingUnset || Objects.equals(previousLevel, incomingLevel);
+   }
+
+   /** A copy of {@code previous}'s sort/ranking, for a field matched at the same position. */
+   private static BDimensionRefModel copyOf(BDimensionRefModel previous) {
+      BDimensionRefModel ref = new BDimensionRefModel();
+      ref.setOrder(previous.getOrder());
+      ref.setSortByCol(previous.getSortByCol());
+      ref.setManualOrder(previous.getManualOrder() == null
+         ? null : new ArrayList<>(previous.getManualOrder()));
+      ref.setRankingOption(previous.getRankingOption());
+      ref.setRankingN(previous.getRankingN());
+      ref.setRankingCol(previous.getRankingCol());
+      ref.setGroupOthers(previous.isGroupOthers());
+      ref.setOthers(previous.isOthers());
+      return ref;
    }
 
    private static List<BAggregateRefModel> aggregates(List<FieldRef> fields) {
