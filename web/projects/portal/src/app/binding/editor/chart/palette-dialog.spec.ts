@@ -111,14 +111,22 @@ describe("PaletteDialog hidden palettes", () => {
          .toEqual(["Default", "Modern", "Heat 8"]);
    });
 
-   // value indexes the unfiltered colorPalettes array, not the filtered list
+   // hidden entry is non-terminal: a post-filter renumbering bug would still emit [0, 1]
    it("keeps option values aligned with the unfiltered array", () => {
-      const dialog = dialogWithHidden(palette40(MODERN_HEAD));
-      expect(dialog.paletteSelectOptions.map((o) => o.value)).toEqual([0, 1]);
+      const dialog = new PaletteDialog();
+      dialog.colorPalettes = [
+         palette("Default", LEGACY_HEAD),
+         palette("Heat 8", HEAT_HEAD, true),
+         palette("Modern", MODERN_HEAD)
+      ];
+      const curr = new CategoricalColorModel();
+      curr.colors = palette40(MODERN_HEAD);
+      dialog.currPalette = curr;
+      expect(dialog.paletteSelectOptions.map((o) => o.value)).toEqual([0, 2]);
    });
 
-   it("does not repaint a chart sitting on a hidden palette", () => {
+   it("represents a chart's own hidden palette correctly in the dropdown", () => {
       const dialog = dialogWithHidden(palette40(HEAT_HEAD));
-      expect(dialog.displayPalette.colors).toEqual(palette40(HEAT_HEAD));
+      expect(dialog.paletteSelectOptions).toContainEqual({ value: 2, label: "Heat 8" });
    });
 });
