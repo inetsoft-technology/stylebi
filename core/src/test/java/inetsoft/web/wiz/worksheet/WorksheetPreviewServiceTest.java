@@ -93,7 +93,7 @@ class WorksheetPreviewServiceTest {
       when(rws.getAssetQuerySandbox()).thenReturn(null);
 
       assertThrows(PairingException.class,
-                   () -> service.preview(rws, "T", 10));
+                   () -> service.preview(rws, "T", 0, 10));
    }
 
    @Test
@@ -102,7 +102,7 @@ class WorksheetPreviewServiceTest {
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(null);
 
       PairingException ex = assertThrows(PairingException.class,
-                                          () -> service.preview(rws(box), "T", 10));
+                                          () -> service.preview(rws(box), "T", 0, 10));
       assertEquals("Table not found or produced no data: T", ex.getMessage(),
                    "with no captured query-failure cause, the generic message is unchanged");
    }
@@ -124,7 +124,7 @@ class WorksheetPreviewServiceTest {
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(null);
 
       PairingException ex = assertThrows(PairingException.class,
-                                          () -> service.preview(rws(box), "T", 10));
+                                          () -> service.preview(rws(box), "T", 0, 10));
       assertEquals("Failed to execute worksheet query for 'T': " +
                    "[Vendor] window functions are not supported by this driver",
                    ex.getMessage());
@@ -137,7 +137,7 @@ class WorksheetPreviewServiceTest {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(null);
 
-      assertThrows(PairingException.class, () -> service.preview(rws(box), "T", 10));
+      assertThrows(PairingException.class, () -> service.preview(rws(box), "T", 0, 10));
       assertNull(XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get(),
                  "captured cause must be consumed (removed) once surfaced, matching " +
                  "AssetQuery.getDesignTableLens's existing consume-and-clear reader");
@@ -150,7 +150,7 @@ class WorksheetPreviewServiceTest {
          .thenThrow(new RuntimeException("query failed"));
 
       assertThrows(PairingException.class,
-                   () -> service.preview(rws(box), "T", 10));
+                   () -> service.preview(rws(box), "T", 0, 10));
    }
 
    @Test
@@ -164,7 +164,7 @@ class WorksheetPreviewServiceTest {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(emptyLens);
 
-      List<Map<String, Object>> rows = service.preview(rws(box), "T", 10);
+      List<Map<String, Object>> rows = service.preview(rws(box), "T", 0, 10);
       assertTrue(rows.isEmpty());
    }
 
@@ -177,7 +177,7 @@ class WorksheetPreviewServiceTest {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
 
-      List<Map<String, Object>> rows = service.preview(rws(box), "T", 10);
+      List<Map<String, Object>> rows = service.preview(rws(box), "T", 0, 10);
 
       assertEquals(2, rows.size());
       assertEquals("Alice", rows.get(0).get("name"));
@@ -194,8 +194,56 @@ class WorksheetPreviewServiceTest {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
 
-      List<Map<String, Object>> rows = service.preview(rws(box), "T", 3);
+      List<Map<String, Object>> rows = service.preview(rws(box), "T", 0, 3);
       assertEquals(3, rows.size());
+   }
+
+   @Test
+   void offsetSkipsLeadingRows() throws Exception {
+      TableLens l = lens(
+         new String[]{"x"},
+         new Object[][]{{"r1"}, {"r2"}, {"r3"}, {"r4"}, {"r5"}}
+      );
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
+
+      List<Map<String, Object>> rows = service.preview(rws(box), "T", 2, 2);
+      assertEquals(2, rows.size());
+      assertEquals("r3", rows.get(0).get("x"));
+      assertEquals("r4", rows.get(1).get("x"));
+   }
+
+   // Review round 1 finding on this same bug (VTB-002): before offset was threaded through the
+   // row loop, row 0 (the header) was unreachable since the loop always started at 1. A negative
+   // offset (e.g. -1) shifted the start row to 0, silently returning the header row disguised as
+   // a data row, with no exception. Clamp to 0 rather than throw, mirroring how the controller
+   // already clamps (not rejects) an out-of-range `limit` via Math.min(limit, 200).
+   @Test
+   void negativeOffsetIsClampedToZero() throws Exception {
+      TableLens l = lens(
+         new String[]{"x"},
+         new Object[][]{{"r1"}, {"r2"}, {"r3"}}
+      );
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
+
+      List<Map<String, Object>> rows = service.preview(rws(box), "T", -1, 10);
+      assertEquals(3, rows.size());
+      assertEquals("r1", rows.get(0).get("x"),
+                   "a negative offset must behave like offset=0, not expose the header row");
+   }
+
+   @Test
+   void offsetBeyondRowCountReturnsEmptyNotError() throws Exception {
+      TableLens l = lens(
+         new String[]{"x"},
+         new Object[][]{{"r1"}, {"r2"}, {"r3"}}
+      );
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
+
+      List<Map<String, Object>> rows = service.preview(rws(box), "T", 100, 10);
+      assertTrue(rows.isEmpty());
    }
 
    // Bug #76517 (WBS-038): a non-null TableLens whose getColCount()/header/row extraction
@@ -217,7 +265,7 @@ class WorksheetPreviewServiceTest {
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
 
       PairingException ex = assertThrows(PairingException.class,
-                                          () -> service.preview(rws(box), "T", 10));
+                                          () -> service.preview(rws(box), "T", 0, 10));
       assertEquals("Failed to read result columns for 'T': " +
                    "Cannot invoke \"inetsoft.report.TableLens.getColCount()\" because \"table\" is null",
                    ex.getMessage());
@@ -237,7 +285,7 @@ class WorksheetPreviewServiceTest {
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
 
       PairingException ex = assertThrows(PairingException.class,
-                                          () -> service.preview(rws(box), "T", 10));
+                                          () -> service.preview(rws(box), "T", 0, 10));
       assertEquals("Failed to read result columns for 'T': row read failed", ex.getMessage());
       assertSame(cause, ex.getCause());
    }
@@ -259,7 +307,7 @@ class WorksheetPreviewServiceTest {
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(failedLens);
 
       PairingException ex = assertThrows(PairingException.class,
-                                          () -> service.preview(rws(box), "T", 10));
+                                          () -> service.preview(rws(box), "T", 0, 10));
       assertTrue(ex.getMessage().contains("T"));
       assertTrue(ex.getMessage().contains("ReferenceError: \"$\" is not defined"));
    }
@@ -283,7 +331,7 @@ class WorksheetPreviewServiceTest {
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(failedLens);
 
       PairingException ex = assertThrows(PairingException.class,
-                                          () -> service.preview(rws(box), "T", 10));
+                                          () -> service.preview(rws(box), "T", 0, 10));
       assertTrue(ex.getMessage().contains("[Vendor] syntax error near 'GROUP'"));
       assertFalse(ex.getMessage().toLowerCase().contains("expression columns"),
                   "a non-expression SQL failure must not carry the " +
@@ -303,7 +351,7 @@ class WorksheetPreviewServiceTest {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(box.getTableLens(anyString(), anyInt())).thenReturn(l);
 
-      List<Map<String, Object>> rows = service.preview(rws(box), "T", 10);
+      List<Map<String, Object>> rows = service.preview(rws(box), "T", 0, 10);
       assertEquals(1, rows.size());
       assertTrue(rows.get(0).containsKey("col0"), "should use fallback key 'col0'");
    }

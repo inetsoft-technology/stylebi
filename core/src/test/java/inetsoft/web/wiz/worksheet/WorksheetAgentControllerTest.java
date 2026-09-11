@@ -249,6 +249,31 @@ class WorksheetAgentControllerTest {
                                           assetDataCache);
    }
 
+   /** Like the 6-arg {@code controller}, but lets a {@code preview} test control the
+    *  {@link WorksheetPreviewService} instead of getting an unstubbed mock. */
+   private static WorksheetAgentController controller(SheetAgentFeature feature,
+                                                       SheetJoinService join,
+                                                       SheetSessionService sessions,
+                                                       WorksheetReadService read,
+                                                       WorksheetEditService edit,
+                                                       WorksheetService ws,
+                                                       WorksheetPreviewService previewService)
+   {
+      return new WorksheetAgentController(feature, join, sessions, read, edit, ws,
+                                          previewService,
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(inetsoft.uql.XRepository.class),
+                                          mock(inetsoft.uql.asset.AssetRepository.class),
+                                          mock(inetsoft.web.wiz.service.MetadataApiService.class),
+                                          mock(inetsoft.web.portal.controller.database.QueryManagerService.class),
+                                          mock(inetsoft.web.composer.ws.LayoutGraphService.class),
+                                          mock(inetsoft.web.portal.controller.database.DataSourceService.class),
+                                          mock(inetsoft.sree.security.SecurityEngine.class),
+                                          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
+                                          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
+                                          mock(inetsoft.report.composition.execution.AssetDataCache.class));
+   }
+
    private static SheetAgentFeature featureOn() {
       SheetAgentFeature f = mock(SheetAgentFeature.class);
       when(f.isEnabled()).thenReturn(true);
@@ -707,6 +732,65 @@ class WorksheetAgentControllerTest {
       assertNotNull(model);
       assertFalse(model.tables().isEmpty());
       assertEquals("T", model.tables().get(0).name());
+   }
+
+   // ---------------------------------------------------------------------------
+   // preview
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Bug #76574 (VTB-002): {@code offset} must be forwarded to
+    * {@link WorksheetPreviewService#preview}, and defaults to 0 when the caller omits it
+    * (the {@code @RequestParam(defaultValue = "0")} on the controller method, exercised here
+    * by simply not passing an offset argument at the call site, mirroring how Spring itself
+    * would bind an absent query parameter).
+    */
+   @Test
+   void previewForwardsOffsetDefaultingToZero() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      WorksheetPreviewService previewSvc = mock(WorksheetPreviewService.class);
+      List<Map<String, Object>> expected = List.of(Map.of("x", "r1"));
+      when(previewSvc.preview(eq(rws), eq("T"), eq(0), eq(50))).thenReturn(expected);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         previewSvc);
+
+      List<Map<String, Object>> rows = ctrl.preview("TOK", "T", 0, 50, agent);
+
+      assertEquals(expected, rows);
+      verify(previewSvc).preview(rws, "T", 0, 50);
+   }
+
+   @Test
+   void previewForwardsNonZeroOffset() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      WorksheetPreviewService previewSvc = mock(WorksheetPreviewService.class);
+      List<Map<String, Object>> expected = List.of(Map.of("x", "r201"));
+      when(previewSvc.preview(eq(rws), eq("T"), eq(200), eq(50))).thenReturn(expected);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         previewSvc);
+
+      List<Map<String, Object>> rows = ctrl.preview("TOK", "T", 200, 50, agent);
+
+      assertEquals(expected, rows);
+      verify(previewSvc).preview(rws, "T", 200, 50);
    }
 
    // ---------------------------------------------------------------------------
