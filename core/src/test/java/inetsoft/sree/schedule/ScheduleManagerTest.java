@@ -70,6 +70,7 @@ public class ScheduleManagerTest {
 
    private IdentityID identityID_admin;
    private IdentityID identityID_tuser0;
+   private IdentityID identityID_tgroup0;
    private SRPrincipal admin;
    private SRPrincipal tuser0;
 
@@ -77,6 +78,7 @@ public class ScheduleManagerTest {
    void before() {
       identityID_admin = new IdentityID("admin", "host-org");
       identityID_tuser0 = new IdentityID("tuser0", "host-org");
+      identityID_tgroup0 = new IdentityID("tgroup0", "host-org");
       admin = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()),
                               new IdentityID[] { new IdentityID("Administrator", null)},
                               new String[] {"g0"}, "host-org",
@@ -487,6 +489,71 @@ public class ScheduleManagerTest {
 
       // the read-only impact check must not delete the owned task
       assertNotNull(scheduleManager.getScheduleTask("tuser0~;~host-org:impact_owned"));
+   }
+
+   /**
+    * Regression test for Bug #76609 AID-003: getIdentityRemovalImpact() must report tasks owned
+    * by a GROUP the same way it reports tasks owned by a user -- ScheduleTask.getOwner() is a
+    * bare IdentityID with no type discriminator, so a group-owned task was previously never
+    * added to ownedTasks() because the guard hardcoded type == Identity.USER.
+    */
+   @Test
+   void getIdentityRemovalImpact_reportsGroupOwnedTasksWithoutMutating() throws Exception {
+      ScheduleTask owned = new ScheduleTask("impact_owned_by_group");
+      owned.setOwner(identityID_tgroup0);
+
+      scheduleManager.setScheduleTask("tgroup0~;~host-org:impact_owned_by_group", owned, admin);
+
+      EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
+
+      ScheduleManager.IdentityTaskImpact impact =
+         scheduleManager.getIdentityRemovalImpact(new Group(identityID_tgroup0), provider);
+
+      assertTrue(impact.ownedTasks().contains("impact_owned_by_group"));
+
+      // the read-only impact check must not delete the owned task
+      assertNotNull(scheduleManager.getScheduleTask("tgroup0~;~host-org:impact_owned_by_group"));
+   }
+
+   /**
+    * Regression test for Bug #76609 AID-003: identityRemoved() must actually delete a task owned
+    * by a GROUP, not just leave it un-advised. Same guard defect as
+    * getIdentityRemovalImpact_reportsGroupOwnedTasksWithoutMutating above, but on the real
+    * delete-time code path.
+    */
+   @Test
+   void identityRemoved_removesGroupOwnedTask() throws Exception {
+      ScheduleTask owned = new ScheduleTask("removed_owned_by_group");
+      owned.setOwner(identityID_tgroup0);
+
+      scheduleManager.setScheduleTask("tgroup0~;~host-org:removed_owned_by_group", owned, admin);
+
+      EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
+      Group group = new Group(identityID_tgroup0);
+      when(provider.getGroup(identityID_tgroup0)).thenReturn(group);
+
+      scheduleManager.identityRemoved(group, provider);
+
+      assertNull(scheduleManager.getScheduleTask("tgroup0~;~host-org:removed_owned_by_group"));
+   }
+
+   /**
+    * Regression test for Bug #76609 AID-003: identityRenamed() must update the owner of a task
+    * owned by a GROUP to the new group identity, mirroring checkIdentityRenamed's user-owned
+    * case. Same guard defect (type == Identity.USER hardcoded) on the rename-time code path.
+    */
+   @Test
+   void identityRenamed_updatesGroupOwnedTaskOwner() throws Exception {
+      ScheduleTask groupTask = new ScheduleTask("group_tk1");
+      groupTask.setOwner(identityID_tgroup0);
+
+      scheduleManager.setScheduleTask("tgroup0~;~host-org:group_tk1", groupTask, admin);
+
+      Group tgroup0_1 = new Group(new IdentityID("tgroup0_1", "host-org"));
+      scheduleManager.identityRenamed(identityID_tgroup0, tgroup0_1);
+
+      assertEquals("tgroup0_1~;~host-org",
+         scheduleManager.getScheduleTask("tgroup0_1~;~host-org:group_tk1").getOwner().convertToKey());
    }
 
    private ScheduleTask createScheduleTask(String taskName) {
