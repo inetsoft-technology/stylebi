@@ -18,6 +18,7 @@
 package inetsoft.web.admin.ai;
 
 import inetsoft.sree.security.*;
+import inetsoft.web.admin.general.AiSnapshotInfo;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +26,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -49,6 +51,22 @@ public class AdminAiController {
    {
       requireSiteAdmin(user);
       return Map.of("backupRef", backupService.backup(body.get("transactionId")));
+   }
+
+   /**
+    * Lists every ai-snapshot that currently survives for the given transaction - the read-only
+    * counterpart to {@link #backup}. Returns an empty list, not a 404, when the transaction has no
+    * surviving (or ever-taken) snapshot, matching {@code get_changeset}'s own empty-list-not-error
+    * convention for an unknown id.
+    */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT,
+      resource = "settings/properties",
+      actions = ResourceAction.ACCESS))
+   @GetMapping("/api/wiz/v1/admin/backup/{transactionId}")
+   public List<AiSnapshotInfo> listSnapshots(@PathVariable String transactionId, Principal user) {
+      requireSiteAdmin(user);
+      return backupService.listSnapshots(transactionId);
    }
 
    /**

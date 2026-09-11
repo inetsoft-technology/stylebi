@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai;
 
+import inetsoft.web.admin.general.AiSnapshotInfo;
 import inetsoft.web.admin.general.BackupResult;
 import inetsoft.web.admin.general.DataSpaceSettingsService;
 import inetsoft.web.admin.general.model.BackupDataModel;
@@ -24,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.List;
 
 /*
  * The snapshot here is taken through the live-tested {@link DataSpaceSettingsService#doBackup}
@@ -77,6 +79,26 @@ public class AdminBackupService {
       }
 
       return result.path();
+   }
+
+   /**
+    * Lists every ai-snapshot that currently survives for the given transaction - the read-only
+    * counterpart to {@link #backup}, letting a caller confirm, at any later point, whether a
+    * transaction's protection actually held rather than only trusting {@link #backup}'s own
+    * call-time return value.
+    *
+    * @param transactionId the admin-chat transaction to look up.
+    *
+    * @return the surviving snapshots for this transaction, oldest first; empty (not an error) if
+    *         none survive or none were ever taken.
+    *
+    * @throws IllegalArgumentException if {@code transactionId} is null/blank or is not a safe,
+    *         single path segment (see {@link #requireSafePathSegment}).
+    */
+   public List<AiSnapshotInfo> listSnapshots(String transactionId) {
+      requireSafePathSegment(transactionId, "transactionId", "transaction id");
+
+      return dataSpaceSettingsService.listAiSnapshots(transactionId);
    }
 
    /**

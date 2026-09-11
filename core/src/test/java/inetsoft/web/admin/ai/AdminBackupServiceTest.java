@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai;
 
+import inetsoft.web.admin.general.AiSnapshotInfo;
 import inetsoft.web.admin.general.BackupResult;
 import inetsoft.web.admin.general.DataSpaceSettingsService;
 import inetsoft.web.admin.general.model.BackupDataModel;
@@ -27,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -96,6 +98,46 @@ class AdminBackupServiceTest {
    void backupRejectsNullOrBlankTransactionId() {
       assertThrows(IllegalArgumentException.class, () -> service.backup(null));
       assertThrows(IllegalArgumentException.class, () -> service.backup("   "));
+      verifyNoInteractions(dataSpaceSettingsService);
+   }
+
+   // -------------------------------------------------------------------------
+   // listSnapshots -- the read-only counterpart to backup()
+   // -------------------------------------------------------------------------
+
+   @Test
+   void listSnapshotsDelegatesToDataSpaceSettingsService() {
+      List<AiSnapshotInfo> expected = List.of(
+         new AiSnapshotInfo("ai-snapshots/admin-chg-1-20260101120000.zip", 20260101120000L));
+      when(dataSpaceSettingsService.listAiSnapshots("chg-1")).thenReturn(expected);
+
+      List<AiSnapshotInfo> actual = service.listSnapshots("chg-1");
+
+      assertEquals(expected, actual);
+      verify(dataSpaceSettingsService).listAiSnapshots("chg-1");
+   }
+
+   @Test
+   void listSnapshotsReturnsEmptyListWhenNoneSurvive() {
+      when(dataSpaceSettingsService.listAiSnapshots("chg-1")).thenReturn(List.of());
+
+      List<AiSnapshotInfo> actual = service.listSnapshots("chg-1");
+
+      assertTrue(actual.isEmpty());
+   }
+
+   @Test
+   void listSnapshotsRejectsTransactionIdWithPathTraversal() {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                                                   () -> service.listSnapshots("../../etc/passwd"));
+      assertTrue(ex.getMessage().contains("transactionId"), ex.getMessage());
+      verifyNoInteractions(dataSpaceSettingsService);
+   }
+
+   @Test
+   void listSnapshotsRejectsNullOrBlankTransactionId() {
+      assertThrows(IllegalArgumentException.class, () -> service.listSnapshots(null));
+      assertThrows(IllegalArgumentException.class, () -> service.listSnapshots("   "));
       verifyNoInteractions(dataSpaceSettingsService);
    }
 }
