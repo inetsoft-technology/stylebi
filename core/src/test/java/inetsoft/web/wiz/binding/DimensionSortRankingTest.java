@@ -173,12 +173,15 @@ class DimensionSortRankingTest {
    @Test
    void clearingRankingNeedsNothingElse() {
       BDimensionRefModel dimension = new BDimensionRefModel();
-      DimensionSortRanking.applyRanking(dimension, ranking("top", 5, "Sales"));
+      DimensionSortRanking.applyRanking(dimension,
+         new DimensionSortRanking.Ranking("top", 5, "Sales", true));
 
       DimensionSortRanking.applyRanking(dimension, ranking("none", null, null));
 
       assertNull(dimension.getRankingN());
       assertNull(dimension.getRankingCol());
+      assertFalse(dimension.isGroupOthers(),
+         "clearing the ranking must also clear the now-meaningless 'group others' flag");
    }
 
    @Test
