@@ -50,6 +50,10 @@ import { ToolbarActionsHandler } from "../../toolbar-actions-handler";
 export class MiniToolbar implements OnChanges, OnDestroy {
    @Input() actions: AbstractVSActions<any>;
    @Input() miniToolbarActions: AssemblyActionGroup[];
+   // Fallback for hosts that build miniToolbarActions directly rather than holding an
+   // AbstractVSActions (e.g. VsWizardObjectComponent), so miniToolbarHeight still has a
+   // per-assembly vizModern read to fall back on.
+   @Input() vizModern: boolean = false;
    @Input() top: number;
    @Input() left: number;
    @Input() width: number;
@@ -65,6 +69,9 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    @Input() maxMode: boolean = false;
    @Input() assembly: string;
    @Input() forceAbove: boolean = false;
+   // Set by the host when the strip is positioned inside the assembly rather than floating above it.
+   // The host has already resolved the anchored top/left, so this component must not adjust them.
+   @Input() anchorInTitleLane: boolean = false;
    @Input() visible: boolean = true;
    @Input() forceHide: boolean = false;
    @Input() set forceShow(value: boolean) {
@@ -139,6 +146,111 @@ export class MiniToolbar implements OnChanges, OnDestroy {
          this.miniToolbarActions ? this.miniToolbarActions : [];
    }
 
+   /**
+    * The action-button groups to render inside the mobile-guarded @for in .mini-toolbar-container.
+    *
+    * Not anchored: returns displayActions untouched, so template output is byte-identical to
+    * before this method existed — any pre-existing overflow kebab (from width alone, on any
+    * assembly type) keeps rendering inline as the last button in its group, exactly as before.
+    *
+    * Anchored (gate on, the anchored set only — see AbstractVSActions.resident): the resident
+    * kebab is always the trailing action of the last group, appended by
+    * AbstractVSActions.showingActions.
+    * Trimming it off here, rather than filtering displayActions itself, keeps every remaining
+    * button at the same (i, j) it already had, so isFocused()/getNextAction()/getPreviousAction()
+    * — all of which read indices against getActions(), not this getter — need no changes.
+    */
+   get actionButtonGroups(): AssemblyActionGroup[] {
+      return this.kebabResident ? this.kebabSplit.groups : this.displayActions;
+   }
+
+   /**
+    * The resident kebab action. Rendered as its own button group inside .mini-toolbar-container,
+    * alongside the action-button groups but outside their @if (!mobileDevice) guard, so it
+    * inherits the container's flex layout, right-alignment, pinned 24px height and button chrome
+    * (border/background overrides) instead of Bootstrap's bare btn-sm metrics, and so touch
+    * (which never renders the action-button groups) still gets a route to the toolbar. Null when
+    * not anchored, or when displayActions doesn't end in the "more actions" action (e.g. below
+    * the 32px control floor, where AbstractVSActions.showingActions suppresses all chrome).
+    */
+   get kebabAction(): AssemblyAction {
+      return this.kebabResident ? this.kebabSplit.kebab : null;
+   }
+
+   /**
+    * Whether .mini-toolbar-container should render at all.
+    *
+    * An empty container is a bordered, backgrounded pill that goes fully opaque once the
+    * assembly-hover reveal fires, so it must not render with nothing in it. AbstractVSActions
+    * .showingActions empties the list on two rungs: below the 32px control floor, and at dense,
+    * where isAnchoredChromeSuppressed() removes every control from an anchored type.
+    *
+    * The content test used to be conditioned on being resident, which missed dense entirely —
+    * dense turns residency off, so it fell to the branch that rendered regardless of content and
+    * drew a sliver above the card. Residency now decides only whether mobile suppresses the
+    * container, not whether its content is checked.
+    */
+   get showToolbarContainer(): boolean {
+      if(this.mobileDevice && !this.kebabResident) {
+         return false;
+      }
+
+      return (this.actionButtonGroups && this.actionButtonGroups.length > 0) || !!this.kebabAction;
+   }
+
+   /**
+    * Whether the kebab should render split out and resident (visible without a hover), rather than
+    * as an ordinary trailing action inside a hover-only strip.
+    *
+    * Residency is the in-lane design on a device that can hover: geometrically anchored
+    * (anchorInTitleLane) and not mobile. Mobile is served by the page-level mobile toolbar
+    * (viewer-app's viewer-mobile-toolbar) instead, so it never gets a resident kebab here.
+    */
+   get kebabResident(): boolean {
+      return this.anchorInTitleLane && !this.mobileDevice;
+   }
+
+   private get kebabSplit(): { groups: AssemblyActionGroup[], kebab: AssemblyAction } {
+      const groups = this.displayActions;
+      const lastIndex = groups ? groups.length - 1 : -1;
+      const lastGroup = lastIndex >= 0 ? groups[lastIndex] : null;
+      const lastActions = lastGroup && lastGroup.actions;
+
+      if(!lastActions || lastActions.length === 0) {
+         return { groups, kebab: null };
+      }
+
+      const lastAction = lastActions[lastActions.length - 1];
+
+      if(lastAction.id() !== "more actions") {
+         return { groups, kebab: null };
+      }
+
+      const trimmedGroup = new AssemblyActionGroup(
+         lastActions.slice(0, -1), lastGroup.label, lastGroup.icon);
+      const trimmedGroups = [...groups.slice(0, lastIndex), trimmedGroup];
+
+      return { groups: trimmedGroups, kebab: lastAction };
+   }
+
+   /**
+    * Whether the resident kebab occupies the group/action slot current keyboard focus points at.
+    * getNextAction()/getPreviousAction() set focusedGroupIndex/focusedActionIndex against
+    * getActions() (== displayActions), where the kebab is still the trailing action of the last
+    * group, so its slot there — not any index in the trimmed actionButtonGroups — is what the
+    * separately-rendered kebab button must check.
+    */
+   isKebabFocused(): boolean {
+      if(!this.kebabAction || !this.displayActions || this.displayActions.length === 0) {
+         return false;
+      }
+
+      const lastIndex = this.displayActions.length - 1;
+      const lastGroup = this.displayActions[lastIndex];
+
+      return this.isFocused(lastIndex, lastGroup.actions.length - 1);
+   }
+
    get binding(): boolean {
       return this.contextProvider.binding;
    }
@@ -149,7 +261,7 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    }
 
    get miniToolbarHeight(): number {
-      return GuiTool.MINI_TOOLBAR_HEIGHT;
+      return GuiTool.getMiniToolbarHeight(this.actions?.getModel()?.vizModern ?? this.vizModern);
    }
 
    /**
@@ -260,8 +372,26 @@ export class MiniToolbar implements OnChanges, OnDestroy {
 
    @HostListener("window:keyup.esc", [])
    onKeyUp() {
-      if(window.getComputedStyle(this.element.nativeElement.querySelector(".mini-toolbar")).visibility == "hidden") {
+      const toolbar = this.element.nativeElement.querySelector(".mini-toolbar");
+
+      if(window.getComputedStyle(toolbar).visibility == "hidden") {
          return;
+      }
+
+      // Anchored strips are visibility: visible at rest (see mini-toolbar.component.scss), so the
+      // check above never trips for them and every Esc keyup — closing an unrelated dialog,
+      // leaving a selection — would otherwise silently dismiss this chart's strip regardless of
+      // whether it was ever actually shown to the user. What "revealed" means for an anchored strip
+      // is whether the action groups are in layout: they are display: none at rest and inline-flex
+      // on hover/focus-within. No action group at all (touch, or the kebab-only height band) counts
+      // as not revealed — there is nothing there for Esc to dismiss but the resting kebab.
+      if(this.kebabResident) {
+         const group = toolbar.querySelector(
+            ".mini-toolbar-button-group:not(.mini-toolbar-kebab-group)");
+
+         if(!group || window.getComputedStyle(group).display == "none") {
+            return;
+         }
       }
 
       this.miniToolbarService.hideMiniToolbar(this.assembly, true);
@@ -282,11 +412,24 @@ export class MiniToolbar implements OnChanges, OnDestroy {
          return Number.NaN;
       }
 
+      // Anchored: the host placed us inside the assembly's title lane, so there is no height to
+      // subtract and no viewport clamping to do — an anchored strip cannot leave the assembly.
+      if(this.anchorInTitleLane) {
+         return this.top;
+      }
+
       // don't cover resize handle in composer
       const adj = this.contextProvider.composer && !this.contextProvider.vsWizard ? 3 : 0;
       const minTop = 20;
-      return this.top > minTop || this.forceAbove ? this.top - this.miniToolbarHeight - adj
+      const above = this.top > minTop || this.forceAbove ? this.top - this.miniToolbarHeight - adj
         : this.top;
+
+      // minTop keeps this branch positive for an assembly sitting low on the canvas, but forceAbove
+      // bypasses it. Max mode mounts the strip at top 0 with forceAbove (vs-object-view), so the
+      // subtraction lands above the strip's own origin — clipped by that host's overflow-y: hidden,
+      // or drawn off-canvas — and the enlarged toolbar never appears. Nothing is floatable above
+      // origin, so floor it there.
+      return Math.max(0, above);
    }
 
    // NaN makes the [style.left.px] binding produce an invalid CSS value, which the browser

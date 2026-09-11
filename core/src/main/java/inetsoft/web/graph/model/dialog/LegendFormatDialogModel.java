@@ -20,7 +20,10 @@ package inetsoft.web.graph.model.dialog;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.region.ChartArea;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 
 import java.awt.*;
@@ -36,7 +39,7 @@ public class LegendFormatDialogModel implements Serializable {
    public LegendFormatDialogModel(ChartInfo info, LegendsDescriptor legendsDesc,
       LegendDescriptor legendDesc, ChartArea area, List<String> targetFields,
       String aestheticType, String field, String titleName, boolean dimension, boolean time,
-      boolean node)
+      boolean node, VizContext ctx)
    {
       // Create LegendFormatGeneralPaneModel.
       generalPaneModel = new LegendFormatGeneralPaneModel();
@@ -50,6 +53,9 @@ public class LegendFormatDialogModel implements Serializable {
       generalPaneModel.setNotShowNull(legendDesc.isNotShowNull());
       generalPaneModel.setNotShowNullVisible(dimension && field != null);
       generalPaneModel.setSymbolSize(legendDesc.getSymbolSize());
+      generalPaneModel.setGap(VSChartChromeDefaults.resolveLegendGap(
+         legendsDesc.getGap(), legendsDesc.hasGapValue(), ctx));
+      generalPaneModel.setGapFollowsDefault(ctx.modern ? !legendsDesc.hasGapValue() : null);
       generalPaneModel.setRoundCorners(legendsDesc.isRoundCorners());
       generalPaneModel.setSymbolRoundCorners(legendDesc.isSymbolRoundCorners());
       // only rect-based legends (Color/Size/Texture) actually render the rounded swatch;
@@ -62,7 +68,8 @@ public class LegendFormatDialogModel implements Serializable {
 
       if(legendsDesc.getBorderColor() != null) {
          generalPaneModel.setFillColor(
-            "#" + Tool.colorToHTMLString(legendsDesc.getBorderColor()));
+            "#" + Tool.colorToHTMLString(
+               VSChartChromeDefaults.resolveLegendBorderColor(legendsDesc.getBorderColor(), ctx)));
       }
 
       if(legendsDesc.getLayout() >= 1) {
@@ -107,7 +114,8 @@ public class LegendFormatDialogModel implements Serializable {
    }
 
    public void updateLegendFormatDialogModel(ChartInfo cinfo, LegendsDescriptor legendsDesc,
-                                             LegendDescriptor legendDesc, String titleName)
+                                             LegendDescriptor legendDesc, String titleName,
+                                             VizContext ctx)
    {
       final String title = generalPaneModel.getTitleValue();
 
@@ -121,10 +129,36 @@ public class LegendFormatDialogModel implements Serializable {
       legendDesc.setTitleVisible(generalPaneModel.isVisible());
       legendsDesc.setBorder(generalPaneModel.getStyle(), false);
       Color color = Tool.getColorFromHexString(generalPaneModel.getFillColor());
-      legendsDesc.setBorderColor(color, false);
+
+      if(!Tool.equals(color, VSChartChromeDefaults.resolveLegendBorderColor(legendsDesc.getBorderColor(), ctx))) {
+         legendsDesc.setBorderColor(color, false);
+      }
       legendsDesc.setLayout(getIndexByName(LEGEND_POSITIONS, generalPaneModel.getPosition()) + 1);
       legendDesc.setNotShowNull(generalPaneModel.isNotShowNull());
       legendDesc.setSymbolSize(generalPaneModel.getSymbolSize());
+
+      Boolean gapFollowsDefault = generalPaneModel.getGapFollowsDefault();
+
+      if(gapFollowsDefault == null) {
+         // no checkbox was shown, so this chart is not modern and the gap is not being resolved;
+         // store only a real edit, exactly as this pane behaved before the option existed
+         if(generalPaneModel.getGap() !=
+            VSChartChromeDefaults.resolveLegendGap(
+               legendsDesc.getGap(), legendsDesc.hasGapValue(), ctx))
+         {
+            legendsDesc.setGap(generalPaneModel.getGap());
+         }
+      }
+      else if(gapFollowsDefault) {
+         // clear the author's tier rather than pin a 0 there: a 0 would shadow a stylesheet's
+         // legend_gap for good, where clearing hands the gap back to it, or to the unset default
+         // that the resolver substitutes for
+         legendsDesc.resetGap(CompositeValue.Type.USER);
+      }
+      else {
+         legendsDesc.setGap(generalPaneModel.getGap());
+      }
+
       legendsDesc.setRoundCorners(generalPaneModel.isRoundCorners());
       legendDesc.setSymbolRoundCorners(generalPaneModel.isSymbolRoundCorners());
 

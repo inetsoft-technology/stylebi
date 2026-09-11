@@ -59,10 +59,11 @@
         @if (!model.calendar) {
           @if (model?.labels?.length <= 500) {
             <select #selection class="ps-1"
+              [class.vs-combo-box-trigger]="model.vizModern"
               [attr.aria-label]="model.absoluteName + ' _#(ComboBox)'"
               [ngModel]="model.selectedLabel" (ngModelChange)="onChange($event)"
               [style.text-align-last]="model.objectFormat.hAlign"
-              [style.background-color]="model.objectFormat.background == '' ? 'transparent' : model.objectFormat.background">
+              [style.background-color]="getTriggerBackground(false)">
               @for (entry of model.labels; track entry) {
                 <option [value]="entry">{{entry}}</option>
               }
@@ -70,8 +71,9 @@
           }
           @if (model?.labels?.length > 500) {
             <div #selection class="virtual-scroll-combo-box"
+              [class.vs-combo-box-trigger]="model.vizModern"
               (click)="toggleDropdown()"
-              [style.background-color]="model.objectFormat.background || 'transparent'"
+              [style.background-color]="getTriggerBackground()"
               [fixedDropdown]="dropdownOptions" dropdownPlacement="bottom">
               {{ model.selectedLabel }}
               <span class="dropdown-icon span-as-dropdown"></span>

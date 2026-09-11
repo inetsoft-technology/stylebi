@@ -24,6 +24,9 @@ import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.report.internal.table.TableHyperlinkAttr;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.style.TableStyle;
+import inetsoft.report.style.XTableStyle;
+
+import java.awt.Color;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -123,6 +126,19 @@ public abstract class DataVSAQuery extends VSAQuery {
 
             if(style != null) {
                style = (TableStyle) style.clone();
+
+               // overlay the modern structure palette onto the cloned Default Style so it acts as a
+               // default the user cell/column/row format still overrides; non-default styles untouched.
+               // sname is the canonical (non-localized) style name, so the constant match is locale-safe
+               VizContext ctx = VizContext.of(tinfo);
+
+               if(style instanceof XTableStyle &&
+                  TableDataVSAssemblyInfo.DEFAULT_STYLE.equals(sname) &&
+                  ctx.modern)
+               {
+                  applyModernTableStructure((XTableStyle) style, ctx, data);
+               }
+
                style.setTable(data);
                data = style;
             }
@@ -213,6 +229,126 @@ public abstract class DataVSAQuery extends VSAQuery {
       }
       finally {
          box.unlockRead();
+      }
+   }
+
+   /**
+    * Overlay the modern gridline/header/total colors onto a cloned Default Style. The header-column
+    * and trailer keys affect only crosstabs (plain tables have no header/trailer bands); body borders
+    * fall through for the regions not set explicitly. Every value is a default the user format beats.
+    */
+   static void applyModernTableStructure(XTableStyle style, VizContext ctx, TableLens table) {
+      Color gridline = VSTableStructureDefaults.gridlineColor(ctx);
+      Color separator = VSTableStructureDefaults.headerSeparator(ctx);
+      style.put("body.rcolor", gridline);
+      style.put("body.ccolor", gridline);
+      style.put("header-row.rcolor", separator); // header→body horizontal rule, stronger for hierarchy
+      style.put("header-row.ccolor", gridline);
+      style.put("header-col.ccolor", separator); // crosstab row-header vertical rule
+      style.put("top-border.color", gridline);
+      style.put("bottom-border.color", gridline);
+      style.put("left-border.color", gridline);
+      style.put("right-border.color", gridline);
+      style.put("header-row.background", VSTableStructureDefaults.headerBackground(ctx));
+      style.put("header-row.foreground", VSTableStructureDefaults.headerForeground(ctx));
+      style.put("header-col.background", VSTableStructureDefaults.headerBackground(ctx));
+      style.put("header-col.foreground", VSTableStructureDefaults.headerForeground(ctx));
+      style.put("trailer-row.background", VSTableStructureDefaults.totalBackground(ctx));
+      style.put("trailer-col.background", VSTableStructureDefaults.totalBackground(ctx));
+      // lift band text off the dark total/subtotal fills (null in light = keep default dark-on-light)
+      Color bandForeground = VSTableStructureDefaults.bandForeground(ctx);
+
+      if(bandForeground != null) {
+         style.put("trailer-row.foreground", bandForeground);
+         style.put("trailer-col.foreground", bandForeground);
+      }
+
+      // dark mode also darkens the data-cell interior so light body text is legible; all null in
+      // light/legacy, leaving the shipped body text (#404040), transparent body, and #F5F5F5 zebra.
+      Color bodyForeground = VSTableStructureDefaults.bodyForeground(ctx);
+      Color bodyBackground = VSTableStructureDefaults.bodyBackground(ctx);
+
+      if(bodyForeground != null) {
+         style.put("body.foreground", bodyForeground);
+      }
+
+      if(bodyBackground != null) {
+         style.put("body.background", bodyBackground);
+      }
+
+      applyDarkZebra(style, VSTableStructureDefaults.zebraBackground(ctx));
+      applyModernGroupSubtotals(style, bandForeground, ctx, hasCrosstab(table));
+   }
+
+   /**
+    * Darken the shipped Default Style zebra stripe in dark mode. The alternating-row background is a
+    * REGULAR Specification (not a region), so it wins over body.background and must be recolored on the
+    * spec itself. No-op (null) in light/legacy, so the shipped #F5F5F5 stripe is unchanged.
+    */
+   static void applyDarkZebra(XTableStyle style, Color zebra) {
+      if(zebra == null) {
+         return;
+      }
+
+      for(int i = 0; i < style.getSpecificationCount(); i++) {
+         XTableStyle.Specification spec = style.getSpecification(i);
+
+         if(spec.getType() == XTableStyle.Specification.REGULAR) {
+            spec.put("background", zebra);
+         }
+      }
+   }
+
+   /**
+    * Whether this lens carries the crosstab the group-total specs match against. Resolved with the
+    * same call XTableStyle.setTable() makes, off the same lens, so it answers exactly what the
+    * matchers would see.
+    */
+   private static boolean hasCrosstab(TableLens table) {
+      return table != null && Util.getCrosstab(table) != null;
+   }
+
+   /**
+    * Prepend data-borne group-subtotal emphasis specs so interior crosstab subtotals get a distinct
+    * background. Group-total specs must precede the shipped zebra spec (findSpec returns the first
+    * match) so they win over alternating-row color on total cells. Levels 0-9 cover both axes; a
+    * level past the header count self-guards (matchRowGroup/matchColGroup return false). Skipped
+    * outright without a crosstab: the matchers return false for every cell there, and findSpec walks
+    * the specs per cell per attribute, so the twenty would be scanned on every plain modern table
+    * for nothing.
+    */
+   static void applyModernGroupSubtotals(XTableStyle style, Color foreground, VizContext ctx,
+                                         boolean crosstab)
+   {
+      if(!crosstab) {
+         return;
+      }
+
+      Color subtotal = VSTableStructureDefaults.subtotalBackground(ctx);
+      int pos = 0;
+
+      for(int level = 0; level < 10; level++) {
+         XTableStyle.Specification rowSpec = style.new Specification();
+         rowSpec.setType(XTableStyle.Specification.ROW_GROUP_TOTAL);
+         rowSpec.setIndex(level);
+         rowSpec.put("background", subtotal);
+
+         if(foreground != null) {
+            rowSpec.put("foreground", foreground);
+         }
+
+         style.addSpecification(pos++, rowSpec);
+
+         XTableStyle.Specification colSpec = style.new Specification();
+         colSpec.setType(XTableStyle.Specification.COL_GROUP_TOTAL);
+         colSpec.setIndex(level);
+         colSpec.put("background", subtotal);
+
+         if(foreground != null) {
+            colSpec.put("foreground", foreground);
+         }
+
+         style.addSpecification(pos++, colSpec);
       }
    }
 

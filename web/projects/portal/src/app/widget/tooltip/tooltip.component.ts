@@ -23,6 +23,13 @@ import {
    TemplateRef
 } from "@angular/core";
 import { NgTemplateOutlet, NgClass } from "@angular/common";
+import {
+   buildChromePaths,
+   ChromeGeometry,
+   TAIL_LENGTH,
+   TailSide,
+   TOOLTIP_INSET
+} from "./tooltip-tail-placement";
 
 /**
  * Component used to render tooltips.
@@ -41,6 +48,18 @@ import { NgTemplateOutlet, NgClass } from "@angular/common";
 export class TooltipComponent {
    @Input() content: string | TemplateRef<any>;
    @Input() tooltipCSS: string | string[] | Set<string>;
+   /**
+    * Whether this tooltip belongs to a dark surface. Resolved by the directive from the hovered
+    * element's own assembly rather than from the shell, because the two disagree: an assembly's
+    * palette follows its mark while the body's dark class follows the org property, so keying the
+    * tooltip off the shell drew a light tooltip on a dark chart and a dark one on a light chart.
+    */
+   @Input() dark = false;
+   @Input() tailSide: TailSide | null = null;
+   @Input() tailOffset = 0;
+   @Input() boxSize: { width: number, height: number } | null = null;
+   /** chrome overhang: tail length minus box inset */
+   readonly chromeInset = TOOLTIP_INSET - TAIL_LENGTH;
 
    constructor(private changeRef: ChangeDetectorRef) {
    }
@@ -51,5 +70,11 @@ export class TooltipComponent {
 
    contentIsTemplate(): boolean {
       return this.content instanceof TemplateRef;
+   }
+
+   get chrome(): ChromeGeometry | null {
+      return !!this.tailSide && !!this.boxSize
+         ? buildChromePaths(this.boxSize.width, this.boxSize.height, this.tailSide, this.tailOffset)
+         : null;
    }
 }

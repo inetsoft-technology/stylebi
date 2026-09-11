@@ -25,6 +25,8 @@ export interface LegendFormatGeneralPaneModel {
    notShowNull: boolean;
    notShowNullVisible: boolean;
    symbolSize: number;
+   gap: number;
+   gapFollowsDefault?: boolean;
    roundCorners: boolean;
    symbolRoundCorners: boolean;
    symbolRoundCornersVisible: boolean;

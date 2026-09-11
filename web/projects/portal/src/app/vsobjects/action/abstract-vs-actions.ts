@@ -24,7 +24,8 @@ import { AssemblyActions } from "./assembly-actions";
 import { DataTipService } from "../objects/data-tip/data-tip.service";
 import { GuiTool } from "../../common/util/gui-tool";
 import { PopComponentService } from "../objects/data-tip/pop-component.service";
-import { MiniToolbarService } from "../objects/mini-toolbar/mini-toolbar.service";
+import { anchoredLaneHeight, isAnchoredChromeSuppressed, isAnchoredResident, MiniToolbarService }
+   from "../objects/mini-toolbar/mini-toolbar.service";
 import { ToolbarActionsHandler } from "../toolbar-actions-handler";
 
 /**
@@ -36,10 +37,24 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
    private assemblyClickAction: AssemblyAction;
    private assemblyScriptAction: AssemblyAction;
    private initedActions: boolean = false;
+   // Set by createToolbarActions() under the model.vizModern gate; consumed by createMenuActions()
+   // to surface the same action there instead of at toolbar index 0. See the comments at both
+   // sites.
+   private hideMiniToolbarAction: AssemblyAction = null;
    protected mobileDevice: boolean = GuiTool.isMobileDevice();
    showing: AssemblyActionGroup[] = [];
    more: AssemblyActionGroup[] = [];
    moreAction: AssemblyAction = null;
+
+   // Height bands for the anchored strip. Only ACTION_FLOOR is derived: a 24px control needs 4px of
+   // clearance above and below, so below 32px no control fits. ACTIONS_MIN (32 + 24) is judgement —
+   // the height at which a strip stops feeling like it owns the card — and is the number in this
+   // ladder most likely to be wrong. Validate against real dashboards before trusting it; a 56px card
+   // is common in a KPI row.
+   private static readonly ACTION_FLOOR = 32;
+   private static readonly ACTIONS_MIN = 56;
+   // Action buttons, kebab excluded. allowedActionsNum() returns slots, not actions — see there.
+   private static readonly MAX_TOOLBAR_ACTIONS = 3;
 
    /**
     * Creates a new instance of AbstractVSActions.
@@ -121,13 +136,74 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       return this.assemblyMenuActions;
    }
 
+   // Delegates to isAnchoredResident, the one anchored-set definition in mini-toolbar.service.ts, so
+   // this and the container's isKebabResident cannot drift apart.
+   private get resident(): boolean {
+      return isAnchoredResident(this.model.objectType, this.model.vizModern,
+                                anchoredLaneHeight(this.model));
+   }
+
+   /**
+    * Whether this assembly type's anchored strip is the kebab alone — no action buttons, at any
+    * width. A permanent property of the type, not a rollout stage.
+    */
+   protected get kebabOnly(): boolean {
+      return false;
+   }
+
+   /**
+    * The number of toolbar *slots*, not action buttons. ToolbarActionsHandler.getShowingActions()
+    * spends one of the slots it is handed on the overflow control (it decrements before slicing, so
+    * n slots yield n-1 action buttons whenever anything overflows), and the width term below is in
+    * the same units — floor(width / actionWidth) is how many buttons of any kind fit. So a cap of
+    * k action buttons is k + 1 slots; passing k straight through capped the strip at k-1 buttons.
+    */
    allowedActionsNum(): number {
       let actionWidth: number = Math.floor(this.miniToolbarService.getActionsWidth(this.toolbarActions) /
          this.miniToolbarService.getActionCount(this.toolbarActions));
 
       let num: number = Math.floor(this.model.objectFormat.width / actionWidth);
 
-      return num;
+      if(!this.resident) {
+         return num;
+      }
+
+      // Kebab-only types never get an action button, so neither the height bands nor the cap
+      // arithmetic below apply. Placed after the resident guard on purpose: keyed on kebabOnly
+      // alone this would also fire gate-off, stripping a floating toolbar users already have.
+      if(this.kebabOnly) {
+         return 0;
+      }
+
+      const height = this.model.objectFormat.height;
+
+      // Below the control floor nothing fits; between the floor and ACTIONS_MIN the kebab is the
+      // whole strip, so no action buttons are allowed. Zero slots still leaves the kebab — it is
+      // appended by showingActions outside this budget, and is always the last thing to go.
+      //
+      // Touch is the same case: mini-toolbar renders the action-button groups inside
+      // @if (!mobileDevice), so no action button exists there and the kebab is the only control.
+      // Without this the budget would claim the leading actions were on the strip and
+      // getMoreActions() would skip them — leaving the kebab opening a short list, or nothing at
+      // all when three or fewer are visible. Same GuiTool.isMobileDevice() read the template's
+      // guard evaluates.
+      if(this.mobileDevice || height < AbstractVSActions.ACTIONS_MIN) {
+         return 0;
+      }
+
+      // The budget must be sized off how many real (non-wrapper) actions are actually visible, not
+      // off the flat cap: the trailing "menu actions" wrapper is the only group meant to overflow
+      // into the kebab, and getMarkPoint() (ToolbarActionsHandler) only overflows a group once the
+      // cumulative visible count reaches the budget. A table typically has fewer real actions than
+      // MAX_TOOLBAR_ACTIONS, so the flat cap + 1 was never reached and the wrapper stayed stuck on
+      // the strip beside the (separately, always-appended) kebab, which then opened empty. The "+ 1"
+      // here is the slot reserved for the wrapper itself, so it is exactly the one thing that
+      // overflows once real actions fill the rest of the budget.
+      const realActions = ToolbarActionsHandler.getVisibleToolbarActions(this.toolbarActions)
+         .reduce((count, group) =>
+            count + group.actions.filter(a => a.id() !== "menu actions").length, 0);
+
+      return Math.min(num, Math.min(AbstractVSActions.MAX_TOOLBAR_ACTIONS, realActions) + 1);
    }
 
    get showingActions(): AssemblyActionGroup[] {
@@ -135,7 +211,23 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
          return this.showing;
       }
 
-      if(this.model.objectFormat.width >=
+      const modern = this.resident;
+
+      // No chrome at all below the control floor — a 24px control with 4px clearance does not fit,
+      // and right-click becomes the only route. This is the one rung that removes the kebab.
+      //
+      // An anchored type reaches the same rung by the lane rather than the card: a lane too short
+      // to host a control draws none. Checked separately because resident is already false in that
+      // case, which skips the height test below.
+      if(isAnchoredChromeSuppressed(this.model.objectType, this.model.vizModern,
+                                    anchoredLaneHeight(this.model)) ||
+         (modern && this.model.objectFormat.height < AbstractVSActions.ACTION_FLOOR))
+      {
+         ToolbarActionsHandler.copyActions([], this.showing);
+         return this.showing;
+      }
+
+      if(!modern && this.model.objectFormat.width >=
          this.miniToolbarService.getActionsWidth(this.toolbarActions))
       {
          return this.toolbarActions;
@@ -145,9 +237,30 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
          this.allowedActionsNum());
       ToolbarActionsHandler.copyActions(actions, this.showing);
 
-      if(this.model.objectFormat.width <
-         this.miniToolbarService.getActionsWidth(this.toolbarActions))
-      {
+      // Under the gate the kebab is resident, not an overflow control: it is the permanent "this
+      // object has actions" signal, the only touch route, and the only resting keyboard target.
+      // The two entry points do not show the same list. The kebab opens getMoreActions() — the
+      // overflowed toolbar actions, which include the trailing "menu actions" wrapper once that
+      // itself overflows — while right-click opens menuActions directly. What makes the lower rungs
+      // safe is that the wrapper is the last toolbar group and its childAction() is menuActions, so
+      // the full menu is always one click away: either the wrapper is still on the strip, or it has
+      // overflowed into the kebab. It is not a guarantee that the kebab is non-empty — when nothing
+      // overflows, getMoreActions() is empty and the wrapper on the strip carries the menu instead.
+      // ...and only where it opens onto something. resident reads the mark and the body density
+      // class, never the host, so this branch fired for every marked assembly at compact-or-above
+      // whether anything had overflowed or not. That was survivable while the trailing "menu
+      // actions" wrapper stayed on the strip to carry the menu, and it is not survivable in hosts
+      // that hide the wrapper: there the kebab opened an empty dropdown.
+      const needsKebab = (modern || this.model.objectFormat.width <
+         this.miniToolbarService.getActionsWidth(this.toolbarActions)) && this.kebabHasContent();
+
+      if(needsKebab) {
+         // getShowingActions(groups, 0) can leave this.showing empty (e.g. every toolbar action
+         // suppressed via actionNames) — guard the trailing-group access rather than assume it.
+         if(this.showing.length === 0) {
+            this.showing.push(new AssemblyActionGroup());
+         }
+
          if(this.moreAction == null) {
             this.moreAction = this.createMoreAction();
          }
@@ -159,6 +272,23 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       return this.showing;
    }
 
+   /**
+    * Whether the kebab would open onto any visible action, asked of the very list it opens —
+    * getMoreActions() — rather than of a second copy of the overflow arithmetic.
+    *
+    * Emptiness cannot be read off the array's length: ToolbarActionsHandler.getMoreActions() pads
+    * its result with one empty group per overflowed slot, so a kebab with nothing visible in it
+    * still arrives as a non-empty array of empty groups.
+    *
+    * Where the kebab is the entire strip — touch, and the 32-56px band, both allowedActionsNum()
+    * 0 — getMoreActions() returns the flattened list carrying the whole menu, so that route keeps
+    * its kebab.
+    */
+   private kebabHasContent(): boolean {
+      return this.getMoreActions().some(
+         group => group.actions.some(action => action.visible()));
+   }
+
    getMoreActions(): AssemblyActionGroup[] {
       if(!this.toolbarActions) {
          return this.more;
@@ -168,7 +298,68 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
          this.allowedActionsNum());
       ToolbarActionsHandler.copyActions(actions, this.more);
 
-      return this.more;
+      // Where an action button can still render, the kebab keeps the trailing "menu actions"
+      // wrapper and the full menu sits one level below it, as on a pointer strip — but only where
+      // overflowed toolbar actions sit beside it. Holding the wrapper alone, the kebab opens onto
+      // a single row whose only job is to open another menu, so the menu is inlined instead. The
+      // anchored budget is min(3, realActions) + 1, so on any type with three or fewer real
+      // actions the wrapper is the only thing that overflows. Read off the overflow list itself
+      // rather than re-deriving the overflow arithmetic here.
+      return this.resident && (this.allowedActionsNum() === 0 || this.wrapperIsSoleOverflow())
+         ? this.flattenedMoreActions() : this.more;
+   }
+
+   /**
+    * Whether the overflow holds the trailing "menu actions" wrapper and nothing else. Asked of the
+    * list getMoreActions() has just built, so it cannot disagree with it.
+    */
+   private wrapperIsSoleOverflow(): boolean {
+      const overflowed = this.more.reduce(
+         (all, group) => all.concat(group.actions.filter(action => action.visible())),
+         [] as AssemblyAction[]);
+
+      return overflowed.length > 0 &&
+         overflowed.every(action => action.id() === "menu actions");
+   }
+
+   /**
+    * The kebab's contents where no action button renders at all — touch, and the kebab-only height
+    * band. There the kebab is the entire strip, and leaving the menu nested behind a "More" row
+    * costs three taps to reach something the strip exists to put one tap away.
+    *
+    * It also showed the same entries twice. The menu-reachability fix put the max-mode pair,
+    * show-details and export into createMenuActions with the ids their toolbar twins already use,
+    * so the overflowed toolbar list and the menu behind "More" repeated each other in adjacent
+    * panels. Flattening merges the two into one panel: overflowed toolbar actions first, then the
+    * menu, with the wrapper dropped and ids deduplicated.
+    *
+    * Deduplicating by id is exact rather than a heuristic — the menu entries were copied verbatim
+    * from the toolbar entries, ids and visibility predicates alike, so an id is visible in both
+    * places or neither.
+    */
+   private flattenedMoreActions(): AssemblyActionGroup[] {
+      // Seeded with what the strip is already rendering, so the kebab does not repeat buttons
+      // sitting an inch from it. The menu carries copies of the toolbar actions by design — that is
+      // what keeps them reachable once a lane too short for the strip suppresses it — but a copy
+      // whose original is on screen is noise. Where no action button renders at all (touch, and the
+      // kebab-only band) showing holds none, nothing is excluded, and the kebab stays the whole
+      // inventory.
+      const seen = new Set<string>(
+         this.showing.reduce(
+            (ids, group) => ids.concat(group.actions.map(action => action.id())), [] as string[]));
+
+      return [...this.more, ...this.menuActions]
+         .map(group => new AssemblyActionGroup(group.actions.filter(action => {
+            const id = action.id();
+
+            if(id === "menu actions" || seen.has(id)) {
+               return false;
+            }
+
+            seen.add(id);
+            return true;
+         })))
+         .filter(group => group.actions.length > 0);
    }
 
    public resetAssemblyMenuActions(): void {
@@ -270,22 +461,41 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
    protected createToolbarActions(groups: AssemblyActionGroup[], addMenuActions?: boolean,
                                   label?: string): AssemblyActionGroup[]
    {
+      this.hideMiniToolbarAction = null;
+
       if(groups && groups.length > 0 && !GuiTool.isMobileDevice() && this.model.containerType != "VSSelectionContainer")
       {
          let othersGroups = [...groups];
 
-         groups.splice(0, 0, new AssemblyActionGroup([
-            {
-               id: () => "vs-assembly hide-mini-toolbar",
-               label: () => "_#(js:Hide MiniToolbar)",
-               icon: () => "close-icon",
-               enabled: () => true,
-               visible: () => this.isActionVisible("Hide MiniToolbar") && othersGroups &&
-                  othersGroups.length > 0 &&
-                  othersGroups.some(group => group.actions.some(action => action.visible())),
-               action: () => this.hideMiniToolbar(),
-            }
-         ]));
+         const hideMiniToolbar: AssemblyAction = {
+            id: () => "vs-assembly hide-mini-toolbar",
+            label: () => "_#(js:Hide MiniToolbar)",
+            icon: () => "close-icon",
+            enabled: () => true,
+            visible: () => this.isActionVisible("Hide MiniToolbar") && othersGroups &&
+               othersGroups.length > 0 &&
+               othersGroups.some(group => group.actions.some(action => action.visible())),
+            action: () => this.hideMiniToolbar(),
+         };
+
+         if(this.model.vizModern && !this.binding && !this.vsWizardPreview) {
+            // The dismissal is something done to the strip, not to the assembly, and at toolbar
+            // index 0 it ate a slot ahead of show-data under a cap on toolbar length. It moves to
+            // the menu instead of splicing at index 0 here; createMenuActions() below reads this
+            // field to surface it there. Gated on the assembly's own model.vizModern, with no
+            // type test — so under the gate this reaches every assembly type, not only the
+            // anchored ones. A type outside the set has no resident kebab, so it reaches the
+            // dismissal by right-click; the adhoc range slider is now the only one.
+            // Not in the binding pane or the wizard's preview, where the strip should look the
+            // same marked or not. The dismissal is the only entry the mark moves there, so leaving
+            // it on the toolbar keeps the marked strip identical to the unmarked one. In the
+            // wizard the move also strands it: the menu wrapper that would surface it is itself
+            // hidden by !vsWizardPreview, so it would relocate to somewhere unreachable.
+            this.hideMiniToolbarAction = hideMiniToolbar;
+         }
+         else {
+            groups.splice(0, 0, new AssemblyActionGroup([hideMiniToolbar]));
+         }
       }
 
       if(groups && addMenuActions) {
@@ -315,6 +525,18 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
     * Creates the menuActions for this type of assembly.
     */
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
+      // Counterpart to the gated branch in createToolbarActions(): reading this.toolbarActions
+      // forces that method to run (it is a cached getter, so this is a no-op if it already has),
+      // which populates hideMiniToolbarAction under the same gate before we look for it here.
+      if(this.model.vizModern && !GuiTool.isMobileDevice() &&
+         this.model.containerType != "VSSelectionContainer" &&
+         this.toolbarActions && this.toolbarActions.length > 0)
+      {
+         if(this.hideMiniToolbarAction) {
+            groups.push(new AssemblyActionGroup([this.hideMiniToolbarAction]));
+         }
+      }
+
       return groups;
    }
 

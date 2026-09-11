@@ -60,6 +60,19 @@ export class VSGroupContainer extends AbstractVSObject<VSGroupContainerModel> {
             "?" + this.model.genTime;
    }
 
+   /**
+    * Whether the author has set a border on any single side. The default-border CSS fallback
+    * (`.vs-group-container`, gated to modern) is a `border` shorthand covering all four sides —
+    * if only one side's inline style is bound (via objectFormat.border.*), the other three
+    * sides would still fall through to the shorthand's border-*-color/style/width for whichever
+    * longhands the inline style left untouched. Suppress the whole fallback rather than let it
+    * apply per-side, so a partially-set border isn't silently filled in on the remaining sides.
+    */
+   public hasAnyBorder(): boolean {
+      const border = this.model.objectFormat.border;
+      return !!(border?.top || border?.right || border?.bottom || border?.left);
+   }
+
    public getOpacity(): number {
       if(this.model.noImageFlag) {
          return this.model.objectFormat.alpha;

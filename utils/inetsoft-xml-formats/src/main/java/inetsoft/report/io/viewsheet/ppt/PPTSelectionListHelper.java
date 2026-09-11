@@ -140,6 +140,8 @@ public class PPTSelectionListHelper extends VSSelectionListHelper {
          VSCompositeFormat format = (vsformat == null) ?
             new VSCompositeFormat() : vsformat;
 
+         // the slide takes the viewsheet background, which is seeded dark, so the cells follow the
+         // assembly like the PDF and SVG helpers do
          format = VSSelectionListHelper.getValueFormat(value, format, hasSelected);
 
          if(i < values.size() - 1 && i >= boundsList.size() - 2) {

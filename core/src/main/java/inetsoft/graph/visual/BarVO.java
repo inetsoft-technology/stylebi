@@ -295,11 +295,18 @@ public class BarVO extends ElementVO {
          // Bounding box aspect ratio is unreliable for stacked bars (thin segments are
          // wider than tall even in a vertical chart).
          boolean isHorizontalBar = !GTool.isHorizontal(getScreenTransform());
-         svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_BAR, Map.of(
-            SVGSupport.ATTR_COL,    String.valueOf(getColIndex()),
-            SVGSupport.ATTR_ROW,    String.valueOf(getRowIndex()),
-            SVGSupport.ATTR_ORIENT, isHorizontalBar ? "h" : "v"
-         ));
+         Map<String, String> attrs = new HashMap<>();
+         attrs.put(SVGSupport.ATTR_COL, String.valueOf(getColIndex()));
+         attrs.put(SVGSupport.ATTR_ROW, String.valueOf(getRowIndex()));
+         attrs.put(SVGSupport.ATTR_ORIENT, isHorizontalBar ? "h" : "v");
+
+         String anchor = getAnchorFraction(path, g.getTransform());
+
+         if(anchor != null) {
+            attrs.put(SVGSupport.ATTR_ANCHOR, anchor);
+         }
+
+         svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_BAR, attrs);
       }
 
       try {
@@ -1310,6 +1317,47 @@ public class BarVO extends ElementVO {
     */
    private boolean isPolar() {
       return coord instanceof PolarCoord;
+   }
+
+   /**
+    * Visual middle of an arc slice as an x,y fraction of its device bounding box, or null for a
+    * plain bar whose box centre already lands on the mark. A fraction rather than a coordinate so
+    * the client need not reproduce the transform chain; point and box are both taken in device
+    * space so a flip or rotation cancels out.
+    */
+   static String getAnchorFraction(Shape path, AffineTransform at) {
+      Point2D mid;
+
+      if(path instanceof Donut) {
+         mid = ((Donut) path).getCentroid();
+      }
+      else {
+         Arc2D arc = getOuterArc(path);
+
+         if(arc == null) {
+            return null;
+         }
+
+         // Half the extent lands the end point on the slice's mid-angle; halfway out from the
+         // centre is the equivalent of the donut's mid-radius.
+         Arc2D half = (Arc2D) arc.clone();
+         half.setAngleExtent(arc.getAngleExtent() / 2);
+         Point2D edge = half.getEndPoint();
+         mid = new Point2D.Double((arc.getCenterX() + edge.getX()) / 2,
+                                  (arc.getCenterY() + edge.getY()) / 2);
+      }
+
+      Rectangle2D box = at.createTransformedShape(path).getBounds2D();
+
+      if(box.getWidth() <= 0 || box.getHeight() <= 0) {
+         return null;
+      }
+
+      Point2D dev = at.transform(mid, null);
+
+      return String.format(Locale.ROOT, "%.4f,%.4f",
+                           (dev.getX() - box.getX()) / box.getWidth(),
+                           (dev.getY() - box.getY()) / box.getHeight());
    }
 
    /**

@@ -50,6 +50,9 @@ public interface LookAndFeelSettingsModel {
    @Nullable List<UserFontModel> newFontFaces();
    List<ViewsheetCSSEntry> viewsheetCSSEntries();
    boolean vsEnabled();
+   boolean modernVisualization();
+   @Value.Default default boolean darkMode() { return false; }
+   @Value.Default default String visualizationDensity() { return "compact"; }
 
    static Builder builder() {
       return new Builder();

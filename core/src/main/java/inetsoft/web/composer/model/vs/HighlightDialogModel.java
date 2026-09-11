@@ -153,6 +153,14 @@ public class HighlightDialogModel implements Serializable {
       this.text = text;
    }
 
+   public boolean isVizModern() {
+      return vizModern;
+   }
+
+   public void setVizModern(boolean vizModern) {
+      this.vizModern = vizModern;
+   }
+
     private int row;
     private int col;
     private String measure;
@@ -169,4 +177,5 @@ public class HighlightDialogModel implements Serializable {
     private List<String> nonsupportBrowseFields;
     private boolean axis;
     private boolean text;
+    private boolean vizModern;
 }

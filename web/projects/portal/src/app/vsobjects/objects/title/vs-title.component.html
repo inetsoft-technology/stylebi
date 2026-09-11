@@ -21,6 +21,7 @@
     [attr.title]="titleContent"
     [class.inactive]="!viewer && !titleVisible"
     [class.bd-selected-cell]="titleSelected"
+    [class.inset-header]="insetHeader"
     [style.width.px]="titleWidth"
     [style.height.px]="titleFormat.height"
     [safeFont]="titleFormat.font"
@@ -52,17 +53,16 @@
       [attr.title]="titleContent"
       [style.white-space]="titleFormat.wrapping.whiteSpace"
       [style.wordWrap]="titleFormat.wrapping.wordWrap"
-      [style.background]="floating ? titleFormat.background || textBackground : null"
       [style.justify-content]="titleFormat.justifyContent"
       [style.align-items]="titleFormat.alignItems"
       [style.padding-top.px]="titleFormat?.padding?.top"
       [style.padding-bottom.px]="titleFormat?.padding?.bottom"
-      [style.padding-left.px]="titleFormat?.padding?.left"
+      [style.padding-left.px]="insetHeader ? 8 : titleFormat?.padding?.left"
       [style.padding-right.px]="titleFormat?.padding?.right"
       [class.wrapped]="titleFormat.wrapping.whiteSpace != 'nowrap'"
-      [class.floating]="floating" [innerHTML]="htmlText"
       [class.cursor-pointer]="cursorPointer"
       (dblclick)="editingTitle = (!viewer || binding) && !preview">
+      <div class="title-text" [innerHTML]="htmlText"></div>
     </div>
     @if (!editingTitle && !viewer && !preview && (selected || formatPainterMode)) {
       <div

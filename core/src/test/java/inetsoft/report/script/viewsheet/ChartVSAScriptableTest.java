@@ -140,6 +140,20 @@ public class ChartVSAScriptableTest {
    }
 
    @Test
+   void testSmoothLinesScriptProperty() {
+      chartVSAScriptable.addProperties();
+      PlotDescriptor plot = chartVSAScriptable.getRTChartDescriptor().getPlotDescriptor();
+
+      chartVSAScriptable.putMember("smoothLines", true);
+      assertTrue(plot.isSmoothLines());
+      assertTrue((boolean) chartVSAScriptable.getMember("smoothLines"));
+
+      chartVSAScriptable.putMember("smoothLines", false);
+      assertFalse(plot.isSmoothLines());
+      assertFalse((boolean) chartVSAScriptable.getMember("smoothLines"));
+   }
+
+   @Test
    void testTreeLayoutScriptProperty() {
       chartVSAScriptable.addProperties();
       PlotDescriptor plot = chartVSAScriptable.getRTChartDescriptor().getPlotDescriptor();

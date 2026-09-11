@@ -1,0 +1,1280 @@
+# StyleBI Visualization Implementation Roadmap
+
+## Purpose
+
+This document translates the visualization design strategy into an implementation sequence for StyleBI visualization surfaces.
+
+It is intended to answer:
+
+- what visualization should inherit from shell first
+- which token groups visualization should own
+- how compatibility gating should work for existing customers
+- which changes are foundation work versus adoption work versus analytical specialization
+- which surfaces should be standardized first
+- what should be deferred until the visualization foundation is stable
+
+This roadmap assumes shell and Composer token work are already underway or complete. It should not be used to replace shell or Composer roadmaps.
+
+Use [visualization-design-spec.md](visualization-design-spec.md) for visualization layer behavior, surface rules, state vocabulary, and compatibility intent.
+
+## Shell And Composer Boundary
+
+This roadmap covers:
+
+- visualization token work layered on top of shell foundations
+- compatibility gating for legacy versus modern visualization
+- visualization density and widget-state rollout
+- table/grid, chart chrome, KPI, and embedded-control standardization
+- analytical color system definition
+
+This roadmap does not redefine:
+
+- shell neutral surfaces, typography, spacing, radius, and focus
+- Composer authoring-state language
+- generic shell dialogs, tabs, forms, and navigation
+- every chart-type-specific visual rule in the first pass
+
+For shell-first work such as buttons, inputs, dialogs, nav, tabs, toolbars, and shell tables, use [shell-implementation-roadmap.md](shell-implementation-roadmap.md).
+
+## Related Specs
+
+- [theme-strategy-overview.md](theme-strategy-overview.md)
+- [shell-design-spec.md](shell-design-spec.md)
+- [shell-implementation-roadmap.md](shell-implementation-roadmap.md)
+- [palette-coordination-recommendations.md](palette-coordination-recommendations.md)
+- [visualization-design-spec.md](visualization-design-spec.md)
+
+The **chart card track** runs alongside the phases below and is decomposed by slice rather than by phase,
+so it has its own roadmap. It owns the anchored mini-toolbar rollout, the shell and chart surfaces found
+through it, and the tooltip and selection vocabulary:
+
+- [chart-card-roadmap.md](chart-card-roadmap.md) — what is done, what is ready, and what gates the rest
+- [chart-card-open-item-decisions.md](chart-card-open-item-decisions.md) — decisions taken and their
+  consequences, including two that reach beyond the chart
+- [chart-card-source-doc-corrections.md](chart-card-source-doc-corrections.md) — the audit of the
+  external `chart-card-design2/` set against the branch
+- [chart-card-slice1-design.md](chart-card-slice1-design.md) ·
+  [chart-card-slice2-tables-design.md](chart-card-slice2-tables-design.md) ·
+  [chart-card-slice3-selection-design.md](chart-card-slice3-selection-design.md)
+
+## Delivery Model
+
+Use four change types throughout this roadmap:
+
+- `foundation`
+  - define inherited versus visualization-owned runtime tokens and contracts
+- `gating`
+  - preserve legacy behavior while introducing explicit modern visualization opt-in
+- `adoption`
+  - update visualization selectors and components so they consume shared visualization tokens consistently
+- `specialization`
+  - add denser, more analytical behavior only where the surface requires it
+
+## Value Source Rule
+
+Unless otherwise noted:
+
+- inherited shell values come from [shell-design-spec.md](shell-design-spec.md) and [shell-implementation-roadmap.md](shell-implementation-roadmap.md)
+- visualization behavior, state usage, and density guidance come from [visualization-design-spec.md](visualization-design-spec.md)
+- cross-layer color rules come from [palette-coordination-recommendations.md](palette-coordination-recommendations.md)
+
+Inline `Default / alias` values in this roadmap are meant to make implementation self-sufficient. When a row needs special clarification, the source should be called out explicitly in that row or subsection.
+
+## Themeability And Compatibility Mechanism
+
+Visualization should remain runtime-themeable while preserving a safe compatibility path.
+
+That means:
+
+- new visualization tokens should be backed by runtime `--inet-*` variables
+- legacy visualization should remain the default behavior
+- modern visualization should activate only through an explicit gate
+- customer themes should be able to defer modern visualization adoption without blocking shell or Composer progress
+- default visualization density should be configurable through an EM property setting rather than requiring a new EM UI surface
+
+### Themeability rule
+
+If a visualization modernization change is meant to remain runtime-themeable, do not stop at one-off selector rewrites.
+
+Use this sequence:
+
+1. define or alias the runtime token
+2. preserve legacy mapping by default
+3. activate modern mapping only inside the visualization gate
+4. adopt the token in shared visualization selectors or widget surfaces
+5. expose the token in theme editor models where customer override is required
+
+Density mode should follow the same runtime model, but its default selection should come from an EM property setting rather than a dedicated first-pass UI control.
+
+### Compatibility gate rule
+
+The first implementation pass should use a small number of clear switches:
+
+- a theme-level visualization mode such as `legacy` versus `modern`
+- a root class or attribute such as `.viz-modern` or `[data-viz-theme="v2"]`
+- optional compatibility alias tokens that let existing widget hooks stay stable while modern values are introduced
+
+Do not begin by overwriting legacy selector meaning globally.
+
+## Primary Implementation Areas
+
+This roadmap is implementation-oriented rather than codebase-exhaustive because visualization surfaces may span multiple widget systems.
+
+The primary work areas are:
+
+| Area | Main responsibility |
+|---|---|
+| token contract | inherited shell foundations versus visualization-owned tokens |
+| compatibility gate | explicit legacy versus modern visualization activation |
+| density layer | compact row heights, spacing, and control sizes for visualization surfaces |
+| widget-state layer | hover, selected, active, contextual, inline-edit, sorted, filtered, pinned, warning, anomaly, dimmed |
+| table/grid standardization | shell-cohesive but BI-dense table behavior |
+| chart chrome standardization | headers, legends, axes, gridlines, tooltips, inline widget controls |
+| KPI and summary widgets | analytical hierarchy without heavy shell framing |
+| analytical color systems | categorical palettes, sequential ramps, diverging ramps, conditional formatting |
+
+## Visualization Surface Implementation Map
+
+Use [visualization-design-spec.md](visualization-design-spec.md) for the surface model and state-distribution rules.
+
+This roadmap keeps only the implementation-facing mapping:
+
+- compatibility gating should land before broad selector reinterpretation
+- density and widget-state rollout should precede chart-palette specialization
+- table/grid standardization is the highest-leverage shared visualization adoption surface
+- chart chrome should inherit shell neutrals first, then adopt visualization density and state where needed
+- KPI and embedded controls should reuse shared visualization token families rather than invent parallel systems
+
+Like the shell and Composer implementation work, visualization work should include screen-by-screen review after major shared phases land. Shared token and selector adoption will not catch every legacy table treatment, chart-chrome override, or one-off widget behavior on its own.
+
+## Token Ownership Model
+
+Visualization should follow this token ownership model:
+
+- inherited from shell:
+  - font family
+  - strong/default/muted text roles
+  - neutral surfaces
+  - default borders
+  - radius
+  - focus ring
+  - primary action color
+- visualization-owned:
+  - density tokens
+  - widget-state tokens
+  - chart palettes
+  - analytical ramps
+  - conditional formatting tokens
+- shared but overridable within visualization:
+  - row height
+  - widget toolbar density
+  - compact control size inside widgets
+  - widget chrome spacing
+
+## Phase 0: Guardrails And Baseline Audit
+
+### Goal
+
+Keep visualization work analytically focused without backsliding into shell-style over-framing or uncontrolled color usage.
+
+### Tasks
+
+- confirm which surfaces are visualization-owned versus shell-owned
+- treat compatibility gating as the first architectural requirement rather than a late migration concern
+- identify any legacy visualization selectors or token hooks that existing customers may already rely on
+- avoid using chart palette colors for routine widget chrome
+- avoid treating shell table selectors as a substitute for dense visualization tables
+- plan a screen-by-screen audit pass after density/state adoption and again after chart chrome standardization
+
+### Phase 0 Outcome
+
+#### Boundary decisions
+
+- Shell remains the owner of:
+  - shared typography
+  - strong/default/muted text roles
+  - neutral surfaces
+  - default borders
+  - radius
+  - focus treatment
+  - generic application controls, dialogs, tabs, forms, navigation, and shell tables
+- Composer remains the owner of:
+  - authoring-state meaning
+  - worksheet and workflow editing cues
+  - contextual/selected/dimmed authoring emphasis inside editing surfaces
+- Visualization remains the owner of:
+  - BI density
+  - widget chrome inside data surfaces
+  - table/grid analytical behavior
+  - chart palettes and analytical ramps
+  - visualization-specific widget states
+  - conditional-formatting meaning
+
+#### Guardrail decisions
+
+- Compatibility gating is a first-pass architectural requirement, not deferred cleanup.
+- Legacy visualization should remain the default runtime path until a modern visualization mode is explicitly enabled.
+- New visualization work should prefer additive `--inet-viz-*` tokens and gated reinterpretation over destructive rename or global selector repointing.
+- Chart categorical and ramp colors should be reserved for data meaning and should not become routine widget-chrome colors.
+- Dense analytical tables should not be treated as a simple restyling of shell list or shell-table behavior.
+- Shared visualization rollout should be validated screen by screen after major adoption phases, because token work alone will not catch every one-off legacy override.
+
+#### Compatibility and rollout risks
+
+- Existing customers may already depend on legacy visualization selectors or implicit widget hooks, so broad selector reinterpretation without a gate is high risk.
+- Shell modernization and visualization modernization should stay decoupled enough that customers can adopt shell and Composer progress without being forced onto modern visualization at the same time.
+- Visualization surfaces likely span multiple widget systems, so uneven adoption is a realistic risk unless table/grid and chart chrome are standardized through shared token families first.
+- Local widget overrides are likely to be a larger migration source than shared shell inheritance, especially in dense table behavior, embedded controls, and chart-adjacent chrome.
+
+#### Phase sequencing implications
+
+- Phase 1 should document the shell-to-visualization token contract explicitly rather than inferring it from shell usage.
+- Phase 2 should introduce a small, explicit gate such as a theme mode plus scoped root class or attribute before any broad selector reinterpretation.
+- Phases 3 and 4 should establish density and widget-state vocabulary before chart-palette specialization.
+- Phase 5 table/grid standardization is the highest-leverage first adoption surface because it carries density, state, scanability, and compatibility concerns at once.
+- Chart chrome, KPI hierarchy, and analytical color systems should build on the shared density/state foundation rather than begin as isolated redesign tracks.
+
+## Phase 1: Contract Definition And Initial Scaffolding
+
+### Goal
+
+Define inherited versus visualization-owned token groups explicitly.
+
+### Tasks
+
+#### 1. Inherited shell contract
+
+Document the shell values visualization consumes directly:
+
+- font family
+- text hierarchy
+- neutral surfaces
+- default borders
+- radius
+- focus ring
+- primary action color
+
+#### 2. Visualization-owned groups
+
+Define the initial visualization token groups for:
+
+- density
+- widget state
+- chart color
+- analytical thresholds
+- conditional formatting
+
+#### 3. Naming rule
+
+Use explicit `--inet-viz-*` naming for new visualization-owned tokens so ownership is visible and does not blur back into shell or Composer.
+
+### Output
+
+- stable token contract between shell and visualization
+
+### Implementation note
+
+- This phase is primarily a contract-definition phase rather than a broad adoption phase.
+- It may include initial token scaffolding where that helps lock the contract into code, but it should not yet require large selector rewrites or widget-by-widget rollout.
+- Broad runtime behavior change should begin in Phase 2 with compatibility gating, then expand in later adoption phases.
+
+## Phase 2: Compatibility Gate
+
+### Goal
+
+Preserve current customer behavior while introducing a modern visualization opt-in path.
+
+### Tasks
+
+#### 1. Default legacy behavior
+
+- keep legacy visualization as the default runtime behavior
+- keep existing widget hooks resolving to legacy behavior unless the modern gate is enabled
+
+#### 2. Gate activation model
+
+Introduce a small, explicit activation mechanism such as:
+
+- theme mode: `legacy` or `modern`
+- root class: `.viz-modern`
+- root attribute: `[data-viz-theme="v2"]`
+
+#### 3. Dual mapping rule
+
+During migration:
+
+- legacy selectors should continue to map to legacy values by default
+- modern visualization should reinterpret those hooks only inside the gated scope
+- new `--inet-viz-*` tokens should be introduced alongside old hooks rather than by destructive rename
+
+### Output
+
+- safe compatibility gate for gradual customer adoption
+
+## Phase 3: Density Foundation
+
+### Goal
+
+Establish BI-appropriate density as a first-class visualization behavior.
+
+### Rendering boundary: server-rendered data tables vs browser DOM
+
+Density obeys the same render-location split as color (see the Rendering And Theming Architecture
+section of [visualization-design-spec.md](./visualization-design-spec.md)). This governs how the
+tasks below are implemented.
+
+The reliable test (see the design spec's Rendering And Theming Architecture section): **is it a
+viewsheet assembly?** Anything extending `AbstractVSAssembly` is server-owned.
+
+- **Viewsheet data-surface assemblies** — table assemblies (VSTable/VSCrosstab/VSCalcTable) **and
+  selection lists / trees**: row/cell height, font size, and padding are **server-side and
+  user-settable** (`TableDataVSAssemblyInfo` row heights, `SelectionBaseVSAssemblyInfo` cell height,
+  `VSFormat` fonts, `AssetUtil.defh` / `Util.DEFAULT_FONT` defaults), carried to the client in the
+  assembly model and rendered from the same values on export. CSS density tokens do not drive these.
+- **Browser DOM tables/lists** (non-assemblies: worksheet detail, EM admin, dialog lists, portal
+  lists): CSS-density-themeable through `--inet-viz-*`; not part of viewsheet export.
+  (Note: "EM admin" = the Enterprise Manager admin UI's Angular Material tables — admin chrome, not
+  BI output, and in a separate build that does not import the viz tokens; a *secondary* density
+  candidate, not a primary visualization surface. See the design spec's Browser-DOM density caveats.)
+
+Rule: `--inet-viz-*` density tokens own browser DOM (non-assembly) data surfaces only. Modern
+density for viewsheet assemblies must be driven server-side (see Configuration source below), or
+live view and export will diverge.
+
+### Tasks
+
+#### 1. Density tokens
+
+Define:
+
+- row height
+- widget chrome row height
+- cell padding x
+- cell padding y
+- compact widget toolbar height
+- compact control height inside widgets
+
+Also define how `comfortable`, `compact`, and `dense` map onto those tokens at runtime.
+
+The density property should resolve to an explicit per-mode value matrix rather than to a single loose baseline.
+
+#### 2. Density rules
+
+- density should come from spacing, alignment, and interaction design rather than just shrinking text
+- dense visualization controls must remain legible and hittable
+- dense widget chrome should remain separate from ordinary shell control sizing
+- most density change should come from row height and padding before type-size reduction
+
+#### 3. Configuration source
+
+- store the default visualization density in an EM property setting
+- do not require a new EM UI surface in the first implementation pass
+- apply the configured density mode through **two** paths, by render location:
+  - **browser DOM surfaces:** map the property value onto the `--inet-viz-*` density token set at
+    runtime
+  - **viewsheet data tables:** resolve the server-side density *defaults* (`AssetUtil.defh` row
+    height, `Util.DEFAULT_FONT`, padding) from the same property so the live table model **and**
+    every export format render the configured density
+- apply modern density to **defaults only** — preserve explicit user-set row heights and fonts
+- gate the modern default server-side (per-org/theme), not via the browser `.viz-modern` class,
+  because changing a default reflows saved viewsheets that rely on it
+
+Implementation is grounded: the server-side default is the hardcoded constant `AssetUtil.defh = 20`
+(no property exists yet), resolved at two shared choke points — `BaseTableService` (live model) and
+`VsToReportConverter.calculateRowHeights` (export) — with `userDataRowHeight`/`userHeaderRowHeight`
+flags marking user-set values. See the *Verified implementation anchors* table in
+[visualization-design-spec.md](./visualization-design-spec.md) for file:line references and the
+step-by-step plan in [visualization-phase3-implementation-plan.md](./visualization-phase3-implementation-plan.md).
+
+Resolved (2026-07-07): a **single unified density matrix** drives both halves, recalibrated so
+`dense = 20px = today's default` (comfortable 28 / compact 24 / dense 20). The default mode is
+**`dense`** (zero reflow on enable), selected **org-wide** via a new `viewsheet.density` property;
+per-component user-set row heights still take precedence. Server-side font-size density is deferred.
+
+#### 4. Local override boundary
+
+Allow local density override only for scan-heavy analytical list or table surfaces such as:
+
+- tables and grids *(viewsheet assemblies: server-side; DOM tables: CSS)*
+- crosstab and pivot-style views *(viewsheet assemblies: server-side)*
+- selection lists / trees *(viewsheet assemblies: server-side — override applies to the server default)*
+- long filter member lists *(DOM: CSS)*
+- multi-select pick lists *(DOM: CSS)*
+- long dropdown result panels that behave like dense lists *(DOM: CSS)*
+
+Do not plan local density override in the first pass for:
+
+- charts
+- KPI widgets
+- short ordinary dropdowns
+- standard shell form controls
+- legends, tooltips, or other small chrome fragments
+
+### Output
+
+- reusable visualization density baseline distinct from shell sizing
+
+## Phase 4: Widget-State Foundation
+
+### Goal
+
+Define and standardize the shared visualization-state model across data surfaces.
+
+### Tasks
+
+Define tokens and usage rules for:
+
+- hover
+- selected
+- active
+- contextual
+- inline-edit
+- sorted
+- filtered
+- pinned
+- warning
+- anomaly
+- dimmed
+
+### Output
+
+- consistent visualization state vocabulary across widgets
+
+### Validation checks
+
+- hover remains lighter than selected
+- active is distinguishable from long-lived selection
+- filtered and sorted states are visible without creating header noise
+- warning and anomaly remain meaning-bearing rather than decorative
+
+### Status (implemented 2026-07-08)
+
+Phase 4 is complete as a **vocabulary-only** phase — see
+[visualization-phase4-implementation-plan.md](./visualization-phase4-implementation-plan.md). Modern
+values were assigned to the 13 `--inet-viz-*` state tokens under the gate, the render-location routing
+for all 11 states was recorded, and the contract was proved on one DOM surface (worksheet-detail table
+row hover). **No server render path was changed**, so export-visible state was defined but not yet
+rendered from these tokens. Forward impact on later phases:
+
+- **Phase 5** owns the server-side bridge for export-visible **table/selection state** — notably the
+  selection-list `selected` fill (server `VSFormat`), plus broad DOM adoption of hover/selected/active/
+  sorted/filtered/pinned across tables and lists.
+- **Phase 8** owns the `warning`/`anomaly` **conditional-formatting** bridge into the server-side
+  render path (`VSFormat` / `format.css`), consistent with its chart-color server bridge.
+
+## Phase 5: Table And Grid Standardization
+
+### Goal
+
+Standardize the core table/grid behavior used across visualization surfaces.
+
+### Rendering boundary: two table worlds
+
+Table work spans two rendering models that must not be conflated (see Phase 3 and the design spec's
+Rendering And Theming Architecture section):
+
+- **Viewsheet data-surface assemblies** (VSTable/VSCrosstab/VSCalcTable, and selection lists/trees —
+  anything extending `AbstractVSAssembly`): structure and density (row/cell height, font, padding,
+  borders) come from the server-side assembly/format model and are shared with export. Standardize
+  these through the server-side defaults and `VSFormat`, not CSS. State cues that are DOM overlays
+  (hover highlight, selection outline) may still be browser-rendered, but anything that must appear
+  in export is server-side.
+- **Browser DOM tables/lists** (non-assemblies: worksheet detail, EM admin, dialog lists, portal
+  lists): fully CSS-themeable through `--inet-viz-*` density and state tokens; not exported.
+
+Apply the visual-structure and state tasks below to each world through its correct system.
+
+### Tasks
+
+#### 1. Visual structure
+
+- define subtle gridline behavior
+- define header hierarchy
+- define scan-friendly row rhythm
+- define tabular numeral usage and numeric alignment rules
+
+#### 2. State adoption
+
+Apply shared visualization state families to:
+
+- row hover
+- row selection
+- active cell
+- grouped or contextual headers
+- sorted headers
+- filtered headers or chips
+- pinned/frozen dividers
+- inline-edit states
+
+#### 3. Boundary rule
+
+Dense visualization tables should not reuse shell list or shell-table behavior as their final design system.
+
+### Output
+
+- a consistent visualization table/grid state model
+
+## Phase 6: Chart Chrome Standardization
+
+### Goal
+
+Standardize the non-mark portions of charts so they feel cohesive with shell without borrowing shell visual density.
+
+### Rendering boundary: in-graph chrome vs surrounding DOM chrome
+
+The canonical statement of this constraint is the Rendering And Theming Architecture section of
+[visualization-design-spec.md](./visualization-design-spec.md); the summary below is the
+implementation-facing view.
+
+Chart chrome is not one layer. It splits by *where it is rendered*, and only one half is
+browser-CSS-themeable.
+
+- **In-graph chrome** — axis lines, tick labels, gridlines, legend swatches/border/background,
+  axis/legend titles, plot labels. These are painted **server-side** by the graph engine (colors
+  from descriptor color pickers → server-side CSS dictionary classes such as `ChartAxisLine`,
+  `ChartPlotLine`, `ChartLegend` in `format.css` → `GDefaults`) and baked into the chart image/SVG,
+  including inline SVG (fill/stroke are set as element attributes server-side). Browser
+  `--inet-viz-*` tokens **do not** color these, and the live view and every export format share
+  this one server-side render path.
+- **Surrounding DOM chrome** — the viewsheet object title bar, chart toolbar/menu, and the
+  interactive hover tooltip. These are Angular-rendered DOM, are browser-CSS-themeable, and are
+  **not part of the exported chart image**.
+
+Export-consistency rule: any color/appearance change that must appear in PDF/PNG/SVG/Excel/PPT/HTML
+export must be driven server-side. Changing a browser CSS token cannot make the export match, and
+for in-graph chrome cannot even change the live chart.
+
+### Tasks
+
+#### 1. Chart chrome surfaces
+
+Standardize, respecting the rendering boundary above:
+
+- **server-side (descriptors + `format.css` chart classes + `GDefaults`):** axes, axis titles/labels,
+  gridlines, legends (swatch/border/background/title), plot labels
+- **browser CSS (`--inet-viz-*`):** object header/title bar, inline widget controls, tooltip
+  container styling (interactive only; not exported)
+
+#### 2. Interaction rule
+
+- chart chrome should remain visually lighter than data marks
+- embedded chart controls should use compact shell-derived control language
+- chart palettes should not bleed into surrounding chrome
+
+### Output
+
+- chart containers and chrome that frame data without competing with it
+- explicit routing of each chrome surface to its correct theming system so live and export stay in sync
+
+## Phase 6A: Assembly Title-Bar / Object-Chrome Defaults (server-side)
+
+Inserted as a distinct pass (numbered `6A` to avoid renumbering Phases 7–10, which the phase plans and
+design spec cross-reference). Surfaced during Phase 6 scoping — see
+[visualization-phase6-implementation-plan.md](./visualization-phase6-implementation-plan.md) D3.
+
+### Goal
+
+Modernize the **viewsheet object title bar** (and any equivalent server-rendered object chrome) as a
+gated server-side default, product-wide across every assembly type.
+
+### Why it is its own pass, not Phase 6 or Phase 8
+
+- It is **not** browser-DOM chart surround. Phase 6 grounding verified the title bar is rendered from
+  `titleFormat` (a server `VSFormat`) with inline styles and **no CSS token hook**
+  (`vs-title.component.html`), so it **appears in viewsheet export** — a browser `--inet-viz-*` change
+  cannot drive it. It is server-owned like a table cell.
+- It is **not** analytical color, so it does not belong in Phase 8. The title bar is **neutral
+  chrome**, and it spans **all** assembly types (table, chart, gauge, text, image, selection, …), not
+  charts alone. Folding it into Phase 8 would mix a product-wide chrome-default concern into a
+  data-color phase.
+- It is shaped exactly like **Phase 5's `VSTableStructureDefaults`**: a gated server-side
+  `VSFormat`-default resolver, defaults-only, export-consistent, per-org gated.
+
+### Tasks
+
+- add a `VSTitleChromeDefaults` resolver mirroring `VSDensityDefaults` / `VSTableStructureDefaults`:
+  gate on `viewsheet.modernVisualization` plus a secondary escape-hatch property (e.g.
+  `viewsheet.modernObjectChrome`), org-scoped, returning modern title background/foreground/border/
+  height **defaults**
+- apply it **defaults-only** at the server-side `titleFormat`/`VSFormat` default seam so user-set
+  title formats still win, and so the live model and every export format resolve the same values
+- keep gate-off byte-identical; because it changes a default that reflows saved sheets, gate it
+  per-org/theme (never the browser `.viz-modern` class), the same rule as Phase 3 density and Phase 5
+  table structure
+- define the modern title-chrome palette in the swatches (warm-neutral, quiet — "widget chrome stays
+  quieter than the data"), coordinated with the Phase 5 table-structure and Phase 6 chart-chrome
+  neutrals
+
+### Dependencies / sequencing
+
+Independent of Phase 6 Part A (CSS) and Phase 8 (data color). Naturally sequenced alongside or after
+the Phase 6 Part B server bridge, since both are gated server-side `VSFormat`/descriptor default
+resolvers and should share the modern-mode selection mechanism and neutral palette.
+
+### Output
+
+- a modern, gated, export-consistent object title-bar default applied product-wide, with user title
+  formats preserved
+
+## Phase 6B: Corner Rounding Defaults (server-side)
+
+Numbered `6B` to keep it with its Phase 6A sibling and avoid renumbering Phases 7–10. See
+[visualization-phase6b-implementation-plan.md](./visualization-phase6b-implementation-plan.md) for the
+grounded, code-verified plan (file:line anchors, decisions D1–D8).
+
+### Goal
+
+Make **corner rounding a default of modern mode** rather than a per-chart opt-in, on two surfaces: bar
+marks (`PlotDescriptor.barCornerRadius` → `0.3`, a fraction of bar width) and assembly cards
+(`VSFormat.roundCorner` → `12` px on the DEFAULT tier).
+
+### Why it is its own pass
+
+- Rounding itself is **already fully implemented** on both surfaces — `IntervalElement`/`BarVO`/
+  `ChartRegion`/`drawRoundedBar()` for bars, `[style.border-radius.px]` plus the export painters for
+  cards. This phase changes **defaults only**; it builds no renderer.
+- It is a **geometry** default, so it does not belong in Phase 6A (chrome color) or Phase 8 (data
+  color), but the card half extends the same `VSObjectChromeDefaults` resolver 6A introduced and shares
+  its `viewsheet.modernObjectChrome` toggle.
+- Both values are **server-owned and export-visible**, like Phases 5/6/6A — no browser-CSS half.
+
+### Departure from the Phase 3/5/6 resolver pattern
+
+Those phases resolve at display time, so gate-off is byte-identical but the gate also re-themes every
+saved sheet. Rounding is an **authoring default** instead: it is seeded at creation
+(`VSAssemblyInfo.setDefaultFormat` / `ChartVSAssemblyInfo.setDefaultFormat`) so saved sheets never change
+silhouette, and the **read is gate-aware** so gate-off still reverts objects created while the gate was
+on. The gate therefore remains a true escape hatch rather than a one-way door.
+
+| | Existing objects | Objects created under the gate |
+|---|---|---|
+| Gate ON | unchanged (square) | rounded |
+| Gate OFF | unchanged (square) | revert to square |
+| User set a value | honored | honored, in both gate states |
+
+Both surfaces share the Phase 6A gate, `VSObjectChromeDefaults.isModern()`, so rounding turns on and off
+as one unit. Only the *storage* of the seed marker differs: the card radius rides the existing
+USER/CSS/DEFAULT tier system and needs no new state, while `PlotDescriptor` has no tiers and takes one
+new `modernCornerSeed` boolean.
+
+### Tasks
+
+- extend `VSObjectChromeDefaults` with `cardCornerRadius()` (`12`) and `resolveSeededCorner(int)`
+- seed the card radius at `VSAssemblyInfo.setDefaultFormat()` behind an explicit assembly allowlist:
+  chart, table/crosstab/calc-table/embedded-table, selection list/tree/container, calendar. Outputs,
+  inputs, range slider, tab, group container, shapes, annotations and embedded viewsheets stay square
+- gate-strip **only the DEFAULT tier** at `VSCompositeFormat.getRoundCorner()` /
+  `getRoundCornerValue()`, the single funnel every live and export consumer already uses — so USER and
+  `format.css` radii survive the gate in both directions, with no new serialized field and no change to
+  `VSFormat`'s binary `writeData()`
+- seed `barCornerRadius = 0.3` at `ChartVSAssemblyInfo.setDefaultFormat()` behind a new
+  `PlotDescriptor.modernCornerSeed` flag, with a gate-aware `getBarCornerRadius()` so every existing
+  reader picks up the gate unedited; guard `ChartPlotOptionsPaneModel` so opening Plot Options and
+  pressing OK does not silently materialize the seed
+- leave `nodeCornerRadius` alone: it already defaults to `0.3` for new charts and `0` for saved ones,
+  ungated. Gating it would make new tree charts square in non-modern orgs — a regression
+- leave `barRoundAllCorners` at `false`: waterfall, gantt and interval already force all-corners in
+  `GraphGenerator` (they have no zero anchor), and the UI already hides the checkbox for them. Standard
+  bar and pareto sit on the zero baseline and must keep square base corners. The plan records the
+  anchoring rule as the test for future bar-like types
+
+### Dependencies / sequencing
+
+Depends on Phase 6A only for `VSObjectChromeDefaults` and its toggle, both of which exist. Independent
+of Phase 6 Part A (CSS), Phase 7 and Phase 8. Can ship immediately after 6A.
+
+### Known limitation
+
+The **chart** card follows the gate in every rasterizing export format, and always did — `VSChart`
+extends `VSFloatable`, which passes `format.getRoundCorner()` to `ExportUtil.drawBackground`/`drawBorders`.
+No exporter change was required.
+
+**Table and crosstab** cards are the exception: written as native Excel cells and cell-by-cell PDF
+drawing, so a rounded outer frame cannot be expressed and exports square. Inherent to the output
+formats; documented rather than fixed.
+
+### Output
+
+- new charts and data/selection cards that read as modern out of the box, with saved sheets untouched,
+  user and `format.css` overrides preserved, and the whole phase reversible by turning the gate off
+
+## Phase 6C: Smooth Lines Default (server-side)
+
+See [visualization-phase6c-implementation-plan.md](./visualization-phase6c-implementation-plan.md) for the
+grounded plan (decisions D1–D7, file:line anchors, one open decision).
+
+### Goal
+
+Make **line charts smooth under modern mode**, on both paths by which a chart becomes a line chart: when
+created, and when an existing chart is switched to Line. Reuses Phase 6B's seed + gate-aware-read mechanism
+unchanged.
+
+### Why it is a separate pass from 6B
+
+6B is complete and fully reviewed; folding a third value into it would invalidate that review. 6C depends on
+6B only for the established pattern and its marker field.
+
+### Scoping correction: area and circular are already smooth
+
+`PlotDescriptor.smoothLines` defaults to `false`, but two **ungated** hooks already set it `true` —
+`VSWizardBindingHandler:866-874` (wizard creates area / area-stack / circular) and
+`ChangeChartTypeService.applySmoothLinesTransition:320-333` (switching *to* area or circular). So the only
+family a modern default changes is **line**, and doing so directly contradicts that same matrix's
+`→ line sets false` rule, which exists to un-smooth when the user picks a line chart. Area and circular are
+deliberately left alone — gating them would make new area charts straight in non-modern orgs, a regression.
+
+### Accepted trade-off
+
+Smoothing a line chart draws a curve through the sampled points, so the path passes through values that were
+never measured and can overshoot local extrema. That is the most likely reason the existing code splits
+exactly at the line/area boundary. Raised with the initiative owner, who chose to proceed; recorded as a
+deliberate decision. Exposure is limited by the per-chart checkbox and by the gate reverting it wholesale.
+
+### Tasks
+
+- **repair `ChangeChartTypeServiceSmoothLinesTransitionTest` first** — its 14 tests cover exactly the matrix
+  this phase modifies, and it has never executed (no `@Tag("core")` against `core/pom.xml`'s
+  `<groups>core</groups>`, and no Spring context although its helper constructs a `PlotDescriptor`, which
+  reaches `SreeEnv`). Changing an un-executed transition matrix is the riskiest possible order of operations
+- add a marker for `smoothLines` and make `isSmoothLines()` gate-aware, with a raw accessor for
+  serialization and `equalsContent()`; field default stays `false` so saved sheets are untouched
+- seed `smoothLines = true` at `ChartVSAssemblyInfo.setDefaultFormat()` under the gate. The chart type is not
+  yet known there, so the seed is type-agnostic — inert for every family except line/area/circular, and it
+  covers the wizard path with no hook change
+- make `applySmoothLinesTransition` gate-aware: under the gate, `→ line` **sets** `true` rather than clearing
+  it. It must set rather than merely skip the reset, because the requirement covers a *saved* chart being
+  switched to Line, which has no marker to preserve
+- clear the marker in `setSmoothLines()` — `ChartProcessor:242-243` pairs the gate-aware getter with the raw
+  setter, the identical asymmetry that shipped as a defect in 6B and was fixed there
+- guard the Plot Options checkbox round-trip so a no-op dialog save cannot clear the marker, mirroring 6B
+
+### Marker model
+
+`smoothLines` gets its own flag, `modernSmoothSeed`, rather than sharing 6B's `modernCornerSeed`. Bar radius
+and smooth lines apply to disjoint chart families and are never edited together, so a shared marker would let
+an edit to one silently change whether the other still tracks the gate. `modernCornerSeed` therefore keeps
+its 6B name and scope unchanged.
+
+### Dependencies / sequencing
+
+Depends on 6B for the mechanism and the marker field. Independent of Phases 7–10.
+
+### Output
+
+- line charts that read as modern on creation and on type change, with area and circular untouched, saved
+  sheets unaffected, and the whole phase reversible by turning the gate off
+
+## Phase 7: KPI And Embedded Controls
+
+### Goal
+
+Standardize KPI and embedded-control surfaces around analytical hierarchy and compact interaction.
+
+See [visualization-phase7-implementation-plan.md](visualization-phase7-implementation-plan.md) for
+the grounded, code-verified plan (Part A / Part B, file:line anchors, decisions).
+
+### Scoping correction: "KPI widget" is not an assembly
+
+There is no KPI/scorecard assembly in StyleBI. A KPI is an authoring composition of unrelated
+assembly types with different render mechanisms, so this phase must be scoped per assembly type, not
+as one widget family:
+
+- primary/comparison/secondary value text — Text / Output assemblies (DOM, styled from server
+  `VSFormat`)
+- gauge / range-output KPI — Gauge / Thermometer / Cylinder / SlidingScale (server-produced image)
+- sparkline / trend — a small Chart assembly (server SVG/image), not a standalone primitive
+- semantic emphasis — the existing server-side `HighlightGroup` on `OutputVSAssemblyInfo`
+  (conditional formatting)
+
+### Rendering boundary: KPI/control surfaces are server-owned assemblies
+
+Like Phases 3/5/6/8, this phase crosses the render-location boundary (see the Rendering And Theming
+Architecture section of [visualization-design-spec.md](visualization-design-spec.md) and the Phase 0
+audit, Task 4). Every Phase 7 surface (gauge, text/output, embedded input controls) extends
+`AbstractVSAssembly`, so it is server-rendered and appears in export.
+
+- **Server-rendered (defaults-only, gated resolver — the export-visible half):** KPI value
+  hierarchy/emphasis and any control-box default that must survive export. Gauges are server images
+  with no CSS surface at all; Text/Output/input controls are DOM but painted from server `VSFormat`
+  inline styles that override `--inet-viz-*` and re-render identically in export.
+- **Browser DOM (`--inet-viz-*` CSS — not exported):** only transient interactive chrome — the combo
+  dropdown pick list, embedded-filter overlays, slider track/handle, hover/on/filtered overlays.
+
+### Tasks
+
+#### 1. KPI hierarchy (server-side)
+
+Encode primary-value emphasis, subordinate comparison/secondary metadata, and semantic emphasis as
+gated server-side `VSFormat` defaults per assembly type (a new `VSOutputChromeDefaults` resolver
+mirroring `VSTableStructureDefaults` / `VSChartChromeDefaults`, applied at the
+`TextVSAssemblyInfo.setDefaultFormat` seam), defaults-only. Semantic/threshold color rides the
+existing highlight mechanism; its modern color set is Phase 8, not here.
+
+#### 2. Embedded controls
+
+- **DOM interactive chrome (CSS):** repoint the combo dropdown and embedded-filter overlays to the
+  visualization density (`--inet-viz-control-height`) and state tokens (`--inet-viz-hover-bg`,
+  `--inet-viz-selected-bg/-text`, `--inet-viz-filtered-bg` — its first consumers); adopt explicit
+  filtered/on states on live overlays only.
+- **Server control-box defaults (gated resolver):** any control-box appearance that must appear in
+  export is a server `VSFormat` default, not a CSS token.
+- keep passive chrome (radio/checkbox borders, input-box outline) shell-neutral.
+
+### Dependencies and sequencing
+
+- The server-side modern-mode gate this phase's server half needs **already exists** —
+  `VSDensityDefaults.isModern()` (org-scoped), consumed by the Phase 3/5/6 resolvers. Part B mirrors
+  it; it does not re-invent it.
+- **Phase 6A (`VSTitleChromeDefaults`) is a hard prerequisite** for KPI framing and is not yet built;
+  a KPI value body modernized without its title bar reads as half-themed. Sequence Part B alongside
+  or after Phase 6A, sharing the modern-mode gate and neutral palette.
+- Semantic/threshold KPI color overlaps Phase 8 (conditional formatting); resolve the ownership
+  before shipping semantic emphasis.
+
+Recommended order: Part A (CSS, shippable now) → Phase 6A title chrome → Phase 7 Part B KPI-body
+defaults.
+
+### Output
+
+- KPI and embedded-control patterns that feel analytical rather than shell-card-driven, correctly
+  split by render location so live view and export stay in sync
+
+## Phase 8: Analytical Color Systems
+
+### Goal
+
+Define the visualization-owned color systems that should not be borrowed from shell.
+
+### Architectural split: server-rendered graph vs browser DOM
+
+Analytical color spans two independent theming systems that share no tokens. The split is **not**
+"marks versus chrome" — it is **where the pixels are rendered**. Almost all chart color, including
+in-graph chrome, is server-rendered. Phase 8 must treat the two systems separately or it will only
+half-work, and will break export consistency.
+
+- **Server-rendered graph (marks and in-graph chrome).** Bars/lines/points **and** axis lines, tick
+  labels, gridlines, legend swatches/border/background, axis and legend titles, and plot labels are
+  all colored **server-side by the graph engine** (`inetsoft.graph.aesthetic.*`) and baked into the
+  chart image/SVG — including inline SVG, where fill/stroke are set as element attributes
+  server-side. Color for these resolves through: per-object descriptor color pickers
+  (`AxisDescriptor.lineColor`, `PlotDescriptor.x/yGridColor`, `LegendsDescriptor.borderColor`,
+  series `CategoricalColorFrame.setUserColor`) → the server-side CSS dictionary
+  (`inetsoft.util.css.CSSDictionary`, parsing `format.css` / `defaults.css` via `PortalThemesManager`
+  and `SreeEnv("css.location")`, keyed by `CSSConstants` classes such as `ChartAxisLine`,
+  `ChartPlotLine`, `ChartLegend`, `ChartPalette`) → hardcoded `GDefaults` /
+  `CategoricalColorFrame.COLOR_PALETTE`.
+- **Browser DOM (surrounding chrome only).** Only the viewsheet object title bar, chart
+  toolbar/menu, and the interactive hover tooltip are Angular-rendered DOM and themeable through
+  browser `--inet-viz-*` CSS. These are **not part of the exported chart image**.
+
+Consequences:
+
+- Browser `--inet-viz-*` tokens **cannot** color marks, gridlines, axis lines, or legend
+  border/background. They apply only to surrounding DOM chrome.
+- The Phase 2 gate (`.viz-modern` / `[data-viz-theme="v2"]`) is browser-side and **cannot switch any
+  server-rendered graph color** by itself.
+- **Export consistency:** the live view and every export format (PDF/PNG/SVG/Excel/PPT/HTML) share
+  the one server-side render path, so any change that must show up in export **must** be made
+  server-side. A browser CSS change cannot make the export match and, for in-graph color, cannot
+  even change the live chart.
+
+### Tasks
+
+#### 1. Server-rendered graph color (descriptors + `format.css` + `GDefaults`)
+
+- treat the modern categorical palettes, sequential/diverging ramps, threshold/anomaly primitives,
+  **and** in-graph chrome colors (axis lines, gridlines, legend border/background) as the single
+  source of truth, then **bridge** that definition into the server-side sources — the `CSSConstants`
+  chart classes in `format.css`, the relevant descriptor defaults, and where needed
+  `CategoricalColorFrame` — rather than duplicating any of it as browser tokens
+- reconcile the existing server-side sources — hardcoded `GDefaults` / `COLOR_PALETTE`, the
+  `format.css` CSS dictionary, and per-org theme CSS — so one modern definition drives all of them
+- do not route any exported color through browser CSS
+
+#### 2. Browser DOM chrome color (browser tokens)
+
+- define `--inet-viz-*` tokens only for surrounding DOM chrome (object header, inline widget
+  controls, interactive tooltip container) — none of which appears in export
+- keep these separate from routine widget chrome
+
+#### 3. Conditional formatting
+
+- define conditional formatting tokens and usage rules, explicitly tagging each surface as
+  server-rendered (engine/`format.css`-themeable, appears in export) or browser DOM
+  (CSS-themeable, not in export)
+
+### Modern-mode selection for server-rendered color
+
+Because the browser gate cannot reach any server-rendered graph color, Phase 8 must define how
+legacy versus modern graph color is selected server-side — coordinated with the same EM property
+mechanism Phase 3 uses for default density, or a per-org/theme property, rather than relying on the
+browser-side visualization gate.
+
+### Output
+
+- explicit visualization-owned color systems for data meaning, correctly split by render location:
+  server-rendered graph color (marks + in-graph chrome, appears in export) versus browser DOM chrome
+- one modern graph-color definition bridged to the server-side sources so live view and all export
+  formats stay in sync
+
+### Status (implemented 2026-07-17)
+
+Phase 8 shipped the **modern categorical series palette** as a gated, export-consistent server
+default — see [visualization-phase8-implementation-plan.md](./visualization-phase8-implementation-plan.md).
+A fourth resolver `VSChartPaletteDefaults` (`uql/viewsheet/internal/`, sub-gate
+`viewsheet.modernChartPalette`, mirroring `VSChartChromeDefaults`) swaps
+`CategoricalColorFrame.defaultColors` to the modern series-1..8 head (legacy `COLOR_PALETTE` tail for
+indices 9-40) at every render seam that wires a categorical frame (`VGraphPair`, `CSSProcessor`,
+`ChangeChartProcessor` — the composer-DnD path reaches it transitively). Defaults-only (user colors
+and customer `format.css ChartPalette` still win), transient (not serialized), gate-off
+byte-identical, so live view and every export format agree. The server-side modern-mode selection
+mechanism the dependency note below required was already built by the Phase 3/5/6 resolvers; Phase 8
+adds the fourth.
+
+**Deferred with grounded reasons:** sequential/diverging **ramps** (`GradientColorFrame` reads only
+`ChartPalette` CSS index 1/2, not `defaultColors`; ColorBrewer/Heat/Bipolar ramps are hardcoded with
+no gate hook; no modern ramp design values exist — a guard test pins gradient as unchanged);
+**target/threshold line** color (`GraphTarget.lineColor 0xafafad`, low-value); **conditional
+formatting** — no server default to modernize (`Highlight` fg/bg default `null`, 100% user-authored),
+and the `--inet-viz-warning-bg`/`-anomaly-bg` DOM tokens already shipped in Phase 4; **dark-mode**
+palette (`series-dark-*`); **highlight authoring presets**.
+
+### Dependency note
+
+This phase depends on the render-location boundary recorded in the Phase 0 audit
+([visualization-phase0-audit.md](./visualization-phase0-audit.md), Task 4) and the Phase 6 rendering
+boundary. Do not begin graph-color work until the server-side bridge and the server-side
+modern-mode selection mechanism are agreed.
+
+## Phase 9: Themeability And Exposure Review
+
+### Goal
+
+Confirm the visualization token layer remains runtime-themeable and backward-compatible enough for existing themes, and expose the right tokens for customer override.
+
+### Tasks
+
+- verify all new visualization tokens are runtime `--inet-*` variables
+- verify legacy visualization continues to behave correctly when the modern gate is off
+- verify modern visualization activates only inside the gated scope
+- add any customer-themeable visualization tokens to theme editor models where needed
+- verify exposed token naming is clear enough for customer theming
+
+### Output
+
+- verified runtime-themeable visualization token surface with compatibility path
+
+### Status (implemented 2026-07-17)
+
+Phase 9 verified the visualization token layer and exposed the modern state palette for customer
+theming — see [visualization-phase9-implementation-plan.md](./visualization-phase9-implementation-plan.md)
+and the verification record [visualization-phase9-review.md](./visualization-phase9-review.md).
+Confirmed: all 21 `--inet-viz-*` tokens are runtime CSS custom properties (9 adopted by selectors, 12
+reserved/vocabulary-only); gate-off is byte-identical (the only `:root` literal is
+`--inet-viz-dimmed-opacity`, and every modern literal lives inside a `.viz-modern` / density block);
+and modern activates only inside the gated scope on both halves — the browser `.viz-modern` body class
+and the four server sub-gate resolvers (`VSChartChromeDefaults`, `VSChartPaletteDefaults`,
+`VSTableStructureDefaults`, `VSTitleChromeDefaults`/`VSOutputChromeDefaults`), each requiring
+`VSDensityDefaults.isModern()` before it can activate.
+
+Exposure: the five **adopted** modern state colors (hover, selection bg/text/border, sorted) are now
+customer-overridable via a two-tier `--inet-viz-*-modern` default seam in `_viz-tokens.scss` (the
+default sits on `:root` and is consumed inside `.viz-modern`, so a customer `:root` theme override
+reaches the gated scope instead of being shadowed by a hardcoded `.viz-modern` value) plus a new
+"Visualization" section in the EM theme editor (`theme-css-view.component.ts` `portalCssData` + a
+`srinter.properties` heading label). No Java change — the theme pipeline persists any variable
+generically. Defaults are unchanged, so gate-on is byte-identical without a customer override.
+
+Deferred with grounded reasons: vocabulary-only token exposure (expose each only when a selector
+adopts it); sub-gate EM toggles (stay raw-`SreeEnv` opt-out — one master toggle covers object chrome);
+density theming (already an EM control, Phase 3 Part C); server-rendered color (already themeable via
+`format.css`/descriptors and must not route through a browser token); dark-mode viz palette (rides the
+initiative's dark pass). This completes the roadmap through Phase 9; Phase 9A adds icon consolidation and
+Phase 10 is cross-surface validation.
+
+## Phase 9A: Icon Consolidation
+
+Inserted as a distinct pass between Phase 9 and Phase 10 (numbered `9A`, mirroring the Phase 6A precedent,
+so Phase 10 is not renumbered). Phase 10 is a review/validation stage, so new icon work belongs before it.
+See [visualization-phase9a-icon-consolidation-design.md](visualization-phase9a-icon-consolidation-design.md)
+for the grounded design and file:line anchors.
+
+### Goal
+
+Consolidate **visualization affordance icons** (sort, expand/collapse, drill, more/overflow) onto the
+shell's cleaner, already-shipping icon patterns, so visualization surfaces read as one system with the
+shell. Consolidation and reuse, **not** new artwork — adopt an existing shell glyph or CSS pattern
+wherever one exists.
+
+### Why it is its own pass
+
+- Icons are **not addressed** anywhere else in this roadmap or in the design spec (which cover density,
+  state, tables, chart chrome, KPI, and color). Phase 9A is the first icon-specific pass.
+- Unlike Phases 3/5/6/6A/7/8 (server-side, export-bound), the in-scope affordance icons are **browser
+  DOM** (`<i>` glyphs / DOM spans inside assembly templates), so this is predominantly a System A phase
+  that rides the browser `.viz-modern` gate directly — building on the existing `.viz-modern` sort seam in
+  `_themeable.scss:1267-1270`.
+
+### Rendering boundary
+
+The target indicators are DOM overlays in the live view, not baked into the server-rendered assembly
+image, so they are browser-CSS-themeable and gate-able through `.viz-modern`. **Task 0 must first confirm
+the exporter draws no server-side counterpart** for the in-scope indicators; any indicator proven
+export-baked is server-owned and is flagged out of Phase 9A (a separate server-side pass), never routed
+through a browser token.
+
+### The audit method (grounded, because a name-based sweep is insufficient)
+
+A class-name (`*-icon`) inventory structurally **misses** CSS-drawn indicators, inline SVG,
+`mat-sort-header`, Font Awesome, and `background-image` icons — which is exactly how the sharpest sort
+divergence was originally overlooked (the shell data-list sort indicator is a CSS pseudo-element
+double-arrowhead, not a font glyph). Phase 9A therefore uses a mechanism-agnostic, state-aware, **rendered**
+audit: a static sweep across all mechanisms → an HTML audit gallery (styled like the palette-swatches
+files) showing each affordance × state × surface side-by-side → a running-app spot capture on the marquee
+surfaces. The gallery finalizes the change list.
+
+### Divergences found (verified)
+
+- **Sort** — hardest divergence, 3 mechanisms: shell data lists use a CSS pseudo double-arrowhead
+  (`\2303`/`\2304`); viz tables/crosstab use ineticons `sort-*-icon` font glyphs (crosstab is 5-state, with
+  value-sort); EM uses Material `mat-sort-header`.
+- **Expand/collapse** — shell chevron pair (`forward`/`downward`) vs viz boxed `plus/minus-box-outline`.
+- **Drill** — internal viz inconsistency across three ± glyph families (menu `drill-*-filter`, inline
+  `plus/minus-box-outline`, zoom `shape-plus/minus`); no shell counterpart.
+- **More/overflow** — vertical kebab (viz) vs horizontal meatball (shell tree); minor.
+- **Search / close / clear** — already consistent; left alone.
+
+### Tasks
+
+- **Task 0 — export grounding:** confirm no in-scope indicator is server-baked; flag any that is.
+- **Task 1 — audit gallery:** the mechanism-agnostic rendered gallery + spot capture; finalizes scope.
+- **Track A — gated consolidation (`.viz-modern`, gate-off byte-identical):** via viz-scoped alias classes
+  so the shared shell glyph is untouched.
+  - Sort → adopt the shell `.sort-indicator` CSS pattern for label sort (none/asc/desc), with a modern
+    **value-sort variant** in the same language so crosstab's 5-state meaning is preserved.
+  - Expand/collapse → repoint selection-tree toggle from boxed +/- to the shell chevron pair.
+  - Drill → unify the three viz ± families to one canonical set.
+  - More/overflow → align kebab/meatball orientation (lowest priority; may land last).
+- **Track B — global cleanup (ungated, bug-class):** remove Font Awesome refs from
+  `selection-list-actions.ts:48-91`; fix any dead/non-rendering glyph names the gallery confirms.
+
+### Seam rule
+
+Repoint an alias (`_icon-alias.scss`) or extend the `.viz-modern` icon scope (`_themeable.scss`) rather
+than editing templates, except where the modern target is a CSS pattern needing different markup than a
+font `<i>` (the sort indicator). **Never** edit a shared `$*-icon` codepoint in `variables.scss` for a
+viz-only change — it leaks into the shell and cannot be gated.
+
+### Out of scope
+
+EM `mat-sort-header` (admin chrome, separate build); export-baked indicators (flag only); search / close /
+clear / filter (already match); type/decorative glyphs; new icon-font artwork.
+
+### Output
+
+- A rendered, mechanism-agnostic icon audit gallery.
+- Viz sort / expand-collapse / drill / more-overflow consolidated onto the shell's cleaner patterns under
+  `.viz-modern`, with crosstab 5-state sort preserved.
+- Font Awesome removed and dead glyph names fixed, shipped globally.
+- Legacy visualization unchanged when the gate is off.
+
+### Validation
+
+Folds an icon pass into the Phase 10 screen-by-screen audit.
+
+## Phase 9B: Dark Mode
+
+Inserted before Phase 10 (validation stays terminal), mirroring the 6A / 9A lettered-insert precedent.
+See [visualization-phase9b-dark-mode-implementation-plan.md](visualization-phase9b-dark-mode-implementation-plan.md)
+for the grounded plan.
+
+### Goal
+
+Deliver the single cross-cutting dark-mode pass that Phases 5, 6, 6A, 7, 8, and 9 each deferred with
+the identical note ("dark variants ride the initiative's dark pass"). Carved out as its own phase
+because dark mode is one coherent concern spanning table structure, chart chrome, object title chrome,
+KPI/output chrome, the categorical palette, and the DOM token layer — and the render-location boundary
+is identical across all six surfaces.
+
+### The design values already exist
+
+Dark values were recorded in the swatches as each light-first phase shipped
+([visualization-palette-swatches.html](visualization-palette-swatches.html)): table structure
+`#3A383D` / `#2D2B30` / `#CAC4D0` (gridline / header-bg / header-text); chart/object labels
+`--dark-chart-label #E6E0E9` / `--dark-chart-sub #CAC4D0`; surfaces `--dark-surface-canvas #1C1B1F` /
+`-default #252428` / `-subtle #2D2B30`; border `--dark-border-default #49454F`; categorical palette
+`--series-dark-1..8`. Phase 9B wires what is already specified; it does not invent color.
+
+### The blocking decision: do exports go dark?
+
+The four server resolvers (`VSTableStructureDefaults`, `VSChartChromeDefaults`, `VSTitleChromeDefaults`
+/ `VSOutputChromeDefaults`, `VSChartPaletteDefaults`) guarantee **live view and every export format
+resolve the same default**. That guarantee is what makes dark mode non-trivial for these System-B
+surfaces: if dark must also darken exports, the resolver pattern extends cleanly; if dark is
+**live-only** (the common print expectation — exported output stays light on paper), the
+export-consistent resolver is the *wrong* mechanism and a separate live-only override seam is needed.
+Recommended default: **dark mode is live-only; exports remain light.** Resolve this with the owner
+before wiring System-B dark.
+
+### Tasks
+
+- Task 0 — decide the dark selection mechanism (reuse the shell initiative's dark switch; do not invent
+  a second) and the export scope (live-only vs. dark exports). Blocks the System-B tasks.
+- Task 1 — System-A DOM dark tokens (`-dark` values for adopted `--inet-viz-*` state + DOM-table
+  structure tokens), gate-off and light-mode byte-identical.
+- Task 2 — table structure dark (System B).
+- Task 3 — chart chrome + title chrome + KPI/output chrome dark (System B; shared palette + gate).
+- Task 4 — categorical palette dark (`VSChartPaletteDefaults` dark series head).
+- Task 5 — validation folded into Phase 10.
+
+### Deferred within 9B
+
+- Dark exports (if Task 0 resolves live-only — a separate export baseline to validate).
+- Dark sequential/diverging ramps (depend on ramps landing at all — Phase 9C item 2).
+- `--vivid-series-dark-*` / `--family-series-dark-*` alternate families.
+- **Shell-owned dark neutrals → a shell dark-mode initiative, not viz.** Viz-surface DOM affordances
+  that borrow shell neutral tokens (`--inet-hover-*-bg-color`, `--inet-shell-surface-*`,
+  `--inet-default-border-color`, `--inet-toolbar-bg-color`, `--inet-main-panel-bg-color`, neutral text)
+  read as bright boxes/surfaces under a dark-viz-on-light-shell. Fix belongs in a shell dark scope that
+  gives these neutrals dark values; then viz DOM inherits them and the per-component `.viz-dark` patches
+  collapse. Symptoms deferred (sort/drill/menu hover fill, canvas, image placeholder, calendar
+  day-header surface). Server-rendered/`VSFormat` dark stays in viz. See the phase-9B plan's
+  "Deferred within 9B".
+
+### Output
+
+- A gated, mechanism-consistent dark-mode treatment across every visualization surface, wiring the
+  already-specified dark values through System A and System B with the render-location boundary intact.
+
+## Phase 9C: Deferred Consolidation & Polish
+
+Inserted before Phase 10 alongside Phase 9B. See
+[visualization-phase9c-deferred-consolidation-implementation-plan.md](visualization-phase9c-deferred-consolidation-implementation-plan.md)
+for the full grounded backlog.
+
+### Goal
+
+Consolidate the "Deferred / follow-ups" tails scattered across Phases 2–9A (excluding dark mode, which
+is Phase 9B) into one impact-ranked backlog, so the residue is addressed deliberately rather than lost.
+Ranked by impact × reach × readiness, split into a scheduled tier and an explicit boundary /
+won't-schedule tier (kept visible so nothing is silently dropped).
+
+### Scheduled tier (impact order)
+
+1. **Chart mini-toolbar compaction** (Phase 6 A1) — highest reach (every chart); blocked on JS-computed
+   toolbar geometry (`GuiTool.MINI_TOOLBAR_HEIGHT`, `miniToolbarService.getActionsWidth()`), so it
+   needs a coordinated density-aware TS + CSS change, not CSS-only.
+2. **Sequential / diverging color ramps** (Phase 8) — analytical color parity; needs modern ramp design
+   values first, then a gate hook mirroring `VSChartPaletteDefaults` on the (hardcoded) ramp sources.
+3. **Group-subtotal emphasis** (Phase 5 3b) — crosstab total hierarchy; known-good path is a data-borne
+   `XTableStyle.Specification` (`ROW_GROUP_TOTAL`/`COL_GROUP_TOTAL`) prepended ahead of the zebra spec.
+   **Status (implemented 2026-07-23):** shipped — `DataVSAQuery.applyModernGroupSubtotals` inserts
+   background-only group-total specs (levels 0–9, both axes, `#EEEAE1`) ahead of the zebra in the cloned
+   Default Style, gated by `VSTableStructureDefaults.isModern()`; grand total stays distinct via the
+   trailer band; plain tables self-guard on `crosstab == null`. Closes Phase 5 item 3b. See
+   [2026-07-23-viz-phase9c-item3-group-subtotal-emphasis.md](../../plans/2026-07-23-viz-phase9c-item3-group-subtotal-emphasis.md).
+4. **Conditional-formatting presets + warning/anomaly** (Phase 4→8) — really *highlight authoring
+   presets*, since `Highlight` is 100% user-authored (no server default to bridge; DOM tokens shipped
+   in Phase 4).
+5. **Axis-line color polish** (Phase 6 B3) — ready, low-effort quick win (`#EEEEEE`→`#E8E5DE` hairline)
+   via a `setupAxisSpec` render substitution.
+   **Status (implemented 2026-07-24):** radar label-axis and funnel y-axis coverage gaps closed;
+   additionally modernized the object-frame border (`#DADADA`→`#D9D5CC`) and warmed the viewsheet page
+   (`#F5F5F5`→`#F8F7F4`, white cards kept) via new `VSObjectChromeDefaults`, applied as gated
+   **design-time default seeds** in `VSAssemblyInfo.setDefaultFormat` (border) and
+   `ViewsheetVSAssemblyInfo.setDefaultFormat` (page) — new objects created under
+   `viewsheet.modernObjectChrome` carry the modern default (visible in the format editor, effective in
+   viewer + export); a user/`format.css` value still wins via tier precedence; gate off keeps the
+   legacy seeds. (An initial render-overlay attempt was reverted — the legacy values are serialized
+   DEFAULT-tier seeds, so seeding is the correct layer.) Runtime validation is the USER-owned cycle.
+6. **Completeness items** — selection-highlight export parity (Phase 5 7), tabular numerals (Phase 5 8 —
+   **WITHDRAWN 2026-07-31**: the default font is already tabular, Java2D exposes no OpenType feature API
+   so export is a declared boundary, and `tabular-nums` proved a measured no-op on all 13 fonts tested
+   because proportional-figure fonts exclude the default digits from their `tnum` coverage;
+   [spec](visualization-phase9c-item6-tabular-numerals.md)), embedded-control filtered state (Phase 7 A3,
+   blocked on a live-overlay layer).
+7. **Icon tail** (Phase 9A) — more/overflow alignment (needs grounded selectors + mobile-UX sign-off),
+   sort-caret glyph unification (kept Unicode — icon-font chevrons overlap when stacked), context-menu
+   drill/sort icons (leave unless the whole menu-glyph set is modernized together).
+
+### Boundary / won't-schedule tier (kept visible, not planned)
+
+EM Material tables (separate build, admin chrome, never exported); WS-detail virtual-scroll JS
+row-height refactor (tech-debt); first-class KPI card (product feature); gauge-face and range-slider
+`VSTimeSlider` (asset passes); native `<select>` option styling (native-control boundary); exhaustive
+legacy-hook / chart-type cleanup (open-ended); target/threshold line color (low-value, fold into ramps
+only if a modern value is designed). Each is recorded with its reason in the phase-9c plan so it is not
+silently dropped.
+
+### Output
+
+- One impact-ranked backlog of the initiative's deferred residue, each scheduled item carrying its
+  grounded seam / known-good path, and a visible boundary tier documenting what is intentionally not
+  scheduled and why.
+
+## Phase 10: Validation
+
+### Functional checks
+
+- dense tables remain readable and usable
+- widget states are distinguishable without becoming noisy
+- chart chrome remains subordinate to data
+- embedded controls remain compact and understandable
+- legacy visualization remains stable when the modern gate is off
+
+### Visual checks
+
+- visualization feels denser and more analytical than shell
+- shell and visualization feel coordinated rather than disconnected
+- chart colors are used for data meaning, not routine chrome
+- KPI hierarchy reads through typography and value structure rather than heavy framing
+
+### Coordination checks
+
+- shell neutrals still frame visualization cleanly
+- primary accent is used intentionally, not as the default first chart color
+- semantic families remain aligned across shell and visualization without becoming identical in intensity
+- Composer authoring-state colors do not leak into routine visualization states
+
+### Screen-By-Screen Audit
+
+After major visualization phases land, conduct a screen-by-screen review of representative surfaces.
+
+The goal is to catch:
+
+- legacy table or grid treatments still bypassing the shared visualization token layer
+- chart chrome that still behaves like shell card framing rather than analytical framing
+- embedded controls that are too shell-like or too visually noisy at BI density
+- color leakage where chart palettes are being used for routine chrome
+- unexpected differences between legacy and modern visualization modes
+
+Treat this audit as part of the implementation method, not as optional polish.
+
+## Deferred Work
+
+These should not block the first visualization implementation phase:
+
+- exhaustive chart-type-specific polish
+- advanced conditional-formatting systems beyond initial primitives
+- optional density modes beyond the primary BI baseline
+- deeper visualization-authoring coordination inside Composer-specific editing UIs
+- exhaustive cleanup of every legacy visualization naming hook in one pass
+- **compact chart mini-toolbar under modern density** — attempted in Phase 6 Part A and deferred: the
+  mini-toolbar is absolutely positioned with JS-computed geometry (vertical offset from the fixed
+  constant `GuiTool.MINI_TOOLBAR_HEIGHT`, horizontal size/alignment from
+  `miniToolbarService.getActionsWidth()`), so a CSS-only resize desyncs its positioning (overlap or
+  gap). Requires a coordinated TS+CSS change that makes those geometry values density-mode-aware — not
+  a CSS-only tweak. See [visualization-phase6-implementation-plan.md](./visualization-phase6-implementation-plan.md)
+  A1 / Deferred 8.
+
+## Recommended First Sprint
+
+If visualization implementation begins now, the best first sprint is:
+
+1. Phase 1 foundation contract
+2. Phase 2 compatibility gate
+3. Phase 3 density foundation
+4. Phase 4 widget-state foundation
+5. Phase 5 table and grid standardization
+
+That establishes the highest-leverage visualization baseline before deeper chart and KPI work.

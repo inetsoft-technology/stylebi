@@ -17,8 +17,16 @@
  */
 package inetsoft.uql.viewsheet.graph;
 
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
 import inetsoft.util.Tool;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.w3c.dom.Document;
 
 import java.io.PrintWriter;
@@ -32,6 +40,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * new PlotDescriptors default to 0.3, but parseXML must override to 0.0
  * when the attribute is missing so saved (legacy) tree charts stay sharp.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class PlotDescriptorXmlTest {
    @Test
    void nodeCornerRadius_roundTripPreservesValue() throws Exception {
@@ -103,6 +116,54 @@ class PlotDescriptorXmlTest {
       PlotDescriptor pd = new PlotDescriptor();
       pd.setTreeLayout("BOGUS");
       assertEquals(PlotDescriptor.TREE_LAYOUT_TOP_BOTTOM, pd.getTreeLayout());
+   }
+
+   @Test
+   void barCornerRadius_newInstanceStillDefaultsToZero() {
+      assertEquals(0.0, new PlotDescriptor().getBarCornerRadius(), 1e-9);
+   }
+
+   @Test
+   void barCornerRadius_roundTripPreservesValue() throws Exception {
+      PlotDescriptor written = new PlotDescriptor();
+      written.setBarCornerRadius(0.3);
+
+      assertEquals(0.3, roundTrip(written).getBarCornerRadius(), 1e-9);
+   }
+
+   @Test
+   void barCornerRadius_legacyXmlWithoutAttributeIsZero() throws Exception {
+      Document doc = Tool.parseXML(new StringReader("<plotDescriptor/>"));
+      PlotDescriptor parsed = new PlotDescriptor();
+      // pre-set the opposite value: parseXML must reset it, not merely leave the fresh default
+      parsed.setBarCornerRadius(0.3);
+      parsed.parseXML(doc.getDocumentElement());
+
+      assertEquals(0.0, parsed.getBarCornerRadius(), 1e-9, "saved charts stay square");
+   }
+
+   @Test
+   void smoothLines_newInstanceStillDefaultsToFalse() {
+      assertFalse(new PlotDescriptor().isSmoothLines());
+   }
+
+   @Test
+   void smoothLines_roundTripPreservesValue() throws Exception {
+      PlotDescriptor written = new PlotDescriptor();
+      written.setSmoothLines(true);
+
+      assertTrue(roundTrip(written).isSmoothLines());
+   }
+
+   @Test
+   void smoothLines_legacyXmlWithoutAttributeIsFalse() throws Exception {
+      Document doc = Tool.parseXML(new StringReader("<plotDescriptor/>"));
+      PlotDescriptor parsed = new PlotDescriptor();
+      // pre-set the opposite value: parseXML must reset it, not merely leave the fresh default
+      parsed.setSmoothLines(true);
+      parsed.parseXML(doc.getDocumentElement());
+
+      assertFalse(parsed.isSmoothLines(), "saved charts keep straight lines");
    }
 
    private static PlotDescriptor roundTrip(PlotDescriptor source) throws Exception {

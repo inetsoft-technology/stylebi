@@ -441,7 +441,9 @@ public class ComposerObjectService {
       int titleHeight = event.getTitleHeight();
 
       if(assembly instanceof TitledVSAssembly) {
-         ((TitledVSAssemblyInfo) assembly.getInfo()).setTitleHeightValue(titleHeight);
+         TitledVSAssemblyInfo titledInfo = (TitledVSAssemblyInfo) assembly.getInfo();
+         titledInfo.setTitleHeightValue(titleHeight);
+         titledInfo.setUserTitleHeight(true);
       }
 
       resizeObject(vsId, event, principal, dispatcher, linkUri);

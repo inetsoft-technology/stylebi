@@ -243,7 +243,9 @@ export class VSDataTipDirective implements DoCheck, OnInit, OnDestroy {
             left += leftOffset;
 
             if(this.miniToolbar) {
-               top -= GuiTool.MINI_TOOLBAR_HEIGHT;
+               // this host is the mini-toolbar, which carries the assembly's own mark.
+               top -= GuiTool.getMiniToolbarHeight(
+                  GuiTool.isVizModernElement(this.elementRef.nativeElement));
             }
 
             // offset the datatip a little so datatip doesn't generate a mouseleave event.

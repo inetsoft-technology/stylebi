@@ -1148,4 +1148,89 @@ describe("CrosstabActions", () => {
          dcMergedColumn: null
          }, TestUtils.createMockBaseTableModel(name));
    }
+
+   describe("menu reachability for the toolbar-only actions", () => {
+      const menuIds = (actions: CrosstabActions): string[] =>
+         actions.menuActions.reduce(
+            (acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+
+      it("exposes max mode, show details and export in the menu", () => {
+         const actions = new CrosstabActions(TestUtils.createMockVSCrosstabModel("Crosstab1"),
+            ViewerContextProviderFactory(false));
+         const ids = menuIds(actions);
+
+         expect(ids).toContain("crosstab open-max-mode");
+         expect(ids).toContain("crosstab close-max-mode");
+         expect(ids).toContain("crosstab show-details");
+         expect(ids).toContain("crosstab export");
+      });
+
+      it("appends them as the last group, so existing positional assertions do not shift", () => {
+         const actions = new CrosstabActions(TestUtils.createMockVSCrosstabModel("Crosstab1"),
+            ViewerContextProviderFactory(false));
+         const groups = actions.menuActions;
+
+         expect(groups[groups.length - 1].actions.map(a => a.id())).toEqual([
+            "crosstab open-max-mode",
+            "crosstab close-max-mode",
+            "crosstab show-details",
+            "crosstab export"
+         ]);
+      });
+
+      it("carries no glyph across, because menu rows render labels only", () => {
+         const actions = new CrosstabActions(TestUtils.createMockVSCrosstabModel("Crosstab1"),
+            ViewerContextProviderFactory(false));
+         const group = actions.menuActions[actions.menuActions.length - 1];
+
+         group.actions.forEach(a => expect(a.icon()).toBeNull());
+      });
+   });
+
+   // Under the cap of three, "the first three visible actions" is only a sensible rule if the
+   // stable, assembly-level actions lead. Drill is contextual: it appears when a cell is selected,
+   // so with drill first the strip reshuffles under the pointer on every selection.
+   describe("toolbar order under the modern gate", () => {
+      const toolbarIds = (actions: CrosstabActions): string[] =>
+         actions.toolbarActions.reduce(
+            (acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+
+      it("leads with the stable actions under the gate", () => {
+         const model = TestUtils.createMockVSCrosstabModel("Crosstab1");
+         model.vizModern = true;
+         const actions = new CrosstabActions(model, ViewerContextProviderFactory(false));
+
+         expect(toolbarIds(actions)).toEqual([
+            "crosstab open-max-mode",
+            "crosstab close-max-mode",
+            "crosstab export",
+            "crosstab show-details",
+            "crosstab drilldown",
+            "crosstab drillup",
+            "crosstab multi-select",
+            "crosstab edit",
+            "menu actions"
+         ]);
+      });
+
+      it("emits the legacy order untouched when the gate is off", () => {
+         const actions = new CrosstabActions(TestUtils.createMockVSCrosstabModel("Crosstab1"),
+            ViewerContextProviderFactory(false));
+
+         // Gate off still splices the Hide MiniToolbar dismissal in at index 0 (slice 1 left that
+         // branch alone), so it leads here and not in the gated expectation above.
+         expect(toolbarIds(actions)).toEqual([
+            "vs-assembly hide-mini-toolbar",
+            "crosstab drilldown",
+            "crosstab drillup",
+            "crosstab open-max-mode",
+            "crosstab close-max-mode",
+            "crosstab show-details",
+            "crosstab export",
+            "crosstab multi-select",
+            "crosstab edit",
+            "menu actions"
+         ]);
+      });
+   });
 });

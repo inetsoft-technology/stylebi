@@ -33,6 +33,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
@@ -200,7 +201,7 @@ public class ChangeChartTypeService {
          plotDesc.setValuesVisible(false);
       }
 
-      applySmoothLinesTransition(oldType, newType, plotDesc);
+      applySmoothLinesTransition(oldType, newType, plotDesc, VizContext.of(ninfo).modern);
       // drop the runtime clone so the next render sees the design-time mutations above
       ninfo.setRTChartDescriptor(null);
 
@@ -312,23 +313,39 @@ public class ChangeChartTypeService {
     * Default smoothLines on first transition into a (non-step) Area or Circular type so newly-
     * created charts use smooth curves; user can still turn it off via Plot Options. On the
     * reverse transition (Area/Circular → Line) clear the flag so the Line chart does not
-    * silently inherit curves from the previously-smooth source type.
+    * silently inherit curves from the previously-smooth source type, unless the chart itself is
+    * modern, in which case any transition into Line sets smoothLines instead.
     *
     * <p>Package-private and pure (no Spring/runtime state) so the transition matrix is unit-
-    * testable without standing up the WebSocket controller.
+    * testable without standing up the WebSocket controller; the caller resolves the chart's own
+    * modern state and passes it in rather than it being read here, to keep it that way.
     */
-   static void applySmoothLinesTransition(int oldType, int newType, PlotDescriptor plotDesc) {
-      boolean newIsArea = newType == GraphTypes.CHART_AREA || newType == GraphTypes.CHART_AREA_STACK;
-      boolean oldIsArea = oldType == GraphTypes.CHART_AREA || oldType == GraphTypes.CHART_AREA_STACK;
-      boolean newIsLine = newType == GraphTypes.CHART_LINE || newType == GraphTypes.CHART_LINE_STACK;
+   static void applySmoothLinesTransition(int oldType, int newType, PlotDescriptor plotDesc,
+                                          boolean modern)
+   {
+      boolean newSmoothDefault = GraphTypes.isSmoothLinesDefault(newType);
+      boolean oldSmoothDefault = GraphTypes.isSmoothLinesDefault(oldType);
       boolean newIsCircular = newType == GraphTypes.CHART_CIRCULAR;
       boolean oldIsCircular = oldType == GraphTypes.CHART_CIRCULAR;
+      // the shared default splits into two transitions here: entering Area and entering Circular
+      // are separate, so Circular -> Area still defaults on
+      boolean newIsArea = newSmoothDefault && !newIsCircular;
+      boolean oldIsArea = oldSmoothDefault && !oldIsCircular;
+      boolean newIsLine = newType == GraphTypes.CHART_LINE || newType == GraphTypes.CHART_LINE_STACK;
+      boolean oldIsLine = oldType == GraphTypes.CHART_LINE || oldType == GraphTypes.CHART_LINE_STACK;
 
       if((newIsArea && !oldIsArea) || (newIsCircular && !oldIsCircular)) {
          plotDesc.setSmoothLines(true);
       }
-      else if(newIsLine && (oldIsArea || oldIsCircular)) {
-         plotDesc.setSmoothLines(false);
+      else if(newIsLine) {
+         if(modern && !oldIsLine) {
+            // a modern chart switched into Line is smooth whatever the source type had, so set
+            // rather than preserve
+            plotDesc.setSmoothLines(true);
+         }
+         else if(oldSmoothDefault) {
+            plotDesc.setSmoothLines(false);
+         }
       }
    }
 

@@ -2127,6 +2127,13 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       // annotation assemblies firstly for DataVSAssembly and OutputVSAssembly
       Map<String, Element> clist = new HashMap<>();
       List<Element> vsAnno = new ArrayList<>();
+      // the mark of each viewsheet-scoped annotation (and its rectangle) removed below, captured
+      // so the fresh assembly createVSAssembly builds from the state blob further down gets the
+      // live mark back instead of keeping whatever mark the blob carried
+      Map<String, VizMark> vsAnnoMarks = new HashMap<>();
+      // the same, for the children of a current selection: they are removed below and re-created
+      // from the blob by the container's own parseStateContent, so nothing else re-applies a mark
+      Map<String, VizMark> containerChildMarks = new HashMap<>();
       // @by skyf, remove all old annotations firstly.
       Viewsheet vs = VSUtil.getTopViewsheet(this);
 
@@ -2138,9 +2145,16 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                String rect = ainfo.getRectangle();
 
                if(rect != null) {
+                  VSAssembly rectAssembly = (VSAssembly) getAssembly(rect);
+
+                  if(rectAssembly != null) {
+                     vsAnnoMarks.put(rect, rectAssembly.getVSAssemblyInfo().getVizMark());
+                  }
+
                   removeAssembly(rect);
                }
 
+               vsAnnoMarks.put(ainfo.getAbsoluteName(), ainfo.getVizMark());
                removeAssembly(ainfo.getAbsoluteName());
             }
          }
@@ -2228,6 +2242,15 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             String[] children = cass.getAssemblies();
 
             for(String child : children) {
+               // the child is re-created from the state blob below, mark included, and never
+               // passes through AbstractVSAssembly.parseState - so its live mark is captured
+               // here, while the assembly still exists, and handed back after
+               VSAssembly cvass = getAssembly(child);
+
+               if(cvass != null && cvass.getVSAssemblyInfo() != null) {
+                  containerChildMarks.put(child, cvass.getVSAssemblyInfo().getVizMark());
+               }
+
                removeAssembly(child);
             }
          }
@@ -2238,6 +2261,14 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          VSAssembly assembly = AbstractVSAssembly.createVSAssembly(vsAnnoElement, vs);
 
          if(assembly != null) {
+            VSAssemblyInfo assemblyInfo = assembly.getVSAssemblyInfo();
+            String assemblyName = assembly.getAbsoluteName();
+
+            if(assemblyInfo != null && vsAnnoMarks.containsKey(assemblyName)) {
+               assemblyInfo.setVizMark(vsAnnoMarks.get(assemblyName));
+            }
+
+            VizModernizeUtil.reseedAfterRestore(assemblyInfo);
             vs.addAssembly(assembly);
          }
       }
@@ -2266,6 +2297,18 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             nvass.parseState(clist.get(name));
             syncBookmarkAssembly(nvass, vass);
             updateVSAssembly(vass, nvass);
+         }
+      }
+
+      // the container children re-created above: hand each its live mark back and resolve its
+      // chrome against it, the way parseState already does for every assembly it reaches. A child
+      // the blob adds has no live mark to inherit and keeps whatever it was created with
+      for(Map.Entry<String, VizMark> entry : containerChildMarks.entrySet()) {
+         VSAssembly cvass = getAssembly(entry.getKey());
+
+         if(cvass != null && cvass.getVSAssemblyInfo() != null) {
+            cvass.getVSAssemblyInfo().setVizMark(entry.getValue());
+            VizModernizeUtil.reseedAfterRestore(cvass.getVSAssemblyInfo());
          }
       }
 
@@ -2311,6 +2354,16 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             }
          }
       }
+
+      // a render clones the sheet's shared frame in preference to an assembly's own, so the
+      // per-assembly reseed above is not enough on its own: the stale shared frame has to go or a
+      // restored palette keeps rendering. Unconditional because restore has no equivalent of
+      // revert's target list to test, and the cache rebuilds lazily on the next render.
+      //
+      // dimensionColors is not touched here: it is persisted asset content (a user's fixed
+      // cross-chart colour assignment), writeState never emits it, and nothing rebuilds it -
+      // clearing it here would just delete the user's data with no corresponding restore.
+      clearSharedFrames();
    }
 
    /**
@@ -3750,6 +3803,16 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    }
 
    /**
+    * Clear the per-value dimension colors shared across this sheet's charts. Call this whenever the
+    * palette those colors came from changes: a render reloads this map into the color frame context
+    * and writes every entry back onto the frame, so a stale entry outranks the new palette and
+    * survives until the sheet is reloaded.
+    */
+   public void clearDimensionColors() {
+      dimensionColors.clear();
+   }
+
+   /**
     * Get the calculate field of one table.
     * @param name the table name.
     */
@@ -4206,6 +4269,9 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       }
 
       ScriptIterator.setProcessing(false);
+      // the constructor stamps from the gate; clear it here so a file with no assemblyInfo node
+      // cannot inherit the stamp, which would claim content nobody opted in
+      info.setVizMark(null);
       Element anode = Tool.getChildNodeByTagName(elem, "assemblyInfo");
 
       if(anode != null) {

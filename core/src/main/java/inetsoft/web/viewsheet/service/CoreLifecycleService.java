@@ -301,7 +301,21 @@ public class CoreLifecycleService {
          infoMap.put("accessible", accessible);
          infoMap.put("messageLevels", vsInfo.getMessageLevels());
          infoMap.put("virtualScroll", "true".equals(SreeEnv.getProperty("viewsheet.virtual.scroll")));
-         infoMap.put("inlineSvg", "true".equals(SreeEnv.getProperty("graph.svg.inline")));
+         infoMap.put("inlineSvg", VSChartInteractionDefaults.isInlineSvg());
+         infoMap.put("modernVisualization",
+                     SreeEnv.getBooleanProperty("viewsheet.modernVisualization", false, true));
+         String vizDensity = SreeEnv.getProperty("viewsheet.density", false, true);
+         infoMap.put("vizDensity",
+                     vizDensity == null || vizDensity.isEmpty() ? "compact" : vizDensity);
+         infoMap.put("darkMode",
+                     SreeEnv.getBooleanProperty("viewsheet.darkMode", false, true));
+         // recomputed on every refresh, so the composer's Modernize affordance disappears when the
+         // action completes and returns if the user undoes it
+         infoMap.put("modernizable",
+                     VSDensityDefaults.isModern() && VizModernizeUtil.hasUnmarked(vs));
+         // no gate term, unlike modernizable: Revert is offered under both gate states on purpose,
+         // so an author in a modern org can keep one dashboard classic
+         infoMap.put("revertable", VizModernizeUtil.hasMarked(vs));
 
          command.setInfo(infoMap);
          // TODO populate assemblyInfo with values from vs.getViewsheetInfo()

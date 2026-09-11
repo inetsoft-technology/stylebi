@@ -19,6 +19,7 @@ package inetsoft.web.graph.model.dialog;
 
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -54,7 +55,8 @@ public class LegendFormatDialogModelTest {
       LegendsDescriptor legendsDescriptor = new LegendsDescriptor();
       legendFormatGeneralPaneModel.setFillColor("#ffffff");
       legendFormatDialogModel.updateLegendFormatDialogModel(new VSChartInfo(), legendsDescriptor,
-                                                            legendDescriptor, null);
+                                                            legendDescriptor, null,
+                                                            VizContext.ofGate());
 
       assertEquals(Color.WHITE, legendsDescriptor.getBorderColor());
    }
@@ -78,7 +80,8 @@ public class LegendFormatDialogModelTest {
       legendsDesc.setColorLegendDescriptor(edited);
       legendsDesc.setSizeLegendDescriptor(unrelated);
 
-      dialog.updateLegendFormatDialogModel(new VSChartInfo(), legendsDesc, edited, null);
+      dialog.updateLegendFormatDialogModel(new VSChartInfo(), legendsDesc, edited, null,
+                                          VizContext.ofGate());
 
       assertFalse(edited.isSymbolRoundCorners(),
                   "the edited legend should reflect the dialog value");

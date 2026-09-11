@@ -130,6 +130,30 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       this.cellHeight = cellHeight;
    }
 
+   /**
+    * Cell height for rendering: the org density default when the user hasn't set a height,
+    * else the stored value. Render, export and the property dialog all use this - the dialog
+    * shows the resolved height and compares against it on save, so leaving the field untouched
+    * does not pin it. Only serialization uses the raw getCellHeight(), so the stored value
+    * round-trips.
+    */
+   public int getEffectiveCellHeight() {
+      VizContext ctx = VizContext.of(this);
+      return ctx.modern && !userCellHeight && cellHeight == AssetUtil.defh ?
+         VSDensityDefaults.cellHeight(ctx) : cellHeight;
+   }
+
+   /**
+    * Whether the user has explicitly set the cell height.
+    */
+   public boolean isUserCellHeight() {
+      return userCellHeight;
+   }
+
+   public void setUserCellHeight(boolean userCellHeight) {
+      this.userCellHeight = userCellHeight;
+   }
+
    public Insets getCellPadding() {
       return cellPadding.get();
    }
@@ -276,7 +300,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
     */
    @Override
    public int getTitleHeight() {
-      return titleInfo.getTitleHeight();
+      return VSDensityDefaults.titleHeight(this, titleInfo.getTitleHeight());
    }
 
    /**
@@ -295,6 +319,16 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
    @Override
    public void setTitleHeightValue(int value) {
       titleInfo.setTitleHeightValue(value);
+   }
+
+   @Override
+   public boolean isUserTitleHeight() {
+      return titleInfo.isUserTitleHeight();
+   }
+
+   @Override
+   public void setUserTitleHeight(boolean user) {
+      titleInfo.setUserTitleHeight(user);
    }
 
    /**
@@ -528,6 +562,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       writer.print(" showBarValue=\"" + isShowBarValue() + "\"");
       writer.print(" listHeight=\"" + listHeight + "\"");
       writer.print(" cellHeight=\"" + cellHeight + "\"");
+      writer.print(" userCellHeight=\"" + userCellHeight + "\"");
       writer.print(" listHeightScale=\"" + listHeightScale + "\"");
       writer.print(" barSize=\"" + barsize + "\"");
       writer.print(" textSize=\"" + mtextsize + "\"");
@@ -547,6 +582,8 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       listHeight = text == null ? 6 : Integer.parseInt(text);
       text = Tool.getAttribute(elem, "cellHeight");
       cellHeight = text == null ? AssetUtil.defh : Integer.parseInt(text);
+      text = Tool.getAttribute(elem, "userCellHeight");
+      userCellHeight = text == null ? cellHeight != AssetUtil.defh : "true".equalsIgnoreCase(text);
       text = Tool.getAttribute(elem, "listHeightScale");
       listHeightScale = text == null ? 1D : Double.parseDouble(text);
       text = Tool.getAttribute(elem, "barSize");
@@ -614,7 +651,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
    protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
       super.parseContents(elem, isSiteAdminImport);
 
-      titleInfo.parseXML(elem);
+      titleInfo.parseXML(elem, getLegacyTitleHeight());
 
       Element node = Tool.getChildNodeByTagName(elem, "measureValue");
       measureValue.setDValue(Tool.getValue(node));
@@ -761,6 +798,11 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
          result = true;
       }
 
+      if(userCellHeight != sinfo.userCellHeight) {
+         userCellHeight = sinfo.userCellHeight;
+         result = true;
+      }
+
       if(listHeightScale != sinfo.listHeightScale) {
          listHeightScale = sinfo.listHeightScale;
          result = true;
@@ -854,9 +896,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       format.getDefaultFormat().setBordersValue(
          new Insets(GraphConstants.NONE, GraphConstants.NONE,
                     GraphConstants.THIN_LINE, GraphConstants.NONE));
-      format.getDefaultFormat().setBorderColorsValue(
-         new BorderColors(new Color(0xc0c0c0), new Color(0xc0c0c0),
-                          new Color(0xc0c0c0), new Color(0xc0c0c0)));
+      format.getDefaultFormat().setBorderColorsValue(legacyTitleRuleColors());
       format.getDefaultFormat().setAlignmentValue(StyleConstants.H_LEFT | StyleConstants.V_CENTER);
       getFormatInfo().setFormat(datapath, format);
       font = getDefaultFont(Font.PLAIN, 11);
@@ -883,6 +923,28 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
          format.getDefaultFormat().setFontValue(font);
          format.getCSSFormat().setCSSType("MeasureNBar");
          getFormatInfo().setFormat(path, format);
+      }
+
+      // super seeded the title composite this method just replaced; re-run against the real one.
+      // The hook is a set of unconditional writes, so running it twice changes nothing else
+      seedChromeDefaults(VizContext.of(this));
+   }
+
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      // the title lane is the parent's, shared with the range slider
+      super.seedChromeDefaults(ctx);
+
+      // the detail cell's foreground. Seeded rather than substituted at every render so it travels
+      // in an exported asset. setDefaultFormat's unconditional near-black stays where it is and
+      // this overwrites it; the measure-bar composites are separate paths and are not reached
+      VSCompositeFormat cellFormat =
+         getFormatInfo().getFormat(new TableDataPath(-1, TableDataPath.DETAIL));
+
+      if(cellFormat != null) {
+         cellFormat.getDefaultFormat().setForegroundValue(
+            ctx.dark ? VSObjectChromeDefaults.darkForegroundValue()
+               : VSObjectChromeDefaults.legacyCellForegroundValue());
       }
    }
 
@@ -1002,6 +1064,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
    private DynamicValue2 showTypeValue = new DynamicValue2("0", XSchema.INTEGER);
    private int listHeight = 6;
    private int cellHeight = AssetUtil.defh;
+   private boolean userCellHeight = false;
    private CompositeValue<Insets> cellPadding = new CompositeValue<>(Insets.class, null);
    private double listHeightScale = 1D;
    private DynamicValue mtextValue = new DynamicValue("true", XSchema.BOOLEAN);

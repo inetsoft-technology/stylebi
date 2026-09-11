@@ -130,6 +130,10 @@ public abstract class AbstractVSAssembly extends AbstractAssembly implements VSA
 
       setName(name);
       setViewsheet(vs);
+      // a newly created assembly inherits the host's mark, absence included; the parse funnel
+      // never reaches here, so a loaded assembly is unaffected
+      VSAssemblyInfo hostInfo = vs == null ? null : vs.getVSAssemblyInfo();
+      info.setVizMark(hostInfo == null ? null : hostInfo.getVizMark());
    }
 
    /**
@@ -635,7 +639,21 @@ public abstract class AbstractVSAssembly extends AbstractAssembly implements VSA
     */
    @Override
    public final void parseState(Element elem) throws Exception {
+      // a few types serialize their whole info into state, mark included, so parsing can install
+      // a stale mark from the blob. The live assembly's mark is the authority, so it is captured
+      // here and re-applied after parsing, before the chrome resolves against it.
+      VSAssemblyInfo before = getVSAssemblyInfo();
+      VizMark mark = before == null ? null : before.getVizMark();
+
       parseStateContent(elem);
+
+      VSAssemblyInfo after = getVSAssemblyInfo();
+
+      if(after != null) {
+         after.setVizMark(mark);
+      }
+
+      VizModernizeUtil.reseedAfterRestore(after);
    }
 
    /**

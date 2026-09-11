@@ -220,6 +220,7 @@ public abstract class GraphGenerator {
    {
       super();
 
+      this.vizContext = VizContext.of(chart);
       this.graphSize = size;
       this.bconds = chart.getBrushConditionList(null, false);
       this.zconds = chart.getZoomConditionList(null);
@@ -435,6 +436,7 @@ public abstract class GraphGenerator {
    {
       super();
 
+      this.vizContext = VizContext.LEGACY;
       this.graphSize = size;
       adata = getFixedDataSet(info, adata, true);
       data = getFixedDataSet(info, data, false);
@@ -564,6 +566,20 @@ public abstract class GraphGenerator {
       }
 
       return rdesc == null ? info.getAxisDescriptor() : rdesc;
+   }
+
+   /**
+    * Get the secondary axis descriptor of a chart info, preferring the runtime one exactly as
+    * getAxisDescriptor0 does for the primary.
+    */
+   protected AxisDescriptor getAxisDescriptor2() {
+      AxisDescriptor rdesc = null;
+
+      if(info instanceof VSChartInfo) {
+         rdesc = ((VSChartInfo) info).getRTAxisDescriptor2();
+      }
+
+      return rdesc == null ? info.getAxisDescriptor2() : rdesc;
    }
 
    /**
@@ -916,10 +932,10 @@ public abstract class GraphGenerator {
          TitleDescriptor x2title = titlesDesc.getX2TitleDescriptor();
          TitleDescriptor y2title = titlesDesc.getY2TitleDescriptor();
 
-         graph.setXTitleSpec(getTitleSpec(xtitle, "x"));
-         graph.setX2TitleSpec(getTitleSpec(x2title, "x2"));
-         graph.setYTitleSpec(getTitleSpec(ytitle, "y"));
-         graph.setY2TitleSpec(getTitleSpec(y2title, "y2"));
+         graph.setXTitleSpec(getTitleSpec(xtitle, "x", axisLabelsDrawn("x")));
+         graph.setX2TitleSpec(getTitleSpec(x2title, "x2", axisLabelsDrawn("x2")));
+         graph.setYTitleSpec(getTitleSpec(ytitle, "y", axisLabelsDrawn("y")));
+         graph.setY2TitleSpec(getTitleSpec(y2title, "y2", axisLabelsDrawn("y2")));
       }
 
       // setup visual frames, need to do before element options since GraphDefault.isInPlot
@@ -1691,7 +1707,8 @@ public abstract class GraphGenerator {
          boolean donutTotal = isDonutTotal(info, color);
          legend.setVisible(!isSparkline() && !donutTotal &&
                            (maxMode ? colorDesc.isMaxModeVisible() : colorDesc.isVisible()));
-         legend.setGap(legends.getGap());
+         legend.setGap(VSChartChromeDefaults.resolveLegendGap(
+            legends.getGap(), legends.hasGapValue(), vizContext));
          legend.setPadding(legends.getPadding());
 
          // if is Composite frame, should set the infos to its guide frame
@@ -1770,7 +1787,8 @@ public abstract class GraphGenerator {
          setLegendProperties(shpframe, shapeDesc);
          legend.setVisible(!isSparkline() &&
                               (maxMode ? shapeDesc.isMaxModeVisible() : shapeDesc.isVisible()));
-         legend.setGap(legends.getGap());
+         legend.setGap(VSChartChromeDefaults.resolveLegendGap(
+            legends.getGap(), legends.hasGapValue(), vizContext));
          legend.setPadding(legends.getPadding());
       }
    }
@@ -1805,7 +1823,8 @@ public abstract class GraphGenerator {
                               (!size.getField().startsWith(BrushDataSet.ALL_HEADER_PREFIX) ||
                                // size legend missing after brushing. (57608, 57623, 57646)
                                nodeSize));
-         legend.setGap(legends.getGap());
+         legend.setGap(VSChartChromeDefaults.resolveLegendGap(
+            legends.getGap(), legends.hasGapValue(), vizContext));
          legend.setPadding(legends.getPadding());
       }
    }
@@ -2342,7 +2361,9 @@ public abstract class GraphGenerator {
 
                // axis color can't be controlled by user. use the x axis.
                if(xdesc != null) {
-                  yscale.getAxisSpec().setLineColor(xdesc.getLineColor());
+                  VizContext ctx = vizContext;
+                  yscale.getAxisSpec().setLineColor(
+                     VSChartChromeDefaults.resolveAxisLineColor(xdesc.getLineColor(), ctx));
                   yscale.getAxisSpec().setLineVisible(xdesc.isLineVisible());
                }
             }
@@ -2565,6 +2586,7 @@ public abstract class GraphGenerator {
    protected void setupAxisSpec(AxisSpec axis, AxisDescriptor axisD, String[] flds, boolean secondary,
                                 boolean linear)
    {
+      VizContext ctx = vizContext;
       CompositeTextFormat format = getAxisLabelFormat(axisD, flds, secondary);
       // should only use the first field's default format (e.g. date comparison %change&value)
       String fld = flds.length > 0 ? flds[0] : null;
@@ -2575,14 +2597,15 @@ public abstract class GraphGenerator {
 
       Format fmt = fld != null ? getDefaultFormat(fld) : null;
       fmt = fmt == null && fld != null ? getDefaultFormat(ChartAggregateRef.getBaseName(fld)) : fmt;
-      axis.setLineColor(axisD.getLineColor());
+      // modern chrome: unify the axis line with the gridlines when it is still the legacy default
+      axis.setLineColor(VSChartChromeDefaults.resolveAxisLineColor(axisD.getLineColor(), ctx));
       axis.setLineVisible(!maxMode && axisD.isLineVisible() || maxMode && axisD.isMaxModeLineVisible());
       axis.setTickVisible(axisD.isTicksVisible());
       axis.setTextSpec(GraphUtil.getTextSpec(format, fmt, null));
       axis.setLabelVisible(!maxMode && axisD.isLabelVisible() || maxMode && axisD.isMaxModeLabelVisible());
       axis.setTextFrame(axisD.getTextFrame());
       axis.setTruncate(axisD.isTruncate());
-      axis.setLabelGap(axisD.getLabelGap());
+      axis.setLabelGap(VSChartChromeDefaults.resolveAxisLabelGap(axisD.getLabelGap(), ctx));
       // Bug #74171: pareto uses the right y-axis for its percentage scale, so
       // labelOnSecondaryAxis would hide the primary measure axis. Ignore the setting for
       // measure (linear) axes only; dimension axes on y are not affected. (Bug #74191)
@@ -6011,9 +6034,62 @@ public abstract class GraphGenerator {
    }
 
    /**
+    * Whether the axis a title sits beside actually draws its labels. Mirrors the expression
+    * setupAxisSpec uses for axis.setLabelVisible, max-mode variant included: a title gap resolved
+    * off the plain isLabelVisible getter would be wrong in max mode.
+    */
+   private boolean axisLabelsDrawn(String type) {
+      AxisDescriptor axisD = getTitleAxisDescriptor(type);
+
+      if(axisD == null) {
+         return false;
+      }
+
+      return !maxMode && axisD.isLabelVisible() || maxMode && axisD.isMaxModeLabelVisible();
+   }
+
+   /**
+    * The axis descriptor behind the band an axis title sits against, taken through
+    * getAxisDescriptor(String) - the lookup the scale setup itself funnels into, and the one the UI
+    * writes a hidden-labels choice to. A separated chart keeps every axis on its own field and a
+    * merged one keeps its dimension axes there, so the chart-level descriptor answers for neither.
+    * The field taken is the one whose label the title shows; a facet's remaining bands can carry
+    * their own visibility and are not consulted.
+    */
+   private AxisDescriptor getTitleAxisDescriptor(String type) {
+      boolean xconsumed = isXConsumed(getFirstChartType());
+
+      switch(type) {
+      case "x":
+         if(xconsumed && !xdims.isEmpty()) {
+            return getAxisDescriptor(xdims.get(xdims.size() - 1));
+         }
+
+         return xmeasures.isEmpty() ? null : getAxisDescriptor(xmeasures.get(0));
+      case "x2":
+         // the outer x bands, the ones getTitleSpec names on the secondary x title
+         if(xdims.size() > (xconsumed ? 1 : 0)) {
+            return getAxisDescriptor(xdims.get(0));
+         }
+
+         return getAxisDescriptor2();
+      case "y":
+         if(!ydims.isEmpty()) {
+            return getAxisDescriptor(ydims.get(0));
+         }
+
+         return ymeasures.isEmpty() ? null : getAxisDescriptor(ymeasures.get(0));
+      default:
+         return getAxisDescriptor2();
+      }
+   }
+
+   /**
     * Get title spec.
     */
-   private TitleSpec getTitleSpec(TitleDescriptor titleDesc, String type) {
+   private TitleSpec getTitleSpec(TitleDescriptor titleDesc, String type,
+                                  boolean abuttingLabelsDrawn)
+   {
       TitleSpec tSpec = new TitleSpec();
       String title = titleDesc.getTitle();
       int ctype = getFirstChartType();
@@ -6154,6 +6230,12 @@ public abstract class GraphGenerator {
 
          CompositeTextFormat tfmt = titleDesc.getTextFormat();
          tSpec.setTextSpec(GraphUtil.getTextSpec(tfmt, null, null));
+
+         // a custom title has never taken the descriptor's gap; feeding the resolver 0 on a legacy
+         // chart keeps that exactly, while a marked one still gets the card gap
+         int customTitleGap = vizContext.modern ? titleDesc.getLabelGap() : 0;
+         tSpec.setLabelGap(VSChartChromeDefaults.resolveAxisTitleGap(
+            customTitleGap, abuttingLabelsDrawn, vizContext));
          return tSpec;
       }
 
@@ -6179,7 +6261,8 @@ public abstract class GraphGenerator {
          tSpec.setLabel(null);
       }
 
-      tSpec.setLabelGap(titleDesc.getLabelGap());
+      tSpec.setLabelGap(VSChartChromeDefaults.resolveAxisTitleGap(
+         titleDesc.getLabelGap(), abuttingLabelsDrawn, vizContext));
 
       return tSpec;
    }
@@ -7479,6 +7562,13 @@ public abstract class GraphGenerator {
    protected ChartInfo info; // chart info stores data info
    protected final ChartDescriptor desc; // chart descriptor stores view info
    protected final ChartDescriptor desc0; // original (non-runtime) chart descriptor
+
+   /**
+    * The context this graph resolves modern chrome against, fixed at construction because the
+    * methods that need it see only descriptors and scales. The viewsheet constructor knows the
+    * assembly; the report constructor knows there is none.
+    */
+   protected final VizContext vizContext;
    protected EGraph graph; // element graph
    protected DataSet adata; // all data if brushing exists, null otherwise
    protected DataSet odata; // normal data

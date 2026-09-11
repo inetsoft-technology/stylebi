@@ -55,6 +55,7 @@ public class SyncTableHandler extends SyncAssemblyHandler{
       targetInfo.setTableStyleValue(sourceInfo.getTableStyleValue());
       targetInfo.setDataRowHeight(sourceInfo.getDataRowHeight());
       targetInfo.setTitleHeightValue(sourceInfo.getTitleHeightValue());
+      targetInfo.setUserTitleHeight(sourceInfo.isUserTitleHeight());
 
       // advanced
       targetInfo.setEmbeddedTable(sourceInfo instanceof EmbeddedTableVSAssemblyInfo ||

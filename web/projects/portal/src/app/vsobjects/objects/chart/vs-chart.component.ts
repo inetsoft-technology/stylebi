@@ -747,7 +747,8 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       if(flyData.noCurrentSelection && flyData.payload.context) {
          this.chartService.clearCanvas(flyData.payload.context);
          ChartTool.drawRegions(flyData.payload.context, flyData.payload.regions,
-                               flyData.payload.canvasX, flyData.payload.canvasY, this.scale);
+                               flyData.payload.canvasX, flyData.payload.canvasY, this.scale,
+                               undefined, undefined, undefined, undefined, this.model.vizModern);
       }
 
       // sending flyover can cause graph to be cancelled. avoid unnecessary event (48645).

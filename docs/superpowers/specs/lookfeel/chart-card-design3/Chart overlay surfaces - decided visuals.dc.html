@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<template id="__bundler_thumbnail">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#F1EFEA"/><rect x="24" y="30" width="24" height="40" rx="2" fill="#FFFFFF" stroke="#E58A2A" stroke-width="2"/><rect x="52" y="30" width="24" height="40" rx="2" fill="#FFFFFF" stroke="#D9D5CC"/><rect x="30" y="52" width="4" height="12" fill="#9BB7C4"/><rect x="37" y="44" width="4" height="20" fill="#9BB7C4"/><rect x="58" y="38" width="12" height="2.5" rx="1.25" fill="#6A685F"/><rect x="58" y="45" width="8" height="2" rx="1" fill="#B8B4AB"/><rect x="58" y="53" width="14" height="4" rx="1" fill="#35342F"/><circle cx="66" cy="64" r="3" fill="#E58A2A"/></svg>
+</template>
+<meta name="design_doc_mode" content="canvas">
+<style>
+  body { margin:0; background:#F8F7F4; -webkit-font-smoothing:antialiased; }
+  a { color:#B5651D; } a:hover { color:#8F4E15; }
+</style>
+</helmet>
+<div style="font-family:'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#35342F; padding:40px 44px 56px; max-width:1180px; margin:0 auto; display:flex; flex-direction:column; gap:34px">
+
+  <div style="display:flex; flex-direction:column; gap:10px; border-bottom:1px solid #D9D5CC; padding-bottom:22px">
+    <div style="display:flex; align-items:center; gap:10px">
+      <span style="font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#99958C">Chart overlay surfaces — companion drawings</span>
+      <span style="font-size:10px; font-weight:600; letter-spacing:0.3px; padding:3px 7px; border-radius:3px; background:#E2F3E8; color:#1D5B39">all decided</span>
+    </div>
+    <h1 style="margin:0; font-size:25px; font-weight:600; letter-spacing:-0.4px">Three decided changes, drawn</h1>
+    <p style="margin:0; max-width:74ch; font-size:14px; line-height:1.6; color:#6A685F; text-wrap:pretty">Everything here is settled — this document adds no proposals. It exists because three of the ticket's decisions are <em>visual</em> and were recorded as prose, and a layout described in a table gets implemented two different ways by two people. Items that are mechanical value swaps stay in the ticket where they belong; drawing them would add review weight without adding information.</p>
+    <div style="display:flex; gap:22px; padding-top:6px; font-size:12.5px; color:#6A685F">
+      <span><strong style="color:#35342F">01</strong> &nbsp;Selection — items 7, 8, 11</span>
+      <span><strong style="color:#35342F">02</strong> &nbsp;Card tooltip ramp — item 4</span>
+      <span><strong style="color:#35342F">03</strong> &nbsp;Resize Plot sliders — item 13</span>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:16px">
+    <div style="display:flex; align-items:baseline; gap:12px">
+      <span style="font-size:11px; font-weight:700; color:#99958C">01</span>
+      <h2 style="margin:0; font-size:19px; font-weight:600; letter-spacing:-0.2px">Selection — one vocabulary, and chrome stops flooding</h2>
+    </div>
+    <p style="margin:0; max-width:78ch; font-size:13px; line-height:1.6; color:#6A685F; text-wrap:pretty">Two decisions in one drawing. Every selection binds to the shipped focus family, replacing the off-palette <code style="font-size:11px; color:#B54B6E">#dc581e</code> and the annotation's dotted grey. And selecting <em>chrome</em> — an axis, a legend, a title — draws a stroke with no fill, while selecting <em>data</em> keeps the fill. The fill is area-proportional but the signal need is constant: 30% alpha is a tint on a 20px bar and a slab over a 350px axis band.</p>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:22px">
+      <div style="display:flex; flex-direction:column; gap:12px">
+        <div style="display:flex; align-items:center; gap:9px">
+          <span style="font-size:13px; font-weight:600">Today — axis selected</span>
+          <span style="font-size:10px; font-weight:600; letter-spacing:0.3px; padding:3px 7px; border-radius:3px; background:#F7DEDE; color:#8C3535">floods</span>
+        </div>
+        <div style="position:relative; height:200px; border:1px solid #D9D5CC; border-radius:6px; background:#FFFFFF; overflow:hidden">
+          <div style="position:absolute; inset:18px 16px 30px 46px; background:linear-gradient(to top, #EEEEEE 1px, transparent 1px) 0 0 / 100% 30px"></div>
+          <div style="position:absolute; left:46px; right:16px; bottom:30px; top:18px; display:flex; align-items:flex-end; gap:14px; padding:0 8px">
+            <div style="flex:1; height:58%; background:#9BB7C4"></div>
+            <div style="flex:1; height:84%; background:#9BB7C4"></div>
+            <div style="flex:1; height:44%; background:#9BB7C4"></div>
+            <div style="flex:1; height:70%; background:#9BB7C4"></div>
+          </div>
+          <div style="position:absolute; left:16px; top:18px; bottom:30px; width:30px; background:rgba(220,88,30,0.3); border:2px solid #DC581E; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; align-items:flex-end; padding:2px 4px; font-size:9px; color:#4B4B4B">
+            <span>600</span><span>300</span><span>0</span>
+          </div>
+        </div>
+        <div style="font-size:12px; line-height:1.55; color:#6A685F">A 30% wash over the whole band, in an orange that is in no palette, covering the tick labels the user selected the axis in order to read.</div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:12px">
+        <div style="display:flex; align-items:center; gap:9px">
+          <span style="font-size:13px; font-weight:600">Proposed — axis selected</span>
+          <span style="font-size:10px; font-weight:600; letter-spacing:0.3px; padding:3px 7px; border-radius:3px; background:#E2F3E8; color:#1D5B39">stroke only</span>
+        </div>
+        <div style="position:relative; height:200px; border:1px solid #D9D5CC; border-radius:6px; background:#FFFFFF; overflow:hidden">
+          <div style="position:absolute; inset:18px 16px 30px 46px; background:linear-gradient(to top, #EEEEEE 1px, transparent 1px) 0 0 / 100% 30px"></div>
+          <div style="position:absolute; left:46px; right:16px; bottom:30px; top:18px; display:flex; align-items:flex-end; gap:14px; padding:0 8px">
+            <div style="flex:1; height:58%; background:#9BB7C4"></div>
+            <div style="flex:1; height:84%; background:#9BB7C4"></div>
+            <div style="flex:1; height:44%; background:#9BB7C4"></div>
+            <div style="flex:1; height:70%; background:#9BB7C4"></div>
+          </div>
+          <div style="position:absolute; left:16px; top:18px; bottom:30px; width:30px; border:2px solid #E58A2A; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; align-items:flex-end; padding:2px 4px; font-size:9px; color:#4B4B4B">
+            <span>600</span><span>300</span><span>0</span>
+          </div>
+        </div>
+        <div style="font-size:12px; line-height:1.55; color:#6A685F">2px <code style="font-size:11px; color:#B54B6E">--inet-primary-color</code>, nothing inside it. The labels stay readable. Accepted trade: on a busy chart this is a quieter signal than a wash.</div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:22px">
+      <div style="border:1px solid #D9D5CC; border-radius:6px; background:#FFFFFF; padding:16px 18px; display:flex; flex-direction:column; gap:12px">
+        <div style="font-size:13px; font-weight:600">Data selection keeps its fill</div>
+        <div style="display:flex; align-items:flex-end; gap:14px; height:78px; padding:0 4px">
+          <div style="flex:1; height:58%; background:#9BB7C4"></div>
+          <div style="flex:1; height:84%; background:#9BB7C4; box-shadow:inset 0 0 0 2px #E58A2A; position:relative"><div style="position:absolute; inset:0; background:rgba(229,138,42,0.28)"></div></div>
+          <div style="flex:1; height:44%; background:#9BB7C4"></div>
+          <div style="flex:1; height:70%; background:#9BB7C4"></div>
+        </div>
+        <div style="font-size:12px; line-height:1.55; color:#6A685F">Fill <code style="font-size:11px; color:#B54B6E">--inet-focus-ring-color</code>, stroke <code style="font-size:11px; color:#B54B6E">--inet-primary-color</code>. Marking values is what a fill is for, and the regions are small enough that it stays a tint. Unchanged in behaviour — only the colour moves onto the palette.</div>
+      </div>
+
+      <div style="border:1px solid #D9D5CC; border-radius:6px; background:#FFFFFF; padding:16px 18px; display:flex; flex-direction:column; gap:12px">
+        <div style="font-size:13px; font-weight:600">Annotations join the same vocabulary</div>
+        <div style="display:flex; gap:16px; align-items:center; height:78px">
+          <div style="flex:1; display:flex; flex-direction:column; gap:6px; align-items:center">
+            <div style="width:100%; height:42px; border:2px dotted darkgray; border-radius:2px; background:#FFFFFF; display:flex; align-items:center; justify-content:center; font-size:11px; color:#6A685F">Note</div>
+            <span style="font-size:10px; color:#99958C">today</span>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:6px; align-items:center">
+            <div style="width:100%; height:42px; border:2px solid #E58A2A; border-radius:2px; background:#FFFFFF; display:flex; align-items:center; justify-content:center; font-size:11px; color:#6A685F">Note</div>
+            <span style="font-size:10px; color:#99958C">proposed</span>
+          </div>
+        </div>
+        <div style="font-size:12px; line-height:1.55; color:#6A685F">A selected annotation is chrome, so it takes the chrome treatment: solid 2px in the same primary. The dotted <code style="font-size:11px; color:#B54B6E">darkgray</code> was the product's third way of saying "selected"; there is now one.</div>
+      </div>
+    </div>
+
+    <div style="font-size:12px; line-height:1.55; color:#99958C; border-top:1px solid #E8E5DE; padding-top:11px">Chrome areas, for the implementer: <code style="font-size:11px; color:#B54B6E">bottom_x_axis</code>, <code style="font-size:11px; color:#B54B6E">top_x_axis</code>, <code style="font-size:11px; color:#B54B6E">left_y_axis</code>, <code style="font-size:11px; color:#B54B6E">right_y_axis</code>, <code style="font-size:11px; color:#B54B6E">legend_content</code>, <code style="font-size:11px; color:#B54B6E">legend_title</code>, <code style="font-size:11px; color:#B54B6E">x_title</code>, <code style="font-size:11px; color:#B54B6E">x2_title</code>, <code style="font-size:11px; color:#B54B6E">y_title</code>, <code style="font-size:11px; color:#B54B6E">y2_title</code>. Data is <code style="font-size:11px; color:#B54B6E">plot_area</code>. <code style="font-size:11px; color:#B54B6E">drawRegions</code> does not know which it is drawing today; the area name is on the caller, so this is a parameter rather than a refactor.</div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:16px; border-top:1px solid #D9D5CC; padding-top:32px">
+    <div style="display:flex; align-items:baseline; gap:12px">
+      <span style="font-size:11px; font-weight:700; color:#99958C">02</span>
+      <h2 style="margin:0; font-size:19px; font-weight:600; letter-spacing:-0.2px">Card tooltip — six sizes become three roles</h2>
+    </div>
+    <p style="margin:0; max-width:78ch; font-size:13px; line-height:1.6; color:#6A685F; text-wrap:pretty">Both boxes below are drawn at the real sizes. The point is not that the proposal is smaller — it is that the current ramp encodes hierarchy three times over, in size, opacity and margin, which is why the rule set needs eight margin overrides and a comment about which one wins on a specificity tie.</p>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:22px; align-items:start">
+      <div style="display:flex; flex-direction:column; gap:12px">
+        <div style="display:flex; align-items:center; gap:9px">
+          <span style="font-size:13px; font-weight:600">Today</span>
+          <span style="font-size:10px; font-weight:600; letter-spacing:0.3px; padding:3px 7px; border-radius:3px; background:#F7DEDE; color:#8C3535">6 sizes</span>
+        </div>
+        <div style="background:#F8F7F4; border:1px dashed #D9D5CC; border-radius:6px; padding:22px; display:flex; justify-content:center">
+          <div style="background:#FFFFFF; border:1px solid #D9D5CC; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.14); padding:10px 13px; min-width:210px; font-family:'Segoe UI', Roboto, sans-serif">
+            <div style="font-size:16px; color:#35342F; opacity:0.9; margin-bottom:10px">Sales</div>
+            <div style="font-size:14px; color:#35342F; opacity:0.9; letter-spacing:0.02em; margin-bottom:6px">By Region</div>
+            <div style="font-size:13px; color:#35342F; opacity:0.7; margin-bottom:4px">East</div>
+            <div style="font-size:12px; color:#35342F; opacity:0.7; letter-spacing:0.02em; margin-bottom:2px">Q3 2026</div>
+            <div style="font-size:11px; color:#35342F; opacity:0.65; margin-bottom:1px">vs. same quarter last year</div>
+            <div style="font-size:20px; color:#35342F; margin-top:6px">$1,284,000</div>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:12px; line-height:1.5; color:#6A685F">
+          <div>16 → 14 → 13 → 12 → 11: steps of 2, 1, 1, 1. Below 14px a single pixel is not a signal.</div>
+          <div>The 20px total is larger than <code style="font-size:11px; color:#B54B6E">--inet-dialog-title-font-size</code> (14px) — the biggest text in the product sits in a transient hover panel.</div>
+          <div>Opacity fades whole subtrees and cannot express "lighter" in a dark theme.</div>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:12px">
+        <div style="display:flex; align-items:center; gap:9px">
+          <span style="font-size:13px; font-weight:600">Proposed</span>
+          <span style="font-size:10px; font-weight:600; letter-spacing:0.3px; padding:3px 7px; border-radius:3px; background:#E2F3E8; color:#1D5B39">3 roles</span>
+        </div>
+        <div style="background:#F8F7F4; border:1px dashed #D9D5CC; border-radius:6px; padding:22px; display:flex; justify-content:center">
+          <div style="background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.14); padding:10px 13px; min-width:210px; font-family:'Segoe UI', Roboto, sans-serif">
+            <div style="font-size:13px; color:#6A685F; margin-bottom:2px">Sales · East</div>
+            <div style="font-size:11px; color:#99958C; margin-bottom:8px">Q3 2026 · vs. same quarter last year</div>
+            <div style="font-size:16px; font-weight:600; color:#35342F">$1,284,000</div>
+            <div style="border-top:1px solid #D9D5CC; margin-top:8px; padding-top:6px; font-size:16px; font-weight:600; color:#35342F; display:flex; justify-content:space-between; gap:18px"><span style="font-size:13px; font-weight:400; color:#6A685F">Total</span><span>$4,910,220</span></div>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:12px; line-height:1.5; color:#6A685F">
+          <div><strong style="color:#35342F">Value 16</strong> (<code style="font-size:11px; color:#B54B6E">--inet-font-size-lg</code>, 600) · <strong style="color:#35342F">label 13</strong> (<code style="font-size:11px; color:#B54B6E">--inet-font-size-base</code>, muted) · <strong style="color:#35342F">caption 11</strong> (<code style="font-size:11px; color:#B54B6E">--inet-feedback-font-size</code>, subtle). Steps of ~1.23 and ~1.18.</div>
+          <div>Subtitles are the caption role, not a size. Both <code style="font-size:11px; color:#B54B6E">.tt-subtitle</code> classes and the specificity comment go.</div>
+          <div>The total earns emphasis from a hairline rule and its position, not from being the largest text on screen. <strong style="color:#35342F">This is the accepted trade: it is quieter than 20px.</strong></div>
+          <div>Spacing collapses to <code style="font-size:11px; color:#B54B6E">--inet-space-4</code> between sections and <code style="font-size:11px; color:#B54B6E">--inet-space-1</code> within, replacing 10/6/4/2/1px and most of the overrides.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:16px; border-top:1px solid #D9D5CC; padding-top:32px">
+    <div style="display:flex; align-items:baseline; gap:12px">
+      <span style="font-size:11px; font-weight:700; color:#99958C">03</span>
+      <h2 style="margin:0; font-size:19px; font-weight:600; letter-spacing:-0.2px">Resize Plot sliders</h2>
+    </div>
+    <p style="margin:0; max-width:78ch; font-size:13px; line-height:1.6; color:#6A685F; text-wrap:pretty">The two sliders that appear when <strong style="color:#35342F">Resize Plot</strong> is invoked — one above the plot, one rotated down its left edge. They are the only native <code style="font-size:12px; color:#B54B6E">input[type=range]</code> in the portal, and the only chart overlay that never had a theme pass.</p>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:22px">
+
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:9px">
+        <span style="font-size:13px; font-weight:600">Today</span>
+        <span style="font-size:10px; font-weight:600; letter-spacing:0.3px; padding:3px 7px; border-radius:3px; background:#F7DEDE; color:#8C3535">4 problems</span>
+      </div>
+      <div style="position:relative; height:210px; border:1px solid #D9D5CC; border-radius:6px; background:#FFFFFF; overflow:hidden">
+        <div style="position:absolute; inset:26px 14px 26px 34px; background:linear-gradient(to top, #EEEEEE 1px, transparent 1px) 0 0 / 100% 32px"></div>
+        <div style="position:absolute; left:34px; right:14px; bottom:26px; height:118px; display:flex; align-items:flex-end; gap:14px; padding:0 8px">
+          <div style="flex:1; height:64%; background:#9BB7C4"></div>
+          <div style="flex:1; height:88%; background:#9BB7C4"></div>
+          <div style="flex:1; height:47%; background:#9BB7C4"></div>
+          <div style="flex:1; height:73%; background:#9BB7C4"></div>
+        </div>
+        <div style="position:absolute; top:14px; left:50%; transform:translateX(-50%); width:150px; height:22px; border:1px solid #DDDDDD; background:rgba(255,255,255,0.5); display:flex; align-items:center">
+          <div style="position:relative; width:100%; height:2px; background:#D3D3D3; border-radius:3px">
+            <div style="position:absolute; left:58%; top:50%; width:13px; height:13px; margin:-6.5px 0 0 -6.5px; border-radius:50%; background:#FF8D41"></div>
+          </div>
+        </div>
+        <div style="position:absolute; left:14px; top:50%; transform:translate(-50%, -50%) rotate(-90deg); width:150px; height:22px; border:1px solid #DDDDDD; background:rgba(255,255,255,0.5); display:flex; align-items:center">
+          <div style="position:relative; width:100%; height:2px; background:#D3D3D3; border-radius:3px">
+            <div style="position:absolute; left:42%; top:50%; width:13px; height:13px; margin:-6.5px 0 0 -6.5px; border-radius:50%; background:#FF8D41"></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:7px; font-size:12px; line-height:1.55; color:#6A685F">
+        <div style="display:flex; gap:8px"><span style="color:#C0392B; font-weight:700">1</span><span><strong style="color:#35342F">A bordered box on the plot.</strong> 150×22px, <code style="font-size:11px; color:#B54B6E">1px #ddd</code>, no radius, 50% white fill. Reads as a form field dropped on a chart. Every other chart overlay that has been touched uses a shell surface with a radius.</span></div>
+        <div style="display:flex; gap:8px"><span style="color:#C0392B; font-weight:700">2</span><span><strong style="color:#35342F"><code style="font-size:11px; color:#B54B6E">#ff8d41</code> is a fourth orange</strong> — brighter and pinker than the primary <code style="font-size:11px; color:#B54B6E">#E58A2A</code> — at full chroma, over data that is supposed to be the loudest thing on the card.</span></div>
+        <div style="display:flex; gap:8px"><span style="color:#C0392B; font-weight:700">3</span><span><strong style="color:#35342F">A 2px <code style="font-size:11px; color:#B54B6E">#d3d3d3</code> track</strong> is thinner and paler than the chart's own gridlines, so it reads as a stray gridline with a bead on it.</span></div>
+        <div style="display:flex; gap:8px"><span style="color:#C0392B; font-weight:700">4</span><span><strong style="color:#35342F">The vertical copy is the horizontal one rotated −90°</strong>, so its 22px box becomes 22px of intrusion into the plot's left edge.</span></div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:9px">
+        <span style="font-size:13px; font-weight:600">Proposed</span>
+        <span style="font-size:10px; font-weight:600; letter-spacing:0.3px; padding:3px 7px; border-radius:3px; background:#E2F3E8; color:#1D5B39">mostly deletion</span>
+      </div>
+      <div style="position:relative; height:210px; border:1px solid #D9D5CC; border-radius:6px; background:#FFFFFF; overflow:hidden">
+        <div style="position:absolute; inset:26px 14px 26px 34px; background:linear-gradient(to top, #EEEEEE 1px, transparent 1px) 0 0 / 100% 32px"></div>
+        <div style="position:absolute; left:34px; right:14px; bottom:26px; height:118px; display:flex; align-items:flex-end; gap:14px; padding:0 8px">
+          <div style="flex:1; height:64%; background:#9BB7C4"></div>
+          <div style="flex:1; height:88%; background:#9BB7C4"></div>
+          <div style="flex:1; height:47%; background:#9BB7C4"></div>
+          <div style="flex:1; height:73%; background:#9BB7C4"></div>
+        </div>
+        <div style="position:absolute; top:19px; left:50%; transform:translateX(-50%); width:150px; height:12px; display:flex; align-items:center">
+          <div style="position:relative; width:100%; height:2px; background:#D9D5CC; border-radius:999px">
+            <div style="position:absolute; left:58%; top:50%; width:12px; height:12px; margin:-6px 0 0 -6px; border-radius:50%; background:#E58A2A; box-shadow:0 0 0 2px #FFFFFF"></div>
+          </div>
+        </div>
+        <div style="position:absolute; left:19px; top:50%; transform:translate(-50%, -50%) rotate(-90deg); width:150px; height:12px; display:flex; align-items:center">
+          <div style="position:relative; width:100%; height:2px; background:#D9D5CC; border-radius:999px">
+            <div style="position:absolute; left:42%; top:50%; width:12px; height:12px; margin:-6px 0 0 -6px; border-radius:50%; background:#E58A2A; box-shadow:0 0 0 2px #FFFFFF"></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:7px; font-size:12px; line-height:1.55; color:#6A685F">
+        <div style="display:flex; gap:8px"><span style="color:#1D5B39; font-weight:700">1</span><span><strong style="color:#35342F">No container.</strong> The plot is already the surface. Deleting the box removes the border, the fill and the 22px intrusion in one edit, and the control stops competing with the card's own border.</span></div>
+        <div style="display:flex; gap:8px"><span style="color:#1D5B39; font-weight:700">2</span><span><strong style="color:#35342F">Track to <code style="font-size:11px; color:#B54B6E">--inet-default-border-color</code></strong> (#D9D5CC), pill radius. Reads as chrome rather than as a gridline that lost its way — it is deliberately <em>darker</em> than a gridline, not lighter.</span></div>
+        <div style="display:flex; gap:8px"><span style="color:#1D5B39; font-weight:700">3</span><span><strong style="color:#35342F">Thumb 12px in <code style="font-size:11px; color:#B54B6E">--inet-primary-color</code></strong> with a 2px white ring. The ring is the one addition: a handle that travels over bars and gridlines needs separation from whatever is behind it, and a halo costs less attention than a border.</span></div>
+        <div style="display:flex; gap:8px"><span style="color:#1D5B39; font-weight:700">4</span><span><strong style="color:#35342F">Length flexes.</strong> <code style="font-size:11px; color:#B54B6E">min(150px, 60% of the plot edge)</code>, floor 80px, below which the slider does not render — the plot is too small to resize meaningfully anyway.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="border:1px solid #D9D5CC; border-radius:6px; background:#FFFFFF; overflow:hidden">
+    <div style="display:grid; grid-template-columns:130px 1fr 1fr; font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#99958C; background:#F1EFEA; padding:11px 16px; border-bottom:1px solid #D9D5CC">
+      <div>State</div><div>Today</div><div>Proposed</div>
+    </div>
+    <div style="display:grid; grid-template-columns:130px 1fr 1fr; gap:0; font-size:12.5px; line-height:1.55; padding:13px 16px; border-bottom:1px solid #E8E5DE; align-items:center">
+      <div style="font-weight:600">Rest</div>
+      <div style="color:#6A685F">13px thumb, 2px grey track, bordered box</div>
+      <div style="display:flex; align-items:center; gap:14px"><div style="position:relative; width:110px; height:2px; background:#D9D5CC; border-radius:999px"><div style="position:absolute; left:50%; top:50%; width:12px; height:12px; margin:-6px 0 0 -6px; border-radius:50%; background:#E58A2A; box-shadow:0 0 0 2px #FFFFFF"></div></div><span style="color:#6A685F">12px thumb</span></div>
+    </div>
+    <div style="display:grid; grid-template-columns:130px 1fr 1fr; gap:0; font-size:12.5px; line-height:1.55; padding:13px 16px; border-bottom:1px solid #E8E5DE; align-items:center">
+      <div style="font-weight:600">Hover</div>
+      <div style="color:#C0392B">Whole track floods orange; thumb grows 13→18px, so pointing at it moves it</div>
+      <div style="display:flex; align-items:center; gap:14px"><div style="position:relative; width:110px; height:2px; background:#D9D5CC; border-radius:999px"><div style="position:absolute; left:50%; top:50%; width:12px; height:12px; margin:-6px 0 0 -6px; border-radius:50%; background:#C96F12; box-shadow:0 0 0 2px #FFFFFF"></div></div><span style="color:#6A685F">Thumb darkens to <code style="font-size:11px; color:#B54B6E">--inet-primary-color-dark</code>. No size change, no track change.</span></div>
+    </div>
+    <div style="display:grid; grid-template-columns:130px 1fr 1fr; gap:0; font-size:12.5px; line-height:1.55; padding:13px 16px; border-bottom:1px solid #E8E5DE; align-items:center">
+      <div style="font-weight:600">Focus</div>
+      <div style="color:#C0392B"><code style="font-size:11px; color:#B54B6E">outline: none</code> with nothing in its place — the one real accessibility fault here</div>
+      <div style="display:flex; align-items:center; gap:14px"><div style="position:relative; width:110px; height:2px; background:#D9D5CC; border-radius:999px"><div style="position:absolute; left:50%; top:50%; width:12px; height:12px; margin:-6px 0 0 -6px; border-radius:50%; background:#E58A2A; box-shadow:0 0 0 2px #FFFFFF, 0 0 0 4px rgba(229,138,42,0.28)"></div></div><span style="color:#6A685F">Shipped <code style="font-size:11px; color:#B54B6E">--inet-focus-ring-*</code> outside the white ring</span></div>
+    </div>
+    <div style="display:grid; grid-template-columns:130px 1fr 1fr; gap:0; font-size:12.5px; line-height:1.55; padding:13px 16px; align-items:center">
+      <div style="font-weight:600">Coarse pointer</div>
+      <div style="color:#6A685F">Thumb drawn at 18px — a bigger dot, still an 18px target</div>
+      <div style="color:#6A685F"><strong style="color:#35342F">Grow the hit area, not the thumb.</strong> The input keeps a 44px transparent height (<code style="font-size:11px; color:#B54B6E">--inet-control-height-touch</code>); the drawn thumb stays 12px. Hit target and visual weight are different problems and the current file conflates them.</div>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:22px">
+    <div style="border:1px solid #D9D5CC; border-radius:6px; background:#FFFFFF; padding:16px 18px; display:flex; flex-direction:column; gap:11px">
+      <div style="font-size:13px; font-weight:600">Bindings</div>
+      <div style="display:flex; flex-direction:column; gap:6px; font-size:12px; line-height:1.5; color:#6A685F">
+        <div style="display:grid; grid-template-columns:1fr 1.2fr; gap:10px; padding-bottom:5px; border-bottom:1px solid #E8E5DE"><span><code style="font-size:11px; color:#B54B6E">#ff8d41</code> thumb</span><span><code style="font-size:11px; color:#B54B6E">--inet-primary-color</code></span></div>
+        <div style="display:grid; grid-template-columns:1fr 1.2fr; gap:10px; padding-bottom:5px; border-bottom:1px solid #E8E5DE"><span><code style="font-size:11px; color:#B54B6E">#ff8d41</code> hover</span><span><code style="font-size:11px; color:#B54B6E">--inet-primary-color-dark</code></span></div>
+        <div style="display:grid; grid-template-columns:1fr 1.2fr; gap:10px; padding-bottom:5px; border-bottom:1px solid #E8E5DE"><span><code style="font-size:11px; color:#B54B6E">#d3d3d3</code> track</span><span><code style="font-size:11px; color:#B54B6E">--inet-default-border-color</code></span></div>
+        <div style="display:grid; grid-template-columns:1fr 1.2fr; gap:10px; padding-bottom:5px; border-bottom:1px solid #E8E5DE"><span><code style="font-size:11px; color:#B54B6E">#ddd</code> box border</span><span>deleted</span></div>
+        <div style="display:grid; grid-template-columns:1fr 1.2fr; gap:10px; padding-bottom:5px; border-bottom:1px solid #E8E5DE"><span>13px thumb</span><span><code style="font-size:11px; color:#B54B6E">--inet-icon-size-sm</code> (12px)</span></div>
+        <div style="display:grid; grid-template-columns:1fr 1.2fr; gap:10px"><span>coarse-pointer height</span><span><code style="font-size:11px; color:#B54B6E">--inet-control-height-touch</code> (44px)</span></div>
+      </div>
+      <div style="font-size:11.5px; line-height:1.5; color:#99958C; border-top:1px solid #E8E5DE; padding-top:9px">No new tokens. <code style="font-size:11px; color:#B54B6E">--inet-icon-size-sm</code> and <code style="font-size:11px; color:#B54B6E">--inet-control-height-touch</code> are two of the four additions the chart card spec already asks for.</div>
+    </div>
+
+    <div style="border:1px solid #D9D5CC; border-radius:6px; background:#FFFFFF; padding:16px 18px; display:flex; flex-direction:column; gap:11px">
+      <div style="font-size:13px; font-weight:600">This is smaller than what it replaces</div>
+      <div style="font-size:12.5px; line-height:1.6; color:#6A685F; text-wrap:pretty">The file is ~200 lines of range styling. Roughly half is <code style="font-size:11px; color:#B54B6E">::-ms-*</code> and <code style="font-size:11px; color:#B54B6E">-ms-high-contrast</code> for IE11, which Angular 21 cannot run — delete outright. Most of the rest is the hover and focus size-change rules repeated across three engine prefixes; dropping the size change deletes six of them.</div>
+      <div style="font-size:12.5px; line-height:1.6; color:#6A685F">What is left is a track colour, a thumb colour, a thumb size, a hover colour and a focus ring — per engine, and the engines now agree, so the WebKit and Firefox blocks become near-identical instead of drifting (11px thumb in Firefox against 13px in WebKit today, for no stated reason).</div>
+      <div style="font-size:12px; line-height:1.55; color:#99958C; border-top:1px solid #E8E5DE; padding-top:9px"><strong style="color:#6A685F">Keep it a native <code style="font-size:11px; color:#B54B6E">input[type=range]</code>.</strong> The portal has four div-based sliders and none of them is keyboard-reachable — <code style="font-size:11px; color:#B54B6E">vs-slider</code> is <code style="font-size:11px; color:#B54B6E">role="slider"</code> with <code style="font-size:11px; color:#B54B6E">tabindex="-1"</code>. Rebuilding this one to match them would trade a working control for a consistently broken one.</div>
+    </div>
+  </div>
+
+  <div style="border:1px solid #D9D5CC; border-left:3px solid #E58A2A; border-radius:6px; background:#FFFFFF; padding:16px 18px; display:flex; flex-direction:column; gap:8px">
+    <div style="font-size:13px; font-weight:600">Scope — what is deliberately not drawn</div>
+    <div style="font-size:12.5px; line-height:1.6; color:#6A685F; text-wrap:pretty">None of this is part of the chart card spec. These surfaces are drawn over the card or inside the plot, and no §04 spacing rule reaches them; nothing in the card spec depends on any of it, and it can ship whenever.</div>
+    <div style="font-size:12.5px; line-height:1.6; color:#6A685F; text-wrap:pretty">The ticket's other items stay in prose on purpose. Annotation overlays, drill and date-comparison tips, the data-tip z-index registration, the resize handles and the remaining colour literals are value swaps with no design content — drawing them would add review weight without adding information. <strong style="color:#35342F">One caveat on ownership:</strong> the card tooltip in §02 is styled from the shell's <code style="font-size:11px; color:#B54B6E">_directives.scss</code> and is used across the product, not only by charts. It sits in a chart ticket because that is where it was found, not because charts own it — whoever implements it should expect a review radius beyond the chart.</div>
+  </div>
+</div>
+
+</x-dc>
+</body>
+</html>

@@ -64,7 +64,10 @@ public class ChartLinePaneModel implements Serializable {
 
       plotDesc.setFacetGrid(facetGrid, false);
       color = Tool.getColorFromHexString(facetGridColor);
-      plotDesc.setFacetGridColor(color, false);
+
+      if(!Tool.equals(color, plotDesc.getFacetGridColor())) {
+         plotDesc.setFacetGridColor(color, false);
+      }
    }
 
    private void updatePlotTrendLineGrid(PlotDescriptor plotDesc) {
@@ -142,17 +145,31 @@ public class ChartLinePaneModel implements Serializable {
          plotDesc.setXGridStyle(yGridLineStyle, false);
          plotDesc.setYGridStyle(xGridLineStyle, false);
          color = Tool.getColorFromHexString(yGridLineColor);
-         plotDesc.setXGridColor(color, false);
+
+         if(!Tool.equals(color, plotDesc.getXGridColor())) {
+            plotDesc.setXGridColor(color, false);
+         }
+
          color = Tool.getColorFromHexString(xGridLineColor);
-         plotDesc.setYGridColor(color, false);
+
+         if(!Tool.equals(color, plotDesc.getYGridColor())) {
+            plotDesc.setYGridColor(color, false);
+         }
       }
       else {
          plotDesc.setXGridStyle(xGridLineStyle, false);
          plotDesc.setYGridStyle(yGridLineStyle, false);
          color = Tool.getColorFromHexString(xGridLineColor);
-         plotDesc.setXGridColor(color, false);
+
+         if(!Tool.equals(color, plotDesc.getXGridColor())) {
+            plotDesc.setXGridColor(color, false);
+         }
+
          color = Tool.getColorFromHexString(yGridLineColor);
-         plotDesc.setYGridColor(color, false);
+
+         if(!Tool.equals(color, plotDesc.getYGridColor())) {
+            plotDesc.setYGridColor(color, false);
+         }
       }
    }
 

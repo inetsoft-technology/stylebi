@@ -177,6 +177,29 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
    get selected(): boolean {
       return this._selected;
    }
+
+   // format wins, class is the default: keep the trigger's viz-token background inert unless
+   // the author left the format background unset. Under legacy (!vizModern) this replicates
+   // each call site's own pre-existing fallback expression so gate-off stays pixel-identical:
+   // the <select> only ever treated an explicit empty string as transparent, leaving
+   // null/undefined un-inlined (`background == '' ? 'transparent' : background`), while the
+   // virtual-scroll trigger div already collapsed any falsy value, null/undefined included
+   // (`background || 'transparent'`) — the two were never the same expression before this
+   // method existed, so a single shared fallback can't replace both without picking one.
+   getTriggerBackground(collapseFalsy: boolean = true): string {
+      const background = this._model.objectFormat.background;
+
+      if(background) {
+         return background;
+      }
+
+      if(this._model.vizModern) {
+         return null;
+      }
+
+      return collapseFalsy ? "transparent" : (background === "" ? "transparent" : background);
+   }
+
    @Input() submitted: Observable<boolean>;
    @Output() comboBoxChanged = new EventEmitter();
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;

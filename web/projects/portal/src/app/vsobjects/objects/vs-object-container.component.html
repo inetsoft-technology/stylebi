@@ -26,7 +26,7 @@
         VSPopComponent [popComponentName]="vsObject.absoluteName"
         [popContainerName]="vsObject.container"
         [popZIndex]="zIndex(vsObject)"
-        [popBackground]="vsObject.objectType == 'VSGauge' ? 'transparent' : 'white'"
+        [popBackground]="vsObject.objectType == 'VSGauge' ? 'transparent' : 'var(--inet-dialog-bg-color)'"
         [style.display]="!viewer || vsObject.visible && (vsObject.container && vsObject.active || !vsObject.container) && vsObject.containerType ? null : 'none'"
         [class.bd-selected-assembly]="isFocused(vsObject) || mobile && isSelected(i) && vsObjectActions[i].toolbarActions.length > 0"
         [style.width.px]="getActualWidth(vsObject)"
@@ -42,6 +42,8 @@
         class="vs-object-parent-container"
         [class.popup-showing]="isPopupShowing(vsObject)"
         [class.max-mode]="vsObject.maxMode"
+        [class.viz-modern]="vsObject.vizModern"
+        [class.viz-dark]="vsObject.vizDark"
         [class.force-show-toolbar]="forceShowMiniToolbar && isFocused(vsObject)"
         [style.z-index]="getContainerZIndex(vsObject)"
         (click)="select(i, $event)" (mouseenter)="onMouseEnter(vsObject, $event)"
@@ -339,8 +341,14 @@
         }
       </div>
       @if (!hideMiniToolbar && isMiniToolbarVisible(vsObject) && vsObject.enabled) {
+        @let anchored = isToolbarAnchored(vsObject);
+        @let glyphTone = anchored ? getStripGlyphTone(vsObject) : null;
         <mini-toolbar
           VSDataTip [dataTipName]="vsObject.absoluteName" [miniToolbar]="true"
+          [class.viz-modern]="vsObject.vizModern"
+          [class.viz-dark]="vsObject.vizDark"
+          [attr.data-tone]="glyphTone?.tone"
+          [style.--viz-strip-glyph-a]="glyphTone?.alpha"
           VSPopComponent [popComponentName]="vsObject.absoluteName"
           [popContainerName]="vsObject.container"
           [containerBounds]="containerBounds"
@@ -350,7 +358,8 @@
           [actions]="vsObjectActions[i]"
           [top]="getToolbarTop(vsObject, i)"
           [left]="getToolbarLeft(vsObject, i)"
-          [width]="getToolbarWidth(vsObject)"
+          [width]="anchored ? getAnchoredToolbarWidth(vsObject) : getToolbarWidth(vsObject)"
+          [anchorInTitleLane]="anchored"
           [zIndex]="getMiniToolbarZIndex(vsObject)"
           [maxMode]="vsObject.maxMode"
           [style.display]="isAssemblyVisible(vsObject) ? 'block' : 'none'"
@@ -388,6 +397,8 @@
       !$any(vsObject).maxMode && !!$any(vsObject).plot) {
       <div [style.top.px]="getVsObjectPosition(vsObject, i, true)"
         [style.left.px]="getVsObjectPosition(vsObject, i, false)"
+        [class.viz-modern]="vsObject.vizModern"
+        [class.viz-dark]="vsObject.vizDark"
         style="position: absolute;">
         @for (ann of getChartDataAnnotations(vsObject); track ann.absoluteName) {
           <vs-annotation

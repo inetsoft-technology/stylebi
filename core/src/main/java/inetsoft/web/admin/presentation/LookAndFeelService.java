@@ -22,6 +22,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.FontFaceModel;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.uql.viewsheet.internal.VSDensityDefaults;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -55,6 +56,13 @@ public class LookAndFeelService {
       final String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       boolean asc = "Ascending".equals(SreeEnv.getProperty("repository.tree.sort", false, !globalProperty));
+      boolean modernVisualization = SreeEnv.getBooleanProperty("viewsheet.modernVisualization", false, !globalProperty);
+      String visualizationDensity = SreeEnv.getProperty("viewsheet.density", false, !globalProperty);
+      boolean darkMode = SreeEnv.getBooleanProperty("viewsheet.darkMode", false, !globalProperty);
+
+      if(visualizationDensity == null || visualizationDensity.isEmpty()) {
+         visualizationDensity = "compact";
+      }
       boolean repositoryTree = manager.getReportListType() == 0;
       boolean expand = manager.isAutoExpand();
       boolean defaultLogo = !manager.hasCustomLogo(globalProperty ? null : orgID);
@@ -131,6 +139,9 @@ public class LookAndFeelService {
                .collect(Collectors.toList())
          )
          .vsEnabled(true)
+         .modernVisualization(modernVisualization)
+         .darkMode(darkMode)
+         .visualizationDensity(visualizationDensity)
          .build();
    }
 
@@ -156,6 +167,12 @@ public class LookAndFeelService {
       int repoTree = model.repositoryTree() ? 0 : 1;
 
       SreeEnv.setProperty("repository.tree.sort", sort, !globalSettings);
+      SreeEnv.setProperty("viewsheet.modernVisualization",
+                          Boolean.toString(model.modernVisualization()), !globalSettings);
+      SreeEnv.setProperty("viewsheet.density",
+                          VSDensityDefaults.normalizeMode(model.visualizationDensity()), !globalSettings);
+      SreeEnv.setProperty("viewsheet.darkMode",
+                          Boolean.toString(model.darkMode()), !globalSettings);
       manager.setReportListType(repoTree);
       manager.setAutoExpand(model.expand());
 

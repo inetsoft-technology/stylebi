@@ -143,10 +143,13 @@ public class ChartPropertyDialogService {
       basicGeneralPaneModel.setObjectNames(this.vsObjectPropertyService.getObjectNames(
          vs, chartAssemblyInfo.getAbsoluteName()));
 
-      paddingPaneModel.setTop(chartAssemblyInfo.getPadding().top);
-      paddingPaneModel.setLeft(chartAssemblyInfo.getPadding().left);
-      paddingPaneModel.setBottom(chartAssemblyInfo.getPadding().bottom);
-      paddingPaneModel.setRight(chartAssemblyInfo.getPadding().right);
+      Insets chartPadding = chartAssemblyInfo.getPadding();
+      paddingPaneModel.setTop(chartPadding.top);
+      paddingPaneModel.setLeft(chartPadding.left);
+      paddingPaneModel.setBottom(chartPadding.bottom);
+      paddingPaneModel.setRight(chartPadding.right);
+      paddingPaneModel.setFollowsDefault(
+         chartAssemblyInfo.getVizMark() == null ? null : !chartAssemblyInfo.isUserPadding());
 
       titlePropPaneModel.setVisible(chartAssemblyInfo.getTitleVisibleValue());
       titlePropPaneModel.setTitle(chartAssemblyInfo.getTitleValue());
@@ -194,7 +197,10 @@ public class ChartPropertyDialogService {
       Dimension size = dialogService.getAssemblySize(chartAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setTitleHeight(chartAssemblyInfo.getTitleHeightValue());
+      sizePositionPaneModel.setTitleHeight(
+         VSDensityDefaults.titleHeight(chartAssemblyInfo, chartAssemblyInfo.getTitleHeightValue()));
+      sizePositionPaneModel.setTitleHeightFollowsDensity(
+         chartAssemblyInfo.getVizMark() == null ? null : !chartAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(chartAssembly.getContainer() != null);
       String[] dataRefList = getDataRefList(vsChartInfo, VSUtil.getCubeType(chartAssembly));
       tipCustomizeDialogModel.setDataRefList(dataRefList);
@@ -218,7 +224,12 @@ public class ChartPropertyDialogService {
          tipCustomizeDialogModel.setCombinedTip(true);
       }
 
-      tipCustomizeDialogModel.setTooltipStyle(vsChartInfo.getTooltipStyleValue());
+      // The two-radio dialog has no AUTO option; preselect the resolved value so a
+      // radio is selected. Saving then persists an explicit DEFAULT/CARD (a deliberate
+      // choice), collapsing AUTO.
+      ChartInfo.TooltipStyle designTipStyle = vsChartInfo.getTooltipStyleValue();
+      tipCustomizeDialogModel.setTooltipStyle(designTipStyle == ChartInfo.TooltipStyle.AUTO
+         ? vsChartInfo.getTooltipStyle() : designTipStyle);
 
       tipCustomizeDialogModel.setSnapTooltip(vsChartInfo.getSnapTooltipValue());
       tipCustomizeDialogModel.setSnapSupported(vsChartInfo.supportsSnapTooltip());
@@ -377,10 +388,30 @@ public class ChartPropertyDialogService {
 
       assemblyInfo.setTitleVisibleValue(titlePropPaneModel.isVisible());
       assemblyInfo.setTitleValue(titlePropPaneModel.getTitle());
-      assemblyInfo.setPadding(new Insets(paddingPaneModel.getTop(),
-                                         paddingPaneModel.getLeft(),
-                                         paddingPaneModel.getBottom(),
-                                         paddingPaneModel.getRight()));
+      Insets editedPadding = new Insets(paddingPaneModel.getTop(), paddingPaneModel.getLeft(),
+                                        paddingPaneModel.getBottom(), paddingPaneModel.getRight());
+      Boolean paddingFollowsDefault = paddingPaneModel.getFollowsDefault();
+
+      if(paddingFollowsDefault == null) {
+         // no checkbox was shown, so this chart is not marked and the inset is not being resolved;
+         // store only a real edit, exactly as this pane behaved before the checkbox existed
+         if(!editedPadding.equals(assemblyInfo.getPadding())) {
+            assemblyInfo.setUserPadding(true);
+            assemblyInfo.setPadding(editedPadding);
+         }
+      }
+      else if(paddingFollowsDefault) {
+         // clear the opinion and let the default decide, the same shape Revert uses. Storing the
+         // legacy inset here would pin 10 now that the value is seeded rather than resolved.
+         // resetCardInset touches only the inset - seedChromeDefaults would also re-run the card
+         // background, the title lane and the colour palette, which this checkbox never asked for
+         assemblyInfo.setUserPadding(false);
+         assemblyInfo.resetCardInset(VizContext.of(assemblyInfo));
+      }
+      else {
+         assemblyInfo.setUserPadding(true);
+         assemblyInfo.setPadding(editedPadding);
+      }
 
       if(tipPaneModel.isTipOption()) {
          assemblyInfo.setTipOptionValue(TipVSAssemblyInfo.VIEWTIP_OPTION);
@@ -402,7 +433,22 @@ public class ChartPropertyDialogService {
       if(!viewsheet.isViewer()) {
          dialogService.setAssemblySize(assemblyInfo, sizePositionPaneModel);
          dialogService.setAssemblyPosition(assemblyInfo, sizePositionPaneModel);
-         assemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+         Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
+
+         if(followsDensity == null) {
+            if(sizePositionPaneModel.getTitleHeight() != assemblyInfo.getTitleHeightValue()) {
+               assemblyInfo.setUserTitleHeight(true);
+               assemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+            }
+         }
+         else if(followsDensity) {
+            assemblyInfo.setUserTitleHeight(false);
+            assemblyInfo.setTitleHeightValue(assemblyInfo.getLegacyTitleHeight());
+         }
+         else {
+            assemblyInfo.setUserTitleHeight(true);
+            assemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+         }
       }
 
       String[] flyovers = VSUtil.getValidFlyovers(tipPaneModel.getFlyOverViews(),

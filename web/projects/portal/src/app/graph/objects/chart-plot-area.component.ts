@@ -95,14 +95,17 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
                const drawRegions = this.chartObject.regions.filter(
                   (region) => !!region && !region.noselect &&
                      ChartTool.areaType(this.model, region) != "text");
+               // this.model is typed ChartModel, but in practice always the VSChartModel this
+               // component tree renders under (chart-area is only ever bound from vs-chart).
+               const vizModern = (<any> this.model)?.vizModern;
 
                if(plotScaleInfo.vertical) {
                   ChartTool.drawRegions(context, drawRegions, this.canvasX, this.canvasY, this.viewsheetScale,
-                                        1, plotScaleInfo.scale);
+                                        1, plotScaleInfo.scale, undefined, undefined, vizModern);
                }
                else {
                   ChartTool.drawRegions(context, drawRegions, this.canvasX, this.canvasY, this.viewsheetScale,
-                                        plotScaleInfo.scale, 1);
+                                        plotScaleInfo.scale, 1, undefined, undefined, vizModern);
                }
             }
          }
@@ -130,6 +133,8 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    private altDown = false;
    private status: boolean = true;
    panning: Point = null;
+   /** Visual middle of the mark under the cursor, in viewport coords; null when none hovered. */
+   tailAnchor: { x: number, y: number } = null;
    panBackground = null;
    panSnapshot = null;
    panX: number = 0;
@@ -828,11 +833,15 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
                   .map(r => ({ row: r.rowIdx, col: ChartTool.colIdx(this.model, r) }))
                   .filter(p => p.col >= 0);
                this.inlineSvgTiles?.forEach(d => d.highlightElements(pairs));
+               // Highlight spans the column; the tip describes one segment, so anchor to that.
+               this.tailAnchor = this.markAnchor(voRegion.rowIdx,
+                                                 ChartTool.colIdx(this.model, voRegion), voRegion);
             }
             else {
                const rowIdx = voRegion != null ? voRegion.rowIdx : null;
                const colIdx = voRegion != null ? ChartTool.colIdx(this.model, voRegion) : null;
                this.inlineSvgTiles?.forEach(d => d.highlightElement(rowIdx, colIdx));
+               this.tailAnchor = rowIdx != null ? this.markAnchor(rowIdx, colIdx, voRegion) : null;
 
                // Line tiles dim by series color (highlightElement is a no-op there); voRegion
                // (snapPrimary) is the series under the cursor. No-op on area/bar tiles.
@@ -847,6 +856,37 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       else if(!this.dataTip) {
          this.showTooltip.emit(null);
       }
+   }
+
+   /** Visual middle of a mark, from whichever tile holds it, else from the region model. */
+   private markAnchor(rowIdx: number, colIdx: number, region: ChartRegion): { x: number, y: number } {
+      if(colIdx >= 0) {
+         for(const tile of this.inlineSvgTiles || []) {
+            const anchor = tile.getElementAnchor(rowIdx, colIdx);
+
+            if(!!anchor) {
+               return anchor;
+            }
+         }
+      }
+
+      return this.regionAnchor(region);
+   }
+
+   /**
+    * Fallback for marks the svg index cannot resolve: area and marker-less line fills carry no
+    * row/col. Ranks below the svg anchor because a region centroid is a bounding-box centre,
+    * which for an arc lands in the donut hole.
+    */
+   private regionAnchor(region: ChartRegion): { x: number, y: number } {
+      const canvas = this.referenceLineCanvas?.nativeElement;
+
+      if(!region?.centroid || !canvas) {
+         return null;
+      }
+
+      return ChartTool.regionPointToViewport(region.centroid, canvas.getBoundingClientRect(),
+                                             this.canvasX, this.canvasY, this.viewsheetScale || 1);
    }
 
    onDown(event: MouseEvent | TouchEvent) {
@@ -896,7 +936,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
 
             if(this.mobile) {
                const context = this.referenceLineCanvas.nativeElement.getContext("2d");
-               ChartTool.drawTouch(context, x1, y1);
+               ChartTool.drawTouch(context, x1, y1, (<any> this.model)?.vizModern);
             }
          }
 
@@ -1038,6 +1078,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
             d.highlightElement(null, null);
             d.highlightSnapSeries([]);
          });
+         this.tailAnchor = null;
       }
    }
 
@@ -1155,7 +1196,9 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
             this.chartSelection.chartObject === this.chartObject)
          {
             ChartTool.drawRegions(this.getContext(), this.chartSelection.regions,
-                                  this.canvasX, this.canvasY, this.viewsheetScale);
+                                  this.canvasX, this.canvasY, this.viewsheetScale,
+                                  undefined, undefined, undefined, undefined,
+                                  (<any> this.model)?.vizModern);
          }
       }
    }

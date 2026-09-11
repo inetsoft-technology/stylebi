@@ -17,13 +17,24 @@
  */
 package inetsoft.web.graph.model.dialog;
 
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.graph.*;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SreeHome()
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class ChartPlotOptionsPaneModelTest {
 
    private ChartPlotOptionsPaneModel modelFor(int chartType) {
@@ -409,5 +420,65 @@ class ChartPlotOptionsPaneModelTest {
          assertEquals(value, target.getTreeLayout(),
             "updateChartPlotOptionsPaneModel should write the model value back");
       }
+   }
+
+   private ChartPlotOptionsPaneModel roundTripDialog(VSChartInfo info, PlotDescriptor plotDesc) {
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+      model.updateChartPlotOptionsPaneModel(info, plotDesc);
+      return model;
+   }
+
+   @Test
+   void editedRadiusIsWrittenBack() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_BAR);
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      plotDesc.setBarCornerRadius(0.3);
+
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+      model.setBarCornerRadius(0.15);
+      model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      assertEquals(0.15, plotDesc.getBarCornerRadius(), 1e-9);
+   }
+
+   @Test
+   void noOpSaveLeavesTheRadiusAlone() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_BAR);
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      plotDesc.setBarCornerRadius(0.3);
+
+      roundTripDialog(info, plotDesc);
+
+      assertEquals(0.3, plotDesc.getBarCornerRadius(), 1e-9,
+                   "opening the dialog and pressing OK must not change the radius");
+   }
+
+   @Test
+   void uncheckedSmoothLinesIsWrittenBack() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_LINE);
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      plotDesc.setSmoothLines(true);
+
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+      model.setSmoothLines(false);
+      model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      assertFalse(plotDesc.isSmoothLines());
+   }
+
+   @Test
+   void noOpSaveLeavesSmoothLinesAlone() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_LINE);
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      plotDesc.setSmoothLines(true);
+
+      roundTripDialog(info, plotDesc);
+
+      assertTrue(plotDesc.isSmoothLines(),
+                 "opening the dialog and pressing OK must not change smooth lines");
    }
 }

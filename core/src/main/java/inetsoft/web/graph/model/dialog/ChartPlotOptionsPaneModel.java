@@ -196,6 +196,7 @@ public class ChartPlotOptionsPaneModel implements Serializable {
       plotDesc.setFillTimeGap(fillTimeGap);
       plotDesc.setFillZero(fillZero);
       plotDesc.setFillGapWithDash(fillGapWithDash);
+
       plotDesc.setSmoothLines(smoothLines);
       // applied for all chart types so the value survives a chart-type switch;
       // GraphGenerator only reads it for CHART_TREE.

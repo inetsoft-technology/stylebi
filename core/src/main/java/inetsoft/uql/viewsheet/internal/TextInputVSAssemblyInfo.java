@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.internal.table.TableFormat;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
@@ -59,7 +60,7 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
    protected void setDefaultFormat(boolean border) {
       VSCompositeFormat format = new VSCompositeFormat();
       // avoid text being clipped in default size
-      format.getDefaultFormat().setFontValue(getDefaultFont(Font.PLAIN, 11));
+      format.getDefaultFormat().setFontValue(getDefaultFont(Font.PLAIN, 12));
       format.getCSSFormat().setCSSType(getObjCSSType());
       //Fixed bug #23941 that text assembly's border should have default "border colors".
       BorderColors bcolors = new BorderColors(
@@ -68,6 +69,32 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
       format.getDefaultFormat().setBorderColors(bcolors);
       setFormat(format);
       setCSSDefaults();
+      seedChromeDefaults(VizContext.of(this));
+   }
+
+   /**
+    * Seed the modern-gated round corner. This type bypasses the base chrome hook (see
+    * VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own — form-input modernization,
+    * tracked as its own follow-on project from the card-corner work. The bug-#23941 border
+    * colour above is left untouched; only round corner is gate-dependent here.
+    */
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      super.seedChromeDefaults(ctx); // no-op: this type bypasses the base hook
+
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         objFormat.getDefaultFormat().setRoundCornerValue(
+            ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 0);
+      }
+
+      if(ctx.modern && getPixelSize().height == AssetUtil.defh) {
+         setPixelSize(new Dimension(getPixelSize().width, VSDensityDefaults.controlHeight(ctx)));
+      }
+      else if(!ctx.modern && VSDensityDefaults.isControlHeight(getPixelSize().height)) {
+         setPixelSize(new Dimension(getPixelSize().width, AssetUtil.defh));
+      }
    }
 
    /**

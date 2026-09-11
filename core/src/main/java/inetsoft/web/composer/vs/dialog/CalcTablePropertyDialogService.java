@@ -137,7 +137,11 @@ public class CalcTablePropertyDialogService {
       Dimension size = dialogService.getAssemblySize(calcTableAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setTitleHeight(calcTableAssemblyInfo.getTitleHeightValue());
+      sizePositionPaneModel.setTitleHeight(
+         VSDensityDefaults.titleHeight(calcTableAssemblyInfo, calcTableAssemblyInfo.getTitleHeightValue()));
+      sizePositionPaneModel.setTitleHeightFollowsDensity(
+         calcTableAssemblyInfo.getVizMark() == null ? null :
+            !calcTableAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(calcTableAssembly.getContainer() != null);
 
       advPane.setShrink(calcTableAssemblyInfo.getShrinkValue());
@@ -372,7 +376,22 @@ public class CalcTablePropertyDialogService {
 
       dialogService.setAssemblySize(calcTableAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(calcTableAssemblyInfo, sizePositionPaneModel);
-      calcTableAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
+
+      if(followsDensity == null) {
+         if(sizePositionPaneModel.getTitleHeight() != calcTableAssemblyInfo.getTitleHeightValue()) {
+            calcTableAssemblyInfo.setUserTitleHeight(true);
+            calcTableAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+         }
+      }
+      else if(followsDensity) {
+         calcTableAssemblyInfo.setUserTitleHeight(false);
+         calcTableAssemblyInfo.setTitleHeightValue(calcTableAssemblyInfo.getLegacyTitleHeight());
+      }
+      else {
+         calcTableAssemblyInfo.setUserTitleHeight(true);
+         calcTableAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      }
 
       calcTableAssemblyInfo.setShrinkValue(advPane.isShrink());
       calcTableAssemblyInfo.setHeaderRowCount(advPane.getHeaderRowCount());

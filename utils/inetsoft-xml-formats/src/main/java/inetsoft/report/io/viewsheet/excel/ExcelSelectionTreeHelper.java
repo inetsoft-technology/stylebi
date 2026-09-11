@@ -24,6 +24,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.*;
@@ -157,7 +158,7 @@ public class ExcelSelectionTreeHelper extends VSSelectionTreeHelper {
       SelectionValue sv;
       VSCompositeFormat lastLineFormat = null;
       VSCompositeFormat format = null;
-      int cellHeight = info.getCellHeight();
+      int cellHeight = info.getEffectiveCellHeight();
       cellHeight = (int) Math.round((double) cellHeight / AssetUtil.defh) * AssetUtil.defh;
       int titleH = PoiExcelVSUtil.getExcelTitleHeight(info);
       int sizeHeight = PoiExcelVSUtil.floorY(info.getPixelSize().height);
@@ -171,7 +172,7 @@ public class ExcelSelectionTreeHelper extends VSSelectionTreeHelper {
       for(int i = 1; i < dispList.size(); i++) {
          SelectionValue svalue = dispList.get(i);
          VSCompositeFormat format2 = svalue.getFormat();
-         double cellHeight2 = format2 == null || !format2.isWrapping() ? info.getCellHeight() :
+         double cellHeight2 = format2 == null || !format2.isWrapping() ? info.getEffectiveCellHeight() :
             Common.getWrapTextHeight(svalue.getLabel(), PoiExcelVSUtil.floorY(size.width),
                                      format2.getFont(), format2.getAlignment());
 
@@ -224,8 +225,7 @@ public class ExcelSelectionTreeHelper extends VSSelectionTreeHelper {
             RichTextString hrText = PoiExcelVSUtil.createRichTextString(book,
                                                                         Tool.convertHTMLSymbol(sb.toString()));
             format = sv.getFormat();
-
-            // set to gray if the parent itself is not selected
+            format = ExcelSelectionListHelper.applyDarkOptOut(format, VizContext.of(info).dark);
             format = VSSelectionListHelper.getValueFormat(sv, format, hasSelected);
 
             if(i == (dispList.size() - 1) && STR_MORE.equals(sv.getLabel())) {

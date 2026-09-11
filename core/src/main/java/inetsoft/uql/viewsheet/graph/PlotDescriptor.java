@@ -27,6 +27,7 @@ import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.ContentObject;
 import inetsoft.util.Tool;
 import inetsoft.util.css.CSSConstants;
@@ -64,13 +65,14 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    }
 
    public void initDefaultFormat() {
-      initDefaultFormat(false);
+      initDefaultFormat(VizContext.LEGACY);
    }
 
-   public void initDefaultFormat(boolean vs) {
-      fmt.getDefaultFormat().setColor(GDefaults.DEFAULT_TEXT_COLOR);
-      fmt.getDefaultFormat().setFont(vs ? VSAssemblyInfo.getDefaultFont(VSUtil.getDefaultFont()) :
-         VSUtil.getDefaultFont());
+   public void initDefaultFormat(VizContext ctx) {
+      // colour seeded at creation by ChartVSAssemblyInfo.seedChromeDefaults; TextSpec:56 covers the null case
+      // font follows "is a viewsheet chart", not the modern gate
+      fmt.getDefaultFormat().setFont(ctx != VizContext.LEGACY ?
+         VSAssemblyInfo.getDefaultFont(VSUtil.getDefaultFont()) : VSUtil.getDefaultFont());
    }
 
    private void initPlotErrorFormat() {
@@ -1291,6 +1293,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       this.pieRatio = pieRatio;
    }
 
+   /** Bar corner radius, 0 to 0.5 as a fraction of bar width. */
    public double getBarCornerRadius() {
       return barCornerRadius;
    }

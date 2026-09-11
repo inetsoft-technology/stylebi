@@ -112,6 +112,15 @@ public class PortalController {
          }
       }
 
+      boolean modernVisualization =
+         SreeEnv.getBooleanProperty("viewsheet.modernVisualization", false, true);
+      boolean darkMode = SreeEnv.getBooleanProperty("viewsheet.darkMode", false, true);
+      String vizDensity = SreeEnv.getProperty("viewsheet.density", false, true);
+
+      if(vizDensity == null || vizDensity.isEmpty()) {
+         vizDensity = "compact";
+      }
+
       PortalCreationPermisisons creationModel = refreshPortalCreationPermissions(principal);
       boolean aiAssistantVisible = aiSettingsService.isAiAssistantVisible() &&
          securityEngine.checkPermission(principal, ResourceType.AI_ASSISTANT, "*", ResourceAction.ACCESS);
@@ -140,6 +149,9 @@ public class PortalController {
          .profile(porfile)
          .profiling(profiling)
          .elasticLicenseExhausted(elasticLicenseExhausted)
+         .modernVisualization(modernVisualization)
+         .darkMode(darkMode)
+         .vizDensity(vizDensity)
          .build();
    }
 

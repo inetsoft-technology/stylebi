@@ -176,6 +176,21 @@ public class TitleInfo implements AssetObject {
       titleHeight.setDValue(height + "");
    }
 
+   /**
+    * Whether the author set the title height rather than leaving it to follow the default
+    * density. Part of equals(), so a change to it alone still transfers through copyViewInfo.
+    */
+   public boolean isUserTitleHeight() {
+      return userTitleHeight;
+   }
+
+   /**
+    * Set whether the title height was set by the author.
+    */
+   public void setUserTitleHeight(boolean userTitleHeight) {
+      this.userTitleHeight = userTitleHeight;
+   }
+
    public Insets getPadding() {
       return padding.get();
    }
@@ -235,18 +250,30 @@ public class TitleInfo implements AssetObject {
     */
    @Override
    public final void parseXML(Element elem) throws Exception {
+      parseXML(elem, AssetUtil.defh);
+   }
+
+   /**
+    * Method to parse an xml segment.
+    * @param elem the specified xml element.
+    * @param defaultTitleHeight the owning type's default title height.
+    */
+   public final void parseXML(Element elem, int defaultTitleHeight) throws Exception {
       Element node = Tool.getChildNodeByTagName(elem, "titleInfo");
 
       if(node != null) {
-         parseAttributes(node);
+         parseAttributes(node, defaultTitleHeight);
          parseContents(node);
       }
       else {// for bc
          node = Tool.getChildNodeByTagName(elem, "titleValue");
          setTitleValue(node == null ? null : Tool.getValue(node));
          setTitleVisibleValue(Tool.getAttribute(elem, "titleVisible"));
+
+         String heightAttr = VSUtil.getAttributeStr(elem, "titleHeight", null);
          setTitleHeightValue(Integer.parseInt(
-            VSUtil.getAttributeStr(elem, "titleHeight", AssetUtil.defh + "")));
+            heightAttr != null ? heightAttr : AssetUtil.defh + ""));
+         setUserTitleHeight(heightAttr != null && getTitleHeightValue() != defaultTitleHeight);
       }
    }
 
@@ -259,6 +286,7 @@ public class TitleInfo implements AssetObject {
       writer.print(" titleVisibleValue=\"" + getTitleVisibleValue() + "\"");
       writer.print(" titleHeight=\"" + getTitleHeight() + "\"");
       writer.print(" titleHeightValue=\"" + getTitleHeightValue() + "\"");
+      writer.print(" userTitleHeight=\"" + isUserTitleHeight() + "\"");
       writer.print(" padding=\"" + padding + "\"");
    }
 
@@ -267,9 +295,26 @@ public class TitleInfo implements AssetObject {
     * @param elem the specified xml element.
     */
    protected void parseAttributes(Element elem) {
+      parseAttributes(elem, AssetUtil.defh);
+   }
+
+   /**
+    * Parse attributes.
+    * @param elem the specified xml element.
+    * @param defaultTitleHeight the owning type's default title height.
+    */
+   protected void parseAttributes(Element elem, int defaultTitleHeight) {
       setTitleVisibleValue(Tool.getAttribute(elem, "titleVisibleValue"));
-      setTitleHeightValue(Integer.parseInt(VSUtil.getAttributeStr(elem, "titleHeight", AssetUtil.defh + "")));
+
+      String heightAttr = VSUtil.getAttributeStr(elem, "titleHeight", null);
+      setTitleHeightValue(Integer.parseInt(
+         heightAttr != null ? heightAttr : AssetUtil.defh + ""));
       padding.parse(Tool.getAttribute(elem, "padding"));
+
+      // absent in files saved before the flag existed; derive from the type's default
+      boolean derived = heightAttr != null && getTitleHeightValue() != defaultTitleHeight;
+      String prop = Tool.getAttribute(elem, "userTitleHeight");
+      setUserTitleHeight(prop == null ? derived : "true".equalsIgnoreCase(prop));
    }
 
    /**
@@ -338,6 +383,7 @@ public class TitleInfo implements AssetObject {
          isTitleVisible() == info.isTitleVisible() &&
          Tool.equals(titleHeight, info.titleHeight) &&
          Tool.equals(getTitleHeight(), info.getTitleHeight()) &&
+         userTitleHeight == info.userTitleHeight &&
          Tool.equals(padding, info.padding);
    }
 
@@ -387,5 +433,6 @@ public class TitleInfo implements AssetObject {
    private DynamicValue2 titleVisible;
    private DynamicValue2 titleHeight;
    private CompositeValue<Insets> padding = new CompositeValue<>(Insets.class, null);
+   private boolean userTitleHeight = false;
    private static final Logger LOG = LoggerFactory.getLogger(TitleInfo.class);
 }

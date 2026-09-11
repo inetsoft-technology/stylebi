@@ -239,7 +239,7 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
     */
    @Override
    public int getTitleHeight() {
-      return titleInfo.getTitleHeight();
+      return VSDensityDefaults.titleHeight(this, titleInfo.getTitleHeight());
    }
 
    /**
@@ -258,6 +258,16 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    @Override
    public void setTitleHeightValue(int value) {
       titleInfo.setTitleHeightValue(value);
+   }
+
+   @Override
+   public boolean isUserTitleHeight() {
+      return titleInfo.isUserTitleHeight();
+   }
+
+   @Override
+   public void setUserTitleHeight(boolean user) {
+      titleInfo.setUserTitleHeight(user);
    }
 
    /**
@@ -1129,7 +1139,7 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       super.parseContents(elem, isSiteAdminImport);
 
       styleValue.setDValue(getContentsStr(elem, "style", null));
-      titleInfo.parseXML(elem);
+      titleInfo.parseXML(elem, getLegacyTitleHeight());
       Element node = Tool.getChildNodeByTagName(elem, "hyperlinkAttr");
 
       if(node != null) {
@@ -1565,13 +1575,56 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    protected void setDefaultFormat(boolean border, boolean setFormat, boolean fill) {
       super.setDefaultFormat(border, setFormat, fill);
 
-      getFormat().getDefaultFormat().setBackgroundValue("#ffffff");
-
       // CSSDictionary.getDictionary() is for viewsheet ONLY
       if(LibManagerProvider.getInstance().getManager().getTableStyle(DEFAULT_STYLE) != null
          && !CSSDictionary.getDictionary().checkPresent("TableStyle"))
       {
          setTableStyleValue(DEFAULT_STYLE);
+      }
+   }
+
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      super.seedChromeDefaults(ctx);
+
+      // unlike the chart's unconditional write: tables and crosstabs are created with fill=false
+      // precisely so they have no DEFAULT background (see initDefaultFormat's comment above), so
+      // the legacy branch clears it back to that same absence instead of leaving a stale modern
+      // value in place - Revert must match a table that was never modernized, not almost match it
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         objFormat.getDefaultFormat().setBackgroundValue(
+            ctx.modern ? VSObjectChromeDefaults.cardBackgroundCss(ctx) : null);
+      }
+
+      // the title lane: modern is unfilled with a bottom rule, legacy is the filled band and the
+      // four-side box setDefaultFormat(border = true) writes. Both branches write, because the
+      // legacy one is what Revert relies on to restore a never-modernized table
+      VSCompositeFormat titleFormat = getFormatInfo().getFormat(TITLEPATH);
+
+      if(titleFormat != null) {
+         VSFormat def = titleFormat.getDefaultFormat();
+
+         if(ctx.modern) {
+            def.setBackgroundValue(null);
+            // getBackground() falls back to the bg field when bgval yields nothing, so a clear
+            // has to null both or a runtime background survives it
+            def.setBackground(null);
+            def.setBordersValue(VSTitleChromeDefaults.titleRuleBorders());
+            def.setBorderColorsValue(VSTitleChromeDefaults.titleRuleColors(ctx));
+            def.setForegroundValue(VSTitleChromeDefaults.titleForegroundValue(ctx));
+         }
+         else {
+            def.setBackgroundValue(DEFAULT_TITLE_BG);
+            def.setBordersValue(new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                                           StyleConstants.THIN_LINE, StyleConstants.THIN_LINE));
+            def.setForegroundValue(null);
+         }
+
+         // getForeground() falls back to the fg field when fgval yields nothing, so the clear has
+         // to null both or a runtime foreground survives it
+         def.setForeground(null);
       }
    }
 
@@ -1625,7 +1678,8 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       this.keepRowHeightOnPrint = keepRowHeightOnPrint;
    }
 
-   private static final String DEFAULT_STYLE = "Default Style";
+   // canonical (non-localized) name of the built-in default table style
+   public static final String DEFAULT_STYLE = "Default Style";
 
    private DynamicValue styleValue = new DynamicValue();
    private TitleInfo titleInfo = new TitleInfo("Table");

@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Tool;
 import org.w3c.dom.Element;
@@ -41,6 +42,9 @@ public class ViewsheetVSAssemblyInfo extends VSAssemblyInfo {
    public ViewsheetVSAssemblyInfo() {
       super();
       this.setPixelOffset(new Point(0, 0));
+      // stamped before the seeds run, so the page background can resolve against the mark; the load
+      // path parses after constructing, which clears this for a file that carries no mark
+      setVizMark(VizMark.fromGate());
       initDefaultFormat();
    }
 
@@ -232,9 +236,14 @@ public class ViewsheetVSAssemblyInfo extends VSAssemblyInfo {
    }
 
    @Override
-   protected void setDefaultFormat(boolean border) {
-      super.setDefaultFormat(border);
-      getFormat().getDefaultFormat().setBackgroundValue("#f5f5f5");
+   protected void seedChromeDefaults(VizContext ctx) {
+      super.seedChromeDefaults(ctx);
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         objFormat.getDefaultFormat().setBackgroundValue(
+            ctx.modern ? VSObjectChromeDefaults.pageBackgroundCss(ctx) : "#f5f5f5");
+      }
    }
 
    private int primaryCount = 0;

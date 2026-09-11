@@ -24,5 +24,7 @@ export interface SizePositionPaneModel {
    locked: boolean;
    titleHeight: number;
    cellHeight: number;
+   titleHeightFollowsDensity?: boolean;
+   cellHeightFollowsDensity?: boolean;
    scaleVertical?: boolean;
 }

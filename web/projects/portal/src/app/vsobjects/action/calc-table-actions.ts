@@ -271,57 +271,102 @@ export class CalcTableActions extends BaseTableActions<VSCalcTableModel> {
          }
       ]));
 
-      return super.createMenuActions(groups);
-   }
-
-   protected createToolbarActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
+      // open-max-mode, close-max-mode, show-details and export were toolbar-only, so right-click
+      // could not reach any of them — max mode in particular, whose whole purpose is rescuing an
+      // assembly too small to read. Predicates are copied verbatim from createToolbarActions; the
+      // menu renders labels only, so no icon. Appended last so the positional assertions in
+      // calc-table-actions.spec.ts do not shift.
       groups.push(new AssemblyActionGroup([
          {
             id: () => "calc-table open-max-mode",
             label: () => "_#(js:Show Enlarged)",
-            icon: () => "expand-icon",
+            icon: () => null,
             enabled: () => true,
             visible: () => this.openMaxModeVisible
          },
          {
             id: () => "calc-table close-max-mode",
             label: () => "_#(js:Show Actual Size)",
-            icon: () => "contract-icon",
+            icon: () => null,
             enabled: () => true,
             visible: () => this.closeMaxModeVisible
          },
          {
             id: () => "calc-table show-details",
             label: () => "_#(js:Show Details)",
-            icon: () => "show-detail-icon",
-            visible: () => this.showDetailsVisible,
-            enabled: () => true
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.showDetailsVisible
          },
          {
             id: () => "calc-table export",
             label: () => "_#(js:Export)",
-            icon: () => "export-icon",
-            visible: () => this.isActionVisibleInViewer("Export"),
-            enabled: () => true
-         },
-         {
-            id: () => "calc-table multi-select",
-            label: () => this.model.multiSelect ? "_#(js:Change to Single-select)"
-               : "_#(js:Change to Multi-select)",
-            icon: () => this.model.multiSelect ? "select-multi-icon" : "select-single-icon",
+            icon: () => null,
             enabled: () => true,
-            visible: () => this.mobileDevice &&
-               this.isActionVisibleInViewer("Change to Single-select") &&
-               this.isActionVisibleInViewer("Change to Multi-select")
-         },
-         {
-            id: () => "calc-table edit",
-            label: () => "_#(js:Edit)...",
-            icon: () => "edit-icon",
-            enabled: () => true,
-            visible: () => !this.isPopComponent() && this.composer && !this.annotationsSelected
-         },
+            visible: () => this.isActionVisibleInViewer("Export")
+         }
       ]));
+
+      return super.createMenuActions(groups);
+   }
+
+   protected createToolbarActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
+      const openMaxMode = {
+         id: () => "calc-table open-max-mode",
+         label: () => "_#(js:Show Enlarged)",
+         icon: () => "expand-icon",
+         enabled: () => true,
+         visible: () => this.openMaxModeVisible
+      };
+      const closeMaxMode = {
+         id: () => "calc-table close-max-mode",
+         label: () => "_#(js:Show Actual Size)",
+         icon: () => "contract-icon",
+         enabled: () => true,
+         visible: () => this.closeMaxModeVisible
+      };
+      const showDetails = {
+         id: () => "calc-table show-details",
+         label: () => "_#(js:Show Details)",
+         icon: () => "show-detail-icon",
+         visible: () => this.showDetailsVisible,
+         enabled: () => true
+      };
+      const exportAction = {
+         id: () => "calc-table export",
+         label: () => "_#(js:Export)",
+         icon: () => "export-icon",
+         visible: () => this.isActionVisibleInViewer("Export"),
+         enabled: () => true
+      };
+      const multiSelect = {
+         id: () => "calc-table multi-select",
+         label: () => this.model.multiSelect ? "_#(js:Change to Single-select)"
+            : "_#(js:Change to Multi-select)",
+         icon: () => this.model.multiSelect ? "select-multi-icon" : "select-single-icon",
+         enabled: () => true,
+         visible: () => this.mobileDevice &&
+            this.isActionVisibleInViewer("Change to Single-select") &&
+            this.isActionVisibleInViewer("Change to Multi-select")
+      };
+      const edit = {
+         id: () => "calc-table edit",
+         label: () => "_#(js:Edit)...",
+         icon: () => "edit-icon",
+         enabled: () => true,
+         visible: () => !this.isPopComponent() && this.composer && !this.annotationsSelected
+      };
+
+      // Source order is arbitrary gate-off: it is emission order in one array literal and nothing
+      // reads position. Under the gate it becomes load-bearing, because the cap of three shows the
+      // first three *visible* actions — and show-details is contextual (cellSelected), so with
+      // show-details ahead of export the strip reshuffles under the pointer on every cell
+      // selection.
+      const stableFirst = [openMaxMode, closeMaxMode, exportAction, showDetails, multiSelect, edit];
+      const legacyOrder = [openMaxMode, closeMaxMode, showDetails, exportAction, multiSelect, edit];
+
+      groups.push(new AssemblyActionGroup(
+         this.model.vizModern ? stableFirst : legacyOrder));
       return super.createToolbarActions(groups, true);
    }
 

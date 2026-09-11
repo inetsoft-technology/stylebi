@@ -33,6 +33,7 @@ import inetsoft.uql.viewsheet.graph.CompositeTextFormat;
 import inetsoft.uql.viewsheet.graph.TextFormat;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.*;
 import inetsoft.util.css.CSSAttr;
 import inetsoft.util.css.CSSConstants;
@@ -72,13 +73,14 @@ public class GraphTarget implements Cloneable, Serializable, XMLSerializable {
    }
 
    public void initDefaultFormat() {
-      initDefaultFormat(false);
+      initDefaultFormat(VizContext.LEGACY);
    }
 
-   public void initDefaultFormat(boolean vs) {
+   public void initDefaultFormat(VizContext ctx) {
       TextFormat deffmt = fmt.getDefaultFormat();
       deffmt.setColor(GDefaults.DEFAULT_TEXT_COLOR);
-      deffmt.setFont(vs ? VSAssemblyInfo.getDefaultFont(VSFontHelper.getDefaultFont()) :
+      // font follows "is a viewsheet chart", not the modern gate
+      deffmt.setFont(ctx != VizContext.LEGACY ? VSAssemblyInfo.getDefaultFont(VSFontHelper.getDefaultFont()) :
                         VSFontHelper.getDefaultFont());
       deffmt.setRotation(0d);
    }

@@ -35,6 +35,7 @@ import { DebounceService } from "../../widget/services/debounce.service";
 import { ModelService } from "../../widget/services/model.service";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
 import { ScaleService } from "../../widget/services/scale/scale-service";
+import { ChartConfigService } from "../services/chart-config.service";
 import { ChartModel } from "../model/chart-model";
 import { Plot } from "../model/plot";
 import { ChartRegion } from "../model/chart-region";
@@ -216,6 +217,7 @@ export function createComponent(opts: CreateComponentOpts = {}) {
       getScale: vi.fn(() => scaleSubject.asObservable()),
       getCurrentScale: vi.fn(() => 1),
    };
+   const chartConfigService = { inlineSvg: false };
 
    const comp = TestBed.runInInjectionContext(() => new ChartPlotArea(
       chartService as unknown as ChartService,
@@ -227,6 +229,7 @@ export function createComponent(opts: CreateComponentOpts = {}) {
       modal,
       scaleService as unknown as ScaleService,
       contextProvider as unknown as ContextProvider,
+      chartConfigService as unknown as ChartConfigService,
    ));
 
    comp.model = opts.model ?? makeModel();
@@ -234,6 +237,6 @@ export function createComponent(opts: CreateComponentOpts = {}) {
 
    return {
       comp, chartService, changeRef, zone, debounceService, modelService,
-      http, modal, contextProvider, scaleService, scaleSubject,
+      http, modal, contextProvider, scaleService, scaleSubject, chartConfigService,
    };
 }

@@ -25,6 +25,100 @@ import { VSCalendarModel } from "../../model/calendar/vs-calendar-model";
 import { VSObjectModel } from "../../model/vs-object-model";
 import { VSSelectionBaseModel } from "../../model/vs-selection-base-model";
 
+/**
+ * The assembly types whose toolbar is anchored into the title lane, with the strip's height bands
+ * and the resident kebab. A subset of hasMiniToolbar() below, which enumerates the types that get a
+ * strip at all, and the two now differ by exactly one entry: the range slider, which declares no
+ * titleVisible and so has no lane to anchor into. See
+ * chart-card-design/Anchoring beyond charts - discussion.md, Case 4.
+ *
+ * PERMANENT. This was the rollout boundary while the slices landed; all five have, so it is now the
+ * anchored set. Do not delete it and leave the .viz-modern gate as the only condition — an earlier
+ * revision of this comment promised exactly that, and it is unsafe. isAnchoredChromeSuppressed
+ * would then be true for every laneless assembly under the gate (text, gauge, image, spinner, and
+ * the rest resolve to a zero lane), emptying showingActions for all of them. The composer's mobile
+ * toolbar renders that list for whatever assembly is focused, so those toolbars would go blank.
+ */
+const ANCHORED_ASSEMBLY_TYPES: ReadonlySet<string> = new Set<string>([
+   "vschart",
+   // Slice 2, the table family. Table and calc table already emitted their stable actions first;
+   // crosstab was reordered to match. All three inherit the chart's treatment unchanged, and take
+   // the flush full-width lane the container's padding fallbacks resolve them to.
+   "vstable",
+   "vscrosstab",
+   "vscalctable",
+   // Slice 3, the selection family — anchored but not capped: AbstractVSActions.kebabOnly makes the
+   // kebab the whole strip at any width.
+   "vsselectionlist",
+   "vsselectiontree",
+   // Slice 4, the container. Kebab-only like the rest of its family, so its header is no denser
+   // than its children's. Its lane is full width, not titleRatio-split, and isMiniToolbarVisible
+   // already keeps its children from drawing strips of their own.
+   "vsselectioncontainer",
+   // Slice 5, the calendar. The table treatment unmodified: six toolbar actions is the largest set
+   // in the rollout, so a strip that surfaces three of them earns its space. Its dropdown variant
+   // mounts an inline mini-menu instead and is excluded by isMiniToolbarVisible, so the two never
+   // co-render.
+   "vscalendar"
+]);
+
+/**
+ * Whether an assembly type is in the anchored set. Lowercases its argument because the two call
+ * sites this replaces (abstract-vs-actions.ts and vs-object-container.component.ts) used
+ * Tool.equalsIgnoreCase; a bare Set.has() would narrow the match. A third site,
+ * AbstractVSActions's mobile relaxation, was never a literal — it already delegated to
+ * this.resident, so it picks up the change for free.
+ */
+export function isAnchoredAssemblyType(objectType: string): boolean {
+   return !!objectType && ANCHORED_ASSEMBLY_TYPES.has(objectType.toLowerCase());
+}
+
+/** The shortest lane that can hold the 24px strip; the 18px glyph inside the 24px control provides breathing room. */
+export const ANCHORED_LANE_MIN = 24;
+
+/**
+ * The lane available to the strip: the title's height when it has one, zero otherwise. A hidden
+ * title has no lane, so it resolves to zero and fails the same comparison a too-short lane does.
+ *
+ * Rounded here, the one place a measured height becomes a fit decision: the composer's title drag
+ * assigns an unrounded interact.js rect to titleFormat.height, so a lane dragged to the minimum
+ * would otherwise fail the comparison by a fraction of a pixel.
+ */
+export function anchoredLaneHeight(model: VSObjectModel): number {
+   const titled = <any> model;
+   return titled?.titleVisible ? Math.round(titled.titleFormat?.height || 0) : 0;
+}
+
+/**
+ * Whether an assembly type's anchored/resident strip design is in effect right now: the modern
+ * gate is on, the title lane can hold the 24px strip, and the type is in the anchored set. Lane
+ * fit is measured by comparing anchoredLaneHeight against ANCHORED_LANE_MIN. Shared by
+ * VSObjectContainerComponent.isKebabResident and AbstractVSActions.resident so the two
+ * conditions cannot drift apart.
+ */
+export function isAnchoredResident(objectType: string, vizModern: boolean,
+                                   laneHeight: number): boolean
+{
+   return vizModern && laneHeight >= ANCHORED_LANE_MIN && isAnchoredAssemblyType(objectType);
+}
+
+/**
+ * The other side of the split: an anchored type whose lane cannot hold the strip draws no chrome
+ * at all — no strip, no kebab, right-click only. It is not a fallback to the floating strip. The
+ * height ladder removes every control once a control plus its clearance stops fitting; anchoring
+ * and floating are two placements of a control that is not drawn here either way.
+ *
+ * Lane fit is measured by comparing anchoredLaneHeight against ANCHORED_LANE_MIN.
+ *
+ * Deliberately a separate predicate rather than !isAnchoredResident: that would be true for every
+ * non-anchored type and gate-off, stripping toolbars users have today.
+ */
+export function isAnchoredChromeSuppressed(objectType: string, vizModern: boolean,
+                                           laneHeight: number): boolean
+{
+   return vizModern && laneHeight < ANCHORED_LANE_MIN && isAnchoredAssemblyType(objectType);
+}
+
 @Injectable()
 export class MiniToolbarService {
    private listeners = new Map<HTMLElement, Observable<any>>();

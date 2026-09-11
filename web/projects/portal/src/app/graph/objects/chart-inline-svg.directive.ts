@@ -21,7 +21,7 @@ import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 
 /**
- * Fetches an SVG URL as text and injects it as inline SVG into the host element's innerHTML.
+ * Fetches an SVG URL as bytes and injects it as inline SVG into the host element's innerHTML.
  * Used in place of [chartImage] on <img> when graph.svg.inline=true, so that the SVG
  * participates in the page DOM and CSS animations play without sandboxing restrictions.
  *
@@ -82,6 +82,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
     * determines which server-injected hover rule fires when inetsoft-active is toggled.
     */
    private elementGroupMap = new Map<string, Element>();
+   /** Anchor index for the tooltip tail. Separate from elementGroupMap because that one is a
+    *  dim index: line, area and radar tiles empty or prune it, having no per-element dim, but
+    *  the tail still needs their vertex markers. Never pruned after the SVG is indexed. */
+   private anchorGroupMap = new Map<string, Element>();
    /** Maps "rowIdx-colIdx" to all glyph elements of the label paired with that data element.
     *  Batik renders each character as a separate <g text-rendering> element with the same
     *  data-row/data-col, so every glyph must be stored and toggled together. */
@@ -101,6 +105,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private retryHandle: ReturnType<typeof setTimeout> | null = null;
    /** Timer handle for adding .ready class to the SVG after animation completes. */
    private readyHandle: ReturnType<typeof setTimeout> | null = null;
+   /** Object url backing the raster <img>, revoked before it is replaced and on destroy. */
+   private rasterUrl: string | null = null;
    /** Maps panel-qualified node key → node Element for relation/tree charts (see relationKey). */
    private relationNodeIdMap = new Map<string, Element>();
    /** Edge connectivity for relation/tree charts: each entry holds the element plus its
@@ -222,6 +228,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
          this.snapClearTimer = null;
       }
 
+      this.revokeRasterUrl();
       this.teardownAreaHover();
       this.teardownLineSeriesHover();
    }
@@ -234,7 +241,9 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
          const requestedUrl = this._url;
 
-         this.http.get(this._url, { observe: "response", responseType: "text" })
+         // Fetched as bytes so one request serves both paths: decoded as text for svg, wrapped in
+         // an object url for a raster. A second GET for the <img> would re-rasterize the tile.
+         this.http.get(this._url, { observe: "response", responseType: "arraybuffer" })
             .pipe(takeUntil(this.destroy$))
             .subscribe(
             response => {
@@ -246,11 +255,27 @@ export class ChartInlineSvgDirective implements OnDestroy {
                   }, interval);
                }
                else if(requestedUrl === this._url) {
-                  // SVG content comes from our own server (same origin, server-controlled).
-                  // Direct innerHTML assignment is intentional — Angular's DomSanitizer only
-                  // intercepts [innerHTML] template bindings, not programmatic ElementRef access.
-                  // This must NOT be used with user-supplied or externally sourced SVG content.
-                  this.element.nativeElement.innerHTML = this.uniquifyIds(response.body);
+                  const type = response.headers?.get("Content-Type") || "";
+
+                  // Either branch replaces the host's contents, so any raster held by the previous
+                  // load is gone.
+                  this.revokeRasterUrl();
+
+                  // Only an explicit raster type diverges, so a stripped header keeps inlining.
+                  if(type.startsWith("image/") && !type.includes("svg")) {
+                     this.showRaster(response.body, type);
+                  }
+                  else {
+                     // Batik writes UTF-8, so decoding the bytes yields the same markup a text
+                     // response would have.
+                     const svg = new TextDecoder("utf-8").decode(response.body);
+                     // SVG content comes from our own server (same origin, server-controlled).
+                     // Direct innerHTML assignment is intentional — Angular's DomSanitizer only
+                     // intercepts [innerHTML] template bindings, not programmatic ElementRef access.
+                     // This must NOT be used with user-supplied or externally sourced SVG content.
+                     this.element.nativeElement.innerHTML = this.uniquifyIds(svg);
+                  }
+
                   this.afterSvgInjected();
                   this.scheduleReady();
                   this.onLoaded.emit();
@@ -263,11 +288,37 @@ export class ChartInlineSvgDirective implements OnDestroy {
          );
       }
       else {
+         this.revokeRasterUrl();
          this.element.nativeElement.innerHTML = "";
          this.elementGroupMap.clear();
+         this.anchorGroupMap.clear();
          this.labelGroupMap.clear();
          this._activeKeys = [];
          this._activeFound = false;
+      }
+   }
+
+   /**
+    * Show the plot as an image, built from the bytes already fetched. A plot with too many data
+    * points comes back as png instead of svg. afterSvgInjected then finds no <svg>, leaving the
+    * hover index empty and every interaction path inert.
+    */
+   private showRaster(body: ArrayBuffer, type: string): void {
+      this.rasterUrl = URL.createObjectURL(new Blob([body], { type }));
+      const img = document.createElement("img");
+      // Decorative — the plot conveys nothing a screen reader can use, and announcing the object
+      // url would be noise.
+      img.alt = "";
+      img.src = this.rasterUrl;
+      this.element.nativeElement.innerHTML = "";
+      this.element.nativeElement.appendChild(img);
+   }
+
+   /** Release the object url backing a raster <img>, if one is held. */
+   private revokeRasterUrl(): void {
+      if(this.rasterUrl !== null) {
+         URL.revokeObjectURL(this.rasterUrl);
+         this.rasterUrl = null;
       }
    }
 
@@ -320,6 +371,29 @@ export class ChartInlineSvgDirective implements OnDestroy {
             }, ChartInlineSvgDirective.CLEAR_DELAY_MS);
          }
       }
+   }
+
+   /**
+    * Visual middle of the data element at rowIdx+colIdx in viewport coords, or null when this
+    * tile holds no such element. Same key lookup as {@link highlightElements}; anchors the
+    * tooltip tail. Prefers the server's data-anchor fraction, which the renderer writes for
+    * shapes whose box centre misses the mark — a wide donut wedge centres on the hole.
+    */
+   getElementAnchor(rowIdx: number, colIdx: number): { x: number, y: number } | null {
+      const el = this.anchorGroupMap.get(`${rowIdx}-${colIdx}`);
+
+      if(!el) {
+         return null;
+      }
+
+      const rect = el.getBoundingClientRect();
+      const parts = (el.getAttribute("data-anchor") || "").split(",");
+      const fx = parseFloat(parts[0]);
+      const fy = parseFloat(parts[1]);
+
+      return isFinite(fx) && isFinite(fy)
+         ? { x: rect.left + fx * rect.width, y: rect.top + fy * rect.height }
+         : { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
    }
 
    /**
@@ -734,6 +808,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
       // Each CSS class corresponds to a different chart type; the CSS class on the stored
       // element determines which server-injected hover rule fires on inetsoft-active toggle.
       this.populateElementGroupMap(ChartInlineSvgDirective.HOVER_CLASSES);
+      this.anchorGroupMap.clear();
+      this.populateElementGroupMap(ChartInlineSvgDirective.HOVER_CLASSES, this.anchorGroupMap);
 
       // Map each point marker's row/col → data-color for snap resolution. Built from .inetsoft-point,
       // the only annotation carrying row, col and color together (line/area groups omit row/col).
@@ -895,7 +971,9 @@ export class ChartInlineSvgDirective implements OnDestroy {
     * Add every annotation group matching one of the given classes to elementGroupMap, keyed by
     * "data-row-data-col". Classes are applied in order, so a later class wins a key collision.
     */
-   private populateElementGroupMap(cssClasses: string[]): void {
+   private populateElementGroupMap(cssClasses: string[],
+                                   target: Map<string, Element> = this.elementGroupMap): void
+   {
       for(const cssClass of cssClasses) {
          const elements = Array.from(
             this.element.nativeElement.querySelectorAll(cssClass) as NodeListOf<Element>);
@@ -905,7 +983,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
             const col = el.getAttribute("data-col");
 
             if(row != null && col != null) {
-               this.elementGroupMap.set(`${row}-${col}`, el);
+               target.set(`${row}-${col}`, el);
             }
          }
       }

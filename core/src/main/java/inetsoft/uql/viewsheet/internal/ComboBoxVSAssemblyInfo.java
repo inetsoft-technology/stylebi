@@ -390,7 +390,7 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
    protected void setDefaultFormat(boolean border) {
       VSCompositeFormat format = new VSCompositeFormat();
       // avoid text being clipped in default size
-      format.getDefaultFormat().setFontValue(getDefaultFont(Font.PLAIN, 11));
+      format.getDefaultFormat().setFontValue(getDefaultFont(Font.PLAIN, 12));
       format.getDefaultFormat().setForegroundValue("0x2b2b2b");
       format.getDefaultFormat().setBackgroundValue("0xffffff");
       format.getDefaultFormat().setBordersValue(
@@ -403,6 +403,32 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
       format.getCSSFormat().setCSSType(getObjCSSType());
       setFormat(format);
       setCSSDefaults();
+      seedChromeDefaults(VizContext.of(this));
+   }
+
+   /**
+    * Seed the modern-gated round corner. This type bypasses the base chrome hook (see
+    * VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own — form-input modernization,
+    * tracked as its own follow-on project from the card-corner work. The 0xc0c0c0 legacy
+    * border colour above is left untouched; only round corner is gate-dependent here.
+    */
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      super.seedChromeDefaults(ctx); // no-op: this type bypasses the base hook
+
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         objFormat.getDefaultFormat().setRoundCornerValue(
+            ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 0);
+      }
+
+      if(ctx.modern && getPixelSize().height == AssetUtil.defh) {
+         setPixelSize(new Dimension(getPixelSize().width, VSDensityDefaults.controlHeight(ctx)));
+      }
+      else if(!ctx.modern && VSDensityDefaults.isControlHeight(getPixelSize().height)) {
+         setPixelSize(new Dimension(getPixelSize().width, AssetUtil.defh));
+      }
    }
 
    /**

@@ -238,7 +238,7 @@ public class FormatInfo implements AssetObject {
 
          if(objfmt != null) {
             VSFormat deffmt = fmt == null ? new VSFormat() : fmt.getDefaultFormat();
-            copyDefaultFormat(deffmt, objfmt);
+            copyDefaultFormat(deffmt, objfmt, ownsTitleBorder(tpath, objfmt));
             fmt = fmt == null ? new VSCompositeFormat() : fmt;
             fmt.setDefaultFormat(deffmt);
          }
@@ -250,7 +250,23 @@ public class FormatInfo implements AssetObject {
    /**
     * Copy object format setting to vscomposite's other tableDataPath.
     */
+   /**
+    * Whether this path's border colour is the assembly's own rather than the object frame's. A
+    * chart draws its own title rule and must keep the colour seeded onto it; every other type still
+    * inherits the frame colour here, which is long-standing behaviour a table's title relies on.
+    */
+   private static boolean ownsTitleBorder(TableDataPath tpath, VSCompositeFormat objfmt) {
+      return VSAssemblyInfo.TITLEPATH.equals(tpath) &&
+         CSSConstants.CHART.equals(objfmt.getCSSFormat().getCSSType());
+   }
+
    protected void copyDefaultFormat(VSFormat tfmt, VSCompositeFormat sfmt) {
+      copyDefaultFormat(tfmt, sfmt, false);
+   }
+
+   protected void copyDefaultFormat(VSFormat tfmt, VSCompositeFormat sfmt,
+                                    boolean keepBorderColors)
+   {
       VSCSSFormat cssfmt = sfmt.getCSSFormat();
       VSFormat userfmt = sfmt.getUserDefinedFormat();
       boolean vsTab = CSSConstants.TAB.equals(cssfmt.getCSSType());
@@ -298,7 +314,7 @@ public class FormatInfo implements AssetObject {
          tfmt.setBackground(sfmt.getBackground(), false);
       }
 
-      if(!vsTab && (!tfmt.isBorderColorsValueDefined() ||
+      if(!vsTab && !keepBorderColors && (!tfmt.isBorderColorsValueDefined() ||
          cssfmt.isBorderColorsValueDefined() ||
          userfmt.isBorderColorsValueDefined() ||
          userfmt.isBorderColorsDefined()))

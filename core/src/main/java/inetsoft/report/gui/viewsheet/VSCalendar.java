@@ -964,9 +964,7 @@ public class VSCalendar extends VSFloatable {
       String fname = font == null ? StyleFont.DEFAULT_FONT_FAMILY : font.getFamily();
       format.getUserDefinedFormat().setFont(new StyleFont(fname, Font.BOLD, 12));
 
-      if(format.getUserDefinedFormat().getForeground() == null) {
-         format.getUserDefinedFormat().setForeground(new Color(90, 90, 90));
-      }
+      applyYearCellForeground(format);
 
       Date min = getRangeMin(info);
       Date max = getRangeMax(info);
@@ -1003,6 +1001,17 @@ public class VSCalendar extends VSFloatable {
             g.setColor(new Color(128, 128, 128));
             g.drawRect(c * cW + 2, r * rH + titleH + 2, cW - 4, rH - 4);
          }
+      }
+   }
+
+   /**
+    * The year view's month-cell foreground: the format's own colour, or the legacy grey when it
+    * resolves none. Resolves across all three tiers - a seeded body colour lives on DEFAULT, and a
+    * USER-tier grey written here would outrank it and paint dark-on-dark.
+    */
+   static void applyYearCellForeground(VSCompositeFormat format) {
+      if(format != null && format.getForeground() == null) {
+         format.getUserDefinedFormat().setForeground(new Color(90, 90, 90));
       }
    }
 

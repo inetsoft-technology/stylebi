@@ -15,10 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { Title } from "@angular/platform-browser";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbDatepickerConfig, NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { PortalModel } from "../portal/portal-model";
 import { AiAssistantPanelComponent } from "../../../../shared/ai-assistant/ai-assistant-panel.component";
 import { DownloadTargetComponent } from "../../../../shared/download/download-target.component";
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
@@ -29,6 +31,9 @@ import { DragService } from "../widget/services/drag.service";
 import { ComposerMainComponent } from "./gui/composer-main.component";
 import { ResizeHandlerService } from "./gui/resize-handler.service";
 import { ComposerRecentService } from "./gui/composer-recent.service";
+import { ChartPaletteService } from "../widget/color-picker/chart-palette.service";
+
+const PORTAL_MODEL_URI: string = "../api/portal/get-portal-model";
 
 @Component({
     imports: [AiAssistantPanelComponent, ComposerMainComponent, DownloadTargetComponent],
@@ -36,6 +41,12 @@ import { ComposerRecentService } from "./gui/composer-recent.service";
     templateUrl: "app.component.html"
 })
 export class ComposerAppComponent implements OnInit, OnDestroy {
+   // Org-level shell state only. Assembly chrome keys off "viz-modern" on the
+   // assembly's own wrapper, not on this body class.
+   private readonly VIZ_SHELL_CLASS: string = "viz-shell";
+   private readonly VIZ_DENSITY_CLASSES: string[] =
+      ["viz-density-comfortable", "viz-density-compact", "viz-density-dense"];
+   private readonly VIZ_SHELL_DARK_CLASS: string = "viz-shell-dark";
    initialSheet: string;
    baseWS: string;
    runtimeId: string;
@@ -58,8 +69,11 @@ export class ComposerAppComponent implements OnInit, OnDestroy {
                private titleService: Title,
                private modalService: NgbModal,
                private firstDayOfWeekService: FirstDayOfWeekService,
-               private composerRecentService: ComposerRecentService)
+               private composerRecentService: ComposerRecentService,
+               private http: HttpClient,
+               chartPaletteService: ChartPaletteService)
    {
+      chartPaletteService.ensureLoaded(); // warm the chart-series palette before any picker opens
       titleService.setTitle("_#(js:Visual Composer)");
       // Need to set a default min and max date otherwise the range is only 20 years.
       ngbDatepickerConfig.minDate = {year: 1900, month: 1, day: 1};
@@ -112,11 +126,29 @@ export class ComposerAppComponent implements OnInit, OnDestroy {
       this.firstDayOfWeekService.getFirstDay().subscribe((model) => {
          this.ngbDatepickerConfig.firstDayOfWeek = model.isoFirstDay;
       });
+
+      this.http.get<PortalModel>(PORTAL_MODEL_URI)
+         .subscribe((model) => this.updateVisualizationMode(model));
    }
 
    ngOnDestroy() {
       this.dragService.removeListeners(document);
       this.resizeHandlerService.removeListeners();
+   }
+
+   private updateVisualizationMode(model: PortalModel): void {
+      const body: HTMLElement = document.body;
+      const modern: boolean = !!model.modernVisualization;
+      body.classList.toggle(this.VIZ_SHELL_CLASS, modern);
+      body.classList.remove(...this.VIZ_DENSITY_CLASSES);
+      const densityClass = `viz-density-${model.vizDensity}`;
+
+      // unconditional: see the portal shell's comment
+      if(this.VIZ_DENSITY_CLASSES.includes(densityClass)) {
+         body.classList.add(densityClass);
+      }
+
+      body.classList.toggle(this.VIZ_SHELL_DARK_CLASS, modern && !!model.darkMode);
    }
 
    downloadStarted(url: string): void {

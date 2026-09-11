@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.uql.CompositeValue;
+import inetsoft.uql.asset.internal.AssetUtil;
 
 import java.awt.*;
 
@@ -99,6 +100,24 @@ public interface TitledVSAssemblyInfo {
     * @param value the specified title height value.
     */
    public void setTitleHeightValue(int value);
+
+   /**
+    * The assembly type's title height before any density row applies. AssetUtil.defh for every
+    * type except the calendar, whose lane has always been taller.
+    */
+   default int getLegacyTitleHeight() {
+      return AssetUtil.defh;
+   }
+
+   /**
+    * Check whether the title height was set by the author.
+    */
+   public boolean isUserTitleHeight();
+
+   /**
+    * Set whether the title height was set by the author.
+    */
+   public void setUserTitleHeight(boolean user);
 
    Insets getTitlePadding();
 

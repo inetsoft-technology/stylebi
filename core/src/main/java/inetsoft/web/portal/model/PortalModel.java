@@ -52,6 +52,21 @@ public abstract class PortalModel {
       return false;
    }
 
+   @Value.Default
+   public boolean modernVisualization() {
+      return true;
+   }
+
+   @Value.Default
+   public String vizDensity() {
+      return "compact";
+   }
+
+   @Value.Default
+   public boolean darkMode() {
+      return false;
+   }
+
    public static Builder builder() {
       return new Builder();
    }

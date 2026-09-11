@@ -17,8 +17,10 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.internal.DimensionD;
+import inetsoft.graph.internal.GDefaults;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.composition.graph.GraphUtil;
@@ -86,7 +88,6 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    protected void setDefaultFormat(boolean border, boolean setFormat, boolean fill) {
       setPadding(new Insets(10, 10, 10, 10));
       super.setDefaultFormat(border, setFormat, fill);
-      getFormat().getDefaultFormat().setBackgroundValue("#ffffff");
       // Enable round corners by default for newly created charts.
       // Existing charts loaded from XML default to false for backward compatibility.
       getChartDescriptor().getLegendsDescriptor().setRoundCorners(true);
@@ -96,6 +97,211 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       tFormat.getDefaultFormat().setFontValue(getDefaultFont(Font.BOLD, 11));
       tFormat.getDefaultFormat().setAlignmentValue(StyleConstants.H_LEFT | StyleConstants.V_CENTER);
       getFormatInfo().setFormat(TITLEPATH, tFormat);
+      // super seeded the title composite this method just replaced; re-run against the real one.
+      // The hook is a set of unconditional writes, so running it twice changes nothing else
+      seedChromeDefaults(VizContext.of(this));
+   }
+
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      super.seedChromeDefaults(ctx);
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         objFormat.getDefaultFormat().setBackgroundValue(
+            VSObjectChromeDefaults.cardBackgroundCss(ctx));
+      }
+
+      // the card inset. Seeded rather than resolved at read time so it travels in an exported
+      // asset. isUserPadding is the author's opinion, and setCSSDefaults installs a CSS padding
+      // just before this hook runs, so both are left alone
+      if(!isUserPadding() && !isCssPaddingDefined()) {
+         setPadding(ctx.modern ? VSObjectChromeDefaults.modernChartPadding()
+                       : VSObjectChromeDefaults.legacyChartPadding());
+      }
+
+      // the title lane's rule and its text colour. No background write on either branch: this
+      // type's own title composite has never carried one, so the modern lane is unfilled by
+      // construction and the legacy branch has nothing to restore
+      VSCompositeFormat titleFormat = getFormatInfo().getFormat(TITLEPATH);
+
+      if(titleFormat != null) {
+         VSFormat def = titleFormat.getDefaultFormat();
+         def.setBordersValue(ctx.modern ? VSTitleChromeDefaults.titleRuleBorders() : null);
+         def.setBorderColorsValue(ctx.modern ? VSTitleChromeDefaults.titleRuleColors(ctx) : null);
+         def.setForegroundValue(
+            ctx.modern ? VSTitleChromeDefaults.titleForegroundValue(ctx) : null);
+         // getForeground() falls back to the fg field when fgval yields nothing, so the legacy
+         // branch has to null both or a runtime foreground survives the clear
+         def.setForeground(null);
+      }
+
+      PlotDescriptor plotDesc = getChartDescriptor().getPlotDescriptor();
+
+      if(ctx.modern) {
+         // an author-set value has no tier to protect it, so the flag stands in: skip the write
+         // on both branches or Revert would destroy the author's value instead of restore doing it
+         if(!isUserBarCornerRadius()) {
+            plotDesc.setBarCornerRadius(0.3);
+         }
+
+         if(!isUserSmoothLines()) {
+            plotDesc.setSmoothLines(true);
+         }
+
+         // the plot's structural lines. Seeded rather than resolved at render so they travel in
+         // an exported asset, and so the composer pane and the canvas read one stored value
+         Color gridline = VSChartChromeDefaults.gridlineColor(ctx);
+         plotDesc.setXGridColor(gridline, CompositeValue.Type.DEFAULT);
+         plotDesc.setYGridColor(gridline, CompositeValue.Type.DEFAULT);
+         plotDesc.setFacetGridColor(gridline, CompositeValue.Type.DEFAULT);
+         plotDesc.setDiagonalColor(gridline, CompositeValue.Type.DEFAULT);
+         plotDesc.setQuadrantColor(gridline, CompositeValue.Type.DEFAULT);
+
+         // the data-label ink. Seeded, so PlotDescriptor.initDefaultFormat no longer writes a
+         // colour at all - it ran on every render and overwrote this
+         plotDesc.getTextFormat().getDefaultFormat()
+            .setColor(VSChartChromeDefaults.titleColor(ctx));
+      }
+      else {
+         // Revert calls this with an unmarked context and needs the legacy values written, not
+         // left alone. Value-identical at gate-off creation, where both fields already hold these.
+         if(!isUserBarCornerRadius()) {
+            plotDesc.setBarCornerRadius(0);
+         }
+
+         // smoothLines also has a chart-type default, so the legacy value is type-dependent: a
+         // constant false would straight-line an Area chart no legacy Area chart ever was.
+         if(!isUserSmoothLines()) {
+            plotDesc.setSmoothLines(legacySmoothLines());
+         }
+
+         // each line restores its own constructed default, not a literal: four run a format.css
+         // lookup and the facet does not, so a customer's ChartPlotLine rule survives a Revert
+         plotDesc.setXGridColor(
+            ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "x"),
+            CompositeValue.Type.DEFAULT);
+         plotDesc.setYGridColor(
+            ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "y"),
+            CompositeValue.Type.DEFAULT);
+         plotDesc.setFacetGridColor(GDefaults.DEFAULT_LINE_COLOR, CompositeValue.Type.DEFAULT);
+         plotDesc.setDiagonalColor(
+            ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "diagonal"),
+            CompositeValue.Type.DEFAULT);
+         plotDesc.setQuadrantColor(
+            ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "quadrant"),
+            CompositeValue.Type.DEFAULT);
+
+         plotDesc.getTextFormat().getDefaultFormat().setColor(GDefaults.DEFAULT_TEXT_COLOR);
+      }
+
+      // seedPalette is total across the mark, so no ctx.modern check is needed here
+      seedColorPalette(ctx);
+   }
+
+   /**
+    * Whether a format.css class set this chart's padding. setCSSDefaults writes it before the seed
+    * runs, and there is no tier to record it in, so the dictionary is asked directly.
+    */
+   private boolean isCssPaddingDefined() {
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat == null) {
+         return false;
+      }
+
+      return CSSDictionary.getDictionary()
+         .isPaddingDefined(objFormat.getCSSFormat().getCSSParam());
+   }
+
+   /**
+    * Reset the card inset to whatever "follow the default" means right now. The padding pane's
+    * checkbox needs only this write - the full seedChromeDefaults hook also re-runs the card
+    * background, the title lane and the colour palette, none of which that checkbox asked for.
+    *
+    * A format.css class still wins: it already installed its own padding through setCSSDefaults,
+    * and this re-reads it live rather than trusting whatever the field currently holds, which is
+    * what keeps the checkbox sane after an author had overridden that CSS padding and is now
+    * asking to give it back. Absent a CSS padding, this writes the same mark-appropriate inset the
+    * hook's own branch would.
+    */
+   public void resetCardInset(VizContext ctx) {
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null && CSSDictionary.getDictionary()
+            .isPaddingDefined(objFormat.getCSSFormat().getCSSParam()))
+      {
+         setPadding(CSSDictionary.getDictionary()
+                       .getPadding(objFormat.getCSSFormat().getCSSParam()));
+         return;
+      }
+
+      setPadding(ctx.modern ? VSObjectChromeDefaults.modernChartPadding()
+                    : VSObjectChromeDefaults.legacyChartPadding());
+   }
+
+   /**
+    * Writes the mark-appropriate categorical palette onto every bound colour aesthetic, so
+    * Modernize and Revert keep the chart's colours in step with the rest of its chrome.
+    */
+   private void seedColorPalette(VizContext ctx) {
+      VSChartInfo info = getVSChartInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      for(boolean runtime : new boolean[]{ false, true }) {
+         for(AestheticRef ref : info.getAestheticRefs(runtime)) {
+            if(ref != null && ref.getVisualFrame() instanceof CategoricalColorFrame) {
+               CategoricalColorFrame ccf = (CategoricalColorFrame) ref.getVisualFrame();
+               ccf.setDefaultColors(VSChartPaletteDefaults.seedPalette(ctx));
+               // a per-value color outranks the palette, so the ones a render derived from the old
+               // palette have to go or they keep rendering for the rest of the session
+               ccf.clearDerivedColors();
+            }
+         }
+      }
+   }
+
+   /**
+    * The smoothLines a legacy chart of this type carries: on for non-step Area, Area Stack and
+    * Circular Network, off otherwise. Design types and design multi-styles only - an AUTO chart
+    * whose runtime type is Area never had the type default applied, so resolving AUTO here would
+    * write a value no legacy chart holds, and a chart date comparison has forced into runtime
+    * multi-styles is still single-style by design. Multi-style charts carry a type per measure, so
+    * the aggregates are checked too.
+    */
+   private boolean legacySmoothLines() {
+      VSChartInfo info = getVSChartInfo();
+
+      if(info == null) {
+         return false;
+      }
+
+      if(GraphTypes.isSmoothLinesDefault(info.getChartType())) {
+         return true;
+      }
+
+      return info.isMultiStyles(true)
+         && (anySmoothLinesAggregate(info.getXFields())
+            || anySmoothLinesAggregate(info.getYFields()));
+   }
+
+   private static boolean anySmoothLinesAggregate(ChartRef[] refs) {
+      if(refs == null) {
+         return false;
+      }
+
+      for(ChartRef ref : refs) {
+         if(ref instanceof ChartAggregateRef
+            && GraphTypes.isSmoothLinesDefault(((ChartAggregateRef) ref).getChartType()))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    @Override
@@ -1289,6 +1495,9 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       writer.print(" tipClickValue=\"" + getTipOnClickValue() + "\"");
       writer.print(" summarySortCol=\"" + getSummarySortCol() + "\"");
       writer.print(" summarySortVal=\"" + getSummarySortValValue() + "\"");
+      writer.print(" userPadding=\"" + isUserPadding() + "\"");
+      writer.print(" userBarCornerRadius=\"" + isUserBarCornerRadius() + "\"");
+      writer.print(" userSmoothLines=\"" + isUserSmoothLines() + "\"");
 
       if(cubeType != null) {
          writer.print(" cubeType=\"" + cubeType + "\"");
@@ -1321,6 +1530,19 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       prop = getAttributeStr(element, "summarySortVal", "0");
       setSummarySortValValue(Integer.parseInt(prop));
+
+      // absent in files saved before the flag existed; a missing flag means no opinion, and the
+      // resolver's comparison against the creation default decides
+      String userPaddingProp = Tool.getAttribute(element, "userPadding");
+      setUserPadding("true".equalsIgnoreCase(userPaddingProp));
+
+      // same shape as userPadding, but with no resolver fallback behind the flag: a missing
+      // attribute means no opinion and seedChromeDefaults writes the mark-appropriate value
+      String userBarCornerRadiusProp = Tool.getAttribute(element, "userBarCornerRadius");
+      setUserBarCornerRadius("true".equalsIgnoreCase(userBarCornerRadiusProp));
+
+      String userSmoothLinesProp = Tool.getAttribute(element, "userSmoothLines");
+      setUserSmoothLines("true".equalsIgnoreCase(userSmoothLinesProp));
 
       cubeType = Tool.getAttribute(element, "cubeType");
 
@@ -1467,7 +1689,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
       super.parseContents(elem, isSiteAdminImport);
 
-      titleInfo.parseXML(elem);
+      titleInfo.parseXML(elem, getLegacyTitleHeight());
 
       Element anode = Tool.getChildNodeByTagName(elem, "tipViewValue");
       anode = anode == null ? Tool.getChildNodeByTagName(elem, "tipView") : anode;
@@ -1715,6 +1937,21 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       if(!Tool.equals(titleInfo, ninfo.titleInfo)) {
          titleInfo = ninfo.titleInfo;
+         result = true;
+      }
+
+      if(userPadding != ninfo.userPadding) {
+         userPadding = ninfo.userPadding;
+         result = true;
+      }
+
+      if(userBarCornerRadius != ninfo.userBarCornerRadius) {
+         userBarCornerRadius = ninfo.userBarCornerRadius;
+         result = true;
+      }
+
+      if(userSmoothLines != ninfo.userSmoothLines) {
+         userSmoothLines = ninfo.userSmoothLines;
          result = true;
       }
 
@@ -2626,7 +2863,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
     * @return the title height of assembly.
     */
    public int getTitleHeight() {
-      return titleInfo.getTitleHeight();
+      return VSDensityDefaults.titleHeight(this, titleInfo.getTitleHeight());
    }
 
    /**
@@ -2651,6 +2888,62 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
     */
    public void setTitleHeightValue(int value) {
       titleInfo.setTitleHeightValue(value);
+   }
+
+   @Override
+   public boolean isUserTitleHeight() {
+      return titleInfo.isUserTitleHeight();
+   }
+
+   @Override
+   public void setUserTitleHeight(boolean user) {
+      titleInfo.setUserTitleHeight(user);
+   }
+
+   /**
+    * Whether the author set the chart's padding. Distinguishes a deliberate inset from the creation
+    * default, so the card-inset resolver can substitute for the latter only. Surfaced in the
+    * property dialog as the padding pane's follow-the-default checkbox.
+    */
+   public boolean isUserPadding() {
+      return userPadding;
+   }
+
+   /**
+    * Set whether the padding was set by the author.
+    */
+   public void setUserPadding(boolean userPadding) {
+      this.userPadding = userPadding;
+   }
+
+   /**
+    * Whether the author set the plot's bar corner radius. Distinguishes a deliberate value from
+    * the mark-dependent seed, so seedChromeDefaults substitutes for the latter only.
+    */
+   public boolean isUserBarCornerRadius() {
+      return userBarCornerRadius;
+   }
+
+   /**
+    * Set whether the bar corner radius was set by the author.
+    */
+   public void setUserBarCornerRadius(boolean userBarCornerRadius) {
+      this.userBarCornerRadius = userBarCornerRadius;
+   }
+
+   /**
+    * Whether the author set the plot's smooth-lines option. Distinguishes a deliberate value from
+    * the mark-dependent seed, so seedChromeDefaults substitutes for the latter only.
+    */
+   public boolean isUserSmoothLines() {
+      return userSmoothLines;
+   }
+
+   /**
+    * Set whether the smooth-lines option was set by the author.
+    */
+   public void setUserSmoothLines(boolean userSmoothLines) {
+      this.userSmoothLines = userSmoothLines;
    }
 
    @Override
@@ -2886,6 +3179,9 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    private boolean noData = false;
    private DynamicValue2 summarySortCol;
    private DynamicValue2 summarySortVal;
+   private boolean userPadding = false;
+   private boolean userBarCornerRadius = false;
+   private boolean userSmoothLines = false;
 
    private static final Logger LOG = LoggerFactory.getLogger(ChartVSAssemblyInfo.class);
 }

@@ -26,6 +26,8 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper;
+import inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.css.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -298,7 +300,7 @@ public class CSSProcessor {
 
       applyCSS(chartDesc, cssDict, parentParams);
       applyCSS(elem.getChartInfo(), cssDict, parentParams);
-      CSSChartStyles.apply(chartDesc, elem.getChartInfo(), cssDict, parentParams);
+      CSSChartStyles.apply(chartDesc, elem.getChartInfo(), cssDict, parentParams, VizContext.LEGACY);
    }
 
    public void applyCSS(ChartDescriptor chartDesc, CSSDictionary cssDict,
@@ -469,6 +471,7 @@ public class CSSProcessor {
                   getVisualFrame();
                ccf.setCSSDictionary(cssDict);
                ccf.setParentParams(parentParams);
+               VSChartPaletteDefaults.applyModernPalette(ccf, VizContext.LEGACY);
             }
             else if(ref.getVisualFrame() instanceof GradientColorFrame) {
                GradientColorFrame gcf = (GradientColorFrame) ref.

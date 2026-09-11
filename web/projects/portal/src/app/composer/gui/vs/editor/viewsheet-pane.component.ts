@@ -164,6 +164,7 @@ import { MobileToolbarComponent } from "./mobile-toolbar.component";
 import { NgStyle } from "@angular/common";
 import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
 import { CustomSelectOption, CustomSelectComponent } from "../../../../widget/custom-select/custom-select.component";
+import { ModernizeBarComponent } from "./modernize-bar.component";
 
 const COLLECT_PARAMS_URI = "/events/vs/collectParameters";
 
@@ -201,7 +202,7 @@ const COLLECT_PARAMS_URI = "/events/vs/collectParameters";
         },
         ChatService
     ],
-    imports: [OutOfZoneDirective, MobileToolbarComponent, Rulers, SelectionBoxDirective, ActionsContextmenuAnchorDirective, InteractContainerDirective, NgStyle, EditableObjectContainer, ComposerSelectionContainerChildren, LayoutPane, PlaceholderDragElement, StatusBar, FormsModule, VSLoadingDisplay, VSSavingDisplay, NotificationsComponent, VariableInputDialog, ConsoleDialogComponent, CustomSelectComponent]
+    imports: [OutOfZoneDirective, MobileToolbarComponent, Rulers, SelectionBoxDirective, ActionsContextmenuAnchorDirective, InteractContainerDirective, NgStyle, EditableObjectContainer, ComposerSelectionContainerChildren, LayoutPane, PlaceholderDragElement, StatusBar, FormsModule, VSLoadingDisplay, VSSavingDisplay, NotificationsComponent, VariableInputDialog, ConsoleDialogComponent, CustomSelectComponent, ModernizeBarComponent]
 })
 export class VSPane extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {
    _vs: Viewsheet;
@@ -413,6 +414,22 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
             enabled: () => true,
             visible: () => !this.deployed,
             action: () => this.onOpenViewsheetOptions.emit(this.vs)
+         },
+         {
+            id: () => "composer vspane modernize",
+            label: () => "_#(js:composer.vs.modernize.menu)",
+            icon: () => "star-icon",
+            enabled: () => true,
+            visible: () => this.vs.modernizable && !this.deployed,
+            action: () => this.modernize()
+         },
+         {
+            id: () => "composer vspane revert",
+            label: () => "_#(js:composer.vs.revert.menu)",
+            icon: () => "reset-icon",
+            enabled: () => true,
+            visible: () => this.vs.revertable && !this.deployed,
+            action: () => this.revert()
          },
          {
             id: () => "composer vspane preview",
@@ -810,6 +827,8 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.vs.metadata = command.info["metadata"];
       this.vs.messageLevels = command.info["messageLevels"];
       this.vs.snapGrid = command.info["snapGrid"];
+      this.vs.modernizable = !!command.info["modernizable"];
+      this.vs.revertable = !!command.info["revertable"];
       this.hasScript = command.hasScript;
       this.hideNotifications = !!command.hideNotifications;
       this.refreshStatus();
@@ -1707,6 +1726,42 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
 
       this.onPaste.emit([this.vs, point]);
       setTimeout(() => this.currentSnapGuides = null, 0);
+   }
+
+   readonly modernizeMessage: string = "_#(js:composer.vs.modernize.message)";
+
+   /** The bar is shown only until it is dismissed; the menu entry outlives the dismissal. */
+   get modernizeOffered(): boolean {
+      return this.vs.modernizable && !this.deployed && !this.vs.modernizeBarDismissed
+         && !this.vs.currentLayout;
+   }
+
+   dismissModernize(): void {
+      this.vs.modernizeBarDismissed = true;
+   }
+
+   modernize(): void {
+      // hide both affordances at once: a second press before the refresh lands would reach the
+      // endpoint with nothing to do, and @Undoable would still checkpoint it
+      this.vs.modernizable = false;
+      this.vs.socketConnection.sendEvent("/events/composer/viewsheet/modernize");
+   }
+
+   revert(): Promise<void> {
+      return this.confirm("_#(js:composer.vs.revert.confirm)").then((ok: boolean) => {
+         if(!ok) {
+            return;
+         }
+
+         // hide the entry at once: a second press before the refresh lands would reach the
+         // endpoint with nothing to do, and @Undoable would still checkpoint it
+         this.vs.revertable = false;
+         // modernizable is recomputed on every refresh, so a reverted sheet qualifies again the
+         // instant the refresh lands. Reuse the per-session dismissal rather than let the bar
+         // offer to undo what was just done.
+         this.vs.modernizeBarDismissed = true;
+         this.vs.socketConnection.sendEvent("/events/composer/viewsheet/revert");
+      });
    }
 
    /**

@@ -39,7 +39,9 @@
             (focusout)="changeDescription()">
         </div>
       }
-      <div class="assembly-object" #assemblyObject>
+      <div class="assembly-object" #assemblyObject
+        [class.viz-modern]="vsObject.vizModern"
+        [class.viz-dark]="vsObject.vizDark">
         @if (vsObject.objectType == 'VSCalendar') {
           <vs-calendar cCalendarActionHandler
             [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
@@ -105,6 +107,8 @@
   @if (hasMiniToolbar()) {
     <mini-toolbar
       [actions]="actions"
+      [class.viz-modern]="vsObject?.vizModern"
+      [class.viz-dark]="vsObject?.vizDark"
       [forceAbove]="searchDisplayed"
       [top]="miniToolbarTop"
       [left]="miniToolbarLeft"

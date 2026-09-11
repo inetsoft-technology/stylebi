@@ -230,6 +230,7 @@ import { EnterClickDirective } from "../widget/directive/enter-click.directive";
 import { DefaultFocusDirective } from "../widget/directive/default-focus.directive";
 import { OutOfZoneDirective } from "../widget/directive/out-of-zone.directive";
 import { PagingControlComponent } from "../widget/scroll/paging-control.component";
+import { ChartPaletteService } from "../widget/color-picker/chart-palette.service";
 
 declare const window: any;
 declare var globalPostParams: { [name: string]: string[] } | null;
@@ -426,6 +427,9 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    name: string;
    previewBaseId: string;
    accessible: boolean = false;
+   modernVisualization: boolean = false;
+   vizDensity: string = "dense";
+   darkMode: boolean = false;
    exportTypes: { label: string, value: string }[] = [];
    viewsheetLoading: boolean = false;
    preparingData: boolean = false;
@@ -582,9 +586,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                private currentUserService: CurrentUserService,
                private chartConfigService: ChartConfigService,
                private heartbeatWorkerService: HeartbeatWorkerService,
-               private keepAwakeService: KeepAwakeService)
+               private keepAwakeService: KeepAwakeService,
+               chartPaletteService: ChartPaletteService)
    {
       super(viewsheetClient, zone, true);
+      chartPaletteService.ensureLoaded(); // warm the chart-series palette before any picker opens
       tooltipConfig.tooltipClass = "top-tooltip";
       GuiTool.isTouchDevice().then(
          (value: boolean) => {
@@ -2774,6 +2780,9 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.viewsheetBackground = command.info["viewsheetBackground"];
       this.name = command.assemblyInfo["name"];
       this.accessible = command.info["accessible"];
+      this.modernVisualization = command.info["modernVisualization"];
+      this.vizDensity = command.info["vizDensity"] ?? "dense";
+      this.darkMode = !!command.info["darkMode"];
       this.fitToWidth = command.info["fitToWidth"];
       this.balancePadding = command.info["balancePadding"];
       this.virtualScroll = command.info["virtualScroll"];
@@ -2802,6 +2811,23 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       if(this.accessible && !this.inPortal) {
          const body: HTMLElement = this.document.body;
          body.classList.add("accessible");
+      }
+
+      if(!this.inPortal) {
+         const body: HTMLElement = this.document.body;
+         const modern: boolean = !!this.modernVisualization;
+         // Org-level shell state only. Assembly chrome keys off "viz-modern" on the
+         // assembly's own wrapper, not on this body class.
+         body.classList.toggle("viz-shell", modern);
+         body.classList.remove(
+            "viz-density-comfortable", "viz-density-compact", "viz-density-dense");
+
+         // unconditional: see the portal shell's comment
+         if(["comfortable", "compact", "dense"].includes(this.vizDensity)) {
+            body.classList.add(`viz-density-${this.vizDensity}`);
+         }
+
+         body.classList.toggle("viz-shell-dark", modern && this.darkMode);
       }
 
       this.pageTabService.updateTabLabel(this.assetId, this.name);

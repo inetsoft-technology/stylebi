@@ -620,6 +620,11 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
          // needn't reset view
       }
 
+      if(!Tool.equals(vizMark, info.vizMark)) {
+         vizMark = info.vizMark;
+         // needn't reset view: provenance, copied so a type change cannot modernize legacy content
+      }
+
       if(isPrimary() != info.isPrimary()) {
          setPrimary(info.isPrimary());
          // needn't reset view
@@ -869,6 +874,10 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
 
       writer.print(" zIndex=\"" + zIndex + "\"");
       writer.print(" scriptEnabled=\"" + scriptEnabled + "\"");
+
+      if(vizMark != null) {
+         writer.print(" vizMark=\"" + vizMark.value() + "\"");
+      }
    }
 
    /**
@@ -913,6 +922,10 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       zIndex = idxStr == null ? 0 : Integer.parseInt(idxStr);
       String prop = Tool.getAttribute(elem, "scriptEnabled");
       scriptEnabled = !"false".equals(prop);
+
+      // assigned unconditionally: an absent attribute means unmarked, and the load path constructs
+      // before it parses, so a conditional read would let a constructor stamp survive a legacy file
+      vizMark = VizMark.parse(Tool.getAttribute(elem, "vizMark"));
    }
 
    /**
@@ -1075,6 +1088,22 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    /**
+    * The provenance mark recording the gate in force when this assembly was created. Null means
+    * unmarked - legacy or unclaimed content, which no automatic behavior ever touches.
+    */
+   public VizMark getVizMark() {
+      return vizMark;
+   }
+
+   /**
+    * Set the provenance mark. Only creation and a copy from another info may set this; it records
+    * when an assembly was made and is never a user-editable property.
+    */
+   public void setVizMark(VizMark vizMark) {
+      this.vizMark = vizMark;
+   }
+
+   /**
     * Clone this object.
     * @return the cloned object.
     */
@@ -1160,15 +1189,6 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       VSFormat titlefmt = tformat.getDefaultFormat();
 
       Insets borders = null;
-      BorderColors bcolors = new BorderColors(DEFAULT_BORDER_COLOR,
-                                              DEFAULT_BORDER_COLOR,
-                                              DEFAULT_BORDER_COLOR,
-                                              DEFAULT_BORDER_COLOR);
-      int borderRadius = 0;
-      boolean table = this instanceof TableDataVSAssemblyInfo;
-      CSSDictionary cssDictionary = CSSDictionary.getDictionary();
-      CSSStyle style = cssDictionary.getStyle(new CSSParameter("TableStyle", null, null,
-                                                               new CSSAttr("region", "Table")));
 
       if(border) {
          borders = new Insets(StyleConstants.THIN_LINE,
@@ -1177,21 +1197,10 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
                               StyleConstants.THIN_LINE);
 
          titlefmt.setBordersValue(borders);
-         titlefmt.setBorderColorsValue(bcolors);
-
-         if(style != null && style.isBorderColorDefined() && table) {
-            bcolors = style.getBorderColors();
-         }
-
-         if(style != null && style.isBorderRadiusDefined() && table) {
-            borderRadius = style.getBorderRadius();
-         }
       }
 
       if(setFormat) {
          objfmt.setBordersValue(borders);
-         objfmt.setBorderColorsValue(bcolors);
-         objfmt.setRoundCornerValue(borderRadius);
          objfmt.setFontValue(getDefaultFont(Font.PLAIN, 11));
 
          if(fill) {
@@ -1221,6 +1230,133 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       }
 
       setCSSDefaults();
+      // the assembly's own provenance, not the org's: an assembly on an unmarked host seeds the
+      // values it will read. The stamp precedes this call (AbstractVSAssembly's two-arg constructor
+      // and ViewsheetVSAssemblyInfo's), so `this` already carries whatever mark it will keep.
+      seedChromeDefaults(VizContext.of(this));
+   }
+
+   /**
+    * Seed the chrome values whose default depends on the modern-visualization context: the object
+    * border colour and card radius here, the card or page background and the chart plot values in
+    * the overrides. Called once at creation and again by Modernize on an assembly that already
+    * exists, so it must mutate the composites already installed and never install one - installing
+    * a fresh composite leaves the new one's USER tier empty and drops an author's formatting.
+    *
+    * One narrow exception, in CalendarVSAssemblyInfo.applyTo: a show type whose prototype stores no
+    * format at a path has no composite to mutate, and the render sites read that path through
+    * getFormat(path, false), which synthesises one. It installs where none is stored and drops what
+    * it installed when the legacy branch leaves no colour to hold, both guarded on isDefined() so a
+    * USER or CSS tier is never touched.
+    *
+    * Only gate-dependent values belong here. Unconditional creation defaults stay in
+    * setDefaultFormat, or Modernize would reset an author's padding, table style and fonts.
+    *
+    * Called once at creation, and again by Modernize, Revert and reseedAfterRestore - all in this
+    * package, which is why this is protected rather than public. A caller that needs only one
+    * value back (the padding pane's "follow default" checkbox) gets a narrower seam of its own
+    * instead of the whole hook - see ChartVSAssemblyInfo.resetCardInset.
+    */
+   protected void seedChromeDefaults(VizContext ctx) {
+      if(bypassesBaseChrome()) {
+         return;
+      }
+
+      Color defBorderColor = ctx.modern
+         ? VSObjectChromeDefaults.objectBorderColor(ctx) : DEFAULT_BORDER_COLOR;
+      BorderColors bcolors = new BorderColors(defBorderColor, defBorderColor,
+                                              defBorderColor, defBorderColor);
+      int borderRadius = ctx.modern && isCornerSeedTarget()
+         ? VSObjectChromeDefaults.cardCornerRadius() : 0;
+      VSCompositeFormat titleFormat = fmtInfo.getFormat(TITLEPATH);
+
+      // the title border takes the pre-stylesheet colour: a table's stylesheet colour reaches the
+      // object border and never the title border. Predates this work - preserved deliberately.
+      if(!installsOwnTitleFormat() && titleFormat != null
+         && titleFormat.getDefaultFormat().getBordersValue() != null)
+      {
+         titleFormat.getDefaultFormat().setBorderColorsValue(bcolors);
+      }
+
+      if(this instanceof TableDataVSAssemblyInfo) {
+         CSSStyle style = CSSDictionary.getDictionary().getStyle(
+            new CSSParameter("TableStyle", null, null, new CSSAttr("region", "Table")));
+
+         if(style != null && style.isBorderColorDefined()) {
+            bcolors = style.getBorderColors();
+         }
+
+         if(style != null && style.isBorderRadiusDefined()) {
+            borderRadius = style.getBorderRadius();
+         }
+      }
+
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         objFormat.getDefaultFormat().setBorderColorsValue(bcolors);
+         objFormat.getDefaultFormat().setRoundCornerValue(borderRadius);
+      }
+   }
+
+   /**
+    * Whether this assembly type takes the modern card-corner seed. Data and selection surfaces read as
+    * cards, as does Slider (form-input modernization, tracked as its own follow-on project); other
+    * outputs, containers, shapes and annotations do not. An explicit positive list, not a base-class
+    * check — TimeSliderVSAssemblyInfo extends SelectionVSAssemblyInfo and must stay out.
+    * Calendar is absent by design: it overrides initDefaultFormat and carries its own radius.
+    * The other form-input types (CheckBox, ComboBox, RadioButton, Spinner, Submit, TextInput) are not
+    * listed here — they bypass this hook entirely (see bypassesBaseChrome()) and seed their own
+    * modern-gated round corner directly in their own setDefaultFormat() override.
+    */
+   private boolean isCornerSeedTarget() {
+      return this instanceof TableDataVSAssemblyInfo    // table, crosstab, calc table, embedded table
+         || this instanceof ChartVSAssemblyInfo
+         || this instanceof SelectionListVSAssemblyInfo
+         || this instanceof SelectionTreeVSAssemblyInfo
+         || this instanceof CurrentSelectionVSAssemblyInfo
+         || this instanceof SliderVSAssemblyInfo;
+   }
+
+   /**
+    * Whether this type installs its own object format without routing through the base, in which
+    * case the base chrome seeds never applied to it at creation and must not be applied to it later.
+    * Seven of these override setDefaultFormat without calling super and hardcode DEFAULT_BORDER_COLOR.
+    * Calendar takes a different route to the same consequence: its initDefaultFormat() never calls
+    * setDefaultFormat at all, so the hook never ran for it at creation either. TabVSAssemblyInfo takes
+    * a third route: it does call super, but then overwrites the object border colour and round corner
+    * with its own values, so the hook's writes are always clobbered at creation and must not be applied
+    * later either. An explicit negative list, for the same reason isCornerSeedTarget() is an explicit
+    * positive one.
+    *
+    * The real invariant this predicate (together with installsOwnTitleFormat()) protects: does this
+    * type write, after super, any value the hook also writes? Find the candidate set with
+    * grep -rn "setRoundCornerValue\|setBorderColorsValue" core/src/main/java/inetsoft/uql/viewsheet/internal/
+    * and check each hit's type against both predicates below.
+    */
+   private boolean bypassesBaseChrome() {
+      return this instanceof CheckBoxVSAssemblyInfo
+         || this instanceof ComboBoxVSAssemblyInfo
+         || this instanceof RadioButtonVSAssemblyInfo
+         || this instanceof SpinnerVSAssemblyInfo
+         || this instanceof SubmitVSAssemblyInfo
+         || this instanceof TextInputVSAssemblyInfo
+         || this instanceof TextVSAssemblyInfo
+         || this instanceof CalendarVSAssemblyInfo
+         || this instanceof TabVSAssemblyInfo;
+   }
+
+   /**
+    * Whether this type installs its own TITLEPATH composite after the base installed one, discarding
+    * the base's title chrome, or otherwise overwrites the base's title border in place after super.
+    * The hook must not colour a title border it does not own: at creation the base's colour is either
+    * thrown away or overwritten for these types, so writing it later would make a modernized assembly
+    * differ from a freshly created one. TimeSliderVSAssemblyInfo overwrites the base's existing
+    * TITLEPATH composite in place, forcing a hardcoded bottom-only 0xc0c0c0 border.
+    */
+   private boolean installsOwnTitleFormat() {
+      return this instanceof ChartVSAssemblyInfo
+         || this instanceof MaxModeSelectionVSAssemblyInfo;
    }
 
    /**
@@ -1428,6 +1564,8 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
                if(cssDictionary.isHeightDefined(objectCssParam, titleCssParam)) {
                   ((TitledVSAssemblyInfo) this).setTitleHeightValue(
                      cssDictionary.getHeight(objectCssParam, titleCssParam));
+                  // a stylesheet height is the customer's choice, not a default
+                  ((TitledVSAssemblyInfo) this).setUserTitleHeight(true);
                }
             }
          }
@@ -1644,6 +1782,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    private ObjectOpenHashSet<String> actionNames = new ObjectOpenHashSet<>(0);
    private boolean controlByScript = false; // visible is control by script
    private Insets padding = new Insets(0, 0, 0, 0);
+   private VizMark vizMark;
 
    /**
     * The smallest font size viewsheet.font.size may produce. A relative adjustment can take

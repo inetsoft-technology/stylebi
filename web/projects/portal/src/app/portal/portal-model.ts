@@ -35,6 +35,9 @@ export interface PortalModel {
    helpURL: string;
    logoutUrl: string;
    accessible: boolean;
+   modernVisualization: boolean;
+   vizDensity: string;
+   darkMode: boolean;
    hasDashboards?: boolean;
    title: string;
    profile: boolean;

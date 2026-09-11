@@ -57,6 +57,45 @@ export class GuiTool {
 
    static readonly MINI_TOOLBAR_HEIGHT = 28;
 
+   // Compact mini-toolbar footprint under the modern visualization gate. Coupled to
+   // --inet-control-height-sm, the height the pinned container in mini-toolbar.component.scss
+   // (:host-context(.viz-modern)) binds to; change both together.
+   static readonly MINI_TOOLBAR_HEIGHT_MODERN = 24;
+
+   // Org-level shell state, for chrome that is not owned by any one assembly: surfaces appended to
+   // body (tooltips) and full-container overlays (the pop-dim scrim). Assembly chrome must not use
+   // this - it reads the assembly's own resolved vizModern instead.
+   static isVizShell(): boolean {
+      return document.body.classList.contains("viz-shell");
+   }
+
+   // The mini-toolbar is positioned by JS (mini-toolbar.component.ts topY), so the height it assumes
+   // must match the rendered height. vizModern is the caller's own resolved gate, per-assembly.
+   static getMiniToolbarHeight(vizModern: boolean): number {
+      return vizModern
+         ? GuiTool.MINI_TOOLBAR_HEIGHT_MODERN
+         : GuiTool.MINI_TOOLBAR_HEIGHT;
+   }
+
+   // Per-assembly mark read off the DOM, for positioning code that has an element but no model.
+   // Mirrors the :host-context(.viz-modern) rule that pins the compact height, so the assumed
+   // height always matches the rendered one; the wrapper class is bound per-assembly, so its
+   // absence means unmarked, never unknown.
+   static isVizModernElement(element: Element): boolean {
+      return element != null && element.closest(".viz-modern") != null;
+   }
+
+   // Density reaches the browser as a viz-density-<mode> body class, set by the portal, composer
+   // and viewer shells. Bare .viz-modern (the per-assembly wrapper class, never this body class)
+   // falls back to dense, matching the _viz-tokens.scss fallback.
+   static vizDensityMode(): "dense" | "compact" | "comfortable" {
+      if(document.body.classList.contains("viz-density-comfortable")) {
+         return "comfortable";
+      }
+
+      return document.body.classList.contains("viz-density-compact") ? "compact" : "dense";
+   }
+
    // Must stay in sync with the base .mini-toolbar z-index in mini-toolbar.component.scss.
    // Used as a floor so the toolbar always outranks ordinary sibling assemblies, even when
    // its own assembly's server-assigned z-index is low.

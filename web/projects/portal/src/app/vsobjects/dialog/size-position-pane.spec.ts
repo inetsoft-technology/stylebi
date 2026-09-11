@@ -27,8 +27,8 @@ describe("size position pane unit case", () => {
    let fixture: ComponentFixture<SizePositionPane>;
    let sizePosiitonPane: SizePositionPane;
    let model: SizePositionPaneModel;
-   let createModel: () => SizePositionPaneModel = () => {
-      return {
+   let createModel: (overrides?: Partial<SizePositionPaneModel>) => SizePositionPaneModel = (overrides = {}) => {
+      return Object.assign({
          top: 46,
          left: 157,
          width: 210,
@@ -38,7 +38,7 @@ describe("size position pane unit case", () => {
          cellHeight: null,
          locked: false,
          scaleVertical: false
-      };
+      }, overrides) as SizePositionPaneModel;
    };
 
    beforeEach(() => {
@@ -83,6 +83,43 @@ describe("size position pane unit case", () => {
       fixture.debugElement.queryAll(By.css("fieldset input")).forEach(input => {
          expect(input.nativeElement.disabled).toBeTruthy();
       });
+   });
+
+   it("should not render a follow-density checkbox when the model does not offer one", () => {
+      fixture.componentInstance.model = createModel({titleHeight: 20});
+      fixture.detectChanges();
+      expect(fixture.debugElement.query(By.css("#titleHeightFollowsDensity"))).toBeNull();
+   });
+
+   it("should render the checkbox and disable the stepper while following", () => {
+      fixture.componentInstance.model = createModel({titleHeight: 26, titleHeightFollowsDensity: true});
+      fixture.detectChanges();
+      expect(fixture.debugElement.query(By.css("#titleHeightFollowsDensity"))).not.toBeNull();
+      expect(fixture.componentInstance.form.controls["titleHeight"].disabled).toBeTruthy();
+   });
+
+   it("should keep the displayed height when the checkbox is cleared", () => {
+      fixture.componentInstance.model = createModel({titleHeight: 26, titleHeightFollowsDensity: true});
+      fixture.detectChanges();
+
+      fixture.componentInstance.titleHeightFollowChanged(false);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.model.titleHeightFollowsDensity).toBeFalsy();
+      expect(fixture.componentInstance.model.titleHeight).toBe(26);
+      expect(fixture.componentInstance.form.controls["titleHeight"].disabled).toBeFalsy();
+   });
+
+   it("should keep the stepper disabled when titleHeightEnable is toggled back on while following", () => {
+      fixture.componentInstance.model = createModel({titleHeight: 26, titleHeightFollowsDensity: true});
+      fixture.componentInstance.titleHeightEnable = true;
+      fixture.detectChanges();
+      expect(fixture.componentInstance.form.controls["titleHeight"].disabled).toBeTruthy();
+
+      fixture.componentInstance.titleHeightEnable = false;
+      fixture.componentInstance.titleHeightEnable = true;
+
+      expect(fixture.componentInstance.form.controls["titleHeight"].disabled).toBeTruthy();
    });
 });
 

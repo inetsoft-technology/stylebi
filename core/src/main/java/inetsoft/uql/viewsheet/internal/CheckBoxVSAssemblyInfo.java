@@ -153,6 +153,16 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
       titleInfo.setTitleHeightValue(value);
    }
 
+   @Override
+   public boolean isUserTitleHeight() {
+      return titleInfo.isUserTitleHeight();
+   }
+
+   @Override
+   public void setUserTitleHeight(boolean user) {
+      titleInfo.setUserTitleHeight(user);
+   }
+
    /**
     * Set the checkbox title height.
     * @param value the specified checkbox title height.
@@ -336,7 +346,7 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
    protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
       super.parseContents(elem, isSiteAdminImport);
 
-      titleInfo.parseXML(elem);
+      titleInfo.parseXML(elem, getLegacyTitleHeight());
 
       Element snode = Tool.getChildNodeByTagName(elem, "selectedObjects");
 
@@ -399,7 +409,7 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
       // set default format of title
       VSCompositeFormat format = new VSCompositeFormat();
       format.getDefaultFormat().setBordersValue(new Insets(0, 0, 0, 0));
-      format.getDefaultFormat().setFontValue(getDefaultFont(Font.BOLD, 11));
+      format.getDefaultFormat().setFontValue(getDefaultFont(Font.BOLD, 12));
       format.getDefaultFormat().setAlignmentValue(StyleConstants.H_LEFT | StyleConstants.V_TOP);
       format.getCSSFormat().setCSSType(getObjCSSType() + CSSConstants.TITLE);
       getFormatInfo().setFormat(TITLEPATH, format);
@@ -407,7 +417,7 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
       // set default format of cell
       TableDataPath datapath = new TableDataPath(-1, TableDataPath.DETAIL);
       format = new VSCompositeFormat();
-      format.getDefaultFormat().setFontValue(getDefaultFont(Font.PLAIN, 10));
+      format.getDefaultFormat().setFontValue(getDefaultFont(Font.PLAIN, 12));
       format.getDefaultFormat().setAlignmentValue(StyleConstants.CENTER);
       format.getCSSFormat().setCSSType(getObjCSSType() + CSSConstants.CELL);
       getFormatInfo().setFormat(datapath, format);
@@ -418,6 +428,74 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
       format.getCSSFormat().setCSSType(getObjCSSType());
       getFormatInfo().setFormat(OBJECTPATH, format);
       setCSSDefaults();
+      // this type overrides setDefaultFormat without calling super, so the base's hook call is
+      // unreachable; seed here instead
+      seedChromeDefaults(VizContext.of(this));
+   }
+
+   /**
+    * Seed the modern-gated round corner, cell alignment, and control height, plus the shared input
+    * title lane and value ink (seedInputTitleLane/seedInputValueInk). This type bypasses the base
+    * chrome hook (see VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own — form-input
+    * modernization, tracked as its own follow-on project from the card-corner work.
+    *
+    * Deliberately does NOT seed an object border color: the object's visible border is the static
+    * `.vs-check-box__default-border` CSS fallback (var(--inet-default-border-color)), rendered by
+    * checkDefaultBorder() in vs-compound.ts only when no border is defined anywhere in the title
+    * or object format. Setting a DEFAULT-tier border color without a matching width Insets makes
+    * VSCSSUtil.getBorder() return a non-null-but-0px string instead of null, which flips
+    * checkDefaultBorder() to false and kills that fallback — leaving no visible border at all.
+    * Coordinating this border's color with the modern palette belongs in that CSS variable, not
+    * here.
+    */
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      // returns at the bypass guard - this type owns its object border and radius
+      super.seedChromeDefaults(ctx);
+      seedInputTitleLane(ctx);
+      seedInputValueInk(ctx);
+
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         objFormat.getDefaultFormat().setRoundCornerValue(
+            ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 0);
+      }
+
+      VSCompositeFormat cellFormat = getFormatInfo().getFormat(
+         new TableDataPath(-1, TableDataPath.DETAIL));
+
+      if(cellFormat != null) {
+         cellFormat.getDefaultFormat().setAlignmentValue(
+            ctx.modern ? (StyleConstants.H_LEFT | StyleConstants.V_CENTER) : StyleConstants.CENTER);
+      }
+
+      // legacy default is 2 * defh (title lane + one data row); preserve that ratio rather than
+      // substituting a single control height, or a freshly-created checkbox would lose the room
+      // its second row needs. Title height is deliberately left alone - CheckBox is one of the
+      // types TitleLaneHeightRowTest.excludedTypesNeverTakeTheDensityRow pins to never follow the
+      // density row, so cellHeight alone absorbs the container's growth (container - the
+      // still-legacy title height), or updateDataRowCol()'s (containerHeight - titleHeight) /
+      // cellHeight would recompute a second row out of the container's new headroom instead of
+      // leaving it as clearance.
+      if(ctx.modern && getPixelSize().height == 2 * AssetUtil.defh) {
+         int newHeight = 2 * VSDensityDefaults.controlHeight(ctx);
+         setPixelSize(new Dimension(getPixelSize().width, newHeight));
+
+         if(getCellHeight() == AssetUtil.defh) {
+            setCellHeight(newHeight - getTitleHeight());
+         }
+      }
+      else if(!ctx.modern && getPixelSize().height % 2 == 0 &&
+         VSDensityDefaults.isControlHeight(getPixelSize().height / 2))
+      {
+         int oldHeight = getPixelSize().height;
+         setPixelSize(new Dimension(getPixelSize().width, 2 * AssetUtil.defh));
+
+         if(getCellHeight() == oldHeight - getTitleHeight()) {
+            setCellHeight(AssetUtil.defh);
+         }
+      }
    }
 
    /**

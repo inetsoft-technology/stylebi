@@ -41,6 +41,11 @@ import { ColorEditor } from "../color-picker/color-editor.component";
 import { LargeFormFieldComponent } from "../large-form-field/large-form-field.component";
 import { EnterSubmitDirective } from "../directive/enter-submit.directive";
 
+interface SemanticPreset {
+   label: string;
+   foreground: string;
+   background: string;
+}
 
 @Component({
     selector: "highlight-pane",
@@ -57,6 +62,23 @@ export class HighlightPane implements OnInit {
    @Output() onSelectHighlight = new EventEmitter<HighlightModel>();
    renameIndex: number = -1;
    private conditionsChanged: boolean = false;
+
+   readonly semanticPresets: SemanticPreset[] = [
+      { label: "_#(Warning)", foreground: "#7A4E10", background: "#F8E8CC" },
+      { label: "_#(Anomaly)", foreground: "#7F2E2E", background: "#F7DEDE" }
+   ];
+
+   // Modern semantic presets: non-chart highlights only (charts have no background), modern gate only.
+   get showSemanticPresets(): boolean {
+      return !!this.model && !this.model.chartAssembly && this.model.vizModern;
+   }
+
+   applyPreset(preset: SemanticPreset): void {
+      if(this.selectedHighlight) {
+         this.foreground = preset.foreground;
+         this.background = preset.background;
+      }
+   }
 
    constructor(private modalService: NgbModal) {
    }

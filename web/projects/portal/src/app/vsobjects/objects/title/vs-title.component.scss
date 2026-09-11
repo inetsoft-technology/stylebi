@@ -19,7 +19,7 @@
   position: relative;
   overflow: hidden;
 
-  .title-content.non-editable-text:not(.floating) {
+  .title-content.non-editable-text {
     display: flex;
     position: absolute;
     height: 100%;
@@ -28,6 +28,17 @@
     top: 0;
     left: 0;
     text-decoration: inherit;
+
+    // text-overflow is only spec-guaranteed on a block container box, not a flex container, so the
+    // truncation lives on this nested block-level child rather than on the flex row itself.
+    // min-width: 0 overrides the flex item's default auto min-width (its content's natural size),
+    // which would otherwise prevent it from ever shrinking enough to overflow.
+    .title-text {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
 
     span {
       display: table-cell;
@@ -41,22 +52,16 @@
   opacity: 0.4;
 }
 
+// Card-header separator for assemblies (CheckBox, RadioButton) whose title sits inside a single
+// shared object border rather than having its own border, matching the selection list header.
+.vs-title.inset-header {
+  border-bottom: 1px solid var(--inet-default-border-color);
+}
+
 .title-content {
   white-space: nowrap;
   width: 100%;
   position: relative;
-}
-
-.title-content.floating {
-  margin-left: 7px;
-  padding-left: 2px;
-  padding-right: 2px;
-  width: auto;
-  z-index: 1;
-}
-
-.title-content.floating.wrapped {
-  width: 100%;
 }
 
 .row-resize-label {

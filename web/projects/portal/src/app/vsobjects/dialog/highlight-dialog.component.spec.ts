@@ -33,7 +33,8 @@ describe("Highlight Dialog Test", () => {
          tableName: "table1",
          fields: [],
          usedHighlightNames: [],
-         confirmChanges: false
+         confirmChanges: false,
+         vizModern: false
       };
    };
 

@@ -20,7 +20,6 @@ import { DataRef } from "../../common/data/data-ref";
 import { FormatInfoModel } from "../../common/data/format-info-model";
 import { GraphTypes } from "../../common/graph-types";
 import { UIContextService } from "../../common/services/ui-context.service";
-import { GuiTool } from "../../common/util/gui-tool";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
 import { BindingModel } from "../data/binding-model";
 import { ChartBindingModel } from "../data/chart/chart-binding-model";
@@ -218,10 +217,6 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
 
    get formatPaneVisible(): boolean {
       return this.selectedTab == SidebarTab.FORMAT_PANE;
-   }
-
-   get miniToolbarHeight(): number {
-      return GuiTool.MINI_TOOLBAR_HEIGHT;
    }
 
    showHighLowPane(): boolean {

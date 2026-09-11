@@ -50,6 +50,12 @@ export class Viewsheet extends Sheet {
    snapGrid: number;
    metadata: boolean;
    newGroup: boolean;
+   /** Server-computed: the gate is on and this sheet holds unmarked content. */
+   modernizable: boolean = false;
+   /** Client-only, per open sheet: the offer bar was dismissed for this composer session. */
+   modernizeBarDismissed: boolean = false;
+   /** Server-computed: this sheet holds marked content. No gate term, unlike modernizable. */
+   revertable: boolean = false;
 
    private removeAssemblySubject: Subject<string> = new Subject<string>();
    private layoutChangeSubject: Subject<any> = new Subject<any>();

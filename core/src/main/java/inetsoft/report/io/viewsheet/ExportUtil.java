@@ -103,13 +103,14 @@ public class ExportUtil {
    /**
     * Get background color of time slider in current selection.
     * @param titleFormat format of slider title.
-    * @param objFormat format of slider object.
+    * @param objectFormat format of slider object.
     */
    public static Color getBackGroundColor(VSCompositeFormat titleFormat,
-                                          VSCompositeFormat objFormat) {
+                                          VSCompositeFormat objectFormat)
+   {
       return titleFormat != null && titleFormat.getBackground() != null ?
-         titleFormat.getBackground() : objFormat != null &&
-         objFormat.getBackground() != null ? objFormat.getBackground() : null;
+         titleFormat.getBackground() : objectFormat != null &&
+         objectFormat.getBackground() != null ? objectFormat.getBackground() : null;
    }
 
    /**

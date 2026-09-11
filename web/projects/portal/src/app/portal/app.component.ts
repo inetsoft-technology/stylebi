@@ -48,6 +48,7 @@ import { HistoryBarService } from "./services/history-bar.service";
 import { PortalModelService } from "./services/portal-model.service";
 import { PortalTabsService } from "./services/portal-tabs.service";
 import { GettingStartedService } from "../widget/dialog/getting-started-dialog/service/getting-started.service";
+import { ChartPaletteService } from "../widget/color-picker/chart-palette.service";
 
 const PORTAL_MODEL_URI: string = "../api/portal/get-portal-model";
 const REFRESH_CREATION_PERMISSION_URI = "../api/portal/refresh-creation-permissions";
@@ -85,6 +86,12 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    private routeSubscription: Subscription;
    private licenseInfo: LicenseInfo;
    private readonly ACCESSIBILITY_CLASS: string = "accessible";
+   // Org-level shell state only. Assembly chrome keys off "viz-modern" on the
+   // assembly's own wrapper, not on this body class.
+   private readonly VIZ_SHELL_CLASS: string = "viz-shell";
+   private readonly VIZ_DENSITY_CLASSES: string[] =
+      ["viz-density-comfortable", "viz-density-compact", "viz-density-dense"];
+   private readonly VIZ_SHELL_DARK_CLASS: string = "viz-shell-dark";
    private destroy$ = new Subject<void>();
    private isGettingStartedShown: boolean = false;
    private readonly _onMessage = (evt: MessageEvent) => this.handleMessageEvent(evt);
@@ -111,8 +118,10 @@ export class PortalAppComponent implements OnInit, OnDestroy {
                private firstDayOfWeekService: FirstDayOfWeekService,
                private bodyTitle: Title,
                private logoutService: LogoutService,
-               private gettingStartedService: GettingStartedService)
+               private gettingStartedService: GettingStartedService,
+               chartPaletteService: ChartPaletteService)
    {
+      chartPaletteService.ensureLoaded(); // warm the chart-series palette before any picker opens
       this.aiAssistantService.loadCurrentUser();
       ngbDatepickerConfig.minDate = { year: 1900, month: 1, day: 1 };
       ngbDatepickerConfig.maxDate = { year: 2099, month: 12, day: 31 };
@@ -159,6 +168,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
             this.portalModelService.model = model;
             this.aiAssistantService.aiAssistantVisible = model.aiAssistantVisible;
             this.updateAccessibility();
+            this.updateVisualizationMode();
             this.checkDefaultTab();
 
             let title = model.title;
@@ -251,6 +261,22 @@ export class PortalAppComponent implements OnInit, OnDestroy {
          const body: HTMLElement = this.document.body;
          body.classList.add(this.ACCESSIBILITY_CLASS);
       }
+   }
+
+   updateVisualizationMode(): void {
+      const body: HTMLElement = this.document.body;
+      const modern: boolean = !!this.model.modernVisualization;
+      body.classList.toggle(this.VIZ_SHELL_CLASS, modern);
+      body.classList.remove(...this.VIZ_DENSITY_CLASSES);
+      const densityClass = `viz-density-${this.model.vizDensity}`;
+
+      // unconditional: a marked assembly renders modern in a gate-off org too, and without a
+      // density ancestor it would take the bare .viz-modern dense tier whatever the org chose
+      if(this.VIZ_DENSITY_CLASSES.includes(densityClass)) {
+         body.classList.add(densityClass);
+      }
+
+      body.classList.toggle(this.VIZ_SHELL_DARK_CLASS, modern && !!this.model.darkMode);
    }
 
    get leftNavTabs(): PortalTab[] {

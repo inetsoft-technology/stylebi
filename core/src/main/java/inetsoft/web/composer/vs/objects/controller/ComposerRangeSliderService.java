@@ -106,6 +106,10 @@ public class ComposerRangeSliderService {
       TimeSliderVSAssembly slider = (TimeSliderVSAssembly) cobj;
       TimeSliderVSAssemblyInfo sliderInfo = slider.getTimeSliderInfo();
       SelectionListVSAssembly list = new SelectionListVSAssembly(vs, cobj.getName());
+
+      // a type conversion keeps the original object's provenance, not the host's
+      list.getVSAssemblyInfo().setVizMark(slider.getVSAssemblyInfo().getVizMark());
+
       SelectionListVSAssemblyInfo info = list.getSelectionListInfo();
       list.setTableName(sliderInfo.getFirstTableName());
       list.setDataRef(slider.getDataRefs()[0]);

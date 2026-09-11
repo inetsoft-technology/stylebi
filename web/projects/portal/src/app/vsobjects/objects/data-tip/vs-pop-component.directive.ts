@@ -39,7 +39,7 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
    @Input() public popComponentName: string;
    @Input() public popContainerName: string;
    @Input() public popZIndex: number;
-   @Input() public popBackground: string = "white";
+   @Input() public popBackground: string = "var(--inet-dialog-bg-color)";
    @Input() public miniToolbar: boolean = false;
    @Input() containerBounds: DOMRectInit;
    @Input() actionsWidth: number;
@@ -293,7 +293,9 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
       leftStr = leftStr.endsWith("px") ? leftStr.substring(0, leftStr.length - 2) : leftStr;
 
       if(this.miniToolbar) {
-         top -= GuiTool.MINI_TOOLBAR_HEIGHT;
+         // this host is the mini-toolbar, which carries the assembly's own mark.
+         top -= GuiTool.getMiniToolbarHeight(
+            GuiTool.isVizModernElement(this.elementRef.nativeElement));
          let miniToolbarWidth = this.getToolbarWidth(parseInt(leftStr, 10), mainComponent.clientWidth);
          this.renderer.setStyle(nativeElement, "width",
             this.containerBounds == null ? mainComponent.clientWidth : miniToolbarWidth + "px");
@@ -322,7 +324,7 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
             this.renderer.setStyle(nativeElement, "background-color", "inherit");
          }
          else {
-            const bg = this.miniToolbar ? "rgba(255,255,255,0)" : this.popBackground;
+            const bg = this.miniToolbar ? "transparent" : this.popBackground;
             this.renderer.setStyle(nativeElement, "background-color", bg);
          }
       }

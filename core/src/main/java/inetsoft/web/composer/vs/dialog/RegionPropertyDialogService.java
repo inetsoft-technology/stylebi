@@ -34,6 +34,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.VSBindingService;
@@ -97,7 +98,7 @@ public class RegionPropertyDialogService {
 
       return regionHandler.createAxisPropertyDialogModel(
          cinfo, getChartArea(rvs, chartAssembly, linkUri, rvs.getViewsheet().isMaxMode()), axisType,
-         axisIdx, field, plotDesc.isFacetGrid(), vs.isMaxMode());
+         axisIdx, field, plotDesc.isFacetGrid(), vs.isMaxMode(), VizContext.of(chartAssemblyInfo));
    }
 
    @ClusterWriteMethod
@@ -126,7 +127,7 @@ public class RegionPropertyDialogService {
       VSChartInfo cinfo = chartAssemblyInfo.getVSChartInfo();
       ChartArea chartArea = getChartArea(rvs, chartAssembly, linkUri);
       regionHandler.updateAxisPropertyDialogModel(value, cinfo, chartArea, axisType, index, field,
-                                                  vs.isMaxMode());
+                                                  vs.isMaxMode(), VizContext.of(chartAssemblyInfo));
       chartAssemblyInfo.resetRuntimeValues();
       cinfo.clearRuntime();
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
@@ -195,7 +196,8 @@ public class RegionPropertyDialogService {
       ChartArea chartArea = getChartArea(rvs, chartAssembly, linkUri);
       ChartDescriptor descriptor = chartAssemblyInfo.getChartDescriptor();
       return regionHandler.createLegendFormatDialogModel(cinfo, chartArea,
-                                                         descriptor, legendIdx);
+                                                         descriptor, legendIdx,
+                                                         VizContext.of(chartAssemblyInfo));
    }
 
    @ClusterWriteMethod
@@ -225,7 +227,8 @@ public class RegionPropertyDialogService {
       VSChartInfo cinfo = chartAssemblyInfo.getVSChartInfo();
       ChartDescriptor descriptor = chartAssemblyInfo.getChartDescriptor();
       ChartArea chartArea = getChartArea(rvs, chartAssembly, linkUri);
-      regionHandler.updateLegendFormatDialogModel(value, cinfo, chartArea, descriptor, index);
+      regionHandler.updateLegendFormatDialogModel(value, cinfo, chartArea, descriptor, index,
+                                                  VizContext.of(chartAssemblyInfo));
 
       this.vsObjectPropertyService.editObjectProperty(
          rvs, chartAssemblyInfo, objectId, objectId, linkUri, principal, commandDispatcher);

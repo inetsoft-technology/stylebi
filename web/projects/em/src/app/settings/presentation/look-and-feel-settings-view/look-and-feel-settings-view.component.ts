@@ -41,6 +41,7 @@ import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 import { NgIf } from "@angular/common";
+import { MatTooltip } from "@angular/material/tooltip";
 
 
 @Searchable({
@@ -60,7 +61,7 @@ import { NgIf } from "@angular/common";
     templateUrl: "./look-and-feel-settings-view.component.html",
     styleUrls: ["./look-and-feel-settings-view.component.scss"],
     providers: [DataSpaceTreeDataSource],
-    imports: [NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatCheckbox, FileChooserComponent, MatIcon, MatSuffix, MatError, MatButton]
+    imports: [NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatCheckbox, FileChooserComponent, MatIcon, MatSuffix, MatError, MatButton, MatTooltip]
 })
 export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
    @Input() securityEnabled: boolean = false;
@@ -82,6 +83,9 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
       if(model) {
          this.form.get("ascending").setValue(model.ascending, {emitEvent: false});
          this.form.get("expand").setValue(model.expand, {emitEvent: false});
+         this.form.get("modernVisualization").setValue(model.modernVisualization, {emitEvent: false});
+         this.form.get("darkMode").setValue(!!model.darkMode, {emitEvent: false});
+         this.form.get("visualizationDensity").setValue(model.visualizationDensity ?? "compact", {emitEvent: false});
          this.updateFormFile("Logo", model);
          this.updateFormFile("Favicon", model);
          this.updateFormFile("Viewsheet", model);
@@ -103,6 +107,9 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
          this.form.get("viewsheetFile").setValue(null, {emitEvent: false});
          this.form.get("userformatFile").setValue(null, {emitEvent: false});
          this.form.get("defaultFonts").setValue(true, {emitEvent: false});
+         this.form.get("modernVisualization").setValue(true, {emitEvent: false});
+         this.form.get("darkMode").setValue(false, {emitEvent: false});
+         this.form.get("visualizationDensity").setValue("compact", {emitEvent: false});
       }
    }
 
@@ -128,7 +135,10 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
             viewsheetFile: [null],
             userformatFile: [null],
             defaultFonts: [true],
-            selectedTheme: ["default"]
+            selectedTheme: ["default"],
+            modernVisualization: [true],
+            darkMode: [false],
+            visualizationDensity: ["compact"]
          },
          {
             validator: [
@@ -215,6 +225,9 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
       this.model.ascending = this.form.get("ascending").value;
       this.model.repositoryTree = GuiTool.isMobileDevice() ? false : true;
       this.model.expand = this.form.get("expand").value;
+      this.model.modernVisualization = this.form.get("modernVisualization").value;
+      this.model.darkMode = this.form.get("darkMode").value;
+      this.model.visualizationDensity = this.form.get("visualizationDensity").value;
       this.model.defaultFont = this.form.get("defaultFonts").value;
       this.updateModelFile("Logo");
       this.updateModelFile("Favicon");

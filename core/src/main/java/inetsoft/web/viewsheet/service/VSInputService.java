@@ -563,7 +563,10 @@ public class VSInputService {
       dialogService.setAssemblySize(checkBoxAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(checkBoxAssemblyInfo, sizePositionPaneModel);
 
-      checkBoxAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      if(sizePositionPaneModel.getTitleHeight() != checkBoxAssemblyInfo.getTitleHeightValue()) {
+         checkBoxAssemblyInfo.setUserTitleHeight(true);
+         checkBoxAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      }
       checkBoxAssemblyInfo.setCellHeight(sizePositionPaneModel.getCellHeight());
 
       setListValues(checkBoxAssemblyInfo, value, viewsheet, principal);
@@ -1312,7 +1315,10 @@ public class VSInputService {
       dialogService.setAssemblySize(radioButtonAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(radioButtonAssemblyInfo, sizePositionPaneModel);
 
-      radioButtonAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      if(sizePositionPaneModel.getTitleHeight() != radioButtonAssemblyInfo.getTitleHeightValue()) {
+         radioButtonAssemblyInfo.setUserTitleHeight(true);
+         radioButtonAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      }
       radioButtonAssemblyInfo.setCellHeight(sizePositionPaneModel.getCellHeight());
 
       setListValues(radioButtonAssemblyInfo, value, viewsheet, principal);

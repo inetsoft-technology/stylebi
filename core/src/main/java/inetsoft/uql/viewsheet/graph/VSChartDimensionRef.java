@@ -26,6 +26,7 @@ import inetsoft.uql.asset.GroupRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 
 import java.io.PrintWriter;
@@ -62,11 +63,11 @@ public class VSChartDimensionRef extends VSDimensionRef
    }
 
    public void initDefaultFormat() {
-      initDefaultFormat(false);
+      initDefaultFormat(VizContext.LEGACY);
    }
 
-   public void initDefaultFormat(boolean vs) {
-      this.refImpl.initDefaultFormat(vs);
+   public void initDefaultFormat(VizContext ctx) {
+      this.refImpl.initDefaultFormat(ctx);
    }
 
    @Override

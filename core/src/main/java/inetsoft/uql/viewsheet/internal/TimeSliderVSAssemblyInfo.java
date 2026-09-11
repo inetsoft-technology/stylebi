@@ -447,6 +447,16 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       titleInfo.setTitleHeightValue(value);
    }
 
+   @Override
+   public boolean isUserTitleHeight() {
+      return titleInfo.isUserTitleHeight();
+   }
+
+   @Override
+   public void setUserTitleHeight(boolean user) {
+      titleInfo.setUserTitleHeight(user);
+   }
+
    /**
     * Set the time slider title height.
     * @param value the specified time slider title height.
@@ -630,7 +640,7 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
          timeSliderSelection.parseXML(tslnode, slist);
       }
 
-      titleInfo.parseXML(elem);
+      titleInfo.parseXML(elem, getLegacyTitleHeight());
    }
 
    /**
@@ -699,9 +709,29 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
          titleFormat.getDefaultFormat().setBordersValue(
             new Insets(GraphConstants.NONE, GraphConstants.NONE,
                        GraphConstants.THIN_LINE, GraphConstants.NONE));
-         titleFormat.getDefaultFormat().setBorderColorsValue(
-            new BorderColors(new Color(0xc0c0c0), new Color(0xc0c0c0),
-                             new Color(0xc0c0c0), new Color(0xc0c0c0)));
+         titleFormat.getDefaultFormat().setBorderColorsValue(legacyTitleRuleColors());
+      }
+
+      // super seeded the title composite this method then overwrote; re-run against the values
+      // that should stand. The hook is a set of unconditional writes, so a second run is free
+      seedChromeDefaults(VizContext.of(this));
+   }
+
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      // the title lane is the parent's, shared with the selection family
+      super.seedChromeDefaults(ctx);
+
+      // the min / max / current labels, which VSTimeSlider paints from the object foreground
+      // rather than a cell path. Its default is VSFormat's own black, unreadable on a dark card.
+      // Only dark moves; legacy restores the black, because that is what a gate-off creation has
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         VSFormat def = objFormat.getDefaultFormat();
+         def.setForegroundValue(
+            ctx.dark ? VSObjectChromeDefaults.darkForegroundValue() : "0", ctx.dark);
+         def.setForeground(null, false);
       }
    }
 

@@ -54,7 +54,8 @@ import { AdhocFilterService } from "./data-tip/adhoc-filter.service";
 import { DataTipService } from "./data-tip/data-tip.service";
 import { DateTipHelper } from "./data-tip/date-tip-helper";
 import { PopComponentService } from "./data-tip/pop-component.service";
-import { MiniToolbarService } from "./mini-toolbar/mini-toolbar.service";
+import { anchoredLaneHeight, isAnchoredResident, MiniToolbarService } from "./mini-toolbar/mini-toolbar.service";
+import { StripGlyphTone, stripGlyphTone } from "./mini-toolbar/strip-glyph-tone";
 import { NavigationKeys } from "./navigation-keys";
 import { SelectionBaseController } from "./selection/selection-base-controller";
 import { PlaceholderDragElement } from "../../widget/placeholder-drag-element/placeholder-drag-element.component";
@@ -99,8 +100,6 @@ import { VSDataTipDirective } from "./data-tip/vs-data-tip.directive";
     imports: [VSDataTipDirective, VSPopComponentDirective, VSAnnotation, VSCalcTable, VSCalendar, VSChart, VSCheckBox, VSComboBox, VSCrosstab, VSCylinder, VSGauge, VSGroupContainer, VSImage, VSLine, VSOval, VSRadioButton, VSRectangle, VSRangeSlider, VSSelection, VSSelectionContainer, VSSelectionContainerChildren, VSSlider, VSSlidingScale, VSSpinner, VSSubmit, VSTab, VSTable, VSText, VSTextInput, VSThermometer, forwardRef(() => VSViewsheet), MiniToolbar, PlaceholderDragElement]
 })
 export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
-   readonly popUpContentBoostZIndex: number = DateTipHelper.getPopUpContentBoostZIndex();
-
    @Input() public vsInfo: ViewsheetInfo;
    @Input() public vsObjectActions: AbstractVSActions<any>[];
    @Input() public activeName: string;
@@ -464,7 +463,65 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       return this.dataTipService.getVSObjectId(object.absoluteName);
    }
 
+   // Delegates to isAnchoredResident, the one anchored-set definition in mini-toolbar.service.ts. See
+   // chart-card-design/Anchoring beyond charts - discussion.md.
+   // Excluded only for the selection family in max mode (isMaxModeSelection below): those models
+   // abandon objectFormat positioning there (see VSSelection.topPosition) and put padding constants
+   // in objectFormat.top/left instead, so the lane origin the anchored geometry assumes doesn't
+   // exist. Chart and table objectFormat is rewritten to true coordinates in max mode, so anchoring
+   // still works for them there. isKebabResident below is the type+gate+lane condition alone, without
+   // this method's selection-max-mode exclusion — it is what keeps the kebab reachable on touch
+   // once this method stops anchoring it.
+   public isToolbarAnchored(object: VSObjectModel): boolean {
+      return this.isKebabResident(object) && !VSObjectContainer.isMaxModeSelection(object);
+   }
+
+   /**
+    * Whether this assembly type carries the resident/kebab-only design at all, regardless of
+    * whether it can currently be geometrically anchored to a title lane (isToolbarAnchored above).
+    * Touch has no hover, so a kebab that is resident only while anchored would be unreachable in
+    * max mode, where anchoring is off — there is no lane — but the type still carries the design.
+    * A lane too short to hold the strip opts out entirely, measured by anchoredLaneHeight against
+    * ANCHORED_LANE_MIN. Such an assembly draws no chrome at all rather than falling back to the
+    * floating strip; that is enforced in the action layer, not here.
+    */
+   public isKebabResident(object: VSObjectModel): boolean {
+      return isAnchoredResident(object.objectType, object.vizModern, anchoredLaneHeight(object));
+   }
+
+   /**
+    * The glyph treatment for this assembly's anchored strip: which of the two inks reads against
+    * the colour the strip sits on, and at what alpha. Memoized in the resolver, so calling this
+    * from the template costs a map lookup per pass.
+    */
+   public getStripGlyphTone(object: VSObjectModel): StripGlyphTone {
+      return stripGlyphTone(object);
+   }
+
+   /**
+    * Selection list/tree in max mode: objectFormat.top/left hold VSSelectionBaseModel's
+    * TOP_PADDING/LEFT_PADDING constants (30/20), not the assembly's true origin — the assembly's
+    * own rendering ignores them too (see isToolbarAnchored above) and fills the container instead.
+    * Floating top math already lands correctly off that stale top (see getToolbarTop); only
+    * getToolbarLeft still needs an override, to compensate for the stale left.
+    */
+   private static isMaxModeSelection(object: VSObjectModel): boolean {
+      return !!(<any> object).maxMode &&
+         (Tool.equalsIgnoreCase(object.objectType, "VSSelectionList") ||
+            Tool.equalsIgnoreCase(object.objectType, "VSSelectionTree"));
+   }
+
    public getToolbarTop(object: VSObjectModel, i: number): number {
+      if(this.isToolbarAnchored(object)) {
+         // Inside the assembly, at the lane's top inset. The inset is the assembly's own paddingTop —
+         // what vs-title already positions against — not the card spec's 12px, which belongs to the
+         // card-geometry work. Centre the fixed-height strip in whatever lane it has.
+         const slack = anchoredLaneHeight(object) - GuiTool.MINI_TOOLBAR_HEIGHT_MODERN;
+         const centring = Math.floor(Math.max(0, slack) / 2);
+
+         return object.objectFormat.top + ((<VSChartModel> object).paddingTop || 0) + centring;
+      }
+
       let actionHeight = 28;
       let top = object.objectFormat.top;
 
@@ -490,10 +547,41 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          return left;
       }
 
+      if(this.isToolbarAnchored(object)) {
+         // The lane's left inset. The strip's own box spans the whole lane (see
+         // getAnchoredToolbarWidth) and the pill right-aligns itself inside it with margin-left:
+         // auto, so the right inset is reached by layout rather than by subtracting an estimated
+         // strip width here — an estimate that would drift with theme tokens, count buttons touch
+         // never renders, and disagree with the cached markup after a band-crossing resize.
+         // No viewport clamping: an anchored strip is inside the assembly, so there are no
+         // viewport bounds to clamp against.
+         return left + ((<VSChartModel> object).paddingLeft || 0);
+      }
+
+      // .mini-toolbar-container is width: fit-content !important, so its true rendered width is not
+      // knowable here — there is no way to compute the real right edge directly. left + width
+      // deliberately overshoots it instead (objectFormat.left/width both carry the padding
+      // constants), and getToolbarLeft's overflow-viewport clamp below right-aligns the strip
+      // against that overshoot. Leaning on the clamp as an alignment primitive is the mechanism.
+      if(VSObjectContainer.isMaxModeSelection(object)) {
+         left = object.objectFormat.left + object.objectFormat.width;
+      }
+
       return this.miniToolbarService.getToolbarLeft(left, this.containerBounds,
          this.scaleService.getCurrentScale(),
          this.containerScrollLeft, this.checkContainerHasVerticalScrollbar(),
          this.vsObjectActions[i].showingActions, this.embeddedVSBounds, (<any> object).maxMode);
+   }
+
+   /**
+    * The anchored strip's positioning box: the title lane itself, inset to inset. It becomes the
+    * host's inline width, giving the pill (width: fit-content) the free space its margin-left:
+    * auto absorbs to right-align. The host is pointer-events: none and .mini-toolbar-bottom is
+    * transparent and pointer-events: none too, so a lane-wide box adds no hit target over the plot.
+    */
+   public getAnchoredToolbarWidth(object: VSObjectModel): number {
+      const chart = <VSChartModel> object;
+      return object.objectFormat.width - (chart.paddingLeft || 0) - (chart.paddingRight || 0);
    }
 
    public getToolbarWidth(object: VSObjectModel): number {
@@ -590,8 +678,8 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          this.dataTipService.dataTipName.startsWith(vsObject.absoluteName + ".");
    }
 
-   getPopUpContentBoostZIndex(): number {
-      return DateTipHelper.getPopUpContentBoostZIndex();
+   popUpContentZIndex(vsObject: VSObjectModel): number {
+      return DateTipHelper.getPopUpContentZIndex(this.zIndex(vsObject));
    }
 
    // The actual stacking-context z-index used for vsObject's own ".vs-object-parent-container"
@@ -630,9 +718,13 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       // CONTAINER_ZINDEX_GAP/VIEWSHEET_ZINDEX_GAP are 1/50/1000), but not an absolute guarantee:
       // zIndex() can add +5000 for an assembly with annotations or +getPopUpContentBoostZIndex()
       // for an adhoc filter, which does eat into that margin.
+      // Both tiers go through the pop-content clamp so neither can cross the
+      // .fixed-dropdown layer; the ceiling is far above any realistic zIndex(), so the
+      // data tip still outranks a merely-max-mode sibling.
       return isDataTipBoost
-         ? this.zIndex(vsObject) + this.popUpContentBoostZIndex * 2
-         : this.zIndex(vsObject) + this.popUpContentBoostZIndex;
+         ? DateTipHelper.getPopUpContentZIndex(
+              this.zIndex(vsObject) + DateTipHelper.getPopUpContentBoostZIndex())
+         : this.popUpContentZIndex(vsObject);
    }
 
    // The mini-toolbar's z-index (see [zIndex] binding on <mini-toolbar> in the template) is

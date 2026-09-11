@@ -32,6 +32,7 @@ import { Point } from "../../common/data/point";
 import { Rectangle } from "../../common/data/rectangle";
 import { TooltipComponent } from "./tooltip.component";
 import { TooltipService } from "./tooltip.service";
+import { computeTailPlacement, TailAxis, TailSide, TOOLTIP_INSET } from "./tooltip-tail-placement";
 
 @Directive({
     selector: "[wTooltip]",
@@ -46,8 +47,13 @@ export class TooltipDirective implements OnChanges, OnInit, OnDestroy {
    @Input() waitTime = 500;
    @Input() followCursor = false;
    @Input() disableTooltipOnMousedown = true;
+   @Input() showTail = false;
+   @Input() tailAxis: TailAxis = "vertical";
+   /** Supplies the hovered mark's visual middle; the tail is suppressed when it yields null. */
+   @Input() tailAnchor: () => { x: number, y: number } | null = null;
    private tooltipRef: ComponentRef<TooltipComponent>;
    private mousePosition: Point;
+   private lastAnchorKey: string = null;
    private timeout: any;
    private mousemoveListener: () => void;
    private mouseenterListener: () => void;
@@ -67,6 +73,7 @@ export class TooltipDirective implements OnChanges, OnInit, OnDestroy {
             this.close();
          }
          else if(this.tooltipShowing()) {
+            this.lastAnchorKey = null;
             this.tooltipRef.instance.content = this.getTooltipContent();
          }
          else if(this.mousePosition != null) {
@@ -154,6 +161,8 @@ export class TooltipDirective implements OnChanges, OnInit, OnDestroy {
    }
 
    public close() {
+      this.lastAnchorKey = null;
+
       if(this.tooltipShowing()) {
          this.tooltipService.removeTooltip(this.tooltipRef);
       }
@@ -185,8 +194,33 @@ export class TooltipDirective implements OnChanges, OnInit, OnDestroy {
       const tooltip = this.tooltipRef.instance;
       tooltip.content = tooltipStr;
       tooltip.tooltipCSS = this.tooltipCSS;
+      tooltip.dark = this.resolveDark();
       this.tooltipRef.instance.updateView();
       this.positionTooltipWithinViewport();
+   }
+
+   /**
+    * Whether the tooltip about to be shown belongs to a dark surface.
+    *
+    * Read from the hovered element upwards, not from the body: the tooltip is reparented to the
+    * document body, so it has no assembly ancestor of its own, and the body's dark class follows the
+    * org property while an assembly's palette follows its mark. Those two disagree in both
+    * directions -- a dark-marked chart in a light org, a light-marked one in a dark org -- and either
+    * mismatch is visible as a tooltip in the wrong palette on a mixed dashboard.
+    *
+    * The nearest wrapper decides, because viz-modern and viz-dark are bound together onto the same
+    * assembly element. No wrapper means light, and the body's dark class is deliberately NOT
+    * consulted as a fallback: viz-shell-dark redefines only the --inet-viz-* state tokens and paints
+    * no surface, so the shell's own surfaces -- the repository and asset trees, the query panes, the
+    * worksheet detail pane, combo-box lists -- stay light even in a dark org, and a dark tooltip over
+    * them would be the same mismatch in a different place. It also settles the unmarked case: a
+    * legacy assembly carries neither class and renders light, so its tooltip is light too.
+    */
+   private resolveDark(): boolean {
+      const host = this.hostRef?.nativeElement as HTMLElement;
+      const wrapper = host?.closest(".viz-modern, .viz-dark");
+
+      return !!wrapper && wrapper.classList.contains("viz-dark");
    }
 
    private positionTooltipWithinViewport() {
@@ -195,6 +229,10 @@ export class TooltipDirective implements OnChanges, OnInit, OnDestroy {
          const container = tooltipElement.parentElement;
 
          if(!!container) {
+            if(this.showTail && this.positionWithTail(tooltipElement, container)) {
+               return;
+            }
+
             const tooltipBounds = Rectangle.fromClientRect(tooltipElement.getBoundingClientRect());
             const restrictBounds = Rectangle.fromClientRect(container.getBoundingClientRect());
             const naturalRightBound = this.mousePosition.x + this.offsetLeft + tooltipBounds.width;
@@ -230,6 +268,64 @@ export class TooltipDirective implements OnChanges, OnInit, OnDestroy {
             this.tooltipRef.instance.updateView();
          }
       }
+   }
+
+   /**
+    * Places the box against the hovered mark's rect with a tail pointing at it;
+    * returns false, falling back to the cursor-offset path, when no anchor is
+    * available or the box cannot clear the anchor.
+    */
+   private positionWithTail(tooltipElement: HTMLElement, container: HTMLElement): boolean {
+      const anchor = !!this.tailAnchor ? this.tailAnchor() : null;
+
+      if(!anchor) {
+         this.applyTail(null, 0, null);
+         return false;
+      }
+
+      const key = `${anchor.x},${anchor.y}`;
+
+      // The anchor is the mark, so the box holds still while the cursor moves across it.
+      if(key === this.lastAnchorKey) {
+         return true;
+      }
+
+      const bounds = Rectangle.fromClientRect(tooltipElement.getBoundingClientRect());
+      const placement = computeTailPlacement({
+         anchor,
+         hostWidth: bounds.width,
+         hostHeight: bounds.height,
+         container: Rectangle.fromClientRect(container.getBoundingClientRect()),
+         axis: this.tailAxis
+      });
+
+      if(!placement) {
+         this.lastAnchorKey = null;
+         this.applyTail(null, 0, null);
+         return false;
+      }
+
+      this.lastAnchorKey = key;
+      const top = Math.max(placement.y, 0);
+      const left = Math.max(placement.x, 0);
+      this.renderer.setStyle(tooltipElement, "top", top + "px");
+      this.renderer.setStyle(tooltipElement, "left", left + "px");
+      this.applyTail(placement.tailSide, placement.tailOffset, {
+         width: bounds.width - 2 * TOOLTIP_INSET,
+         height: bounds.height - 2 * TOOLTIP_INSET
+      });
+
+      return true;
+   }
+
+   private applyTail(tailSide: TailSide | null, tailOffset: number,
+                     boxSize: { width: number, height: number } | null): void
+   {
+      const tooltip = this.tooltipRef.instance;
+      tooltip.tailSide = tailSide;
+      tooltip.tailOffset = tailOffset;
+      tooltip.boxSize = boxSize;
+      tooltip.updateView();
    }
 
    private tooltipShowing(): boolean {
