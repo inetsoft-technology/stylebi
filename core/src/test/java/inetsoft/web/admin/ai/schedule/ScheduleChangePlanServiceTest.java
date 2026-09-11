@@ -250,6 +250,22 @@ class ScheduleChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("no task exists"));
    }
 
+   // Bug #76598: a built-in/internal task (or a synthesized data-cycle task) is removable=false
+   // unconditionally -- the same flag that disables the Delete button in the EM task list -- and
+   // must be refused before the owner-ADMIN check even runs, since no caller (not even a Site
+   // Administrator, who bypasses that ADMIN check entirely) can delete it.
+   @Test void resolveDeleteThrowsWhenTaskIsNotRemovable() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask task = sreeTask("__balance tasks__", "admin");
+      task.setRemovable(false);
+      when(scheduleManager.getScheduleTask("__balance tasks__")).thenReturn(task);
+      ScheduleChangePlanRequest req = request("task", List.of(deleteChange("__balance tasks__")));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("cannot be deleted"));
+      verify(scheduleGateway, never()).hasOwnerAdminPermission(any(), any(), any());
+   }
+
    // A delete's rollback is a re-create -- requires ADMIN over the owner, strictly stronger than
    // the DELETE the verb itself needs (spec §4's asymmetric-gap finding).
    @Test void resolveDeleteThrowsWhenCallerLacksOwnerAdminPermissionForRollback() throws Exception {
