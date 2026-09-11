@@ -2005,6 +2005,26 @@ public class DateComparisonUtil {
       return dim.getFullName();
    }
 
+   /**
+    * Move the calendar back to the first day of its own week, honoring the calendar's
+    * configured {@link Calendar#getFirstDayOfWeek()}.
+    *
+    * <p>The obvious <code>-(DAY_OF_WEEK - 1)</code> rewind is only correct when the week
+    * starts on Sunday: <code>DAY_OF_WEEK</code> is always Sunday-anchored and is unaffected
+    * by {@link Calendar#setFirstDayOfWeek(int)}. With any other week start it lands on a day
+    * in the wrong week, so the <code>WEEK_OF_MONTH</code>/<code>WEEK_OF_YEAR</code> read that
+    * normally follows disagrees with the week start the same calendar is configured for --
+    * including producing week 0, which is outside the domain the callers encode.
+    *
+    * @return the same calendar, for chaining.
+    */
+   public static Calendar moveToWeekStart(Calendar calendar) {
+      int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
+      calendar.add(Calendar.DATE, -((dayOfWeek - calendar.getFirstDayOfWeek() + 7) % 7));
+
+      return calendar;
+   }
+
    public static boolean adjustCalendarByForceWM(Calendar calendar, int forceWM) {
       Date date = calendar.getTime();
       int weekOfMonth = calendar.get(Calendar.WEEK_OF_MONTH);
