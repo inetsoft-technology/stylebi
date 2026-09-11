@@ -179,6 +179,16 @@ public class AdminPresentationController {
                     "plan", ex.current());
    }
 
+   @ExceptionHandler(AdminChangesetApplyService.TaskTokenMismatchException.class)
+   @ResponseStatus(HttpStatus.CONFLICT)
+   @ResponseBody
+   public Map<String, Object> handleTaskTokenMismatch(
+      AdminChangesetApplyService.TaskTokenMismatchException ex)
+   {
+      return Map.of("status", "conflict", "error", String.valueOf(ex.getMessage()),
+                    "plan", ex.current());
+   }
+
    private final PresentationSettingsAccess access;
    private final PresentationChangePlanService planService;
    private final PresentationChangesetApplyService applyService;
