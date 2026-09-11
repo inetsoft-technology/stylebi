@@ -30,9 +30,16 @@ package inetsoft.web.admin.ai.providers;
  * requireSiteAdmin/requireExists are exercised indirectly (not-found path); the full site-admin
  * gate is already covered by every other endpoint's existing behavior and AdminAiCallerGuard's own
  * tests, not re-verified here.
+ *
+ * Also covers bug #76588: AdminProviderController has no @ControllerAdvice equivalent for
+ * AdminChangesetApplyService.TaskTokenMismatchException (AdminExceptionHandler's shared advice
+ * only maps it to a generic 500), so the local @ExceptionHandler added alongside the existing
+ * handlePlanHashMismatch is load-bearing, not optional -- see handleTaskTokenMismatch* below.
  */
 
 import inetsoft.sree.security.*;
+import inetsoft.web.admin.ai.AdminChangesetApplyService;
+import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.security.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,13 +47,16 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.quality.Strictness;
+import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -258,5 +268,38 @@ class AdminProviderControllerTest {
       }
 
       lenient().when(authorizationProviderService.getProviderListModel()).thenReturn(builder.build());
+   }
+
+   // -------------------------------------------------------------------------
+   // handleTaskTokenMismatch() -- 409 mapping for TaskTokenMismatchException (bug #76588)
+   // -------------------------------------------------------------------------
+
+   @Test void handleTaskTokenMismatchReturnsConflictStatusWithCurrentPlan() {
+      ResolvedPlan current = new ResolvedPlan("create p1", List.of(), true, true,
+                                              "hash456", "token456");
+      AdminChangesetApplyService.TaskTokenMismatchException ex =
+         new AdminChangesetApplyService.TaskTokenMismatchException(current,
+            "taskToken: does not match the current plan; re-review before applying");
+
+      Map<String, Object> actual = controller.handleTaskTokenMismatch(ex);
+
+      assertEquals("conflict", actual.get("status"));
+      assertEquals(ex.getMessage(), actual.get("error"));
+      ResolvedPlan returnedPlan = (ResolvedPlan) actual.get("plan");
+      assertEquals(current.task(), returnedPlan.task());
+      assertEquals(current.planHash(), returnedPlan.planHash());
+      // The 409 body must never hand back a fresh, still-unverified taskToken a caller could
+      // replay without re-review (AdminChangesetApplyService.TaskTokenMismatchException scrubs it).
+      assertNull(returnedPlan.taskToken());
+   }
+
+   @Test void handleTaskTokenMismatchIsAnnotatedConflict() throws NoSuchMethodException {
+      ResponseStatus annotation = AdminProviderController.class
+         .getMethod("handleTaskTokenMismatch",
+                    AdminChangesetApplyService.TaskTokenMismatchException.class)
+         .getAnnotation(ResponseStatus.class);
+
+      assertNotNull(annotation, "handleTaskTokenMismatch must be annotated @ResponseStatus");
+      assertEquals(HttpStatus.CONFLICT, annotation.value());
    }
 }
