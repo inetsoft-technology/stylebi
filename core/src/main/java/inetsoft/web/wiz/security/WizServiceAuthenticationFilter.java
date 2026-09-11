@@ -25,6 +25,7 @@ import com.nimbusds.jwt.SignedJWT;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.util.*;
@@ -41,6 +42,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.security.KeyPair;
+import java.security.Principal;
 import java.security.interfaces.RSAPublicKey;
 import java.text.ParseException;
 import java.util.*;
@@ -117,6 +119,25 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
       }
       catch(WizAuthenticationException e) {
          LOG.warn("WIZ service authentication failed: {}", e.getMessage());
+
+         // The wiz_auth cookie's JWT is stale (expired, signature mismatch from a key
+         // rotation, etc.), but this browser may separately hold a still-valid StyleBI
+         // session (e.g. an ordinary interactive login) alongside the now-stale cookie.
+         // Hard-401'ing unconditionally here turns that into a permanent, silent hang for
+         // anything routed through this filter (bug #76489) even when a perfectly good
+         // session already exists. Falling through to let that session handle the request
+         // is only safe if its own principal is still a genuinely active user: this filter
+         // is InvalidateSessionFilter's ONLY gate for any isWizRequest()==true request --
+         // that filter skips its own stale/deactivated-user check entirely whenever
+         // isWizRequest() is true, trusting this filter to be authoritative (see
+         // AbstractSecurityFilter#isWizRequest's own doc comment). So the equivalent check
+         // must run HERE before falling through, or an already-deactivated user's stale
+         // session could ride through unauthenticated-but-unrejected.
+         if(hasValidActiveSession(httpRequest)) {
+            chain.doFilter(request, response);
+            return;
+         }
+
          sendUnauthorized(httpResponse, "Unauthorized");
          return;
       }
@@ -157,6 +178,35 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
     */
    private boolean isWizAuthEnabled() {
       return "true".equalsIgnoreCase(SreeEnv.getProperty(WIZ_AUTH_ENABLED_PROPERTY, "true"));
+   }
+
+   /**
+    * Mirrors {@link inetsoft.web.security.InvalidateSessionFilter}'s own active-user check --
+    * that filter skips it entirely for any {@code isWizRequest()} request, trusting this filter
+    * to be the sole gate (see this class's own doc comment and
+    * {@code AbstractSecurityFilter#isWizRequest}'s). When the JWT itself is invalid or expired,
+    * falling through to let an already-established StyleBI session handle the request is only
+    * safe if that session's own principal is still genuinely active -- otherwise a request from
+    * an already-deactivated or logged-out user could slip through with neither this filter's own
+    * JWT check nor InvalidateSessionFilter's (skipped) check ever having verified it.
+    *
+    * @return {@code true} if an existing session already carries a principal that is either a
+    *         genuinely active user, or security is disabled entirely (mirroring
+    *         InvalidateSessionFilter's own {@code isSecurityEnabled()} gate around its check).
+    */
+   private boolean hasValidActiveSession(HttpServletRequest request) {
+      Principal existing = SUtil.getPrincipal(request, false);
+
+      if(!(existing instanceof SRPrincipal)) {
+         return false;
+      }
+
+      if(!isSecurityEnabled()) {
+         return true;
+      }
+
+      SecurityEngine securityEngine = getSecurityEngine();
+      return securityEngine != null && securityEngine.isActiveUser((SRPrincipal) existing);
    }
 
    /**
