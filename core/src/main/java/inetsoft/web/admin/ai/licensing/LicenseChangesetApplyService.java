@@ -71,6 +71,9 @@ public class LicenseChangesetApplyService {
     *
     * @throws AdminChangesetApplyService.PlanHashMismatchException if the hash is missing or stale
     *         (maps to HTTP 409) -- reused verbatim, per 01-spec.md section 6.
+    * @throws AdminChangesetApplyService.TaskTokenMismatchException if the taskToken is missing,
+    *         invalid, or was issued for a different plan (maps to HTTP 409) -- reused verbatim, same
+    *         as PlanHashMismatchException above.
     * @throws Exception if the Tier-2 backup itself fails, in which case nothing was applied.
     */
    public LicenseApplyResult apply(LicenseApplyRequest req, Principal user) throws Exception {
@@ -81,6 +84,15 @@ public class LicenseChangesetApplyService {
 
          if(req.getPlanHash() == null || !plan.planHash().equals(req.getPlanHash())) {
             throw new AdminChangesetApplyService.PlanHashMismatchException(plan);
+         }
+
+         String reviewedTask;
+
+         try {
+            reviewedTask = TaskAuditToken.verify(req.getTaskToken(), plan.planHash());
+         }
+         catch(TaskAuditToken.TaskTokenException e) {
+            throw new AdminChangesetApplyService.TaskTokenMismatchException(plan, e.getMessage());
          }
 
          if(plan.requiresAgentSignoff() &&
@@ -138,7 +150,7 @@ public class LicenseChangesetApplyService {
             AtomicBoolean mutationEntered = new AtomicBoolean(false);
 
             try {
-               applyOne(txId, plan.task(), key, original, backupRef, reviewOutcome, user, results,
+               applyOne(txId, reviewedTask, key, original, backupRef, reviewOutcome, user, results,
                        undoable, mutationEntered);
             }
             catch(Exception e) {
@@ -165,7 +177,7 @@ public class LicenseChangesetApplyService {
          }
 
          Map<String, String> rollbackAdvisories = new LinkedHashMap<>();
-         List<RollbackFailure> rollbackOwnFailures = rollback(txId, plan.task(), undoable, backupRef,
+         List<RollbackFailure> rollbackOwnFailures = rollback(txId, reviewedTask, undoable, backupRef,
                                                               reviewOutcome, user, rollbackAdvisories);
          List<LicenseApplyOutcome> finalResults = results.stream()
             .map(o -> mergeAdvisory(o, rollbackAdvisories.get(o.property())))

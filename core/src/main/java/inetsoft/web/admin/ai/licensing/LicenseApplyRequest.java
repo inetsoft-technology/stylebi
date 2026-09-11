@@ -31,11 +31,13 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class LicenseApplyRequest extends LicenseChangePlanRequest {
    public String getPlanHash() { return planHash; }
    public void setPlanHash(String v) { this.planHash = v; }
+   public String getTaskToken() { return taskToken; }
+   public void setTaskToken(String v) { this.taskToken = v; }
    public String getReviewOutcome() { return reviewOutcome; }
    public void setReviewOutcome(String v) { this.reviewOutcome = v; }
    public Boolean getAcknowledgeDelicensing() { return acknowledgeDelicensing; }
    public void setAcknowledgeDelicensing(Boolean v) { this.acknowledgeDelicensing = v; }
 
-   private String planHash, reviewOutcome;
+   private String planHash, taskToken, reviewOutcome;
    private Boolean acknowledgeDelicensing;
 }
