@@ -817,7 +817,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
       // @by davidd bug1370989280980, If goto Home bookmark but it does not
       // exist in the user's bookmarks, then just set to initial state.
-      if(isHome) {
+      if(isHome && ibookmark != null) {
          processedViewsheet = ibookmark.getBookmark(VSBookmark.INITIAL_STATE, originalVs.clone());
       }
 
