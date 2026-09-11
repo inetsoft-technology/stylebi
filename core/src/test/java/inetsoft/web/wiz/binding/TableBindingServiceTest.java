@@ -25,6 +25,7 @@ import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.table.BaseTableBindingModel;
 import inetsoft.web.binding.model.table.CalcTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
+import inetsoft.web.binding.model.table.CrosstabOptionInfo;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.FieldRef;
@@ -535,6 +536,96 @@ class TableBindingServiceTest {
       CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
       assertEquals(1, posted.getRows().size());
       assertEquals(1, posted.getCols().size());
+   }
+
+   // ── bug #76574, VTB-007: percentageBy silently, permanently defaulted to "col" by any wiz
+   // write, not just set_table_options -- CrosstabOptionInfo(CrosstabVSAssembly)'s constructor
+   // coalesces a never-set percentageByValue to "1" (col) purely for display, but
+   // VSCrosstabBindingFactory.updateAssembly() persists whatever the model's option carries
+   // onto the live assembly unconditionally on every write. The model handed to
+   // TableBindingService here stands in for that already-coalesced-to-"1" snapshot
+   // (binding.createModel(assembly) is mocked below, so it is not built via the real
+   // constructor) -- what these assert is that a write that never asked to change
+   // percentageBy resets that manufactured value back to null before it reaches
+   // bindingModelService.setBinding, as long as the live assembly's own percentageByValue was
+   // still null.
+
+   @Test
+   void setShelfDoesNotPersistTheManufacturedPercentageByDefault() throws Exception {
+      CrosstabBindingModel existing = withTables("ORDERS");
+      existing.setSource(new inetsoft.web.binding.model.SourceInfo());
+      existing.getSource().setSource("ORDERS");
+      CrosstabOptionInfo manufactured = new CrosstabOptionInfo();
+      manufactured.setPercentageByValue("1"); // stand-in for the constructor's null-to-"1" coalesce
+      existing.setOption(manufactured);
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getSourceInfo()).thenReturn(new inetsoft.uql.asset.SourceInfo());
+      when(assembly.getVSCrosstabInfo()).thenReturn(new VSCrosstabInfo());
+
+      harness(assembly, existing, bindings)
+         .setShelf("tok", principal(), "Crosstab1", "aggregates",
+                  List.of(new FieldRef("REVENUE", "measure", "Sum", null, null)), null);
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertNull(posted.getOption().getPercentageByValue(),
+                "a shelf write that never mentioned percentageBy must not persist the " +
+                "manufactured display default -- the live crosstab's own percentageBy was " +
+                "never actually set");
+   }
+
+   @Test
+   void setOptionsStillAppliesAnExplicitPercentageByChange() throws Exception {
+      CrosstabBindingModel existing = withTables("ORDERS");
+      existing.setSource(new inetsoft.web.binding.model.SourceInfo());
+      existing.getSource().setSource("ORDERS");
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region")));
+      CrosstabOptionInfo manufactured = new CrosstabOptionInfo();
+      manufactured.setPercentageByValue("1");
+      existing.setOption(manufactured);
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(new VSCrosstabInfo());
+
+      harness(assembly, existing, bindings)
+         .setOptions("tok", principal(), "Crosstab1", Map.of("percentageBy", "row"));
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals("2", posted.getOption().getPercentageByValue(),
+                   "an explicit set_table_options(percentageBy: ...) call must still take " +
+                   "effect -- this fix only stops an untouched default from being persisted, " +
+                   "not a genuine, caller-requested change");
+   }
+
+   /**
+    * The reset gate must key on whether <em>this call's</em> {@code options} map actually
+    * contains {@code "percentageBy"}, not on which method was invoked -- {@code
+    * TableBindingMutator#setCrosstabOptions} only calls {@code setPercentageByValue} when that
+    * key is present, so a {@code set_table_options} call that touches only e.g. {@code
+    * rowTotals} must still have the manufactured default reset, or it reopens bug #76574 through
+    * a narrower, easily-reachable trigger.
+    */
+   @Test
+   void setOptionsWithoutPercentageByStillResetsTheManufacturedDefault() throws Exception {
+      CrosstabBindingModel existing = withTables("ORDERS");
+      existing.setSource(new inetsoft.web.binding.model.SourceInfo());
+      existing.getSource().setSource("ORDERS");
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region")));
+      CrosstabOptionInfo manufactured = new CrosstabOptionInfo();
+      manufactured.setPercentageByValue("1"); // stand-in for the constructor's null-to-"1" coalesce
+      existing.setOption(manufactured);
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(new VSCrosstabInfo());
+
+      harness(assembly, existing, bindings)
+         .setOptions("tok", principal(), "Crosstab1", Map.of("rowTotals", true));
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertNull(posted.getOption().getPercentageByValue(),
+                "a set_table_options call that never mentioned percentageBy must not persist " +
+                "the manufactured display default -- the live crosstab's own percentageBy was " +
+                "never actually set");
    }
 
    private static CrosstabBindingModel withTables(String... names) {
