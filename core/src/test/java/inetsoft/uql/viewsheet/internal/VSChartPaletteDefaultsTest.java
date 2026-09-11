@@ -5,6 +5,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.viewsheet.graph.aesthetic.ColorPalettes;
 import inetsoft.util.css.CSSDictionary;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,6 +17,7 @@ import java.awt.Color;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -51,16 +53,16 @@ class VSChartPaletteDefaultsTest {
 
       Color[] modern = VSChartPaletteDefaults.modernPalette();
       assertEquals(40, modern.length, "8 modern + 32 legacy tail = 40");
-      assertEquals(new Color(0x00D4E8), modern[0]);
-      assertEquals(new Color(0x64748B), modern[7]);
+      assertEquals(new Color(0x0490FF), modern[0]);
+      assertEquals(new Color(0x8ED604), modern[7]);
       // index 9+ preserves the legacy tail unchanged
       assertEquals(CategoricalColorFrame.COLOR_PALETTE[8], modern[8]);
       assertEquals(CategoricalColorFrame.COLOR_PALETTE[39], modern[39]);
 
       CategoricalColorFrame frame = new CategoricalColorFrame();
       VSChartPaletteDefaults.applyModernPalette(frame, VizContext.ofGate());
-      assertEquals(new Color(0x00D4E8), frame.getColor(0));
-      assertEquals(new Color(0x00B87A), frame.getColor(1));
+      assertEquals(new Color(0x0490FF), frame.getColor(0));
+      assertEquals(new Color(0xFF5A35), frame.getColor(1));
    }
 
    // Regression: the value-based render path (getColor(Object)) resolves through the cached
@@ -94,15 +96,15 @@ class VSChartPaletteDefaultsTest {
 
       Color[] dark = VSChartPaletteDefaults.darkPalette();
       assertEquals(40, dark.length, "8 dark + 32 legacy tail = 40");
-      assertEquals(new Color(0x22D3EE), dark[0]);
-      assertEquals(new Color(0x94A3B8), dark[7]);
+      assertEquals(new Color(0x4FA5FF), dark[0]);
+      assertEquals(new Color(0x9FEB28), dark[7]);
       assertEquals(CategoricalColorFrame.COLOR_PALETTE[8], dark[8]);
       assertEquals(CategoricalColorFrame.COLOR_PALETTE[39], dark[39]);
 
       CategoricalColorFrame frame = new CategoricalColorFrame();
       VSChartPaletteDefaults.applyModernPalette(frame, VizContext.ofGate());
-      assertEquals(new Color(0x22D3EE), frame.getColor(0));
-      assertEquals(new Color(0x10B981), frame.getColor(1));
+      assertEquals(new Color(0x4FA5FF), frame.getColor(0));
+      assertEquals(new Color(0xFF8367), frame.getColor(1));
    }
 
    @Test
@@ -173,8 +175,8 @@ class VSChartPaletteDefaultsTest {
    }
 
    private static final Color[] MODERN_HEAD_FIXTURE = {
-      new Color(0x00D4E8), new Color(0x00B87A), new Color(0xF59E0B), new Color(0xF43F5E),
-      new Color(0x8B5CF6), new Color(0x3B82F6), new Color(0x0D9488), new Color(0x64748B)
+      new Color(0x0490FF), new Color(0xFF5A35), new Color(0x241C4F), new Color(0x03D9B3),
+      new Color(0x9A2DDC), new Color(0xFFB020), new Color(0xE5197E), new Color(0x8ED604)
    };
 
    @Test
@@ -182,8 +184,8 @@ class VSChartPaletteDefaultsTest {
       Color[] modern = VSChartPaletteDefaults.modernPalette();
 
       assertEquals(40, modern.length);
-      assertEquals(new Color(0x00D4E8), modern[0]);
-      assertEquals(new Color(0x64748B), modern[7]);
+      assertEquals(new Color(0x0490FF), modern[0]);
+      assertEquals(new Color(0x8ED604), modern[7]);
       assertEquals(CategoricalColorFrame.COLOR_PALETTE[8], modern[8]);
       assertEquals(CategoricalColorFrame.COLOR_PALETTE[39], modern[39]);
    }
@@ -193,8 +195,8 @@ class VSChartPaletteDefaultsTest {
       Color[] dark = VSChartPaletteDefaults.darkPalette();
 
       assertEquals(40, dark.length);
-      assertEquals(new Color(0x22D3EE), dark[0]);
-      assertEquals(new Color(0x94A3B8), dark[7]);
+      assertEquals(new Color(0x4FA5FF), dark[0]);
+      assertEquals(new Color(0x9FEB28), dark[7]);
       assertEquals(CategoricalColorFrame.COLOR_PALETTE[8], dark[8]);
    }
 
@@ -207,16 +209,16 @@ class VSChartPaletteDefaultsTest {
 
       Color[] second = VSChartPaletteDefaults.modernPalette();
 
-      assertEquals(new Color(0x00D4E8), second[0]);
+      assertEquals(new Color(0x0490FF), second[0]);
    }
 
    @Test
    void activePaletteFollowsDarkMode() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-      assertEquals(new Color(0x00D4E8), VSChartPaletteDefaults.activePalette(VizContext.ofGate())[0]);
+      assertEquals(new Color(0x0490FF), VSChartPaletteDefaults.activePalette(VizContext.ofGate())[0]);
 
       SreeEnv.setProperty("viewsheet.darkMode", "true");
-      assertEquals(new Color(0x22D3EE), VSChartPaletteDefaults.activePalette(VizContext.ofGate())[0]);
+      assertEquals(new Color(0x4FA5FF), VSChartPaletteDefaults.activePalette(VizContext.ofGate())[0]);
    }
 
    @Test
@@ -233,10 +235,10 @@ class VSChartPaletteDefaultsTest {
    @Test
    void pickerPaletteFollowsGateAndDarkMode() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-      assertEquals(new Color(0x00D4E8), VSChartPaletteDefaults.pickerPalette(VizContext.ofGate())[0]);
+      assertEquals(new Color(0x0490FF), VSChartPaletteDefaults.pickerPalette(VizContext.ofGate())[0]);
 
       SreeEnv.setProperty("viewsheet.darkMode", "true");
-      assertEquals(new Color(0x22D3EE), VSChartPaletteDefaults.pickerPalette(VizContext.ofGate())[0]);
+      assertEquals(new Color(0x4FA5FF), VSChartPaletteDefaults.pickerPalette(VizContext.ofGate())[0]);
    }
 
    @Test
@@ -284,6 +286,67 @@ class VSChartPaletteDefaultsTest {
 
       Color[] resolved = VSChartPaletteDefaults.modernPalette();
       assertFalse(memo.isEmpty(), "the next resolve() call must repopulate the memo");
-      assertEquals(new Color(0x00D4E8), resolved[0]);
+      assertEquals(new Color(0x0490FF), resolved[0]);
+   }
+
+   // Guards against defaults.css and the Java fallback drifting apart.
+   @Test
+   void cssHeadMatchesTheJavaFallback() throws Exception {
+      assertHeadMatches("MODERN_HEAD", "Modern");
+      assertHeadMatches("DARK_HEAD", "Modern Dark");
+   }
+
+   private void assertHeadMatches(String fieldName, String paletteName) throws Exception {
+      Field field = VSChartPaletteDefaults.class.getDeclaredField(fieldName);
+      field.setAccessible(true);
+      Color[] head = (Color[]) field.get(null);
+      CategoricalColorFrame css = ColorPalettes.getPalette(paletteName);
+
+      assertEquals(8, head.length, fieldName + " must declare exactly the eight head colors");
+
+      for(int i = 0; i < head.length; i++) {
+         assertEquals(head[i], css.getDefaultColor(i),
+                      paletteName + " index " + (i + 1) + " must match " + fieldName);
+      }
+   }
+
+   @Test
+   void hiddenNamesAreEmptyForAClassicChart() {
+      assertTrue(VSChartPaletteDefaults.hiddenPaletteNames(VizContext.of((VizMark) null)).isEmpty(),
+                 "a classic chart keeps every palette it has today");
+   }
+
+   @Test
+   void hiddenNamesAreTheNineRampsForAModernChart() {
+      Set<String> hidden = VSChartPaletteDefaults.hiddenPaletteNames(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(Set.of("Pastel", "Heat 8", "Heat 16", "Heat 24",
+                          "Blue", "Green", "Red", "Orange", "Gray"), hidden);
+   }
+
+   @Test
+   void hiddenNamesAreTheSameUnderADarkMark() {
+      assertEquals(VSChartPaletteDefaults.hiddenPaletteNames(VizContext.of(VizMark.MODERN_LIGHT)),
+                   VSChartPaletteDefaults.hiddenPaletteNames(VizContext.of(VizMark.MODERN_DARK)),
+                   "dark is a modifier of modern, not a different palette set");
+   }
+
+   // The five kept names must never appear in the hidden set.
+   @Test
+   void hiddenNamesNeverCoverTheKeptFive() {
+      Set<String> hidden = VSChartPaletteDefaults.hiddenPaletteNames(VizContext.of(VizMark.MODERN_LIGHT));
+
+      for(String kept : new String[]{ "Default", "Soft", "Modern", "Modern Dark", "Contrast" }) {
+         assertFalse(hidden.contains(kept), kept + " must stay offered to a modern chart");
+      }
+   }
+
+   @Test
+   void hiddenNamesFollowTheGateWhenThereIsNoAssembly() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+      assertTrue(VSChartPaletteDefaults.hiddenPaletteNames(VizContext.ofGate()).isEmpty());
+
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      assertEquals(9, VSChartPaletteDefaults.hiddenPaletteNames(VizContext.ofGate()).size());
    }
 }

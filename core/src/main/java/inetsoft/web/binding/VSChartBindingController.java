@@ -30,7 +30,9 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.*;
 import inetsoft.web.binding.model.*;
@@ -46,6 +48,8 @@ import inetsoft.web.viewsheet.SwitchOrg;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -234,9 +238,15 @@ public class VSChartBindingController {
    @RequestMapping(value = "/api/composer/chart/colorpalettes", method = RequestMethod.GET)
    @HandleExceptions
    @SwitchOrg
-   public CategoricalColorModel[] getColorPalettes(@OrganizationID String orgId, Principal principal)
+   public CategoricalColorModel[] getColorPalettes(
+      @OrganizationID String orgId,
+      @RequestParam(required = false, value = "vsId") String vsId,
+      @RequestParam(required = false, value = "assemblyName") String assemblyName,
+      Principal principal)
       throws Exception
    {
+      Set<String> hidden = VSChartPaletteDefaults.hiddenPaletteNames(
+         pickerContext(vsId, assemblyName, principal));
       String[] names = ColorPalettes.getPaletteNames().toArray(new String[0]);
       CategoricalColorModel[] palettes = new CategoricalColorModel[names.length];
 
@@ -246,12 +256,39 @@ public class VSChartBindingController {
          wrapper.setVisualFrame(palette);
          CategoricalColorModel model = visualService.createVisualFrameModel(wrapper);
          model.setName(names[i]);
+         model.setHidden(hidden.contains(names[i]));
          palettes[i] = model;
       }
 
       return palettes;
    }
 
+   /**
+    * The context a palette picker's hidden flags are computed from.
+    *
+    * A caller with no assembly resolves through the org gate. Its flags are unread by any UI, and
+    * the target-band pane must not be gated on them - it cannot tell a classic chart from a modern
+    * one, so gating it would hide the retired palettes from classic charts in a modern org.
+    *
+    * A mark that cannot be resolved falls back the same way rather than failing the request. The
+    * mark decides which names carry the flag, never which palettes are returned, so a stale or
+    * expired runtime should not take the whole list down with it.
+    */
+   private VizContext pickerContext(String vsId, String assemblyName, Principal principal) {
+      if(Tool.isEmptyString(vsId) || Tool.isEmptyString(assemblyName)) {
+         return VizContext.ofGate();
+      }
+
+      try {
+         return VizContext.of(chartBindingService.getChartVizMark(vsId, assemblyName, principal));
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to resolve the chart's mark for the palette picker", ex);
+         return VizContext.ofGate();
+      }
+   }
+
    private final VisualFrameModelFactoryService visualService;
    private VSChartBindingServiceProxy chartBindingService;
+   private static final Logger LOG = LoggerFactory.getLogger(VSChartBindingController.class);
 }

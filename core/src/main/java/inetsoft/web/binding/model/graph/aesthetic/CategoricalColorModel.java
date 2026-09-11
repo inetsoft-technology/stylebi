@@ -174,6 +174,14 @@ public class CategoricalColorModel extends ColorFrameModel {
       this.colorValueFrame = colorValueFrame;
    }
 
+   public boolean isHidden() {
+      return hidden;
+   }
+
+   public void setHidden(boolean hidden) {
+      this.hidden = hidden;
+   }
+
    private String[] colors;
    private String[] cssColors;
    private String[] defaultColors;
@@ -183,4 +191,5 @@ public class CategoricalColorModel extends ColorFrameModel {
    private boolean shareColors = true;
    private boolean colorValueFrame;
    private Integer dateFormat;
+   private boolean hidden;
 }

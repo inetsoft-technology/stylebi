@@ -17,16 +17,20 @@
  */
 import { ColorPalette } from "./color-classes";
 
+// The modern head colours live in four places: defaults.css, the MODERN_HEAD/DARK_HEAD constants
+// beside it, these fixtures, and the MSW handler for /api/portal/chart-color-palette. Only the
+// first pair is pinned against drift, by cssHeadMatchesTheJavaFallback. Move all four together.
+
 export const LEGACY_HEAD: string[] = [
    "#518db9", "#b9dbf4", "#62a640", "#ade095", "#fc8f2a", "#fde3a7", "#d64541", "#fda7a5"
 ];
 
 export const MODERN_HEAD: string[] = [
-   "#00d4e8", "#00b87a", "#f59e0b", "#f43f5e", "#8b5cf6", "#3b82f6", "#0d9488", "#64748b"
+   "#0490ff", "#ff5a35", "#241c4f", "#03d9b3", "#9a2ddc", "#ffb020", "#e5197e", "#8ed604"
 ];
 
 export const DARK_HEAD: string[] = [
-   "#22d3ee", "#10b981", "#fbb724", "#fb6181", "#a78bfa", "#60a5fa", "#2dd4bf", "#94a3b8"
+   "#4fa5ff", "#ff8367", "#49447d", "#2deec6", "#ae41f5", "#ffcb82", "#fe3290", "#9feb28"
 ];
 
 export const LEGACY_TAIL: string[] = [

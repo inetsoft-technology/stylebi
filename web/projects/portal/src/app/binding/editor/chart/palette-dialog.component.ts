@@ -40,10 +40,17 @@ export class PaletteDialog {
    _reversed: boolean = false;
 
    get paletteSelectOptions(): CustomSelectOption<number>[] {
-      return (this.colorPalettes || []).map((palette, index) => ({
-         value: index,
-         label: palette.name
-      }));
+      // read displayPalette first: it resolves _selectedIndex from -1, so reading the field
+      // directly would drop the palette a chart is on from its own dropdown
+      const selected = this.displayPalette == null ? -1 : this._selectedIndex;
+
+      return (this.colorPalettes || [])
+         .map((palette, index) => ({ palette, index }))
+         .filter(({ palette, index }) => !palette.hidden || index === selected)
+         .map(({ palette, index }) => ({
+            value: index,
+            label: palette.name
+         }));
    }
 
    get displayPalette(): CategoricalColorModel {

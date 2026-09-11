@@ -133,10 +133,11 @@ class VizContextReadFlipTest {
    @Test
    void onlyTheDocumentedSitesStillReadTheOrgGate() throws Exception {
       // per-package spot checks, kept for their clearer failure messages; the tree-wide assertion
-      // below is the actual guard. ofGate() survives in exactly one call site: the parameterless
-      // ChartColorPaletteController bootstrap GET, which has no assembly to resolve a mark from.
+      // below is the actual guard. Two call sites survive, both with no assembly to resolve a mark
+      // from: the ChartColorPaletteController bootstrap GET, and the palette picker's
+      // absent-assembly branch in web/binding, which this per-package check does not cover.
       assertEquals(1, countOfGateIn("web/portal/controller"),
-                   "ChartColorPaletteController is the one deliberate survivor");
+                   "ChartColorPaletteController is the survivor in this package");
       assertEquals(0, countOfGateIn("report/composition"),
                    "query and lens resolve per assembly");
       assertEquals(0, countOfGateIn("web/viewsheet/controller"),
@@ -144,15 +145,19 @@ class VizContextReadFlipTest {
    }
 
    @Test
-   void exactlyOneDocumentedSiteStillReadsTheOrgGate() throws Exception {
+   void exactlyTwoDocumentedSitesStillReadTheOrgGate() throws Exception {
       // tree-wide on purpose: per-package assertions left four of this phase's own sites uncovered,
-      // and a new package could add a fifth. The survivor is named, so a regression elsewhere fails
-      // even if the total happens to stay at one.
+      // and a new package could add a fifth. Both survivors are named, so a regression elsewhere
+      // fails even if the total happens to stay at two.
       java.util.List<String> callers = filesCallingOfGate();
 
-      assertEquals(java.util.List.of("ChartColorPaletteController.java"), callers,
-                   "ChartColorPaletteController is the one deliberate survivor: a parameterless "
-                   + "bootstrap GET with no assembly in scope, returning a global swatch list");
+      assertEquals(
+         java.util.List.of("ChartColorPaletteController.java", "VSChartBindingController.java"),
+         callers,
+         "two deliberate survivors: ChartColorPaletteController is a parameterless bootstrap GET "
+         + "with no assembly in scope, returning a global swatch list; "
+         + "VSChartBindingController.getColorPalettes falls back to the gate only on its "
+         + "absent-assembly branch, which has no vsId/assemblyName to resolve a mark from");
    }
 
    private static java.util.List<String> filesCallingOfGate() throws Exception {
