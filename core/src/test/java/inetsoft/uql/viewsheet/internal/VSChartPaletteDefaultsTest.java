@@ -288,9 +288,7 @@ class VSChartPaletteDefaultsTest {
       assertEquals(new Color(0x0490FF), resolved[0]);
    }
 
-   // The CSS rules and the Java fallback constants are two statements of the same eight colors.
-   // Every other test asserts one side or the other, so only this one fails when they drift - and
-   // a drift is silent in production until a malformed format.css makes the fallback fire.
+   // Guards against defaults.css and the Java fallback drifting apart.
    @Test
    void cssHeadMatchesTheJavaFallback() throws Exception {
       assertHeadMatches("MODERN_HEAD", "Modern");
