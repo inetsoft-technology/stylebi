@@ -672,33 +672,50 @@ class SelectionRuntimeServiceTest {
     * additive:true is the caller explicitly opting into "just add" -- the automatic replace-diff
     * must not fire, so whatever was selected before survives alongside the new value.
     */
+   /**
+    * Asserting only "one applySelection call" here would pass even if the {@code additive} gate
+    * were deleted entirely: with no populated {@code SelectionList} stubbed (the usual
+    * {@code SelectionList}-cannot-be-mocked constraint), {@code toDeselect} is always empty
+    * regardless of the flag, so the diff step firing or not never changes the apply count in
+    * this harness. Asserting on {@code getSelectionList()}'s own call count instead is a real
+    * discriminator: value-validation (bug-76544) reads it once unconditionally
+    * ({@link #skipsTheDiffStepForASingleSelectAssembly} establishes that baseline), and the diff
+    * step reads it a SECOND time via {@code selectedPaths(assembly)} -- but only when it
+    * actually runs. additive:true must suppress that second read.
+    */
    @Test
    void additiveTrueSkipsTheReplaceDiff() throws Exception {
-      Harness h = harness(list(XConstants.SORT_ASC, false, null));
+      SelectionListVSAssembly assembly = list(XConstants.SORT_ASC, false, null);
+      Harness h = harness(assembly);
 
       h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null,
                              null, true, "");
 
+      verify(assembly, times(1)).getSelectionList();
       verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
                                                     any(Principal.class), any(), anyString());
    }
 
    /**
-    * Without additive, the default stays full-replace -- bug-76548's own fix is unchanged. No
-    * prior selection is stubbed here (matching every other "domain not yet known" fixture in
-    * this file), so there is nothing to diff away in this particular call, but the point is that
-    * additive being unset/false runs the exact same code path as before this change existed, not
-    * a new one -- the diff step itself is exercised end-to-end above
+    * The other half of the same discriminator: without additive, the diff step's own
+    * {@code selectedPaths(assembly)} call genuinely happens -- a SECOND {@code getSelectionList()}
+    * read, on top of value-validation's own -- confirming additive being unset/false still runs
+    * the diff step (bug-76548's own fix is unchanged, not silently bypassed). No prior selection
+    * is stubbed, so there is nothing to actually diff away in this particular call; the point is
+    * that the diff step's read happens at all, not what it finds -- the ancestor-collapse logic
+    * itself is exercised end-to-end above
     * ({@code collapsesALeafDeselectToItsRootAncestorWhenNothingElseRemainsUnderIt} et al.) and by
     * bug-76548's own pre-existing tests.
     */
    @Test
    void defaultsToTheReplaceDiffWithoutAdditive() throws Exception {
-      Harness h = harness(list(XConstants.SORT_ASC, false, null));
+      SelectionListVSAssembly assembly = list(XConstants.SORT_ASC, false, null);
+      Harness h = harness(assembly);
 
       h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null,
                              null, null, "");
 
+      verify(assembly, times(2)).getSelectionList();
       verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
                                                     any(Principal.class), any(), anyString());
    }
