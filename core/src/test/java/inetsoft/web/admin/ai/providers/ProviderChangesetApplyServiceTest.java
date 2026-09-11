@@ -22,7 +22,9 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
+import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.AdminChangeRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -30,6 +32,7 @@ import inetsoft.web.admin.security.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Answers;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -82,6 +85,16 @@ class ProviderChangesetApplyServiceTest {
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
       tool.when(() -> Tool.encryptPassword(anyString()))
          .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+      tool.when(() -> Tool.decryptPassword(anyString()))
+         .thenAnswer(inv -> {
+            String s = inv.getArgument(0);
+
+            if(!s.startsWith("TKN:")) {
+               throw new IllegalArgumentException("not a token");
+            }
+
+            return s.substring(4);
+         });
       wireAuthenticationFake();
       wireAuthorizationFake();
    }
@@ -400,6 +413,85 @@ class ProviderChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // bug #76588 -- taskToken pins the audit record's task narrative to what was actually
+   // reviewed at preview, not to whatever task text the apply call itself carries.
+   // -------------------------------------------------------------------------
+
+   @Test void auditsThePreviewedTaskEvenWhenApplyTaskDiffersForAuthenticationChain() throws Exception {
+      tool.when(Tool::getHost).thenReturn("test-host");
+      Audit auditInstance = mock(Audit.class);
+      ProviderApplyRequest req = applyRequestWithDivergentApplyTask(
+         "create p1 -- reviewed narrative", "totally different apply-time text",
+         createFile(ProviderChain.AUTHENTICATION, "p1"));
+
+      try(MockedStatic<Audit> audit = mockStatic(Audit.class)) {
+         audit.when(Audit::getInstance).thenReturn(auditInstance);
+         var result = service.apply(req, user);
+
+         assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      }
+
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(auditInstance).auditAdminChange(captor.capture(), eq(user));
+      // The core regression proof: the AUTHENTICATION chain's audit record carries the reviewed
+      // task, never the substituted apply-time text -- only `changes` is hash-protected.
+      assertEquals("create p1 -- reviewed narrative", captor.getValue().getTaskDescription());
+   }
+
+   @Test void auditsThePreviewedTaskEvenWhenApplyTaskDiffersForAuthorizationChain() throws Exception {
+      tool.when(Tool::getHost).thenReturn("test-host");
+      Audit auditInstance = mock(Audit.class);
+      ProviderApplyRequest req = applyRequestWithDivergentApplyTask(
+         "create z1 -- reviewed narrative", "totally different apply-time text",
+         createFile(ProviderChain.AUTHORIZATION, "z1"));
+
+      try(MockedStatic<Audit> audit = mockStatic(Audit.class)) {
+         audit.when(Audit::getInstance).thenReturn(auditInstance);
+         var result = service.apply(req, user);
+
+         assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      }
+
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(auditInstance).auditAdminChange(captor.capture(), eq(user));
+      // Same proof as above, on the AUTHORIZATION chain -- confirms the single shared apply()
+      // path (02-refute.md Claim 4) covers both chains, not just authentication.
+      assertEquals("create z1 -- reviewed narrative", captor.getValue().getTaskDescription());
+   }
+
+   @Test void rejectsAMissingTaskToken() throws Exception {
+      ProviderApplyRequest req = applyRequest("create p1", createFile(ProviderChain.AUTHENTICATION, "p1"));
+      req.setTaskToken(null);
+
+      AdminChangesetApplyService.TaskTokenMismatchException ex = assertThrows(
+         AdminChangesetApplyService.TaskTokenMismatchException.class,
+         () -> service.apply(req, user));
+      assertTrue(ex.getMessage().startsWith("taskToken:"));
+      assertNotNull(ex.current());
+      assertTrue(authChainNames.isEmpty());
+   }
+
+   @Test void rejectsABlankTaskToken() throws Exception {
+      ProviderApplyRequest req = applyRequest("create p1", createFile(ProviderChain.AUTHENTICATION, "p1"));
+      req.setTaskToken("   ");
+
+      assertThrows(AdminChangesetApplyService.TaskTokenMismatchException.class,
+         () -> service.apply(req, user));
+      assertTrue(authChainNames.isEmpty());
+   }
+
+   @Test void rejectsATaskTokenIssuedForADifferentPlan() throws Exception {
+      ProviderApplyRequest req = applyRequest("create p1", createFile(ProviderChain.AUTHENTICATION, "p1"));
+      ProviderApplyRequest otherPlan =
+         applyRequest("create p2", createFile(ProviderChain.AUTHENTICATION, "p2"));
+      req.setTaskToken(otherPlan.getTaskToken());
+
+      assertThrows(AdminChangesetApplyService.TaskTokenMismatchException.class,
+         () -> service.apply(req, user));
+      assertTrue(authChainNames.isEmpty());
+   }
+
+   // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------
 
@@ -554,6 +646,28 @@ class ProviderChangesetApplyServiceTest {
       req.setTask(task);
       req.setChanges(list);
       req.setPlanHash(plan.planHash());
+      req.setTaskToken(plan.taskToken());
+      req.setReviewOutcome("looks safe");
+      return req;
+   }
+
+   /**
+    * Builds an apply request whose taskToken was issued for a DIFFERENT task string than the one
+    * this request's own {@code task} field carries — the shape a caller previewing an honest
+    * description then applying with different text produces.
+    */
+   private ProviderApplyRequest applyRequestWithDivergentApplyTask(String previewTask,
+                                                                    String applyTask,
+                                                                    ProviderChangeRequest... changes)
+      throws Exception
+   {
+      List<ProviderChangeRequest> list = List.of(changes);
+      ResolvedPlan previewed = planService.resolve(request(previewTask, list), user);
+      ProviderApplyRequest req = new ProviderApplyRequest();
+      req.setTask(applyTask);
+      req.setChanges(list);
+      req.setPlanHash(previewed.planHash());
+      req.setTaskToken(previewed.taskToken());
       req.setReviewOutcome("looks safe");
       return req;
    }

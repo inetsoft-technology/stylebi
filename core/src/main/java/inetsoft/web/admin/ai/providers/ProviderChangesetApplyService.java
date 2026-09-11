@@ -74,6 +74,15 @@ public class ProviderChangesetApplyService {
             throw new AdminChangesetApplyService.PlanHashMismatchException(plan);
          }
 
+         String reviewedTask;
+
+         try {
+            reviewedTask = TaskAuditToken.verify(req.getTaskToken(), plan.planHash());
+         }
+         catch(TaskAuditToken.TaskTokenException e) {
+            throw new AdminChangesetApplyService.TaskTokenMismatchException(plan, e.getMessage());
+         }
+
          if(plan.requiresAgentSignoff() &&
             (req.getReviewOutcome() == null || req.getReviewOutcome().trim().isEmpty()))
          {
@@ -97,7 +106,7 @@ public class ProviderChangesetApplyService {
             String key = change.property();
 
             try {
-               applyOne(txId, plan.task(), key, original, user, backupRef, reviewOutcome, results,
+               applyOne(txId, reviewedTask, key, original, user, backupRef, reviewOutcome, results,
                        undoable);
             }
             catch(Exception e) {
@@ -124,7 +133,7 @@ public class ProviderChangesetApplyService {
 
          Map<String, String> rollbackAdvisories = new LinkedHashMap<>();
          List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
-         failures.addAll(rollback(txId, plan.task(), undoable, backupRef, reviewOutcome, user,
+         failures.addAll(rollback(txId, reviewedTask, undoable, backupRef, reviewOutcome, user,
                                   rollbackAdvisories));
          // Merge each rollback's own disclosure (the "restored at the end of the chain, not its
          // original position" notice, 01-spec.md section 6/11) into that entry's ORIGINAL outcome
