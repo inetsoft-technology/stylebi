@@ -100,6 +100,31 @@ class EditRequestParametersDeserializationTest {
    }
 
    /**
+    * extraProperties is appended as the LAST field of the canonical record (after
+    * {@code queryParams}), matching this file's own established every-new-field-goes-at-the-end
+    * convention -- confirms it round-trips through the real app ObjectMapper the same way
+    * {@code queryParams} does above.
+    */
+   @Test
+   void deserializesAddTableWithExtraProperties() throws Exception {
+      EditRequest req = mapper.readValue("""
+         {
+           "op": "add_table",
+           "table": "Widgets",
+           "datasource": "SaaS/Generic REST",
+           "suffix": "/v1/widgets",
+           "extraProperties": {"jsonPath": "$.items[*]", "timeout": 30, "expanded": true}
+         }
+         """, EditRequest.class);
+
+      assertNotNull(req.extraProperties());
+      assertEquals(3, req.extraProperties().size());
+      assertEquals("$.items[*]", req.extraProperties().get("jsonPath"));
+      assertEquals(30, req.extraProperties().get("timeout"));
+      assertEquals(true, req.extraProperties().get("expanded"));
+   }
+
+   /**
     * WBS-029 (bug 76502): {@code variableValues} is now {@code Map<String, Object>} so a JSON
     * array can bind to a genuine multi-value assignment. Confirms the real app
     * {@code ObjectMapper}'s default binding for an untyped {@code Object} map value -- a plain
