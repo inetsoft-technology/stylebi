@@ -92,9 +92,24 @@ public class PresentationChangesetApplyService {
          String currentHash = PresentationChangePlanService.hash(planChanges);
 
          if(req.getPlanHash() == null || !currentHash.equals(req.getPlanHash())) {
+            // A 409 conflict response must never hand back a taskToken (see
+            // AdminChangesetApplyService#withoutTaskToken) -- the exception constructor already
+            // strips whatever is passed here, so issuing one would be a wasted encryption call for
+            // a value that is unconditionally discarded one stack frame later.
             throw new AdminChangesetApplyService.PlanHashMismatchException(
                new inetsoft.web.admin.ai.ResolvedPlan(task, planChanges, true, true,
-                  currentHash, TaskAuditToken.issue(currentHash, task)));
+                  currentHash, null));
+         }
+
+         String reviewedTask;
+
+         try {
+            reviewedTask = TaskAuditToken.verify(req.getTaskToken(), currentHash);
+         }
+         catch(TaskAuditToken.TaskTokenException e) {
+            throw new AdminChangesetApplyService.TaskTokenMismatchException(
+               new inetsoft.web.admin.ai.ResolvedPlan(task, planChanges, true, true,
+                  currentHash, null), e.getMessage());
          }
 
          if(req.getReviewOutcome() == null || req.getReviewOutcome().trim().isEmpty()) {
@@ -136,7 +151,7 @@ public class PresentationChangesetApplyService {
                   ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
                results.add(new PresentationApplyOutcome(key, before, actualAfter, status,
                   verified ? null : "value did not read back as written", null));
-               writeAudit(txId, task, key, entry, AdminChangeRecord.ACTION_APPLY, before, actualAfter, status,
+               writeAudit(txId, reviewedTask, key, entry, AdminChangeRecord.ACTION_APPLY, before, actualAfter, status,
                          backupRef, reviewOutcome, user);
 
                if(!verified) {
@@ -158,7 +173,7 @@ public class PresentationChangesetApplyService {
                   AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
                unknownStateFailures.add(new RollbackFailure(key,
                   "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
-               writeAudit(txId, task, key, entry, AdminChangeRecord.ACTION_APPLY, before, null,
+               writeAudit(txId, reviewedTask, key, entry, AdminChangeRecord.ACTION_APPLY, before, null,
                          AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
                failed = true;
                break;
@@ -182,7 +197,7 @@ public class PresentationChangesetApplyService {
                txId + " (backupRef: " + backupRef + ")"));
          }
 
-         failures.addAll(rollback(txId, task, undoableValue, backupRef, reviewOutcome, user));
+         failures.addAll(rollback(txId, reviewedTask, undoableValue, backupRef, reviewOutcome, user));
 
          String status = failures.isEmpty()
             ? AdminChangesetApplyService.STATUS_ROLLED_BACK
