@@ -368,7 +368,9 @@ export namespace ChartTool {
 
       if(regions && regions.length > 0) {
          return (!measureRequired || ChartTool.hasMeasure(model, regions[0])) &&
-            ChartTool.areaType(model, regions[0]) !== "axis" ||
+            ChartTool.areaType(model, regions[0]) !== "axis" &&
+            // target line labels are non-interactive decorations, not highlightable measures
+            ChartTool.areaType(model, regions[0]) !== "label" ||
             // radar1
             GraphTypes.isRadar(model.chartType) &&
             ChartTool.areaType(model, regions[0]) == "axis" ||
