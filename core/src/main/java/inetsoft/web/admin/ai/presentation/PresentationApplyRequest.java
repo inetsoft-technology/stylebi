@@ -36,6 +36,14 @@ public class PresentationApplyRequest extends PresentationChangePlanRequest {
       this.planHash = v;
    }
 
+   public String getTaskToken() {
+      return taskToken;
+   }
+
+   public void setTaskToken(String v) {
+      this.taskToken = v;
+   }
+
    public String getReviewOutcome() {
       return reviewOutcome;
    }
@@ -53,6 +61,7 @@ public class PresentationApplyRequest extends PresentationChangePlanRequest {
    }
 
    private String planHash;
+   private String taskToken;
    private String reviewOutcome;
    private Boolean acknowledgeIrreversibleUpdate;
 }

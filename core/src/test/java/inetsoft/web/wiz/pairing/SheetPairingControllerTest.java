@@ -110,6 +110,48 @@ class SheetPairingControllerTest {
       assertNotNull(resp.error(), "error should be non-null when feature is off");
    }
 
+   /**
+    * Regression for Redmine #76578: mintViaSocket previously had no null/blank guard on
+    * req.runtimeId(), unlike its sibling STOMP handlers -- a blank runtimeId was accepted and
+    * stored in a PairingGrant, then echoed back unchanged at join time (a "successful" join
+    * response missing runtimeId). The guard now lives in SheetPairingService#mint and surfaces
+    * here as an ordinary MintResponse.err(...), the same shape mintViaSocket already uses for
+    * every other mint failure.
+    */
+   @Test
+   void stompMintRefusedWithNullRuntimeId() {
+      SheetPairingService pairing = new SheetPairingService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), true);
+      Principal owner = TestPrincipals.user("alice", "host-org");
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId("stomp-x");
+
+      SheetPairingController.MintResponse resp = c.mintViaSocket(
+         new SheetPairingController.MintRequest(null, SheetType.WORKSHEET, null), owner, accessor);
+
+      assertNull(resp.code(), "code should be null when runtimeId is missing");
+      assertNotNull(resp.error(), "error should be non-null when runtimeId is missing");
+   }
+
+   @Test
+   void stompMintRefusedWithBlankRuntimeId() {
+      SheetPairingService pairing = new SheetPairingService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), true);
+      Principal owner = TestPrincipals.user("alice", "host-org");
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId("stomp-x");
+
+      SheetPairingController.MintResponse resp = c.mintViaSocket(
+         new SheetPairingController.MintRequest("   ", SheetType.WORKSHEET, null), owner, accessor);
+
+      assertNull(resp.code(), "code should be null when runtimeId is blank");
+      assertNotNull(resp.error(), "error should be non-null when runtimeId is blank");
+   }
+
    @Test
    void detachEndsThePaneScopedSessionBoundToTheCallersSocket() {
       SheetPairingService pairing = new SheetPairingService();

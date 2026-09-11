@@ -21,20 +21,27 @@ import inetsoft.report.internal.license.License;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.license.LicenseType;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.web.admin.ai.AdminChangesetApplyService;
+import inetsoft.web.admin.ai.ResolvedPlan;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.ResponseStatus;
 
 import java.net.URI;
 import java.security.Principal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -66,6 +73,7 @@ class AdminLicensingControllerGetKeyTest {
    private MockedStatic<OrganizationManager> orgManagerStatic;
    private MockedStatic<LicenseManager> licenseManagerStatic;
    private MockMvc mvc;
+   private AdminLicensingController controller;
 
    private static final Principal TEST_PRINCIPAL = () -> "test-user";
 
@@ -78,7 +86,8 @@ class AdminLicensingControllerGetKeyTest {
       licenseManagerStatic = mockStatic(LicenseManager.class, withSettings().lenient());
       licenseManagerStatic.when(LicenseManager::isEnterprise).thenReturn(true);
 
-      mvc = standaloneSetup(new AdminLicensingController(licenseManager, planService, applyService))
+      controller = new AdminLicensingController(licenseManager, planService, applyService);
+      mvc = standaloneSetup(controller)
          .setMessageConverters(new MappingJackson2HttpMessageConverter())
          .build();
    }
@@ -136,5 +145,40 @@ class AdminLicensingControllerGetKeyTest {
             .header("Authorization", "Bearer test-token"))
          .andExpect(status().isOk())
          .andExpect(content().string(containsString("\"found\":false")));
+   }
+
+   // -------------------------------------------------------------------------
+   // taskToken audit-pinning fix (bug #76588): a thrown TaskTokenMismatchException must map to a
+   // clean 409, mirroring AdminAiControllerTest's own handleTaskTokenMismatch* tests for the
+   // Properties area's identical exception handler. Before this handler existed, the same throw
+   // would have been caught by AdminExceptionHandler's global @ControllerAdvice and returned as a
+   // structured 500 GenericError -- not "unmapped"/a raw framework default page.
+   // -------------------------------------------------------------------------
+
+   @Test void handleTaskTokenMismatchReturnsConflictStatusWithCurrentPlan() {
+      ResolvedPlan current = new ResolvedPlan("install trial key", List.of(), true, true,
+                                              "hash456", "token456");
+      AdminChangesetApplyService.TaskTokenMismatchException ex =
+         new AdminChangesetApplyService.TaskTokenMismatchException(current,
+            "taskToken: does not match the current plan; re-review before applying");
+
+      Map<String, Object> actual = controller.handleTaskTokenMismatch(ex);
+
+      assertEquals("conflict", actual.get("status"));
+      assertEquals(ex.getMessage(), actual.get("error"));
+      ResolvedPlan returnedPlan = (ResolvedPlan) actual.get("plan");
+      assertEquals(current.task(), returnedPlan.task());
+      assertEquals(current.planHash(), returnedPlan.planHash());
+      assertNull(returnedPlan.taskToken());
+   }
+
+   @Test void handleTaskTokenMismatchIsAnnotatedConflict() throws NoSuchMethodException {
+      ResponseStatus annotation = AdminLicensingController.class
+         .getMethod("handleTaskTokenMismatch",
+                    AdminChangesetApplyService.TaskTokenMismatchException.class)
+         .getAnnotation(ResponseStatus.class);
+
+      assertNotNull(annotation, "handleTaskTokenMismatch must be annotated @ResponseStatus");
+      assertEquals(HttpStatus.CONFLICT, annotation.value());
    }
 }

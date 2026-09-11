@@ -19,13 +19,18 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.model.LayoutModel;
 import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -37,19 +42,32 @@ import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.FileFormatInfo;
+import inetsoft.uql.viewsheet.VSBookmark;
+import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.MessageException;
 import inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService;
 import inetsoft.web.adhoc.model.FontInfo;
+import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.event.ImmutableVSEditBookmarkEvent;
+import inetsoft.web.viewsheet.event.VSEditBookmarkEvent;
+import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
+import inetsoft.web.viewsheet.service.VSBookmarkService;
+import inetsoft.web.viewsheet.service.ExportResponse;
+import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.script.ScriptImageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.security.Principal;
 import java.util.Base64;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * REST surface for agent-driven viewsheet layout editing.
@@ -90,7 +108,10 @@ public class ViewsheetAssemblyAgentController {
                                    LayoutReadService layoutReadService,
                                    PrintDeviceLayoutPropertyService printDeviceLayoutPropertyService,
                                    LayoutMutationService layoutMutationService,
-                                   LayoutUndoService layoutUndoService)
+                                   LayoutUndoService layoutUndoService,
+                                   VSBookmarkService vsBookmarkService,
+                                   VSExportService exportService,
+                                   SecurityEngine securityEngine)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -120,6 +141,9 @@ public class ViewsheetAssemblyAgentController {
       this.printDeviceLayoutPropertyService = printDeviceLayoutPropertyService;
       this.layoutMutationService = layoutMutationService;
       this.layoutUndoService = layoutUndoService;
+      this.vsBookmarkService = vsBookmarkService;
+      this.exportService = exportService;
+      this.securityEngine = securityEngine;
    }
 
    public record JoinRequest(String code) {}
@@ -312,6 +336,324 @@ public class ViewsheetAssemblyAgentController {
       return new ImageResponse(Base64.getEncoder().encodeToString(image.pngBytes()),
                                image.isPng() ? "png" : "svg",
                                image.width(), image.height(), image.note());
+   }
+
+   public record BookmarkInfo(String name, String type, String owner, boolean readOnly,
+                              boolean isDefault, boolean isCurrent) {}
+
+   public record SaveBookmarkRequest(String name, String type, Boolean readOnly) {}
+
+   public record BookmarkNameRequest(String name) {}
+
+   /**
+    * {@code list_bookmarks}. {@link RuntimeViewsheet#getBookmarks()} already resolves to the
+    * caller's own visible set (their own bookmarks plus any shared/group ones others made
+    * visible to them) and injects the synthetic "(Home)" entry -- no separate filtering needed
+    * here.
+    */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks")
+   public List<BookmarkInfo> listBookmarks(@PathVariable String sessionToken, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      VSBookmark.DefaultBookmark defaultBookmark = rvs.getDefaultBookmark();
+      VSBookmarkInfo opened = rvs.getOpenedBookmark();
+
+      return rvs.getBookmarks().stream()
+         .map(info -> new BookmarkInfo(
+            info.getName(), toTypeString(info.getType()),
+            info.getOwner() == null ? null : info.getOwner().getName(), info.isReadOnly(),
+            defaultBookmark != null && info.getName().equals(defaultBookmark.getName()) &&
+               java.util.Objects.equals(info.getOwner(), defaultBookmark.getOwner()),
+            opened != null && info.getName().equals(opened.getName()) &&
+               java.util.Objects.equals(info.getOwner(), opened.getOwner())))
+         .collect(Collectors.toList());
+   }
+
+   /**
+    * {@code create_bookmark}. Refuses a name collision itself (checked before the write, per this
+    * package's own robustness convention) rather than relying on
+    * {@link VSBookmarkService#addBookmarkToViewSheet}'s own {@code confirmed} flag, which exists
+    * for an interactive "replace?" dialog this headless caller has no use for -- always writes
+    * with {@code confirmed=true} once the collision check has already run.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks")
+   public void createBookmark(@PathVariable String sessionToken,
+                              @RequestBody SaveBookmarkRequest request, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      String name = requireBookmarkName(request.name(), "create_bookmark");
+      int type = toTypeInt(request.type());
+      boolean readOnly = request.readOnly() == null || request.readOnly();
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         if(rvs.containsBookmark(name, ownerOf(user))) {
+            throw new IllegalArgumentException(
+               "create_bookmark: a bookmark named '" + name + "' already exists. Use " +
+               "update_bookmark to overwrite it, or pick a different name.");
+         }
+
+         requireOk(vsBookmarkService.addBookmarkToViewSheet(rvs, name, type, readOnly, true, user),
+                   "create_bookmark");
+      });
+   }
+
+   /** {@code update_bookmark}. Refuses when {@code name} does NOT already exist -- the mirror
+    *  image of {@link #createBookmark}'s own collision guard. */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks/update")
+   public void updateBookmark(@PathVariable String sessionToken,
+                              @RequestBody SaveBookmarkRequest request, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      String name = requireBookmarkName(request.name(), "update_bookmark");
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireOwnBookmark(rvs, name, user, "update_bookmark",
+            "no bookmark named '" + name + "' exists yet. Use create_bookmark for a new one.");
+
+         // 'type'/'readOnly' omitted means "leave the existing visibility alone" -- refresh the
+         // captured state only. Only defaulted (private/read-only) when there is, unexpectedly,
+         // no existing bookmark to read a current value from.
+         VSBookmarkInfo existing = rvs.getBookmarks().stream()
+            .filter(b -> b.getName().equals(name) && java.util.Objects.equals(b.getOwner(), ownerOf(user)))
+            .findFirst().orElse(null);
+         int type = request.type() != null ? toTypeInt(request.type())
+            : existing != null ? existing.getType() : VSBookmarkInfo.PRIVATE;
+         boolean readOnly = request.readOnly() != null ? request.readOnly()
+            : existing != null ? existing.isReadOnly() : true;
+
+         requireOk(vsBookmarkService.addBookmarkToViewSheet(rvs, name, type, readOnly, true, user),
+                   "update_bookmark");
+      });
+   }
+
+   /**
+    * {@code delete_bookmark}. Delegates the actual removal to
+    * {@link VSBookmarkService#deleteBookmark} (called with {@code confirmed=false}, not because
+    * this caller can answer a confirmation prompt, but because that is what makes it run its own
+    * schedule-task-usage check -- {@code confirmed=true} skips that check entirely) so the
+    * schedule-task guard stays exactly the one the human Viewer's own delete uses, rather than a
+    * reimplementation here. Existence itself is checked first: {@code removeBookmark} silently
+    * no-ops on an unknown name otherwise.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks/delete")
+   public void deleteBookmark(@PathVariable String sessionToken,
+                              @RequestBody BookmarkNameRequest request,
+                              @RequestParam(required = false, defaultValue = "") String linkUri,
+                              Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      String name = requireBookmarkName(request.name(), "delete_bookmark");
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireOwnBookmark(rvs, name, user, "delete_bookmark",
+            "no bookmark named '" + name + "'. list_bookmarks reports what exists.");
+
+         VSEditBookmarkEvent event = ImmutableVSEditBookmarkEvent.builder()
+            .vsBookmarkInfoModel(VSBookmarkInfoModel.builder().name(name).owner(ownerOf(user)).build())
+            .confirmed(false)
+            .build();
+         vsBookmarkService.deleteBookmark(runtimeId, event, user, dispatcher, linkUri);
+      });
+   }
+
+   /** {@code set_default_bookmark}. Requires the viewsheet to already be a saved asset --
+    *  {@link RuntimeViewsheet#setDefaultBookmark} persists to the asset's own bookmark store. */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks/set-default")
+   public void setDefaultBookmark(@PathVariable String sessionToken,
+                                  @RequestBody BookmarkNameRequest request, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      String name = requireBookmarkName(request.name(), "set_default_bookmark");
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireOwnBookmark(rvs, name, user, "set_default_bookmark",
+            "no bookmark named '" + name + "'. list_bookmarks reports what exists.");
+
+         if(rvs.getViewsheet().getRuntimeEntry().getScope() == AssetRepository.TEMPORARY_SCOPE) {
+            throw new IllegalArgumentException(
+               "set_default_bookmark: the viewsheet must be saved before a default bookmark can " +
+               "be set.");
+         }
+
+         rvs.setDefaultBookmark(new VSBookmark.DefaultBookmark(name, ownerOf(user)));
+      });
+   }
+
+   private static String requireBookmarkName(String name, String tool) {
+      if(name == null || name.isBlank()) {
+         throw new IllegalArgumentException(tool + " requires 'name' -- the bookmark's name.");
+      }
+
+      return name;
+   }
+
+   private static IdentityID ownerOf(Principal user) {
+      return IdentityID.getIdentityIDFromKey(user.getName());
+   }
+
+   /**
+    * Guards update_bookmark/delete_bookmark/set_default_bookmark: all three only operate on the
+    * caller's OWN bookmarks, but {@code list_bookmarks} shows shared/group bookmarks owned by
+    * other users too. Without this, an agent that sees such a bookmark via list_bookmarks and
+    * then tries to act on it gets a plain "no bookmark named X" -- indistinguishable from "that
+    * name is free" -- and is liable to retry via create_bookmark instead of realizing it simply
+    * doesn't own the one it saw.
+    */
+   private static void requireOwnBookmark(RuntimeViewsheet rvs, String name, Principal user,
+                                          String tool, String notFoundMessage)
+   {
+      if(rvs.containsBookmark(name, ownerOf(user))) {
+         return;
+      }
+
+      boolean visibleUnderAnotherOwner =
+         rvs.getBookmarks().stream().anyMatch(b -> b.getName().equals(name));
+
+      if(visibleUnderAnotherOwner) {
+         throw new IllegalArgumentException(
+            tool + ": bookmark '" + name + "' exists but is owned by someone else -- " + tool +
+            " only works on bookmarks you own.");
+      }
+
+      throw new IllegalArgumentException(tool + ": " + notFoundMessage);
+   }
+
+   private static void requireOk(MessageCommand command, String tool) {
+      if(command.getType() != MessageCommand.Type.OK) {
+         throw new IllegalArgumentException(tool + ": " + command.getMessage());
+      }
+   }
+
+   private static String toTypeString(int type) {
+      switch(type) {
+         case VSBookmarkInfo.ALLSHARE: return "shared";
+         case VSBookmarkInfo.GROUPSHARE: return "group";
+         default: return "private";
+      }
+   }
+
+   private static int toTypeInt(String type) {
+      if(type == null || type.isBlank() || "private".equalsIgnoreCase(type)) {
+         return VSBookmarkInfo.PRIVATE;
+      }
+
+      if("shared".equalsIgnoreCase(type)) {
+         return VSBookmarkInfo.ALLSHARE;
+      }
+
+      if("group".equalsIgnoreCase(type)) {
+         return VSBookmarkInfo.GROUPSHARE;
+      }
+
+      throw new IllegalArgumentException(
+         "'type' must be one of private, shared, group, got '" + type + "'.");
+   }
+
+   /**
+    * {@code export_viewsheet}. Produces a real downloadable export file for the live, paired
+    * runtime's CURRENT state (whatever filters/selections this session has applied) -- distinct
+    * from {@link #image}, which renders a PNG for the calling agent's own inspection, not a
+    * user-deliverable file. Delegates to {@link VSExportService#exportViewsheet}, the same
+    * primitive {@code WizViewsheetExportController} already uses for a composed dashboard's own
+    * export, but against THIS session's already-resolved {@link RuntimeViewsheet} rather than
+    * reopening one from an asset identifier.
+    *
+    * <p>Writes the exported bytes directly to {@code servletResponse} (same
+    * {@code Content-Type}/{@code Content-Disposition} shape the human Viewer's own export
+    * download gets, and the same direct-servlet-write pattern {@code WizViewsheetExportController}
+    * already uses -- see its own comment for why: no combination of this app's registered
+    * {@code HttpMessageConverter}s can write an arbitrary byte[]/Resource body as e.g.
+    * {@code application/pdf}) rather than base64-encoding into a JSON body. A base64 JSON
+    * envelope would force the whole file through the calling agent's own token budget just to
+    * relay it to disk -- StyleBI's UI export was already a plain byte stream; this endpoint
+    * matches that instead of wrapping it. Returning {@code null} tells Spring MVC the response is
+    * already fully handled.
+    *
+    * <p>{@code target} (a single table/chart assembly) is only supported for {@code format=PNG}
+    * so far, reusing {@link #image}'s own {@link ScriptImageService#getAssemblyImage} -- a single
+    * table/chart to Excel/CSV/PDF/PowerPoint/HTML/Snapshot needs a materially different mechanism
+    * ({@code AssemblyImageServiceProxy}'s cluster-aware table/chart export, per
+    * {@code ExportController}'s own {@code /export/vs-table}/{@code /export/vs-chart} split) not
+    * yet wired here; refused by name rather than silently exporting the whole sheet instead.
+    */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/export")
+   public ResponseEntity<?> export(@PathVariable String sessionToken,
+                                   @RequestParam String format,
+                                   @RequestParam(required = false) String target,
+                                   @RequestParam(required = false) Boolean match,
+                                   @RequestParam(required = false) Boolean expandSelections,
+                                   @RequestParam(required = false) Boolean current,
+                                   Principal user, HttpServletResponse servletResponse)
+      throws Exception
+   {
+      requireEnabled();
+
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export",
+                                         ResourceAction.READ))
+      {
+         throw new SecurityException("No permission for viewsheet export.");
+      }
+
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      int formatType = toFormatType(format);
+
+      if(target != null && !target.isBlank()) {
+         if(formatType != FileFormatInfo.EXPORT_TYPE_PNG) {
+            throw new IllegalArgumentException(
+               "export_viewsheet: 'target' is only supported with format=PNG for now (a single " +
+               "table/chart export to Excel/PowerPoint/PDF/HTML/CSV is not yet implemented) -- " +
+               "omit 'target' to export the whole viewsheet in '" + format + "', or use " +
+               "get_viewsheet_image for a PNG preview of just this assembly.");
+         }
+
+         ScriptImageService.ChartImage image = imageService.getAssemblyImage(rvs, target, null, null, user);
+         writeAttachment(servletResponse, image.pngBytes(), "image/png", target + ".png");
+         return null;
+      }
+
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+      exportService.exportViewsheet(rvs, formatType, match == null || match,
+         expandSelections != null && expandSelections, current == null || current, false, false,
+         new String[0], false, new ExportResponse(out), user);
+
+      writeAttachment(servletResponse, out.toByteArray(), VSExportService.getMime(formatType),
+         "export." + VSExportService.getSuffix(formatType));
+      return null;
+   }
+
+   private static void writeAttachment(HttpServletResponse response, byte[] bytes, String mime,
+                                       String filename) throws IOException
+   {
+      response.setContentType(mime);
+      response.setHeader("Content-Disposition",
+         ContentDisposition.attachment().filename(filename).build().toString());
+      response.setContentLength(bytes.length);
+      response.getOutputStream().write(bytes);
+      response.getOutputStream().flush();
+   }
+
+   private static int toFormatType(String format) {
+      if(format != null) {
+         switch(format.toLowerCase()) {
+            case "excel": return FileFormatInfo.EXPORT_TYPE_EXCEL;
+            case "powerpoint": return FileFormatInfo.EXPORT_TYPE_POWERPOINT;
+            case "pdf": return FileFormatInfo.EXPORT_TYPE_PDF;
+            case "png": return FileFormatInfo.EXPORT_TYPE_PNG;
+            case "html": return FileFormatInfo.EXPORT_TYPE_HTML;
+            case "csv": return FileFormatInfo.EXPORT_TYPE_CSV;
+            case "snapshot": return FileFormatInfo.EXPORT_TYPE_SNAPSHOT;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "export_viewsheet: 'format' must be one of Excel, PowerPoint, PDF, PNG, HTML, CSV, " +
+         "Snapshot, got '" + format + "'.");
    }
 
    public record PropertyPatchRequest(String assembly, Map<String, Object> properties) {}
@@ -553,7 +895,8 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       return selectionService.setSelection(sessionToken, user, request.assembly(), request.values(),
-                                          request.sortOrder(), request.singleSelect(), linkUri);
+                                          request.deselect(), request.sortOrder(),
+                                          request.singleSelect(), request.additive(), linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/clear")
@@ -582,7 +925,8 @@ public class ViewsheetAssemblyAgentController {
    }
 
    public record SelectionRequest(String assembly, java.util.List<java.util.List<String>> values,
-                                  String sortOrder, Boolean singleSelect) {}
+                                  java.util.List<java.util.List<String>> deselect, String sortOrder,
+                                  Boolean singleSelect, Boolean additive) {}
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/calendar/display")
    public Map<String, Object> setCalendarDisplay(@PathVariable String sessionToken,
@@ -1642,4 +1986,7 @@ public class ViewsheetAssemblyAgentController {
    private final PrintDeviceLayoutPropertyService printDeviceLayoutPropertyService;
    private final LayoutMutationService layoutMutationService;
    private final LayoutUndoService layoutUndoService;
+   private final VSBookmarkService vsBookmarkService;
+   private final VSExportService exportService;
+   private final SecurityEngine securityEngine;
 }

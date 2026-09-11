@@ -18,20 +18,37 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.viewsheet.FileFormatInfo;
+import inetsoft.uql.viewsheet.VSBookmark;
+import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.event.VSEditBookmarkEvent;
+import inetsoft.web.viewsheet.service.VSBookmarkService;
+import inetsoft.web.viewsheet.service.ExportResponse;
+import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.model.LayoutModel;
 import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.WriteListener;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.ByteArrayOutputStream;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
@@ -480,7 +497,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
    }
 
    private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
@@ -520,7 +537,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
    }
 
    private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
@@ -563,7 +580,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
    }
 
    /** Overload that exposes {@code broadcast} -- for the detach tab-bar-notification test. */
@@ -596,7 +613,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
    }
 
    /** Feature enabled, {@code sessions} and {@code conditionService} wired -- for the
@@ -633,7 +650,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
    }
 
    /** Feature enabled, only {@code propertyService} wired -- for the property-trio tests. */
@@ -669,7 +686,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
    }
 
    /** Feature enabled, only {@code hyperlinkService} wired -- for the hyperlink-targets test. */
@@ -705,7 +722,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
    }
 
    /**
@@ -888,7 +905,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
    }
 
    /** Feature enabled, {@code sessions}/{@code viewsheetService}/{@code broadcast} wired -- for the save tests. */
@@ -926,7 +943,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
    }
 
    // ---------------------------------------------------------------------------
@@ -2125,7 +2142,9 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SheetOpenService.class),
                                           mock(LayoutSessionService.class),
                                           layoutReadService, printDeviceLayoutPropertyService,
-                                          layoutMutationService, layoutUndoService);
+                                          layoutMutationService, layoutUndoService,
+                                          mock(VSBookmarkService.class), mock(VSExportService.class),
+                                          mock(SecurityEngine.class));
    }
 
    private static Principal principal() {
@@ -2274,6 +2293,669 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class),
+                                          mock(VSExportService.class), mock(SecurityEngine.class));
    }
+
+   // ---------------------------------------------------------------------------
+   // Bookmark endpoints -- bug #76516 sub-capability 2 (dashboard-export's actual
+   // "publish a specific view" mechanism).
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void listBookmarks_reportsNameTypeDefaultAndCurrentFlags() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      IdentityID owner = new IdentityID("admin", "host-org");
+      VSBookmarkInfo shared = new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE, owner,
+                                                 true, System.currentTimeMillis());
+      VSBookmarkInfo mine = new VSBookmarkInfo("My View", VSBookmarkInfo.PRIVATE, owner,
+                                               false, System.currentTimeMillis());
+      when(rvs.getBookmarks()).thenReturn(List.of(shared, mine));
+      when(rvs.getDefaultBookmark()).thenReturn(new VSBookmark.DefaultBookmark("Q1 Report", owner));
+      when(rvs.getOpenedBookmark()).thenReturn(mine);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerForBookmarks(sessions, mock(VSBookmarkService.class));
+
+      List<ViewsheetAssemblyAgentController.BookmarkInfo> result =
+         controller.listBookmarks("tok", principal());
+
+      assertEquals(List.of(
+         new ViewsheetAssemblyAgentController.BookmarkInfo(
+            "Q1 Report", "shared", "admin", true, true, false),
+         new ViewsheetAssemblyAgentController.BookmarkInfo(
+            "My View", "private", "admin", false, false, true)
+      ), result);
+   }
+
+   /**
+    * Regression for a review finding: {@code isDefault}/{@code isCurrent} used to compare
+    * bookmark NAME only, ignoring owner. Two different users can legitimately share a bookmark
+    * name (an admin's shared "Q1 Report" and this caller's own private "Q1 Report") -- only the
+    * one that actually matches on BOTH name and owner should be flagged.
+    */
+   @Test
+   void listBookmarks_defaultAndCurrentFlagsDistinguishSameNameDifferentOwner() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      IdentityID admin = new IdentityID("admin", "host-org");
+      IdentityID caller = new IdentityID("caller", "host-org");
+      VSBookmarkInfo adminsShared = new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE, admin,
+                                                       true, System.currentTimeMillis());
+      VSBookmarkInfo callersOwn = new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.PRIVATE, caller,
+                                                     false, System.currentTimeMillis());
+      when(rvs.getBookmarks()).thenReturn(List.of(adminsShared, callersOwn));
+      // The default/current bookmark is the ADMIN's "Q1 Report" -- the caller's own same-named
+      // one must NOT be flagged just because the names match.
+      when(rvs.getDefaultBookmark()).thenReturn(new VSBookmark.DefaultBookmark("Q1 Report", admin));
+      when(rvs.getOpenedBookmark()).thenReturn(adminsShared);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerForBookmarks(sessions, mock(VSBookmarkService.class));
+
+      List<ViewsheetAssemblyAgentController.BookmarkInfo> result =
+         controller.listBookmarks("tok", principal());
+
+      assertEquals(List.of(
+         new ViewsheetAssemblyAgentController.BookmarkInfo(
+            "Q1 Report", "shared", "admin", true, true, true),
+         new ViewsheetAssemblyAgentController.BookmarkInfo(
+            "Q1 Report", "private", "caller", false, false, false)
+      ), result);
+   }
+
+   @Test
+   void createBookmark_refusesANameCollisionWithoutCallingTheService() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.createBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "private", null),
+            principal()));
+      assertTrue(thrown.getMessage().contains("already exists"));
+      verifyNoInteractions(vsBookmarkService);
+   }
+
+   @Test
+   void createBookmark_delegatesToAddBookmarkToViewSheetWhenNameIsFree() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(false);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(eq(rvs), eq("Q1 Report"),
+         eq(VSBookmarkInfo.ALLSHARE), eq(true), eq(true), any(Principal.class)))
+         .thenReturn(ok);
+
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+      controller.createBookmark("tok",
+         new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "shared", true),
+         principal());
+
+      verify(vsBookmarkService).addBookmarkToViewSheet(eq(rvs), eq("Q1 Report"),
+         eq(VSBookmarkInfo.ALLSHARE), eq(true), eq(true), any(Principal.class));
+   }
+
+   @Test
+   void updateBookmark_refusesWhenTheNameDoesNotExistYet() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Missing"), any(IdentityID.class))).thenReturn(false);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.updateBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Missing", null, null),
+            principal()));
+      assertTrue(thrown.getMessage().contains("no bookmark named"));
+      verifyNoInteractions(vsBookmarkService);
+   }
+
+   /**
+    * Regression: omitting type/readOnly used to default them (private/read-only), silently
+    * resetting an existing shared/writable bookmark's visibility on every "just refresh the
+    * captured state" call. Now reads the current bookmark's own type/readOnly and reuses them
+    * when the request doesn't specify.
+    */
+   @Test
+   void updateBookmark_preservesExistingTypeAndReadOnlyWhenOmitted() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      when(rvs.getBookmarks()).thenReturn(List.of(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE, admin, false,
+                            System.currentTimeMillis())));
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(eq(rvs), eq("Q1 Report"),
+         eq(VSBookmarkInfo.ALLSHARE), eq(false), eq(true), any(Principal.class)))
+         .thenReturn(ok);
+
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+      controller.updateBookmark("tok",
+         new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, null),
+         principal());
+
+      verify(vsBookmarkService).addBookmarkToViewSheet(eq(rvs), eq("Q1 Report"),
+         eq(VSBookmarkInfo.ALLSHARE), eq(false), eq(true), any(Principal.class));
+   }
+
+   @Test
+   void deleteBookmark_refusesWhenTheNameDoesNotExist() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Missing"), any(IdentityID.class))).thenReturn(false);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.deleteBookmark("tok",
+            new ViewsheetAssemblyAgentController.BookmarkNameRequest("Missing"), "", principal()));
+      assertTrue(thrown.getMessage().contains("no bookmark named"));
+      verifyNoInteractions(vsBookmarkService);
+   }
+
+   /**
+    * Regression for a review finding: {@code list_bookmarks} shows shared/group bookmarks owned
+    * by OTHER users, but delete/update/set-default only ever act on the caller's own. Without
+    * this distinction, an agent that saw such a bookmark via list_bookmarks and then tried to
+    * act on it got a plain "no bookmark named X" -- indistinguishable from "that name is free".
+    */
+   @Test
+   void deleteBookmark_distinguishesNotOwnedFromNotExisting() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(false);
+      IdentityID admin = new IdentityID("admin", "host-org");
+      when(rvs.getBookmarks()).thenReturn(List.of(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE, admin, true,
+                            System.currentTimeMillis())));
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.deleteBookmark("tok",
+            new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), "", principal()));
+      assertTrue(thrown.getMessage().contains("owned by someone else"));
+      verifyNoInteractions(vsBookmarkService);
+   }
+
+   /**
+    * Delegates to {@link VSBookmarkService#deleteBookmark} with {@code confirmed=false} so its
+    * OWN schedule-task-usage check still runs -- {@code confirmed=true} would skip it entirely.
+    */
+   @Test
+   void deleteBookmark_delegatesWithConfirmedFalseSoTheScheduleTaskCheckStillRuns() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+      controller.deleteBookmark("tok",
+         new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), "", principal());
+
+      ArgumentCaptor<VSEditBookmarkEvent> captor = ArgumentCaptor.forClass(VSEditBookmarkEvent.class);
+      verify(vsBookmarkService).deleteBookmark(eq("runtime-1"), captor.capture(),
+         any(Principal.class), any(), eq(""));
+      assertEquals("Q1 Report", captor.getValue().vsBookmarkInfoModel().name());
+      assertFalse(captor.getValue().confirmed());
+   }
+
+   /**
+    * Regression for a live-testing finding: an event built without {@code owner} makes
+    * {@link VSBookmarkService#deleteBookmark} look up the bookmark under an empty identity,
+    * silently no-op the removal, and still report success -- the owner must be the CALLING
+    * principal's, matching what {@code ownerOf(user)} already supplies to the existence check
+    * two lines above.
+    */
+   @Test
+   void deleteBookmark_setsOwnerToTheCallingPrincipalOnTheEvent() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+      controller.deleteBookmark("tok",
+         new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), "", principal());
+
+      ArgumentCaptor<VSEditBookmarkEvent> captor = ArgumentCaptor.forClass(VSEditBookmarkEvent.class);
+      verify(vsBookmarkService).deleteBookmark(eq("runtime-1"), captor.capture(),
+         any(Principal.class), any(), eq(""));
+      assertEquals(IdentityID.getIdentityIDFromKey("admin"),
+         captor.getValue().vsBookmarkInfoModel().owner());
+   }
+
+   @Test
+   void setDefaultBookmark_refusesWhenTheNameDoesNotExist() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Missing"), any(IdentityID.class))).thenReturn(false);
+      wireMutate(sessions, rvs);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerForBookmarks(sessions, mock(VSBookmarkService.class));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.setDefaultBookmark("tok",
+            new ViewsheetAssemblyAgentController.BookmarkNameRequest("Missing"), principal()));
+      assertTrue(thrown.getMessage().contains("no bookmark named"));
+   }
+
+   @Test
+   void setDefaultBookmark_delegatesToRuntimeViewsheetSetDefaultBookmark() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      wireMutate(sessions, rvs);
+      stubSavedAsset(rvs);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerForBookmarks(sessions, mock(VSBookmarkService.class));
+      controller.setDefaultBookmark("tok",
+         new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), principal());
+
+      ArgumentCaptor<VSBookmark.DefaultBookmark> captor =
+         ArgumentCaptor.forClass(VSBookmark.DefaultBookmark.class);
+      verify(rvs).setDefaultBookmark(captor.capture());
+      assertEquals("Q1 Report", captor.getValue().getName());
+   }
+
+   /**
+    * Regression for a review finding: {@code set_default_bookmark} previously called
+    * {@link RuntimeViewsheet#setDefaultBookmark} directly, which silently no-ops (no exception,
+    * nothing persisted) for an unsaved (temporary-scope) viewsheet instead of a clear error --
+    * the same "silently succeeds without doing anything" class of bug this PR's delete_bookmark
+    * owner fix set out to close elsewhere in this file.
+    */
+   @Test
+   void setDefaultBookmark_refusesOnAnUnsavedTemporaryScopeViewsheet() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      wireMutate(sessions, rvs);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.getScope()).thenReturn(AssetRepository.TEMPORARY_SCOPE);
+      when(vs.getRuntimeEntry()).thenReturn(entry);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerForBookmarks(sessions, mock(VSBookmarkService.class));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.setDefaultBookmark("tok",
+            new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), principal()));
+      assertTrue(thrown.getMessage().contains("must be saved"));
+      verify(rvs, never()).setDefaultBookmark(any());
+   }
+
+   private static void stubSavedAsset(RuntimeViewsheet rvs) {
+      Viewsheet vs = mock(Viewsheet.class);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.getScope()).thenReturn(AssetRepository.GLOBAL_SCOPE);
+      when(vs.getRuntimeEntry()).thenReturn(entry);
+      when(rvs.getViewsheet()).thenReturn(vs);
+   }
+
+   /** A bare, unconfigured mock -- every call site pairs this with a {@link #wireMutate} call
+    *  right after, which is what actually makes {@code mutate} invoke the given lambda. */
+   private static ViewsheetSessionService realMutatingSessions() {
+      return mock(ViewsheetSessionService.class);
+   }
+
+   @SuppressWarnings("unchecked")
+   private static void wireMutate(ViewsheetSessionService sessions, RuntimeViewsheet rvs) throws Exception {
+      when(sessions.mutate(eq("tok"), any(Principal.class), any(ViewsheetSessionService.Mutation.class)))
+         .thenAnswer(invocation -> {
+            ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+            mutation.run(rvs, "runtime-1", mock(inetsoft.web.wiz.dispatch.CapturingCommandDispatcher.class));
+            return List.of();
+         });
+   }
+
+   /** Feature enabled, only {@code sessions}/{@code vsBookmarkService} wired -- for the bookmark
+    *  endpoint tests. */
+   private static ViewsheetAssemblyAgentController controllerForBookmarks(
+      ViewsheetSessionService sessions, VSBookmarkService vsBookmarkService)
+   {
+      return new ViewsheetAssemblyAgentController(featureOn(), mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          sessions,
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class), vsBookmarkService,
+                                          mock(VSExportService.class), mock(SecurityEngine.class));
+   }
+
+   // ---------------------------------------------------------------------------
+   // export() -- bug #76516 sub-capability 1 (Interactive Export).
+   //
+   // Writes directly to a servlet response (same direct-write pattern as
+   // WizViewsheetExportController, see that controller's own comment for why) rather than
+   // returning a JSON/base64 body -- these tests capture what gets written to a mocked
+   // HttpServletResponse instead of asserting on a return value.
+   // ---------------------------------------------------------------------------
+
+   /** A ServletOutputStream backed by a plain ByteArrayOutputStream so tests can capture what
+    *  the controller writes -- mirrors WizViewsheetExportControllerTest's own helper of the same
+    *  shape, for the same direct-servlet-write pattern. */
+   private static ServletOutputStream capturingOutputStream(ByteArrayOutputStream sink) {
+      return new ServletOutputStream() {
+         @Override
+         public boolean isReady() {
+            return true;
+         }
+
+         @Override
+         public void setWriteListener(WriteListener writeListener) {
+         }
+
+         @Override
+         public void write(int b) {
+            sink.write(b);
+         }
+      };
+   }
+
+   private static HttpServletResponse mockServletResponse(ByteArrayOutputStream written) throws Exception {
+      HttpServletResponse response = mock(HttpServletResponse.class);
+      when(response.getOutputStream()).thenReturn(capturingOutputStream(written));
+      return response;
+   }
+
+   /** Stubs {@code exportService.exportViewsheet(...)} to write {@code bytes} into the
+    *  {@link ExportResponse} argument it's called with, mimicking what the real service does. */
+   private static void stubExportBytes(VSExportService exportService, byte[] bytes) throws Exception {
+      doAnswer(invocation -> {
+         ExportResponse response = invocation.getArgument(9);
+         response.getOutputStream().write(bytes);
+         return null;
+      }).when(exportService).exportViewsheet(any(), anyInt(), anyBoolean(), anyBoolean(),
+         anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class), anyBoolean(),
+         any(ExportResponse.class), any(Principal.class));
+   }
+
+   @Test
+   void export_delegatesToVSExportServiceForTheWholeViewsheet() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      byte[] fakePdf = { 1, 2, 3 };
+      stubExportBytes(exportService, fakePdf);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(Principal.class),
+         eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION), eq("Export"), eq(ResourceAction.READ)))
+         .thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+      ByteArrayOutputStream written = new ByteArrayOutputStream();
+      HttpServletResponse servletResponse = mockServletResponse(written);
+
+      controller.export("tok", "PDF", null, true, false, true, principal(), servletResponse);
+
+      verify(exportService).exportViewsheet(eq(rvs), eq(FileFormatInfo.EXPORT_TYPE_PDF),
+         eq(true), eq(false), eq(true), eq(false), eq(false), any(String[].class), eq(false),
+         any(ExportResponse.class), any(Principal.class));
+      verify(servletResponse).setContentType("application/pdf");
+      verify(servletResponse).setContentLength(fakePdf.length);
+      assertArrayEquals(fakePdf, written.toByteArray());
+      ArgumentCaptor<String> disposition = ArgumentCaptor.forClass(String.class);
+      verify(servletResponse).setHeader(eq("Content-Disposition"), disposition.capture());
+      assertTrue(disposition.getValue().contains("export.pdf"));
+   }
+
+   /**
+    * Snapshot (.vso) writes through the exact same VSExportService#exportViewsheet byte-stream
+    * path as every other format -- it is StyleBI's own serialized-viewsheet-state format, not
+    * the unrelated MV/cube-analysis feature an earlier pass here mistook it for.
+    */
+   @Test
+   void export_supportsSnapshotFormat() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      stubExportBytes(exportService, new byte[] { 9 });
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(Principal.class),
+         eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION), eq("Export"), eq(ResourceAction.READ)))
+         .thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+      HttpServletResponse servletResponse = mockServletResponse(new ByteArrayOutputStream());
+
+      controller.export("tok", "Snapshot", null, null, null, null, principal(), servletResponse);
+
+      verify(exportService).exportViewsheet(eq(rvs), eq(FileFormatInfo.EXPORT_TYPE_SNAPSHOT),
+         eq(true), eq(false), eq(true), eq(false), eq(false), any(String[].class), eq(false),
+         any(ExportResponse.class), any(Principal.class));
+      ArgumentCaptor<String> disposition = ArgumentCaptor.forClass(String.class);
+      verify(servletResponse).setHeader(eq("Content-Disposition"), disposition.capture());
+      assertTrue(disposition.getValue().contains("export.vso"));
+   }
+
+   @Test
+   void export_defaultsMatchAndCurrentToTrueAndExpandSelectionsToFalseWhenOmitted() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      stubExportBytes(exportService, new byte[] { 9 });
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(Principal.class),
+         eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION), eq("Export"), eq(ResourceAction.READ)))
+         .thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+      HttpServletResponse servletResponse = mockServletResponse(new ByteArrayOutputStream());
+
+      controller.export("tok", "CSV", null, null, null, null, principal(), servletResponse);
+
+      verify(exportService).exportViewsheet(eq(rvs), eq(FileFormatInfo.EXPORT_TYPE_CSV),
+         eq(true), eq(false), eq(true), eq(false), eq(false), any(String[].class), eq(false),
+         any(ExportResponse.class), any(Principal.class));
+      // CSV's real payload is a zip archive (VSExportService#getSuffix), not a literal .csv file
+      // -- confirmed live against a real export. A wrong extension here would actively mislead
+      // once the bytes are actually saved to disk under this name.
+      ArgumentCaptor<String> disposition = ArgumentCaptor.forClass(String.class);
+      verify(servletResponse).setHeader(eq("Content-Disposition"), disposition.capture());
+      assertTrue(disposition.getValue().contains("export.zip"));
+   }
+
+   @Test
+   void export_refusesWhenPermissionDenied() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(mock(RuntimeViewsheet.class));
+
+      VSExportService exportService = mock(VSExportService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(Principal.class),
+         eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION), eq("Export"), eq(ResourceAction.READ)))
+         .thenReturn(false);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+
+      assertThrows(SecurityException.class,
+         () -> controller.export("tok", "PDF", null, null, null, null, principal(),
+            mock(HttpServletResponse.class)));
+      verifyNoInteractions(exportService);
+   }
+
+   @Test
+   void export_refusesAnUnrecognizedFormatWithoutCallingTheBackend() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(mock(RuntimeViewsheet.class));
+
+      VSExportService exportService = mock(VSExportService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.export("tok", "JPEG", null, null, null, null, principal(),
+            mock(HttpServletResponse.class)));
+      assertTrue(thrown.getMessage().contains("format"));
+      verifyNoInteractions(exportService);
+   }
+
+   /**
+    * A single table/chart export to anything but PNG needs {@code AssemblyImageServiceProxy}'s
+    * cluster-aware table/chart export mechanism ({@code ExportController}'s own
+    * {@code /export/vs-table}/{@code /export/vs-chart} split), not yet wired here -- refused by
+    * name rather than silently exporting the whole sheet instead.
+    */
+   @Test
+   void export_refusesATargetWithANonPngFormat() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(mock(RuntimeViewsheet.class));
+
+      VSExportService exportService = mock(VSExportService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, imageService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.export("tok", "PDF", "Chart1", null, null, null, principal(),
+            mock(HttpServletResponse.class)));
+      assertTrue(thrown.getMessage().contains("target"));
+      verifyNoInteractions(exportService);
+      verifyNoInteractions(imageService);
+   }
+
+   @Test
+   void export_scopedToATargetWithPngFormatDelegatesToGetAssemblyImage() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      byte[] pngBytes = { 1, 2, 3 };
+      when(imageService.getAssemblyImage(eq(rvs), eq("Chart1"), isNull(), isNull(),
+         any(Principal.class)))
+         .thenReturn(new inetsoft.web.wiz.script.ScriptImageService.ChartImage(
+            pngBytes, true, 100, 100, null));
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, imageService);
+      ByteArrayOutputStream written = new ByteArrayOutputStream();
+      HttpServletResponse servletResponse = mockServletResponse(written);
+
+      controller.export("tok", "PNG", "Chart1", null, null, null, principal(), servletResponse);
+
+      assertArrayEquals(pngBytes, written.toByteArray());
+      verify(servletResponse).setContentType("image/png");
+      ArgumentCaptor<String> disposition = ArgumentCaptor.forClass(String.class);
+      verify(servletResponse).setHeader(eq("Content-Disposition"), disposition.capture());
+      assertTrue(disposition.getValue().contains("Chart1.png"));
+      verifyNoInteractions(exportService);
+   }
+
+   /** Feature enabled, only {@code sessions}/{@code exportService}/{@code securityEngine}/
+    *  {@code imageService} wired -- for the export() tests. */
+   private static ViewsheetAssemblyAgentController controllerForExport(
+      ViewsheetSessionService sessions, VSExportService exportService,
+      SecurityEngine securityEngine, inetsoft.web.wiz.script.ScriptImageService imageService)
+   {
+      return new ViewsheetAssemblyAgentController(featureOn(), mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          sessions,
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          imageService,
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class),
+                                          exportService, securityEngine);
+   }
+
 }

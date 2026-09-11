@@ -418,6 +418,111 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Same as {@link #addQueryParamsTableRequest}, but also carrying {@code parameters}/
+    * {@code lookup}/{@code customLookups} -- the three endpoint/suffix-only fields
+    * {@code addQueryParamsTable} silently ignores unless {@code editOp} rejects the
+    * combination up front.
+    */
+   private static EditRequest addQueryParamsTableRequestWithConflictingField(
+      String table, String datasource, Map<String, Object> queryParams,
+      Map<String, String> parameters, List<String> lookup,
+      List<Map<String, Object>> customLookups) throws Exception
+   {
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "add_table");
+      if(table != null) body.put("table", table);
+      if(datasource != null) body.put("datasource", datasource);
+      if(queryParams != null) body.put("queryParams", queryParams);
+      if(parameters != null) body.put("parameters", parameters);
+      if(lookup != null) body.put("lookup", lookup);
+      if(customLookups != null) body.put("customLookups", customLookups);
+
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+   }
+
+   /**
+    * Same {@code add_table} endpoint/suffix shape as {@link #addTabularTableRequest}, but also
+    * carrying {@code extraProperties} (and optionally {@code parameters}, for the required-param
+    * case) -- built through the real app {@link ObjectMapper}, the same technique
+    * {@link #addQueryParamsTableRequest} uses, since hand-counting nulls to a new position in the
+    * 70+ field positional record risks the exact silent off-by-one that technique exists to
+    * avoid.
+    */
+   private static EditRequest addTabularTableRequestWithExtraProperties(
+      String table, String datasource, String endpoint, String suffix,
+      Map<String, Object> extraProperties, Map<String, String> parameters) throws Exception
+   {
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "add_table");
+      if(table != null) body.put("table", table);
+      if(datasource != null) body.put("datasource", datasource);
+      if(endpoint != null) body.put("endpoint", endpoint);
+      if(suffix != null) body.put("suffix", suffix);
+      if(extraProperties != null) body.put("extraProperties", extraProperties);
+      if(parameters != null) body.put("parameters", parameters);
+
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+   }
+
+   /**
+    * Same as {@link #addQueryParamsTableRequest}, but also carrying {@code extraProperties} --
+    * proves the two forms are rejected together even though queryParams itself never reads it.
+    */
+   private static EditRequest addQueryParamsTableRequestWithExtraProperties(
+      String table, String datasource, Map<String, Object> queryParams,
+      Map<String, Object> extraProperties) throws Exception
+   {
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "add_table");
+      if(table != null) body.put("table", table);
+      if(datasource != null) body.put("datasource", datasource);
+      if(queryParams != null) body.put("queryParams", queryParams);
+      if(extraProperties != null) body.put("extraProperties", extraProperties);
+
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+   }
+
+   /**
+    * Same as {@link #addTabularTableRequestWithExtraProperties}, but also carrying {@code
+    * maxRows} -- needed for the row-cap-guard-recheck regression, where the guard must accept a
+    * pagination property set THROUGH {@code extraProperties} once a {@code maxRows} is supplied,
+    * the same way it already accepts one set directly via {@code endpoint}/{@code suffix}.
+    */
+   private static EditRequest addTabularTableRequestWithExtraPropertiesAndMaxRows(
+      String table, String datasource, String endpoint, String suffix,
+      Map<String, Object> extraProperties, Integer maxRows) throws Exception
+   {
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "add_table");
+      if(table != null) body.put("table", table);
+      if(datasource != null) body.put("datasource", datasource);
+      if(endpoint != null) body.put("endpoint", endpoint);
+      if(suffix != null) body.put("suffix", suffix);
+      if(extraProperties != null) body.put("extraProperties", extraProperties);
+      if(maxRows != null) body.put("maxRows", maxRows);
+
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+   }
+
+   /** add_table carrying ONLY extraProperties (+datasource/table) -- no endpoint/suffix/queryParams. */
+   private static EditRequest addTableRequestWithBareExtraProperties(
+      String table, String datasource, Map<String, Object> extraProperties) throws Exception
+   {
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "add_table");
+      if(table != null) body.put("table", table);
+      if(datasource != null) body.put("datasource", datasource);
+      if(extraProperties != null) body.put("extraProperties", extraProperties);
+
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+   }
+
+   /**
     * Builds a {@code delete_table} EditRequest -- a plainly destructive op that routes through
     * {@code editService}, so a scope guard that failed to fire would show up as a real write
     * attempt rather than an early return.
@@ -3980,6 +4085,115 @@ class WorksheetAgentControllerTest {
       }
    }
 
+   /**
+    * Regression for the final whole-branch review's Important finding 1: {@code
+    * requireRowCapWhenPaged} ran ONLY before the new {@code extraProperties} block, so a caller
+    * could set a pagination-triggering property THROUGH {@code extraProperties} (not through
+    * {@code endpoint}/{@code suffix} directly) and reach the live call fully uncapped -- the
+    * exact failure the guard exists to prevent. The suffix here ({@code "/v1/widgets"}) is
+    * deliberately NOT {@code "/paged"}, so {@code FakeCustomRestQuery.isPaged()} is false when
+    * the FIRST guard check runs (right after the suffix is applied); only the {@code
+    * paginationMode} property set via {@code extraProperties} afterward flips it to paged, which
+    * only a SECOND guard call -- re-run after the {@code extraProperties} block -- can catch.
+    */
+   @Test
+   void addTabularTableRejectsPaginationTriggeredByExtraPropertiesWithoutMaxRows() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeCustomRest");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeCustomRestQuery query = new FakeCustomRestQuery();
+
+      EditRequest req = addTabularTableRequestWithExtraProperties(
+         "t1", "MyDatasource", null, "/v1/widgets",
+         Map.of("paginationMode", "PAGE_COUNT"), null);
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> ctrl.edit("TOK-TT13", req, agent));
+         assertTrue(ex.getMessage().contains("paginated"), ex.getMessage());
+         verifyNoInteractions(editSvc);
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+   }
+
+   /** Same wiring as {@link #addTabularTableRejectsPaginationTriggeredByExtraPropertiesWithoutMaxRows},
+    *  but a positive {@code maxRows} must satisfy the re-run guard and let execution reach {@code
+    *  editService} -- proving the fix does not simply reject every {@code extraProperties} call
+    *  that touches pagination, only the uncapped ones. */
+   @Test
+   void addTabularTableAllowsPaginationTriggeredByExtraPropertiesWithMaxRows() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeCustomRest");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeCustomRestQuery query = new FakeCustomRestQuery();
+
+      EditRequest req = addTabularTableRequestWithExtraPropertiesAndMaxRows(
+         "t1", "MyDatasource", null, "/v1/widgets",
+         Map.of("paginationMode", "PAGE_COUNT"), 500);
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         assertDoesNotThrow(() -> ctrl.edit("TOK-TT14", req, agent),
+            "a positive maxRows must satisfy the re-run row-cap check on a suffix paginated " +
+            "only via extraProperties");
+         verify(editSvc).applyOnRuntime(eq("TOK-TT14"), eq(agent), any());
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+   }
+
    // ---------------------------------------------------------------------------
    // add_table with queryParams — naming for addQueryParamsTable()
    // ---------------------------------------------------------------------------
@@ -4024,6 +4238,395 @@ class WorksheetAgentControllerTest {
          ex.getMessage());
       verifyNoInteractions(dataSourceService);
       verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addQueryParamsTableRejectsQueryParamsTogetherWithParameters() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addQueryParamsTableRequestWithConflictingField("t1", "MyDatasource",
+         Map.of("entitySet", "Orders"), Map.of("id", "123"), null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-QP7", req, agent));
+      assertTrue(ex.getMessage().contains("queryParams together with parameters"),
+         ex.getMessage());
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addQueryParamsTableRejectsQueryParamsTogetherWithLookup() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addQueryParamsTableRequestWithConflictingField("t1", "MyDatasource",
+         Map.of("entitySet", "Orders"), null, List.of("Issue Event"), null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-QP8", req, agent));
+      assertTrue(ex.getMessage().contains("queryParams together with lookup"),
+         ex.getMessage());
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addQueryParamsTableRejectsQueryParamsTogetherWithCustomLookups() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addQueryParamsTableRequestWithConflictingField("t1", "MyDatasource",
+         Map.of("entitySet", "Orders"), null, null,
+         List.of(Map.of("url", "/v1/events", "jsonPath", "$.data", "key", "id")));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-QP9", req, agent));
+      assertTrue(ex.getMessage().contains("queryParams together with customLookups"),
+         ex.getMessage());
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addTableRejectsExtraPropertiesTogetherWithQueryParams() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      EditRequest req = addQueryParamsTableRequestWithExtraProperties(
+         "t1", "OData/Northwind", Map.of("entitySet", "Orders"), Map.of("jsonPath", "$.items"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-EP1", req, agent));
+      assertTrue(ex.getMessage().contains("extraProperties"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("queryParams"), ex.getMessage());
+      verifyNoInteractions(dataSourceService, editSvc, xrepository);
+   }
+
+   @Test
+   void addTableRejectsExtraPropertiesWithoutEndpointOrSuffix() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      EditRequest req = addTableRequestWithBareExtraProperties(
+         "t1", "OData/Northwind", Map.of("jsonPath", "$.items"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-EP2", req, agent));
+      assertTrue(ex.getMessage().contains("extraProperties"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("endpoint"), ex.getMessage());
+      verifyNoInteractions(dataSourceService, editSvc, xrepository);
+   }
+
+   @Test
+   void addTabularTableRejectsExtraPropertiesContainingEndpointKey() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      EditRequest req = addTabularTableRequestWithExtraProperties(
+         "t1", "MyDatasource", "Comments", null,
+         Map.of("endpoint", "Issues"), null);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         PairingException ex = assertThrows(PairingException.class,
+            () -> ctrl.edit("TOK-EP3", req, agent));
+         assertTrue(ex.getMessage().contains("endpoint"), ex.getMessage());
+         verifyNoInteractions(editSvc);
+      }
+   }
+
+   @Test
+   void addTabularTableRejectsExtraPropertiesContainingSuffixKey() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeCustomRestQuery query = new FakeCustomRestQuery();
+
+      EditRequest req = addTabularTableRequestWithExtraProperties(
+         "t1", "MyDatasource", null, "/v1/widgets",
+         Map.of("suffix", "/v1/other"), null);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         PairingException ex = assertThrows(PairingException.class,
+            () -> ctrl.edit("TOK-EP4", req, agent));
+         assertTrue(ex.getMessage().contains("suffix"), ex.getMessage());
+         verifyNoInteractions(editSvc);
+      }
+   }
+
+   /**
+    * Proves extraProperties actually reaches TabularQueryContractSupport.applyQueryContract
+    * through addTabularTable's endpoint branch. TabularSchemaExtractor.extract resolves
+    * connector labels through a Spring-bean Config.getConfig(), not registered in this class's
+    * minimal test context -- wraps the real installed ApplicationContext with a delegating spy
+    * for this test's duration only, matching addQueryParamsTableThreadsQueryParamsIntoTheSharedHelper's
+    * own established workaround (restored in every case, including failure).
+    */
+   @Test
+   void addTabularTableThreadsExtraPropertiesIntoTheSharedHelperViaEndpoint() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeNamedConnector");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      EditRequest req = addTabularTableRequestWithExtraProperties(
+         "t1", "MyDatasource", "Comments", null,
+         Map.of("jsonPath", "$.items[*]"), null);
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         assertDoesNotThrow(() -> ctrl.edit("TOK-EP5", req, agent));
+         assertEquals("$.items[*]", query.getJsonPath());
+         verify(editSvc).applyOnRuntime(eq("TOK-EP5"), eq(agent), any());
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+   }
+
+   /** Same as the endpoint-form test above, but through the suffix (generic/custom) branch. */
+   @Test
+   void addTabularTableThreadsExtraPropertiesIntoTheSharedHelperViaSuffix() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeCustomRest");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeCustomRestQuery query = new FakeCustomRestQuery();
+
+      EditRequest req = addTabularTableRequestWithExtraProperties(
+         "t1", "MyDatasource", null, "/v1/widgets",
+         Map.of("jsonPath", "$.data[*]"), null);
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         assertDoesNotThrow(() -> ctrl.edit("TOK-EP6", req, agent));
+         assertEquals("$.data[*]", query.getJsonPath());
+         verify(editSvc).applyOnRuntime(eq("TOK-EP6"), eq(agent), any());
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+   }
+
+   /** Proves extraProperties genuinely reuses applyQueryContract's own validation, not a no-op. */
+   @Test
+   void addTabularTableRejectsAnUnknownExtraPropertiesKey() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeCustomRest");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeCustomRestQuery query = new FakeCustomRestQuery();
+
+      EditRequest req = addTabularTableRequestWithExtraProperties(
+         "t1", "MyDatasource", null, "/v1/widgets",
+         Map.of("notARealProperty", "x"), null);
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> ctrl.edit("TOK-EP7", req, agent));
+         assertTrue(ex.getMessage().contains("notARealProperty"), ex.getMessage());
+         verifyNoInteractions(editSvc);
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+   }
+
+   /**
+    * Regression for the final whole-branch review's Important finding 2: the endpoint/suffix
+    * "returned no columns" message discarded {@code applyQueryContract}'s own applied-properties
+    * summary, unlike {@code addQueryParamsTable}'s equivalent message (which reports {@code
+    * "Properties sent: " + applied}). {@code FakeNamedConnectorQuery.loadOutputColumns} is
+    * overridden to produce zero output columns whenever no response shape is staged (see its own
+    * doc), so routing this through a REAL {@code editService.applyOnRuntime} answer (rather than
+    * the unstubbed mock the other extraProperties tests use, which never invokes its function
+    * argument at all) reaches the empty-column branch with {@code jsonPath} genuinely applied.
+    */
+   @Test
+   void addTabularTableNoColumnsErrorIncludesAppliedExtraProperties() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeNamedConnector");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      EditRequest req = addTabularTableRequestWithExtraProperties(
+         "t1", "MyDatasource", "Comments", null,
+         Map.of("jsonPath", "$.items[*]"), null);
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editSvc.applyOnRuntime(eq("TOK-EP8"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         PairingException ex = assertThrows(PairingException.class,
+            () -> ctrl.edit("TOK-EP8", req, agent));
+         assertTrue(ex.getMessage().contains("returned no columns"), ex.getMessage());
+         assertTrue(ex.getMessage().contains("URL suffix sent:"), ex.getMessage());
+         assertTrue(ex.getMessage().contains("Extra properties sent:"), ex.getMessage());
+         assertTrue(ex.getMessage().contains("jsonPath"), ex.getMessage());
+         assertTrue(ex.getMessage().contains("$.items[*]"), ex.getMessage());
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
    }
 
    @Test

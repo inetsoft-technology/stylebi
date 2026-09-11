@@ -115,6 +115,77 @@ class ProviderChangePlanServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // duplicate verb (bug 76602)
+   // -------------------------------------------------------------------------
+
+   @Test void resolveDuplicateAuthenticationAutoGeneratesCopyName() throws Exception {
+      stubProviderList(authenticationProviderService, List.of("p1"));
+      when(authenticationProviderService.getAuthenticationProvider("p1")).thenReturn(fileModel("p1"));
+
+      ResolvedPlan plan = service.resolve(request("dup", List.of(duplicateAuth("p1", null))), user);
+
+      PlanChange change = plan.changes().get(0);
+      assertNull(change.currentValue());
+      assertTrue(change.proposedValue().contains("name=Copy of p1;"));
+   }
+
+   @Test void resolveDuplicateAuthenticationWithExplicitNewNameUsesIt() throws Exception {
+      stubProviderList(authenticationProviderService, List.of("p1"));
+      when(authenticationProviderService.getAuthenticationProvider("p1")).thenReturn(fileModel("p1"));
+
+      ResolvedPlan plan = service.resolve(request("dup", List.of(duplicateAuth("p1", "p1-clone"))), user);
+
+      assertTrue(plan.changes().get(0).proposedValue().contains("name=p1-clone;"));
+   }
+
+   @Test void resolveDuplicateAuthenticationExplicitNewNameCollidesThrows() {
+      stubProviderList(authenticationProviderService, List.of("p1", "p2"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("dup", List.of(duplicateAuth("p1", "p2"))), user));
+      assertTrue(ex.getMessage().contains("newName"));
+   }
+
+   @Test void resolveDuplicateAuthenticationSourceNotFoundThrows() {
+      stubProviderList(authenticationProviderService, List.of());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("dup", List.of(duplicateAuth("missing", null))), user));
+      assertTrue(ex.getMessage().contains("not found"));
+   }
+
+   @Test void resolveDuplicateRejectsProviderType() {
+      stubProviderList(authenticationProviderService, List.of("p1"));
+      ProviderChangeRequest change = duplicateAuth("p1", null);
+      change.setProviderType("FILE");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("dup", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("providerType"));
+   }
+
+   @Test void resolveDuplicateRejectsSpec() {
+      stubProviderList(authenticationProviderService, List.of("p1"));
+      ProviderChangeRequest change = duplicateAuth("p1", null);
+      change.setSpec(ldapSpec());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("dup", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("spec"));
+   }
+
+   @Test void resolveDuplicateAuthorizationAlsoSupported() throws Exception {
+      stubProviderList(authorizationProviderService, List.of("p1"));
+      when(authorizationProviderService.getAuthorizationProvider("p1")).thenReturn(authzFileModel("p1"));
+      ProviderChangeRequest change = duplicateAuth("p1", null);
+      change.setChain("authorization");
+
+      ResolvedPlan plan = service.resolve(request("dup", List.of(change)), user);
+
+      assertTrue(plan.changes().get(0).proposedValue().contains("name=Copy of p1;"));
+   }
+
+   // -------------------------------------------------------------------------
    // providerType/chain cross-validation (section 11)
    // -------------------------------------------------------------------------
 
@@ -572,6 +643,15 @@ class ProviderChangePlanServiceTest {
       change.setChain(chain.label());
       change.setName(name);
       change.setProviderType("FILE");
+      return change;
+   }
+
+   private static ProviderChangeRequest duplicateAuth(String name, String newName) {
+      ProviderChangeRequest change = new ProviderChangeRequest();
+      change.setVerb("duplicate");
+      change.setChain("authentication");
+      change.setName(name);
+      change.setNewName(newName);
       return change;
    }
 

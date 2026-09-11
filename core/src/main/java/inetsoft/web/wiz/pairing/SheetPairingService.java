@@ -135,13 +135,18 @@ public class SheetPairingService {
     * editor that produced it, so the browser can show a real error — rather than deferring the
     * failure to join time, where it would surface to an agent with no way back to the user.
     *
-    * @throws PairingException if editorContext names an assembly (or, for {@code calcField}, a
-    *                          table+field) that the runtime does not have.
+    * @throws PairingException if {@code runtimeId} is blank, or editorContext names an assembly
+    *                          (or, for {@code calcField}, a table+field) that the runtime does
+    *                          not have.
     */
    public String mint(String runtimeId, String ownerIdentity, String socketSessionId,
                       String socketUserName, SheetType sheetType, EditorContext editorContext)
       throws PairingException
    {
+      if(isBlank(runtimeId)) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT, "runtimeId is required");
+      }
+
       if(editorContext != null) {
          validateEditorContext(sheetType, runtimeId, ownerIdentity, editorContext);
       }

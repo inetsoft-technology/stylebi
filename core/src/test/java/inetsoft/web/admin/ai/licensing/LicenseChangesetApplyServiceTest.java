@@ -27,6 +27,7 @@ import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
+import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.general.LicenseKeySettingsService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -83,6 +84,16 @@ class LicenseChangesetApplyServiceTest {
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
       tool.when(() -> Tool.encryptPassword(anyString()))
          .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+      tool.when(() -> Tool.decryptPassword(anyString()))
+         .thenAnswer(inv -> {
+            String s = inv.getArgument(0);
+
+            if(!s.startsWith("TKN:")) {
+               throw new IllegalArgumentException("not a token");
+            }
+
+            return s.substring(4);
+         });
 
       lenient().doAnswer(inv -> {
          String key = inv.getArgument(0);
@@ -131,6 +142,14 @@ class LicenseChangesetApplyServiceTest {
       return req;
    }
 
+   /**
+    * Defaults taskToken to a token issued for exactly (hash, task) -- correct for every existing
+    * caller, whose hash is either the real freshly-resolved plan hash (the normal case, where
+    * verification must succeed) or a deliberately wrong one used to exercise the planHash-mismatch
+    * gate, which is checked and throws before taskToken is ever verified (see
+    * LicenseChangesetApplyService.apply's ordering), so an issued-but-irrelevant token there is
+    * harmless.
+    */
    private static LicenseApplyRequest applyRequest(String task, String hash, String reviewOutcome,
                                                     Boolean acknowledgeDelicensing,
                                                     LicenseChangeRequest... changes)
@@ -139,6 +158,7 @@ class LicenseChangesetApplyServiceTest {
       req.setTask(task);
       req.setChanges(Arrays.asList(changes));
       req.setPlanHash(hash);
+      req.setTaskToken(TaskAuditToken.issue(hash, task));
       req.setReviewOutcome(reviewOutcome);
       req.setAcknowledgeDelicensing(acknowledgeDelicensing);
       return req;
@@ -182,6 +202,66 @@ class LicenseChangesetApplyServiceTest {
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> service.apply(req, user));
       assertTrue(ex.getMessage().contains("already installed"));
+   }
+
+   // -------------------------------------------------------------------------
+   // taskToken audit-pinning (bug #76588) -- mirrors AdminChangesetApplyServiceTest's own
+   // auditsThePreviewedTaskEvenWhenApplyTaskDiffers/rejectsAMissingTaskToken/
+   // rejectsATaskTokenIssuedForADifferentPlan tests for the Properties area's identical defect.
+   // -------------------------------------------------------------------------
+
+   @Test void auditsThePreviewedTaskEvenWhenApplyTaskDiffers() throws Exception {
+      when(licenseManager.parseLicense("K1")).thenReturn(valid("K1"));
+      String previewTask = "install trial key for Q3 pilot";
+      String hash = planService.resolve(request(previewTask, List.of(add("K1")))).planHash();
+      String taskToken = TaskAuditToken.issue(hash, previewTask);
+
+      LicenseApplyRequest req = applyRequest(
+         "unrelated substituted text", hash, "looks good", null, add("K1"));
+      req.setTaskToken(taskToken);
+
+      tool.when(Tool::getHost).thenReturn("test-host");
+      Audit auditInstance = mock(Audit.class);
+      LicenseApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockStatic(Audit.class)) {
+         audit.when(Audit::getInstance).thenReturn(auditInstance);
+         result = service.apply(req, user);
+      }
+
+      // The core regression proof: apply still succeeds -- task text diverging between preview
+      // and apply must never be treated as drift (only the plan's `changes` are hash-protected).
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(auditInstance).auditAdminChange(captor.capture(), eq(user));
+      assertEquals(previewTask, captor.getValue().getTaskDescription());
+   }
+
+   @Test void rejectsAMissingTaskToken() {
+      when(licenseManager.parseLicense("K1")).thenReturn(valid("K1"));
+      String hash = planService.resolve(request("task", List.of(add("K1")))).planHash();
+      LicenseApplyRequest req = applyRequest("task", hash, "looks good", null, add("K1"));
+      req.setTaskToken(null);
+
+      AdminChangesetApplyService.TaskTokenMismatchException ex = assertThrows(
+         AdminChangesetApplyService.TaskTokenMismatchException.class,
+         () -> service.apply(req, user));
+      assertTrue(ex.getMessage().startsWith("taskToken:"));
+      assertNotNull(ex.current());
+   }
+
+   @Test void rejectsATaskTokenIssuedForADifferentPlan() {
+      when(licenseManager.parseLicense("K1")).thenReturn(valid("K1"));
+      when(licenseManager.parseLicense("K2")).thenReturn(valid("K2"));
+      String hash = planService.resolve(request("task", List.of(add("K1")))).planHash();
+      String otherHash = planService.resolve(request("other task", List.of(add("K2")))).planHash();
+
+      LicenseApplyRequest req = applyRequest("task", hash, "looks good", null, add("K1"));
+      req.setTaskToken(TaskAuditToken.issue(otherHash, "other task"));
+
+      assertThrows(AdminChangesetApplyService.TaskTokenMismatchException.class,
+         () -> service.apply(req, user));
    }
 
    // -------------------------------------------------------------------------

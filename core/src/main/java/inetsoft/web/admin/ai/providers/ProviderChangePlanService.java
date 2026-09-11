@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.providers;
 
+import inetsoft.report.internal.Util;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
@@ -106,6 +107,23 @@ public class ProviderChangePlanService {
             String providerType = requireNonBlank(label + ".providerType", change.getProviderType());
             changes.add(resolveCreate(label, chain, name, providerType, change.getSpec(),
                                       currentList, seenKeys));
+            continue;
+         }
+
+         if(ProviderChangeRequest.VERB_DUPLICATE.equals(verb)) {
+            if(change.getProviderType() != null) {
+               throw new IllegalArgumentException(
+                  label + ".providerType: not used for verb=duplicate; a duplicate keeps the " +
+                  "source provider's own type");
+            }
+            if(change.getSpec() != null) {
+               throw new IllegalArgumentException(
+                  label + ".spec: not used for verb=duplicate; a duplicate keeps the source " +
+                  "provider's own configuration -- use newName to control only its name");
+            }
+
+            changes.add(resolveDuplicate(label, chain, name, change.getNewName(), currentList,
+                                         seenKeys));
             continue;
          }
 
@@ -235,6 +253,82 @@ public class ProviderChangePlanService {
             "which AuthenticationProviderService.getProviderFromModel itself does not enforce -- " +
             "this area's own service does, 03-reconcile.md Addition 2)");
       }
+   }
+
+   // ---------------------------------------------------------------- duplicate
+
+   /**
+    * Resolves a {@code duplicate} entry: the source must exist, {@code newName} (if given) must not
+    * collide, and the proposed value is the source's own projection with its name swapped to the
+    * copy's name -- reusing {@link ProviderProjection#projectAuthenticationProvider}/
+    * {@link ProviderProjection#projectAuthorizationProvider} rather than a bespoke projection, since
+    * a duplicate is otherwise byte-for-byte the source (bug 76602). Unlike {@code create}, no
+    * provider-type restriction applies here (03-fix.md): the real EM "Duplicate" button is
+    * unconditional, not gated by type, and duplicating an already-existing, already-licensed
+    * provider does not reintroduce the risk {@link #resolveCreate}'s DATABASE/CUSTOM exclusion
+    * guards against (there is no fresh, unvetted instance being spun up).
+    */
+   private PlanChange resolveDuplicate(String label, ProviderChain chain, String name, String newName,
+                                       List<SecurityProviderStatus> currentList, Set<String> seenKeys)
+      throws Exception
+   {
+      String key = key(chain, name);
+      requireUnseen(label, key, seenKeys);
+      requireNameExists(label, currentList, name);
+
+      String actualNewName = resolveDuplicateName(label, newName, name, currentList);
+
+      if(chain == ProviderChain.AUTHENTICATION) {
+         AuthenticationProviderModel source = authenticationProviderService.getAuthenticationProvider(name);
+         AuthenticationProviderModel duplicated =
+            ((ImmutableAuthenticationProviderModel) source).withProviderName(actualNewName);
+         String proposed = ProviderProjection.projectAuthenticationProvider(duplicated);
+         return new PlanChange(key, NOT_ORG_SCOPED, null, proposed, AdminChangeRecord.RISK_HIGH,
+                               AdminChangeRecord.SCOPE_STORAGE, true,
+                               "duplicate authentication provider " + name + " as " + actualNewName);
+      }
+
+      AuthorizationProviderModel source = authorizationProviderService.getAuthorizationProvider(name);
+      AuthorizationProviderModel duplicated =
+         ((ImmutableAuthorizationProviderModel) source).withProviderName(actualNewName);
+      String proposed = ProviderProjection.projectAuthorizationProvider(duplicated);
+      return new PlanChange(key, NOT_ORG_SCOPED, null, proposed, AdminChangeRecord.RISK_HIGH,
+                            AdminChangeRecord.SCOPE_STORAGE, true,
+                            "duplicate authorization provider " + name + " as " + actualNewName);
+   }
+
+   /**
+    * Computes the copy's actual name: an explicit, non-colliding {@code newName} if given, otherwise
+    * the same {@code Util.getCopyName}/{@code getNextCopyName} collision loop
+    * {@code AuthenticationProviderController#copyAuthenticationProvider}/
+    * {@code AuthorizationProviderController#copyAuthorizationProviderCache} already use (bug 76602 --
+    * called through, not reimplemented independently). Package-visible and {@code static} so
+    * {@link ProviderChangesetApplyService} can recompute this SAME deterministic result fresh at
+    * apply time, against the live list read at that moment, rather than trusting a value captured at
+    * preview time (matching every other verb's "resolved fresh at apply" discipline in this area).
+    */
+   static String resolveDuplicateName(String label, String requestedNewName, String sourceName,
+                                      List<SecurityProviderStatus> currentList)
+   {
+      if(requestedNewName != null && !requestedNewName.trim().isEmpty()) {
+         String trimmed = requestedNewName.trim();
+
+         if(existsInList(currentList, trimmed)) {
+            throw new IllegalArgumentException(
+               label + ".newName: \"" + trimmed + "\" already exists in this chain; choose a " +
+               "different name or omit newName to auto-generate one");
+         }
+
+         return trimmed;
+      }
+
+      String copyName = Util.getCopyName(sourceName);
+
+      while(existsInList(currentList, copyName)) {
+         copyName = Util.getNextCopyName(sourceName, copyName);
+      }
+
+      return copyName;
    }
 
    // ---------------------------------------------------------------- delete
@@ -450,13 +544,16 @@ public class ProviderChangePlanService {
    }
 
    static String requireVerb(String label, String verb) {
-      if(ProviderChangeRequest.VERB_CREATE.equals(verb) || ProviderChangeRequest.VERB_DELETE.equals(verb)) {
+      if(ProviderChangeRequest.VERB_CREATE.equals(verb) || ProviderChangeRequest.VERB_DELETE.equals(verb) ||
+         ProviderChangeRequest.VERB_DUPLICATE.equals(verb))
+      {
          return verb;
       }
 
       throw new IllegalArgumentException(
-         label + ".verb: must be \"" + ProviderChangeRequest.VERB_CREATE + "\" or \"" +
-         ProviderChangeRequest.VERB_DELETE + "\", got " + String.valueOf(verb));
+         label + ".verb: must be \"" + ProviderChangeRequest.VERB_CREATE + "\", \"" +
+         ProviderChangeRequest.VERB_DELETE + "\", or \"" + ProviderChangeRequest.VERB_DUPLICATE +
+         "\", got " + String.valueOf(verb));
    }
 
    /** Deliberately case-insensitive/trimmed exact-label match, no abbreviation aliasing -- "auth" is

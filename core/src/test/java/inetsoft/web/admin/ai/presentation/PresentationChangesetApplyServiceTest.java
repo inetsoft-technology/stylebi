@@ -21,6 +21,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Tool;
+import inetsoft.util.audit.AdminChangeRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.presentation.model.LookAndFeelSettingsModel;
@@ -29,6 +31,7 @@ import inetsoft.web.admin.presentation.model.PresentationFormatsSettingsModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Answers;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -77,6 +80,16 @@ class PresentationChangesetApplyServiceTest {
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
       tool.when(() -> Tool.encryptPassword(anyString()))
          .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+      tool.when(() -> Tool.decryptPassword(anyString()))
+         .thenAnswer(inv -> {
+            String s = inv.getArgument(0);
+
+            if(!s.startsWith("TKN:")) {
+               throw new IllegalArgumentException("not a token");
+            }
+
+            return s.substring(4);
+         });
 
       lenient().when(access.read(any(), any(), anyBoolean())).thenAnswer(inv -> {
          PresentationSubModel subModel = inv.getArgument(0);
@@ -133,9 +146,17 @@ class PresentationChangesetApplyServiceTest {
       apply.setTask(task);
       apply.setChanges(List.of(changes));
       apply.setPlanHash(plan.planHash());
+      apply.setTaskToken(plan.taskToken());
       apply.setReviewOutcome(reviewOutcome);
       apply.setAcknowledgeIrreversibleUpdate(acknowledgeIrreversibleUpdate);
       return apply;
+   }
+
+   private static MockedStatic<Audit> mockAudit() {
+      MockedStatic<Audit> audit = mockStatic(Audit.class);
+      Audit instance = mock(Audit.class);
+      audit.when(Audit::getInstance).thenReturn(instance);
+      return audit;
    }
 
    private static PresentationFormatsSettingsModel formats(String dateFormat) {
@@ -187,6 +208,11 @@ class PresentationChangesetApplyServiceTest {
       // second place from PresentationChangePlanService.resolve() where the same "task must not
       // affect the hash" mistake could be reintroduced independently -- this test guards that
       // second call site specifically, not just the plan-service-level hash contract.
+      //
+      // Post-fix behavior: the apply request's own (paraphrased) task field is purely
+      // informational and must not block apply -- see applyAuditsThePreviewedTaskEvenWhenApply-
+      // TaskDiffers below for the companion assertion that the AUDIT RECORD still carries the
+      // originally-previewed narrative, not this paraphrase.
       seed(PresentationSubModel.FORMATS, false, formats("MM/dd/yyyy"));
       PresentationChangeRequest changeReq =
          change("formats", "organization", obj().put("dateFormat", "yyyy-MM-dd"));
@@ -200,11 +226,48 @@ class PresentationChangesetApplyServiceTest {
       apply.setTask("Change the date format to ISO 8601");
       apply.setChanges(List.of(changeReq));
       apply.setPlanHash(plan.planHash());
+      apply.setTaskToken(plan.taskToken());
       apply.setReviewOutcome("looks good");
 
       var result = service.apply(apply, user);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+   }
+
+   @Test
+   void applyAuditsThePreviewedTaskEvenWhenApplyTaskDiffers() throws Exception {
+      // scope=global (not organization), so writeAudit's setOrganizationId branch never calls the
+      // real, unmocked OrganizationManager.getInstance() -- the point of this test is the
+      // taskToken/audit-narrative wiring, not the org-scope branch.
+      seed(PresentationSubModel.FORMATS, true, formats("MM/dd/yyyy"));
+      PresentationChangeRequest changeReq =
+         change("formats", "global", obj().put("dateFormat", "yyyy-MM-dd"));
+
+      PresentationChangePlanRequest preview = new PresentationChangePlanRequest();
+      preview.setTask("Update date format to ISO");
+      preview.setChanges(List.of(changeReq));
+      var plan = planService.resolve(preview, user);
+
+      PresentationApplyRequest apply = new PresentationApplyRequest();
+      apply.setTask("Change the date format to ISO 8601");
+      apply.setChanges(List.of(changeReq));
+      apply.setPlanHash(plan.planHash());
+      apply.setTaskToken(plan.taskToken());
+      apply.setReviewOutcome("looks good");
+
+      Audit auditInstance = mock(Audit.class);
+      tool.when(Tool::getHost).thenReturn("test-host");
+
+      try(MockedStatic<Audit> audit = mockStatic(Audit.class)) {
+         audit.when(Audit::getInstance).thenReturn(auditInstance);
+         service.apply(apply, user);
+      }
+
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(auditInstance).auditAdminChange(captor.capture(), eq(user));
+      // The core regression proof: the audit record carries the PREVIEWED narrative embedded in
+      // the taskToken, not the apply request's own (paraphrased) task field.
+      assertEquals("Update date format to ISO", captor.getValue().getTaskDescription());
    }
 
    @Test
@@ -216,6 +279,48 @@ class PresentationChangesetApplyServiceTest {
 
       assertThrows(AdminChangesetApplyService.PlanHashMismatchException.class,
                   () -> service.apply(req, user));
+   }
+
+   @Test
+   void conflictPathNeverHandsBackAUsableTaskToken() throws Exception {
+      seed(PresentationSubModel.FORMATS, false, formats("MM/dd/yyyy"));
+      PresentationApplyRequest req = applyRequest("t", "ok", null,
+         change("formats", "organization", obj().put("dateFormat", "yyyy-MM-dd")));
+      req.setPlanHash("not-the-real-hash");
+
+      AdminChangesetApplyService.PlanHashMismatchException ex = assertThrows(
+         AdminChangesetApplyService.PlanHashMismatchException.class,
+         () -> service.apply(req, user));
+
+      assertNull(ex.current().taskToken(),
+         "a 409 conflict must never hand back a usable taskToken");
+   }
+
+   @Test
+   void applyRefusesWithoutATaskToken() throws Exception {
+      seed(PresentationSubModel.FORMATS, false, formats("MM/dd/yyyy"));
+      PresentationApplyRequest req = applyRequest("t", "ok", null,
+         change("formats", "organization", obj().put("dateFormat", "yyyy-MM-dd")));
+      req.setTaskToken(null);
+
+      AdminChangesetApplyService.TaskTokenMismatchException ex = assertThrows(
+         AdminChangesetApplyService.TaskTokenMismatchException.class,
+         () -> service.apply(req, user));
+      assertTrue(ex.getMessage().startsWith("taskToken:"));
+      assertNotNull(ex.current());
+   }
+
+   @Test
+   void applyRefusesATaskTokenIssuedForADifferentPlan() throws Exception {
+      seed(PresentationSubModel.FORMATS, false, formats("MM/dd/yyyy"));
+      PresentationApplyRequest req = applyRequest("t", "ok", null,
+         change("formats", "organization", obj().put("dateFormat", "yyyy-MM-dd")));
+      PresentationApplyRequest otherPlanReq = applyRequest("t", "ok", null,
+         change("formats", "organization", obj().put("dateFormat", "MM-dd-yyyy")));
+      req.setTaskToken(otherPlanReq.getTaskToken());
+
+      assertThrows(AdminChangesetApplyService.TaskTokenMismatchException.class,
+         () -> service.apply(req, user));
    }
 
    // ---------------------------------------------------------------- storage-scope acknowledgement gate

@@ -84,6 +84,8 @@ import static org.mockito.Mockito.when;
  *                            naming a column the table does not have
  * [Kinds: exhaustive]        every ScriptTarget.Kind wire name is in RECOGNIZED_KINDS -- catches
  *                            a new Kind added there but never wired into this hand-maintained list
+ * [Mint: null runtimeId]     mint refuses a null runtimeId instead of storing an unresolvable grant
+ * [Mint: blank runtimeId]    mint refuses a blank runtimeId instead of storing an unresolvable grant
  */
 /*
  * @WizAgentTestSupport (which itself carries @Tag("core")) replaces a bare @Tag: the
@@ -159,6 +161,30 @@ class SheetPairingServiceTest {
       PairingGrant first = svc.consume(code);
       assertNotNull(first);
       assertNull(svc.consume(code), "second consume must return null (single-use)");
+   }
+
+   /**
+    * Regression for Redmine #76578: mintViaSocket had no null/blank guard on runtimeId, unlike
+    * its sibling STOMP handlers (followFocusViaSocket, retargetViaSocket, popFocusViaSocket) --
+    * a blank runtimeId was stored unchecked in a PairingGrant and echoed back unchanged at join
+    * time, producing a "successful" join response the plugin's own connect.ts then rejected as
+    * missing runtimeId. The guard lives here in mint() (not only in mintViaSocket) because the
+    * REST mint entry point (SheetPairingController#mint) calls this method directly too.
+    */
+   @Test
+   void mintRefusesANullRuntimeId() {
+      SheetPairingService svc = serviceAt(FIXED_NOW);
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint(null, "alice~;~org", "sock-1", null, SheetType.WORKSHEET, null));
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+   }
+
+   @Test
+   void mintRefusesABlankRuntimeId() {
+      SheetPairingService svc = serviceAt(FIXED_NOW);
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("   ", "alice~;~org", "sock-1", null, SheetType.WORKSHEET, null));
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
    }
 
    @Test

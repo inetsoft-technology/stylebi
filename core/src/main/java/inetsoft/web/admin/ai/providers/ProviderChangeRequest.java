@@ -31,6 +31,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class ProviderChangeRequest {
    public static final String VERB_CREATE = "create";
    public static final String VERB_DELETE = "delete";
+   public static final String VERB_DUPLICATE = "duplicate";
 
    public String getVerb() { return verb; }
    public void setVerb(String v) { this.verb = v; }
@@ -38,23 +39,33 @@ public class ProviderChangeRequest {
    public String getChain() { return chain; }
    public void setChain(String v) { this.chain = v; }
 
-   /** Required for both verbs: for {@code create}, the id the new provider will have; for
-    * {@code delete}, the existing provider's id. */
+   /** Required for all three verbs: for {@code create}/{@code duplicate}, the id the new provider
+    * will have (for {@code duplicate}, it is the id of the SOURCE being copied, not the copy --
+    * see {@link #getNewName()}); for {@code delete}, the existing provider's id. */
    public String getName() { return name; }
    public void setName(String v) { this.name = v; }
 
    /** Required for {@code create} ({@code "FILE"} or, authentication-chain only, {@code "LDAP"});
-    * rejected for {@code delete} (01-spec.md section 11). */
+    * rejected for {@code delete}/{@code duplicate} (01-spec.md section 11 -- a duplicate always
+    * keeps the source provider's own type, matching the real EM "Duplicate" action). */
    public String getProviderType() { return providerType; }
    public void setProviderType(String v) { this.providerType = v; }
 
-   /** Required for {@code providerType: "LDAP"}; rejected otherwise, including for {@code delete}. */
+   /** Required for {@code providerType: "LDAP"}; rejected otherwise, including for {@code delete}/
+    * {@code duplicate}. */
    public ProviderLdapSpec getSpec() { return spec; }
    public void setSpec(ProviderLdapSpec v) { this.spec = v; }
+
+   /** Optional, {@code duplicate} only: the copy's name. When omitted, the copy's name is
+    * auto-generated the same way the real EM "Duplicate" action does ({@code Util.getCopyName}/
+    * {@code getNextCopyName}, bug 76602). Rejected for every other verb. */
+   public String getNewName() { return newName; }
+   public void setNewName(String v) { this.newName = v; }
 
    private String verb;
    private String chain;
    private String name;
    private String providerType;
    private ProviderLdapSpec spec;
+   private String newName;
 }

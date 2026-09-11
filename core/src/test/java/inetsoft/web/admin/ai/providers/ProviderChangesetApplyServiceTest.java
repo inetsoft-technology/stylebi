@@ -164,6 +164,57 @@ class ProviderChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // duplicate verb (bug 76602)
+   // -------------------------------------------------------------------------
+
+   @Test void appliesADuplicateAuthenticationProviderAutoNamedAndReportsApplied() throws Exception {
+      seedHealthyAuthentication("p1");
+
+      var result = service.apply(applyRequest("duplicate p1", duplicateAuth("p1", null)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertTrue(authChainNames.contains("p1"));
+      assertTrue(authChainNames.contains("Copy of p1"));
+      assertEquals("Copy of p1", authModels.get("Copy of p1").providerName());
+   }
+
+   @Test void appliesADuplicateAuthenticationProviderWithExplicitNewName() throws Exception {
+      seedHealthyAuthentication("p1");
+
+      var result = service.apply(
+         applyRequest("duplicate p1", duplicateAuth("p1", "p1-clone")), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertTrue(authChainNames.contains("p1-clone"));
+   }
+
+   @Test void appliesADuplicateAuthorizationProvider() throws Exception {
+      authzChainNames.add("z1");
+      authzModels.put("z1", AuthorizationProviderModel.builder()
+         .providerName("z1").providerType(SecurityProviderType.FILE).build());
+
+      var result = service.apply(applyRequest("duplicate z1", duplicateAuthz("z1", null)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertTrue(authzChainNames.contains("Copy of z1"));
+   }
+
+   @Test void rollbackOfADuplicateRemovesTheCopyNotTheSource() throws Exception {
+      seedHealthyAuthentication("p1");
+      // Second change's own add succeeds but its post-add verification throws -- same genuine
+      // unknown-state shape the other rollback tests in this file use to force a rollback.
+      doThrow(new RuntimeException("boom"))
+         .when(authenticationProviderService).getAuthenticationProvider(eq("boom"));
+
+      var result = service.apply(applyRequest("duplicate p1 then create boom",
+         duplicateAuth("p1", null), createFile(ProviderChain.AUTHENTICATION, "boom")), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertTrue(authChainNames.contains("p1")); // source untouched
+      assertFalse(authChainNames.contains("Copy of p1")); // copy rolled back
+   }
+
+   // -------------------------------------------------------------------------
    // throw mid-apply -> rollback / rollback-failed (section 6, "fails by throwing")
    // -------------------------------------------------------------------------
 
@@ -611,6 +662,24 @@ class ProviderChangesetApplyServiceTest {
       change.setChain(chain.label());
       change.setName(name);
       change.setProviderType("FILE");
+      return change;
+   }
+
+   private static ProviderChangeRequest duplicateAuth(String name, String newName) {
+      ProviderChangeRequest change = new ProviderChangeRequest();
+      change.setVerb("duplicate");
+      change.setChain("authentication");
+      change.setName(name);
+      change.setNewName(newName);
+      return change;
+   }
+
+   private static ProviderChangeRequest duplicateAuthz(String name, String newName) {
+      ProviderChangeRequest change = new ProviderChangeRequest();
+      change.setVerb("duplicate");
+      change.setChain("authorization");
+      change.setName(name);
+      change.setNewName(newName);
       return change;
    }
 

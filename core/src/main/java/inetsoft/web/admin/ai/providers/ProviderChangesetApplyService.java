@@ -180,6 +180,19 @@ public class ProviderChangesetApplyService {
          return;
       }
 
+      if(ProviderChangeRequest.VERB_DUPLICATE.equals(original.getVerb())) {
+         if(chain == ProviderChain.AUTHENTICATION) {
+            applyDuplicateAuthentication(txId, task, key, name, original, backupRef, reviewOutcome,
+                                        user, results, undoable);
+         }
+         else {
+            applyDuplicateAuthorization(txId, task, key, name, original, backupRef, reviewOutcome,
+                                       user, results, undoable);
+         }
+
+         return;
+      }
+
       if(chain == ProviderChain.AUTHENTICATION) {
          applyDeleteAuthentication(txId, task, key, name, backupRef, reviewOutcome, user, results,
                                   undoable);
@@ -278,6 +291,150 @@ public class ProviderChangesetApplyService {
 
       if(verified) {
          undoable.add(Undo.createdAuthorization(key, name));
+      }
+   }
+
+   // ---------------------------------------------------------------- duplicate
+
+   /**
+    * Recomputes the copy's name fresh, against the live list read right now -- never trusts a name
+    * captured at preview time (same "resolved fresh" discipline {@link #applyDeleteAuthentication}'s
+    * javadoc documents for its own index). If the plan hash still matched (checked by {@link #apply}
+    * before this is ever called), the live list is unchanged since preview, so
+    * {@link ProviderChangePlanService#resolveDuplicateName} necessarily reproduces the identical
+    * name deterministically.
+    */
+   private void applyDuplicateAuthentication(String txId, String task, String key, String name,
+                                             ProviderChangeRequest original, String backupRef,
+                                             String reviewOutcome, Principal user,
+                                             List<ProviderApplyOutcome> results, List<Undo> undoable)
+      throws Exception
+   {
+      AuthenticationProviderModel source;
+
+      try {
+         source = authenticationProviderService.getAuthenticationProvider(name);
+      }
+      catch(Exception e) {
+         results.add(new ProviderApplyOutcome(key, null, null, AdminChangeRecord.STATUS_FAILED,
+            "source provider not found at apply time (concurrent change): " + messageOf(e), null));
+         writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
+                   null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+         return;
+      }
+
+      String newName;
+
+      try {
+         newName = ProviderChangePlanService.resolveDuplicateName("apply." + key,
+            original.getNewName(), name, authenticationProviderService.getProviderListModel().providers());
+      }
+      catch(IllegalArgumentException e) {
+         results.add(new ProviderApplyOutcome(key, null, null, AdminChangeRecord.STATUS_FAILED,
+                                              messageOf(e), null));
+         writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
+                   null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+         return;
+      }
+
+      AuthenticationProviderModel duplicated =
+         ((ImmutableAuthenticationProviderModel) source).withProviderName(newName);
+
+      try {
+         authenticationProviderService.addAuthenticationProvider(duplicated, newName, user);
+      }
+      catch(Exception e) {
+         // Same pre-mutation reasoning as applyCreateAuthentication's catch above.
+         results.add(new ProviderApplyOutcome(key, null, null, AdminChangeRecord.STATUS_FAILED,
+                                              messageOf(e), null));
+         writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
+                   null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+         return;
+      }
+
+      AuthenticationProviderModel after =
+         tryGet(() -> authenticationProviderService.getAuthenticationProvider(newName),
+               list -> indexOfName(list, newName) >= 0,
+               authenticationProviderService.getProviderListModel().providers());
+      boolean verified = after != null;
+      String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
+      String afterProjection = verified ? ProviderProjection.projectAuthenticationProvider(after) : null;
+      results.add(new ProviderApplyOutcome(key, null, afterProjection, status,
+                                           verified ? null : "duplicated provider not found after create",
+                                           null));
+      writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
+                null, afterProjection, status, backupRef, reviewOutcome, user);
+
+      // The duplicate's own rollback is identical to a plain create's (delete the new name) -- no
+      // new Undo.Kind needed.
+      if(verified) {
+         undoable.add(Undo.createdAuthentication(key, newName));
+      }
+   }
+
+   private void applyDuplicateAuthorization(String txId, String task, String key, String name,
+                                            ProviderChangeRequest original, String backupRef,
+                                            String reviewOutcome, Principal user,
+                                            List<ProviderApplyOutcome> results, List<Undo> undoable)
+      throws Exception
+   {
+      AuthorizationProviderModel source;
+
+      try {
+         source = authorizationProviderService.getAuthorizationProvider(name);
+      }
+      catch(Exception e) {
+         results.add(new ProviderApplyOutcome(key, null, null, AdminChangeRecord.STATUS_FAILED,
+            "source provider not found at apply time (concurrent change): " + messageOf(e), null));
+         writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
+                   null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+         return;
+      }
+
+      String newName;
+
+      try {
+         newName = ProviderChangePlanService.resolveDuplicateName("apply." + key,
+            original.getNewName(), name, authorizationProviderService.getProviderListModel().providers());
+      }
+      catch(IllegalArgumentException e) {
+         results.add(new ProviderApplyOutcome(key, null, null, AdminChangeRecord.STATUS_FAILED,
+                                              messageOf(e), null));
+         writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
+                   null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+         return;
+      }
+
+      AuthorizationProviderModel duplicated =
+         ((ImmutableAuthorizationProviderModel) source).withProviderName(newName);
+
+      try {
+         authorizationProviderService.addAuthorizationProvider(duplicated, newName, user);
+      }
+      catch(Exception e) {
+         // Same pre-mutation reasoning as applyCreateAuthorization's catch above.
+         results.add(new ProviderApplyOutcome(key, null, null, AdminChangeRecord.STATUS_FAILED,
+                                              messageOf(e), null));
+         writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
+                   null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+         return;
+      }
+
+      List<SecurityProviderStatus> afterList =
+         authorizationProviderService.getProviderListModel().providers();
+      boolean verified = indexOfName(afterList, newName) >= 0;
+      AuthorizationProviderModel after =
+         verified ? authorizationProviderService.getAuthorizationProvider(newName) : null;
+      String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
+      String afterProjection = verified ? ProviderProjection.projectAuthorizationProvider(after) : null;
+      results.add(new ProviderApplyOutcome(key, null, afterProjection, status,
+                                           verified ? null : "duplicated provider not found after create",
+                                           null));
+      writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
+                null, afterProjection, status, backupRef, reviewOutcome, user);
+
+      if(verified) {
+         undoable.add(Undo.createdAuthorization(key, newName));
       }
    }
 
@@ -625,7 +782,10 @@ public class ProviderChangesetApplyService {
       return present.test(list) ? getter.get() : null;
    }
 
-   private static int indexOfName(List<SecurityProviderStatus> list, String name) {
+   /** Package-visible (not {@code private}), so {@link AdminProviderController}'s new
+    * clear-provider-cache-by-name endpoints can reuse this exact name-to-index resolution rather
+    * than duplicating it (bug 76602 -- the diagnosis's own promotion candidate). */
+   static int indexOfName(List<SecurityProviderStatus> list, String name) {
       for(int i = 0; i < list.size(); i++) {
          if(list.get(i).name().equals(name)) {
             return i;

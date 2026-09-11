@@ -23,6 +23,8 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.VSBookmarkInfo;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HyperlinkDialogModel;
 import inetsoft.web.composer.model.vs.InputParameterDialogModel;
@@ -138,6 +140,11 @@ public class AssemblyHyperlinkService {
       // validation above exists to prevent, arrived at by another road.
       String assetId = "viewsheet".equals(type)
          ? resolveViewsheetTarget(link, sessionToken, user) : null;
+
+      // Also validated here, before the runtime is touched, and after assetId so it isn't
+      // resolved twice: a bookmark that HyperlinkDialogService.getHyperlink would otherwise
+      // silently drop (wrong linkType, or a name matching no VSBookmarkInfo) is refused instead.
+      requireValidBookmark(type, link, assetId, user);
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          Region target = region == null ? Region.whole() : region;
@@ -326,6 +333,53 @@ public class AssemblyHyperlinkService {
          "'s own scope. A link to a viewsheet that does not exist is accepted by the dialog and " +
          "then does nothing when clicked, so it is refused here instead. Pass 'assetLinkId' " +
          "directly if you already hold the asset identifier.");
+   }
+
+   /**
+    * {@code bookmark} is only ever wired into persistence for a {@code viewsheet}-type link
+    * ({@code HyperlinkDialogService.getHyperlink}'s bookmark block sits inside an
+    * {@code if(linkType == VIEWSHEET_LINK)}), and even there it silently no-ops -- no exception,
+    * no signal -- when the supplied name matches no {@link VSBookmarkInfo} for that viewsheet.
+    * Both are refused here instead, at the agent-facing layer, rather than in the shared
+    * {@code HyperlinkDialogService} the real Composer dialog also uses.
+    */
+   private static void requireValidBookmark(String type, Map<String, Object> link, String assetId,
+                                            Principal user)
+   {
+      String bookmark = str(link, "bookmark");
+
+      if(bookmark == null) {
+         return;
+      }
+
+      if(!"viewsheet".equals(type)) {
+         throw new IllegalArgumentException(
+            "'bookmark' only applies to a 'viewsheet' hyperlink, got linkType '" + type + "'. " +
+            "It is silently ignored at persist time for any other type, so it is refused here " +
+            "instead.");
+      }
+
+      IdentityID currentUser = IdentityID.getIdentityIDFromKey(user.getName());
+      VSBookmarkInfo[] bookmarks = VSUtil.getBookmarks(assetId, currentUser);
+
+      // Mirrors HyperlinkDialogService.getHyperlink's own parsing exactly, so a name this
+      // validation accepts is guaranteed to be one persistence itself would also match: a
+      // trailing "(Owner)" (the composer bookmark dropdown's own display form) is stripped
+      // before comparing.
+      int userIdx = bookmark.lastIndexOf('(') > 0 ? bookmark.lastIndexOf('(') : bookmark.length();
+      String bookmarkName = bookmark.substring(0, userIdx);
+      boolean matches = Arrays.stream(bookmarks).anyMatch(b -> b.getName().equals(bookmarkName));
+
+      if(!matches) {
+         List<String> names = Arrays.stream(bookmarks)
+            .map(VSBookmarkInfo::getName)
+            .collect(Collectors.toList());
+         Collections.sort(names);
+         throw new IllegalArgumentException(
+            "No bookmark named '" + bookmark + "' on this viewsheet. A name that matches none " +
+            "is silently ignored at persist time, so it is refused here instead. Known " +
+            "bookmarks: " + names);
+      }
    }
 
    private static void require(Map<String, Object> link, String field, String type) {
@@ -522,7 +576,17 @@ public class AssemblyHyperlinkService {
       // same-named assets across scopes a link actually resolved to.
       out.put("assetLinkId", model.getAssetLinkId());
       out.put("bookmark", model.getBookmark());
-      out.put("targetFrame", model.getTargetFrame());
+      // model.isSelf() is dialog-model UI sugar: HyperlinkDialogService.getHyperlinkDialogModel
+      // blanks targetFrame to "" and sets self=true whenever the persisted Hyperlink.targetFrame
+      // was the literal "SELF", so it must be reconstructed here for this class's own wire
+      // contract to hold. But self=true is ALSO the default for a never-linked assembly (line 182
+      // of that class, hyperlink == null) -- guarding on linkType != NONE mirrors the real
+      // Angular dialog's own rewrite (hyperlink-dialog.component.ts:309-310), which only fires
+      // when there is an actual link, so an unlinked assembly still reads back an absent/blank
+      // targetFrame rather than a fabricated "SELF".
+      boolean selfWithARealLink =
+         model.isSelf() && model.getLinkType() != HyperlinkDialogService.NONE;
+      out.put("targetFrame", selfWithARealLink ? "SELF" : model.getTargetFrame());
       out.put("tooltip", model.getTooltip());
       out.put("self", model.isSelf());
       out.put("disableParameterPrompt", model.isDisableParameterPrompt());
@@ -537,6 +601,17 @@ public class AssemblyHyperlinkService {
       // it is the name this read was scoped to, whether or not the model repeats it.
       out.put("colName", model.getColName() != null ? model.getColName()
                  : asked == null ? null : asked.colName());
+      // A chart field's data-point link and its axis-label link are the same underlying storage:
+      // HyperlinkRef (VSChartAggregateRef/VSChartDimensionRef) declares exactly one Hyperlink
+      // field, with no second, axis-specific slot, and HyperlinkDialogService.getHyperlinkDialogModel
+      // only sets model.colName from its chart branch -- so a non-null model colName here, outside
+      // a title/empty-plot-link request, is exactly the shape where axis:true resolves to the same
+      // ChartRef (and therefore the same Hyperlink) as a plain colName call. Setting one overwrites
+      // the other's destination. This is the "fail loud" half of VHL-001 (bug #76580): a caller is
+      // told plainly rather than silently losing the other link.
+      out.put("axisAndDataPointShareLink",
+              model.getColName() != null &&
+              !(asked != null && (asked.titleLink() || asked.emptyPlotLink())));
       return out;
    }
 

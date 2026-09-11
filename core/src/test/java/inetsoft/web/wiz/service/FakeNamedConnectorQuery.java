@@ -27,6 +27,7 @@ import inetsoft.uql.tabular.RestParameters;
 import inetsoft.uql.tabular.TabularQuery;
 import inetsoft.uql.tabular.View;
 import inetsoft.uql.tabular.View1;
+import inetsoft.util.CoreTool;
 
 import java.util.*;
 
@@ -76,14 +77,70 @@ public class FakeNamedConnectorQuery extends TabularQuery {
     * one thing {@code WorksheetTableServiceProbeHintTest} needs to observe. No columns are
     * produced, matching a connector this probe got nothing back from; the caller's own
     * empty-column check is expected to fire afterward and is not this fixture's concern.
+    *
+    * <p>{@code reportResponseShape}/{@code reportException}/{@code reportThrownException} let a
+    * test control what a real connector's probe would have left behind on this same query/thread --
+    * {@code setResponseShape} (inherited from {@code TabularQuery} itself, no connector dependency),
+    * {@code CoreTool.addUserMessage} (the exact channel {@code AbstractQueryRunner.logException}
+    * uses, for an exception the RUNNER's own fetch loop caught and swallowed), and an actual thrown
+    * exception (for the case {@code TabularTableAssembly.loadColumnSelection}'s own catch --
+    * {@code wizLoadColumnsError}, added by #5137 -- exists to capture), respectively. All three are
+    * opt-in and no-ops by default, matching every other test on this fixture that does not call
+    * them. When both an exception-to-report and an exception-to-throw are set, the report happens
+    * first (matching a real run, where the runner logs internally before whatever called it decides
+    * whether to propagate) then the throw, so a test can exercise both sources firing for the one
+    * probe.</p>
     */
    @Override
    public void loadOutputColumns(VariableTable vtable) throws Exception {
       capturedHintMaxRows = (String) vtable.get(XQuery.HINT_MAX_ROWS);
+
+      if(shapeToReport != null) {
+         setResponseShape(shapeToReport, shapeTruncated);
+      }
+
+      if(exceptionToReport != null) {
+         CoreTool.addUserMessage("Error executing Rest query: " + exceptionToReport);
+      }
+
+      if(exceptionToThrow != null) {
+         throw new Exception(exceptionToThrow);
+      }
    }
 
    public String getCapturedHintMaxRows() {
       return capturedHintMaxRows;
+   }
+
+   /** Mirrors what a real connector's probe run leaves on {@code TabularQuery.getResponseShape()}. */
+   void reportResponseShape(Object shape, boolean truncated) {
+      this.shapeToReport = shape;
+      this.shapeTruncated = truncated;
+   }
+
+   /** Mirrors what {@code AbstractQueryRunner.logException} leaves in {@code CoreTool}'s per-thread
+    *  user-message list when the connector recovered a real exception during the probe. */
+   void reportException(String message) {
+      this.exceptionToReport = message;
+   }
+
+   /** Mirrors {@code loadOutputColumns} itself throwing -- the case {@code
+    *  TabularTableAssembly.loadColumnSelection}'s own catch (and the {@code wizLoadColumnsError}
+    *  property it stashes, added by #5137) exists for, as opposed to an exception the runner's own
+    *  fetch loop already caught and swallowed internally (see {@link #reportException}). */
+   void reportThrownException(String message) {
+      this.exceptionToThrow = message;
+   }
+
+   private Object shapeToReport;
+   private boolean shapeTruncated;
+   private String exceptionToReport;
+   private String exceptionToThrow;
+
+   /** Mirrors {@code RestJsonQuery.getValidJsonPath()} exactly, so the reflective row-path lookup
+    *  in {@code WorksheetTableService} finds it here the same way it finds it on a real connector. */
+   public String getValidJsonPath() {
+      return jsonPath == null || jsonPath.isBlank() ? "$" : jsonPath;
    }
 
    /**

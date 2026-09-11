@@ -184,4 +184,20 @@ class AdminScheduleControllerTest {
       assertEquals(fresh.planHash(), returnedPlan.planHash());
       assertNull(returnedPlan.taskToken());
    }
+
+   // Same scrubbing rule as PlanHashMismatchException above, for the taskToken gate this fix adds:
+   // a 409 conflict must never hand back a taskToken either, or a caller could replay an
+   // unreviewed narrative against the freshly resolved plan.
+   @Test void handleTaskTokenMismatchReturnsConflictWithFreshPlan() {
+      ResolvedPlan fresh = new ResolvedPlan("t", Collections.emptyList(), false, false, "new-hash", "new-token");
+      var body = controller.handleTaskTokenMismatch(
+         new AdminChangesetApplyService.TaskTokenMismatchException(fresh, "taskToken: required"));
+
+      assertEquals("conflict", body.get("status"));
+      assertEquals("taskToken: required", body.get("error"));
+      ResolvedPlan returnedPlan = (ResolvedPlan) body.get("plan");
+      assertEquals(fresh.task(), returnedPlan.task());
+      assertEquals(fresh.planHash(), returnedPlan.planHash());
+      assertNull(returnedPlan.taskToken());
+   }
 }

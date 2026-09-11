@@ -98,19 +98,47 @@ public class SelectionRuntimeService {
     *
     * @param values      the values to select. For a tree, each entry is a path from the root, so
     *                    {@code ["East","NY"]} selects NY under East. Null leaves the selection alone.
+    *                    On a list or non-ID-mode tree, {@code values} <b>replaces</b> the current
+    *                    selection by default (bug-76548) — pass {@code additive:true} to make it
+    *                    add to the current selection instead, without touching anything else.
+    * @param deselect    values/paths to explicitly remove from the current selection, independent
+    *                    of {@code additive} — the counterpart to {@code values} for a caller that
+    *                    knows exactly what to un-check without needing to first read (or
+    *                    re-specify) everything that should stay selected. Same shape as
+    *                    {@code values}; null or empty leaves the selection alone. Only valid on a
+    *                    list or non-ID-mode tree (the only assemblies {@code values}'s own replace
+    *                    diff already applies to).
     * @param sortOrder   {@code asc} | {@code desc} | {@code specific}, or null to leave it.
     * @param singleSelect whether the assembly should accept one value only, or null to leave it.
+    * @param additive    when true, {@code values} only adds — the automatic replace-diff (deselect
+    *                    anything current but unmentioned) is skipped. Ignored where that diff
+    *                    never ran anyway (single-select, a range slider, ID-mode tree, calendar).
     */
    public Map<String, Object> setSelection(String sessionToken, Principal user, String assemblyName,
-                                           List<List<String>> values, String sortOrder,
-                                           Boolean singleSelect, String linkUri)
+                                           List<List<String>> values, List<List<String>> deselect,
+                                           String sortOrder, Boolean singleSelect, Boolean additive,
+                                           String linkUri)
       throws Exception
    {
       requireName(assemblyName);
 
-      if(values == null && sortOrder == null && singleSelect == null) {
+      boolean hasDeselect = deselect != null && !deselect.isEmpty();
+
+      if(values == null && sortOrder == null && singleSelect == null && !hasDeselect) {
          throw new IllegalArgumentException(
-            "Nothing to do — give at least one of 'values', 'sortOrder' or 'singleSelect'.");
+            "Nothing to do — give at least one of 'values', 'deselect', 'sortOrder' or " +
+            "'singleSelect'.");
+      }
+
+      if(values != null && hasDeselect) {
+         List<List<String>> overlap = new ArrayList<>(values);
+         overlap.retainAll(deselect);
+
+         if(!overlap.isEmpty()) {
+            throw new IllegalArgumentException(
+               "'values' and 'deselect' both name " + overlap + " — that's a contradiction: " +
+               "select it or remove it, not both in the same call.");
+         }
       }
 
       final Integer targetSort = sortOrder == null ? null : requireSortOrder(sortOrder);
@@ -186,22 +214,67 @@ public class SelectionRuntimeService {
                result.put("scopedBySearch", search);
             }
 
-            if(!single && isPathDiffable(assembly)) {
+            if(!single && isPathDiffable(assembly) && !Boolean.TRUE.equals(additive)) {
                // Multi-select apply is a delta patch -- doApplySelection only ever turns matched
                // values on, so anything currently selected but missing from the new values has to
                // be turned off explicitly, or it stays selected alongside them. Single-select
-               // already gets a full reset for free via unselectChildren.
-               List<List<String>> toDeselect = toDeselect(selectedPaths(assembly), values);
+               // already gets a full reset for free via unselectChildren. additive:true is the
+               // caller explicitly opting out of this replace behaviour -- see the javadoc above.
+               List<List<String>> currentPaths = selectedPaths(assembly);
+               List<List<String>> toRemove = toDeselect(currentPaths, values);
 
-               if(!toDeselect.isEmpty()) {
-                  selections.applySelection(runtimeId, assemblyName, deselectEvent(toDeselect),
+               if(!toRemove.isEmpty()) {
+                  selections.applySelection(runtimeId, assemblyName,
+                                            deselectEvent(deselectTargets(currentPaths, toRemove)),
                                             user, dispatcher, linkUri);
                }
             }
 
-            selections.applySelection(runtimeId, assemblyName, applyEvent(values), user, dispatcher,
-                                      linkUri);
+            if(assembly instanceof TimeSliderVSAssembly slider) {
+               // doApplySelection's TimeSliderVSAssembly branch never reads event.getValues() --
+               // it only reads event.getSelectStart()/getSelectEnd(), two bucket-index ints. A
+               // plain value-array apply (what every other assembly type above uses) is a total
+               // no-op here, silently: no exception, and the response still claims success.
+               SelectionValue[] buckets = bucketsOf(slider);
+               List<Map<String, Object>> clamped = new ArrayList<>();
+               int[] range = sliderBucketRange(assemblyName, buckets, values, clamped);
+               ApplySelectionListEvent event = new ApplySelectionListEvent();
+               event.setType(ApplySelectionListEvent.Type.APPLY);
+               event.setSelectStart(range[0]);
+               event.setSelectEnd(adjustedEnd(slider.isUpperInclusive(), range[1]));
+               selections.applySelection(runtimeId, assemblyName, event, user, dispatcher, linkUri);
+
+               if(!clamped.isEmpty()) {
+                  // A requested bound outside the slider's actual bucket range was silently
+                  // substituted with the nearest one -- disclose which, the same way
+                  // scopedBySearch discloses a write landing on a narrower scope than asked.
+                  result.put("clampedBounds", clamped);
+               }
+            }
+            else {
+               selections.applySelection(runtimeId, assemblyName, applyEvent(values), user, dispatcher,
+                                         linkUri);
+            }
+
             result.put("valuesSelected", values.size());
+         }
+
+         if(hasDeselect) {
+            if(!isPathDiffable(assembly)) {
+               throw new IllegalArgumentException(
+                  "'" + assemblyName + "' is " + describe(assembly) + " -- 'deselect' only works " +
+                  "on a selection list or a non-ID-mode selection tree. Use clear_selection to " +
+                  "remove everything, or set_selection's plain 'values' for a range slider.");
+            }
+
+            List<List<String>> currentPaths = selectedPaths(assembly);
+            List<List<String>> targets = deselectTargets(currentPaths, deselect);
+
+            if(!targets.isEmpty()) {
+               selections.applySelection(runtimeId, assemblyName, deselectEvent(targets), user,
+                                         dispatcher, linkUri);
+               result.put("deselected", deselect.size());
+            }
          }
       });
 
@@ -228,17 +301,44 @@ public class SelectionRuntimeService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
-         List<List<String>> current = selectedPaths(assembly);
 
          result.put("assembly", assemblyName);
          result.put("type", describe(assembly));
-         result.put("clearedCount", current.size());
 
-         if(!current.isEmpty()) {
-            // The client composes "unselect" the same way: send every currently selected value back
-            // with selected=false. There is no single clear endpoint for one assembly.
-            selections.applySelection(runtimeId, assemblyName, deselectEvent(current), user,
-                                      dispatcher, linkUri);
+         if(assembly instanceof TimeSliderVSAssembly slider) {
+            // "Nothing selected" on a range slider is represented as EVERY bucket marked
+            // selected (the full range), not an empty/null state like a list/tree -- so the
+            // list/tree clearedCount bookkeeping below (raw count of selected nodes) is
+            // meaningless here: a genuinely untouched slider would misreport every one of its
+            // buckets as "was filtering". And the list/tree deselect event is a no-op on a
+            // slider for the same reason set_selection's plain value-array apply was (see
+            // above) -- doApplySelection's TimeSlider branch never reads it -- so clearing an
+            // actually-filtered slider needs its own full-range apply, not deselectEvent.
+            SelectionValue[] buckets = bucketsOf(slider);
+            boolean fullRange = isFullRangeSelected(buckets);
+            result.put("clearedCount", fullRange ? 0 : buckets.length);
+
+            if(!fullRange && buckets.length > 0) {
+               ApplySelectionListEvent event = new ApplySelectionListEvent();
+               event.setType(ApplySelectionListEvent.Type.APPLY);
+               event.setSelectStart(0);
+               event.setSelectEnd(adjustedEnd(slider.isUpperInclusive(), buckets.length - 1));
+               selections.applySelection(runtimeId, assemblyName, event, user, dispatcher, linkUri);
+            }
+         }
+         else {
+            List<List<String>> current = selectedPaths(assembly);
+            result.put("clearedCount", current.size());
+
+            if(!current.isEmpty()) {
+               // The client composes "unselect" the same way: send every currently selected
+               // value back with selected=false. There is no single clear endpoint for one
+               // assembly. Cleared via deselectTargets (not the leaf paths directly) for the
+               // same reason set_selection's own diff-deselect does -- see that javadoc.
+               selections.applySelection(runtimeId, assemblyName,
+                                         deselectEvent(deselectTargets(current, current)), user,
+                                         dispatcher, linkUri);
+            }
          }
       });
 
@@ -488,6 +588,80 @@ public class SelectionRuntimeService {
    }
 
    /**
+    * The actual paths to send in a deselect event for {@code toRemove}, given everything
+    * currently selected ({@code current}) — not simply {@code toRemove} itself.
+    *
+    * <p><b>The bug this works around:</b> a deselect event only clears its exact TARGET (deepest)
+    * node's own {@code selected} flag in the shared {@code updateSelectionOfChangedAssembly} —
+    * unlike a select, which also marks every ancestor along the path selected via its own
+    * {@code isParent && selected} branch, a deselect's matching condition is
+    * {@code isParent && false}, always false, so an ancestor's own flag is never cleared there.
+    * Left stale, that flag resurfaces on the very next read: {@link #selectedPaths} treats "a
+    * composite selected as a whole with no selected children of its own" as a legitimate
+    * top-level selection in its own right (an empty-fallback rule this file needs for the
+    * opposite, genuinely-correct case of a whole parent node selected on purpose) — so an
+    * ancestor whose one live child was just deselected gets reported right back as if it had been
+    * freshly selected on its own, reappearing in the very next diff as a spurious "currently
+    * selected" path that was never actually requested. A caller who changes one leaf under a
+    * previously-selected branch (even to a sibling at the exact same depth) sees the old branch's
+    * top level accumulate alongside the new selection instead of being replaced by it.
+    *
+    * <p><b>The fix:</b> for each path being removed, find the SHORTEST prefix (from its root)
+    * that, once {@code toRemove} is applied, no remaining selected path shares — the highest
+    * ancestor whose entire subtree is safe to fully clear. Deselecting there instead of at the
+    * exact leaf reaches the same leaf via the shared method's own {@code unselectChildren}
+    * cascade, but also correctly clears every ancestor flag along the way, since nothing under it
+    * is meant to survive. Falls back to the leaf path itself if no such prefix is found (should
+    * not happen in practice, since the leaf itself is always a valid, if maximally specific,
+    * choice). Entirely a wiz-layer fix — {@code updateSelectionOfChangedAssembly} itself is
+    * untouched, so this carries no risk to the Composer UI or any other caller sharing it.
+    *
+    * <p>A no-op for a flat {@code SelectionListVSAssembly}: every path there is already exactly
+    * one segment, so the shortest-prefix search always lands on the path itself, unchanged.
+    */
+   static List<List<String>> deselectTargets(List<List<String>> current, List<List<String>> toRemove) {
+      List<List<String>> remaining = new ArrayList<>(current);
+      remaining.removeAll(toRemove);
+
+      List<List<String>> targets = new ArrayList<>();
+
+      for(List<String> path : toRemove) {
+         List<String> target = path;
+
+         for(int len = 1; len <= path.size(); len++) {
+            List<String> prefix = path.subList(0, len);
+
+            if(remaining.stream().noneMatch(p -> startsWithPath(p, prefix))) {
+               target = prefix;
+               break;
+            }
+         }
+
+         List<String> copy = new ArrayList<>(target);
+
+         if(!targets.contains(copy)) {
+            targets.add(copy);
+         }
+      }
+
+      return targets;
+   }
+
+   private static boolean startsWithPath(List<String> path, List<String> prefix) {
+      if(path.size() < prefix.size()) {
+         return false;
+      }
+
+      for(int i = 0; i < prefix.size(); i++) {
+         if(!Objects.equals(path.get(i), prefix.get(i))) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
     * Whether {@code doApplySelection} treats this assembly's apply as value-diffable (a per-value
     * delta patch that leaves unmentioned values untouched), so the new diff-and-deselect step is the
     * right fix for it.
@@ -629,6 +803,148 @@ public class SelectionRuntimeService {
       }
 
       return false;
+   }
+
+   // ── range slider bucket resolution ──────────────────────────────────────────
+
+   /**
+    * The result of resolving one requested Range Slider bound to a bucket: which index it landed
+    * on, the bucket's own value (what actually gets applied), and whether that differs from what
+    * was requested (an out-of-range numeric bound clamped to the nearest bucket).
+    */
+   record BucketResolution(int index, String appliedValue, boolean clamped) {}
+
+   /**
+    * Resolves every requested value into the {@code [start, end]} bucket-index range a Range
+    * Slider apply should select, collecting a disclosure entry for each bound that had to be
+    * clamped. {@code values} is one bucket-value per single-segment path -- a slider has no
+    * hierarchy, so anything longer is refused.
+    */
+   static int[] sliderBucketRange(String assemblyName, SelectionValue[] buckets,
+                                  List<List<String>> values, List<Map<String, Object>> clampedOut)
+   {
+      if(buckets.length == 0) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' has no values to select from yet.");
+      }
+
+      int start = Integer.MAX_VALUE;
+      int end = Integer.MIN_VALUE;
+
+      for(List<String> path : values) {
+         if(path.size() != 1) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is a range slider, which has no hierarchy -- each value " +
+               "must be a single bound, not a path of " + path.size() + ".");
+         }
+
+         BucketResolution resolved = bucketIndex(assemblyName, buckets, path.get(0));
+         start = Math.min(start, resolved.index());
+         end = Math.max(end, resolved.index());
+
+         if(resolved.clamped()) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("requested", path.get(0));
+            entry.put("applied", resolved.appliedValue());
+            clampedOut.add(entry);
+         }
+      }
+
+      return new int[]{start, end};
+   }
+
+   /**
+    * Resolves one requested bound to a bucket index: an exact match against a bucket's own raw
+    * {@code SelectionValue.getValue()} first (the same value the assembly's own apply/clear paths
+    * compare, per {@code TimeSliderSelection.populateNumberList}/{@code populateDateList}); failing
+    * that, for a value that parses as a number, the numerically nearest bucket -- clamping an
+    * out-of-range bound to the slider's actual extent rather than refusing it, matching this file's
+    * existing forgiving-on-unambiguous-intent convention ({@link #requireSortOrder}'s aliases).
+    * Anything else (unparseable, no exact match) fails loud by name rather than silently landing on
+    * some default.
+    */
+   static BucketResolution bucketIndex(String assemblyName, SelectionValue[] buckets,
+                                       String requested)
+   {
+      for(int i = 0; i < buckets.length; i++) {
+         if(buckets[i] != null && Tool.equals(requested, buckets[i].getValue())) {
+            return new BucketResolution(i, buckets[i].getValue(), false);
+         }
+      }
+
+      Double requestedNumber = parseNumeric(requested);
+
+      if(requestedNumber != null) {
+         int nearest = -1;
+         double nearestDistance = Double.MAX_VALUE;
+
+         for(int i = 0; i < buckets.length; i++) {
+            Double bucketNumber = buckets[i] == null ? null : parseNumeric(buckets[i].getValue());
+
+            if(bucketNumber == null) {
+               continue;
+            }
+
+            double distance = Math.abs(bucketNumber - requestedNumber);
+
+            if(distance < nearestDistance) {
+               nearestDistance = distance;
+               nearest = i;
+            }
+         }
+
+         if(nearest >= 0) {
+            return new BucketResolution(nearest, buckets[nearest].getValue(), true);
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' has no bucket matching '" + requested + "'.");
+   }
+
+   private static Double parseNumeric(String value) {
+      if(value == null) {
+         return null;
+      }
+
+      try {
+         return Double.parseDouble(value);
+      }
+      catch(NumberFormatException e) {
+         return null;
+      }
+   }
+
+   /**
+    * {@code doApplySelection} decrements {@code selectEnd} by one when the slider is not
+    * upper-inclusive, so the index actually wanted has to be sent one past itself for that
+    * decrement to land back on it.
+    */
+   static int adjustedEnd(boolean upperInclusive, int endIndex) {
+      return upperInclusive ? endIndex : endIndex + 1;
+   }
+
+   /**
+    * Whether every bucket is currently selected -- the Range Slider's own representation of "not
+    * filtering anything", unlike a list/tree's empty/null state.
+    */
+   static boolean isFullRangeSelected(SelectionValue[] buckets) {
+      if(buckets.length == 0) {
+         return true;
+      }
+
+      for(SelectionValue bucket : buckets) {
+         if(bucket == null || !bucket.isSelected()) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   private static SelectionValue[] bucketsOf(TimeSliderVSAssembly slider) {
+      SelectionList list = slider.getSelectionList();
+      return list == null ? new SelectionValue[0] : list.getSelectionValues();
    }
 
    private static SelectionList selectionListOf(SelectionVSAssembly assembly) {
