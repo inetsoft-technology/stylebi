@@ -53,7 +53,7 @@ class VGraphPairModernPaletteTest {
       // same resolver call the VGraphPair seam makes after setParentParams
       inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults.applyModernPalette(
          frame, inetsoft.uql.viewsheet.internal.VizContext.ofGate());
-      assertEquals(new Color(0x00D4E8), frame.getColor(0));
+      assertEquals(new Color(0x0490FF), frame.getColor(0));
    }
 
    @Test

@@ -68,7 +68,7 @@ class VSChartPaletteCssOverrideTest {
       // the org-scoped ColorPalettes cache has no reset hook of its own - it only refreshes when
       // the CSS stamp advances past its internal 'last' field. Confirm the reload above actually
       // picked the clean defaults.css back up, so this class does not poison later tests.
-      assertEquals(new Color(0x00D4E8), VSChartPaletteDefaults.modernPalette()[0]);
+      assertEquals(new Color(0x0490FF), VSChartPaletteDefaults.modernPalette()[0]);
    }
 
    // Only a CSS value that differs from MODERN_HEAD can prove resolution actually flipped to CSS -
@@ -85,7 +85,7 @@ class VSChartPaletteCssOverrideTest {
 
       assertEquals(new Color(0xff00ff), modern[0]);
       // untouched indexes still come from the CSS declaration, not a partial substitution
-      assertEquals(new Color(0x00B87A), modern[1]);
+      assertEquals(new Color(0xFF5A35), modern[1]);
    }
 
    // Reproduces the reported failure: a malformed index on one ChartPalette rule throws during
@@ -103,8 +103,8 @@ class VSChartPaletteCssOverrideTest {
       Color[] modern = assertDoesNotThrow(VSChartPaletteDefaults::modernPalette);
 
       assertEquals(40, modern.length);
-      assertEquals(new Color(0x00D4E8), modern[0]);
-      assertEquals(new Color(0x64748B), modern[7]);
+      assertEquals(new Color(0x0490FF), modern[0]);
+      assertEquals(new Color(0x8ED604), modern[7]);
    }
 
    // pickerPalette() resolves the Default palette directly, bypassing resolve()/the memo

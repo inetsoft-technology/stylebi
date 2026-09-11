@@ -45,12 +45,12 @@ class ColorPalettesModernTest {
    @Test
    void modernHeadMatchesSpec() {
       CategoricalColorFrame modern = ColorPalettes.getPalette("Modern");
-      assertEquals(new Color(0x00D4E8), modern.getDefaultColor(0));
-      assertEquals(new Color(0x64748B), modern.getDefaultColor(7));
+      assertEquals(new Color(0x0490FF), modern.getDefaultColor(0));
+      assertEquals(new Color(0x8ED604), modern.getDefaultColor(7));
 
       CategoricalColorFrame dark = ColorPalettes.getPalette("Modern Dark");
-      assertEquals(new Color(0x22D3EE), dark.getDefaultColor(0));
-      assertEquals(new Color(0x94A3B8), dark.getDefaultColor(7));
+      assertEquals(new Color(0x4FA5FF), dark.getDefaultColor(0));
+      assertEquals(new Color(0x9FEB28), dark.getDefaultColor(7));
    }
 
    // Drift guard: the CSS tail and the Java spliceLegacy fallback must agree, or swapping between
