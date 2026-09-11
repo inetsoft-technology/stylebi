@@ -213,6 +213,26 @@ class WorksheetPreviewServiceTest {
       assertEquals("r4", rows.get(1).get("x"));
    }
 
+   // Review round 1 finding on this same bug (VTB-002): before offset was threaded through the
+   // row loop, row 0 (the header) was unreachable since the loop always started at 1. A negative
+   // offset (e.g. -1) shifted the start row to 0, silently returning the header row disguised as
+   // a data row, with no exception. Clamp to 0 rather than throw, mirroring how the controller
+   // already clamps (not rejects) an out-of-range `limit` via Math.min(limit, 200).
+   @Test
+   void negativeOffsetIsClampedToZero() throws Exception {
+      TableLens l = lens(
+         new String[]{"x"},
+         new Object[][]{{"r1"}, {"r2"}, {"r3"}}
+      );
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
+
+      List<Map<String, Object>> rows = service.preview(rws(box), "T", -1, 10);
+      assertEquals(3, rows.size());
+      assertEquals("r1", rows.get(0).get("x"),
+                   "a negative offset must behave like offset=0, not expose the header row");
+   }
+
    @Test
    void offsetBeyondRowCountReturnsEmptyNotError() throws Exception {
       TableLens l = lens(

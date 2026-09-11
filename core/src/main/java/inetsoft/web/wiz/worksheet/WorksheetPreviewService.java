@@ -51,7 +51,9 @@ public class WorksheetPreviewService {
     *
     * @param rws       the live runtime worksheet
     * @param tableName the table assembly name to query
-    * @param offset    number of leading data rows to skip (header row excluded); 0-based
+    * @param offset    number of leading data rows to skip (header row excluded); 0-based.
+    *                  Negative values are clamped to 0 (mirrors how {@code limit} is
+    *                  clamped, not rejected, by the caller).
     * @param limit     maximum number of data rows to return (header row excluded)
     * @return list of row maps keyed by column name; never {@code null}
     * @throws PairingException if the sandbox is absent, the table is not found,
@@ -132,8 +134,9 @@ public class WorksheetPreviewService {
          }
 
          List<Map<String, Object>> rows = new ArrayList<>();
+         int startRow = 1 + Math.max(0, offset);
 
-         for(int row = 1 + offset; rows.size() < limit && lens.moreRows(row); row++) {
+         for(int row = startRow; rows.size() < limit && lens.moreRows(row); row++) {
             Map<String, Object> rowMap = new LinkedHashMap<>();
 
             for(int col = 0; col < colCount; col++) {
