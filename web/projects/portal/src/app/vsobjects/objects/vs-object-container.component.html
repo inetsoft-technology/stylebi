@@ -386,8 +386,8 @@
   @for (vsObject of vsInfo.vsObjects; track vsObject.absoluteName; let i = $index) {
     @if (vsObject.objectType === 'VSChart' && viewer && !context.binding &&
       !$any(vsObject).maxMode && !!$any(vsObject).plot) {
-      <div [style.top.px]="getVsObjectPosition(vsObject, i, true)"
-        [style.left.px]="getVsObjectPosition(vsObject, i, false)"
+      <div [style.top.px]="getVsObjectPosition(vsObject, i, true) - ($any(vsObject).annotationScrollTop || 0)"
+        [style.left.px]="getVsObjectPosition(vsObject, i, false) - ($any(vsObject).annotationScrollLeft || 0)"
         style="position: absolute;">
         @for (ann of getChartDataAnnotations(vsObject); track ann.absoluteName) {
           <vs-annotation

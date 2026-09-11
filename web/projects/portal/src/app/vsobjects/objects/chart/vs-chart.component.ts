@@ -691,8 +691,8 @@ export class VSChart extends AbstractVSObject<VSChartModel>
          .reverse()
          .find((region) => region != null);
       const chartContainerBounds = this.chartContainer.nativeElement.getBoundingClientRect();
-      let x = (event.clientX - chartContainerBounds.left) / this.scale;
-      let y = (event.clientY - chartContainerBounds.top) / this.scale;
+      let x = (event.clientX - chartContainerBounds.left) / this.scale + this.scrollLeft;
+      let y = (event.clientY - chartContainerBounds.top) / this.scale + this.scrollTop;
 
       // triggered from mini menu
       if(event.button == 0) {
