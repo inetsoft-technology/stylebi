@@ -351,6 +351,55 @@ class ScheduleChangesetApplyServiceTest {
       verify(scheduleGateway, never()).removeScheduleTask(anyString(), any(), eq(user));
    }
 
+   // The rollback-path regression proof: even when the first change's own apply narrative and the
+   // second change's failure trigger a rollback, the rollback's OWN writeAudit call (a separate
+   // call site from applyCreate/applyDelete -- see rollback()'s ACTION_ROLLBACK writeAudit calls)
+   // must still carry the previewed/reviewed task narrative, not the apply request's own
+   // (possibly diverged) task field. Same shape as secondChangeFailingRollsBackTheFirst below, but
+   // built via requestWithDivergentApplyTask so a regression that reverted the rollback call site
+   // to plan.task() (or the raw request task) would be caught here.
+   @Test void auditsThePreviewedTaskForARollbackEvenWhenApplyTaskDiffers() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      String createdId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      inetsoft.sree.schedule.ScheduleTask other = sreeTask("t2", "admin");
+
+      when(scheduleManager.getScheduleTask(createdId))
+         .thenReturn(null)                       // preview
+         .thenReturn(null)                       // re-resolve
+         .thenReturn(sreeTask("t1", "admin"))     // apply-time verify: created
+         .thenReturn(null);                       // rollback-time verify: deleted
+      when(scheduleManager.getScheduleTask("t2"))
+         .thenReturn(other, other, other, other); // "exists" the whole time -- delete never verifies
+
+      when(scheduleGateway.hasDeletePermission(createdId, user)).thenReturn(true);
+      when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
+      when(scheduleGateway.getScheduleTask(eq("t2"), any(), eq(user)))
+         .thenReturn(dtoTask("t2", "admin"));
+      when(scheduleGateway.getTaskConditions(eq("t2"), any(), eq(user)))
+         .thenReturn(new ScheduleConditionList());
+      when(scheduleGateway.getTaskActions(eq("t2"), any(), eq(user)))
+         .thenReturn(new ScheduleActionList());
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ScheduleApplyRequest req = requestWithDivergentApplyTask(
+         "reviewed: two changes", "totally different apply-time text",
+         createChange(spec), deleteChange("t2"));
+
+      ApplyResult result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      verify(scheduleGateway).removeScheduleTask(eq(createdId), any(), eq(user));
+
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(auditMock, atLeastOnce()).auditAdminChange(captor.capture(), eq(user));
+      List<AdminChangeRecord> rollbackRecords = captor.getAllValues().stream()
+         .filter(r -> AdminChangeRecord.ACTION_ROLLBACK.equals(r.getAction()))
+         .toList();
+      assertFalse(rollbackRecords.isEmpty());
+      assertTrue(rollbackRecords.stream()
+         .allMatch(r -> "reviewed: two changes".equals(r.getTaskDescription())));
+   }
+
    // N-change plan: the first change (create) succeeds, the second (delete of an unrelated task)
    // fails verification -- rollback must undo the first, newest-first (trivially, since it's the
    // only undoable one), by deleting what it created.
