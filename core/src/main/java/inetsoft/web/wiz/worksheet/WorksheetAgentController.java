@@ -302,6 +302,21 @@ public class WorksheetAgentController {
                "endpoint or suffix -- choose exactly one add_table form.");
          }
 
+         if(req.parameters() != null && !req.parameters().isEmpty()) {
+            throw new PairingException("add_table cannot carry queryParams together with " +
+               "parameters -- parameters only applies to the endpoint form.");
+         }
+
+         if(req.lookup() != null && !req.lookup().isEmpty()) {
+            throw new PairingException("add_table cannot carry queryParams together with " +
+               "lookup -- lookup only applies to the endpoint form.");
+         }
+
+         if(req.customLookups() != null && !req.customLookups().isEmpty()) {
+            throw new PairingException("add_table cannot carry queryParams together with " +
+               "customLookups -- customLookups only applies to the suffix form.");
+         }
+
          if(req.datasource() == null || req.datasource().isBlank()) {
             throw new PairingException("datasource is required when queryParams is specified.");
          }
