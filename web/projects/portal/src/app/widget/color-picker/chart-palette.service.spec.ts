@@ -51,8 +51,8 @@ describe("ChartPaletteService", () => {
       const grid = service.chartPalette;
       expect(grid.length).toBe(5);
       expect(grid[0].length).toBe(8);
-      expect(grid[0][0]).toBe("#00d4e8");
-      expect(grid[0][7]).toBe("#64748b");
+      expect(grid[0][0]).toBe(MODERN_HEAD[0]);
+      expect(grid[0][7]).toBe(MODERN_HEAD[7]);
       expect(grid[4][7]).toBe("#cccc33");
    });
 
@@ -60,7 +60,7 @@ describe("ChartPaletteService", () => {
       httpMock.expectOne(CHART_COLOR_PALETTE_URI).flush(MODERN_40);
 
       expect(service.flatColors().length).toBe(40);
-      expect(service.flatColors()[0]).toBe("#00d4e8");
+      expect(service.flatColors()[0]).toBe(MODERN_HEAD[0]);
    });
 
    it("falls back to the legacy grid on HTTP error", () => {
@@ -71,7 +71,7 @@ describe("ChartPaletteService", () => {
    });
 
    it("falls back when the response is not 40 colors", () => {
-      httpMock.expectOne(CHART_COLOR_PALETTE_URI).flush(["#00d4e8", "#00b87a"]);
+      httpMock.expectOne(CHART_COLOR_PALETTE_URI).flush(MODERN_HEAD.slice(0, 2));
 
       expect(service.chartPalette).toBe(DefaultPalette.chart);
    });
