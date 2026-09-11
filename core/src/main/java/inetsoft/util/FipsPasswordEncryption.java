@@ -204,7 +204,15 @@ class FipsPasswordEncryption extends LocalPasswordEncryption {
       try {
          return withLock(() -> {
             SecretKey key;
-            String property = SreeEnv.getProperty("password.hash.key");
+            // Storage first, snapshot only as a fallback: the in-memory property snapshot
+            // refreshes asynchronously, so the cluster lock alone does not stop two nodes from
+            // each seeing "absent" and generating a different key. See
+            // LocalPasswordEncryption.getJwtSigningKey() for the full rationale.
+            String property = SreeEnv.getPropertyFromStorage("password.hash.key");
+
+            if(property == null || property.isEmpty()) {
+               property = SreeEnv.getProperty("password.hash.key");
+            }
 
             if(property == null || property.isEmpty()) {
                key = createHmacKey();
