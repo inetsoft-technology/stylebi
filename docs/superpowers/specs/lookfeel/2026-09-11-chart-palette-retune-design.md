@@ -92,10 +92,20 @@ malformed, so stale constants would make a broken `format.css` render the old pa
 ## 2. Picker gating
 
 `VSChartBindingController.getColorPalettes` gains optional `vsId` and `assemblyName` request
-params and moves its body into `VSChartBindingService` as a
-`@ClusterProxyMethod(WorksheetEngine.CACHE_NAME)` with `@ClusterProxyKey String vsId`, matching
-`getChartBinding`. It resolves the runtime viewsheet, reads the assembly's `VSAssemblyInfo`, and
-derives `VizContext.of(info)`.
+params. `VSChartBindingService` gains a `@ClusterProxyMethod(WorksheetEngine.CACHE_NAME)` with
+`@ClusterProxyKey String vsId` that resolves the runtime viewsheet, reads the assembly's
+`VSAssemblyInfo`, and **returns only its `VizMark`**. The controller keeps the list-building and
+derives `VizContext.of(mark)` from the result.
+
+**The proxy returns the mark rather than the whole list, because a null `vsId` cannot route.** The
+generated proxy is `isLocal(vsId)` followed by `affinityCall(vsId, ...)`, so with no key there is no
+node to call — and the target-band pane sends no key. The controller therefore has to branch on null
+before it can invoke the proxy at all. Moving the list-building across that boundary would mean
+duplicating it in the null branch or reaching past the proxy; returning an enum keeps one code path
+for the list and one small branch for the context.
+
+`@SwitchOrg` survives the hop: it pushes a `SwitchOrgAspectTask` onto `ServiceProxyContext.aspectTasks`
+and the generated callable replays it through `preprocess()` on the receiving node.
 
 | Caller | Context | Why |
 |---|---|---|
@@ -153,23 +163,46 @@ from a chart already using it.
 
 ## 4. Testing
 
-**Java — `ColorPalettesModernTest`**
+**Java — five classes assert the old hexes, not one.** A sweep for the sixteen head colours finds
+31 real assertion sites:
 
-- `modernHeadMatchesSpec` updates to the new slot-1 and slot-8 hexes for both palettes.
+| Class | Sites |
+|---|---|
+| `VSChartPaletteDefaultsTest` | 20 |
+| `ColorPalettesModernTest` | 4 |
+| `VSChartPaletteCssOverrideTest` | 4 |
+| `ChartColorPaletteControllerTest` | 4 |
+| `VGraphPairModernPaletteTest` | 1 |
+
+`CategoricalColorDerivedPersistenceTest` carries 12 further occurrences and **must be left alone** —
+they are arbitrary fixture colours handed to `setDerivedColor` and asserted for round-trip, so they
+pass either way. Changing them would be noise.
+
+- `ColorPalettesModernTest.modernHeadMatchesSpec` updates to the new slot-1 and slot-8 hexes.
 - `tailMatchesLegacyPalette`, `defaultPaletteIsUnchanged` and `modernDeclaresFortyNonNullColors`
   stay green untouched. They are the drift guards proving only the head moved.
-- New: assert `MODERN_HEAD` and `DARK_HEAD` equal `defaults.css` indexes 1-8. Nothing today catches
-  the Java constants and the CSS drifting apart, and section 1 depends on them moving together.
-- New: `Contrast` is registered and declares 8 non-null colours.
+- New, in `VSChartPaletteDefaultsTest`: assert `MODERN_HEAD` and `DARK_HEAD` equal `defaults.css`
+  indexes 1-8. Nothing today catches the Java constants and the CSS drifting apart, and section 1
+  depends on them moving together. It reads the two `private` constants **by reflection**, which is
+  already the idiom in that file — `clearMemoDiscardsTheCachedEntry` reaches `MEMO` the same way — so
+  no production visibility widens for a test's benefit.
+- New: `Contrast` is registered and declares 8 non-null colours, and `Default` is still declared
+  first in `defaults.css`.
 - New: `hiddenPaletteNames(VizContext)` returns exactly the nine names under a modern mark and is empty
   under a classic one.
 
 **Frontend**
 
-- Update `MODERN_HEAD` and `DARK_HEAD` in `palette-test-fixtures.ts`. The four spec files that
-  consume them assert fixture-relative and follow automatically.
+- Update `MODERN_HEAD` and `DARK_HEAD` in `palette-test-fixtures.ts`. Three of the four consuming
+  spec files assert fixture-relative and follow automatically. **`chart-palette.service.spec.ts` does
+  not** — it hardcodes `#00d4e8`, `#64748b` and `#00b87a` at `:54,55,63,74`. Convert it onto the
+  fixture rather than editing the literals, so it cannot drift again.
 - New `palette-dialog.spec.ts` cases: a hidden palette stays pre-selectable when it is the chart's
   current one, and is absent from the dropdown when it is not.
+
+**Observed, not acted on.** `_viz-tokens.scss:62` sets `--inet-viz-selected-border-dark: #2DD4BF`,
+exactly the old `DARK_HEAD[6]`. The re-tune removes that value from the dark palette, so the
+selected border stops colliding with a series colour. Confirmed incidental; the token is unchanged.
 
 ## 5. Deferred, with triggers
 
@@ -215,13 +248,21 @@ at load time to fail in.
 |---|---|
 | `core/src/main/resources/inetsoft/util/css/defaults.css` | `Modern` 1-8, `Modern Dark` 1-8, new `Contrast` 1-8 |
 | `core/src/main/java/inetsoft/uql/viewsheet/internal/VSChartPaletteDefaults.java` | `MODERN_HEAD`, `DARK_HEAD`, new `hiddenPaletteNames(VizContext)` |
-| `core/src/main/java/inetsoft/web/binding/VSChartBindingController.java` | `getColorPalettes` gains `vsId`, `assemblyName`; body delegates |
-| `core/src/main/java/inetsoft/web/binding/VSChartBindingService.java` | new `@ClusterProxyMethod` resolving the assembly and filtering |
+| `core/src/main/java/inetsoft/web/binding/VSChartBindingController.java` | `getColorPalettes` gains `vsId`, `assemblyName`; builds the list, branches on a null key |
+| `core/src/main/java/inetsoft/web/binding/VSChartBindingService.java` | new `@ClusterProxyMethod` returning the assembly's `VizMark` |
 | `core/src/main/java/inetsoft/web/binding/model/graph/aesthetic/CategoricalColorModel.java` | `hidden` transport flag |
 | `web/projects/portal/src/app/binding/editor/chart/aesthetic/categorical-color-pane.component.ts` | send `vsId` and `assemblyName` |
 | `web/projects/portal/src/app/binding/editor/chart/palette-dialog.component.ts` | filter hidden entries from `paletteSelectOptions` |
 | `web/projects/portal/src/app/widget/color-picker/palette-test-fixtures.ts` | new head hexes |
-| `core/src/test/java/inetsoft/uql/viewsheet/graph/aesthetic/ColorPalettesModernTest.java` | updated and new assertions |
+| `core/src/test/java/inetsoft/uql/viewsheet/internal/VSChartPaletteDefaultsTest.java` | 20 hex sites; new CSS↔Java drift guard and `hiddenPaletteNames` cases |
+| `core/src/test/java/inetsoft/uql/viewsheet/graph/aesthetic/ColorPalettesModernTest.java` | 4 hex sites; new `Contrast` and declaration-order cases |
+| `core/src/test/java/inetsoft/uql/viewsheet/internal/VSChartPaletteCssOverrideTest.java` | 4 hex sites |
+| `core/src/test/java/inetsoft/web/portal/controller/ChartColorPaletteControllerTest.java` | 4 hex sites |
+| `core/src/test/java/inetsoft/report/composition/graph/VGraphPairModernPaletteTest.java` | 1 hex site |
+| `web/projects/portal/src/app/widget/color-picker/chart-palette.service.spec.ts` | converted off hardcoded hexes onto the fixture |
 | `web/projects/portal/src/app/binding/editor/chart/palette-dialog.spec.ts` | new hidden-palette cases |
+
+Sixteen files. `CategoricalColorDerivedPersistenceTest` is deliberately **not** in this list despite
+carrying 12 occurrences of the old hexes — see section 4.
 
 Every path is inside the `community` submodule, so this ships as a community PR.
