@@ -72,7 +72,7 @@ class CategoricalColorFactoryResolvedDefaultGuardTest {
 
       CategoricalColorModel model = new CategoricalColorModel(wrapper);
       String[] colors = model.getColors().clone();
-      // neither the modern head (0x3B82F6) nor the legacy palette (0xfde3a7) value at index 5
+      // neither the modern head (0xFFB020) nor the legacy palette (0xfde3a7) value at index 5
       colors[5] = "#123456";
       model.setColors(colors);
 

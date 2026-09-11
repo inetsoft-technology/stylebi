@@ -1,3 +1,20 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 package inetsoft.web.binding;
 
 import inetsoft.sree.SreeEnv;
@@ -41,10 +58,8 @@ class VSChartBindingColorPalettesTest {
                   "a palette is visible unless the server says otherwise");
    }
 
-   // The endpoint's own flag-attaching loop and null-vsId branch: nothing else in this task
-   // exercises them. The response must carry every palette, hidden ones included, or the
-   // dialog's color-equality match cannot pre-select a chart sitting on a retired palette -
-   // an unmatched dialog repaints the chart with Default on a no-op OK.
+   // The dialog matches a chart's palette by colour list, so an omitted palette would match
+   // nothing, fall back to Default, and repaint the chart on a no-op OK.
    @Test
    void nullVsIdFlagsTheNineHiddenNamesAndOmitsNothing() throws Exception {
       VSChartBindingController controller = newController();

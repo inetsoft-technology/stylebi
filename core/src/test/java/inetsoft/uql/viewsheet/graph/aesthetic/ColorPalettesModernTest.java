@@ -96,12 +96,15 @@ class ColorPalettesModernTest {
       assertNotNull(contrast);
       assertEquals(8, contrast.getColorCount());
 
-      for(int i = 0; i < 8; i++) {
-         assertNotNull(contrast.getDefaultColor(i), "index " + (i + 1) + " must not be null");
-      }
+      Color[] expected = {
+         new Color(0x0B3D91), new Color(0xF5943F), new Color(0xB04AB8), new Color(0xF7D22E),
+         new Color(0xA8330A), new Color(0x7CC4EE), new Color(0x00947F), new Color(0x5FA83C)
+      };
 
-      assertEquals(new Color(0x0B3D91), contrast.getDefaultColor(0));
-      assertEquals(new Color(0x5FA83C), contrast.getDefaultColor(7));
+      for(int i = 0; i < 8; i++) {
+         assertEquals(expected[i], contrast.getDefaultColor(i),
+                      "index " + (i + 1) + " must match the luminance ladder");
+      }
    }
 
    // Default must be declared first: the picker's index-0 fallback relies on it.

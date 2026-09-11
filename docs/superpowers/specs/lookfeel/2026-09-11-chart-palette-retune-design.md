@@ -45,8 +45,12 @@ classic 40 regardless of the CSS.
 2. **Gate retirements on the mark; ship additions to everyone.** A modern-marked chart sees the
    reduced list. A classic chart keeps all of today's names. `Contrast` is offered to both, because
    an accessibility palette is not a look-and-feel choice.
-3. **Two gate authorities, deliberately.** The binding picker reads the chart's own `VizMark`; the
-   target-band colour pane reads the org gate, because it has no assembly to read.
+3. **One authority; the org gate is only the absent-assembly default.** The binding picker resolves
+   `VizContext.of(mark)` from the chart's own `VizMark`. A caller with no assembly to resolve — the
+   target-band colour pane included — falls through to `VizContext.ofGate()` as the null-branch
+   default. That pane deliberately shows every palette regardless: it cannot tell a classic chart
+   from a modern one, and filtering it on the org gate would hide retired palettes from classic
+   charts in a modern org.
 4. **Ramps are out of scope.** `Variance`, `Amber` and `Teal` are `LinearColorFrame` work, not CSS
    (see Corrections below).
 
@@ -236,8 +240,19 @@ today. Deferred, not declined.
 **The README's open question is answered: no.** Palette names are not stored in saved viewsheet
 XML. `PaletteDialog.saveChanges()` emits a `CategoricalColorModel` carrying only colours, and
 `VisualFrameModel.name` is transport-only. So no alias table is needed — retiring a name repaints
-nothing. The consequence is instead the pre-selection problem in section 3, and the fact that
-existing dashboards never pick up a re-tuned palette, because they hold resolved hexes.
+nothing. The consequence is instead the pre-selection problem in section 3, and this:
+`VGraphPair.java:1300` and `ChangeChartProcessor.java:1893` both call
+`VSChartPaletteDefaults.applyModernPalette`, an unconditional `setDefaultColors(activePalette(ctx))`
+whenever `ctx.modern` — so a modern-marked chart's default tier *is* re-resolved from live CSS on
+every render, and does take the new head.
+
+The opening this leaves: a modern chart whose old head colours were pinned into the **user** tier
+(possible for sheets saved before the resolved-default guard landed) cannot be overwritten by
+`applyModernPalette` — the user tier wins over defaults unconditionally. That chart's rendered
+colours then match no registered palette, the dialog shows `Default` selected, and a no-op OK
+repaints it to the classic legacy 40 — the exact hazard section 3 exists to prevent, arriving
+through a door section 3 did not consider. This needs a manual check; it is not something an
+automated test can cover.
 
 **A "hard-fail with a migration warning" for `Gray` has nowhere to live.** There is no name lookup
 at load time to fail in.

@@ -243,7 +243,9 @@ public class VSChartBindingController {
       Principal principal)
       throws Exception
    {
-      VizContext ctx = vsId == null || assemblyName == null
+      // absent assembly resolves through the org gate; its flags are unread by any UI -
+      // don't gate the target-band pane on them, it can't tell classic charts from modern ones
+      VizContext ctx = Tool.isEmptyString(vsId) || Tool.isEmptyString(assemblyName)
          ? VizContext.ofGate()
          : VizContext.of(chartBindingService.getChartVizMark(vsId, assemblyName, principal));
       Set<String> hidden = VSChartPaletteDefaults.hiddenPaletteNames(ctx);
