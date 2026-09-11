@@ -189,7 +189,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             }
 
             //signifies that the asset has the type being searched for
-            boolean sameType = selector.isEqual(entry0.getType());
+            boolean sameType = selector.matches(entry0.getType());
             // signifies that the asset has the same scope
             boolean sameScope = entry.getScope() == entry0.getScope();
             // signifies that the asset lives directly in this folder
