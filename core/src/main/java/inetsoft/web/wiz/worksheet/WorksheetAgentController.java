@@ -795,6 +795,7 @@ public class WorksheetAgentController {
       }
 
       final String extraApplied;
+      final String resolvedSuffix;
 
       if(req.extraProperties() != null && !req.extraProperties().isEmpty()) {
          if(req.extraProperties().containsKey("endpoint") || req.extraProperties().containsKey("suffix")) {
@@ -809,14 +810,22 @@ public class WorksheetAgentController {
          // endpoint/suffix property is itself required (e.g. FakeNamedConnectorQuery's endpoint)
          // would be rejected as "missing" what this call already set moments earlier. Re-writing
          // it to the SAME value it already holds is a no-op on the query.
+         String identityKey = namedConnector ? "endpoint" : "suffix";
          Map<String, Object> contractParams = new java.util.LinkedHashMap<>(req.extraProperties());
-         contractParams.put(namedConnector ? "endpoint" : "suffix",
-            namedConnector ? req.endpoint() : req.suffix());
+         contractParams.put(identityKey, namedConnector ? req.endpoint() : req.suffix());
 
          TabularQuerySchema extraSchema =
             new TabularSchemaExtractor().extract(query, dataSource.getType());
-         extraApplied = TabularQueryContractSupport.applyQueryContract(
+         String rawApplied = TabularQueryContractSupport.applyQueryContract(
             query, pmap, extraSchema, contractParams, dsName);
+
+         // rawApplied also reports identityKey (re-supplied above only to satisfy
+         // applyQueryContract's required-field check, not something the caller actually sent in
+         // extraProperties) -- stripped here so the diagnostic doesn't suggest 'endpoint'/'suffix'
+         // are settable through extraProperties, which the check above explicitly forbids.
+         extraApplied = java.util.Arrays.stream(rawApplied.split(", "))
+            .filter(entry -> !entry.startsWith(identityKey + "="))
+            .collect(java.util.stream.Collectors.joining(", "));
 
          // extraProperties is applied after the row-cap guard below has already run once for the
          // endpoint/suffix form -- if it set a pagination-triggering property (e.g.
@@ -824,9 +833,21 @@ public class WorksheetAgentController {
          // uncapped paginated query would slip through untouched.
          TabularEndpointBindingSupport.requireRowCapWhenPaged(
             query, namedConnector ? req.endpoint() : req.suffix(), dsName);
+
+         // For a named connector, "suffix" (reported in the no-columns message below) is DERIVED
+         // from endpoint + parameter values -- extraProperties can change parameters (a composite
+         // property applyQueryContract's fillNamedSkeleton can write), so the suffix captured
+         // before this block can be stale. Re-read it so the message never reports a URL that no
+         // longer matches what was actually requested. A NEW variable, not a reassignment of
+         // `suffix` -- `suffix` is captured by the lambda below and reassigning it here would
+         // break its effectively-final status.
+         PropertyMeta suffixProp = pmap.get("suffix");
+         Object refreshedSuffix = suffixProp == null ? null : suffixProp.getValue(query);
+         resolvedSuffix = refreshedSuffix == null ? suffix : refreshedSuffix.toString();
       }
       else {
          extraApplied = null;
+         resolvedSuffix = suffix;
       }
 
       String tableName = req.table();
@@ -864,7 +885,7 @@ public class WorksheetAgentController {
             Object loadError = query.getProperty("wizLoadColumnsError");
             throw new PairingException("The request to '" + target + "' of '" + dsName +
                "' returned no columns" + (loadError == null ? "" : " (" + loadError + ")") +
-               ". URL suffix sent: " + suffix +
+               ". URL suffix sent: " + resolvedSuffix +
                (extraApplied == null || extraApplied.isBlank() ? "" :
                   ". Extra properties sent: " + extraApplied) +
                ". Check the parameter " +
