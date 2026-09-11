@@ -235,6 +235,38 @@ class ScheduleChangesetApplyServiceTest {
       verify(scheduleGateway, never()).removeScheduleTask(anyString(), any(), eq(user));
    }
 
+   // r1 review of this PR raised an AT-condition create request with a missing `date` as a
+   // second gap in AdminScheduleGateway.convertCondition (a bare NullPointerException, not one of
+   // applyCreate's known pre-mutation types) that would supposedly reach the same
+   // rollback-failed misclassification. It doesn't: ScheduleChangePlanService.resolve() -- called
+   // unconditionally as the very first statement of apply(), before the per-change try/catch loop
+   // this class's own catch list guards -- already rejects a null AT date via
+   // requireSupportedConditions (predates this PR; #5067), so the request never reaches
+   // addScheduleTask/convertCondition at all. This locks that in: apply() throws
+   // IllegalArgumentException directly (no ApplyResult, no rollback-failed classification), and
+   // the gateway is never touched.
+   @Test void createWithAtConditionMissingDateNeverReachesTheGateway() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      TimeCondition condition = new TimeCondition();
+      condition.setType(TimeCondition.Type.AT);
+      spec.setConditions(List.of(condition));
+
+      ScheduleApplyRequest req = new ScheduleApplyRequest();
+      req.setTask("create a task");
+      req.setChanges(List.of(createChange(spec)));
+      req.setPlanHash("irrelevant-because-resolve-throws-first");
+      req.setReviewOutcome("approved");
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.apply(req, user));
+
+      assertTrue(ex.getMessage().contains("date"));
+      assertTrue(ex.getMessage().contains("AT"));
+      verify(scheduleGateway, never()).addScheduleTask(any(), anyBoolean(), anyBoolean(),
+         anyLong(), anyLong(), any(), any(), any(), any(), any(), any(), any(), eq(user));
+      verify(scheduleGateway, never()).removeScheduleTask(anyString(), any(), eq(user));
+   }
+
    // N-change plan: the first change (create) succeeds, the second (delete of an unrelated task)
    // fails verification -- rollback must undo the first, newest-first (trivially, since it's the
    // only undoable one), by deleting what it created.
