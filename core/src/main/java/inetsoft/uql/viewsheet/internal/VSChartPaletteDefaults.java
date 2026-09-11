@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -87,6 +88,15 @@ public final class VSChartPaletteDefaults {
       if(frame != null && ctx.modern) {
          frame.setDefaultColors(activePalette(ctx));
       }
+   }
+
+   /**
+    * Palette names a picker should mark hidden for the given context. A modern chart is not
+    * offered the single-hue ramps; a classic chart keeps everything. Never removes a name from
+    * resolution - getPalette must still answer for every one of these.
+    */
+   public static Set<String> hiddenPaletteNames(VizContext ctx) {
+      return ctx.modern ? MODERN_HIDDEN : Set.of();
    }
 
    /**
@@ -174,6 +184,8 @@ public final class VSChartPaletteDefaults {
    private static final String MODERN_NAME = "Modern";
    private static final String DARK_NAME = "Modern Dark";
    private static final String DEFAULT_NAME = "Default";
+   private static final Set<String> MODERN_HIDDEN =
+      Set.of("Pastel", "Heat 8", "Heat 16", "Heat 24", "Blue", "Green", "Red", "Orange", "Gray");
    private static final Map<String, Memo> MEMO = new ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(VSChartPaletteDefaults.class);
 

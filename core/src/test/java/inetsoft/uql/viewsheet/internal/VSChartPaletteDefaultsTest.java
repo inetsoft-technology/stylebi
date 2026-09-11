@@ -17,6 +17,7 @@ import java.awt.Color;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -307,5 +308,45 @@ class VSChartPaletteDefaultsTest {
          assertEquals(head[i], css.getDefaultColor(i),
                       paletteName + " index " + (i + 1) + " must match " + fieldName);
       }
+   }
+
+   @Test
+   void hiddenNamesAreEmptyForAClassicChart() {
+      assertTrue(VSChartPaletteDefaults.hiddenPaletteNames(VizContext.of((VizMark) null)).isEmpty(),
+                 "a classic chart keeps every palette it has today");
+   }
+
+   @Test
+   void hiddenNamesAreTheNineRampsForAModernChart() {
+      Set<String> hidden = VSChartPaletteDefaults.hiddenPaletteNames(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(Set.of("Pastel", "Heat 8", "Heat 16", "Heat 24",
+                          "Blue", "Green", "Red", "Orange", "Gray"), hidden);
+   }
+
+   @Test
+   void hiddenNamesAreTheSameUnderADarkMark() {
+      assertEquals(VSChartPaletteDefaults.hiddenPaletteNames(VizContext.of(VizMark.MODERN_LIGHT)),
+                   VSChartPaletteDefaults.hiddenPaletteNames(VizContext.of(VizMark.MODERN_DARK)),
+                   "dark is a modifier of modern, not a different palette set");
+   }
+
+   // The five kept names must never appear in the hidden set.
+   @Test
+   void hiddenNamesNeverCoverTheKeptFive() {
+      Set<String> hidden = VSChartPaletteDefaults.hiddenPaletteNames(VizContext.of(VizMark.MODERN_LIGHT));
+
+      for(String kept : new String[]{ "Default", "Soft", "Modern", "Modern Dark", "Contrast" }) {
+         assertFalse(hidden.contains(kept), kept + " must stay offered to a modern chart");
+      }
+   }
+
+   @Test
+   void hiddenNamesFollowTheGateWhenThereIsNoAssembly() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+      assertTrue(VSChartPaletteDefaults.hiddenPaletteNames(VizContext.ofGate()).isEmpty());
+
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      assertEquals(9, VSChartPaletteDefaults.hiddenPaletteNames(VizContext.ofGate()).size());
    }
 }
