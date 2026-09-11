@@ -32,7 +32,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.quality.Strictness;
 
 import java.security.Principal;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -341,6 +343,96 @@ class ScheduleChangePlanServiceTest {
       ResolvedPlan second = service.resolve(request("remove nightly-refresh task", List.of(deleteChange("t1"))), user);
 
       assertEquals(first.planHash(), second.planHash());
+   }
+
+   // bug 76619: alerts/parameters/saveToServerFilePaths were never projected, so a caller could
+   // preview a benign create spec, then apply with the SAME planHash/taskToken but swapped-in
+   // alerts/parameters/saveToServerFilePaths -- a confirm-then-swap bypass.
+   @Test void hashChangesWhenAlertsParametersOrSaveToServerFilePathsDiffer() throws Exception {
+      CreateScheduleTaskRequest approved = createSpec("t1", "admin");
+      ViewsheetAction approvedAction = new ViewsheetAction();
+      approvedAction.setViewsheet("1^128^__NULL__^vs");
+      approved.setActions(List.of(approvedAction));
+
+      CreateScheduleTaskRequest drifted = createSpec("t1", "admin");
+      ViewsheetAction driftedAction = new ViewsheetAction();
+      driftedAction.setViewsheet("1^128^__NULL__^vs");
+      driftedAction.setAlerts(List.of(new ScheduleAlert("Chart1", "Highlight1")));
+      driftedAction.setParameters(Map.of("region", "west"));
+      driftedAction.setSaveToServerFilePaths(List.of(
+         new ViewsheetAction.SaveToServerFilePath(ViewsheetAction.Format.PDF, "/tmp/evil-exfil.pdf")));
+      drifted.setActions(List.of(driftedAction));
+
+      String taskId = ScheduleManager.getTaskId(approved.getOwner().convertToKey(), approved.getName());
+      lenient().when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      lenient().when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+
+      ResolvedPlan approvedPlan = service.resolve(request("t", List.of(createChange(approved))), user);
+      ResolvedPlan driftedPlan = service.resolve(request("t", List.of(createChange(drifted))), user);
+
+      assertNotEquals(approvedPlan.planHash(), driftedPlan.planHash());
+   }
+
+   // Pins the TreeMap canonicalization added alongside the fix above: two parameter maps with
+   // identical content but different insertion order must not spuriously invalidate a preview.
+   @Test void hashIsStableForParameterInsertionOrder() throws Exception {
+      CreateScheduleTaskRequest first = createSpec("t1", "admin");
+      ViewsheetAction firstAction = new ViewsheetAction();
+      firstAction.setViewsheet("1^128^__NULL__^vs");
+      firstAction.setParameters(Map.of("a", 1, "b", 2));
+      first.setActions(List.of(firstAction));
+
+      CreateScheduleTaskRequest second = createSpec("t1", "admin");
+      ViewsheetAction secondAction = new ViewsheetAction();
+      secondAction.setViewsheet("1^128^__NULL__^vs");
+      Map<String, Object> reordered = new LinkedHashMap<>();
+      reordered.put("b", 2);
+      reordered.put("a", 1);
+      secondAction.setParameters(reordered);
+      second.setActions(List.of(secondAction));
+
+      String taskId = ScheduleManager.getTaskId(first.getOwner().convertToKey(), first.getName());
+      lenient().when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      lenient().when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+
+      ResolvedPlan firstPlan = service.resolve(request("t", List.of(createChange(first))), user);
+      ResolvedPlan secondPlan = service.resolve(request("t", List.of(createChange(second))), user);
+
+      assertEquals(firstPlan.planHash(), secondPlan.planHash());
+   }
+
+   // Documents a known, accepted residual (see projectSpec's comment): canonicalization is
+   // top-level only, so a *nested* parameter value's own key order is not normalized. This can
+   // only force an unnecessary re-preview (fail-safe), never mask a real change, so it is pinned
+   // here rather than fixed -- if this ever starts failing because someone added recursive
+   // canonicalization, update this test deliberately rather than treating it as a regression.
+   @Test void hashDiffersForNestedParameterValueKeyOrderDocumentedResidual() throws Exception {
+      CreateScheduleTaskRequest first = createSpec("t1", "admin");
+      ViewsheetAction firstAction = new ViewsheetAction();
+      firstAction.setViewsheet("1^128^__NULL__^vs");
+      Map<String, Object> firstNested = new LinkedHashMap<>();
+      firstNested.put("value", 5);
+      firstNested.put("dataType", "double");
+      firstAction.setParameters(Map.of("detailedParam", firstNested));
+      first.setActions(List.of(firstAction));
+
+      CreateScheduleTaskRequest second = createSpec("t1", "admin");
+      ViewsheetAction secondAction = new ViewsheetAction();
+      secondAction.setViewsheet("1^128^__NULL__^vs");
+      Map<String, Object> secondNested = new LinkedHashMap<>();
+      secondNested.put("dataType", "double");
+      secondNested.put("value", 5);
+      secondAction.setParameters(Map.of("detailedParam", secondNested));
+      second.setActions(List.of(secondAction));
+
+      String taskId = ScheduleManager.getTaskId(first.getOwner().convertToKey(), first.getName());
+      lenient().when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      lenient().when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+
+      ResolvedPlan firstPlan = service.resolve(request("t", List.of(createChange(first))), user);
+      ResolvedPlan secondPlan = service.resolve(request("t", List.of(createChange(second))), user);
+
+      assertNotEquals(firstPlan.planHash(), secondPlan.planHash());
    }
 
    // -------------------------------------------------------------------------

@@ -322,6 +322,17 @@ public class ScheduleChangePlanService {
             .append(",format=").append(va.getFormat())
             .append(",subject=").append(va.getSubject())
             .append(",message=").append(va.getMessage())
+            .append(",alerts=").append(va.getAlerts())
+            // Top-level key order only: parameters is Map<String, Object>, and a value that is
+            // itself a nested object (e.g. the {value, dataType} shape plugin/admin/CLAUDE.md
+            // documents) deserializes to a plain LinkedHashMap whose own key order is not
+            // canonicalized here. That is an accepted, fail-safe residual, not an oversight: it
+            // can only make two logically-identical requests hash differently (an unnecessary
+            // 409-and-re-preview), never the reverse, so it cannot reopen the confirm-then-swap
+            // gap this projection exists to close.
+            .append(",parameters=").append(new TreeMap<>(
+               va.getParameters() == null ? Map.of() : va.getParameters()))
+            .append(",saveToServerFilePaths=").append(va.getSaveToServerFilePaths())
             .append(']');
       }
 
