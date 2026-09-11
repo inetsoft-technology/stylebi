@@ -34,26 +34,31 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Charter G18: {@code GraphQLRuntime} now implements {@link TabularCatalogProvider} (this round),
  * which reclassifies {@code graphql}/{@code shopify}/{@code monday.com} from
- * {@code DOCUMENT_REQUIRED} to {@code METADATA}. {@code Rest.XML} reclassifies too, but for a
- * reason that arrived from a different round: its own catalog SPI implementation landed on the
- * integration branch separately, and this round's classifier is what makes it take effect.
- * Plain {@code Rest} is the one source type in this family that still requires documentation;
- * its runtime is asserted here as the negative case, at the interface level rather than through
- * the classifier, for the reason recorded in {@code onlyPlainRestStillRequiresDocumentation}. Lives in this connector module (not core, which cannot depend on
- * connector classes) and declares itself in {@code WizDatabaseController}'s package so it can call
- * the package-private {@code classifyQueryClass} directly, the same reason {@code
- * ODataDatasourceAnnotationClassTest} lives in the OData module.
+ * {@code DOCUMENT_REQUIRED} to {@code METADATA}. {@code Rest.XML} briefly reclassified too, for a
+ * reason that arrived from a different round: its own catalog SPI implementation had landed on
+ * the integration branch separately. That Rest.XML SPI implementation was since removed entirely
+ * (stylebi#5098, "revert(tabular): remove Rest.XML catalog SPI entirely"), as part of a wiz-side
+ * redesign that runs the Rest.XML endpoint pipeline entirely inside wiz-services with no
+ * StyleBI-side catalog role for it -- so Rest.XML is back to requiring documentation, the same as
+ * plain {@code Rest}, which is the one source type in this family that still requires
+ * documentation for a different, unrelated reason; its runtime is asserted here as the negative
+ * case, at the interface level rather than through the classifier, for the reason recorded in
+ * {@code restXMLAndPlainRestRequireDocumentation}. Lives in this connector module (not core, which
+ * cannot depend on connector classes) and declares itself in {@code WizDatabaseController}'s
+ * package so it can call the package-private {@code classifyQueryClass} directly, the same reason
+ * {@code ODataDatasourceAnnotationClassTest} lives in the OData module.
  *
  * <p>{@code shopify} and {@code monday.com} both declare {@link GraphQLRuntime} as their runtime
  * class ({@code ShopifyService.getRuntimeClass()} / {@code MondayService.getRuntimeClass()}), so
  * asserting {@code GraphQLRuntime} implements the SPI covers both, plus {@code graphql} itself;
- * {@code Rest.XML} declares {@link RestXMLRuntime}, which implements it as of its own round.
- * Plain {@code Rest} declares {@link RestJsonRuntime}, which does not.</p>
+ * {@code Rest.XML} declares {@link RestXMLRuntime}, which no longer implements it (stylebi#5098).
+ * Plain {@code Rest} declares {@link RestJsonRuntime}, which never did.</p>
  *
- * <p>This is a DELIBERATE inversion of two of this class's three assertions -- see
+ * <p>This class's assertions on {@code GraphQLRuntime}/{@code ShopifyQuery}/{@code monday.com}
+ * were DELIBERATELY inverted by the G18 round -- see
  * {@code docs/teams/2026-09-08-graphql-introspection-catalog/00-charter.md} G18 and
- * {@code 04-build.md} for why each new assertion below is no weaker than the one it replaces.
- * {@code restXMLRuntimeDoesNotImplementTheCatalogSpi} is untouched, byte-for-byte.</p>
+ * {@code 04-build.md} for why. The Rest.XML-specific assertions below were inverted back a second
+ * time after stylebi#5098 reverted {@code RestXMLRuntime}'s SPI implementation.</p>
  */
 @Tag("core")
 class RestSourceTypesAnnotationClassTest {
@@ -71,11 +76,13 @@ class RestSourceTypesAnnotationClassTest {
    }
 
    @Test
-   void restXMLRuntimeImplementsTheCatalogSpi() {
-      assertTrue(TabularCatalogProvider.class.isAssignableFrom(RestXMLRuntime.class),
-         "RestXMLRuntime no longer implements TabularCatalogProvider -- Rest.XML would " +
-         "silently fall back to DOCUMENT_REQUIRED; that is a real behavior change requiring " +
-         "explicit sign-off, not a passing regression test");
+   void restXMLRuntimeDoesNotImplementTheCatalogSpi() {
+      assertFalse(TabularCatalogProvider.class.isAssignableFrom(RestXMLRuntime.class),
+         "RestXMLRuntime implements TabularCatalogProvider again -- its catalog SPI " +
+         "implementation was removed entirely in stylebi#5098 as part of a wiz-side redesign " +
+         "that runs the Rest.XML endpoint pipeline entirely inside wiz-services with no " +
+         "StyleBI-side catalog role for it; a regression that reintroduced this interface would " +
+         "silently and wrongly reclassify Rest.XML back to METADATA");
    }
 
    @Test
@@ -93,17 +100,19 @@ class RestSourceTypesAnnotationClassTest {
     * do/don't carry the interface (the two tests above), but that feeding the real runtime through
     * the actual two-arg classifier produces the right verdict end to end.
     *
-    * <p>Renamed from {@code allFourSourceTypesStillRequireDocumentation}. Three of the four
-    * assertions flip value ({@code DOCUMENT_REQUIRED} -> {@code METADATA}, matching {@code
-    * GraphQLRuntime} now implementing the SPI); {@code RestXMLQuery}/{@code RestXMLRuntime}'s
-    * assertion is UNCHANGED in both class pair and expected value. This is no weaker a guard than
-    * before: it still pins one exact verdict per query/runtime class pair, still fails the moment
-    * any of the four drifts either direction, and still keeps {@code Rest.XML} as the one case
-    * that must NOT reclassify -- a regression that reclassified {@code Rest.XML} too would fail
-    * this method exactly as loudly as one that failed to reclassify the other three.</p>
+    * <p>Renamed from {@code onlyPlainRestStillRequiresDocumentation}. Three of the four query
+    * classes -- {@code graphql}, {@code shopify}, {@code monday.com}, all via {@link
+    * GraphQLRuntime} -- are {@code METADATA}. The other two, {@code Rest.XML} (via {@link
+    * RestXMLRuntime}) and plain {@code Rest} (via {@link RestJsonRuntime}), both require
+    * documentation ({@code DOCUMENT_REQUIRED}): {@code Rest.XML} because its catalog SPI
+    * implementation was removed entirely in stylebi#5098, and plain {@code Rest} because it never
+    * had one. Plain {@code Rest} is deliberately not asserted at this level for the classpath-
+    * fixture reason recorded below. This is no weaker a guard than before: it still pins one exact
+    * verdict per query/runtime class pair, and still fails the moment any of the four drifts in
+    * either direction.</p>
     */
    @Test
-   void onlyPlainRestStillRequiresDocumentation() {
+   void restXMLAndPlainRestRequireDocumentation() {
       // Plain Rest is deliberately NOT asserted at this level, and must not be added:
       // this module ships src/test/resources/inetsoft/uql/rest/json/endpoints.json as a
       // fixture for other tests, so on the TEST classpath
@@ -112,7 +121,7 @@ class RestSourceTypesAnnotationClassTest {
       // shipped connector. plainRestRuntimeDoesNotImplementTheCatalogSpi above carries the
       // negative case instead; it reads the interface off the class and no resource lookup
       // can distort it.
-      assertEquals("METADATA",
+      assertEquals("DOCUMENT_REQUIRED",
                    WizDatabaseController.classifyQueryClass(RestXMLQuery.class, RestXMLRuntime.class));
       assertEquals("METADATA",
                    WizDatabaseController.classifyQueryClass(GraphQLQuery.class, GraphQLRuntime.class));

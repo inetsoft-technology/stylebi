@@ -198,6 +198,10 @@ public abstract class VSTableHelper extends VSTableDataHelper {
    protected static int getVisibleRowCount(TableDataVSAssemblyInfo info,
                                            VSTableLens lens)
    {
+      if(lens == null) {
+         return 0;
+      }
+
       Dimension size = CoordinateHelper.getAssemblySize(
          info, CoordinateHelper.getLensSize(lens, true));
       int infoRows = 0;
@@ -241,6 +245,10 @@ public abstract class VSTableHelper extends VSTableDataHelper {
    protected Rectangle getTableRectangle(TableDataVSAssemblyInfo info,
                                          VSTableLens lens)
    {
+      if(lens == null) {
+         return new Rectangle(info.getPixelOffset().x, info.getPixelOffset().y, 1, 0);
+      }
+
       VSExporter exporter = this.getExporter();
 
       // @by gregm ensure we do not print too many rows because of wrapping.

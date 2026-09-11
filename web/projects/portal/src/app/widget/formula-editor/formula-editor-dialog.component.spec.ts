@@ -346,7 +346,7 @@ describe("FormulaEditorDialog Unit Test", () => {
       };
       modalService = { open: vi.fn() };
 
-      dialog = new FormulaEditorDialog(editorService, modalService, null, null, null);
+      dialog = new FormulaEditorDialog(editorService, modalService, null, null, null, null);
       dialog.vsId = "vs1";
       dialog.assemblyName = "Table1";
       dialog.isCube = false;

@@ -56,6 +56,15 @@
       <scope>provided</scope>
     </dependency>
 
+    <!-- Backs ServerFileCatalogCache. `provided`, same treatment as inetsoft-core: core already
+         depends on Caffeine at `compile` scope (see core/pom.xml), so it resolves at runtime
+         through the parent class loader; this plugin must not bundle a second copy. -->
+    <dependency>
+      <groupId>com.github.ben-manes.caffeine</groupId>
+      <artifactId>caffeine</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
@@ -83,6 +92,46 @@
     <dependency>
       <groupId>org.hamcrest</groupId>
       <artifactId>hamcrest-library</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- ServerFileCatalogParamsRoundTripTest calls TabularQueryContractSupport (core's wiz
+         service package) directly, and the Excel-fixture tests need a minimal Spring
+         ApplicationContext to satisfy FileSystemService.getInstance(); see the odata connector's
+         pom for the same pattern. -->
+    <dependency>
+      <groupId>com.inetsoft.stylebi</groupId>
+      <artifactId>inetsoft-core</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+      <classifier>tests</classifier>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- Backs ExcelFileSupport.getInstance() (PoiExcelFileSupport, loaded by reflection at
+         runtime; production code never imports it directly, which is why this module has no
+         compile-scope dependency on it). Test scope only: the tests need the real sheet-name/
+         header-reading path against real .xlsx fixtures, and it is otherwise supplied by the
+         deployed application's own classpath, not by this module's own jar. inetsoft-xml-formats
+         declares all its POI dependencies `optional`, so they do not come along transitively;
+         poi-ooxml is declared explicitly below (same version, ${poi.version} from that module's
+         own pom) to build real .xlsx fixtures with XSSFWorkbook. -->
+    <dependency>
+      <groupId>com.inetsoft.stylebi</groupId>
+      <artifactId>inetsoft-xml-formats</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml</artifactId>
+      <version>5.4.0</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -121,6 +170,22 @@
             </configuration>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+        <configuration>
+          <excludedGroups>integration,slow</excludedGroups>
+          <workingDirectory>${project.build.directory}/test-workdir</workingDirectory>
+          <argLine>-Xmx2g --add-opens=java.base/jdk.internal.access=ALL-UNNAMED --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.management/com.sun.jmx.mbeanserver=ALL-UNNAMED --add-opens=jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED --add-opens=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.locks=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.math=ALL-UNNAMED --add-opens=java.sql/java.sql=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED --add-opens=java.management/sun.management=ALL-UNNAMED</argLine>
+          <systemPropertyVariables>
+            <disable.updateAssetDependencies>true</disable.updateAssetDependencies>
+            <kryo.unsafe>false</kryo.unsafe>
+            <show.license.exception>true</show.license.exception>
+            <inetsoft.sree.internal.cluster.implementation>inetsoft.sree.internal.cluster.MockCluster</inetsoft.sree.internal.cluster.implementation>
+          </systemPropertyVariables>
+        </configuration>
       </plugin>
     </plugins>
   </build>

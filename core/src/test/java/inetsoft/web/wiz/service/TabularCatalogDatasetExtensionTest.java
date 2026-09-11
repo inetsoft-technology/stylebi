@@ -133,6 +133,44 @@ class TabularCatalogDatasetExtensionTest {
    }
 
    /**
+    * ServerFile catalog SPI round (charter A8), this round's direct analogue of the
+    * {@code columnsMayBeIncomplete} presence/absence pair above, for the new {@code sampleable}
+    * component: every compatibility constructor defaults it to false, and false is omitted
+    * entirely rather than written out -- same "present only when it says something" convention.
+    * This is the whole mechanism wiz's {@code getRawDataTool} reads to decide whether to probe a
+    * METADATA target for sample rows, so a silent failure to serialise it here degrades exactly
+    * the regression A8 exists to close (annotation quietly runs without sample rows again) with
+    * every OTHER test in the round still green -- it was not covered before this test was added.
+    */
+   @Test
+   void datasetCommonExtensionOmitsSampleableKeyWhenFalse() throws Exception {
+      TabularDatasetSchema schema = new TabularDatasetSchema("Products",
+         List.of(new TabularColumn("ID", XSchema.LONG)), List.of("ID"));
+
+      OsiDataset dataset =
+         TabularCatalogService.toDataset("Rest/Northwind", "OData", schema, new ObjectMapper());
+
+      OsiCustomExtension ext = dataset.getCustomExtensions().get(0);
+      JsonNode data = new ObjectMapper().readTree(ext.getData());
+      assertFalse(data.has("sampleable"), "sampleable key must be absent, not written as false");
+   }
+
+   @Test
+   void datasetCommonExtensionCarriesSampleableWhenTrue() throws Exception {
+      TabularDatasetSchema schema = new TabularDatasetSchema("sub/report.csv",
+         List.of(new TabularColumn("city", XSchema.STRING)), List.of(),
+         Map.of("fileFolder", "sub/report.csv"), false, null, true);
+
+      OsiDataset dataset =
+         TabularCatalogService.toDataset("Files/Sales", "SERVER_FILE", schema, new ObjectMapper());
+
+      OsiCustomExtension ext = dataset.getCustomExtensions().get(0);
+      JsonNode data = new ObjectMapper().readTree(ext.getData());
+      assertTrue(data.get("sampleable").asBoolean(),
+         "sampleable must be written as a JSON boolean, not a string");
+   }
+
+   /**
     * B3: unlike {@code params}/{@code columnsMayBeIncomplete} above, {@code description} is a
     * top-level {@link OsiDataset} field, not a COMMON-extension key — this reads it directly off
     * the returned dataset rather than parsing the extension JSON.

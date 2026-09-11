@@ -32,14 +32,19 @@ public interface PptxDeckMerger {
     * @param slides one entry per kept chart, in display order. A non-failed entry's
     *               singleSlideDeckBytes is a single-slide .pptx produced by exporting that
     *               chart's own saved visualization via VSExportService/PPTVSExporter
-    *               (FileFormatInfo.EXPORT_TYPE_POWERPOINT). A failed entry's caption/title are
-    *               still used (for the placeholder slide's text); singleSlideDeckBytes may be
-    *               null/empty and must not be read. insightsMarkdown (either entry kind), if
-    *               non-blank, produces one or more dedicated insights-only slide(s) immediately
-    *               after the chart's own slide.
+    *               (FileFormatInfo.EXPORT_TYPE_POWERPOINT), pre-sized to occupy only the top
+    *               portion of the slide so its own insights have room below it. A failed entry's
+    *               caption/title are still used (for the placeholder slide's text);
+    *               singleSlideDeckBytes may be null/empty and must not be read. insightsMarkdown
+    *               (either entry kind), if non-blank, is packed onto the chart's own slide first
+    *               (below the imported picture) as far as it fits, then spills into additional
+    *               "(cont'd)" insights-only slide(s) immediately after — a failed entry has no
+    *               imported picture and so no reserved region, and its insights always start on
+    *               their own dedicated slide.
     * @return a merged multi-slide .pptx: one title/recap slide, then for each chart one slide
-    *         (imported content + caption, or a text-only "failed to render" placeholder)
-    *         optionally followed by insights-only slide(s)
+    *         (imported content + caption, or a text-only "failed to render" placeholder) with
+    *         that chart's own insights sharing the same slide when they fit, optionally followed
+    *         by additional insights-only "(cont'd)" slide(s) for whatever does not fit
     */
    byte[] mergeSlides(String title, String recap, java.util.List<ChartSlide> slides) throws Exception;
 }

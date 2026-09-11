@@ -29,7 +29,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.OutputVSAssembly;
-import inetsoft.uql.viewsheet.DataVSAssembly;
+import inetsoft.uql.viewsheet.DynamicBindableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Catalog;
@@ -311,7 +311,7 @@ public class ViewsheetRuntimeController {
     * filter is THERE is enough to stop the caller from destroying it unknowingly.
     */
    private boolean hasPreCondition(VSAssembly assembly) {
-      if(!(assembly instanceof DataVSAssembly dataAsm)) {
+      if(!(assembly instanceof DynamicBindableVSAssembly dataAsm)) {
          return false;
       }
 

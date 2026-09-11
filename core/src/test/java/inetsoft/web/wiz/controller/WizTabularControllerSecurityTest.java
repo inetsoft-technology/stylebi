@@ -102,7 +102,10 @@ class WizTabularControllerSecurityTest {
                 // branched after that round landed.
                 "/api/wiz/tabular/oauth-params",
                 "/api/wiz/tabular/oauth-tokens",
-                "/api/wiz/tabular/oauth-grant-password"),
+                "/api/wiz/tabular/oauth-grant-password",
+                // Added alongside this PR's own change: the datasource-side counterpart of
+                // /tabular/query-schema (the connection config, not the query contract).
+                "/api/wiz/tabular/datasource-config"),
          new HashSet<>(mappedPaths()));
    }
 
@@ -123,6 +126,21 @@ class WizTabularControllerSecurityTest {
    void tabularQuerySchemaIsGatedOnReadWithAWiredPermissionPath() throws Exception {
       Method method = WizTabularController.class.getDeclaredMethod(
          "getQuerySchema", String.class, boolean.class, Principal.class);
+
+      assertGateOnPathParameter(method, ResourceAction.READ);
+   }
+
+   /**
+    * The datasource-side counterpart of {@code getQuerySchema} right above -- same reasoning,
+    * same gate. It returns the connector's own connection-level config, with every credential
+    * field redacted to "is one configured" rather than its value, so (like {@code query-schema})
+    * it never needs {@code /tabular/definition}'s WRITE gate; unlike that one, it never returns a
+    * secret at all.
+    */
+   @Test
+   void tabularDatasourceConfigIsGatedOnReadWithAWiredPermissionPath() throws Exception {
+      Method method = WizTabularController.class.getDeclaredMethod(
+         "getDataSourceConfig", String.class, Principal.class);
 
       assertGateOnPathParameter(method, ResourceAction.READ);
    }

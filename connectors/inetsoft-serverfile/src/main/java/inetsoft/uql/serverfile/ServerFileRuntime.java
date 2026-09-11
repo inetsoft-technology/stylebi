@@ -35,7 +35,19 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * Runtime support for local data files.
  */
-public class ServerFileRuntime extends TabularRuntime {
+public class ServerFileRuntime extends TabularRuntime implements TabularCatalogProvider {
+   @Override
+   public TabularCatalog listDatasets(TabularDataSource<?> dataSource) throws Exception {
+      return ServerFileCatalogCache.catalog((ServerFileDataSource) dataSource);
+   }
+
+   @Override
+   public TabularDatasetSchema describeDataset(TabularDataSource<?> dataSource, String datasetId)
+      throws Exception
+   {
+      return ServerFileCatalog.describeDataset((ServerFileDataSource) dataSource, datasetId);
+   }
+
    public XTableNode runQuery(TabularQuery query, VariableTable params) {
       ServerFileQuery sfQuery = (ServerFileQuery) query;
       File dataFile = sfQuery.getFileFolder();

@@ -70,6 +70,17 @@ public class FakeCustomRestQuery extends TabularQuery {
       this.suffix = suffix;
    }
 
+   /**
+    * Non-{@code @Property} reflection surface, mirroring {@link FakeLegacyEndpointQuery#isPaged()}'s
+    * pattern for the generic/custom (no {@code endpoint} property) shape: a custom REST-JSON
+    * connector's pagination is driven by its own connector-specific properties, not a name lookup,
+    * so this fixture ties it to the one property the suffix form actually sets -- {@code suffix}
+    * itself -- rather than adding an unrelated property no caller sets.
+    */
+   public boolean isPaged() {
+      return "/paged".equals(suffix);
+   }
+
    @Property(label = "Json Path")
    public String getJsonPath() {
       return jsonPath;

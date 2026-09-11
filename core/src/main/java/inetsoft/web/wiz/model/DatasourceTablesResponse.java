@@ -52,7 +52,24 @@ public class DatasourceTablesResponse {
       this.nextCursor = nextCursor;
    }
 
+   /**
+    * True when {@code tables} is a prefix of the data source's real catalog -- an internal
+    * enumeration bound stopped the walk short, not a signal that the source actually holds no
+    * more. Mirrors {@link inetsoft.uql.tabular.TabularCatalog#truncated()}; {@code false} (the
+    * default) for every response built from a source that does not truncate, and for the paged
+    * {@code listTables(dsName, nameContains, limit, cursor)} response, which expresses
+    * incompleteness through {@code nextCursor} instead.
+    */
+   public boolean isTruncated() {
+      return truncated;
+   }
+
+   public void setTruncated(boolean truncated) {
+      this.truncated = truncated;
+   }
+
    private List<DatabaseTableInfo> tables;
    private List<OsiRelationship> relationships;
    private String nextCursor;
+   private boolean truncated;
 }

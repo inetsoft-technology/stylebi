@@ -30,6 +30,7 @@ import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.sree.security.Resource;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.sree.security.SecurityProvider;
@@ -37,6 +38,7 @@ import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
@@ -70,10 +72,14 @@ import java.security.Principal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -109,6 +115,10 @@ class RepositoryObjectServiceTest {
       resourcePermissionService = mock(ResourcePermissionService.class);
       dependencyHandler = mock(DependencyHandler.class);
       dataModel = mock(XDataModel.class);
+      securityProvider = mock(SecurityProvider.class);
+      // most scenarios only care about a specific source's permission outcome -- default to
+      // allowed so a test only has to stub the source(s) it wants to deny.
+      when(securityProvider.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
 
       when(dataModel.getDataSource()).thenReturn(DATA_SOURCE);
       when(dataSourceRegistry.getDataModel(DATA_SOURCE)).thenReturn(dataModel);
@@ -118,7 +128,7 @@ class RepositoryObjectServiceTest {
 
       service = new RepositoryObjectService(
          mock(RepletRegistryService.class), mock(ContentRepositoryTreeService.class),
-         mock(SecurityProvider.class), resourcePermissionService, mock(XRepository.class),
+         securityProvider, resourcePermissionService, mock(XRepository.class),
          mock(RepositoryDashboardService.class), mock(DataModelFolderManagerService.class),
          dataSourceRegistry, mock(LibManagerProvider.class), mock(RecycleBin.class),
          dependencyHandler, mock(RenameTransformHandler.class), mock(RepletRegistryManager.class),
@@ -312,6 +322,173 @@ class RepositoryObjectServiceTest {
       assertEquals(expected, capturedDeletedDependencyKey());
    }
 
+   // ---- removeDataSourceFolder ----------------------------------------------------------------
+
+   /*
+    * Bug fix: removeDataSourceFolder used to check permission/dependencies only on a folder's
+    * IMMEDIATE children, then unconditionally call the registry's own removeDataSourceFolder,
+    * which recursively deletes every nested data source at ANY depth with no check of its own.
+    * These tests pin the two-phase replacement: allNestedDataSourceNames() reaches every nested
+    * data source regardless of depth, every one is checked before anything is deleted, and a
+    * single failure anywhere refuses the whole operation instead of leaving a partial delete.
+    */
+
+   @Test
+   void removeDataSourceFolder_allNestedSourcesPassChecksSoEverythingIsDeleted() {
+      stubNestedDataSources(FOLDER, DIRECT_CHILD, NESTED_CHILD);
+      XDataSource directDs = mock(XDataSource.class);
+      when(directDs.getType()).thenReturn("JDBC");
+      XDataSource nestedDs = mock(XDataSource.class);
+      when(nestedDs.getType()).thenReturn("REST");
+      when(dataSourceRegistry.getDataSource(DIRECT_CHILD)).thenReturn(directDs);
+      when(dataSourceRegistry.getDataSource(NESTED_CHILD)).thenReturn(nestedDs);
+
+      FolderDeleteResult result = service.removeDataSourceFolder(FOLDER, false, principal);
+
+      assertNull(result.status());
+      assertEquals(
+         List.of(new DeletedDataSource(DIRECT_CHILD, "JDBC"),
+                 new DeletedDataSource(NESTED_CHILD, "REST")),
+         result.deletedDataSources());
+      verify(dataSourceRegistry).removeDataSource(DIRECT_CHILD);
+      verify(dataSourceRegistry).removeDataSource(NESTED_CHILD);
+      verify(dataSourceRegistry).removeDataSourceFolder(FOLDER);
+   }
+
+   /*
+    * The actual security-bug regression test: a data source nested TWO levels deep (not merely an
+    * immediate child) that fails permission must refuse the WHOLE delete -- and nothing may have
+    * been deleted, not even the direct child that passed its own check first. Today's
+    * immediate-children-only loop would never even look at this nested item before the low-level
+    * delete swept it up unconditionally; this pins that it is now checked and blocks the delete.
+    */
+   @Test
+   void removeDataSourceFolder_aDeeplyNestedSourceFailingPermissionRefusesEverything() {
+      stubNestedDataSources(FOLDER, DIRECT_CHILD, NESTED_CHILD);
+      when(securityProvider.checkPermission(
+         eq(principal), eq(ResourceType.DATA_SOURCE), eq(NESTED_CHILD), eq(ResourceAction.DELETE)))
+         .thenReturn(false);
+
+      FolderDeleteResult result = service.removeDataSourceFolder(FOLDER, false, principal);
+
+      assertNotNull(result.status());
+      assertTrue(result.deletedDataSources().isEmpty());
+      verify(dataSourceRegistry, never()).removeDataSource(any());
+      verify(dataSourceRegistry, never()).removeDataSourceFolder(any());
+   }
+
+   /*
+    * Same shape as above, but the failure is a dependency conflict (force=false) on the deeply
+    * nested item rather than a permission denial -- both check kinds must gate every nested item,
+    * not just the permission check.
+    */
+   @Test
+   void removeDataSourceFolder_aNestedSourceWithADependencyConflictRefusesEverything()
+      throws Exception
+   {
+      stubNestedDataSources(FOLDER, DIRECT_CHILD, NESTED_CHILD);
+      stubDependencyConflict(NESTED_CHILD);
+
+      FolderDeleteResult result = service.removeDataSourceFolder(FOLDER, false, principal);
+
+      assertNotNull(result.status());
+      assertTrue(result.deletedDataSources().isEmpty());
+      verify(dataSourceRegistry, never()).removeDataSource(any());
+      verify(dataSourceRegistry, never()).removeDataSourceFolder(any());
+   }
+
+   @Test
+   void removeDataSourceFolder_forceTrueBypassesADependencyConflict() throws Exception {
+      stubNestedDataSources(FOLDER, DIRECT_CHILD, NESTED_CHILD);
+      stubDependencyConflict(NESTED_CHILD);
+
+      FolderDeleteResult result = service.removeDataSourceFolder(FOLDER, true, principal);
+
+      assertNull(result.status());
+      verify(dataSourceRegistry).removeDataSource(DIRECT_CHILD);
+      verify(dataSourceRegistry).removeDataSource(NESTED_CHILD);
+      verify(dataSourceRegistry).removeDataSourceFolder(FOLDER);
+   }
+
+   /*
+    * A data source that fails to load (getDataSource throws, or returns null) must not block its
+    * own deletion -- the type is only needed by callers doing cleanup keyed on it, mirroring
+    * DataSourceBrowserService.getDataSources()'s own tolerance for the same failure.
+    */
+   @Test
+   void removeDataSourceFolder_aSourceWhoseTypeCannotBeReadStillGetsDeletedWithANullType() {
+      stubNestedDataSources(FOLDER, DIRECT_CHILD);
+      when(dataSourceRegistry.getDataSource(DIRECT_CHILD)).thenThrow(new RuntimeException("boom"));
+
+      FolderDeleteResult result = service.removeDataSourceFolder(FOLDER, false, principal);
+
+      assertNull(result.status());
+      assertEquals(List.of(new DeletedDataSource(DIRECT_CHILD, null)), result.deletedDataSources());
+      verify(dataSourceRegistry).removeDataSource(DIRECT_CHILD);
+   }
+
+   // ---- deleteNodes / DATA_SOURCE_FOLDER --------------------------------------------------------
+
+   /*
+    * deleteNodes()'s DATA_SOURCE_FOLDER case had zero coverage before this change. These two tests
+    * pin that the EM native delete path still sees a plain success/failure signal (a
+    * ConnectionStatus or null) after removeDataSourceFolder's return type changed to
+    * FolderDeleteResult -- the adaptation at the call site is a pure type unwrap, not a behavior
+    * change.
+    */
+   @Test
+   void deleteNodes_dataSourceFolderSuccessReturnsNull() throws Exception {
+      stubNestedDataSources(FOLDER);
+
+      TreeNodeInfo node = TreeNodeInfo.builder()
+         .label(FOLDER)
+         .path(FOLDER)
+         .type(RepositoryEntry.DATA_SOURCE_FOLDER)
+         .build();
+
+      assertNull(service.deleteNodes(new TreeNodeInfo[]{ node }, principal, false, false));
+      verify(dataSourceRegistry).removeDataSourceFolder(FOLDER);
+   }
+
+   @Test
+   void deleteNodes_dataSourceFolderFailurePropagatesTheConnectionStatus() throws Exception {
+      stubNestedDataSources(FOLDER, DIRECT_CHILD);
+      when(securityProvider.checkPermission(
+         eq(principal), eq(ResourceType.DATA_SOURCE), eq(DIRECT_CHILD), eq(ResourceAction.DELETE)))
+         .thenReturn(false);
+
+      TreeNodeInfo node = TreeNodeInfo.builder()
+         .label(FOLDER)
+         .path(FOLDER)
+         .type(RepositoryEntry.DATA_SOURCE_FOLDER)
+         .build();
+
+      assertNotNull(service.deleteNodes(new TreeNodeInfo[]{ node }, principal, false, false));
+      verify(dataSourceRegistry, never()).removeDataSourceFolder(any());
+   }
+
+   private void stubNestedDataSources(String folder, String... sources) {
+      AssetEntry[] entries = new AssetEntry[sources.length];
+
+      for(int i = 0; i < sources.length; i++) {
+         entries[i] = new AssetEntry(
+            AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, sources[i], null);
+      }
+
+      when(dataSourceRegistry.getEntries(eq(folder + "/"), eq(AssetEntry.Type.DATA_SOURCE)))
+         .thenReturn(entries);
+   }
+
+   private void stubDependencyConflict(String dataSourcePath) throws Exception {
+      DependenciesInfo dependencies = new DependenciesInfo();
+      dependencies.setDependencies(List.of(new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "boundWorksheet", null)));
+      String entryId = new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, dataSourcePath, null)
+         .toIdentifier();
+      when(dependencyStorageService.getWithOrg(eq(entryId), any())).thenReturn(dependencies);
+   }
+
    private String identifier(AssetEntry.Type type, String name) {
       return new AssetEntry(AssetRepository.QUERY_SCOPE, type, DATA_SOURCE + "/" + name, null)
          .toIdentifier();
@@ -333,6 +510,7 @@ class RepositoryObjectServiceTest {
    private DataSourceRegistry dataSourceRegistry;
    private ResourcePermissionService resourcePermissionService;
    private DependencyHandler dependencyHandler;
+   private SecurityProvider securityProvider;
    @Autowired private DependencyStorageService dependencyStorageService;
    private XDataModel dataModel;
    private Principal principal;
@@ -344,4 +522,7 @@ class RepositoryObjectServiceTest {
    private static final String LOGICAL_MODEL_NAME = "logicalModel";
    private static final String EXTENDED_NAME = "additionalConnection";
    private static final String MODEL_FOLDER = "modelFolder";
+   private static final String FOLDER = "dsFolder";
+   private static final String DIRECT_CHILD = "dsFolder/ds1";
+   private static final String NESTED_CHILD = "dsFolder/sub/ds2";
 }

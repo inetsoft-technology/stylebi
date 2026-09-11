@@ -96,7 +96,7 @@ public class OneDriveQuery extends SelectableTabularQuery implements BrowsableQu
     */
    @Property(label = "Sheet")
    @PropertyEditor(
-      dependsOn = {"fileFolder"},
+      dependsOn = {"path"},
       enabledMethod = "isExcel", tagsMethod = "getExcelSheetNames")
    public String getExcelSheet() {
       return excelSheet;
@@ -116,12 +116,55 @@ public class OneDriveQuery extends SelectableTabularQuery implements BrowsableQu
    }
 
    /**
+    * A second, scalar route to the same {@link #excelSheet} field as {@link #getExcelSheet()} --
+    * the tabular catalog SPI's "scalar alias for a Kind B identity property" pattern (see the
+    * {@code tabular-catalog-spi-connector} SKILL). {@code excelSheet} cannot be written through
+    * {@code TabularQueryContractSupport.applyQueryContract}: it carries a {@code tagsMethod}
+    * ({@link #getExcelSheetNames()}), and that method answers {@code [""]} -- never the real sheet
+    * name -- until a file has been downloaded onto THIS query instance, which a freshly-built query
+    * never has. This property carries {@code @Property} but is deliberately kept OUT of
+    * {@code @View}, has no {@code @PropertyEditor}, and above all no {@code tagsMethod} -- that
+    * absence is the entire point, since a {@code tagsMethod} is exactly what makes
+    * {@code excelSheet} unwritable. Membership in the query's settable-property set comes from
+    * {@code @Property} alone, not from {@code @View} (see {@code TabularSchemaExtractor#extract}:
+    * "properties the {@code @View} annotation never mentions are still settable").
+    *
+    * <p>{@code OneDriveCatalog.describeDataset} emits ONLY this property, never {@code excelSheet},
+    * so in the normal catalog round-trip the two never race. If a caller supplies BOTH in one
+    * {@code queryParams} map (only reachable through a direct {@code create_worksheet_table} call,
+    * never through the catalog), THIS property wins, deterministically -- not because of this
+    * class's own {@code @View} declaration order (which the OneDrive catalog SPI round's own
+    * design review flagged as an accidental tie-break to rely on), but because
+    * {@code TabularSchemaExtractor.extract} always places every {@code @View}-referenced param
+    * (including {@code excelSheet}) before every param it does not reference (this one), and
+    * {@code TabularQueryContractSupport}'s fill order follows that same list. So this property is
+    * always applied AFTER {@code excelSheet}, for any query and any {@code @View} layout -- pinned
+    * by {@code OneDriveQueryExcelSheetAliasPrecedenceTest}, not left as an assumption.
+    */
+   @Property(label = "Sheet Name")
+   public String getExcelSheetName() {
+      return excelSheet;
+   }
+
+   /**
+    * Assigns the same backing field {@link #getExcelSheet()}/{@link #runQuery} already read --
+    * deliberately WITHOUT calling {@link #loadColumns()} the way {@link #setExcelSheet} does:
+    * {@code loadColumns} is what costs a full re-download (see the design doc's P-14), and the whole
+    * point of this alias is a zero-extra-download write. Must not normalize the value in any way
+    * (trim, case-fold, ...): {@code applyQueryContract} writes then reads back and compares, so any
+    * normalization here would report a successful write as a silent no-op.
+    */
+   public void setExcelSheetName(String excelSheetName) {
+      this.excelSheet = excelSheetName;
+   }
+
+   /**
     * Get the text encoding types.
     */
    @Property(label = "Encoding")
    @PropertyEditor(
       enabledMethod = "isText",
-      dependsOn = {"fileFolder"},
+      dependsOn = {"path"},
       tagsMethod = "getEncodingTypes")
    public String getEncoding() {
       return encoding;
@@ -140,7 +183,7 @@ public class OneDriveQuery extends SelectableTabularQuery implements BrowsableQu
    @Property(label = "Text Delimiter")
    @PropertyEditor(
       enabledMethod = "canDelimit",
-      dependsOn = {"tab", "fileFolder"})
+      dependsOn = {"tab", "path"})
    public String getDelimiter() {
       if(this.delimiter == null || this.delimiter.isEmpty()) {
          initDelimiter();
@@ -160,7 +203,7 @@ public class OneDriveQuery extends SelectableTabularQuery implements BrowsableQu
     * Check the Tab delimiter.
     */
    @Property(label = "Tab")
-   @PropertyEditor(enabledMethod = "isText", dependsOn = {"fileFolder"})
+   @PropertyEditor(enabledMethod = "isText", dependsOn = {"path"})
    public boolean isTab() {
       return tab;
    }
@@ -176,7 +219,7 @@ public class OneDriveQuery extends SelectableTabularQuery implements BrowsableQu
     * Check to unpivot data.
     */
    @Property(label = "Unpivot Data")
-   @PropertyEditor(enabledMethod = "isUnpivotDataEnabled", dependsOn = {"fileFolder", "delimeter", "tab"})
+   @PropertyEditor(enabledMethod = "isUnpivotDataEnabled", dependsOn = {"path", "delimeter", "tab"})
    public boolean isUnpivotData() {
       return unpivotData;
    }
@@ -234,7 +277,7 @@ public class OneDriveQuery extends SelectableTabularQuery implements BrowsableQu
     * file is a text file.
     */
    @Property(label = "Remove Quotation Marks")
-   @PropertyEditor(enabledMethod = "isText", dependsOn = {"fileFolder"})
+   @PropertyEditor(enabledMethod = "isText", dependsOn = {"path"})
    public boolean isRemoveQuotation() {
       return removeQuotation;
    }

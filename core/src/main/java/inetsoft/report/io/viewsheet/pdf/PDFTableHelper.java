@@ -185,6 +185,10 @@ public class PDFTableHelper extends VSTableHelper {
    {
       Rectangle rec = super.getTableRectangle(info, lens);
 
+      if(lens == null) {
+         return rec;
+      }
+
       int headers = lens.getHeaderRowCount();
       int rows = lens.getRowCount();
       int height = 0;

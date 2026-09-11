@@ -21,7 +21,9 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
+import inetsoft.util.Catalog;
 import inetsoft.web.composer.model.vs.VSLayoutObjectModel;
 import inetsoft.web.viewsheet.model.VSFormatModel;
 import inetsoft.web.viewsheet.model.VSObjectModel;
@@ -37,8 +39,10 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(SpringExtension.class)
@@ -321,6 +325,23 @@ class VSLayoutServiceTest {
       // top should NOT be shifted for non-bottom tabs
       assertEquals(layoutY, result.top(),
          "model top should not be shifted for non-bottom tabs");
+   }
+
+   /**
+    * Bug #76584 repro: a viewsheet that has never had a print layout configured has
+    * LayoutInfo.printLayout == null. findViewsheetLayout must report that as "not found"
+    * (Optional.empty()) rather than throwing NullPointerException via Optional.of(null).
+    */
+   @Test
+   void findViewsheetLayoutReturnsEmptyForUnconfiguredPrintLayout() {
+      Viewsheet vs = new Viewsheet();
+
+      Optional<AbstractLayout> result = service.findViewsheetLayout(
+         vs, Catalog.getCatalog().getString("Print Layout"));
+
+      assertTrue(result.isEmpty(),
+         "findViewsheetLayout should return Optional.empty() for a viewsheet with no " +
+         "print layout configured yet, not throw NullPointerException");
    }
 
    private VSObjectModel mockObjectModel() {
