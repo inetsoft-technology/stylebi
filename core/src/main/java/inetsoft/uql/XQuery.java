@@ -95,9 +95,14 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
    public void setName(String name) {
       this.name = name;
 
-      // change the variable source name
-      for(XVariable var : varmap.values()) {
-         var.setSource(name);
+      // change the variable source name. iterating a synchronizedMap is not
+      // thread-safe on its own (only individual calls are synchronized), so
+      // the iteration must be guarded by locking on the map instance itself,
+      // matching Collections.synchronizedMap's documented contract.
+      synchronized(varmap) {
+         for(XVariable var : varmap.values()) {
+            var.setSource(name);
+         }
       }
    }
 
@@ -198,48 +203,61 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
    }
 
    private Enumeration<String> getVariableNames0(boolean all) {
-      final Map<String, XVariable> ovarmap = new HashMap<>(varmap);
-      varmap.clear();
-      findVariables(ovarmap);
+      final List<String> names;
 
-      // need to copy to the new map since we can't delete from the varmap
-      // otherwise the enumeration index would be wrong
-      final Map<String, XVariable> nmap = Collections.synchronizedMap(new LinkedHashMap<>());
+      // the clear()/rebuild sequence below is not atomic as a series of
+      // individual synchronizedMap calls, and varmap may be shared (not
+      // cloned) by callers such as SQLBoundTableAssembly.getAllVariables(),
+      // so the whole read-modify-write sequence must be locked on the map
+      // instance. The field itself is never reassigned (only cleared and
+      // repopulated) so that this monitor stays valid for concurrent callers
+      // for the lifetime of this XQuery instance.
+      synchronized(varmap) {
+         final Map<String, XVariable> ovarmap = new HashMap<>(varmap);
+         varmap.clear();
+         findVariables(ovarmap);
 
-      // replace the newly added variables with existing variable definition
-      for(Map.Entry<String, XVariable> entry : varmap.entrySet()) {
-         final String varName = entry.getKey();
-         XVariable var = entry.getValue();
-         XVariable ovar = ovarmap.get(varName);
+         // need to copy to the new map since we can't delete from the varmap
+         // otherwise the enumeration index would be wrong
+         final Map<String, XVariable> nmap = new LinkedHashMap<>();
 
-         if(!all && VariableTable.isBuiltinVariable(varName)) {
-            continue;
-         }
+         // replace the newly added variables with existing variable definition
+         for(Map.Entry<String, XVariable> entry : varmap.entrySet()) {
+            final String varName = entry.getKey();
+            XVariable var = entry.getValue();
+            XVariable ovar = ovarmap.get(varName);
 
-         nmap.put(varName, var);
+            if(!all && VariableTable.isBuiltinVariable(varName)) {
+               continue;
+            }
 
-         if((ovar instanceof UserVariable) && (var instanceof UserVariable)) {
-            UserVariable uvar = (UserVariable) var;
-            UserVariable ouvar = (UserVariable) ovar;
+            nmap.put(varName, var);
 
-            if(uvar.getValueNode() == null ||
-               uvar.getValueNode().getValue() == null && ouvar.getValueNode() != null ||
-               "".equals(uvar.getValueNode().getValue()) ||
-               (ouvar.getValueNode() != null &&
-                  ouvar.getValueNode().getValue() != null &&
-                  !(uvar.getValueNode().getValue().equals(ouvar.getValueNode().getValue()))))
-            {
+            if((ovar instanceof UserVariable) && (var instanceof UserVariable)) {
+               UserVariable uvar = (UserVariable) var;
+               UserVariable ouvar = (UserVariable) ovar;
+
+               if(uvar.getValueNode() == null ||
+                  uvar.getValueNode().getValue() == null && ouvar.getValueNode() != null ||
+                  "".equals(uvar.getValueNode().getValue()) ||
+                  (ouvar.getValueNode() != null &&
+                     ouvar.getValueNode().getValue() != null &&
+                     !(uvar.getValueNode().getValue().equals(ouvar.getValueNode().getValue()))))
+               {
+                  nmap.put(varName, ovar);
+               }
+            }
+            else if(ovar instanceof QueryVariable) {
                nmap.put(varName, ovar);
             }
          }
-         else if(ovar instanceof QueryVariable) {
-            nmap.put(varName, ovar);
-         }
+
+         varmap.clear();
+         varmap.putAll(nmap);
+         names = new ArrayList<>(varmap.keySet());
       }
 
-      varmap = nmap;
-
-      return new IteratorEnumeration<>(varmap.keySet().iterator());
+      return new IteratorEnumeration<>(names.iterator());
    }
 
    /**
@@ -868,7 +886,14 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
          XQuery nquery = (XQuery) super.clone();
          nquery.datasource = datasource == null ? null : (XDataSource) datasource.clone();
          nquery.orgId = orgId;
-         nquery.varmap = Collections.synchronizedMap(new LinkedHashMap<>(varmap));
+
+         // new LinkedHashMap<>(varmap) traverses varmap via its copy
+         // constructor, which is not synchronized by Collections.synchronizedMap
+         // on its own -- lock on the source map for the duration of the copy.
+         synchronized(varmap) {
+            nquery.varmap = Collections.synchronizedMap(new LinkedHashMap<>(varmap));
+         }
+
          nquery.propmap = (HashMap<String, Object>) propmap.clone();
          nquery.dependencies = new HashSet<>(dependencies);
 
@@ -925,6 +950,16 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
    // A plain ConcurrentHashMap/HashMap must not be used here since its iteration
    // order is hash-based and can present variables to the user in a scrambled
    // order (e.g. var2 before var1).
+   // NOTE: Collections.synchronizedMap only synchronizes individual method calls;
+   // it does NOT make iteration, entrySet()/values() traversal, or copy-constructor
+   // traversal thread-safe on its own. This field is shared (not always cloned) by
+   // some callers (e.g. SQLBoundTableAssembly.getAllVariables()), so every site
+   // that iterates varmap (getVariableNames0, setName, clone) must additionally
+   // synchronize on this map instance for the duration of the iteration, and this
+   // field must never be reassigned to a new map instance (only cleared/repopulated)
+   // so that monitor stays valid across calls.
+   // reassigned only in clone(), on the not-yet-published copy -- never mutated
+   // to a new instance on a shared/published XQuery (see getVariableNames0()).
    private Map<String, XVariable> varmap =
       Collections.synchronizedMap(new LinkedHashMap<>()); // var name -> XVariable
    private String desc; // description
