@@ -59,6 +59,8 @@ import { SelectionContainerChildrenService } from "./services/selection-containe
 import { SelectionMobileService } from "./services/selection-mobile.service";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { MaxObjectEvent } from "../../event/table/max-object-event";
+import { VSTitle } from "../title/vs-title.component";
+
 
 const Add_FILTER_TREE_URI: string = "../api/selectioncontainer/add-filter/tree";
 const INSERT_CHILD_URI = "/events/composer/viewsheet/selectionContainer/insertChild/";
@@ -67,9 +69,10 @@ const MAX_MODE_URL: string = "/events/vs/assembly/max-mode/toggle";
 const CHECK_TRAP_URI = "../api/viewsheet/objects/checkSelectionTrap";
 
 @Component({
-   selector: "vs-selection-container",
-   templateUrl: "vs-selection-container.component.html",
-   styleUrls: ["vs-selection-container.component.scss"]
+    selector: "vs-selection-container",
+    templateUrl: "vs-selection-container.component.html",
+    styleUrls: ["vs-selection-container.component.scss"],
+    imports: [VSTitle]
 })
 export class VSSelectionContainer extends AbstractVSObject<VSSelectionContainerModel>
    implements OnChanges, OnDestroy

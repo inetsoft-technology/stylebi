@@ -90,8 +90,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          }
       }
       catch(Exception e) {
-         throw new RuntimeException(
-            "Failed to load schedule task: " + identifier, e);
+         LOG.error("Failed to load schedule task, skipping: {}", identifier, e);
       }
 
       return task;
@@ -190,38 +189,38 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    @Override
    public ScheduleTask remove(Object key) {
       ScheduleTask task = get(key);
+      String identifier = (String) key;
 
-      if(task != null) {
-         String identifier = (String) key;
+      try {
+         AssetFolder root = getRoot();
+         AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+         root.removeEntry(entry);
+         indexedStorage.putXMLSerializable(getRootIdentifier(orgID), root);
+         indexedStorage.remove(identifier);
+         cache.remove(identifier);
 
-         try {
-            AssetFolder root = getRoot();
-            AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-            root.removeEntry(entry);
-            indexedStorage.putXMLSerializable(getRootIdentifier(orgID), root);
-            indexedStorage.remove(identifier);
-            cache.remove(identifier);
+         // should remove the task from folder when delete a task.
+         if(task != null && !StringUtils.isEmpty(task.getPath())) {
+            AssetEntry folderEntry = new AssetEntry( AssetRepository.GLOBAL_SCOPE,
+                                                     AssetEntry.Type.SCHEDULE_TASK_FOLDER, task.getPath(), null, orgID);
+            XMLSerializable folder = indexedStorage
+               .getXMLSerializable(folderEntry.toIdentifier(), null, orgID);
 
-            // should remove the task from folder when delete a task.
-            if(task != null && !StringUtils.isEmpty(task.getPath())) {
-               AssetEntry folderEntry = new AssetEntry( AssetRepository.GLOBAL_SCOPE,
-                                                        AssetEntry.Type.SCHEDULE_TASK_FOLDER, task.getPath(), null, orgID);
-               XMLSerializable folder = indexedStorage
-                  .getXMLSerializable(folderEntry.toIdentifier(), null, orgID);
-
-               if(folder instanceof AssetFolder) {
-                  ((AssetFolder) folder).removeEntry(entry);
-                  indexedStorage.putXMLSerializable(folderEntry.toIdentifier(), folder);
-               }
+            if(folder instanceof AssetFolder) {
+               ((AssetFolder) folder).removeEntry(entry);
+               indexedStorage.putXMLSerializable(folderEntry.toIdentifier(), folder);
             }
          }
-         catch(Exception e) {
-            throw new RuntimeException(
-               "Failed to delete schedule task: " + identifier, e);
+         else if(task == null) {
+            removeEntryFromFolders(entry, root);
          }
-         finally {
-            indexedStorage.close();
-         }
+      }
+      catch(Exception e) {
+         throw new RuntimeException(
+            "Failed to delete schedule task: " + identifier, e);
+      }
+      finally {
+         indexedStorage.close();
       }
 
       return task;
@@ -266,17 +265,19 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          throw new RuntimeException("Failed to list schedule tasks", e);
       }
 
-      // Add internal tasks
-      keys.add(new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE,
-         AssetEntry.Type.SCHEDULE_TASK, "/" + InternalScheduledTaskService.ASSET_FILE_BACKUP,
-         null, Organization.getDefaultOrganizationID())
-                  .toIdentifier());
-      keys.add(new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE,
-         AssetEntry.Type.SCHEDULE_TASK, "/" + InternalScheduledTaskService.BALANCE_TASKS,
-         null, Organization.getDefaultOrganizationID())
-                  .toIdentifier());
+      // Add internal tasks to default org only
+      if(orgID.equals(Organization.getDefaultOrganizationID())) {
+         keys.add(new AssetEntry(
+            AssetRepository.GLOBAL_SCOPE,
+            AssetEntry.Type.SCHEDULE_TASK, "/" + InternalScheduledTaskService.ASSET_FILE_BACKUP,
+            null, Organization.getDefaultOrganizationID())
+                     .toIdentifier());
+         keys.add(new AssetEntry(
+            AssetRepository.GLOBAL_SCOPE,
+            AssetEntry.Type.SCHEDULE_TASK, "/" + InternalScheduledTaskService.BALANCE_TASKS,
+            null, Organization.getDefaultOrganizationID())
+                     .toIdentifier());
+      }
 
       return keys;
    }
@@ -306,7 +307,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
     */
    private AssetFolder getRoot() throws Exception {
       String rootId = getRootIdentifier(orgID);
-      long ts = indexedStorage.lastModified(rootId);
+      long ts = indexedStorage.lastModified(rootId, orgID);
       Long ots = rootTS.containsKey(orgID) ? rootTS.get(orgID) : 0;
       AssetFolder rootFolder = rootFolders.get(orgID);
 
@@ -317,11 +318,19 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
             // bug #58866, handle corruption where asset entry is in the index, but the asset data
             // file is missing
             rootFolder = new AssetFolder();
+
+            if(indexedStorage instanceof BlobIndexedStorage &&
+               !indexedStorage.isInitialized(orgID))
+            {
+               return rootFolder;
+            }
+
             indexedStorage.putXMLSerializable(rootId, rootFolder);
-            ts = indexedStorage.lastModified(rootId);
+            ts = indexedStorage.lastModified(rootId, orgID);
          }
 
-         rootTS.put(orgID, ots);
+         rootFolders.put(orgID, rootFolder);
+         rootTS.put(orgID, ts);
       }
 
       return rootFolder;
@@ -365,6 +374,31 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
       finally {
          indexedStorage.close();
       }
+   }
+
+   private boolean removeEntryFromFolders(AssetEntry entry, AssetFolder folder) throws Exception {
+      if(folder == null) {
+         return false;
+      }
+
+      for(AssetEntry child : folder.getEntries()) {
+         if(child.isScheduleTaskFolder()) {
+            AssetFolder subFolder = (AssetFolder)
+               indexedStorage.getXMLSerializable(child.toIdentifier(), null, orgID);
+
+            if(subFolder != null && subFolder.containsEntry(entry)) {
+               subFolder.removeEntry(entry);
+               indexedStorage.putXMLSerializable(child.toIdentifier(), subFolder);
+               return true;
+            }
+
+            if(removeEntryFromFolders(entry, subFolder)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    private List<AssetEntry> getAllChildren(AssetFolder root) {
@@ -453,28 +487,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
 
             root = getRoot();
             entries = getAllChildren(root, orgID).toArray(new AssetEntry[0]);
-
-            if(!orgID.equals(Organization.getDefaultOrganizationID())) {
-               internalTasks = new AssetEntry[3];
-
-               internalTasks[0] = new AssetEntry(
-                  AssetRepository.GLOBAL_SCOPE,
-                  AssetEntry.Type.SCHEDULE_TASK, "/" + InternalScheduledTaskService.ASSET_FILE_BACKUP,
-                  null, Organization.getDefaultOrganizationID());
-
-               internalTasks[1] = new AssetEntry(
-                  AssetRepository.GLOBAL_SCOPE,
-                  AssetEntry.Type.SCHEDULE_TASK, "/" + InternalScheduledTaskService.BALANCE_TASKS,
-                  null, Organization.getDefaultOrganizationID());
-               internalTasks[2] = new AssetEntry(
-                  AssetRepository.GLOBAL_SCOPE,
-                  AssetEntry.Type.SCHEDULE_TASK,
-                  "/" + InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES,
-                  null, Organization.getDefaultOrganizationID());
-            }
-            else {
-               internalTasks = new AssetEntry[0];
-            }
+            internalTasks = new AssetEntry[0];
          }
          catch(Exception e) {
             throw new RuntimeException("Failed to get schedule task folder", e);

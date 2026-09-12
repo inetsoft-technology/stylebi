@@ -21,11 +21,13 @@ import inetsoft.mv.fs.FSService;
 import inetsoft.mv.fs.internal.AbstractFileSystem;
 import inetsoft.mv.fs.internal.DefaultBlockSystem;
 import inetsoft.mv.mr.XJobPool;
-import inetsoft.sree.RepletRegistry;
-import inetsoft.sree.SreeEnv;
+import inetsoft.sree.*;
+import inetsoft.sree.internal.AnalyticEngine;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.portal.*;
+import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.web.dashboard.DashboardRegistry;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.util.AbstractIdentity;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
@@ -35,8 +37,7 @@ import inetsoft.web.admin.security.user.IdentityThemeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.security.Principal;
 import java.util.*;
 
@@ -95,17 +96,21 @@ public abstract class AbstractEditableAuthenticationProvider
     */
    @Override
    public void copyOrganization(Organization fromOrganization, String newOrgID, IdentityService identityService,
-                                IdentityThemeService themeService, Principal principal, boolean replace)
+                                IdentityThemeService themeService,
+                                DashboardRegistryManager dashboardRegistryManager,
+                                DataCycleManager dataCycleManager,
+                                Principal principal, boolean replace)
    {
-      copyOrganization(fromOrganization, null, newOrgID, null, identityService, themeService, principal, replace);
+      copyOrganization(fromOrganization, null, newOrgID, null, identityService, themeService, dashboardRegistryManager, dataCycleManager, principal, replace);
    }
 
    @Override
    public void copyOrganization(Organization fromOrganization, String newOrgID, IdentityService identityService,
-                                IdentityThemeService themeService, Principal principal, boolean replace,
+                                IdentityThemeService themeService, DashboardRegistryManager dashboardRegistryManager,
+                                DataCycleManager dataCycleManager, Principal principal, boolean replace,
                                 String defaultPassword)
    {
-      copyOrganizationInternal(fromOrganization, null, newOrgID, null, identityService, themeService, principal, replace, defaultPassword);
+      copyOrganizationInternal(fromOrganization, null, newOrgID, null, identityService, themeService, dashboardRegistryManager, dataCycleManager, principal, replace, defaultPassword);
    }
 
    /**
@@ -118,16 +123,19 @@ public abstract class AbstractEditableAuthenticationProvider
    public void copyOrganization(Organization fromOrganization, Organization editedNewOrganization,
                                 String newOrgID, String newOrgName,
                                 IdentityService identityService, IdentityThemeService themeService,
+                                DashboardRegistryManager dashboardRegistryManager,
+                                DataCycleManager dataCycleManager,
                                 Principal principal, boolean replace)
    {
       copyOrganizationInternal(fromOrganization, editedNewOrganization, newOrgID, newOrgName,
-                               identityService, themeService, principal, replace, null);
+                               identityService, themeService, dashboardRegistryManager, dataCycleManager, principal, replace, null);
    }
 
    private void copyOrganizationInternal(Organization fromOrganization, Organization editedNewOrganization,
                                          String newOrgID, String newOrgName,
                                          IdentityService identityService, IdentityThemeService themeService,
-                                         Principal principal, boolean replace, String defaultPassword)
+                                         DashboardRegistryManager dashboardRegistryManager,
+                                         DataCycleManager dataCycleManager, Principal principal, boolean replace, String defaultPassword)
    {
       FSOrganization newOrg = new FSOrganization(newOrgID);
       newOrg.setName(newOrgName == null ? newOrgID : newOrgName);
@@ -136,11 +144,11 @@ public abstract class AbstractEditableAuthenticationProvider
       String fromOrgId = fromOrganization.getId();
       copyScopedProperties(fromOrgId, newOrgID, replace);
       copyDataSpace(fromOrganization, newOrg, replace);
-      copyThemes(fromOrgId, newOrgID);
+      String newOrgThemeId = copyThemes(fromOrgId, newOrgID, replace);
 
       if(replace) {
          clearScopedProperties(fromOrgId);
-         DashboardRegistry.clear(fromOrganization.getIdentityID());
+         dashboardRegistryManager.clear(fromOrganization.getIdentityID());
          identityService.updateOrgProperties(fromOrgId, newOrgID);
          identityService.updateAutoSaveFiles(fromOrganization, newOrg, principal);
          identityService.updateTaskSaveFiles(fromOrganization, newOrg);
@@ -186,7 +194,7 @@ public abstract class AbstractEditableAuthenticationProvider
 
       for(IdentityID userID : getUsers()) {
          if(getUser(userID).getOrganizationID().equals(fromOrgId)) {
-            IdentityID newID = copyUserToOrganization(userID, newOrgID, fromOrgId, identityService, principal, defaultPassword);
+            IdentityID newID = copyUserToOrganization(userID, newOrgID, fromOrgId, identityService, principal, defaultPassword, replace);
 
             if(newID != null && !newID.name.isEmpty()) {
                addedMembers.add(newID);
@@ -210,13 +218,26 @@ public abstract class AbstractEditableAuthenticationProvider
 
       PortalThemesManager manager = PortalThemesManager.getManager();
       DataSpace dataSpace = DataSpace.getDataSpace();
-      String viewsheet = manager.getCssEntries().get(fromOrgId);
+      String odir = "portal/" + fromOrgId;
+      String dir = "portal/" + newOrgID;
+      Map<String, String> cssEntries = manager.getCssEntries();
+      String viewsheet = cssEntries != null ? cssEntries.get(fromOrgId) : null;
+      // Copy the branding files first and only then touch the manager, behind a single
+      // save(). Two reasons to batch: each save() drops and re-adds the manager's data
+      // space change listener and the notification for the write is delivered
+      // asynchronously, so one save() per entry used to open several windows in which a
+      // late self-notification could reload the file over the entry the next step had
+      // just added; and any copy step below can throw, so mutating the shared manager as
+      // we go would leave entries for newOrgID in memory that were never persisted when a
+      // later step fails, to be picked up by whatever calls save() next.
+      String cssEntry = null;
+      String logoEntry = null;
+      String faviconEntry = null;
+      PortalWelcomePage newWelcomePage = null;
 
       if(viewsheet != null) {
          String[] viewsheetFile = viewsheet.split("/");
          String cssName = viewsheetFile[1];
-         String odir = "portal/" + fromOrgId;
-         String dir = "portal/" + newOrgID;
 
          try(InputStream in = dataSpace.getInputStream(odir, cssName)) {
             if(in != null) {
@@ -227,7 +248,70 @@ public abstract class AbstractEditableAuthenticationProvider
             throw new RuntimeException(e);
          }
 
-         manager.addCSSEntry(newOrgID, newOrgID + "/" + cssName);
+         cssEntry = newOrgID + "/" + cssName;
+      }
+
+      Map<String, String> logoEntries = manager.getLogoEntries();
+      String logo = logoEntries != null ? logoEntries.get(fromOrgId) : null;
+
+      if(logo != null) {
+         String logoName = logo.substring(logo.lastIndexOf('/') + 1);
+
+         try(InputStream in = dataSpace.getInputStream(odir, logoName)) {
+            if(in != null) {
+               dataSpace.withOutputStream(dir, logoName, out -> Tool.copyTo(in, out));
+            }
+         }
+         catch(IOException e) {
+            throw new RuntimeException(e);
+         }
+
+         logoEntry = dir + "/" + logoName;
+      }
+
+      Map<String, String> faviconEntries = manager.getFaviconEntries();
+      String favicon = faviconEntries != null ? faviconEntries.get(fromOrgId) : null;
+
+      if(favicon != null) {
+         String faviconName = favicon.substring(favicon.lastIndexOf('/') + 1);
+
+         try(InputStream in = dataSpace.getInputStream(odir, faviconName)) {
+            if(in != null) {
+               dataSpace.withOutputStream(dir, faviconName, out -> Tool.copyTo(in, out));
+            }
+         }
+         catch(IOException e) {
+            throw new RuntimeException(e);
+         }
+
+         faviconEntry = dir + "/" + faviconName;
+      }
+
+      PortalWelcomePage welcomePage = manager.getWelcomePage(fromOrgId);
+
+      if(welcomePage != null) {
+         newWelcomePage = (PortalWelcomePage) welcomePage.clone();
+      }
+
+      if(cssEntry != null || logoEntry != null || faviconEntry != null ||
+         newWelcomePage != null)
+      {
+         if(cssEntry != null) {
+            manager.addCSSEntry(newOrgID, cssEntry);
+         }
+
+         if(logoEntry != null) {
+            manager.addLogoEntry(newOrgID, logoEntry);
+         }
+
+         if(faviconEntry != null) {
+            manager.addFaviconEntry(newOrgID, faviconEntry);
+         }
+
+         if(newWelcomePage != null) {
+            manager.setWelcomePage(newOrgID, newWelcomePage);
+         }
+
          manager.save();
       }
 
@@ -240,7 +324,7 @@ public abstract class AbstractEditableAuthenticationProvider
       else {
          newOrg.setMembers(addedMembers.stream().map(id -> id.name).toArray(String[]::new));
          newOrg.setLocale(fromOrganization.getLocale());
-         newOrg.setTheme(fromOrganization.getTheme());
+         newOrg.setTheme(newOrgThemeId);
       }
 
       addOrganization(newOrg);
@@ -250,11 +334,11 @@ public abstract class AbstractEditableAuthenticationProvider
 
       if(!replace) {
          try {
-            OrganizationManager.runInOrgScope(newOrgID, () -> {
-               identityService.updateAutoSaveFiles(fromOrganization, newOrg, principal);
-
-               return null;
-            });
+            // copyStorages() already raw-copied the __autoSave bucket into newOrg's own bucket
+            // (still keyed by the source org's user ids), so migrate the files in place there --
+            // not in fromOrganization's bucket. Pass newOrgID explicitly rather than relying on
+            // the ambient principal/org context to resolve the right bucket.
+            identityService.updateAutoSaveFilesInBucket(fromOrganization, newOrg, newOrgID);
          }
          catch(Exception e) {
             LOG.warn("Unable to migrate Auto Save Files: "+ e);
@@ -262,7 +346,8 @@ public abstract class AbstractEditableAuthenticationProvider
       }
 
       try {
-         DataCycleManager.getDataCycleManager().migrateDataCycles(fromOrganization, newOrg, replace);
+         dataCycleManager.migrateDataCycles(fromOrganization, newOrg, replace);
+         ScheduleManager.getScheduleManager().reloadExtensions(newOrgID);
       }
       catch(Exception e) {
          LOG.warn("Unable to migrate Data Cycles: "+ e);
@@ -276,15 +361,28 @@ public abstract class AbstractEditableAuthenticationProvider
          FSService.clearServerNodeCache(fromOrgId);
          XJobPool.resetOrgCache(fromOrgId);
          manager.removeCSSEntry(fromOrgId);
+         manager.removeLogoEntry(fromOrgId);
+         manager.removeFaviconEntry(fromOrgId);
+         manager.removeWelcomePage(fromOrgId);
          manager.save();
-         RepletRegistry.clearOrgCache(fromOrgId);
+         RepletRegistryManager.getInstance().clearOrgCache(fromOrgId);
 
-         try{
-            identityService.updateRepletRegistry(fromOrgId, null);
-            identityService.removeStorages(fromOrgId);
-         }
-         catch(Exception e) {
-            LOG.warn("Unable to remove old organization storage: "+e);
+         // Organization-scoped blob storage (indexed storage, replet registry, __mv,
+         // __mvws, __pdata, etc.) is bucketed by fromOrgId/newOrgID.toLowerCase(), so a
+         // rename that only changes letter case (e.g. "organization0" -> "Organization0")
+         // maps the old and new organization onto the exact same physical bucket. The
+         // content just migrated into that bucket for newOrgID must not then be deleted
+         // as if it belonged solely to the old organization.
+         boolean sameStorageBucket = fromOrgId.equalsIgnoreCase(newOrgID);
+
+         if(!sameStorageBucket) {
+            try {
+               identityService.updateRepletRegistry(fromOrgId, null);
+               identityService.removeStorages(fromOrgId);
+            }
+            catch(Exception e) {
+               LOG.warn("Unable to remove old organization storage: "+e);
+            }
          }
       }
       else {
@@ -292,58 +390,232 @@ public abstract class AbstractEditableAuthenticationProvider
       }
    }
 
-   private void copyThemes(String fromOrgId, String toOrgId) {
+   private String copyThemes(String fromOrgId, String toOrgId, boolean replace) {
       if(Tool.isEmptyString(fromOrgId)) {
-         return;
+         return null;
       }
 
+      DataSpace dataSpace = DataSpace.getDataSpace();
       CustomThemesManager manager = CustomThemesManager.getManager();
       manager.loadThemes();
       Set<CustomTheme> themes = new HashSet<>(manager.getCustomThemes());
 
-      manager.getCustomThemes().stream()
-         .filter(t -> Tool.equals(t.getOrgID(), fromOrgId) || t.getOrgID() == null)
-         .forEach(t -> {
-            try {
-               if(t.getOrgID() != null) {
-                  CustomTheme clone = (CustomTheme) t.clone();
-                  clone.setOrgID(toOrgId);
+      // setCustomThemes() below does a full replace of the entire CustomThemes store. If
+      // no themes could be read there is nothing to migrate, and persisting an empty set
+      // (e.g. when the themes failed to load) would wipe every custom theme across all
+      // orgs. Skip persistence entirely in that case so a failed/empty read cannot delete
+      // the store.
+      if(themes.isEmpty()) {
+         if(replace) {
+            manager.setOrgSelectedTheme(null, fromOrgId);
+         }
 
-                  if(t.getOrganizations().contains(fromOrgId)) {
-                     List<String> newOrgs = clone.getOrganizations();
-                     newOrgs.remove(fromOrgId);
-                     newOrgs.add(toOrgId);
-                     clone.setOrganizations(newOrgs);
-                  }
+         return null;
+      }
 
-                  clone.setJarPath(clone.getJarPath().replace(fromOrgId, toOrgId));
+      List<CustomTheme> sourceThemes = new ArrayList<>();
 
-                  themes.add(clone);
+      for(CustomTheme t : themes) {
+         try {
+            sourceThemes.add((CustomTheme) t.clone());
+         }
+         catch(Exception ex) {
+            sourceThemes.add(t);
+         }
+      }
+
+      if(replace) {
+         // Do not remove the renamed org's themes up front: they are removed only after
+         // their replacement clone has been successfully built (see the end of the
+         // migration loop), so a clone failure can never drop the source theme.
+         for(CustomTheme t : themes) {
+            if(Tool.isEmptyString(t.getOrgID()) && t.getOrganizations() != null && t.getOrganizations().contains(fromOrgId)) {
+               List<String> newOrgs = new ArrayList<>(t.getOrganizations());
+               newOrgs.remove(fromOrgId);
+               t.setOrganizations(newOrgs);
+            }
+         }
+      }
+
+      String newOrgThemeId = null;
+      // Ids of the renamed org's source themes whose clone succeeded; only these
+      // originals are removed after the migration loop (see below).
+      Set<String> migratedOriginalIds = new HashSet<>();
+
+      for(CustomTheme theme : sourceThemes) {
+         try {
+            if(Tool.equals(theme.getOrgID(), fromOrgId)) {
+               CustomTheme clone = (CustomTheme) theme.clone();
+               clone.setOrgID(toOrgId);
+
+               // A copy needs a brand-new id so the clone stays fully independent of the
+               // source org's theme (#74711). A rename removes the source theme below, so
+               // there is no id left to collide with and the id must be preserved instead:
+               // Organization.theme, the theme jar file name and any client-held or
+               // per-user theme id all reference it, and regenerating the id orphans them
+               // all (#75784). The fromOrgId == toOrgId case cannot preserve the id: the
+               // clone would then equal the original, collapse in the set below and be
+               // dropped by the deferred removal, so keep generating a new id there.
+               if(!replace || Tool.equals(fromOrgId, toOrgId)) {
+                  clone.setId(UUID.randomUUID().toString().replace("-", ""));
                }
-               else {
-                  if(t.getOrganizations().contains(fromOrgId)) {
-                     t.getOrganizations().add(toOrgId);
+
+               String originalID = clone.getId();
+               int i = 1;
+               boolean themeExists = clone.getId() != null &&
+                  themes.stream()
+                     .anyMatch(t -> t.getId().equals(clone.getId()));
+
+               //should not have duplicate ids on themes, instead increment id to keep consistent with adding new theme
+               while(themeExists && !replace) {
+                  String updatedId = originalID + i;
+                  i++;
+
+                  themeExists = themes.stream()
+                     .anyMatch(t -> t.getId().equals(updatedId));
+
+                  if(!themeExists) {
+                     clone.setId(updatedId);
                   }
+               }
+
+               boolean migrateOrgSelection = theme.getOrganizations().contains(fromOrgId);
+
+               if(migrateOrgSelection) {
+                  List<String> newOrgs = clone.getOrganizations();
+                  newOrgs.remove(fromOrgId);
+                  newOrgs.add(toOrgId);
+                  clone.setOrganizations(newOrgs);
+               }
+
+               if(!Tool.isEmptyString(clone.getJarPath())) {
+                  if(Tool.isEmptyString(theme.getOrgID())) {
+                     String oldJarPath = clone.getJarPath();
+                     String newJarPath = clone.getJarPath().replace("portal/theme", "portal/" + toOrgId + "/theme");
+
+                     if(dataSpace.exists(null, clone.getJarPath())) {
+                        copyThemeJar(dataSpace, oldJarPath, newJarPath);
+                     }
+
+                     clone.setJarPath(newJarPath);
+                  }
+                  else {
+                     String oldJarPath = clone.getJarPath();
+                     String newJarPath = oldJarPath.replace(fromOrgId, toOrgId);
+
+                     // The org's data space folder (including its theme jar) is expected
+                     // to have already been relocated by the earlier copyDataSpace() call.
+                     // That rename can silently fail (DataSpace.rename() swallows
+                     // FileNotFoundException/IOException without propagating), which would
+                     // otherwise leave this theme's jarPath pointing at a file that was
+                     // never actually moved. Verify the new path and, if missing, copy
+                     // the jar directly so the theme doesn't 404.
+                     if(!dataSpace.exists(null, newJarPath)) {
+                        if(dataSpace.exists(null, oldJarPath)) {
+                           copyThemeJar(dataSpace, oldJarPath, newJarPath);
+
+                           if(replace) {
+                              // This is a rename, so fromOrgId is going away — clean up the
+                              // stray copy left at the old path instead of leaving it
+                              // permanently orphaned under the now-defunct org.
+                              dataSpace.delete(oldJarPath, "");
+                           }
+                        }
+                        else {
+                           LOG.warn(
+                              "Theme jar for organization {} not found at either the old path {} " +
+                              "or the new path {} during rename to {}",
+                              theme.getId(), oldJarPath, newJarPath, toOrgId);
+                        }
+                     }
+
+                     clone.setJarPath(newJarPath);
+                  }
+               }
+
+               themes.add(clone);
+
+               // Wire up the org's selected-theme pointer and the returned id only after
+               // the clone has been fully built and added to the working set. Doing this
+               // earlier (before the jar-copy step, which can throw) could leave the org
+               // pointing at a clone that was never persisted when a later step failed.
+               if(migrateOrgSelection) {
+                  manager.setOrgSelectedTheme(clone.getId(), toOrgId);
+                  newOrgThemeId = clone.getId();
+               }
+
+               if(replace) {
+                  migratedOriginalIds.add(theme.getId());
                }
             }
-            catch(Exception ex) {
-               LOG.error("Failed to clone custom theme", ex);
+            else if(Tool.isEmptyString(theme.getOrgID())
+               && theme.getOrganizations() != null
+               && theme.getOrganizations().contains(fromOrgId))
+            {
+               // Global themes are shared; propagate selection pointer only, no clone.
+               // Mutate the live entry in `themes` (not the sourceThemes copy) so the
+               // change is visible when setCustomThemes is called below.
+               CustomTheme original = themes.stream()
+                  .filter(t -> t.getId().equals(theme.getId()))
+                  .findFirst()
+                  .orElse(null);
+
+               if(original != null) {
+                  if(!original.getOrganizations().contains(toOrgId)) {
+                     original.getOrganizations().add(toOrgId);
+                  }
+
+                  manager.setOrgSelectedTheme(theme.getId(), toOrgId);
+
+                  // The new org selects the same shared theme, so Organization.theme must
+                  // carry that id as well. Leaving it null here (the returned id used to be
+                  // set only in the org-owned branch above) left the copied org's theme
+                  // reading back as "default" in EM even though the selection pointer and
+                  // the theme's organizations list both pointed at the shared theme.
+                  newOrgThemeId = theme.getId();
+               }
             }
-         });
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to clone custom theme", ex);
+         }
+      }
+
+      if(replace) {
+         // Now that the clones have been added, remove only the originals of the renamed
+         // org that were successfully migrated. Themes whose clone failed are kept rather
+         // than lost.
+         themes.removeIf(t -> Tool.equals(t.getOrgID(), fromOrgId)
+            && migratedOriginalIds.contains(t.getId()));
+         manager.setOrgSelectedTheme(null, fromOrgId);
+      }
 
       manager.setCustomThemes(themes);
-      manager.save();
+      return newOrgThemeId;
+   }
+
+   /**
+    * Copies a theme jar from one data space path to another.
+    */
+   private void copyThemeJar(DataSpace dataSpace, String oldPath, String newPath) throws IOException {
+      try(InputStream in = dataSpace.getInputStream(null, oldPath)) {
+         int index = newPath.lastIndexOf('/');
+         String folder = (index >= 0) ? newPath.substring(0, index) : null;
+         String fileName = (index >= 0) ? newPath.substring(index + 1) : newPath;
+
+         dataSpace.withOutputStream(folder, fileName, out -> Tool.copyTo(in, out));
+      }
    }
 
    protected void clearScopedProperties(String oldOrgId) {
       //loop through properties, delete any containing .thisOrg.
       Properties properties = SreeEnv.getProperties();
-      String oldOrgIdentifier = "inetsoft.org." + oldOrgId;
+      String oldOrgIdentifier = "inetsoft.org." + oldOrgId.toLowerCase(Locale.ROOT);
 
       for(Enumeration<?> e = properties.propertyNames(); e.hasMoreElements();) {
          String pName = (String) e.nextElement();
 
-         if (pName.startsWith(oldOrgIdentifier)) {
+         if(pName.toLowerCase(Locale.ROOT).startsWith(oldOrgIdentifier)) {
             SreeEnv.remove(pName);
          }
       }
@@ -400,14 +672,14 @@ public abstract class AbstractEditableAuthenticationProvider
 
    private void copyScopedProperties(String fromOrgId, String newOrgId, boolean replace) {
       Properties properties = SreeEnv.getProperties();
-      String oldOrgIdentifier = "inetsoft.org." + fromOrgId.toLowerCase();
-      String newOrgPrefix = "inetsoft.org." + newOrgId.toLowerCase();
+      String oldOrgIdentifier = "inetsoft.org." + fromOrgId.toLowerCase(Locale.ROOT);
+      String newOrgPrefix = "inetsoft.org." + newOrgId.toLowerCase(Locale.ROOT);
       Enumeration<?> enumeration = properties.propertyNames();
 
       while(enumeration.hasMoreElements()) {
          String pName = (String) enumeration.nextElement();
 
-         if(pName.startsWith(oldOrgIdentifier)) {
+         if(pName.toLowerCase(Locale.ROOT).startsWith(oldOrgIdentifier)) {
             String baseName = pName.substring(oldOrgIdentifier.length());
             String updatedName = newOrgPrefix + baseName;
             SreeEnv.setProperty(updatedName, properties.getProperty(pName));
@@ -475,7 +747,12 @@ public abstract class AbstractEditableAuthenticationProvider
    }
 
    public List<IdentityModel> copyPermittedIDs(List<IdentityModel> fromIDs, String fromOrgId, String newOrgId ) {
+      if(fromIDs == null) {
+         return new ArrayList<>();
+      }
+
       List<IdentityModel> updatedPIds = new ArrayList<>();
+
       for(IdentityModel id : fromIDs) {
          switch(id.type()) {
          case Identity.USER:
@@ -496,8 +773,15 @@ public abstract class AbstractEditableAuthenticationProvider
                updatedPIds.add(IdentityModel.builder().identityID(newName).type(Identity.ROLE).build());
             }
             break;
+         case Identity.ORGANIZATION:
+            if(fromOrgId.equals(id.identityID().orgID)) {
+               IdentityID newName = new IdentityID(id.identityID().name, newOrgId);
+               updatedPIds.add(IdentityModel.builder().identityID(newName).type(Identity.ORGANIZATION).build());
+            }
+            break;
          }
       }
+
       return updatedPIds;
    }
 
@@ -530,11 +814,12 @@ public abstract class AbstractEditableAuthenticationProvider
       }
    }
 
-   private IdentityID copyUserToOrganization(IdentityID memberID, String orgID, String fromOrgID, IdentityService identityService, Principal principal, String defaultPassword) {
+   private IdentityID copyUserToOrganization(IdentityID memberID, String orgID, String fromOrgID, IdentityService identityService, Principal principal, String defaultPassword, boolean replace) {
       User fromUser = getUser(memberID);
 
       if(fromUser != null) {
          IdentityID newID = new IdentityID(memberID.name, orgID);
+         identityService.copyUserFavorites(memberID, newID, replace);
 
          FSUser newUser = new FSUser(newID);
          newUser.setGroups(fromUser.getGroups());
@@ -560,10 +845,14 @@ public abstract class AbstractEditableAuthenticationProvider
 
          return newID;
       }
-      else
-      {
-         addUser(new FSUser(memberID));
-         return memberID;
+      else {
+         IdentityID newMemberID = new IdentityID(memberID.name, orgID);
+
+         if(getUser(newMemberID) == null) {
+            addUser(new FSUser(newMemberID));
+         }
+
+         return newMemberID;
       }
    }
 
@@ -593,6 +882,9 @@ public abstract class AbstractEditableAuthenticationProvider
       ResourceType rType;
 
       switch(type) {
+      case Identity.USER:
+         rType = ResourceType.SECURITY_USER;
+         break;
       case Identity.GROUP:
          rType = ResourceType.SECURITY_GROUP;
          break;
@@ -603,7 +895,8 @@ public abstract class AbstractEditableAuthenticationProvider
          rType = ResourceType.SECURITY_ORGANIZATION;
          break;
       default:
-         rType = ResourceType.SECURITY_USER;
+         LOG.warn("Unknown identity type {} for identity {}, skipping permission update", type, fromIdentity);
+         return;
       }
       List<IdentityModel> uPermIds = identityService.getPermission(fromIdentity, rType, fromOrgID, principal);
       List<IdentityModel> updatedUPermIds = copyPermittedIDs(uPermIds, fromIdentity.orgID, toIdentity.orgID);
@@ -765,7 +1058,12 @@ public abstract class AbstractEditableAuthenticationProvider
                                                 removed);
          }
 
-         listener.authenticationChanged(evt);
+         try {
+            listener.authenticationChanged(evt);
+         }
+         catch(Exception e) {
+            LOG.error("Error dispatching authentication change event to listener {}", listener, e);
+         }
       }
    }
 

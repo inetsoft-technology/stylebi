@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { of as observableOf } from "rxjs";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -41,6 +41,7 @@ import { LabelPropPane } from "./label-prop-pane.component";
 import { SubmitGeneralPane } from "./submit-general-pane.component";
 import { SubmitPropertyDialog } from "./submit-property-dialog.component";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 let createModel = () => {
    return <SubmitPropertyDialogModel> {
@@ -99,27 +100,42 @@ describe("SubmitPropertyDialog Integration Test", () => {
    let contextService: any;
    let dialogService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       contextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn(),
-         getObjectChange: jest.fn(() => observableOf({}))
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn(),
+         getObjectChange: vi.fn(() => observableOf({}))
       };
-      dialogService = { checkScript: jest.fn() };
+      dialogService = { checkScript: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            SubmitPropertyDialog,
+            SubmitGeneralPane,
+            ClickableScriptPane,
+            GeneralPropPane,
+            LabelPropPane,
+            ScriptPane,
+            BasicGeneralPane,
+            TreeComponent,
+            FormulaEditorDialog,
+            TreeNodeComponent,
+            NewAggrDialog,
+            MessageDialog,
+            TreeSearchPipe,
+            EnterSubmitDirective,
+            DefaultFocusDirective,
+            FixedDropdownDirective,
+            SizePositionPane,
          ],
-         declarations: [
-            SubmitPropertyDialog, SubmitGeneralPane, ClickableScriptPane, GeneralPropPane,
-            LabelPropPane, ScriptPane, BasicGeneralPane, TreeComponent,
-            FormulaEditorDialog, TreeNodeComponent, NewAggrDialog, MessageDialog,
-            TreeSearchPipe, EnterSubmitDirective, DefaultFocusDirective,
-            FixedDropdownDirective, SizePositionPane
-         ],
+         
          providers: [
             { provide: UIContextService, useValue: contextService },
             { provide: PropertyDialogService, useValue: dialogService }

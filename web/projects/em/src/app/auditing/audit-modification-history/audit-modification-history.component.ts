@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { FormBuilder, FormGroup } from "@angular/forms";
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { catchError, tap } from "rxjs/operators";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
@@ -35,6 +35,10 @@ import {
 import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 import { Tool } from "../../../../../shared/util/tool";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+
 
 @Secured({
    route: "/auditing/modification-history",
@@ -50,9 +54,10 @@ import { Tool } from "../../../../../shared/util/tool";
    link: "EMViewAudit"
 })
 @Component({
-  selector: "em-audit-modification-history",
-  templateUrl: "./audit-modification-history.component.html",
-  styleUrls: ["./audit-modification-history.component.scss"]
+    selector: "em-audit-modification-history",
+    templateUrl: "./audit-modification-history.component.html",
+    styleUrls: ["./audit-modification-history.component.scss"],
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption]
 })
 export class AuditModificationHistoryComponent implements OnInit, OnDestroy {
    users: string[] = [];
@@ -185,6 +190,69 @@ export class AuditModificationHistoryComponent implements OnInit, OnDestroy {
       }
       else if(value === "cycle") {
          return "_#(js:Cycle)";
+      }
+      else if(value === "datasource") {
+         return "_#(js:Datasource)";
+      }
+      else if(value === "device") {
+         return "_#(js:Device)";
+      }
+      else if(value === "viewsheet") {
+         return "_#(js:Viewsheet)";
+      }
+      else if(value === "worksheet") {
+         return "_#(js:Worksheet)";
+      }
+      else if(value === "script") {
+         return "_#(js:Script)";
+      }
+      else if(value === "table style") {
+         return "_#(js:Table Style)";
+      }
+      else if(value === "logical model") {
+         return "_#(js:Logical Model)";
+      }
+      else if(value === "physical view") {
+         return "_#(js:Physical View)";
+      }
+      else if(value === "vpm") {
+         return "_#(js:VPM)";
+      }
+      else if(value === "file") {
+         return "_#(js:File)";
+      }
+      else if(value === "shape") {
+         return "_#(js:Shape)";
+      }
+      else if(value === "query") {
+         return "_#(js:Query)";
+      }
+      else if(value === "report") {
+         return "_#(js:Report)";
+      }
+      else if(value === "theme") {
+         return "_#(js:Theme)";
+      }
+      else if(value === "snapshot") {
+         return "_#(js:Snapshot)";
+      }
+      else if(value === "plugin") {
+         return "_#(js:Plugin)";
+      }
+      else if(value === "storage") {
+         return "_#(js:Storage)";
+      }
+      else if(value === "security provider") {
+         return "_#(js:Security Provider)";
+      }
+      else if(value === "password") {
+         return "_#(js:Password)";
+      }
+      else if(value === "asset") {
+         return "_#(js:Asset)";
+      }
+      else if(value === "prototype") {
+         return "_#(js:Prototype)";
       }
       else {
          return value;

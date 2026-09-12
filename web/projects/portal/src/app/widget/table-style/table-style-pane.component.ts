@@ -22,10 +22,12 @@ import { Tool } from "../../../../../shared/util/tool";
 import { TreeComponent } from "../tree/tree.component";
 import { BaseHrefService } from "../../common/services/base-href.service";
 
+
 @Component({
-   selector: "table-style-pane",
-   templateUrl: "table-style-pane.component.html",
-   styleUrls: ["table-style-pane.component.scss"]
+    selector: "table-style-pane",
+    templateUrl: "table-style-pane.component.html",
+    styleUrls: ["table-style-pane.component.scss"],
+    imports: [TreeComponent]
 })
 export class TableStylePane implements OnInit {
    @Input() model: TableStylePaneModel;

@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin;
 
+import inetsoft.sree.security.SRSecurityException;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.util.log.LogManager;
@@ -27,13 +29,21 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.lang.reflect.UndeclaredThrowableException;
 
 /**
  * @hidden
  */
 @ControllerAdvice(basePackages = { "inetsoft.web.admin", "inetsoft.enterprise.web.admin" })
 public class AdminExceptionHandler {
+
+   public AdminExceptionHandler(LogManager logManager) {
+      this.logManager = logManager;
+   }
+
    /**
     * Error handler for a request for a missing resource.
     */
@@ -96,6 +106,81 @@ public class AdminExceptionHandler {
    }
 
    /**
+    * Error handler for access denied. The {@link SecurityException} thrown by
+    * {@link inetsoft.web.security.SecuredAspect} is a checked exception; Spring AOP wraps it in
+    * an {@link UndeclaredThrowableException} before it reaches this handler.
+    */
+   @ExceptionHandler(UndeclaredThrowableException.class)
+   @ResponseBody
+   @ApiResponses({
+      @ApiResponse(
+         responseCode = "403",
+         description = "Access was denied because the session has expired or the user does not have the required permissions."),
+      @ApiResponse(
+         responseCode = "500",
+         description = "An error occurred on the server while processing the request.")
+   })
+   public ResponseEntity<GenericError> handleUndeclaredThrowable(UndeclaredThrowableException e) {
+      Throwable cause = e.getCause();
+
+      if(cause instanceof SecurityException) {
+         return accessDenied(cause);
+      }
+
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+         .body(handleGenericException(e));
+   }
+
+   /**
+    * Error handler for access denied. The {@link inetsoft.web.security.SecuredAspect} throws an unchecked
+    * {@link java.lang.SecurityException} when authorization fails; because it is unchecked,
+    * Spring AOP propagates it directly (unlike the checked {@link SecurityException} handled by
+    * {@link #handleUndeclaredThrowable(UndeclaredThrowableException)}). Map it to a sanitized 403
+    * so that authorization failures are not reported as server errors and no principal, role,
+    * group, or organization details are exposed to the client.
+    */
+   @ExceptionHandler(java.lang.SecurityException.class)
+   @ResponseBody
+   @ApiResponses({
+      @ApiResponse(
+         responseCode = "403",
+         description = "Access was denied because the user does not have the required permissions.")
+   })
+   public ResponseEntity<GenericError> handleAccessDenied(java.lang.SecurityException e) {
+      return accessDenied(e);
+   }
+
+   /**
+    * Builds a sanitized 403 response for an authorization denial. The exception is logged at
+    * debug level and the client receives a generic, localized message so that no principal,
+    * role, group, or organization details are exposed.
+    */
+   private ResponseEntity<GenericError> accessDenied(Throwable cause) {
+      LOG.debug("Access denied for resource", cause);
+      String msg = Catalog.getCatalog().getString("http.error.unauthorized");
+      return ResponseEntity.status(HttpStatus.FORBIDDEN)
+         .body(new GenericError(cause.getClass().getSimpleName(), msg));
+   }
+
+   /**
+    * Error handler for security/configuration errors such as an LDAP provider
+    * with incomplete connection settings. Returns the error message to the
+    * client without logging it as an unexpected server error.
+    */
+   @ExceptionHandler(SRSecurityException.class)
+   @ResponseBody
+   @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+   @ApiResponses({
+      @ApiResponse(
+         responseCode = "500",
+         description = "A security configuration error occurred.")
+   })
+   public GenericError handleSecurityConfigError(SRSecurityException e) {
+      LOG.debug("Security configuration error", e);
+      return new GenericError(e);
+   }
+
+   /**
     * Generic error handler.
     */
    @ExceptionHandler(Exception.class)
@@ -136,9 +221,10 @@ public class AdminExceptionHandler {
 
    private GenericError handleMessageException(MessageException e) {
       MessageException thrown = e.isDumpStack() ? e : null;
-      LogManager.getInstance().logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
+      logManager.logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
       return new GenericError(e);
    }
 
+   private final LogManager logManager;
    private static final Logger LOG = LoggerFactory.getLogger(AdminExceptionHandler.class);
 }

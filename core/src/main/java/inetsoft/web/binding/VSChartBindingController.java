@@ -34,9 +34,7 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.*;
 import inetsoft.web.binding.model.*;
-import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartGeoRefModel;
-import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.model.graph.MapFeatureModel;
 import inetsoft.web.binding.model.graph.aesthetic.CategoricalColorModel;
 import inetsoft.web.binding.service.VSBindingService;
@@ -63,19 +61,10 @@ import java.util.*;
 public class VSChartBindingController {
    @Autowired
    public VSChartBindingController(VisualFrameModelFactoryService visualService,
-                                   ChartRefModelFactoryService refService,
-                                   VSBindingService bindingService,
-                                   VSMapHandler mapHandler,
-                                   VSChartDataHandler chartDataHandler,
-                                   VSChartHandler chartHandler, ViewsheetService viewsheetService)
+                                   VSChartBindingServiceProxy chartBindingService)
    {
       this.visualService = visualService;
-      this.refService = refService;
-      this.bindingService = bindingService;
-      this.mapHandler = mapHandler;
-      this.chartDataHandler = chartDataHandler;
-      this.chartHandler = chartHandler;
-      this.viewsheetService = viewsheetService;
+      this.chartBindingService = chartBindingService;
    }
 
    @RequestMapping(value = "/api/composer/binding", method = RequestMethod.GET)
@@ -83,50 +72,7 @@ public class VSChartBindingController {
       @RequestParam("assemblyName") String assemblyName, Principal principal)
       throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      ChartVSAssembly assembly = (ChartVSAssembly) viewsheet.getAssembly(assemblyName);
-      BindingModel model = bindingService.createModel(assembly);
-
-      // 3D chart types are removed from the UI. When a saved 3D chart is opened for
-      // editing, fall back to the equivalent non-3D type so the user can edit it. The
-      // runtime continues to honour the original 3D type until the user applies a change.
-      // (74475)
-      if(model instanceof ChartBindingModel) {
-         ChartBindingModel cmodel = (ChartBindingModel) model;
-         cmodel.setChartType(downgrade3DChartType(cmodel.getChartType()));
-
-         // Also downgrade per-aggregate types for multi-style charts. (74475)
-         if(cmodel.isMultiStyles() && cmodel.getYFields() != null) {
-            for(ChartRefModel ref : cmodel.getYFields()) {
-               if(ref instanceof ChartAggregateRefModel aggr) {
-                  aggr.setChartType(downgrade3DChartType(aggr.getChartType()));
-               }
-            }
-         }
-      }
-
-      return model;
-   }
-
-   /**
-    * Convert a 3D chart type to its non-3D equivalent for the binding editor. (74475)
-    */
-   private static int downgrade3DChartType(int type) {
-      if(type == GraphTypes.CHART_3D_BAR) {
-         return GraphTypes.CHART_BAR;
-      }
-
-      if(type == GraphTypes.CHART_3D_BAR_STACK) {
-         return GraphTypes.CHART_BAR_STACK;
-      }
-
-      if(type == GraphTypes.CHART_3D_PIE) {
-         return GraphTypes.CHART_PIE;
-      }
-
-      return type;
+      return chartBindingService.getChartBinding(vsId, assemblyName, principal);
    }
 
    @RequestMapping(value = "/api/composer/binding", method = RequestMethod.PUT)
@@ -134,17 +80,7 @@ public class VSChartBindingController {
       @RequestParam("assemblyName") String assemblyName,
       @RequestBody ChartBindingModel cmodel, Principal principal) throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      ChartVSAssembly assembly =
-         (ChartVSAssembly) viewsheet.getAssembly(assemblyName).clone();
-      assembly = (ChartVSAssembly) bindingService.updateAssembly(cmodel, assembly);
-      ChartVSAssemblyInfo info = assembly.getChartInfo();
-      chartDataHandler.changeChartData(rvs, info, null, null, null, null);
-      assembly = (ChartVSAssembly) viewsheet.getAssembly(assemblyName);
-
-      return bindingService.createModel(assembly);
+      return chartBindingService.setChartBinding(vsId, assemblyName, cmodel, principal);
    }
 
    @RequestMapping(value = "/api/composer/refresh", method = RequestMethod.GET)
@@ -154,15 +90,7 @@ public class VSChartBindingController {
       @RequestParam("chartHeight") String chartHeight,
       Principal principal) throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      ChartVSAssembly assembly = (ChartVSAssembly) viewsheet.getAssembly(assemblyName);
-      ChartVSAssemblyInfo assemblyInfo =
-         (ChartVSAssemblyInfo) assembly.getChartInfo().clone();
-      Dimension reqsize =
-         new Dimension(Integer.parseInt(chartWidth), Integer.parseInt(chartHeight));
-      chartDataHandler.refreshChart(rvs, assemblyInfo, reqsize);
+      chartBindingService.refreshChart(vsId, assemblyName, chartWidth, chartHeight, principal);
    }
 
    @RequestMapping(value = "/api/composer/namedgroup", method = RequestMethod.GET)
@@ -172,22 +100,7 @@ public class VSChartBindingController {
       @RequestParam("fieldName") String fieldName, Principal principal)
       throws Exception
    {
-      ChartInfo cinfo = chartHandler.getChartInfo(vsId, assemblyName, principal);
-      DataRef ref = cinfo.getRTFieldByFullName(fieldName);
-      List<NamedGroupInfoModel> ngs = new ArrayList<>();
-
-      if(ref != null && ref instanceof XDimensionRef ) {
-         DataRef fld = ((XDimensionRef) ref).getDataRef();
-         AssetRepository rep = AssetUtil.getAssetRepository(false);
-         AssetNamedGroupInfo[] infos =
-            SummaryAttr.getAssetNamedGroupInfos(fld, rep, null);
-
-         for(int k = 0; k < infos.length; k++) {
-            ngs.add(new NamedGroupInfoModel(infos[k]));
-         }
-      }
-
-      return ngs;
+      return chartBindingService.getNamedGroups(vsId, assemblyName, fieldName, principal);
    }
 
    @RequestMapping(value = "/api/composer/getMappingStatus", method = RequestMethod.PUT)
@@ -198,13 +111,7 @@ public class VSChartBindingController {
            @RequestBody FeatureMapping mapping,
            Principal principal) throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      ChartVSAssembly chart = (ChartVSAssembly) viewsheet.getAssembly(assemblyName);
-      boolean allMapped = mapHandler.getMappingStatus(rvs, chart, refName, mapping);
-
-      return allMapped ? "true" : "false";
+      return chartBindingService.getMappingStatus(vsId, assemblyName, refName, type, mapping, principal);
    }
 
    @RequestMapping(value = "/api/composer/getGeoData", method = RequestMethod.GET)
@@ -212,12 +119,7 @@ public class VSChartBindingController {
       @RequestParam("assemblyName") String assemblyName,
       @RequestParam("refName") String refName, Principal principal) throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      ChartVSAssembly chart = (ChartVSAssembly) viewsheet.getAssembly(assemblyName);
-
-      return mapHandler.getGeoData(rvs, chart, refName);
+      return chartBindingService.getGeoData(vsId, assemblyName, refName, principal);
    }
 
    @RequestMapping(value = "/api/composer/changeMapType", method = RequestMethod.GET)
@@ -228,12 +130,7 @@ public class VSChartBindingController {
       @RequestParam("refName") String refName, Principal principal)
       throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      ChartVSAssembly chart = (ChartVSAssembly) viewsheet.getAssembly(assemblyName);
-
-      return mapHandler.changeMapType(rvs, chart, refName, type, layerstr);
+      return chartBindingService.changeMapType(vsId, assemblyName, type, layerstr, refName, principal);
    }
 
    @RequestMapping(value = "/api/composer/convert", method = RequestMethod.GET)
@@ -243,13 +140,7 @@ public class VSChartBindingController {
       @RequestParam("refName") String refName,
       @RequestParam("type") int type, Principal principal) throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
-      Viewsheet vs = rvs.getViewsheet();
-      ChartVSAssembly assembly = (ChartVSAssembly) vs.getAssembly(assemblyName);
-      chartDataHandler.convertChartRef(rvs, assembly, refName, type);
-
-      return bindingService.createModel(assembly);
+      return chartBindingService.convertChartRef(vsId, assemblyName, refName, type, principal);
    }
 
    @RequestMapping(value = "/api/composer/getMappingData", method = RequestMethod.PUT)
@@ -257,14 +148,7 @@ public class VSChartBindingController {
       @RequestParam("assemblyName") String assemblyName, @RequestBody ChartGeoRefModel geo,
       Principal principal) throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      ChartVSAssembly chart = (ChartVSAssembly) viewsheet.getAssembly(assemblyName);
-      VSChartInfo cinfo = chart.getVSChartInfo();
-      VSChartGeoRef ref = (VSChartGeoRef) refService.pasteChartRef(cinfo, geo);
-
-      return mapHandler.getMappingData(rvs, chart, ref);
+      return chartBindingService.getMappingData(vsId, assemblyName, geo, principal);
    }
 
    @RequestMapping(value = "/api/composer/getLikelyFeatures", method = RequestMethod.PUT)
@@ -273,20 +157,7 @@ public class VSChartBindingController {
       @RequestParam("row") String row, @RequestParam("algorithm") String algorithm,
       @RequestBody ChartGeoRefModel geo, Principal principal) throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      ChartVSAssembly chart = (ChartVSAssembly) viewsheet.getAssembly(assemblyName);
-      VSChartInfo cinfo = chart.getVSChartInfo();
-      VSChartInfo ocinfo = (VSChartInfo) cinfo.clone();
-      VSChartGeoRef ref = (VSChartGeoRef) refService.pasteChartRef(cinfo, geo);
-      int nrow = Integer.parseInt(row);
-
-      List<MapFeatureModel> features = mapHandler.getLikelyFeatures(rvs, chart, ref, nrow,
-                                                                    algorithm);
-      chart.setVSChartInfo(ocinfo);
-
-      return features;
+      return chartBindingService.getLikelyFeatures(vsId, assemblyName, row, algorithm, geo, principal);
    }
 
    @RequestMapping(value = "/api/composer/changeGeographic", method = RequestMethod.PUT)
@@ -296,17 +167,7 @@ public class VSChartBindingController {
       @RequestParam("type") String type, @RequestBody ChartBindingModel cmodel,
       Principal principal) throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      ChartVSAssembly assembly =
-         (ChartVSAssembly) viewsheet.getAssembly(assemblyName).clone();
-      assembly = (ChartVSAssembly) bindingService.updateAssembly(cmodel, assembly);
-      ChartVSAssemblyInfo info = assembly.getChartInfo();
-      chartDataHandler.setGeographic(rvs, assemblyName, info, refName, isDim, type);
-      assembly = (ChartVSAssembly) viewsheet.getAssembly(assemblyName);
-
-      return bindingService.createModel(assembly);
+      return chartBindingService.setGeographic(vsId, assemblyName, refName, isDim, type, cmodel, principal);
    }
 
    @GetMapping("/api/composer/imageShapes")
@@ -392,10 +253,5 @@ public class VSChartBindingController {
    }
 
    private final VisualFrameModelFactoryService visualService;
-   private ChartRefModelFactoryService refService;
-   private VSBindingService bindingService;
-   private VSMapHandler mapHandler;
-   private VSChartDataHandler chartDataHandler;
-   private VSChartHandler chartHandler;
-   private ViewsheetService viewsheetService;
+   private VSChartBindingServiceProxy chartBindingService;
 }

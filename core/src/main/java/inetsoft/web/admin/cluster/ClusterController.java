@@ -18,9 +18,7 @@
 package inetsoft.web.admin.cluster;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
-import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.cluster.ServerClusterClient;
@@ -39,10 +37,12 @@ public class ClusterController {
 
    @Autowired
    public ClusterController(ClusterService clusterService,
-                            MonitoringDataService monitoringDataService)
+                            MonitoringDataService monitoringDataService,
+                            SecurityEngine securityEngine)
    {
       this.clusterService = clusterService;
       this.monitoringDataService = monitoringDataService;
+      this.securityEngine = securityEngine;
    }
 
    @Secured(
@@ -79,8 +79,8 @@ public class ClusterController {
       StompHeaderAccessor stompHeaderAccessor, Principal principal)
       throws SecurityException
    {
-      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
-         principal, ResourceType.EM_COMPONENT, "monitoring/cluster/reportCluster", ResourceAction.ACCESS))
+      if(!securityEngine.getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "monitoring/cluster", ResourceAction.ACCESS))
       {
          throw new SecurityException("Unauthorized access to cluster monitoring by user " + principal.getName());
       }
@@ -92,7 +92,7 @@ public class ClusterController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "monitoring/cluster/reportCluster",
+         resource = "monitoring/cluster",
          actions = ResourceAction.ACCESS
       )
    )
@@ -104,7 +104,7 @@ public class ClusterController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "monitoring/cluster/reportCluster",
+         resource = "monitoring/cluster",
          actions = ResourceAction.ACCESS
       )
    )
@@ -116,7 +116,7 @@ public class ClusterController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "monitoring/cluster/reportCluster",
+         resource = "monitoring/cluster",
          actions = ResourceAction.ACCESS
       )
    )
@@ -128,7 +128,7 @@ public class ClusterController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "monitoring/cluster/reportCluster",
+         resource = "monitoring/cluster",
          actions = ResourceAction.ACCESS
       )
    )
@@ -139,4 +139,5 @@ public class ClusterController {
 
    private final ClusterService clusterService;
    private final MonitoringDataService monitoringDataService;
+   private final SecurityEngine securityEngine;
 }

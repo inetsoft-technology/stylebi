@@ -17,41 +17,51 @@
  */
 package inetsoft.web.composer.vs.objects.controller;
 
-import inetsoft.analytic.composition.ViewsheetEngine;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
+@Tag("core")
 class VSObjectPropertyServiceTest {
 
    @BeforeEach
-   void setup() throws Exception {
+   void setup() {
       controller = new VSObjectPropertyService(coreLifecycleService,
-                                               vsInputService,
+                                               vsColumnHandler,
                                                vsObjectTreeService,
-                                               infoHandler, viewsheetEngine,
+                                               infoHandler,
                                                temporaryInfoService,
                                                vsCompositionService,
-                                               sharedFilterService);
+                                               sharedFilterService,
+                                               dataSourceRegistry);
    }
 
    @Test
-   void popComponentListTest() throws Exception {
+   void popComponentListTest() {
       String textAssemblyName = "TextAssembly";
       String selectionListAssemblyName = "SelectionListAssembly";
       TextVSAssembly textVSAssembly = new TextVSAssembly(viewsheet, textAssemblyName);
@@ -64,20 +74,19 @@ class VSObjectPropertyServiceTest {
       when(viewsheet.getAssemblies(anyBoolean())).thenReturn(assemblies);
       when(viewsheet.getAssembly(textAssemblyName)).thenReturn(textVSAssembly);
       String[] popComponents = controller.getSupportedPopComponents(viewsheet, textAssemblyName);
-      assertEquals(popComponents.length, 1);
-      assertEquals(popComponents[0], selectionListAssemblyName);
+      assertEquals(1, popComponents.length);
+      assertEquals(selectionListAssemblyName, popComponents[0]);
    }
 
-   @Mock
-   CoreLifecycleService coreLifecycleService;
-   @Mock VSInputService vsInputService;
+   @Mock CoreLifecycleService coreLifecycleService;
+   @Mock VSColumnHandler vsColumnHandler;
    @Mock VSObjectTreeService vsObjectTreeService;
    @Mock VSAssemblyInfoHandler infoHandler;
-   @Mock ViewsheetEngine viewsheetEngine;
    @Mock Viewsheet viewsheet;
    @Mock VSWizardTemporaryInfoService temporaryInfoService;
    @Mock VSCompositionService vsCompositionService;
    @Mock SharedFilterService sharedFilterService;
+   @Mock DataSourceRegistry dataSourceRegistry;
 
    private VSObjectPropertyService controller;
 }

@@ -17,13 +17,19 @@
  */
 package inetsoft.web.vswizard.model.recommender;
 
-import inetsoft.uql.viewsheet.ChartVSAssembly;
-import inetsoft.uql.viewsheet.VSFormat;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.util.Tool;
+import inetsoft.util.XMLSerializable;
+import inetsoft.util.xml.VersionControlComparators;
 import inetsoft.web.vswizard.model.VSWizardOriginalModel;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 import java.awt.*;
+import java.io.PrintWriter;
+import java.io.Serializable;
 import java.util.*;
+import java.util.List;
 
 /**
  * VSTemporaryInfo holding the temporary info when creating/editing a viewsheet
@@ -32,7 +38,7 @@ import java.util.*;
  * @version 13.2
  * @author  InetSoft Technology Corp.
  */
-public class VSTemporaryInfo implements Cloneable {
+public class VSTemporaryInfo implements Cloneable, Serializable, XMLSerializable {
    /**
     * Setter for the recommendation model in vs wizard.
     */
@@ -296,7 +302,7 @@ public class VSTemporaryInfo implements Cloneable {
       return clone;
    }
 
-   public static class TempFieldFormat {
+   public static class TempFieldFormat implements Serializable, XMLSerializable{
       public VSFormat getDefaultFormat() {
          return defaultFormat;
       }
@@ -313,8 +319,250 @@ public class VSTemporaryInfo implements Cloneable {
          this.userFormat = userFormat;
       }
 
+      @Override
+      public void writeXML(PrintWriter writer) {
+         writer.print("<TempFieldFormat class=\"" + getClass().getName() + "\">");
+
+         if(defaultFormat != null) {
+            writer.print("<defaultFormat>");
+            defaultFormat.writeXML(writer);
+            writer.print("</defaultFormat>");
+         }
+
+         if(userFormat != null) {
+            writer.print("<userFormat>");
+            userFormat.writeXML(writer);
+            writer.print("</userFormat>");
+         }
+
+         writer.print("</TempFieldFormat>");
+      }
+
+      @Override
+      public void parseXML(Element elem) throws Exception {
+         Element enode = Tool.getChildNodeByTagName(elem, "defaultFormat");
+         Element item = enode == null ?
+            null : Tool.getChildNodeByTagName(enode, "VSFormat");
+
+         if(item != null) {
+            defaultFormat = new VSFormat();
+            defaultFormat.parseXML(item);
+         }
+
+         enode = Tool.getChildNodeByTagName(elem, "userFormat");
+         item = enode == null ?
+            null : Tool.getChildNodeByTagName(enode, "VSFormat");
+
+         if(item != null) {
+            userFormat = new VSFormat();
+            userFormat.parseXML(item);
+         }
+      }
+
       private VSFormat defaultFormat;
       private VSFormat userFormat;
+   }
+
+   @Override
+   public void writeXML(PrintWriter writer) {
+      writer.print("<VSTemporaryInfo class=\"" + getClass().getName() + "\"");
+      writeAttributes(writer);
+      writer.println(">");
+      writeContents(writer);
+      writer.print("</VSTemporaryInfo>");
+   }
+
+   protected void writeAttributes(PrintWriter writer) {
+      if(position != null) {
+         writer.print(" x=\"" + position.x + "\"");
+         writer.print(" y=\"" + position.y + "\"");
+      }
+
+      if(previewPaneSize != null) {
+         writer.print(" width=\"" + previewPaneSize.width + "\"");
+         writer.print(" height=\"" + previewPaneSize.height + "\"");
+      }
+
+      if(description != null) {
+         writer.print(" description=\"" + description + "\"");
+      }
+
+      if(selectedType != null) {
+         writer.print(" selectedType=\"" + selectedType.name() + "\"");
+      }
+
+      if(recommendLatestTime != null) {
+         writer.print(" recommendLatestTime=\"" + recommendLatestTime.getTime() + "\"");
+      }
+
+      writer.print(" autoOrder=\"" + autoOrder + "\"");
+      writer.print(" showLegend=\"" + showLegend + "\"");
+      writer.print(" destroyed=\"" + destroyed + "\"");
+   }
+
+   protected void writeContents(PrintWriter writer) {
+      if(recommendationModel != null) {
+         recommendationModel.writeXML(writer);
+      }
+
+      if(originalModel != null) {
+         originalModel.writeXML(writer);
+      }
+
+      if(tempChart != null) {
+         tempChart.writeXML(writer);
+      }
+
+      if(originalModel != null) {
+         originalModel.writeXML(writer);
+      }
+
+      if(selectedSubType != null) {
+         selectedSubType.writeXML(writer);
+      }
+
+      if(!formatMap.isEmpty()) {
+         writer.println("<formatMap>");
+
+         List<Map.Entry<String, TempFieldFormat>> entries
+            = VersionControlComparators.sortStringKeyMap(formatMap);
+
+         for(Map.Entry<String, TempFieldFormat> formatEntry : entries) {
+            final String field = formatEntry.getKey();
+            final TempFieldFormat format = formatEntry.getValue();
+
+            writer.println("<formatEntry>");
+            writer.format("<field><![CDATA[%s]]></field>%n", Tool.byteEncode(field));
+            format.writeXML(writer);
+            writer.println("</formatEntry>");
+         }
+
+         writer.println("</formatMap>");
+      }
+
+      if(!columnBrandNewMap.isEmpty()) {
+         writer.println("<columnBrandNewMap>");
+
+         List<Map.Entry<String, Boolean>> brandentries
+            = VersionControlComparators.sortStringKeyMap(columnBrandNewMap);
+
+         for(Map.Entry<String, Boolean> entry : brandentries) {
+            final String key = entry.getKey();
+            final Boolean value = entry.getValue();
+
+            writer.println("<columnBrandEntry>");
+            writer.format("<key><![CDATA[%s]]></key>%n", Tool.byteEncode(key));
+            writer.format("<value><![CDATA[%s]]></value>%n", value);
+            writer.println("</columnBrandEntry>");
+         }
+
+         writer.println("</columnBrandNewMap>");
+      }
+   }
+
+   @Override
+   public void parseXML(Element elem) throws Exception {
+      parseAttributes(elem);
+      parseContents(elem);
+   }
+
+   protected void parseAttributes(Element elem) {
+      String xVal = Tool.getAttribute(elem, "x");
+      String yVal = Tool.getAttribute(elem, "y");
+
+      if(!Tool.isEmptyString(xVal) && !Tool.isEmptyString(yVal)) {
+         int x = Integer.parseInt(xVal);
+         int y = Integer.parseInt(yVal);
+         position = new Point(x, y);
+      }
+
+      String widthVal = Tool.getAttribute(elem, "width");
+      String heightVal = Tool.getAttribute(elem, "height");
+
+      if(!Tool.isEmptyString(widthVal) && !Tool.isEmptyString(heightVal)) {
+         int width = Integer.parseInt(widthVal);
+         int height = Integer.parseInt(heightVal);
+         previewPaneSize = new Dimension(width, height);
+      }
+
+      String selectedTypeVal = Tool.getAttribute(elem, "selectedType");
+
+      if(!Tool.isEmptyString(selectedTypeVal)) {
+         selectedType = VSRecommendType.valueOf(selectedTypeVal);
+      }
+
+      String latestTimeVal = Tool.getAttribute(elem, "recommendLatestTime");
+
+      if(!Tool.isEmptyString(latestTimeVal)) {
+         recommendLatestTime = new Date(Long.parseLong(latestTimeVal));
+      }
+
+      description = Tool.getAttribute(elem, "description");
+      autoOrder = "true".equalsIgnoreCase(Tool.getAttribute(elem, "autoOrder"));
+      showLegend = "true".equalsIgnoreCase(Tool.getAttribute(elem, "showLegend"));
+      destroyed = "true".equalsIgnoreCase(Tool.getAttribute(elem, "destroyed"));
+    }
+
+   protected void parseContents(Element elem) throws Exception {
+      Element item = Tool.getChildNodeByTagName(elem, "vsRecommendationModel");
+
+      if(item != null) {
+         recommendationModel = new VSRecommendationModel();
+         recommendationModel.parseXML(elem);
+      }
+
+      item = Tool.getChildNodeByTagName(elem, "vsWizardOriginalModel");
+
+      if(item != null) {
+         originalModel = new VSWizardOriginalModel();
+         originalModel.parseXML(elem);
+      }
+
+      item = Tool.getChildNodeByTagName(elem, "assembly");
+
+      if(item != null) {
+         tempChart = (ChartVSAssembly) AbstractVSAssembly.createVSAssembly(item, null);
+      }
+
+      item = Tool.getChildNodeByTagName(elem, "SubType");
+
+      if(item != null) {
+         selectedSubType = (VSSubType) SubType.createSubType(item);
+      }
+
+      formatMap = new HashMap<>();
+      item = Tool.getChildNodeByTagName(elem, "formatMap");
+
+      if(item != null) {
+         NodeList list = Tool.getChildNodesByTagName(item, "formatEntry");
+
+         for(int i = 0; i < list.getLength(); i++) {
+            Element entryItem = (Element) list.item(i);
+            Element fieldItem = Tool.getChildNodeByTagName(entryItem, "field");
+            String field = Tool.byteDecode(Tool.getValue(fieldItem));
+            Element formatItem = Tool.getChildNodeByTagName(entryItem, "TempFieldFormat");
+            TempFieldFormat format = new TempFieldFormat();
+            format.parseXML(formatItem);
+            formatMap.put(field, format);
+         }
+      }
+
+      columnBrandNewMap = new HashMap<>();
+
+      item = Tool.getChildNodeByTagName(elem, "columnBrandNewMap");
+
+      if(item != null) {
+         NodeList list = Tool.getChildNodesByTagName(item, "columnBrandEntry");
+
+         for(int i = 0; i < list.getLength(); i++) {
+            Element entryItem = (Element) list.item(i);
+            Element keyItem = Tool.getChildNodeByTagName(entryItem, "key");
+            String key = Tool.byteDecode(Tool.getValue(keyItem));
+            Element valueItem = Tool.getChildNodeByTagName(entryItem, "value");
+            boolean value = "true".equalsIgnoreCase(Tool.getValue(valueItem));
+            columnBrandNewMap.put(key, value);
+         }
+      }
    }
 
    public static final String HEADER_FORMAT_STRING = "_wizard_header";

@@ -18,7 +18,10 @@
 package inetsoft.mv;
 
 import inetsoft.uql.erm.vpm.VpmProcessor;
+import inetsoft.mv.data.MV;
 import inetsoft.mv.data.MVQueryBuilder;
+import inetsoft.mv.data.MVStorage;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.QueryTreeModel.QueryNode;
 import inetsoft.report.composition.execution.*;
@@ -639,6 +642,66 @@ public class MVAssetQuery extends AssetQuery {
                LOG.warn(msg);
                Tool.addUserMessage(msg);
             }
+         }
+      }
+
+      // grouping on a dimension whose dictionary overflowed mv.dim.max.size returns
+      // incomplete results, since XDimDictionary.indexOf then returns the row
+      // position rather than a value index. detail queries are unaffected -- the
+      // raw values are retained for them -- so only warn for grouping queries.
+      if(!empty && ainfo.getGroupCount() > 0 && mvname != null) {
+         try {
+            String mvfile = MVStorage.getFile(mvname);
+            String mvorg = SUtil.getOrgIDFromMVPath(mvname);
+            MV mv = MVStorage.getInstance().get(mvfile, mvorg);
+            MVDef mvdef = mv == null ? null : mv.getDef(false, mvorg);
+            // rinfo may be null on the mv.name property path, so take this from the
+            // def rather than from rinfo, as MVQueryBuilder.transform does
+            boolean mvWS = mvdef != null && mvdef.isWSMV();
+
+            // mirrors the detail determination in MVQueryBuilder.transform: a WSMV
+            // non-crosstab query without aggregate.down runs as a detail query even
+            // though its aggregate info is not empty -- unless it is distinct, which
+            // transform() flips back to a grouping query
+            boolean mvDetail = mvWS && !ainfo.isCrosstab() &&
+               !"true".equals(table.getProperty("aggregate.down")) && !table.isDistinct();
+
+            if(mv != null && !mvDetail) {
+               List<GroupRef> checked = new ArrayList<>();
+
+               // resolve the groups the way MVQueryBuilder.transform does, so the
+               // headers line up with the mv. done on copies -- the refs are shared
+               // with the assembly and must not be rewritten here.
+               for(GroupRef gref : ainfo.getGroups()) {
+                  // dropped before the mv query is built, so never grouped on
+                  if(AssetUtil.isNullExpression(gref)) {
+                     continue;
+                  }
+
+                  DataRef cref = gref.getDataRef();
+
+                  // a ws mv keys an aliased column by its alias
+                  if(mvWS && cref instanceof ColumnRef && ((ColumnRef) cref).getAlias() != null) {
+                     checked.add(new GroupRef(VSUtil.getVSColumnRef((ColumnRef) cref)));
+                  }
+                  else {
+                     checked.add(gref);
+                  }
+               }
+
+               for(String col : mv.getOverflowedGroups(checked.toArray(new GroupRef[0]))) {
+                  String msg = "Dimension column \"" + col + "\" has too many distinct " +
+                     "values in the materialized view. Grouping on it may return " +
+                     "incomplete results. Increase the mv.dim.max.size parameter and " +
+                     "regenerate the materialized view.";
+                  LOG.warn(msg);
+                  Tool.addUserMessage(msg);
+               }
+            }
+         }
+         catch(Exception ex) {
+            // the overflow check is advisory, never fail the query for it
+            LOG.debug("Failed to check MV dimension overflow: " + mvname, ex);
          }
       }
 

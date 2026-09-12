@@ -60,8 +60,8 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.awt.geom.Dimension2D;
 import java.text.*;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -1993,6 +1993,8 @@ public abstract class GraphGenerator {
          // if separate style, we make the pie on top of each other. this is needed to
          // support the donut with a number in middle.
          if(info.isMultiStyles()) {
+            // don't lose the scale range set for other measures. (73966)
+            range.copyMeasureRanges(scale.getScaleRange());
             range.addStackFields(scale.getFields()[0]);
          }
          // multiple measures in a pie are stacked together
@@ -2001,7 +2003,13 @@ public abstract class GraphGenerator {
             range.addStackFields(scale.getFields());
          }
 
-         scale.setScaleRange(range);
+         // For multi-style pie (donut), all Y measures share the same scale.
+         // Only set the scale range for the first measure; subsequent measures
+         // would overwrite the correctly brush-adjusted range set by the first
+         // measure's nflds processing. (74234)
+         if(!info.isMultiStyles() || ymeasures.indexOf(measure) == 0) {
+            scale.setScaleRange(range);
+         }
       }
       // fix scale for waterfall
       else if(GraphTypes.isWaterfall(type) && scale0 instanceof LinearScale) {
@@ -2672,6 +2680,9 @@ public abstract class GraphGenerator {
       spec.setGridBetween(fake);
       boolean width = inverted && inner && x || !(inverted && inner) && !x;
       spec.setAxisSize(width ? xdesc.getAxisWidth() : xdesc.getAxisHeight());
+      // reserves space for the outermost axis label so it fits without being moved; the only
+      // reader is RectCoord.getAxisMargin. this is not PlotDescriptor.isInPlot ("Keep Elements
+      // in Plot") despite the name. (76291)
       spec.setInPlot("true".equals(SreeEnv.getProperty("graph.axis.inplot")));
 
       if(scale instanceof TimeScale) {
@@ -3106,7 +3117,10 @@ public abstract class GraphGenerator {
 
       alls = createElement0(chartType, names, xname, false, alls);
 
-      // set geometry max count
+      // set geometry max count. resolved once instead of per element: it only depends on
+      // chartType, and a misconfigured graph.*.maxcount warns on each call.
+      int mcount = GraphTypes.getGeomMaxCount(chartType);
+
       for(int i = 0; i < alls.size(); i++) {
          GraphElement elem = (GraphElement) alls.get(i);
 
@@ -3114,7 +3128,6 @@ public abstract class GraphGenerator {
             continue;
          }
 
-         int mcount = GraphTypes.getGeomMaxCount(chartType);
          elem.setHint(GraphElement.HINT_MAX_COUNT, mcount);
       }
    }

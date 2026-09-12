@@ -21,7 +21,9 @@ import { Observable, throwError } from "rxjs";
 import { TreeNodeModel } from "../../../../portal/src/app/widget/tree/tree-node-model";
 import { catchError } from "rxjs/operators";
 
-@Injectable()
+@Injectable({
+   providedIn: "root"
+})
 export class FormulaEditorService {
    constructor(private http: HttpClient) {
    }

@@ -35,7 +35,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const TAB_PROPERTY_URI: string = "composer/vs/tab-property-dialog-model/";
 
 @Directive({
-   selector: "[cTabActionHandler]"
+    selector: "[cTabActionHandler]",
+    standalone: true
 })
 export class TabActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSTabModel;

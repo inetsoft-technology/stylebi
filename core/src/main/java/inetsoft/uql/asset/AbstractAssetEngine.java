@@ -18,12 +18,11 @@
 package inetsoft.uql.asset;
 
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.report.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.util.gui.ObjectInfo;
 import inetsoft.mv.*;
-import inetsoft.report.LibManager;
-import inetsoft.report.ReportSheet;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.ScheduleManager;
@@ -64,18 +63,9 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    /**
     * Constructor.
     */
-   protected AbstractAssetEngine() {
-      super();
-   }
-
-   /**
-    * Constructor.
-    */
-   public AbstractAssetEngine(int[] scopes, IndexedStorage istore) {
-      this();
-      this.scopes = scopes;
-      Arrays.sort(this.scopes);
-      this.istore = istore;
+   protected AbstractAssetEngine(LibManagerProvider libManagerProvider, Cluster cluster) {
+      this.libManagerProvider = libManagerProvider;
+      this.cluster = cluster;
    }
 
    /**
@@ -575,7 +565,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
     */
    @Override
    public Object getSession() throws Exception {
-      XRepository rep = XFactory.getRepository();
+      XRepository rep = XRepository.getRepository();
       return rep.bind(System.getProperty("user.name"));
    }
 
@@ -645,7 +635,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       try {
          String source = entry.getProperty("prefix");
-         XRepository rep = XFactory.getRepository();
+         XRepository rep = XRepository.getRepository();
          XDataSource xds = rep.getDataSource(source);
 
          if(!(xds instanceof JDBCDataSource)) {
@@ -1137,7 +1127,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    }
    private AssetEntry[] getTableStyleEntries(AssetEntry entry, ResourceAction permission, Principal user) {
       AssetEntry[] entries;
-      LibManager libManager = LibManager.getManager();
+      LibManager libManager = libManagerProvider.getManager(user);
       List<AssetEntry> list = new ArrayList<>();
       String folder = entry.getProperty("folder");
       folder = Tool.isEmptyString(folder) ? null : folder;
@@ -1205,7 +1195,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
    private AssetEntry[] getScriptEntries(AssetEntry entry, ResourceAction action, Principal user) {
       AssetEntry[] entries;
-      LibManager libManager = LibManager.getManager();
+      LibManager libManager = libManagerProvider.getManager(user);
       Enumeration<String> e = libManager.getScripts();
       List<String> list = new ArrayList<>();
 
@@ -1257,7 +1247,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                                           Principal user)
       throws Exception
    {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       AssetEntry[] entries;
       IdentityID userID = user == null ? null : IdentityID.getIdentityIDFromKey(user.getName());
 
@@ -2110,6 +2100,14 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return;
       }
 
+      // Permissions are only keyed by path for global-scope assets. A user's private assets
+      // live in the same path namespace (the owner is carried by the entry, not the path), so
+      // transferring the permission of a private folder would move/clear the permission of the
+      // same-named folder in the global repository.
+      if(oentry.getScope() != GLOBAL_SCOPE) {
+         return;
+      }
+
       SecurityEngine securityEngine = SecurityEngine.getSecurity();
       ResourceType type = getAssetResourceType(oentry);
       Permission oldPermission = securityEngine.getPermission(type, oentry.getPath());
@@ -2119,7 +2117,12 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       securityEngine.removePermission(type, oentry.getPath());
-      securityEngine.setPermission(type, nentry.getPath(), oldPermission);
+
+      // moving out of the global repository (e.g. into a user's private assets); the old
+      // permission no longer applies to any path and must not be copied to the private path
+      if(nentry.getScope() == GLOBAL_SCOPE) {
+         securityEngine.setPermission(type, nentry.getPath(), oldPermission);
+      }
    }
 
    /**
@@ -2698,13 +2701,32 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                      }
                   }
 
-                  // get full sheet
-                  dsheet = getSheet(dentry, user, false, AssetContent.ALL);
-                  IndexedStorage dstorage = getStorage(dentry);
-                  String didentifier = dentry.toIdentifier();
-                  dsheet.addOuterDependency(entry);
-                  dstorage.putXMLSerializable(didentifier, dsheet);
-                  sheetmap.put(didentifier, dsheet);
+                  //Set correct org context for the dependent worksheet's org
+                  //to ensure data files are read/written to the correct org's storage
+                  String prevOrgId = OrganizationContextHolder.getCurrentOrgId();
+                  String dentryOrgId = dentry.getOrgID();
+
+                  try {
+                     if(dentryOrgId != null) {
+                        OrganizationContextHolder.setCurrentOrgId(dentryOrgId);
+                     }
+
+                     // get full sheet
+                     dsheet = getSheet(dentry, user, false, AssetContent.ALL);
+                     IndexedStorage dstorage = getStorage(dentry);
+                     String didentifier = dentry.toIdentifier();
+                     dsheet.addOuterDependency(entry);
+                     dstorage.putXMLSerializable(didentifier, dsheet);
+                     sheetmap.put(didentifier, dsheet);
+                  }
+                  finally {
+                     if(prevOrgId != null) {
+                        OrganizationContextHolder.setCurrentOrgId(prevOrgId);
+                     }
+                     else {
+                        OrganizationContextHolder.clear();
+                     }
+                  }
                }
             }
 
@@ -3055,6 +3077,22 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return;
       }
 
+      // Bug #76194: resolve and validate the destination parent folder up front,
+      // before any mutation of the source entry. Previously this was fetched (and
+      // left unchecked for null) only after the source had already been removed
+      // from its folder and deleted from storage, so any failure past that point
+      // permanently destroyed the source sheet without ever creating the renamed copy.
+      AssetEntry npentry = nentry.getParent();
+      AssetFolder npfolder = getParentFolder(nentry, nstorage);
+      String npidentifier = npentry.toIdentifier();
+
+      if(npfolder == null) {
+         MessageException ex = new MessageException(
+            catalog.getString("common.pfolderNotFound") + ": " + npentry);
+         ex.setKeywords("FOLDER_REQUIRED");
+         throw ex;
+      }
+
       DependencyHandler dependencyHandler = DependencyHandler.getInstance();
 
       if(oentry.isWorksheet()) {
@@ -3079,10 +3117,10 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             dependencyHandler.updateDependencies(oentry, nentry);
          }
 
-         XFactory.getRepository().renameTransform(rinfo);
+         XRepository.getRepository().renameTransform(rinfo);
          RenameSheetEvent renameSheetEvent = new RenameSheetEvent(oentry);
          renameSheetEvent.setRenameInfo(rinfo);
-         Cluster.getInstance().sendMessage(renameSheetEvent);
+         cluster.sendMessage(renameSheetEvent);
       }
       else {
          if(oidentifier != nidentifier) {
@@ -3099,9 +3137,6 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
       }
 
-      AssetEntry npentry = nentry.getParent();
-      AssetFolder npfolder = getParentFolder(nentry, nstorage);
-      String npidentifier = npentry.toIdentifier();
       opfolder = getParentFolder(oentry, ostorage);
 
       if(npentry.equals(opentry)) {
@@ -3118,16 +3153,6 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       opfolder.removeEntry(oentry);
-
-      if(!Objects.equals(opidentifier, npidentifier) || !Objects.equals(opfolder, npfolder)) {
-         ostorage.putXMLSerializable(opidentifier, opfolder);
-      }
-
-      if(!Objects.equals(oidentifier, nidentifier)) {
-         ostorage.remove(oidentifier);
-         EmbeddedDataCacheHandler.clearWSCache(oidentifier);
-      }
-
       npfolder.addEntry(nentry);
 
       if(nentry.getAlias() != null && oentry.getAlias() != null &&
@@ -3145,9 +3170,17 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          renameVSBookmark(oentry, nentry);
       }
 
+      // Only overwrite/remove the source's storage entries after the destination
+      // has been fully created; a failure above now leaves the source sheet
+      // untouched instead of destroying it (Bug #76194).
+      if(!Objects.equals(opidentifier, npidentifier) || !Objects.equals(opfolder, npfolder)) {
+         ostorage.putXMLSerializable(opidentifier, opfolder);
+      }
+
       //remove oidentifier last, otherwise dependencies might rewrite it
       if(!Objects.equals(oidentifier, nidentifier)) {
          ostorage.remove(oidentifier);
+         EmbeddedDataCacheHandler.clearWSCache(oidentifier);
       }
 
       clearCache(oentry);
@@ -3513,8 +3546,12 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return true;
       }
 
-      //give permission if default org globally visible
-      if(Tool.equals(permission, ResourceAction.READ) && SUtil.isDefaultVSGloballyVisible(user) &&
+      //give permission if default org globally visible. Scope this bypass to viewsheet-type
+      //entries only (VIEWSHEET/VIEWSHEET_SNAPSHOT): the "expose default org to all" feature shares
+      //host-org viewsheets read-only, and dependent resources (worksheets, libraries, etc.) must
+      //not become independently readable across orgs through this grant.
+      if(Tool.equals(permission, ResourceAction.READ) && entry.isViewsheet() &&
+                           SUtil.isDefaultVSGloballyVisible(user) &&
                            Organization.getDefaultOrganizationID().equals(entry.getOrgID()) &&
                            user != null && !((XPrincipal)user).getOrgId().equals(Organization.getDefaultOrganizationID())) {
          return true;
@@ -4533,7 +4570,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
 
          clearCache(bentry);
-         Cluster.getInstance().sendMessage(new ClearAssetCacheEvent(bentry));
+         cluster.sendMessage(new ClearAssetCacheEvent(bentry));
          storage.putXMLSerializable(bidentifier, bookmark);
       }
       finally {
@@ -4596,7 +4633,6 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       String userName = user == null ? null : user.getName();
       String lockKey = VSBookmark.getLockKey(entry2.toIdentifier(), userName);
-      Cluster cluster = Cluster.getInstance();
       cluster.lockKey(lockKey);
 
       try {
@@ -4635,7 +4671,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       switch(change) {
          case ADD:
-            changeType = AssetChangeEvent.ASSET_RENAMED;
+            changeType = AssetChangeEvent.ASSET_MODIFIED;
             break;
          case REMOVE:
             changeType = AssetChangeEvent.ASSET_DELETED;
@@ -4664,6 +4700,8 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    }
 
    public static final ThreadLocal<String> LOCAL = new ThreadLocal<>();
+   private final LibManagerProvider libManagerProvider;
+   private final Cluster cluster;
    protected int[] scopes; // supported scopes
    protected IndexedStorage istore; // default indexed storage
    protected WeakReference<AssetRepository> parent; // parent asset engine

@@ -20,16 +20,25 @@ package inetsoft.web.composer.model.condition;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
+@Tag("core")
 class ConditionValueModelTest {
    private ObjectMapper mapper;
    private ConditionValueModel.Serializer serializer;

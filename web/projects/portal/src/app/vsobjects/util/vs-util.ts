@@ -588,11 +588,42 @@ export namespace VSUtil {
    export const CALENDAR_BODY_HEIGHT = CALENDAR_ROW_HEIGHT * CALENDAR_BODY_ROWS;
 
    export function isInBottomTabContainer(obj: VSObjectModel, vsObjects: VSObjectModel[]): boolean {
+      return !!getBottomTabContainer(obj, vsObjects);
+   }
+
+   export function getBottomTabContainer(obj: VSObjectModel,
+                                          vsObjects: VSObjectModel[] | undefined): VSTabModel | null
+   {
       if(obj.containerType !== "VSTab" || !obj.container) {
-         return false;
+         return null;
       }
 
-      const parentTab = vsObjects?.find(o => o.absoluteName === obj.container);
-      return !!parentTab && (parentTab as VSTabModel).bottomTabs === true;
+      const parentTab = vsObjects?.find(o => o.absoluteName === obj.container) as VSTabModel;
+      return parentTab && parentTab.bottomTabs === true ? parentTab : null;
+   }
+
+   /**
+    * Compute Y for a dropdown selection flush with the top of a bottom-tabs tab bar.
+    * Derives position from the parent tab's top rather than the selection's own
+    * objectFormat.top, which may be stale when bottomTabs is toggled via script
+    * (child pixelOffset refreshes aren't guaranteed to reach the client).
+    *
+    * The search bar renders via [hidden] (not *ngIf), so it occupies space whenever
+    * searchDisplayed is true — including when the dropdown is collapsed. Account
+    * for it in both states so it never overlaps the tab strip.
+    *
+    * - collapsed: title sits above the tab bar; if the search bar is shown, the
+    *   wrapper shifts up an additional titleHeight so the search bar also clears
+    *   the tab bar.
+    * - expanded: wrapper shifts further up by bodyHeight (+ searchBarHeight) so the
+    *   body pops above the title.
+    */
+   export function computeBottomTabSelectionTop(tabTop: number, titleHeight: number,
+                                                expanded: boolean, bodyHeight: number,
+                                                searchDisplayed: boolean): number {
+      const body = expanded ? bodyHeight : 0;
+      // selection's search bar height matches the title bar height
+      const searchBar = searchDisplayed ? titleHeight : 0;
+      return tabTop - titleHeight - body - searchBar;
    }
 }

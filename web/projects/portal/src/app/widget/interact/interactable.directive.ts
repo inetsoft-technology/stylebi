@@ -33,7 +33,8 @@ export type DropzoneOverlap = "pointer" | "center" | number;
 const VALID_POSITIONS = ["absolute", "relative", "fixed"];
 
 @Directive({
-   selector: "[wInteractable]"
+    selector: "[wInteractable]",
+    standalone: true
 })
 export class InteractableDirective implements OnInit, OnDestroy, OnChanges {
    // interact() configuration

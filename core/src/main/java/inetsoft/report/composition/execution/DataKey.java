@@ -49,19 +49,19 @@ public class DataKey implements Serializable, Cloneable {
                                 int inputmax, int previewMax, boolean ifiltering, long timeout)
       throws Exception
    {
-      String val = createKey(table, vars, user, mode, formatted, inputmax, previewMax, ifiltering);
+      KeyResult key = createKey(table, vars, user, mode, formatted, inputmax, previewMax, ifiltering);
 
-      if(val == null) {
+      if(key == null || key.value() == null) {
          return null;
       }
 
-      return new DataKey(val, timeout, table);
+      return new DataKey(key.value(), timeout, table, key.localCacheOnly());
    }
 
    /**
     * Create key content.
     */
-   private static String createKey(TableAssembly table, VariableTable vars,
+   private static KeyResult createKey(TableAssembly table, VariableTable vars,
                                    Principal user, int mode, boolean formatted,
                                    int inputmax, int previewMax, boolean ifiltering)
       throws Exception
@@ -99,6 +99,12 @@ public class DataKey implements Serializable, Cloneable {
       writer.print(ifiltering);
       writer.flush();
       String val = buf.toString();
+      boolean localCacheOnly = false;
+
+      if(val.contains(LOCAL_CACHE_ONLY)) {
+         localCacheOnly = true;
+      }
+
       int len = val.length();
 
       // compact too long string
@@ -115,7 +121,7 @@ public class DataKey implements Serializable, Cloneable {
          val = sb.toString();
       }
 
-      return val;
+      return new KeyResult(val, localCacheOnly);
    }
 
    /**
@@ -123,10 +129,11 @@ public class DataKey implements Serializable, Cloneable {
     *
     * @param val the specified key value.
     */
-   private DataKey(String val, long timeout, TableAssembly table) {
+   private DataKey(String val, long timeout, TableAssembly table, boolean localCacheOnly) {
       this.val = val;
       this.timeout = timeout;
       this.entry = table.getAssemblyEntry();
+      this.localCacheOnly = localCacheOnly;
    }
 
    /**
@@ -145,6 +152,10 @@ public class DataKey implements Serializable, Cloneable {
 
    public AssemblyEntry getAssemblyEntry() {
       return entry;
+   }
+
+   public boolean isLocalCacheOnly() {
+      return localCacheOnly;
    }
 
    /**
@@ -185,4 +196,8 @@ public class DataKey implements Serializable, Cloneable {
    private AssemblyEntry entry;
    private final String val;
    private final long timeout;
+   private final boolean localCacheOnly;
+   public static final String LOCAL_CACHE_ONLY = "__LOCAL_CACHE_ONLY__";
+
+   private record KeyResult(String value, boolean localCacheOnly) {}
 }

@@ -49,15 +49,19 @@ public class VSMapHandler {
                                    String refName, FeatureMapping mapping) throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return false;
+      }
+
       ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
       VSChartInfo cinfo = info.getVSChartInfo();
-      chartHandler.updateGeoColumns(box, vs, chart, cinfo);
-      DataSet source = chartHandler.getChartData(box, chart);
+      chartHandler.updateGeoColumns(box.get(), vs, chart, cinfo);
+      DataSet source = chartHandler.getChartData(box.get(), chart);
       int index = GraphUtil.indexOfHeader(source, refName);
-      boolean allMapped = MapHelper.isAllMapped(source, index, mapping, cinfo);
 
-      return allMapped;
+      return MapHelper.isAllMapped(source, index, mapping, cinfo);
    }
 
    /**
@@ -67,10 +71,15 @@ public class VSMapHandler {
       String refName) throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return new HashMap<>();
+      }
+
       ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
       VSChartInfo cinfo = info.getVSChartInfo();
-      chartHandler.updateAllGeoColumns(box, vs, chart);
+      chartHandler.updateAllGeoColumns(box.get(), vs, chart);
       String chartName = info.getAbsoluteName();
       VSChartGeoRef ref = chartHandler.getGeoRef(cinfo, refName);
       String type = cinfo.getMeasureMapType();
@@ -93,7 +102,7 @@ public class VSMapHandler {
          GeographicOption option = ref.getGeographicOption();
          int layer = option.getLayer();
          FeatureMapping mapping = option.getMapping();
-         DataSet source = chartHandler.getChartData(box, chart);
+         DataSet source = chartHandler.getChartData(box.get(), chart);
          int index = GraphUtil.indexOfHeader(source, refName);
          SourceInfo sourceInfo = info.getSourceInfo();
          FeatureMapping amapping = MapHelper.getAutoMapping(vs, sourceInfo,
@@ -124,10 +133,15 @@ public class VSMapHandler {
       String refName, String type, String layerstr) throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return new HashMap<>();
+      }
+
       ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
       VSChartInfo cinfo = info.getVSChartInfo();
-      chartHandler.updateAllGeoColumns(box, vs, chart);
+      chartHandler.updateAllGeoColumns(box.get(), vs, chart);
       VSChartGeoRef ref = chartHandler.getGeoRef(cinfo, refName);
 
       if(ref == null) {
@@ -138,7 +152,7 @@ public class VSMapHandler {
       String chartName = info.getAbsoluteName();
       GeographicOption option = ref == null ? null : ref.getGeographicOption();
       SourceInfo sourceInfo = info.getSourceInfo();
-      DataSet source = chartHandler.getChartData(box, chart);
+      DataSet source = chartHandler.getChartData(box.get(), chart);
       int index = GraphUtil.indexOfHeader(source, refName);
       int layer = option != null && VSUtil.isDynamicValue(option.getLayerValue()) ?
          -1 : MapHelper.getAutoLayer(source, index, type);
@@ -170,12 +184,17 @@ public class VSMapHandler {
       VSChartGeoRef ref) throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return new HashMap<>();
+      }
+
       ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
       VSChartInfo cinfo = info.getVSChartInfo();
       String refName = ref.getName();
       FeatureMapping mapping = ref.getGeographicOption().getMapping();
-      DataSet source = chartHandler.getChartData(box, chart);
+      DataSet source = chartHandler.getChartData(box.get(), chart);
       int index = GraphUtil.indexOfHeader(source, refName);
       MapHelper.updateFeatureMapping(source, index, mapping);
       String type = mapping.getType();
@@ -183,10 +202,8 @@ public class VSMapHandler {
       Map<String, MapFeature> features = MapHelper.getAutoMatchedFeatures(
          source, index, layer, cinfo, type);
       Map<String, MapFeatureModel> nfeatures = new HashMap<>();
-      Iterator<String> it = features.keySet().iterator();
 
-      while (it.hasNext()) {
-         String key = (String) it.next();
+      for(String key : features.keySet()) {
          MapFeature feature = features.get(key);
          nfeatures.put(key, new MapFeatureModel(feature));
       }
@@ -224,7 +241,12 @@ public class VSMapHandler {
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return new ArrayList<>();
+      }
+
       ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
       VSChartInfo cinfo = info.getVSChartInfo();
       String refName = ref.getName();
@@ -232,14 +254,14 @@ public class VSMapHandler {
       int layer = mapping.getLayer();
       String type = mapping.getType();
       Map<String, String> mappings = mapping.getMappings();
-      chartHandler.updateGeoColumns(box, vs, chart, cinfo);
-      DataSet source = chartHandler.getChartData(box, chart);
+      chartHandler.updateGeoColumns(box.get(), vs, chart, cinfo);
+      DataSet source = chartHandler.getChartData(box.get(), chart);
       int index = GraphUtil.indexOfHeader(source, refName);
       MapFeature[] likelyFeatures = MapHelper.getLikelyFeatures(source, index,
          row, type, layer, algorithm, mappings, cinfo);
 
       return Arrays.stream(likelyFeatures)
-         .map(f -> new MapFeatureModel(f))
+         .map(MapFeatureModel::new)
          .collect(Collectors.toList());
    }
 

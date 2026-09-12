@@ -18,13 +18,20 @@
 package inetsoft.web.admin.upload;
 
 import org.immutables.value.Value;
+import org.springframework.web.multipart.MultipartFile;
 
+import javax.annotation.Nullable;
 import java.io.File;
 
 @Value.Immutable
 public interface UploadedFile {
    String fileName();
+
+   @Nullable
    File file();
+
+   @Nullable
+   MultipartFile multipartFile();
 
    static Builder builder() {
       return new Builder();

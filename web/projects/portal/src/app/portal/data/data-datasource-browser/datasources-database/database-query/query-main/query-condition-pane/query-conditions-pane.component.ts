@@ -47,9 +47,10 @@ import {
 } from "../../../../../model/datasources/database/vpm/condition/util/vpm-condition.util";
 
 @Component({
-   selector: "query-conditions-pane",
-   templateUrl: "./query-conditions-pane.component.html",
-   styleUrls: ["./query-conditions-pane.component.scss"]
+    selector: "query-conditions-pane",
+    templateUrl: "./query-conditions-pane.component.html",
+    styleUrls: ["./query-conditions-pane.component.scss"],
+    imports: [VPMConditionPane]
 })
 export class QueryConditionsPaneComponent implements OnInit {
    @Input() model: QueryConditionPaneModel;

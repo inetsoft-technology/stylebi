@@ -35,10 +35,12 @@ import java.util.*;
 public class ActionPermissionController {
    @Autowired
    public ActionPermissionController(ActionPermissionService actionService,
-                                     ResourcePermissionService permissionService)
+                                     ResourcePermissionService permissionService,
+                                     SecurityEngine securityEngine)
    {
       this.actionService = actionService;
       this.permissionService = permissionService;
+      this.securityEngine = securityEngine;
    }
 
    @PostConstruct
@@ -87,7 +89,7 @@ public class ActionPermissionController {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -102,7 +104,7 @@ public class ActionPermissionController {
       boolean isOrgAdmin = false;
 
       if(principal != null) {
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
          IdentityID[] roles = provider.getRoles(pId);
          isOrgAdmin = Arrays
             .stream(provider.getAllRoles(roles))
@@ -131,7 +133,7 @@ public class ActionPermissionController {
       ResourceType type = ResourceType.valueOf(typeName);
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -172,5 +174,6 @@ public class ActionPermissionController {
 
    private final ActionPermissionService actionService;
    private final ResourcePermissionService permissionService;
+   private final SecurityEngine securityEngine;
    private final Map<Resource, EnumSet<ResourceAction>> actions = new HashMap<>();
 }

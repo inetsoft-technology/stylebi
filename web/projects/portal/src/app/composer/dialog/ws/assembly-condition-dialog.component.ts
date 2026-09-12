@@ -15,10 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { Component, EventEmitter, Inject, Input, OnInit, Output } from "@angular/core";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { Component, EventEmitter, Inject, Input, OnInit, Output, DOCUMENT } from "@angular/core";
+import { NgbModal, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { Condition } from "../../../common/data/condition/condition";
 import { ConditionOperation } from "../../../common/data/condition/condition-operation";
 import { ConditionValueType } from "../../../common/data/condition/condition-value-type";
@@ -36,12 +36,19 @@ import { AssemblyConditionDialogModel } from "../../data/ws/assembly-condition-d
 import { Worksheet } from "../../data/ws/worksheet";
 import { SimpleConditionItemPaneProvider } from "./simple-condition-item-pane-provider";
 import { ComponentTool } from "../../../common/util/component-tool";
+import { MVConditionPane } from "./mv-condition-pane.component";
+import { AdvancedConditionPane } from "./advanced-condition-pane.component";
+import { SimpleConditionPane } from "../../../widget/condition/simple-condition-pane.component";
+import { FormsModule } from "@angular/forms";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const CHECK_CONDITION_TRAP_URI = "../api/composer/worksheet/check-condition-trap/";
 
 @Component({
-   selector: "assembly-condition-dialog",
-   templateUrl: "assembly-condition-dialog.component.html"
+    selector: "assembly-condition-dialog",
+    templateUrl: "assembly-condition-dialog.component.html",
+    imports: [ModalHeaderComponent, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, FormsModule, SimpleConditionPane, AdvancedConditionPane, MVConditionPane, NgbNavOutlet]
 })
 export class AssemblyConditionDialog implements OnInit {
    @Input() assemblyName: string;

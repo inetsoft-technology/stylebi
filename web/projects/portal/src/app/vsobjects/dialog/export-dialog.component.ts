@@ -26,13 +26,19 @@ import { LocalStorage } from "../../common/util/local-storage.util";
 import { FileFormatPaneModel } from "../model/file-format-pane-model";
 import { ComponentTool } from "../../common/util/component-tool";
 import { FileFormatType } from "../model/file-format-type";
+import { FileFormatPane } from "./file-format-pane.component";
 
-const CHECK_EXPORT_VALID_URI: string = "../api/vs/check-export-valid/";
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
+
 const modelKey = "filePaneModel";
 
 @Component({
-   selector: "export-dialog",
-   templateUrl: "export-dialog.component.html",
+    selector: "export-dialog",
+    templateUrl: "export-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    FileFormatPane
+]
 })
 export class ExportDialog implements OnInit {
    @Input() model: ExportDialogModel;

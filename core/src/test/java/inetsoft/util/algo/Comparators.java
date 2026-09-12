@@ -19,6 +19,7 @@ package inetsoft.util.algo;
 
 import java.util.Collection;
 import java.util.Comparator;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Test utility class for testing that a comparator follows the transitivity contract:
@@ -28,6 +29,7 @@ import java.util.Comparator;
  *
  * @author Gili Tzabari
  */
+@Tag("core")
 public final class Comparators {
    private Comparators() {
       // prevent construction

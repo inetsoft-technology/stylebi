@@ -50,7 +50,7 @@ public class SetPrincipalCommand implements ViewsheetCommand {
 
          this.aiAssistantPermission = aiSettingsService.isAiAssistantVisible() &&
             securityEngine.checkPermission(principal, ResourceType.AI_ASSISTANT, "*",
-            ResourceAction.ACCESS);
+                                           ResourceAction.ACCESS);
 
          autoSaveFiles = new ArrayList<>();
          initAutoSaveFiles(principal);

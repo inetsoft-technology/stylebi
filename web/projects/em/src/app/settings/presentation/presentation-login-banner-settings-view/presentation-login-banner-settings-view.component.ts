@@ -17,11 +17,17 @@
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { PresentationSettingsChanges } from "../presentation-settings-view/presentation-settings-view.component";
-import { UntypedFormBuilder, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { PresentationLoginBannerSettingsModel } from "./presentation-login-banner-settings-model";
 import { Searchable } from "../../../searchable";
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
 import { ContextHelp } from "../../../context-help";
+import { MatInput } from "@angular/material/input";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Searchable({
    route: "/settings/presentation/settings#login-banner",
@@ -36,9 +42,10 @@ import { ContextHelp } from "../../../context-help";
    link: "EMPresentationLoginBanner"
 })
 @Component({
-   selector: "em-presentation-login-banner-settings-view",
-   templateUrl: "./presentation-login-banner-settings-view.component.html",
-   styleUrls: ["./presentation-login-banner-settings-view.component.scss"]
+    selector: "em-presentation-login-banner-settings-view",
+    templateUrl: "./presentation-login-banner-settings-view.component.html",
+    styleUrls: ["./presentation-login-banner-settings-view.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatInput]
 })
 export class PresentationLoginBannerSettingsViewComponent {
    private _model: PresentationLoginBannerSettingsModel;

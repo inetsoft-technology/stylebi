@@ -18,7 +18,7 @@
 import { HttpClient } from "@angular/common/http";
 import { EventEmitter, NgZone } from "@angular/core";
 import { Router } from "@angular/router";
-import { AsyncSubject, Observable, of as observableOf, Subject } from "rxjs";
+import { AsyncSubject, Observable, of as observableOf, Subject, Subscription } from "rxjs";
 import { SsoHeartbeatService } from "../sso/sso-heartbeat.service";
 import { LogoutService } from "../util/logout.service";
 import { StompClientChannel } from "./stomp-client-channel";
@@ -42,6 +42,8 @@ export class StompClient {
    private heartbeat: EventEmitter<any> = new EventEmitter<any>();
    private emClient: boolean = false;
    private redirecting = false;
+   private heartbeatSubscription?: Subscription;
+   private heartbeatSource$?: Observable<void>;
 
    public reloadOnFailure: boolean;
 
@@ -49,10 +51,17 @@ export class StompClient {
                private onReconnectError: (error: string) => any,
                private ssoHeartbeatService: SsoHeartbeatService,
                private logoutService: LogoutService, emClient: boolean, private baseHref: string,
-               private customElement: boolean,
-               private router: Router, private http: HttpClient, private zone: NgZone)
+               private customElement: boolean, heartbeatSource$?: Observable<void>)
    {
       this.emClient = emClient;
+
+      if(heartbeatSource$) {
+         this.heartbeatSource$ = heartbeatSource$;
+         this.heartbeatSubscription = heartbeatSource$.subscribe(() => {
+            this.heartbeat.emit({});
+         });
+      }
+
       this.client = this.createStompClient();
       this.client.connect({},
          () => {
@@ -77,6 +86,7 @@ export class StompClient {
 
                this.connected = false;
                this.pendingConnections = [];
+               this.destroyHeartbeat();
                this.onDisconnect(this.endpoint);
                this.clientSubject.next(null);
                this.clientSubject.complete();
@@ -87,6 +97,16 @@ export class StompClient {
                this.reconnect();
             }
          });
+   }
+
+   private destroyHeartbeat(): void {
+      if(this.heartbeatSubscription) {
+         this.heartbeatSubscription.unsubscribe();
+         this.heartbeatSubscription = null;
+      }
+
+      clearTimeout(this.heartbeatTimeoutId);
+      this.heartbeatTimeoutId = null;
    }
 
    private resetHeartbeatTimer() {
@@ -124,7 +144,9 @@ export class StompClient {
       // too large, stomp default frame size is 16kb
       client.maxWebSocketFrameSize = 64 * 1024;
       client.debug = null; // comment this out to trace the messages
-      this.resetHeartbeatTimer();
+      if(!this.heartbeatSource$) {
+         this.resetHeartbeatTimer();
+      }
       return client;
    }
 
@@ -142,11 +164,6 @@ export class StompClient {
             else if(event?.code === 4002) {
                // session timeout with security enabled
                this.logoutService.sessionExpired();
-            }
-            else if(event?.code === 1001 || event?.code === 1006) {
-               // 1001 Connection intentionally closed
-               // 1006 Abnormal closure — possibly due to 502/503 errors
-               this.pingServer();
             }
          }
 
@@ -172,25 +189,21 @@ export class StompClient {
                this.onReconnectError(error);
             }
 
-            if(this.redirecting) {
-               this.redirecting = false
+            if(this.reconnectCnt > 30) {
+               if(this.reloadOnFailure) {
+                  console.error("Failed to reconnect to server, reloading: ", error);
+                  window.location.reload(true);
+               }
+
+               console.error("Failed to reconnect to server: ", error);
+               this.connected = false;
+               this.pendingConnections = [];
+               this.destroyHeartbeat();
+               this.onDisconnect(this.endpoint);
+               this.clientSubject.complete();
             }
             else {
-               if(this.reconnectCnt > 30) {
-                  if(this.reloadOnFailure) {
-                     console.error("Failed to reconnect to server, reloading: ", error);
-                     window.location.reload(true);
-                  }
-
-                  console.error("Failed to reconnect to server: ", error);
-                  this.connected = false;
-                  this.pendingConnections = [];
-                  this.onDisconnect(this.endpoint);
-                  this.clientSubject.complete();
-               }
-               else {
-                  setTimeout(() => this.reconnect(), 10000);
-               }
+               setTimeout(() => this.reconnect(), 10000);
             }
          });
    }
@@ -218,36 +231,15 @@ export class StompClient {
          this.client = null;
          this.clientSubject.next(null);
          this.clientSubject.complete();
+         this.destroyHeartbeat();
          this.onDisconnect(this.endpoint);
-      }
-   }
-
-   public redirectToErrorPage() {
-      this.onDisconnect(this.endpoint);
-      this.redirecting = true;
-   }
-
-   private pingServer() {
-      if(!this.router.url.startsWith("/reload")) {
-         this.zone.run(() => {
-            this.http.get("../ping", { responseType: "text" }).subscribe({
-               next: () => {},
-               error:  (error) => {
-                  // Check to make sure that it is a 502/503 error
-                  if(error.status === 502 || error.status == 503) {
-                     this.router.navigate(["/reload"],
-                        {queryParams: {redirectTo: this.router.url}, replaceUrl: true});
-                  }
-               }
-            });
-         })
       }
    }
 
    private createConnection(): StompClientConnection {
       return new StompClientConnection(
          this.clientChannel, this.heartbeat, () => this.onConnectionDisconnect(),
-         this.ssoHeartbeatService, this.emClient, () => this.pingServer());
+         this.ssoHeartbeatService, this.emClient);
    }
 
    resolveURL(url: string): string {

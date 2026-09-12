@@ -268,6 +268,7 @@ public class QueryToWsConverter implements ConvertTransformer {
          String xmlString = builder.toString();
          xmlString = String.format(xmlString, type, sqlType, attr, sqlType, view, desc);
          DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+         factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
          DocumentBuilder docBuilder = factory.newDocumentBuilder();
          Document newDocument = docBuilder.parse(new InputSource(new StringReader(xmlString)));
          columnRef = newDocument.getDocumentElement();

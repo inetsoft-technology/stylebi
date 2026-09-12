@@ -20,10 +20,22 @@ import { UntypedFormGroup } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { ChartGeneralPaneModel } from "../../model/chart-general-pane-model";
 import { TipPane } from "./tip-pane.component";
+import { SizePositionPane } from "../size-position-pane.component";
+import { PaddingPane } from "../padding-pane.component";
+import { TitlePropPane } from "../title-prop-pane.component";
+
+import { GeneralPropPane } from "../general-prop-pane.component";
 
 @Component({
-   selector: "chart-general-pane",
-   templateUrl: "chart-general-pane.component.html",
+    selector: "chart-general-pane",
+    templateUrl: "chart-general-pane.component.html",
+    imports: [
+    GeneralPropPane,
+    TitlePropPane,
+    TipPane,
+    PaddingPane,
+    SizePositionPane
+]
 })
 export class ChartGeneralPane {
    @Input() vsId: string;

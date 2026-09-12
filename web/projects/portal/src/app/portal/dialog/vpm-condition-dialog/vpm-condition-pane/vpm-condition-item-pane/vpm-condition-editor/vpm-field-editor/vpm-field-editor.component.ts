@@ -28,10 +28,13 @@ import { ClauseValueModel } from "../../../../../../data/model/datasources/datab
 import { VPMColumnModel } from "../../../../../../data/model/datasources/database/vpm/condition/vpm-column-model";
 import { FixedDropdownDirective } from "../../../../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
+import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
+
 @Component({
-   selector: "vpm-field-editor",
-   templateUrl: "vpm-field-editor.component.html",
-   styleUrls: ["vpm-field-editor.component.scss"]
+    selector: "vpm-field-editor",
+    templateUrl: "vpm-field-editor.component.html",
+    styleUrls: ["vpm-field-editor.component.scss"],
+    imports: [FixedDropdownDirective, NgbTooltip]
 })
 export class VPMFieldEditorComponent implements OnChanges {
    @Input() value: ClauseValueModel;

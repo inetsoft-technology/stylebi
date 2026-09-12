@@ -16,16 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, OnInit, Output, EventEmitter, Input } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NewAggrDialogModel } from "./new-aggr-dialog-model";
 import { XSchema } from "../../../common/data/xschema";
 import { AssetUtil } from "../../../binding/util/asset-util";
 import { AggregateFormula } from "../../../binding/util/aggregate-formula";
 import { SummaryAttrUtil } from "../../../binding/util/summary-attr-util";
+import { NgClass } from "@angular/common";
+import { ModalHeaderComponent } from "../../modal-header/modal-header.component";
 
 @Component({
-   selector: "new-aggr-dialog",
-   templateUrl: "./new-aggr-dialog.component.html"
+    selector: "new-aggr-dialog",
+    templateUrl: "./new-aggr-dialog.component.html",
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgClass]
 })
 export class NewAggrDialog implements OnInit {
    @Input() model: NewAggrDialogModel;
@@ -33,6 +36,7 @@ export class NewAggrDialog implements OnInit {
    form: UntypedFormGroup;
    formulas: any[];
    _nStr: string = "";
+   npLabel: string = "";
    @Output() onCommit: EventEmitter<NewAggrDialogModel> = new EventEmitter<NewAggrDialogModel>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
 
@@ -43,6 +47,7 @@ export class NewAggrDialog implements OnInit {
 
    ngOnInit(): void {
       this.initForm();
+      this.updateNPLabel();
    }
 
    initForm(): void {
@@ -77,6 +82,8 @@ export class NewAggrDialog implements OnInit {
       if(this.isWithFormula()) {
          this.model.with = this.model.fields[0];
       }
+
+      this.updateNPLabel();
    }
 
    hasN(): boolean {
@@ -94,8 +101,8 @@ export class NewAggrDialog implements OnInit {
       this.model.numValue = val < 1 || isNaN(val) ? "1" : val + "";
    }
 
-   getNPLabel(): string {
-      return AggregateFormula.getNPLabel(this.model.aggregate);
+   private updateNPLabel(): void {
+      this.npLabel = AggregateFormula.getNPLabel(this.model.aggregate);
    }
 
    isNValid(): boolean {

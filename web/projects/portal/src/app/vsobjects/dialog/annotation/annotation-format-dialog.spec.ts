@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
@@ -50,7 +51,9 @@ import { DebounceService } from "../../../widget/services/debounce.service";
    template: `
      <annotation-format-dialog
        [model]="dialogModel"
-       (onCommit)="updateModel($event)"></annotation-format-dialog>`
+       (onCommit)="updateModel($event)"></annotation-format-dialog>`,
+   standalone: true,
+   imports: [AnnotationFormatDialog]
 })
 class TestApp {
    public dialogModel: AnnotationFormatDialogModel = {
@@ -79,9 +82,7 @@ describe("Annotation Format Dialog Tests", () => {
             NgbDropdownModule,
             NgbModalModule,
             DropDownTestModule,
-            HttpClientTestingModule
-         ],
-         declarations: [
+            HttpClientTestingModule,
             AnnotationFormatDialog,
             AlphaDropdown,
             ColorComponentEditor,
@@ -100,8 +101,9 @@ describe("Annotation Format Dialog Tests", () => {
             TestApp,
             FixedDropdownDirective,
             EnterSubmitDirective,
-            ActionsContextmenuAnchorDirective
+            ActionsContextmenuAnchorDirective,
          ],
+         
          providers: [
             RecentColorService,
             DebounceService

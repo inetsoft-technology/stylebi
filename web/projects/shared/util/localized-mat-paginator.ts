@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { MatLegacyPaginatorIntl as MatPaginatorIntl } from "@angular/material/legacy-paginator";
 import { Injectable } from "@angular/core";
+import { MatPaginatorIntl } from "@angular/material/paginator";
 import { Tool } from "./tool";
 
 @Injectable()

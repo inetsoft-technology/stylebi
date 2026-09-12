@@ -19,8 +19,9 @@ import { Directive, ElementRef } from "@angular/core";
 import { TopScrollSupport } from "./top-scroll-support";
 
 @Directive({
-   selector: "[emTopScroll]",
-   providers: [ TopScrollSupport ]
+    selector: "[emTopScroll]",
+    providers: [TopScrollSupport],
+    standalone: true
 })
 export class TopScrollDirective {
    constructor(private support: TopScrollSupport, element: ElementRef) {

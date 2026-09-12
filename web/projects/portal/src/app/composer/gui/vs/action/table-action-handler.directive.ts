@@ -43,7 +43,8 @@ const TABLE_COPY_HIGHLIGHT_URI: string = "/events/composer/viewsheet/table/copyH
 const TABLE_PASTE_HIGHLIGHT_URI: string = "/events/composer/viewsheet/table/pasteHighlight";
 
 @Directive({
-   selector: "[cTableActionHandler]"
+    selector: "[cTableActionHandler]",
+    standalone: true
 })
 export class TableActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSTableModel;

@@ -17,14 +17,25 @@
  */
 package inetsoft.uql.util;
 
+import inetsoft.test.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class SQLIteratorTest {
    SQLIterator.SQLListener listener;
    StringBuilder sb;

@@ -17,7 +17,7 @@
  */
 package inetsoft.storage;
 
-import inetsoft.sree.internal.cluster.SingletonRunnableTask;
+import inetsoft.sree.internal.cluster.*;
 
 import java.io.Serializable;
 import java.util.*;
@@ -61,18 +61,17 @@ public class ReplaceAllKeyValueTask<T extends Serializable>
          // remove old keys not present in new keys
          getEngine().removeAll(getId(), keysToRemove);
 
-         Map<String, T> map = getMap();
+         DistributedMap<String, T> map = getMap();
+         Cluster cluster = Cluster.getInstance();
 
-         if(!keysToRemove.isEmpty()) {
-            if(keysToRemove.size() == 1) {
-               map.remove(keysToRemove.iterator().next());
+         try(DistributedTransaction tx = cluster.startTx()) {
+            if(!keysToRemove.isEmpty()) {
+               map.removeAll(keysToRemove);
             }
-            else {
-               map.clear();
-            }
+
+            map.putAll(values);
+            tx.commit();
          }
-
-         map.putAll(values);
       }
       catch(Exception e) {
          throw new RuntimeException("Failed to replace values", e);

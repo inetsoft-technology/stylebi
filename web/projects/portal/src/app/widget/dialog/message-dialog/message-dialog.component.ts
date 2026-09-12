@@ -17,14 +17,19 @@
  */
 import { Component, Input, Output, EventEmitter, ViewChildren, ElementRef,
          AfterViewInit, QueryList } from "@angular/core";
+import { NgbProgressbar } from "@ng-bootstrap/ng-bootstrap";
+import { ExpandStringDirective } from "../../expand-string/expand-string.directive";
+
+import { BlockMouseDirective } from "../../mouse-event/block-mouse.directive";
 
 /**
  * Component that display a simple message or confirmation dialog.
  */
 @Component({
-   selector: "message-dialog",
-   templateUrl: "message-dialog.component.html",
-   styleUrls: ["message-dialog.component.scss"]
+    selector: "message-dialog",
+    templateUrl: "message-dialog.component.html",
+    styleUrls: ["message-dialog.component.scss"],
+    imports: [BlockMouseDirective, ExpandStringDirective, NgbProgressbar]
 })
 export class MessageDialog implements AfterViewInit {
    @Input() title = "";

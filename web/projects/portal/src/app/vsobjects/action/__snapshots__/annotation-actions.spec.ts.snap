@@ -1,10 +1,10 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`AnnotationActions check menu actions is created 1`] = `
-Array [
+exports[`AnnotationActions > check menu actions is created 1`] = `
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -12,7 +12,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -20,7 +20,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -35,11 +35,11 @@ Array [
 ]
 `;
 
-exports[`AnnotationActions check menu actions is created 2`] = `
-Array [
+exports[`AnnotationActions > check menu actions is created 2`] = `
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -47,7 +47,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -55,7 +55,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],

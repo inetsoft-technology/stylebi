@@ -31,8 +31,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 
 import java.awt.*;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 
 import static inetsoft.uql.asset.internal.AssetUtil.defh;
 

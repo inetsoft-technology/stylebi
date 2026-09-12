@@ -18,13 +18,21 @@
 import { Component, Input } from "@angular/core";
 import { ChartConfig } from "../../../../common/util/chart-config";
 import { StyleConstants } from "../../../../common/util/style-constants";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "shape-item",
-   template: `<img *ngIf="shapeClass == null && shapeSource != null && !builtin"
-                   [src]='shapeSource'/>
-   <i *ngIf="shapeClass == null && shapeSource != null && builtin" [ngClass]='shapeSourceIcon'></i>
-   <i *ngIf="shapeClass != null" [ngClass]='shapeClass'></i>`
+    selector: "shape-item",
+    template: `@if (shapeClass == null && shapeSource != null && !builtin) {
+  <img
+    [src]='shapeSource'/>
+}
+@if (shapeClass == null && shapeSource != null && builtin) {
+  <i [ngClass]='shapeSourceIcon'></i>
+}
+@if (shapeClass != null) {
+  <i [ngClass]='shapeClass'></i>
+}`,
+    imports: [NgClass]
 })
 export class ShapeItem {
    @Input() shapeStr: string;

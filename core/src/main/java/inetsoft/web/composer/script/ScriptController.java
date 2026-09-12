@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.analytic.composition.SheetLibraryService;
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.GroupedThread;
 import inetsoft.util.log.LogContext;
@@ -36,9 +37,12 @@ import java.security.Principal;
 public class ScriptController {
    @Autowired
    public ScriptController(SheetLibraryService sheetLibraryService,
-                           ScriptService scriptService) {
+                           ScriptService scriptService,
+                           LibManagerProvider libManagerProvider)
+   {
       this.sheetLibraryService = sheetLibraryService;
       this.scriptService = scriptService;
+      this.libManagerProvider = libManagerProvider;
    }
 
    @RequestMapping(value = "/api/script/new", method = RequestMethod.GET)
@@ -55,7 +59,7 @@ public class ScriptController {
    public ScriptModel openScript(@RequestParam("id") String id) {
       AssetEntry entry = AssetEntry.createAssetEntry(id);
       String name = entry.getName();
-      LibManager lib = LibManager.getManager();
+      LibManager lib = libManagerProvider.getManager();
       String function = lib.getScript(name);
       ScriptModel script = new ScriptModel();
       script.setLabel(name);
@@ -102,4 +106,5 @@ public class ScriptController {
 
    private final SheetLibraryService sheetLibraryService;
    private final ScriptService scriptService;
+   private final LibManagerProvider libManagerProvider;
 }

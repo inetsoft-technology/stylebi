@@ -31,11 +31,13 @@ import { MultiSelectList } from "../../../common/util/multi-select-list";
 import { OutputColumnRefModel } from "../../../vsobjects/model/output-column-ref-model";
 import { TreeNodeModel } from "../../tree/tree-node-model";
 
+
 @Component({
-   selector: "additional-table-selection-pane",
-   templateUrl: "additional-table-selection-pane.component.html",
-   styleUrls: ["./additional-table-selection-pane.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "additional-table-selection-pane",
+    templateUrl: "additional-table-selection-pane.component.html",
+    styleUrls: ["./additional-table-selection-pane.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: []
 })
 export class AdditionalTableSelectionPaneComponent implements OnChanges {
    @Input() tree: TreeNodeModel;
@@ -58,10 +60,11 @@ export class AdditionalTableSelectionPaneComponent implements OnChanges {
       if(changes.hasOwnProperty("selectedColumns") || changes.hasOwnProperty("additionalTables")) {
          this.columnsAreAssemblyType = this.areSelectedColumnsAssemblyType();
          const compatibleTableSet = this.findCompatibleTables();
-         const compatibleAdditionalTables =
-            this.additionalTables.filter((t) => compatibleTableSet.has(t));
+         const compatibleAdditionalTables = this.additionalTables
+            ? this.additionalTables.filter((t) => compatibleTableSet.has(t))
+            : [];
 
-         if(compatibleAdditionalTables.length !== this.additionalTables.length) {
+         if(this.additionalTables && compatibleAdditionalTables.length !== this.additionalTables.length) {
             Promise.resolve(null)
                .then(() => this.additionalTablesChanged(compatibleAdditionalTables));
          }
@@ -110,7 +113,7 @@ export class AdditionalTableSelectionPaneComponent implements OnChanges {
    }
 
    isMergeable(): boolean {
-      return this.compatibleTables.length > 0 || this.additionalTables.length > 0;
+      return this.compatibleTables.length > 0 || (this.additionalTables?.length ?? 0) > 0;
    }
 
    /**
@@ -207,7 +210,7 @@ export class AdditionalTableSelectionPaneComponent implements OnChanges {
    }
 
    private refreshListSelections(): void {
-      if(this.additionalTableSelection.size() !== this.additionalTables.length) {
+      if(this.additionalTables && this.additionalTableSelection.size() !== this.additionalTables.length) {
          this.additionalTableSelection.setSize(this.additionalTables.length);
       }
 
@@ -218,6 +221,6 @@ export class AdditionalTableSelectionPaneComponent implements OnChanges {
 
    private areSelectedColumnsAssemblyType(): boolean {
       return this.selectedColumns.findIndex(
-         (c) => c.properties["type"] == SourceInfoType.VS_ASSEMBLY) >= 0;
+         (c) => c.properties?.["type"] == SourceInfoType.VS_ASSEMBLY) >= 0;
    }
 }

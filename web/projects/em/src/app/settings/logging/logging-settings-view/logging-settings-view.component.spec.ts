@@ -15,7 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
@@ -26,9 +27,9 @@ import { MatSelectModule } from "@angular/material/select";
 import { LoggingSettingsViewComponent } from "./logging-settings-view.component";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { DownloadModule } from "../../../../../../shared/download/download.module";
+import { DownloadTargetComponent } from "../../../../../../shared/download/download-target.component";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { TableViewModule } from "../../../common/util/table/table-view.module";
+import { TableView } from "../../../common/util/table/table-view.component";
 import { LoggingLevelTableComponent } from "../logging-level-table/logging-level-table.component";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 
@@ -36,10 +37,10 @@ describe("LoggingSettingsViewComponent", () => {
    let component: LoggingSettingsViewComponent;
    let fixture: ComponentFixture<LoggingSettingsViewComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
-         declarations: [LoggingSettingsViewComponent, LoggingLevelTableComponent],
          imports: [
+            LoggingSettingsViewComponent, LoggingLevelTableComponent,
             NoopAnimationsModule,
             MatFormFieldModule,
             MatCheckboxModule,
@@ -48,11 +49,11 @@ describe("LoggingSettingsViewComponent", () => {
             MatCardModule,
             MatDividerModule,
             HttpClientTestingModule,
-            DownloadModule,
+            DownloadTargetComponent,
             FormsModule,
             ReactiveFormsModule,
             MatButtonModule,
-            TableViewModule
+            TableView
          ],
          providers: [
             AppInfoService

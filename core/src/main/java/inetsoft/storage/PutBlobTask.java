@@ -34,14 +34,12 @@ public class PutBlobTask<T extends Serializable>
    /**
     * Creates a new instance of {@code PutBlobTask}.
     *
-    * @param id    the unique identifier of the blob store.
-    * @param blob  the blob being added.
-    * @param local if the local engine is being used.
+    * @param id   the unique identifier of the blob store.
+    * @param blob the blob being added.
     */
-   public PutBlobTask(String id, Blob<T> blob, boolean local) {
+   public PutBlobTask(String id, Blob<T> blob) {
       super(id);
       this.data = serializeValue(blob);
-      this.local = local;
    }
 
    @Override
@@ -73,7 +71,7 @@ public class PutBlobTask<T extends Serializable>
                boolean exists = refs.remove(oldBlob.getPath());
 
                if(refs.isEmpty()) {
-                  if(exists && !local) {
+                  if(exists) {
                      BlobEngine.getInstance().delete(getId(), oldBlob.getDigest());
                      Cluster.getInstance()
                         .sendMessage(new ClearBlobCacheMessage(getId(), oldBlob.getDigest()));
@@ -93,5 +91,4 @@ public class PutBlobTask<T extends Serializable>
    }
 
    private final byte[] data;
-   private final boolean local;
 }

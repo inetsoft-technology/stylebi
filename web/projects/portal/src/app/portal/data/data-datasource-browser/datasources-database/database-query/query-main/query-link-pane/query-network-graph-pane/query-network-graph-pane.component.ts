@@ -15,29 +15,30 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
-import { HttpClient } from "@angular/common/http";
+import { NgClass } from "@angular/common";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import {
-   AfterViewChecked,
-   AfterViewInit,
-   Component,
-   ElementRef,
-   EventEmitter,
-   HostListener,
-   Inject,
-   Input,
-   NgZone,
-   OnChanges,
-   OnDestroy,
-   OnInit,
-   Output,
-   Renderer2,
-   SimpleChanges,
-   ViewChild
+  AfterViewChecked,
+  AfterViewInit,
+  Component,
+  ElementRef,
+  EventEmitter,
+  HostListener,
+  Inject,
+  Input,
+  NgZone,
+  OnChanges,
+  OnDestroy,
+  OnInit,
+  Output,
+  Renderer2,
+  SimpleChanges,
+  ViewChild,
+  DOCUMENT
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ConnectionMadeEventInfo } from "jsplumb";
-import { Observable } from "rxjs";
+import { Observable, Subscription, timer as observableTimer } from "rxjs";
 import { AssetEntry } from "../../../../../../../../../../../shared/data/asset-entry";
 import { Tool } from "../../../../../../../../../../../shared/util/tool";
 import { AssemblyActionGroup } from "../../../../../../../../common/action/assembly-action-group";
@@ -51,7 +52,7 @@ import {
 import {
    DEPENDENCY_TYPE_OVERLAY_ID
 } from "../../../../../../../../composer/gui/ws/jsplumb/jsplumb-dependency-type-overlays";
-import { SelectionBoxEvent } from "../../../../../../../../widget/directive/selection-box.directive";
+import { SelectionBoxEvent, SelectionBoxDirective } from "../../../../../../../../widget/directive/selection-box.directive";
 import { DomService } from "../../../../../../../../widget/dom-service/dom.service";
 import {
    ActionsContextmenuComponent
@@ -101,6 +102,8 @@ import {
    DataType
 } from "../../../../common-components/join-thumbnail.service";
 import { DataQueryModelService } from "../../../data-query-model.service";
+import { JoinNodeGraphComponent } from "../../../../common-components/join-node-graph/join-node-graph.component";
+import { OutOfZoneDirective } from "../../../../../../../../widget/directive/out-of-zone.directive";
 
 const OPEN_JOIN_EDIT_PANE_URI = "../api/data/datasource/query/join-edit/open/";
 const GRAPH_CLEAR_JOINS_URI = "../api/data/datasource/query/joins/";
@@ -109,14 +112,17 @@ const GRAPH_CLEAR_TABLES_URI = "../api/data/datasource/query/table/";
 const GRAPH_ADD_TABLES_URI = "../api/data/datasource/query/table/add";
 const GRAPH_REMOVE_TABLES_URI = "../api/data/datasource/query/table/remove";
 const GRAPH_MOVE_TABLES_URI = "../api/data/datasource/query/table/move";
+const HEARTBEAT_URI = "../api/data/query/heartbeat";
+const HEARTBEAT_INTERVAL_TIME = 20000;
 
 @Component({
-   selector: "query-network-graph-pane",
-   templateUrl: "./query-network-graph-pane.component.html",
-   styleUrls: [
-      "./query-network-graph-pane.component.scss",
-      "../../../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"
-   ]
+    selector: "query-network-graph-pane",
+    templateUrl: "./query-network-graph-pane.component.html",
+    styleUrls: [
+        "./query-network-graph-pane.component.scss",
+        "../../../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"
+    ],
+    imports: [OutOfZoneDirective, SelectionBoxDirective, JoinNodeGraphComponent, NgClass]
 })
 export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
    AfterViewChecked, OnChanges, OnDestroy
@@ -144,6 +150,7 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
    private dragNodes: GraphModel[] = [];
    private nodes: {[sourceIds: string]: GraphModel} = {}; // element id --> node model
    private sourceIds: {[nodeId: string]: string} = {}; // node id --> element id
+   private heartbeatSubscription: Subscription;
 
    constructor(private readonly zone: NgZone,
                private readonly http: HttpClient,
@@ -275,6 +282,9 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
 
    ngOnInit(): void {
       this.setRepaintTimer(); // waiting jsPlumb auto setting graph id.
+      this.heartbeatSubscription = observableTimer(0, HEARTBEAT_INTERVAL_TIME).subscribe(() => {
+         this.sendHeartBeat();
+      });
    }
 
    ngOnChanges(changes: SimpleChanges): void {
@@ -304,6 +314,11 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
    }
 
    ngOnDestroy(): void {
+      if(this.heartbeatSubscription) {
+         this.heartbeatSubscription.unsubscribe();
+         this.heartbeatSubscription = null;
+      }
+
       this.jsp.deleteEveryConnection({fireEvent: false});
       this.jsp.reset();
       this.jsp = null;
@@ -441,6 +456,15 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
    private openJoinEditPane(): Observable<string> {
       return this.http.get<string>(OPEN_JOIN_EDIT_PANE_URI
          + Tool.encodeURIComponentExceptSlash(this.runtimeId));
+   }
+
+   private sendHeartBeat(): void {
+      if(!!this.runtimeId) {
+         const params: HttpParams = new HttpParams()
+            .set("id", this.runtimeId);
+
+         this.http.get(HEARTBEAT_URI, {params}).subscribe(() => {});
+      }
    }
 
    private refreshAnchors(connection: any): void {

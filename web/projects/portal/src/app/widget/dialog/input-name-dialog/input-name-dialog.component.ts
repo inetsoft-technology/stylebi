@@ -28,24 +28,30 @@ import {
    NgZone,
    ChangeDetectorRef,
    OnInit,
-   OnChanges
+   OnChanges,
+   OnDestroy
 } from "@angular/core";
-import { UntypedFormControl, ValidatorFn } from "@angular/forms";
+import { UntypedFormControl, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { Observable } from "rxjs";
+import { HttpErrorResponse } from "@angular/common/http";
+import { Observable, Subscription } from "rxjs";
 import { ComponentTool } from "../../../common/util/component-tool";
+
+import { EnterSubmitDirective } from "../../directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../modal-header/modal-header.component";
 
 export interface ValidatorMessageInfo {
    validatorName: string;
    message: string;
 }
 @Component({
-   selector: "input-name-dialog",
-   templateUrl: "input-name-dialog.component.html",
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "input-name-dialog",
+    templateUrl: "input-name-dialog.component.html",
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
-export class InputNameDialog implements OnChanges, OnInit, AfterViewInit {
+export class InputNameDialog implements OnChanges, OnInit, AfterViewInit, OnDestroy {
    @Input() validators: ValidatorFn[] = [
       FormValidators.required,
       FormValidators.alphanumericalCharacters,
@@ -66,6 +72,7 @@ export class InputNameDialog implements OnChanges, OnInit, AfterViewInit {
 
    control: UntypedFormControl;
    formValid = () => !!this.control && !this.control.errors;
+   private duplicateCheckSubscription: Subscription;
 
    constructor(private zone: NgZone,
                private modalService: NgbModal,
@@ -96,7 +103,7 @@ export class InputNameDialog implements OnChanges, OnInit, AfterViewInit {
       newName = newName.replace(/[\x00-\x1F\x7F]/g, "");
 
       if(!!this.hasDuplicateCheck && this.value != this.control.value.trim()) {
-         this.hasDuplicateCheck(newName).subscribe(
+         this.duplicateCheckSubscription = this.hasDuplicateCheck(newName).subscribe(
             (duplicate: boolean) => {
                if(duplicate) {
                   this.zone.run(() => {
@@ -112,6 +119,18 @@ export class InputNameDialog implements OnChanges, OnInit, AfterViewInit {
                   this.onCommit.emit(newName);
                }
             },
+            (error: HttpErrorResponse) => {
+               this.zone.run(() => {
+                  const message = error?.status === 403
+                     ? "_#(js:data.datasets.unauthorized)"
+                     : "_#(js:internal.error)";
+                  this.changeDetectorRef.detach();
+                  ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", message).then(() => {
+                     this.changeDetectorRef.reattach();
+                     this.onCancel.emit("cancel");
+                  });
+               });
+            }
          );
       }
       else {
@@ -121,6 +140,10 @@ export class InputNameDialog implements OnChanges, OnInit, AfterViewInit {
 
    cancel(): void {
       this.onCancel.emit("cancel");
+   }
+
+   ngOnDestroy(): void {
+      this.duplicateCheckSubscription?.unsubscribe();
    }
 
    get errorMessage(): string {

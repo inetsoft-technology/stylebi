@@ -17,7 +17,7 @@
  */
 package inetsoft.util.script;
 
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 
 /**
  * Encapsulate a script engine.
@@ -152,7 +152,7 @@ public interface ScriptEnv {
     * Get a suggested fix for a script error.
     * @return suggestion text, or null if no suggestion is available.
     */
-   public String getSuggestion(Exception ex, String field, Scriptable scope);
+   public String getSuggestion(Exception ex, String field, ScriptScope scope);
 
    /**
     * Initialize the script engine.

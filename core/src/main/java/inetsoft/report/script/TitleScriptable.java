@@ -47,7 +47,6 @@ public class TitleScriptable extends PropertyScriptable {
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
-   @Override
    public String getClassName() {
       return "TitleDescriptor";
    }

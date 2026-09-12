@@ -17,10 +17,12 @@
  */
 import { Component, Input } from "@angular/core";
 
+
 @Component({
-   selector: "physical-status-bar",
-   templateUrl: "physical-status-bar.component.html",
-   styleUrls: ["physical-status-bar.component.scss"]
+    selector: "physical-status-bar",
+    templateUrl: "physical-status-bar.component.html",
+    styleUrls: ["physical-status-bar.component.scss"],
+    imports: []
 })
 export class PhysicalStatusBarComponent {
    @Input() message: string;

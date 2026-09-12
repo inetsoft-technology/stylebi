@@ -1303,7 +1303,7 @@ public class PDFPrinter extends Graphics2D implements PDFDevice {
       }
 
       this.ofont = font;
-      this.font = fixFont(font);
+      this.font = font;
       fm = null;
       afm = null;
 
@@ -1313,26 +1313,6 @@ public class PDFPrinter extends Graphics2D implements PDFDevice {
       else {
          psFontName = null;
       }
-   }
-
-   private Font fixFont(Font font) {
-      if(fontRatio == 1.0) {
-         return font;
-      }
-
-      if(font instanceof StyleFont) {
-         StyleFont sf = (StyleFont) font;
-         sf = new StyleFont(sf.getName(), sf.getStyle(),
-                         (int) (sf.getSize() * fontRatio),
-                         sf.getUnderlineStyle(),
-                         sf.getStrikelineStyle());
-         return sf;
-      }
-      else if(font != null) {
-         font = font.deriveFont((float) (font.getSize2D() * fontRatio));
-      }
-
-      return font;
    }
 
    /**
@@ -7032,20 +7012,6 @@ public class PDFPrinter extends Graphics2D implements PDFDevice {
 
    private Font font; // current font
    private Font ofont = null; // current original font
-   private double fontRatio = 1.0;
-
-   {
-      try {
-         String prop = SreeEnv.getProperty("pdf.font.ratio");
-
-         if(prop != null) {
-            fontRatio = Double.parseDouble(prop);
-         }
-      }
-      catch(Exception ex) {
-         // ignore it
-      }
-   }
 
    protected FontMetrics fm = null; // cached font metrics
    protected FontMetrics afm = null; // cached afm font metrics

@@ -117,9 +117,13 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
          String value = toString();
 
          // @by larryl, if this string is a field, need to handle special
-         // characters in the table/col name
+         // characters in the table/col name. Don't apply keyword quoting here
+         // since keyword quoting is database-specific and should be handled
+         // by the SQL generation layer (SQLHelper). Using keyword quoting with
+         // the base SQLHelper (null provider) can incorrectly quote identifiers
+         // like "default" which are not keywords in some databases (e.g. Databricks).
          if(FIELD.equals(type)) {
-            value = XUtil.quoteName(value, null);
+            value = XUtil.quoteName(value, false, null);
          }
 
          return value;

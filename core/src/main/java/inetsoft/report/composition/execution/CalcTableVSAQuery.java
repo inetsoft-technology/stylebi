@@ -174,7 +174,7 @@ public class CalcTableVSAQuery extends DataVSAQuery {
          if(datas.size() > 0) {
             for(int i = 0; i < datas.size(); i++) {
                CalcTableVSAssembly cassemblyChild = cassemblys.get(i);
-               VSLayoutTool.createCalcLens(cassemblys.get(i), null, box.getVariableTable(),
+               VSLayoutTool.createCalcLens(cassemblys.get(i), datas.get(i), box.getVariableTable(),
                                            (crosstabs != null && crosstabs.size() > 0));
                // copy back
                cassemblyChild.setTable(cassemblyChild.getBaseTable());
@@ -956,12 +956,12 @@ public class CalcTableVSAQuery extends DataVSAQuery {
                value = value + "." + dup;
             }
 
-            // for cell value changed, the runtime cell name will be
-            // changed, so here make sure the name is same before and
-            // after cell value changed
+            // setValue must be called before getRuntimeCellName so the runtime cell name
+            // reflects the full column name (e.g. 'Year(OrderDate)'). This is safe because
+            // createCrosstabHeaders() now calls dim.setDataRef(column), ensuring getFullName()
+            // returns the correct, non-empty column name for all date levels.
             binding.setValue(value);
             String cellname = layout.getRuntimeCellName(binding);
-            // binding.setCellName(cellname);
             names.add(cellname);
          }
 
@@ -1189,35 +1189,15 @@ public class CalcTableVSAQuery extends DataVSAQuery {
     * Check if there exist grand total aggregate.
     */
    private boolean hasGrandTotal(TableLayout layout, XNode root) {
-      boolean hasAgg = false;
-      boolean hasGrp = false;
-
-      if(root != null) {
-         for(int i = 0; i < root.getChildCount(); i++) {
-            XNode child = root.getChild(i);
-            CalcAttr cattr = child == null ? null : (CalcAttr) child.getValue();
-
-            if(cattr == null) {
-               continue;
-            }
-
-            CellBinding bind = layout.getCellBinding(cattr.getRow(),
-                                                     cattr.getCol());
-
-            if(bind != null && bind.getType() == CellBinding.BIND_COLUMN &&
-               !bind.isEmpty())
-            {
-               if(bind.getBType() == CellBinding.SUMMARY) {
-                  hasAgg = true;
-               }
-               else if(bind.getBType() == CellBinding.GROUP) {
-                  hasGrp = true;
-               }
-            }
-         }
+      if(root == null) {
+         return false;
       }
 
-      return hasGrp && hasAgg;
+      Set<Integer> glevels = new HashSet<>();
+      Set<Integer> alevels = new HashSet<>();
+      collectLevels(layout, root, 0, glevels, alevels);
+
+      return !glevels.isEmpty() && !alevels.isEmpty();
    }
 
    /**
@@ -1348,6 +1328,7 @@ public class CalcTableVSAQuery extends DataVSAQuery {
          OrderInfo order = bind.getOrderInfo(false);
          TopNInfo topn = bind.getTopN(false);
          VSDimensionRef dim = new VSDimensionRef();
+         dim.setDataRef(column);
          dim.setGroupColumnValue(col);
          dim.setDataType(column.getDataType());
          dim.setTimeSeries(bind.isTimeSeries());

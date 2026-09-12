@@ -17,7 +17,9 @@
  */
 package inetsoft.util.data;
 
-public class CommonKVModel<T, V> {
+import java.io.Serializable;
+
+public class CommonKVModel<T, V> implements Serializable {
 
    public CommonKVModel() {
    }

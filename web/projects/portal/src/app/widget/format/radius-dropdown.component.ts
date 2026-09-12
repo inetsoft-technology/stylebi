@@ -16,16 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Output, Input, EventEmitter, OnInit } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { DebounceService } from "../services/debounce.service";
 import { debounceTime } from "rxjs/operators";
 
+import { DisableDropDirective } from "../directive/disable-drop.directive";
+
 const RADIUS_INPUT_DKEY = "radiusDropdownInputKey";
 
 @Component({
-   selector: "radius-dropdown",
-   templateUrl: "radius-dropdown.component.html"
+    selector: "radius-dropdown",
+    templateUrl: "radius-dropdown.component.html",
+    imports: [FormsModule, ReactiveFormsModule, DisableDropDirective]
 })
 export class RadiusDropdown implements OnInit {
    @Input() set radius(value: number) {

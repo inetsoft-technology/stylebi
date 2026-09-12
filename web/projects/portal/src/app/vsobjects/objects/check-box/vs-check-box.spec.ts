@@ -20,6 +20,7 @@ import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { Subject } from "rxjs";
 import { SsoHeartbeatService } from "../../../../../../shared/sso/sso-heartbeat.service";
 import { TestUtils } from "../../../common/test/test-utils";
 import { StompClientService, ViewsheetClientService } from "../../../common/viewsheet-client";
@@ -35,6 +36,7 @@ import { CheckFormDataService } from "../../util/check-form-data.service";
 import { FormInputService } from "../../util/form-input.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSCheckBox } from "./vs-check-box.component";
 
@@ -48,32 +50,36 @@ describe("vs check box component unit case", () => {
    let dialogService: any;
    let modelService: any;
    let ssoHeartbeatService: any;
+   let timerService: any;
 
    beforeEach(() => {
-      socket = { sendEvent: jest.fn() };
+      socket = {sendEvent: vi.fn()};
       interactService = {
-         addInteractable: jest.fn(),
-         notify: jest.fn(),
-         removeInteractable: jest.fn()
+         addInteractable: vi.fn(),
+         notify: vi.fn(),
+         removeInteractable: vi.fn()
       };
       const formDataService = {
-         checkFormData: jest.fn(),
-         removeObject: jest.fn(),
-         addObject: jest.fn(),
-         replaceObject: jest.fn()
+         checkFormData: vi.fn(),
+         removeObject: vi.fn(),
+         addObject: vi.fn(),
+         replaceObject: vi.fn()
       };
-      debounceService = { debounce: jest.fn((key, fn, delay, args) => fn(...args)) };
-      dataTipService = { isDataTip: jest.fn() };
+      debounceService = {debounce: vi.fn((key, fn, delay, args) => fn(...args))};
+      dataTipService = {isDataTip: vi.fn(), scrolled: new Subject<void>()};
       const contextProvider = {};
-      dialogService = { open: jest.fn() };
-      modelService = { getModel: jest.fn() };
-      ssoHeartbeatService = { heartbeat: jest.fn() };
+      dialogService = {open: vi.fn()};
+      modelService = {getModel: vi.fn()};
+      ssoHeartbeatService = {heartbeat: vi.fn()};
+      timerService = {
+         defer: vi.fn((fn) => {
+            fn();
+         })
+      };
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
-         declarations: [
-            VSCheckBox, VSPopComponentDirective, InteractableDirective, DefaultFocusDirective, SafeFontDirective
-         ],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, VSCheckBox, VSPopComponentDirective, InteractableDirective, DefaultFocusDirective, SafeFontDirective],
+         
          schemas: [
             NO_ERRORS_SCHEMA
          ],
@@ -82,14 +88,15 @@ describe("vs check box component unit case", () => {
             ViewsheetClientService,
             StompClientService,
             PopComponentService,
-            { provide: ContextProvider, useValue: contextProvider },
-            { provide: InteractService, useValue: interactService },
-            { provide: CheckFormDataService, useValue: formDataService },
-            { provide: DebounceService, useValue: debounceService },
-            { provide: DataTipService, useValue: dataTipService },
-            { provide: DialogService, useValue: dialogService },
-            { provide: ModelService, useValue: modelService },
-            { provide: SsoHeartbeatService, useValue: ssoHeartbeatService }
+            {provide: ContextProvider, useValue: contextProvider},
+            {provide: InteractService, useValue: interactService},
+            {provide: CheckFormDataService, useValue: formDataService},
+            {provide: DebounceService, useValue: debounceService},
+            {provide: DataTipService, useValue: dataTipService},
+            {provide: DialogService, useValue: dialogService},
+            {provide: ModelService, useValue: modelService},
+            {provide: SsoHeartbeatService, useValue: ssoHeartbeatService},
+            {provide: TimerService, useValue: timerService},
          ]
       }).compileComponents();
 

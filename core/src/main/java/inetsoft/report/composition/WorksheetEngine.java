@@ -17,10 +17,10 @@
  */
 package inetsoft.report.composition;
 
-import inetsoft.analytic.AnalyticAssistant;
 import inetsoft.analytic.composition.SheetLibraryEngine;
 import inetsoft.report.composition.execution.BoundTableHelper;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XPrincipal;
@@ -30,17 +30,18 @@ import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
+import inetsoft.web.ServiceProxyContext;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.ignite.cache.affinity.AffinityKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.rmi.RemoteException;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.List;
+import java.util.concurrent.*;
 
 /**
  * The default worksheet service implementation, implements all the methods
@@ -50,38 +51,28 @@ import java.util.concurrent.atomic.AtomicLong;
  * @version 8.0
  * @author InetSoft Technology Corp
  */
-public class WorksheetEngine extends SheetLibraryEngine implements WorksheetService {
-   /**
-    * Constructor.
-    */
-   public WorksheetEngine() throws RemoteException {
-      this((AssetRepository) AnalyticAssistant.getAnalyticAssistant()
-         .getAnalyticRepository());
-      setServer(true);
-   }
-
+public abstract class WorksheetEngine extends SheetLibraryEngine implements WorksheetService {
    /**
     * Constructor.
     * throws RemoteException
     */
-   public WorksheetEngine(AssetRepository engine) throws RemoteException {
-      String maxstr = SreeEnv.getProperty("asset.worksheet.max");
-      int max = 500;
-
-      try {
-         max = Integer.parseInt(maxstr);
-      }
-      catch(Exception ex) {
-         LOG.warn("Invalid value for maximum number of open " +
-               "worksheets (asset.worksheet.max): " + maxstr, ex);
-      }
-
-      amap = new RuntimeAssetMap<>(max);
+   public WorksheetEngine(AssetRepository engine, Cluster cluster) throws RemoteException {
+      this.cluster = cluster;
+      cluster.registerSpringProxyPartitionedCache(CACHE_NAME);
+      cluster.registerSpringProxyPartitionedCache(RuntimeSheetCache.ACCESS_TIME_MAP_NAME);
+      cluster.getCache(RuntimeSheetCache.ACCESS_TIME_MAP_NAME);
+      amap = new RuntimeSheetCache(cluster, CACHE_NAME);
       emap = new ConcurrentHashMap<>();
       executionMap = new ExecutionMap();
+      renameInfoMap = new HashMap<>();
+      nextId = cluster.getLong(NEXT_ID_NAME);
+      debouncer = new DefaultDebouncer<>(false);
 
       singlePreviewEnabled = "true".equals(SreeEnv.getProperty("single.preview.enabled"));
       setAssetRepository(engine);
+      affinityExecutor = Executors.newFixedThreadPool(
+         Runtime.getRuntime().availableProcessors(),
+         r -> new GroupedThread(r, "WorksheetEngine"));
    }
 
    /**
@@ -102,13 +93,22 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       this.engine = engine;
    }
 
+   public void putRuntimeSheet(String id, RuntimeSheet rs) {
+      try {
+         amap.putSheet(id, rs).get(10, TimeUnit.SECONDS);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to persist sheet {} to distributed cache", id, e);
+      }
+   }
+
    /**
     * Get thread definitions of executing event according the id.
     */
    @Override
-   public Vector getExecutingThreads(String id) {
-      Vector threads = emap == null ? null : emap.get(id);
-      return threads != null ? threads : new Vector();
+   public Vector<?> getExecutingThreads(String id) {
+      Vector<?> threads = emap == null ? null : emap.get(id);
+      return threads != null ? threads : new Vector<>();
    }
 
    /**
@@ -163,7 +163,22 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     */
    @Override
    public void dispose() {
+      try {
+         debouncer.close();
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to close debouncer", e);
+      }
+
+      affinityExecutor.shutdownNow();
       engine.dispose();
+
+      try {
+         amap.close();
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to close runtime sheet cache", e);
+      }
    }
 
    /**
@@ -173,33 +188,21 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     * @return the worksheet id.
     */
    @Override
-   public String openTemporaryWorksheet(Principal user, AssetEntry aentry) throws Exception {
+   public String openTemporaryWorksheet(Principal user, AssetEntry aentry) {
       AssetEntry entry = aentry != null ? aentry :
          getTemporaryAssetEntry(user, AssetEntry.Type.WORKSHEET);
-      Worksheet ws = new Worksheet();
-
-      RuntimeWorksheet rws = new RuntimeWorksheet(entry, ws, user, true);
-      rws.setEditable(false);
-      return createTemporarySheetId(entry, rws, user);
+      return OpenTemporaryWorksheetTask.openTemporaryWorksheet(
+         this, entry, user, getNextID(entry, user));
    }
 
-   /**
-    * Creates and sets the identifier of a temporary sheet.
-    *
-    * @param entry the asset entry for the sheet.
-    * @param sheet the sheet.
-    * @param user  the user creating the sheet.
-    *
-    * @return the sheet identifier.
-    */
-   protected String createTemporarySheetId(AssetEntry entry, RuntimeSheet sheet,
-                                           Principal user)
-   {
-      synchronized(amap) {
-         String id = getNextID(entry, user);
-         sheet.setID(id);
-         amap.put(id, sheet);
-         return id;
+   protected void setTemporarySheetId(String id, RuntimeSheet sheet) {
+      sheet.setID(id);
+
+      try {
+         amap.putSheet(id, sheet).get(20L, TimeUnit.SECONDS);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to create the temporary sheet:{}", id, e);
       }
    }
 
@@ -222,7 +225,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       AssetEntry entry = orws.getEntry();
       Worksheet ws = orws.getWorksheet();
 
-      String previewID = openPreviewWorksheet(ws, entry, name, user);
+      String previewID = openPreviewWorksheet(id, ws, entry, name, user);
 
       if(singlePreviewEnabled) {
          RuntimeWorksheet previewWS = getWorksheet(previewID, user);
@@ -240,7 +243,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    /**
     * Create a preview worksheet.
     */
-   protected String openPreviewWorksheet(Worksheet ws, AssetEntry oentry,
+   protected String openPreviewWorksheet(String originalId, Worksheet ws, AssetEntry oentry,
                                          String name, Principal user) {
       ws = (Worksheet) ws.clone();
       Assembly[] assemblies = ws.getAssemblies();
@@ -281,19 +284,19 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       entry.copyProperties(oentry);
       entry.setProperty("preview", "true");
 
-      if(oentry.getAlias() != null && oentry.getAlias().length() > 0) {
+      if(oentry.getAlias() != null && !oentry.getAlias().isEmpty()) {
          entry.setAlias(oentry.getAlias());
       }
 
       RuntimeWorksheet rws = new RuntimeWorksheet(entry, ws, user, true);
       rws.setEditable(false);
 
-      synchronized(amap) {
-         String id = getNextID(PREVIEW_WORKSHEET);
-         rws.setID(id);
-         amap.put(id, rws);
-         return id;
-      }
+      String id = getNextPreviewID(originalId, PREVIEW_WORKSHEET);
+      rws.setID(id);
+      // Preview worksheets are local-only and short-lived; fire-and-forget put() is
+      // intentional here — no affinity guarantee is needed for transient preview sessions.
+      amap.put(id, rws);
+      return id;
    }
 
    /**
@@ -324,7 +327,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    public String openWorksheet(AssetEntry entry, Principal user)
       throws Exception
    {
-      return openSheet(entry, user);
+      return OpenWorksheetTask.openWorksheet(this, entry, user, getNextID(entry, user));
    }
 
    /**
@@ -335,7 +338,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     * @return the sheet id.
     */
    @SuppressWarnings("UnnecessaryContinue")
-   protected final String openSheet(AssetEntry entry, Principal user)
+   protected final String openSheet(AssetEntry entry, Principal user, String sheetId)
       throws Exception
    {
       boolean permission = !"true".equals(entry.getProperty("isDashboard"));
@@ -400,10 +403,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       boolean sync = "true".equals(entry.getProperty("sync"));
 
       if(entry.getProperty("drillfrom") == null && sync) {
-         List list = amap.keyList();
-
-         for(Object item : list) {
-            String id = (String) item;
+         for(String id : amap.keySet()) {
             RuntimeSheet rs2 = amap.get(id);
 
             if(rs2 == null) {
@@ -481,12 +481,30 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
          }
       }
 
-      synchronized(amap) {
-         String id = getNextID(entry, user);
-         rs.setID(id);
-         amap.put(id, rs);
-         return id;
+      rs.setID(sheetId);
+
+      // Use putSheet() and await the future rather than put() so the Ignite distributed
+      // cache write completes before this method returns. Under concurrent load, Ignite
+      // topology changes can cause an AffinityCallRequestTask to execute on a node that
+      // no longer owns the affinity partition for this sheet (the routing decision and
+      // the isPrimary check on the receiving node observe different topology versions).
+      // When that happens the sheet lands in the wrong node's local map. By awaiting the
+      // cache write, we guarantee the entry exists in the distributed cache before the
+      // caller receives the sheet ID, so the correct partition-owning node can always
+      // find the sheet via the cache on subsequent affinity-routed requests instead of
+      // throwing ExpiredSheetException.
+      try {
+         amap.putSheet(sheetId, rs).get(10, TimeUnit.SECONDS);
       }
+      catch(Exception e) {
+         LOG.warn("Failed to persist sheet {} to distributed cache", sheetId, e);
+      }
+
+      if(LOG.isDebugEnabled()) {
+         LOG.debug("Opened runtime sheet {} on {}", sheetId, cluster.getLocalMember());
+      }
+
+      return sheetId;
    }
 
    /**
@@ -532,11 +550,15 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     * @return the runtime sheet if any.
     */
    public final RuntimeSheet getSheet(String id, Principal user, boolean touch) {
+      if(!isLocal(id)) {
+         LOG.error("Getting sheet from non-owner: {}", id, new Exception("Stack trace"));
+      }
+
       RuntimeSheet rs = amap.get(id);
       Catalog catalog = Catalog.getCatalog();
 
       if(rs == null) {
-         LOG.debug("Worksheet/viewsheet has expired: " + id);
+         LOG.debug("Worksheet/viewsheet has expired: {}", id, new Exception("Stack trace"));
          throw new ExpiredSheetException(id, user);
       }
 
@@ -550,8 +572,30 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
          }
       }
 
-      accessSheet(id, touch);
+      if(user != null && ThreadContext.getContextPrincipal() == null) {
+         ThreadContext.setContextPrincipal(user);
+      }
+
+      final Principal principal = ThreadContext.getContextPrincipal();
+
+      // debounce and execute in a different thread the call to accessSheet as it
+      // serializes the runtime sheet and saves it in the distributed cache
+      debouncer.debounce("accessSheet_" + id, 1L, TimeUnit.SECONDS, () -> {
+         try {
+            ThreadContext.setContextPrincipal(principal);
+            accessSheet(id, touch);
+         }
+         finally {
+            ThreadContext.setContextPrincipal(null);
+         }
+      });
+
       return rs;
+   }
+
+   @Override
+   public boolean sheetExists(String id) {
+      return amap.containsKey(id);
    }
 
    /**
@@ -606,10 +650,9 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     */
    @Override
    public RuntimeSheet[] getRuntimeSheets(Principal user) {
-      List<String> keys = amap.keyList();
       List<RuntimeSheet> list = new ArrayList<>();
 
-      for(String key : keys) {
+      for(String key : amap.keySet()) {
          RuntimeSheet rvs = amap.get(key);
 
          if(user == null || rvs != null && rvs.matches(user)) {
@@ -626,7 +669,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     */
    @Override
    public String getLockOwner(AssetEntry entry) {
-      for(String key : amap.keyList()) {
+      for(String key : amap.keySet()) {
          RuntimeSheet rs = amap.get(key);
 
          if(rs == null) {
@@ -651,30 +694,51 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       return null;
    }
 
-   /**
-    * Access a sheet.
-    */
-   private void accessSheet(String id, boolean touch) {
-      synchronized(amap) {
+   @Override
+   public void writeSheet(String id) {
+      // Debounce writes to at most once per second per session. Captures state at fire time
+      // so the write reflects all mutations that landed in the debounce window.
+      debouncer.debounce("writeSheet_" + id, 1L, TimeUnit.SECONDS, () -> {
          RuntimeSheet rs = amap.get(id);
 
          if(rs != null) {
-            amap.append(id, rs);
-
-            if(touch) {
-               rs.access(true);
-            }
+            CompletableFuture.runAsync(() -> {
+               if(amap.containsKey(id)) {
+                  amap.put(id, rs);
+               }
+            }, affinityExecutor)
+               .exceptionally(e -> {
+                  LOG.error("Failed to write sheet {} to distributed cache", id, e);
+                  return null;
+               });
          }
+      });
+   }
+
+   private void accessSheet(String id, boolean touch) {
+      RuntimeSheet rs = amap.get(id);
+
+      if(rs == null) {
+         return;
       }
+
+      if(!touch) {
+         // touch=false: refresh heartbeat in memory only — prevents isTimeout() from
+         // evicting an actively-polled session at the 3-minute heartbeat check.
+         // access(false) updates heartbeat but not accessed, so no Ignite write is needed.
+         rs.access(false);
+         return;
+      }
+
+      rs.access(true);
+      amap.updateAccessTime(id, rs.getLastAccessed());
    }
 
    public RuntimeWorksheet[] getAllRuntimeWorksheetSheets() {
-      synchronized(amap) {
-         return amap.values().stream()
-            .filter(sheet -> sheet instanceof RuntimeWorksheet)
-            .map(sheet -> (RuntimeWorksheet) sheet)
-            .toArray(RuntimeWorksheet[]::new);
-      }
+      return amap.values().stream()
+         .filter(sheet -> sheet instanceof RuntimeWorksheet)
+         .map(sheet -> (RuntimeWorksheet) sheet)
+         .toArray(RuntimeWorksheet[]::new);
    }
 
    private RuntimeWorksheet getRuntimeWorksheet(String rid) {
@@ -689,9 +753,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    }
 
    private RuntimeSheet getRuntimeSheet(String rid) {
-      synchronized(amap) {
-         return amap.get(rid);
-      }
+      return amap.get(rid);
    }
 
    /**
@@ -699,7 +761,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     * @param id the specified worksheet id.
     */
    @Override
-   public void closeWorksheet(String id, Principal user) throws Exception {
+   public void closeWorksheet(String id, Principal user) {
       closeSheet(id, user);
    }
 
@@ -707,7 +769,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     * Close a sheet.
     * @param id the specified sheet id.
     */
-   protected final void closeSheet(String id, Principal user) throws Exception {
+   protected final void closeSheet(String id, Principal user) {
       RuntimeSheet rsheet = amap.get(id);
 
       if(rsheet != null && user != null &&
@@ -728,16 +790,15 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
          }
       }
 
-      synchronized(amap) {
-         if(isValidExecutingObject(id)) {
-            executionMap.setCompleted(id);
-         }
-
-         amap.remove(id);
-         emap.remove(id);
-         clearPreviewTarget(rsheet, id);
-         renameInfoMap.remove(id);
+      if(isValidExecutingObject(id)) {
+         executionMap.setCompleted(id);
       }
+
+      debouncer.cancel("writeSheet_" + id);
+      amap.remove(id);
+      emap.remove(id);
+      clearPreviewTarget(rsheet, id);
+      renameInfoMap.remove(id);
 
       if(rsheet != null) {
          rsheet.dispose();
@@ -748,10 +809,10 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     * Close sheets according to the specified user.
     * @param user the specified user.
     */
-   public void closeSheets(Principal user) throws Exception {
+   public void closeSheets(Principal user) {
       List<String> ids = new ArrayList<>();
 
-      for(String key : amap.keyList()) {
+      for(String key : amap.keySet()) {
          RuntimeSheet rsheet = amap.get(key);
 
          if(rsheet != null && rsheet.matches(user)) {
@@ -779,7 +840,18 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     * @return the next sheet id.
     */
    protected String getNextID(String path) {
+      nextId.compareAndSet(Long.MAX_VALUE, 0L);
       return path + "-" + nextId.getAndIncrement();
+   }
+
+   protected String getNextTemporaryID(String originalID) {
+      nextId.compareAndSet(Long.MAX_VALUE, 0L);
+      return RuntimeSheetCache.getOriginalId(originalID) + "-temp-"  + nextId.getAndIncrement();
+   }
+
+   protected String getNextPreviewID(String originalID, String prefix) {
+      nextId.compareAndSet(Long.MAX_VALUE, 0L);
+      return prefix + RuntimeSheetCache.getOriginalId(originalID) + "-temp-" + nextId.getAndIncrement();
    }
 
    /**
@@ -789,6 +861,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    @Override
    public void setServer(boolean server) {
       this.server = server;
+      this.amap.setApplyMaxCount(server);
 
       if(server) {
          TimedQueue.addSingleton(new RecycleTask(3 * 60000));
@@ -881,12 +954,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    @Override
    public boolean needRenameDep(String rid) {
       List<RenameDependencyInfo> renameDependencyInfos = renameInfoMap.get(rid);
-
-      if(renameDependencyInfos == null || renameDependencyInfos.size() == 0) {
-         return false;
-      }
-
-      return true;
+      return renameDependencyInfos != null && !renameDependencyInfos.isEmpty();
    }
 
    @Override
@@ -953,6 +1021,11 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       DependencyTransformer.fixRenameDepEntry(rid, entry, newEntry, renameInfoMap);
    }
 
+   @Override
+   public void flushRuntimeSheet(String rid) {
+      amap.flush(rid);
+   }
+
    private List<RenameInfo> createCauseWSColRenameInfos(RenameInfo renameInfo, AssetEntry entry ,
                                                         String rid)
    {
@@ -988,10 +1061,8 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       for(int i = 0; i < cols.getAttributeCount(); i++) {
          DataRef ref = cols.getAttribute(i);
 
-         if(ref instanceof ColumnRef) {
-            ColumnRef col = (ColumnRef) ref;
-
-            if(col == null || !StringUtils.isEmpty(col.getAlias())) {
+         if(ref instanceof ColumnRef col) {
+            if(!StringUtils.isEmpty(col.getAlias())) {
                continue;
             }
 
@@ -1003,7 +1074,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
                newName = newName.substring(newName.indexOf(".") + 1);
             }
 
-            if(!StringUtils.equals(col.getOldName(), oldName)) {
+            if(!Objects.equals(col.getOldName(), oldName)) {
                continue;
             }
 
@@ -1051,7 +1122,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    /**
     * Thread definition in emap.
     */
-   public class ThreadDef {
+   public static class ThreadDef {
       public void setStartTime(long time) {
          this.time = time;
       }
@@ -1073,38 +1144,6 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    }
 
    /**
-    * Runtime asset map.
-    */
-   private class RuntimeAssetMap<K, V> extends OrderedMap<K, V> {
-      public RuntimeAssetMap(int max) {
-         this.max = max;
-      }
-
-      @Override
-      public synchronized V put(K key, V value) {
-         if(server && !containsKey(key) && size() >= max) {
-            int index = 0;
-
-            // remove preview first
-            for(int i = 0; i < size(); i++) {
-               String key2 = (String) getKey(i);
-
-               if(key2.startsWith(PREVIEW_PREFIX)) {
-                  index = i;
-                  break;
-               }
-            }
-
-            remove(index);
-         }
-
-         return super.put(key, value);
-      }
-
-      private int max;
-   }
-
-   /**
     * Recycle thread.
     */
    private class RecycleTask extends TimedQueue.TimedRunnable {
@@ -1123,25 +1162,26 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       @Override
       public void run() {
          try {
-            for(String id : amap.keyList()) {
+            List<String> keys = new ArrayList<>(amap.keySet());
+
+            for(String id : keys) {
                RuntimeSheet rs = amap.get(id);
                boolean timedout;
                boolean scheduler = rs != null && rs.getEntry() != null &&
                   "true".equals(rs.getEntry().getProperty("_scheduler_"));
 
-               synchronized(amap) {
-                  timedout = rs == null ||
-                     (rs.isTimeout() && !emap.containsKey(id) && !scheduler);
+               timedout = rs == null ||
+                  (rs.isTimeout() && !emap.containsKey(id) && !scheduler);
 
-                  if(timedout) {
-                     if(isValidExecutingObject(id)) {
-                        executionMap.setCompleted(id);
-                     }
-
-                     amap.remove(id);
-                     emap.remove(id);
-                     clearPreviewTarget(rs, id);
+               if(timedout) {
+                  if(isValidExecutingObject(id)) {
+                     executionMap.setCompleted(id);
                   }
+
+                  debouncer.cancel("writeSheet_" + id);
+                  amap.remove(id);
+                  emap.remove(id);
+                  clearPreviewTarget(rs, id);
                }
 
                if(timedout && rs != null) {
@@ -1183,7 +1223,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     * Get the worksheet service.
     */
    public static WorksheetService getWorksheetService() {
-      return SingletonManager.getInstance(WorksheetService.class);
+      return ConfigurationContext.getContext().getSpringBean(WorksheetService.class);
    }
 
    /**
@@ -1217,6 +1257,51 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       return false;
    }
 
+   @Override
+   public boolean isLocal(String id) {
+      return amap.isLocal(id);
+   }
+
+   @Override
+   public <T> T affinityCall(String rid, AffinityCallable<T> job) {
+      AffinityKey<String> key = amap.getAffinityKey(rid);
+
+      if(amap.isLocal(key)) {
+         try {
+            return job.call();
+         }
+         catch(RuntimeException re) {
+            throw re;
+         }
+         catch(Exception e) {
+            throw new RuntimeException(e);
+         }
+      }
+      else {
+         return cluster.affinityCall(CACHE_NAME, key, job);
+      }
+   }
+
+   @Override
+   public <T> Future<T> affinityCallAsync(String rid, AffinityCallable<T> job) {
+      AffinityKey<String> key = amap.getAffinityKey(rid);
+
+      if(amap.isLocal(key)) {
+         return CompletableFuture.supplyAsync(() -> {
+            try {
+               return job.call();
+            } catch (RuntimeException ex) {
+               throw ex;
+            } catch (Exception ex) {
+               throw new RuntimeException(ex);
+            }
+         }, affinityExecutor);
+      }
+      else {
+         return cluster.affinityCallAsync(CACHE_NAME, key, job);
+      }
+   }
+
    /**
     * Exception key.
     */
@@ -1232,11 +1317,10 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       }
 
       public boolean equals(Object obj) {
-         if(!(obj instanceof ExceptionKey)) {
+         if(!(obj instanceof ExceptionKey key2)) {
             return false;
          }
 
-         ExceptionKey key2 = (ExceptionKey) obj;
          return key2.getExceptionString().equals(getExceptionString()) &&
             Tool.equals(key2.id, id);
       }
@@ -1263,7 +1347,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       private String exString; // cached string
    }
 
-   private class ViewsheetException extends MessageException {
+   private static class ViewsheetException extends MessageException {
       /**
        * Constructor.
        */
@@ -1272,24 +1356,114 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       }
    }
 
+   private static final class OpenWorksheetTask implements AffinityCallable<String> {
+      public OpenWorksheetTask(AssetEntry entry, Principal user, String id) {
+         this.entry = entry;
+         this.user = user;
+         this.id = id;
+      }
+
+      @Override
+      public String call() throws Exception {
+         WorksheetEngine engine = (WorksheetEngine) WorksheetEngine.getWorksheetService();
+         proxyContext.preprocess();
+
+         try {
+            return engine.openSheet(entry, user, id);
+         }
+         finally {
+            proxyContext.postprocess();
+         }
+      }
+
+      public static String openWorksheet(WorksheetEngine engine, AssetEntry entry, Principal user,
+                                         String id) throws Exception
+      {
+         if(engine.isLocal(id)) {
+            return engine.openSheet(entry, user, id);
+         }
+         else {
+            OpenWorksheetTask task = new OpenWorksheetTask(entry, user, id);
+            return engine.affinityCall(id, task);
+         }
+      }
+
+      private final AssetEntry entry;
+      private final Principal user;
+      private final String id;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
+   }
+
+   private static final class OpenTemporaryWorksheetTask implements AffinityCallable<String> {
+      public OpenTemporaryWorksheetTask(AssetEntry entry, Principal user, String id) {
+         this.entry = entry;
+         this.user = user;
+         this.id = id;
+      }
+
+      @Override
+      public String call() {
+         WorksheetEngine engine = (WorksheetEngine) WorksheetEngine.getWorksheetService();
+         proxyContext.preprocess();
+
+         try {
+            return doOpenTemporaryWorksheet(engine, entry, user, id);
+         }
+         finally {
+            proxyContext.postprocess();
+         }
+      }
+
+      public static String openTemporaryWorksheet(WorksheetEngine engine, AssetEntry entry,
+                                                  Principal user, String id)
+      {
+         if(engine.isLocal(id)) {
+            return doOpenTemporaryWorksheet(engine, entry, user, id);
+         }
+         else {
+            OpenTemporaryWorksheetTask task = new OpenTemporaryWorksheetTask(entry, user, id);
+            return engine.affinityCall(id, task);
+         }
+      }
+
+      private static String doOpenTemporaryWorksheet(WorksheetEngine engine, AssetEntry entry,
+                                                     Principal user, String id)
+      {
+         Worksheet ws = new Worksheet();
+         RuntimeWorksheet rws = new RuntimeWorksheet(entry, ws, user, true);
+         rws.setEditable(false);
+         engine.setTemporarySheetId(id, rws);
+         return id;
+      }
+
+      private final AssetEntry entry;
+      private final Principal user;
+      private final String id;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
+   }
+
    public static final String INVALID_VIEWSHEET =
       "Viewsheet not exist, please check the name.";
 
    // cached global scope and user scope date ranges: user name->date ranges
-   private static DataCache<String, List<Assembly>> dranges =
+   private static final DataCache<String, List<Assembly>> dranges =
       new DataCache<>(50, 1000 * 60 * 60);
    public static final WeakHashMap<Object, ExceptionKey> exceptionMap = new WeakHashMap<>();
 
    protected AssetRepository engine; // asset repository
-   protected final OrderedMap<String, RuntimeSheet> amap; // runtime asset map
-   protected Map<String,Vector<ThreadDef>> emap; // id -> event threads
+   protected final Cluster cluster;
+   protected final RuntimeSheetCache amap; // runtime asset map
+   protected final Map<String,Vector<ThreadDef>> emap; // id -> event threads
    protected ExecutionMap executionMap; // the executing viewsheet
    protected int counter; // counter
-   private final static AtomicLong nextId = new AtomicLong(1);
+   private final DistributedLong nextId;
+   private final Debouncer<String> debouncer;
+   private final ExecutorService affinityExecutor;
 
-   private boolean singlePreviewEnabled;
+   private final boolean singlePreviewEnabled;
    private boolean server = false; // server flag
-   private Map<Object, List<RenameDependencyInfo>> renameInfoMap = new HashMap<>();
-   private static final Logger LOG =
-      LoggerFactory.getLogger(WorksheetEngine.class);
+   private final Map<Object, List<RenameDependencyInfo>> renameInfoMap;
+   private static final Logger LOG = LoggerFactory.getLogger(WorksheetEngine.class);
+   private static final String NEXT_ID_NAME = "inetsoft.report.composition.WorksheetEngine.nextId";
+   public static final String CACHE_NAME = "inetsoft.report.composition.WorksheetEngine.cache";
 }

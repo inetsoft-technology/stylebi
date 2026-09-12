@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.vs.objects.event;
 
-public class VSSetCellHeightEvent extends VSObjectEvent {
+import java.io.Serializable;
+
+public class VSSetCellHeightEvent extends VSObjectEvent implements Serializable {
 
    public void setCellHeight(int cellHeight) {
       this.cellHeight = cellHeight;

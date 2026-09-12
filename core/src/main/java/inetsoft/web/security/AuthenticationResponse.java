@@ -20,6 +20,7 @@ package inetsoft.web.security;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.web.ActiveSessionInfo;
 import inetsoft.web.admin.model.NameLabelTuple;
 import org.immutables.value.Value;
 
@@ -37,6 +38,15 @@ public interface AuthenticationResponse {
    default boolean logInAs() {
       return false;
    }
+
+   /** Whether the response indicates that the session limit has been exceeded for an admin user. */
+   @Value.Default
+   default boolean sessionsExceeded() {
+      return false;
+   }
+
+   /** The list of currently active sessions when {@link #sessionsExceeded()} is {@code true}. */
+   @Nullable List<ActiveSessionInfo> activeSessions();
 
    static Builder builder() {
       return new Builder();

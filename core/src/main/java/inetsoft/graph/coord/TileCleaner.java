@@ -66,12 +66,22 @@ class TileCleaner {
       }
 
       for(int i = tiles.length - 1; i >= 0 && tiles.length > 1; i--) {
+         // never remove a row whose scale value is null — null is a real dimension value
+         if(isNullScaleValue(yscale, i)) {
+            continue;
+         }
+
          if(!Arrays.stream(validTiles[i]).anyMatch(v -> v)) {
             removeRow(i);
          }
       }
 
       for(int i = tiles[0].length - 1; i >= 0 && tiles[0].length > 1; i--) {
+         // never remove a column whose scale value is null — null is a real dimension value
+         if(isNullScaleValue(xscale, i)) {
+            continue;
+         }
+
          boolean valid = false;
 
          for(int k = 0; k < validTiles.length; k++) {
@@ -90,6 +100,16 @@ class TileCleaner {
       // reset axis label visibility according to the new coords. (51768)
       TileCoord.setHint(tiles, -1);
       return tiles;
+   }
+
+   // true if the scale value at the given index is null (null is a real dimension value)
+   private boolean isNullScaleValue(Scale scale, int idx) {
+      if(scale instanceof CategoricalScale) {
+         Object[] vals = scale.getValues();
+         return vals != null && idx < vals.length && vals[idx] == null;
+      }
+
+      return false;
    }
 
    // extract all measures from graph

@@ -18,10 +18,15 @@
 import { Component } from "@angular/core";
 import * as V from "../../../../common/data/visual-frame-model";
 import { AestheticIconCell } from "./aesthetic-icon-cell";
+import { LineItem } from "./line-item.component";
+import { TextureItem } from "./texture-item.component";
+import { ShapeItem } from "./shape-item.component";
+
 
 @Component({
-   selector: "shape-cell",
-   templateUrl: "shape-cell.component.html"
+    selector: "shape-cell",
+    templateUrl: "shape-cell.component.html",
+    imports: [ShapeItem, TextureItem, LineItem]
 })
 export class ShapeCell extends AestheticIconCell {
    get isStaticShape(): boolean {

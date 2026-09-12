@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DomService } from "../../widget/dom-service/dom.service";
@@ -25,6 +25,7 @@ import { GroupCondition } from "../data/named-group-info";
 import { NameInputDialog } from "./name-input-dialog.component";
 import { NamedGroupPane } from "./named-group-pane.component";
 import { NamedGroupView } from "./named-group-view-dialog.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 describe("Named Group Pane Unit Test", () => {
    let createMockTreeNodeModel: (name: string) => TreeNodeModel = (name: string) => {
@@ -47,15 +48,19 @@ describe("Named Group Pane Unit Test", () => {
       value: []
    }];
 
-   let modalService = { open: jest.fn() };
-   beforeEach(async(() => {
+   let modalService = { open: vi.fn() };
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            NamedGroupView,
+            NamedGroupPane,
+            NameInputDialog,
          ],
-         declarations: [
-            NamedGroupView, NamedGroupPane, NameInputDialog
-         ],
+         
          providers: [
             {
                provide: NgbModal, useValue: modalService
@@ -96,7 +101,7 @@ describe("Named Group Pane Unit Test", () => {
    it("test ok button on named group view dialog", () => {
       fixture = TestBed.createComponent(NamedGroupView);
       namedGroupView = <NamedGroupView>fixture.componentInstance;
-      let onCommit: any = { emit: jest.fn() };
+      let onCommit: any = { emit: vi.fn() };
       namedGroupView.onCommit = onCommit;
       let condGroup: GroupCondition = {
          name: "A1",

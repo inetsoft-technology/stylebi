@@ -25,17 +25,23 @@ import inetsoft.web.cluster.ServerClusterClient;
 import inetsoft.web.cluster.ServerClusterStatus;
 import inetsoft.web.viewsheet.AuditUser;
 import inetsoft.web.viewsheet.Audited;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 
 @Service
 public class CacheSettingsService {
+   @Autowired
+   public CacheSettingsService(FileSystemService fileSystemService) {
+      this.fileSystemService = fileSystemService;
+   }
+
    public CacheSettingsModel getModel() throws Exception {
       String directory = SreeEnv.getProperty("replet.cache.directory");
 
       if(directory == null) {
-         directory = FileSystemService.getInstance().getCacheDirectory();
+         directory = fileSystemService.getCacheDirectory();
       }
 
       if(directory != null && directory.contains(SreeEnv.getProperty("sree.home"))) {
@@ -79,7 +85,9 @@ public class CacheSettingsService {
          }
       }
       else {
-         FileSystemService.getInstance().clearCacheFiles(null);
+         fileSystemService.clearCacheFiles(null);
       }
    }
+
+   private final FileSystemService fileSystemService;
 }

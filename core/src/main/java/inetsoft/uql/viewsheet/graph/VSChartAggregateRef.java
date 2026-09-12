@@ -566,25 +566,6 @@ public class VSChartAggregateRef extends VSAggregateRef
    }
 
    /**
-    * Convert a 3D chart type to its non-3D equivalent when loading saved content. (74483)
-    */
-   private static int migrate3DChartType(int type) {
-      if(type == GraphTypes.CHART_3D_BAR) {
-         return GraphTypes.CHART_BAR;
-      }
-
-      if(type == GraphTypes.CHART_3D_BAR_STACK) {
-         return GraphTypes.CHART_BAR_STACK;
-      }
-
-      if(type == GraphTypes.CHART_3D_PIE) {
-         return GraphTypes.CHART_PIE;
-      }
-
-      return type;
-   }
-
-   /**
     * Parse attributes.
     */
    @Override
@@ -593,7 +574,7 @@ public class VSChartAggregateRef extends VSAggregateRef
       String chartType = Tool.getAttribute(elem, "chartType");
 
       if(chartType != null) {
-         this.chartType = migrate3DChartType(Integer.parseInt(chartType));
+         this.chartType = Integer.parseInt(chartType);
       }
 
       y2 = "true".equals(Tool.getAttribute(elem, "y2"));

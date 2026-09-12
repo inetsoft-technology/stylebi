@@ -1,49 +1,57 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<em-license-key-list *ngIf="isEnterprise"
-  title="_#(Server Licenses)"
-  [(keys)]="serverKeys"
->
-</em-license-key-list>
-<em-api-key *ngIf="!isEnterprise">
-</em-api-key>
-<mat-card appearance="outlined" class="em-card" *ngIf="isEnterprise && cluster && pooledClusterLicense">
-  <mat-card-title class="flex-col">_#(Cluster Licenses)</mat-card-title>
-  <mat-card-content class="flex-col">
-    <table mat-table [dataSource]="clusterDataSource">
-      <ng-container matColumnDef="server">
-        <th mat-header-cell *matHeaderCellDef>_#(Server)</th>
-        <td mat-cell *matCellDef="let row">
-          <div class="mat-subtitle-2">{{row.server}}</div>
-        </td>
-      </ng-container>
-      <ng-container matColumnDef="license">
-        <th mat-header-cell *matHeaderCellDef>_#(License)</th>
-        <td mat-cell *matCellDef="let row">
-          <ng-container *ngIf="!!row.license">
-            <div class="mat-subtitle-2">{{row.license}}</div>
-            <div class="mat-body-2">{{row.licenseType}}</div>
-          </ng-container>
-          <div *ngIf="!!!row.license" class="mat-subtitle-2">_#(em.cluster.key.required)</div>
-        </td>
-      </ng-container>
-      <tr mat-header-row *matHeaderRowDef="clusterColumnsToDisplay"></tr>
-      <tr mat-row *matRowDef="let row; columns: clusterColumnsToDisplay"></tr>
-    </table>
-  </mat-card-content>
-</mat-card>
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (isEnterprise) {
+  <em-license-key-list
+    title="_#(Server Licenses)"
+    [(keys)]="serverKeys"
+    >
+  </em-license-key-list>
+}
+@if (!isEnterprise) {
+  <em-api-key>
+  </em-api-key>
+}
+@if (isEnterprise && cluster && pooledClusterLicense) {
+  <mat-card appearance="outlined" class="em-card">
+    <mat-card-title class="flex-col">_#(Cluster Licenses)</mat-card-title>
+    <mat-card-content class="flex-col">
+      <table mat-table [dataSource]="clusterDataSource">
+        <ng-container matColumnDef="server">
+          <th mat-header-cell *matHeaderCellDef>_#(Server)</th>
+          <td mat-cell *matCellDef="let row">
+            <div class="mat-subtitle-2">{{row.server}}</div>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="license">
+          <th mat-header-cell *matHeaderCellDef>_#(License)</th>
+          <td mat-cell *matCellDef="let row">
+            @if (!!row.license) {
+              <div class="mat-subtitle-2">{{row.license}}</div>
+              <div class="mat-body-2">{{row.licenseType}}</div>
+            }
+            @if (!!!row.license) {
+              <div class="mat-subtitle-2">_#(em.cluster.key.required)</div>
+            }
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="clusterColumnsToDisplay"></tr>
+        <tr mat-row *matRowDef="let row; columns: clusterColumnsToDisplay"></tr>
+      </table>
+    </mat-card-content>
+  </mat-card>
+}

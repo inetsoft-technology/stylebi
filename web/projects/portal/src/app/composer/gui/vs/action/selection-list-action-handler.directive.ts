@@ -36,7 +36,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const SELECTIONLIST_PROPERTY_URI: string = "composer/vs/selection-list-property-dialog-model/";
 
 @Directive({
-   selector: "[cSelectionListActionHandler]"
+    selector: "[cSelectionListActionHandler]",
+    standalone: true
 })
 export class SelectionListActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSSelectionListModel;

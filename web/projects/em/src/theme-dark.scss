@@ -20,7 +20,8 @@ $roboto-font-path: '../app/assets';
 @import 'node_modules/roboto-fontface/css/roboto/sass/roboto-fontface.scss';
 
 @import './app-theme';
-@include mat.core();
+@include mat.elevation-classes();
+@include mat.app-background();
 @import './styles/theme-dark';
 
 @include mat.all-component-themes($em-theme);
@@ -29,6 +30,11 @@ $roboto-font-path: '../app/assets';
 @include mat.form-field-typography($em-form-field-typography-config);
 @include mat.checkbox-typography($em-form-field-typography-config);
 @include em-app-typography($em-typography-config);
+
+// Fix radio button label font size to match checkbox (12px)
+.mat-mdc-radio-button {
+  --mat-checkbox-label-text-size: 12px;
+}
 
 body {
   font-family: var(--inet-em-font-family);
@@ -40,11 +46,25 @@ body {
 
   .mat-mdc-snack-bar-label {
     color: var(--inet-em-light-primary-text);
+    font-size: 14px;
   }
 }
 
 .mat-primary .mat-mdc-option.mat-selected:not(.mat-option-disabled) {
   color: var(--inet-em-light-primary-text);
+}
+
+// The active tab label and its underline otherwise take the primary palette
+// color, which is a dark gray that is illegible against the dark theme's
+// dark background
+.mat-mdc-tab-nav-bar,
+.mat-mdc-tab-group {
+  --mat-tab-active-label-text-color: var(--inet-em-light-primary-text);
+  --mat-tab-active-focus-label-text-color: var(--inet-em-light-primary-text);
+  --mat-tab-active-hover-label-text-color: var(--inet-em-light-primary-text);
+  --mat-tab-active-indicator-color: var(--inet-em-light-primary-text);
+  --mat-tab-active-focus-indicator-color: var(--inet-em-light-primary-text);
+  --mat-tab-active-hover-indicator-color: var(--inet-em-light-primary-text);
 }
 
 .mat-mdc-progress-bar .mdc-linear-progress__buffer-bar {
@@ -53,4 +73,24 @@ body {
 
 .badge {
   background-color: dimgray;
+}
+
+// Fix font size and alignment for tree nodes in select dropdowns (CDK overlay)
+.select-viewsheet-tree .mat-tree-node,
+.select-report-tree .mat-tree-node {
+  > span {
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+
+    .mat-icon {
+      margin-right: 4px;
+      display: flex;
+      align-items: center;
+    }
+  }
+
+  .mat-mdc-option {
+    font-size: 12px;
+  }
 }

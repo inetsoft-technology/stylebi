@@ -19,7 +19,8 @@ import { PipeTransform, Pipe } from "@angular/core";
 import { DataRef } from "../../common/data/data-ref";
 
 @Pipe({
-   name: "searchDataRef"
+    name: "searchDataRef",
+    standalone: true
 })
 export class SearchDataRefPipe implements PipeTransform {
    transform(refs: DataRef[], input: string): DataRef[] {

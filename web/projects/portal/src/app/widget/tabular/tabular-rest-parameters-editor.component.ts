@@ -20,11 +20,14 @@ import { Component, EventEmitter, Input, OnDestroy, OnInit, OnChanges, SimpleCha
 import { Subject } from "rxjs";
 import { debounceTime, takeUntil } from "rxjs/operators";
 import { RestParameter, RestParameters } from "../../common/data/tabular/rest-parameters";
+import { FormsModule } from "@angular/forms";
+
 
 @Component({
-   selector: "tabular-rest-parameters-editor",
-   templateUrl: "tabular-rest-parameters-editor.component.html",
-   styleUrls: ["tabular-rest-parameters-editor.component.scss"]
+    selector: "tabular-rest-parameters-editor",
+    templateUrl: "tabular-rest-parameters-editor.component.html",
+    styleUrls: ["tabular-rest-parameters-editor.component.scss"],
+    imports: [FormsModule]
 })
 export class TabularRestParametersEditorComponent implements OnInit, OnDestroy, OnChanges {
    @Input()

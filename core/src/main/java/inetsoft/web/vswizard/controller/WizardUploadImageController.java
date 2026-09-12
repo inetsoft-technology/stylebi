@@ -41,13 +41,9 @@ import java.security.Principal;
 @Controller
 public class WizardUploadImageController {
    @Autowired
-   public WizardUploadImageController(ViewsheetService viewsheetService,
-                                      VSObjectService vsObjectService,
-                                      VSObjectModelFactoryService objectModelService)
+   public WizardUploadImageController(WizardUploadImageServiceProxy wizardUploadImageServiceProxy)
    {
-      this.objectModelService = objectModelService;
-      this.viewsheetService = viewsheetService;
-      this.vsObjectService = vsObjectService;
+      this.wizardUploadImageServiceProxy = wizardUploadImageServiceProxy;
    }
 
    @PostMapping("/api/composer/vswizard/update-image/{assemblyName}/**")
@@ -58,38 +54,8 @@ public class WizardUploadImageController {
                                     Principal principal)
       throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
-
-      if(rvs == null) {
-         return null;
-      }
-
-      Viewsheet vs = rvs.getViewsheet();
-      ImageVSAssembly assembly = (ImageVSAssembly) vs.getAssembly(assemblyName);
-
-      try {
-         if(!vsObjectService.isImage(mpf.getBytes())) {
-            throw new MessageException(Catalog.getCatalog().getString("composer.uploadImageFailed"));
-         }
-
-         vs.addUploadedImage(mpf.getOriginalFilename(), mpf.getBytes());
-         ((ImageVSAssemblyInfo) assembly.getVSAssemblyInfo())
-            .setImageValue(ImageVSAssemblyInfo.UPLOADED_IMAGE + mpf.getOriginalFilename());
-         rvs.addCheckpoint(vs.prepareCheckpoint());
-      }
-      catch(MessageException messageException) {
-         throw messageException;
-      }
-      catch(Exception ex) {
-         LoggerFactory.getLogger(ImagePreviewPaneController.class).debug("Failed to get uploaded file data", ex);
-      }
-
-      return objectModelService.createModel(assembly, rvs);
+      return wizardUploadImageServiceProxy.uploadImage(runtimeId, assemblyName, mpf, principal);
    }
 
-   private VSObjectService vsObjectService;
-   private ViewsheetService viewsheetService;
-   private VSObjectModelFactoryService objectModelService;
-   private static final Logger LOGGER = LoggerFactory.getLogger(WizardUploadImageController.class);
+   private WizardUploadImageServiceProxy wizardUploadImageServiceProxy;
 }

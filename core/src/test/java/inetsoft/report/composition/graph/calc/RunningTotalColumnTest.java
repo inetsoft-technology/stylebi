@@ -23,19 +23,29 @@ import inetsoft.report.composition.graph.BrushDataSet;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.*;
 import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class RunningTotalColumnTest {
    private RunningTotalColumn runningTotalColumn;
    VSDataSet vsDataSet;
@@ -242,6 +252,355 @@ public class RunningTotalColumnTest {
       CrossTabFilter.PairN pairN = new CrossTabFilter.PairN(rowTuple, colTuple, 0);
 
       return pairN;
+   }
+
+   /**
+    * Running average over dates: uses date dim + NONE reset so no boundary breaks.
+    * Each row returns the average of all values seen up to and including that row.
+    */
+   @Test
+   void testRunningAverageWithDateDim() {
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"date", "id"},
+         {toDate("2021-01-01"), 10},
+         {toDate("2021-02-01"), 20},
+         {toDate("2021-03-01"), 30}
+      });
+
+      runningTotalColumn = new RunningTotalColumn("id", "avg(id)");
+      runningTotalColumn.setInnerDim("date");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new AverageFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"date"});
+
+      // row 0: avg(10) = 10
+      Object result = runningTotalColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(10.0, result);
+
+      // row 1: avg(10, 20) = 15
+      result = runningTotalColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(15.0, result);
+
+      // row 2: avg(10, 20, 30) = 20
+      result = runningTotalColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(20.0, result);
+   }
+
+   /**
+    * Running min: always the minimum of all values seen so far.
+    */
+   @Test
+   void testRunningMinWithDateDim() {
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"date", "id"},
+         {toDate("2021-01-01"), 30},
+         {toDate("2021-02-01"), 10},
+         {toDate("2021-03-01"), 20}
+      });
+
+      runningTotalColumn = new RunningTotalColumn("id", "min(id)");
+      runningTotalColumn.setInnerDim("date");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new MinFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"date"});
+
+      // row 0: min(30)
+      Object result = runningTotalColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(30, result);
+
+      // row 1: min(30, 10) = 10
+      result = runningTotalColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(10, result);
+
+      // row 2: min(30, 10, 20) = 10
+      result = runningTotalColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(10, result);
+   }
+
+   /**
+    * Running max: always the maximum of all values seen so far.
+    */
+   @Test
+   void testRunningMaxWithDateDim() {
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"date", "id"},
+         {toDate("2021-01-01"), 5},
+         {toDate("2021-02-01"), 15},
+         {toDate("2021-03-01"), 10}
+      });
+
+      runningTotalColumn = new RunningTotalColumn("id", "max(id)");
+      runningTotalColumn.setInnerDim("date");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new MaxFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"date"});
+
+      // row 0: max(5) = 5
+      Object result = runningTotalColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(5, result);
+
+      // row 1: max(5, 15) = 15
+      result = runningTotalColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(15, result);
+
+      // row 2: max(5, 15, 10) = 15
+      result = runningTotalColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(15, result);
+   }
+
+   /**
+    * Running sum with no reset level (NONE=-1): accumulates across all rows
+    * ignoring date boundaries.
+    */
+   @Test
+   void testRunningSumNoReset() {
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"date", "id"},
+         {toDate("2021-01-01"), 5},
+         {toDate("2021-06-01"), 3},
+         {toDate("2022-01-01"), 10}
+      });
+
+      runningTotalColumn = new RunningTotalColumn("id", "sum(id)");
+      runningTotalColumn.setInnerDim("date");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new SumFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"date"});
+
+      // row 0: 5
+      Object result = runningTotalColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(5.0, result);
+
+      // row 1: 5+3 = 8 (NONE means no reset)
+      result = runningTotalColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(8.0, result);
+
+      // row 2: 5+3+10 = 18 (crosses year boundary but no reset)
+      result = runningTotalColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(18.0, result);
+   }
+
+   /**
+    * Running sum with null values in the dataset. Null is treated as 0.
+    */
+   @Test
+   void testRunningSumWithNullValues() {
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"date", "id"},
+         {toDate("2021-01-01"), 5},
+         {toDate("2021-06-01"), null},
+         {toDate("2021-12-01"), 3}
+      });
+
+      runningTotalColumn = new RunningTotalColumn("id", "sum(id)");
+      runningTotalColumn.setInnerDim("date");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new SumFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"date"});
+
+      // row 1: 5 + null = 5
+      Object result = runningTotalColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(5.0, result);
+
+      // row 2: 5 + null + 3 = 8
+      result = runningTotalColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(8.0, result);
+   }
+
+   /**
+    * Running sum resets at month boundary.
+    */
+   @Test
+   void testRunningSumResetsAtMonth() {
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"date", "id"},
+         {toDate("2021-01-01"), 5},
+         {toDate("2021-01-15"), 3},
+         {toDate("2021-02-01"), 10}
+      });
+
+      runningTotalColumn = new RunningTotalColumn("id", "sum(id)");
+      runningTotalColumn.setInnerDim("date");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.MONTH);
+      runningTotalColumn.setFormula(new SumFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"date"});
+
+      // row 0: 5
+      Object result = runningTotalColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(5.0, result);
+
+      // row 1: still Jan → 5+3 = 8
+      result = runningTotalColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(8.0, result);
+
+      // row 2: Feb, reset → 10
+      result = runningTotalColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(10.0, result);
+   }
+
+   /**
+    * Break-by running sum where several rows share the same break-by value, and the
+    * break-by column is also the inner dimension (the shape produced by a point chart
+    * whose second dimension is a colour aesthetic, so it is not part of innerDim).
+    *
+    * Each row must get its own running value in root row order -- not the group total.
+    */
+   @Test
+   void testRunningSumBreakByRunsWithinGroup() {
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"order_date", "hour", "id"},
+         {toDate("2002-02-06"), null, 2},
+         {toDate("2002-02-06"), toDate("2002-02-06"), 2},
+         {toDate("2002-02-08"), toDate("2002-02-08"), 2}
+      });
+
+      runningTotalColumn = new RunningTotalColumn("id", "sum(id)");
+      runningTotalColumn.setInnerDim("order_date");
+      runningTotalColumn.setBreakBy("order_date");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new SumFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"order_date", "hour"});
+
+      // first row of the 2002-02-06 group: its own value only, not the group total
+      assertEquals(2.0, runningTotalColumn.calculate(vsDataSet, 0, false, false));
+
+      // second row of the same group: 2+2
+      assertEquals(4.0, runningTotalColumn.calculate(vsDataSet, 1, false, false));
+
+      // break-by value changed, so the total resets
+      assertEquals(2.0, runningTotalColumn.calculate(vsDataSet, 2, false, false));
+   }
+
+   /**
+    * Break-by running sum over a non-date break-by value -- the "Others" bucket label a
+    * top-N ranking produces on a date dimension -- including a null measure. The running
+    * sum must be monotonically increasing across the bucket and reset when the label
+    * changes.
+    */
+   @Test
+   void testRunningSumBreakByOthersBucket() {
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"order_date", "hour", "id"},
+         {"Others", toDate("2002-01-05"), 4},
+         {"Others", toDate("2002-01-06"), null},
+         {"Others", toDate("2002-01-11"), 3},
+         {"Others", toDate("2002-01-12"), 4},
+         {toDate("2002-01-15"), toDate("2002-01-15"), 2}
+      });
+
+      runningTotalColumn = new RunningTotalColumn("id", "sum(id)");
+      runningTotalColumn.setInnerDim("order_date");
+      runningTotalColumn.setBreakBy("order_date");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new SumFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"order_date", "hour"});
+
+      List<Object> results = Arrays.asList(
+         runningTotalColumn.calculate(vsDataSet, 0, false, false),
+         runningTotalColumn.calculate(vsDataSet, 1, false, false),
+         runningTotalColumn.calculate(vsDataSet, 2, false, false),
+         runningTotalColumn.calculate(vsDataSet, 3, false, false));
+
+      // null counts as 0, so the sequence still never decreases
+      assertEquals(Arrays.asList(4.0, 4.0, 7.0, 11.0), results);
+
+      // the label changed, so the total resets
+      assertEquals(2.0, runningTotalColumn.calculate(vsDataSet, 4, false, false));
+   }
+
+   /**
+    * A break-by group spanning many rows must never produce a decreasing running sum
+    * when all the accumulated values are non-negative.
+    */
+   @Test
+   void testRunningSumBreakByIsMonotonic() {
+      Object[][] rows = new Object[8][];
+      rows[0] = new Object[]{"order_date", "hour", "id"};
+
+      for(int i = 1; i < rows.length; i++) {
+         rows[i] = new Object[]{ "Others", toDate("2002-03-0" + i), i };
+      }
+
+      DefaultTableLens tb = new DefaultTableLens(rows);
+
+      runningTotalColumn = new RunningTotalColumn("id", "sum(id)");
+      runningTotalColumn.setInnerDim("order_date");
+      runningTotalColumn.setBreakBy("order_date");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new SumFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"order_date", "hour"});
+
+      double previous = 0;
+
+      for(int row = 0; row < rows.length - 1; row++) {
+         double current = (Double) runningTotalColumn.calculate(vsDataSet, row, false, false);
+
+         assertTrue(current >= previous,
+                    "running sum decreased at row " + row + ": " + previous + " -> " + current);
+         previous = current;
+      }
+
+      // 1+2+...+7
+      assertEquals(28.0, previous);
+   }
+
+   /**
+    * Break-by running max where the accumulation dimension (innerDim) is a date column
+    * distinct from the break-by column, and the rows are NOT in chronological order
+    * because the date dimension is sorted by value.
+    *
+    * The running value must follow the dates, not the row order. (74910)
+    */
+   @Test
+   void testRunningMaxBreakByFollowsDateNotRowOrder() {
+      // rows deliberately out of chronological order, as sort-by-value leaves them
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"reseller", "quarter", "sd"},
+         {"false", toDate("2003-01-01"), 13.4748},
+         {"false", toDate("2002-01-01"), 11.3225},
+         {"false", toDate("2002-10-01"), 8.2967},
+         {"true", toDate("2005-07-01"), 11.6802},
+         {"true", toDate("2002-01-01"), 9.8476},
+         {"true", toDate("2002-04-01"), 9.3286}
+      });
+
+      runningTotalColumn = new RunningTotalColumn("sd", "max(sd)");
+      runningTotalColumn.setInnerDim("quarter");
+      runningTotalColumn.setBreakBy("reseller");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new MaxFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"reseller", "quarter"});
+
+      // 2003-01-01 is chronologically last in its group, so it sees all three
+      assertEquals(13.4748, (Double) runningTotalColumn.calculate(vsDataSet, 0, false, false),
+                   1e-9);
+
+      // 2002-01-01 is chronologically first: its own value only, even though a larger
+      // value sits above it in row order
+      assertEquals(11.3225, (Double) runningTotalColumn.calculate(vsDataSet, 1, false, false),
+                   1e-9);
+
+      // 2002-10-01 follows 2002-01-01, so the max is still 11.3225
+      assertEquals(11.3225, (Double) runningTotalColumn.calculate(vsDataSet, 2, false, false),
+                   1e-9);
+
+      // second break-by group accumulates independently
+      assertEquals(11.6802, (Double) runningTotalColumn.calculate(vsDataSet, 3, false, false),
+                   1e-9);
+      assertEquals(9.8476, (Double) runningTotalColumn.calculate(vsDataSet, 4, false, false),
+                   1e-9);
+      assertEquals(9.8476, (Double) runningTotalColumn.calculate(vsDataSet, 5, false, false),
+                   1e-9);
    }
 
    private CrossFilter.Tuple createCrosstabFilterTuple(Object value) {

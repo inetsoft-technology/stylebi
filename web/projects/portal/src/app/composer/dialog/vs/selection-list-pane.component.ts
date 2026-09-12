@@ -29,10 +29,18 @@ import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { TreeComponent } from "../../../widget/tree/tree.component";
 import { SelectionListPaneModel } from "../../data/vs/selection-list-pane-model";
 import { DataTreeValidatorService } from "../../../vsobjects/dialog/data-tree-validator.service";
+import { SelectionMeasurePane } from "./selection-measure-pane.component";
+import { AdditionalTableSelectionPaneComponent } from "../../../widget/dialog/additional-table-selection-pane/additional-table-selection-pane.component";
+
 
 @Component({
-   selector: "selection-list-pane",
-   templateUrl: "selection-list-pane.component.html",
+    selector: "selection-list-pane",
+    templateUrl: "selection-list-pane.component.html",
+    imports: [
+    TreeComponent,
+    AdditionalTableSelectionPaneComponent,
+    SelectionMeasurePane
+]
 })
 export class SelectionListPane implements AfterViewInit {
    @Input() model: SelectionListPaneModel;

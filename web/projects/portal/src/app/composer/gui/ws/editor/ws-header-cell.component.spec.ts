@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ColumnRef } from "../../../../binding/data/column-ref";
 import { AssemblyActionGroup } from "../../../../common/action/assembly-action-group";
 import { AttributeRef } from "../../../../common/data/attribute-ref";
@@ -34,8 +35,8 @@ describe("WS Header Cell Tests", () => {
 
    beforeEach(() => {
       hostRef = { nativeElement: {} };
-      worksheetClient = { sendEvent: jest.fn() };
-      dropdownService = { open: jest.fn() };
+      worksheetClient = { sendEvent: vi.fn() };
+      dropdownService = { open: vi.fn() };
       cell = new WSHeaderCell(hostRef, worksheetClient, dropdownService);
    });
 

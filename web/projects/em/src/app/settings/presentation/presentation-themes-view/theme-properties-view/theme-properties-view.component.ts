@@ -16,21 +16,38 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
-import { AbstractControl, UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { AbstractControl, UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { interval, Subject } from "rxjs";
 import { debounce, takeUntil } from "rxjs/operators";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { FileData } from "../../../../../../../shared/util/model/file-data";
 import { CustomThemeModel } from "../custom-theme-model";
 import { ThemePropertiesModel } from "./theme-properties-model";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatIcon } from "@angular/material/icon";
+import { FileChooserComponent } from "../../../../common/util/file-chooser/file-chooser/file-chooser.component";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
+
 
 @Component({
-   selector: "em-theme-properties-view",
-   templateUrl: "./theme-properties-view.component.html",
-   styleUrls: ["./theme-properties-view.component.scss"]
+    selector: "em-theme-properties-view",
+    templateUrl: "./theme-properties-view.component.html",
+    styleUrls: ["./theme-properties-view.component.scss"],
+    imports: [NgIf, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, FileChooserComponent, MatIcon, MatSuffix, MatCheckbox]
 })
 export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
-   @Input() isMultiTenant = false;
+   @Input() get isMultiTenant(): boolean {
+      return this._isMultiTenant;
+   }
+
+   set isMultiTenant(value: boolean) {
+      this._isMultiTenant = value;
+      this.updateFormState();
+   }
+
    @Input() orgId: string;
 
    @Input() get theme() {
@@ -47,24 +64,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
          this.form.get("defaultThemeOrg").setValue(value.defaultThemeOrg, { emitEvent: false });
          this.form.get("globalTheme").setValue(value.global, { emitEvent: false });
          this.form.get("jar").setValue(jar, { emitEvent: false });
-
-         if(!this.isMultiTenant || this.isSiteAdmin) {
-            this.form.enable({ emitEvent: false });
-            this.form.get("globalTheme").enable({ emitEvent: false });
-            this.form.get("defaultThemeGlobal").enable({ emitEvent: false });
-         }
-         else {
-            if(value.global) {
-               this.form.disable({ emitEvent: false });
-            }
-            else {
-               this.form.enable();
-               this.form.get("globalTheme").disable({ emitEvent: false });
-               this.form.get("defaultThemeGlobal").disable({ emitEvent: false });
-            }
-         }
-
-         this.form.get("defaultThemeOrg").enable({ emitEvent: false });
+         this.updateFormState();
       }
    }
 
@@ -88,26 +88,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
 
    set isSiteAdmin(isSiteAdmin: boolean) {
       this._isSiteAdmin = isSiteAdmin;
-
-      if(!!this.form) {
-         if(this.theme.global && !isSiteAdmin) {
-            this.form.disable();
-         }
-         else {
-            this.form.enable();
-         }
-
-         if(!this.isMultiTenant || isSiteAdmin) {
-            this.form.get("globalTheme").enable();
-            this.form.get("defaultThemeGlobal").enable();
-         }
-         else {
-            this.form.get("globalTheme").disable();
-            this.form.get("defaultThemeGlobal").disable();
-         }
-
-         this.form.get("defaultThemeOrg").enable();
-      }
+      this.updateFormState();
    }
 
    @Output() themePropertiesChanged = new EventEmitter<ThemePropertiesModel>();
@@ -116,6 +97,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
    private _themeNames: string[] = [];
    private _theme: CustomThemeModel;
    private _isSiteAdmin = false;
+   private _isMultiTenant = false;
    private destroy$ = new Subject<void>();
 
    constructor(fb: UntypedFormBuilder) {
@@ -127,7 +109,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
          jar: [[]]
       });
 
-      if(!this.isSiteAdmin && this.theme?.global) {
+      if(!this.isSiteAdmin && this.theme?.global && this.isMultiTenant) {
          this.form.disable();
       }
       else {
@@ -147,7 +129,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    get defaultThemeGlobalLable(): string {
@@ -156,6 +138,36 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
 
    get hostOrg() {
       return this.orgId == "host-org";
+   }
+
+   get jarHidden(): boolean {
+      return this._isMultiTenant && !this._isSiteAdmin && !!this._theme?.global;
+   }
+
+   private updateFormState(): void {
+      if(!this.form || !this.theme) {
+         return;
+      }
+
+      if(this._isMultiTenant && !this._isSiteAdmin && this.theme.global) {
+         this.form.disable({ emitEvent: false });
+      }
+      else {
+         this.form.enable({ emitEvent: false });
+      }
+
+      if(!this._isMultiTenant || this._isSiteAdmin) {
+         this.form.get("globalTheme").enable({ emitEvent: false });
+         this.form.get("defaultThemeGlobal").enable({ emitEvent: false });
+      }
+      else {
+         this.form.get("globalTheme").disable({ emitEvent: false });
+         this.form.get("defaultThemeGlobal").disable({ emitEvent: false });
+      }
+
+      // Allow org admins to mark a global theme as their org default even when
+      // they cannot otherwise edit it.
+      this.form.get("defaultThemeOrg").enable({ emitEvent: false });
    }
 
    private fireThemePropertiesChanged(): void {

@@ -17,6 +17,13 @@
  */
 package inetsoft.uql.schema;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
+import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import inetsoft.uql.AbstractCondition;
 import inetsoft.uql.VariableTable;
 import inetsoft.util.Tool;
@@ -24,7 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
 
-import java.io.PrintWriter;
+import java.io.*;
 import java.util.Arrays;
 
 /**
@@ -34,6 +41,8 @@ import java.util.Arrays;
  * @version 5.1, 9/20/2003
  * @author InetSoft Technology Corp
  */
+@JsonSerialize(using = UserVariable.Serializer.class)
+@JsonDeserialize(using = UserVariable.Deserializer.class)
 public class UserVariable extends XVariable {
    /**
     * Display as a text field.
@@ -693,4 +702,48 @@ public class UserVariable extends XVariable {
    private boolean executed = false;
 
    private static final Logger LOG = LoggerFactory.getLogger(UserVariable.class);
+
+   public static final class Serializer extends StdSerializer<UserVariable> {
+      public Serializer() {
+         super(UserVariable.class);
+      }
+
+      @Override
+      public void serialize(UserVariable value, JsonGenerator gen, SerializerProvider provider)
+         throws IOException
+      {
+         gen.writeStartObject();
+
+         StringWriter buffer = new StringWriter();
+         PrintWriter writer = new PrintWriter(buffer);
+         value.writeXML(writer);
+         writer.flush();
+         gen.writeStringField("xml", buffer.toString());
+
+         gen.writeEndObject();
+      }
+   }
+
+   public static final class Deserializer extends StdDeserializer<UserVariable> {
+      public Deserializer() {
+         super(UserVariable.class);
+      }
+
+      @Override
+      public UserVariable deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+         JsonNode node = p.getCodec().readTree(p);
+         UserVariable var = new UserVariable();
+
+         try {
+            StringReader reader = new StringReader(node.get("xml").asText());
+            Document document = Tool.parseXML(reader);
+            var.parseXML(document.getDocumentElement());
+         }
+         catch(Exception e) {
+            throw new JsonMappingException(p, "Failed to parse user variable", e);
+         }
+
+         return var;
+      }
+   }
 }

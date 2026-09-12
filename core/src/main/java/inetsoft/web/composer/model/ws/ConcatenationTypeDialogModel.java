@@ -19,9 +19,11 @@ package inetsoft.web.composer.model.ws;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableConcatenationTypeDialogModel.class)
 @JsonDeserialize(builder = ConcatenationTypeDialogModel.Builder.class)
 public abstract class ConcatenationTypeDialogModel {

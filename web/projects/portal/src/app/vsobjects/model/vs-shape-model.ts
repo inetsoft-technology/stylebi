@@ -15,10 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import type { ShapeShadow } from "../../common/data/base-format-model";
 import { VSObjectModel } from "./vs-object-model";
 
 export interface VSShapeModel extends VSObjectModel {
    locked: boolean;
    lineStyle: number;
    shadow: boolean;
+   shadowInfo: ShapeShadow;
 }

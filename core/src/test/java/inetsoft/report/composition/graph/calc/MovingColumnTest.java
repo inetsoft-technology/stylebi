@@ -23,21 +23,49 @@ import inetsoft.report.composition.graph.BrushDataSet;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.*;
 import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.test.*;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class MovingColumnTest {
    private MovingColumn movingColumn;
    private VSDataSet vsDataSet;
+   private DefaultTableLens tableLens;
+
+   @BeforeEach
+   void setUp() {
+      tableLens = new DefaultTableLens(new Object[][]{
+         {"group", "name", "id"},
+         {"A", "a", 1},
+         {"A", "b", 3},
+         {"A", "c", null},
+         {"B", "d", 7},
+         {"B", "e", 1},
+         {"B", "f", 9}
+      });
+   }
 
    @Test
    void testCalculateWithVSDataSet() {
@@ -184,13 +212,230 @@ public class MovingColumnTest {
       return new CrossFilter.Tuple(new Object[] { value });
    }
 
-   DefaultTableLens tableLens = new DefaultTableLens(new Object[][]{
-      {"group", "name", "id"},
-      {"A", "a", 1},
-      {"A", "b", 3},
-      {"A", "c", null},
-      {"B", "d", 7},
-      {"B", "e", 1},
-      {"B", "f", 9}
-   });
+   /**
+    * Moving minimum over a window of previous+current+next using MinFormula.
+    * MinFormula skips null values, so the result is the minimum of non-null entries.
+    * The formula returns the same type as the input data (Integer).
+    */
+   @Test
+   void testMovingMinFormula() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      movingColumn = new MovingColumn("id", "min(id)");
+
+      MinFormula minFormula = new MinFormula();
+      movingColumn.setFormula(minFormula);
+      movingColumn.setPreCnt(1);
+      movingColumn.setNextCnt(1);
+      movingColumn.setIncludeCurrent(true);
+
+      // row 0 (1): window = [1, 3] (next=row1=3) → min = 1
+      Object result = movingColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(1, result);
+
+      // row 1 (3): window = [1, 3, null] → min of non-null = 1
+      result = movingColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(1, result);
+
+      // row 3 (7): window = [null, 7, 1] → min of non-null = 1
+      result = movingColumn.calculate(vsDataSet, 3, false, false);
+      assertEquals(1, result);
+   }
+
+   /**
+    * Moving maximum over a window using MaxFormula.
+    * The formula returns the same type as the input data (Integer).
+    */
+   @Test
+   void testMovingMaxFormula() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      movingColumn = new MovingColumn("id", "max(id)");
+
+      MaxFormula maxFormula = new MaxFormula();
+      movingColumn.setFormula(maxFormula);
+      movingColumn.setPreCnt(1);
+      movingColumn.setNextCnt(0);
+      movingColumn.setIncludeCurrent(true);
+
+      // row 1 (3): window = [1, 3] → max = 3
+      Object result = movingColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(3, result);
+
+      // row 3 (7): window = [null, 7] → max = 7
+      result = movingColumn.calculate(vsDataSet, 3, false, false);
+      assertEquals(7, result);
+
+      // row 4 (1): window = [7, 1] → max = 7
+      result = movingColumn.calculate(vsDataSet, 4, false, false);
+      assertEquals(7, result);
+   }
+
+   /**
+    * When showNull=true and window is incomplete (< preCnt values before), result is null.
+    */
+   @Test
+   void testShowNullWhenPartialWindow() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      movingColumn = new MovingColumn("id", "sum(id)");
+
+      movingColumn.setFormula(new SumFormula());
+      movingColumn.setPreCnt(2);
+      movingColumn.setNextCnt(0);
+      movingColumn.setIncludeCurrent(true);
+      movingColumn.setShowNull(true);
+
+      // row 0 has only 0 previous values but requires 2 → null
+      assertNull(movingColumn.calculate(vsDataSet, 0, false, false));
+
+      // row 1 has only 1 previous value but requires 2 → null
+      assertNull(movingColumn.calculate(vsDataSet, 1, false, false));
+
+      // row 2 has 2 previous values → result is non-null
+      // [1, 3, null] where null treated as 0 → sum = 4
+      Object result = movingColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(4.0, result);
+   }
+
+   /**
+    * When showNull=false (default), partial windows are still computed with available data.
+    */
+   @Test
+   void testNoShowNullYieldsResultWithPartialWindow() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      movingColumn = new MovingColumn("id", "sum(id)");
+
+      movingColumn.setFormula(new SumFormula());
+      movingColumn.setPreCnt(2);
+      movingColumn.setNextCnt(0);
+      movingColumn.setIncludeCurrent(true);
+      movingColumn.setShowNull(false);
+
+      // row 0: no previous values → sum of just current: 1
+      Object result = movingColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(1.0, result);
+
+      // row 1: 1 previous value available → 1 + 3 = 4
+      result = movingColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(4.0, result);
+   }
+
+   /**
+    * Null values within the window are treated as 0 for numeric formulas.
+    */
+   @Test
+   void testNullValuesWithinWindow() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      movingColumn = new MovingColumn("id", "sum(id)");
+
+      movingColumn.setFormula(new SumFormula());
+      movingColumn.setPreCnt(1);
+      movingColumn.setNextCnt(1);
+      movingColumn.setIncludeCurrent(true);
+
+      // row 2 is null; window: [3, null, 7] → sum = 10 (null → 0)
+      Object result = movingColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(10.0, result);
+   }
+
+   /**
+    * With no formula set, calculate simply returns the raw data value.
+    */
+   @Test
+   void testNoFormulaReturnsRawValue() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      movingColumn = new MovingColumn("id", "id");
+      // no formula set
+      assertNull(movingColumn.getFormula());
+      Object result = movingColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(1, result);
+   }
+
+   /**
+    * Average formula: moving average including current value.
+    */
+   @Test
+   void testMovingAverageIncludingCurrent() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      movingColumn = new MovingColumn("id", "avg(id)");
+
+      AverageFormula averageFormula = new AverageFormula();
+      movingColumn.setFormula(averageFormula);
+      movingColumn.setPreCnt(1);
+      movingColumn.setNextCnt(0);
+      movingColumn.setIncludeCurrent(true);
+
+      // row 0 (1): window = [1] → avg = 1
+      Object result = movingColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(1.0, result);
+
+      // row 1 (3): window = [1, 3] → avg = 2
+      result = movingColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(2.0, result);
+   }
+
+
+   /**
+    * Regression test for the "Moving Average of N misaligned when the dimension's display
+    * sort is not its calendar order" bug, reproduced by the datatest chart suite
+    * (Binding_Spec / binding7).
+    *
+    * A part-date-group dimension (HourOfDay) under a Top-N "Sort By Value" ranking is
+    * plotted in ranking order (5, 11, 1, 2) while a moving window over hours only has
+    * meaning in calendar order (1, 2, 5, 11). Two things have to hold together for the
+    * window to land on the right rows:
+    *
+    * 1. DataSetRouter must navigate in calendar order for such a dimension, so getCondData
+    *    selects the calendar neighbors as the window's members.
+    * 2. MovingColumn must then walk that window in the same order. The sub data set keeps
+    *    the physical (ranking) row order, so walking it by row index averaged the wrong
+    *    neighbors and shifted which rows came out null.
+    *
+    * Centered 3-point average, null at the truncated ends. Calendar order is
+    * 1(173), 2(166), 5(275), 11(320), so hour 2 = avg(173,166,275) and
+    * hour 5 = avg(166,275,320), while the calendar-first and calendar-last hours are null.
+    */
+   @Test
+   void testMovingAverageFollowsCalendarOrderOnValueSortedPartDateDim() {
+      final String dim = "HourOfDay(order_time)";
+      // physical/display order is the Top-N ranking order, not calendar order
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { dim, "Sum(employee_id)" },
+         { 5, 275 },
+         { 11, 320 },
+         { 1, 173 },
+         { 2, 166 }
+      });
+
+      List<Integer> rank = Arrays.asList(5, 11, 1, 2);
+      VSDimensionRef hourRef = mock(VSDimensionRef.class);
+      when(hourRef.getFullName()).thenReturn(dim);
+      when(hourRef.getDateLevel()).thenReturn(XConstants.HOUR_OF_DAY_DATE_GROUP);
+      when(hourRef.getOrder()).thenReturn(XConstants.SORT_VALUE_DESC);
+      when(hourRef.createComparator(org.mockito.ArgumentMatchers.any()))
+         .thenReturn((Comparator) (a, b) -> Integer.compare(rank.indexOf(a), rank.indexOf(b)));
+
+      vsDataSet = new VSDataSet(tb, new VSDataRef[]{ hourRef });
+
+      movingColumn = new MovingColumn("Sum(employee_id)", "Moving Average of 3: Sum(employee_id)");
+      movingColumn.setFormula(new AverageFormula());
+      movingColumn.setPreCnt(1);
+      movingColumn.setNextCnt(1);
+      movingColumn.setIncludeCurrent(true);
+      movingColumn.setShowNull(true);
+      movingColumn.setInnerDim(dim);
+
+      // row 0 = hour 5; calendar window [2, 5, 11] -> (166 + 275 + 320) / 3
+      assertEquals(253.6667,
+                   (Double) movingColumn.calculate(vsDataSet, 0, true, false), 0.0001);
+
+      // row 1 = hour 11, last in calendar order -> truncated window -> null
+      assertNull(movingColumn.calculate(vsDataSet, 1, false, false));
+
+      // row 2 = hour 1, first in calendar order -> truncated window -> null
+      assertNull(movingColumn.calculate(vsDataSet, 2, false, false));
+
+      // row 3 = hour 2; calendar window [1, 2, 5] -> (173 + 166 + 275) / 3
+      assertEquals(204.6667,
+                   (Double) movingColumn.calculate(vsDataSet, 3, false, true), 0.0001);
+   }
+
 }

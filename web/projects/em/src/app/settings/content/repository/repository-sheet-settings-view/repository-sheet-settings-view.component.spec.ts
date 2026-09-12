@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -28,7 +29,7 @@ import { MatRadioModule } from "@angular/material/radio";
 import { MatSelectModule } from "@angular/material/select";
 import { MatTabsModule } from "@angular/material/tabs";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { RouterTestingModule } from "@angular/router/testing";
+import { RouterModule } from "@angular/router";
 import { RepositorySheetSettingsViewComponent } from "./repository-sheet-settings-view.component";
 
 describe("RepositorySheetSettingsViewComponent", () => {
@@ -37,12 +38,12 @@ describe("RepositorySheetSettingsViewComponent", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [HttpClientTestingModule, RouterTestingModule, MatCardModule,
+         imports: [HttpClientTestingModule, RouterModule.forRoot([]), MatCardModule,
             MatButtonModule, MatInputModule, MatSelectModule, NoopAnimationsModule,
             MatOptionModule, MatTabsModule, MatFormFieldModule, FormsModule, ReactiveFormsModule,
-            MatRadioModule, MatCheckboxModule],
-         declarations: [RepositorySheetSettingsViewComponent]
-      })
+            MatRadioModule, MatCheckboxModule,
+            RepositorySheetSettingsViewComponent]
+         })
          .compileComponents();
 
       fixture = TestBed.createComponent(RepositorySheetSettingsViewComponent);

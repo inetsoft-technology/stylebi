@@ -18,11 +18,16 @@
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { RepositoryFolderTrashcanTableModel } from "../repository-folder-trashcan-settings-page/repository-folder-trashcan-table-model";
 import { TableInfo } from "../../../../common/util/table/table-info";
+import { TableView } from "../../../../common/util/table/table-view.component";
+import { MatTabGroup, MatTab, MatTabContent } from "@angular/material/tabs";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+
 
 @Component({
-   selector: "em-repository-folder-trashcan-settings-view",
-   templateUrl: "./repository-folder-trashcan-settings-view.component.html",
-   styleUrls: ["./repository-folder-trashcan-settings-view.component.scss"]
+    selector: "em-repository-folder-trashcan-settings-view",
+    templateUrl: "./repository-folder-trashcan-settings-view.component.html",
+    styleUrls: ["./repository-folder-trashcan-settings-view.component.scss"],
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, TableView]
 })
 export class RepositoryFolderTrashcanSettingsViewComponent {
    @Input() model: RepositoryFolderTrashcanTableModel[];

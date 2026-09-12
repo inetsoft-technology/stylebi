@@ -18,17 +18,19 @@
 import { Component, OnInit, Input, Output, EventEmitter } from "@angular/core";
 import { DataSourceBrowserViewModel } from "../../model/data-source-browser-view-model";
 import { SortTypes } from "../../../../../../../shared/util/sort/sort-types";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { SortOptions } from "../../../../../../../shared/util/sort/sort-options";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { DataSourceInfo } from "../../model/data-source-info";
 
+
 @Component({
-   selector: "data-sources-browser",
-   templateUrl: "data-sources-browser.component.html",
-   styleUrls: ["data-sources-browser.component.scss"]
+    selector: "data-sources-browser",
+    templateUrl: "data-sources-browser.component.html",
+    styleUrls: ["data-sources-browser.component.scss"],
+    imports: [NgbTooltip]
 })
 export class DataSourcesBrowser implements OnInit {
    @Input() browserView: DataSourceBrowserViewModel;
@@ -47,6 +49,7 @@ export class DataSourcesBrowser implements OnInit {
    @Input() rootLabel: string;
    @Output() selectionChange = new EventEmitter<DataSourceInfo[]>();
    bigDataEdition: boolean = false;
+   currentFolderName: string = "..";
 
    constructor(private modalService: NgbModal) {
    }
@@ -87,6 +90,7 @@ export class DataSourcesBrowser implements OnInit {
       this.openFolderRequest(path, assetType).subscribe(
          data => {
             this.browserView = data;
+            this.updateCurrentFolderName();
 
             if(!onInit) {
                // reset selected items when opening new folder
@@ -218,12 +222,12 @@ export class DataSourcesBrowser implements OnInit {
    }
 
    /**
-    * Gets the name of the lowest level folder in the view
+    * Updates the cached currentFolderName from the current browserView.
     */
-   currentFolderName(): string {
+   private updateCurrentFolderName(): void {
       let name: string = "..";
 
-      if(!!this.browserView.path && this.browserView.path.length > 0) {
+      if(!!this.browserView?.path && this.browserView.path.length > 0) {
          let parentNode = this.browserView.path[this.browserView.path.length - 1];
 
          if(!!parentNode && parentNode.name) {
@@ -234,6 +238,6 @@ export class DataSourcesBrowser implements OnInit {
          }
       }
 
-      return name;
+      this.currentFolderName = name;
    }
 }

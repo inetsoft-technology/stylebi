@@ -18,6 +18,7 @@
 package inetsoft.util.dep;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.lib.logical.LogicalLibraryEntry;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
@@ -59,7 +60,6 @@ public class ScriptAsset extends AbstractXAsset {
     * @param script the specified script function name.
     */
    public ScriptAsset(String script) {
-      this();
       this.script = script;
    }
 
@@ -70,7 +70,7 @@ public class ScriptAsset extends AbstractXAsset {
    @Override
    public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       List<XAssetDependency> deps = new ArrayList<>();
-      final LibManager manager = LibManager.getManager();
+      final LibManager manager = LibManagerProvider.getInstance().getManager();
 
       if(manager.findScriptName(script) != null) {
          String check = manager.getScript(script);
@@ -258,7 +258,7 @@ public class ScriptAsset extends AbstractXAsset {
          return;
       }
 
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       boolean overwriting = config != null && config.isOverwriting();
 
       if(manager.findScriptName(script) != null && !overwriting) {
@@ -300,7 +300,7 @@ public class ScriptAsset extends AbstractXAsset {
     */
    @Override
    public synchronized boolean writeContent(OutputStream output) throws Exception {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       String body = manager.getScript(script);
 
       if(body == null) {
@@ -349,12 +349,12 @@ public class ScriptAsset extends AbstractXAsset {
    }
 
    public LogicalLibraryEntry getLogicalLibraryEntry() {
-      return LibManager.getManager().getLogicalLibraryEntry(script);
+      return LibManagerProvider.getInstance().getManager().getLogicalLibraryEntry(script);
    }
 
    @Override
    public boolean exists() {
-      return LibManager.getManager().findScriptName(script) != null;
+      return LibManagerProvider.getInstance().getManager().findScriptName(script) != null;
    }
 
    @Override
@@ -375,6 +375,4 @@ public class ScriptAsset extends AbstractXAsset {
    private String script;
    private static final String COMMENT = "__COMMENT__";
    private static final String FILE_INFO="__FILEINFO__";
-   private static final Logger LOG =
-      LoggerFactory.getLogger(ScriptAsset.class);
 }

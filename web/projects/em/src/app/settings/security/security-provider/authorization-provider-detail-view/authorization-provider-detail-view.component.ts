@@ -23,7 +23,7 @@ import {
    OnInit,
    Output
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Subscription } from "rxjs";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
@@ -31,11 +31,21 @@ import { Tool } from "../../../../../../../shared/util/tool";
 import { AuthenticationProviderModel } from "../security-provider-model/authentication-provider-model";
 import { AuthorizationProviderModel } from "../security-provider-model/authorization-provider-model";
 import { SecurityProviderType } from "../security-provider-model/security-provider-type.enum";
+import { CustomProviderViewComponent } from "../custom-provider-view/custom-provider-view.component";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "em-authorization-provider-detail-view",
-   templateUrl: "./authorization-provider-detail-view.component.html",
-   styleUrls: ["./authorization-provider-detail-view.component.scss"]
+    selector: "em-authorization-provider-detail-view",
+    templateUrl: "./authorization-provider-detail-view.component.html",
+    styleUrls: ["./authorization-provider-detail-view.component.scss"],
+    imports: [NgIf, EditorPanelComponent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatSelect, MatOption, CustomProviderViewComponent]
 })
 export class AuthorizationProviderDetailViewComponent implements OnInit, OnDestroy {
    @Output() onSubmit = new EventEmitter<UntypedFormGroup>();
@@ -47,7 +57,6 @@ export class AuthorizationProviderDetailViewComponent implements OnInit, OnDestr
    private _changed: boolean = false;
    isEnterprise: boolean = false;
 
-   con
    constructor(private appInfoService: AppInfoService) {
       this.appInfoService.isEnterprise().subscribe(val => {
          this.isEnterprise = val;
@@ -88,9 +97,9 @@ export class AuthorizationProviderDetailViewComponent implements OnInit, OnDestr
 
    initForm() {
       this.form = new UntypedFormGroup({
-         providerName: new UntypedFormControl("", [Validators.required,
+         providerName: new UntypedFormControl(this._model?.providerName ?? "", [Validators.required,
             FormValidators.containsSpecialCharsForCommonName]),
-         providerType: new UntypedFormControl(SecurityProviderType.FILE, [Validators.required])
+         providerType: new UntypedFormControl(this._model?.providerType ?? SecurityProviderType.FILE, [Validators.required])
       });
 
       this.subscription.add(
@@ -117,8 +126,9 @@ export class AuthorizationProviderDetailViewComponent implements OnInit, OnDestr
             current.providerType = this.form.value["providerType"];
          }
 
+         const customForm = this.form.get("customForm");
          return this.form.value["providerType"] === SecurityProviderType.CUSTOM ?
-            this.form.controls["customForm"].valid && this.changed :
+            !!customForm && customForm.valid && this.changed :
             this.changed && (current == null ? true : !Tool.isEquals(this._original, current));
       }
 

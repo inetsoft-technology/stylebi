@@ -22,15 +22,12 @@ import inetsoft.report.internal.UnlicensedUserNameException;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
-import inetsoft.sree.web.SessionLicenseManager;
-import inetsoft.sree.web.SessionLicenseService;
+import inetsoft.sree.web.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
-import org.apache.hc.core5.net.InetAddressUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.AntPathMatcher;
@@ -38,7 +35,6 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.net.URI;
 import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -51,6 +47,13 @@ import java.util.stream.Stream;
 public abstract class AbstractSecurityFilter
    implements Filter, SessionAccessDispatcher.SessionAccessListener
 {
+   public AbstractSecurityFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                                 AuthenticationService authenticationService)
+   {
+      this.sessionLicenseServiceProvider = sessionLicenseServiceProvider;
+      this.authenticationService = authenticationService;
+   }
+
    @Override
    public void init(FilterConfig config) throws ServletException {
       try {
@@ -104,7 +107,7 @@ public abstract class AbstractSecurityFilter
       RequestUriInfo uriInfo = new RequestUriInfo(httpRequest);
 
       try {
-         principal = (SRPrincipal) AuthenticationService.getInstance().authenticate(
+         principal = (SRPrincipal) authenticationService.authenticate(
             userID, loginAsUser, password, request.getRemoteHost(), uriInfo.getRemoteIp(),
             httpRequest.getServerName(), locale, request.getLocale(), false, true, httpRequest.getSession(true).getId(),
             uriInfo.getRequestedUri());
@@ -146,7 +149,7 @@ public abstract class AbstractSecurityFilter
       IdentityID anonID = new IdentityID(ClientInfo.ANONYMOUS,
          getCookieRecordedOrgID((HttpServletRequest) request));
       ClientInfo info = createClientInfo(anonID, request);
-      return (SRPrincipal) AuthenticationService.getInstance().authenticate(info, null);
+      return (SRPrincipal) authenticationService.authenticate(info, null);
    }
 
    protected String getCookieRecordedOrgID(HttpServletRequest request) {
@@ -163,6 +166,81 @@ public abstract class AbstractSecurityFilter
    }
 
    /**
+    * Resolves a role name from an SSO default-role property into a role identity.
+    *
+    * <p>On a single tenant install every role lives in the default organization, except the
+    * built-in Administrator, which is the global (org-less) system administrator role.
+    *
+    * <p>On a multi tenant install the role is scoped to the organization the user is signing in
+    * to; stamping it with the default organization would grant a role owned by another tenant.
+    * Names that would confer administrator rights beyond that organization are ignored -- see
+    * {@link #isAssignableSSODefaultRole}.
+    *
+    * @param role      the role name from the property.
+    * @param principal the principal being logged in.
+    *
+    * @return the role identity, or {@code null} if the name must not be granted.
+    */
+   protected IdentityID getSSODefaultRoleID(String role, SRPrincipal principal) {
+      if(!SUtil.isMultiTenant()) {
+         return "Administrator".equals(role) ? new IdentityID(role, null) :
+            new IdentityID(role, Organization.getDefaultOrganizationID());
+      }
+
+      String orgID = principal.getOrgId();
+
+      if(orgID == null) {
+         // neither guess is safe: a null org is the global scope, and the default organization is
+         // the most privileged tenant. Drop the name rather than grant either.
+         LOG.warn("Ignoring role \"{}\" in the SSO default roles: the organization being signed " +
+                     "in to is unknown.", role);
+         return null;
+      }
+
+      IdentityID roleID = new IdentityID(role, orgID);
+      SecurityProvider provider = getSecurityProvider();
+
+      if(provider != null && !isAssignableSSODefaultRole(provider, roleID)) {
+         LOG.warn("Ignoring administrator role \"{}\" in the SSO default roles: administrator " +
+                     "roles cannot be granted to organization {}.", role, orgID);
+         return null;
+      }
+
+      return roleID;
+   }
+
+   /**
+    * Determines whether a role may be granted through an SSO default-role property.
+    *
+    * @param provider the security provider.
+    * @param roleID   the org-scoped role identity.
+    *
+    * @return {@code false} if granting the role would confer administrator rights.
+    */
+   private boolean isAssignableSSODefaultRole(SecurityProvider provider, IdentityID roleID) {
+      // the built-in Administrator and Organization Administrator roles are seeded org-less, so an
+      // org-scoped key never resolves to them (AuthenticationChain only consults a provider that
+      // returns non-null from getRole(), which is an exact name+org lookup). Test the global form
+      // by name so those two names are refused whatever organization is signing in.
+      IdentityID globalID = new IdentityID(roleID.name, null);
+
+      if(provider.isSystemAdministratorRole(globalID) ||
+         provider.isOrgAdministratorRole(globalID))
+      {
+         return false;
+      }
+
+      // an org-scoped role flagged as system administrator bypasses permission checks in EVERY
+      // organization, because DefaultCheckPermissionStrategy short-circuits on any resolved
+      // sysadmin role, so it is not assignable either.
+      //
+      // An org-scoped ORGANIZATION administrator role is deliberately still allowed: it confers
+      // admin rights only inside the user's own organization, which is what a self-service signup
+      // flow wants for the first user of a new organization.
+      return !provider.isSystemAdministratorRole(roleID);
+   }
+
+   /**
     * Create a session and add an audit login record when logging in with SSO
     */
    protected SRPrincipal createSSOSession(HttpServletRequest request,
@@ -171,9 +249,10 @@ public abstract class AbstractSecurityFilter
       final IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       final IdentityID[] currentRoles = principal.getRoles();
       final String[] roles = getSSODefaultRole();
+      final SRPrincipal ssoPrincipal = principal;
       IdentityID[] defRoles = Arrays.stream(roles)
-         .map(role -> "Administrator".equals(role) ? new IdentityID(role, null)
-            : new IdentityID(role, Organization.getDefaultOrganizationID()))
+         .map(role -> getSSODefaultRoleID(role, ssoPrincipal))
+         .filter(Objects::nonNull)
          .toArray(IdentityID[]::new);
       final IdentityID[] newRoles =
          Stream.concat(Arrays.stream(defRoles), Arrays.stream(currentRoles)).toArray(IdentityID[]::new);
@@ -181,7 +260,7 @@ public abstract class AbstractSecurityFilter
       final ClientInfo info = createClientInfo(principal.getIdentityID(), request);
       principal = new SRPrincipal(principal, info);
       createSession(request, principal);
-      AuthenticationService.getInstance().authenticate(info, principal);
+      authenticationService.authenticate(info, principal);
       SUtil.loginRecord(request, pId, true, null);
       return principal;
    }
@@ -197,11 +276,30 @@ public abstract class AbstractSecurityFilter
    protected void createSession(ServletRequest request, SRPrincipal principal)
       throws AuthenticationFailureException
    {
+      createSession(request, principal, null);
+   }
+
+   /**
+    * Creates a session for the specified user and request, optionally terminating an existing
+    * session first if the session limit is reached.
+    *
+    * @param request            the HTTP request object.
+    * @param principal          a principal that identifies the remote user.
+    * @param sessionIdToReplace the session ID (as returned by
+    *                           {@link inetsoft.uql.XPrincipal#getSessionID()}) of an existing
+    *                           session to terminate when the limit is reached, or {@code null}
+    *                           for standard behaviour.
+    *
+    * @throws AuthenticationFailureException if a session could not be created.
+    */
+   protected void createSession(ServletRequest request, SRPrincipal principal,
+                                String sessionIdToReplace)
+      throws AuthenticationFailureException
+   {
       HttpServletRequest httpRequest = (HttpServletRequest) request;
       HttpSession session = httpRequest.getSession(true);
-      AuthenticationService authentication = AuthenticationService.getInstance();
       SessionLicenseManager sessionLicenseManager =
-         SessionLicenseService.getSessionLicenseService();
+         sessionLicenseServiceProvider.getSessionLicenseManager();
 
       try {
          if(sessionLicenseManager != null) {
@@ -218,14 +316,43 @@ public abstract class AbstractSecurityFilter
                   long userLastAccess = userSession.getLastAccess();
 
                   if(System.currentTimeMillis() - userLastAccess > userSessionTimeout) {
-                     authentication.logout(userSession, request.getRemoteHost(), "", true);
+                     authenticationService.logout(userSession, request.getRemoteHost(), "", true);
                   }
                }
             }
          }
 
-         authentication.addSession(principal);
+         // For anonymous localhost clients, evict all prior sessions from the same client
+         // before creating a new one. Each pre-cookie request (e.g. in Docker at localhost)
+         // creates a new HTTP session and consumes a license slot; evicting here prevents
+         // accumulation. Non-localhost clients are handled by the per-client session cap
+         // below, which respects the configurable maxSessions limit and avoids evicting
+         // sessions from other users behind the same corporate NAT/proxy.
+         if(isAnonymousPrincipal(principal) && !isNonlocalClient(principal)) {
+            SecurityEngine.getSecurity().getActivePrincipalList().stream()
+               .filter(p -> p != principal && isSameClient(principal, p))
+               .forEach(p -> authenticationService.logout(p, p.getUser().getIPAddress(), ""));
+         }
+
+         if(sessionIdToReplace != null) {
+            authenticationService.addSession(principal, sessionIdToReplace);
+         }
+         else {
+            authenticationService.addSession(principal);
+         }
+
          session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+
+         // Mark anonymous sessions as fresh so they can be invalidated on error responses
+         if(isAnonymousPrincipal(principal)) {
+            session.setAttribute(FRESH_ANONYMOUS_SESSION_ATTR, Boolean.TRUE);
+         }
+      }
+      catch(SessionsExceededException e) {
+         throw new AuthenticationFailureException(
+            AuthenticationFailureReason.SESSION_EXCEEDED_ADMIN,
+            "Session limit reached",
+            e.getActiveSessions());
       }
       catch(UnlicensedUserNameException e) {
          throw new AuthenticationFailureException(
@@ -241,8 +368,8 @@ public abstract class AbstractSecurityFilter
       }
       catch(Exception thrown) {
          throw new AuthenticationFailureException(
-            AuthenticationFailureReason.SESSION_EXCEEDED,
-            Catalog.getCatalog(principal).getString("login.error.sessions.exceeded"), thrown);
+            AuthenticationFailureReason.GENERIC_ERROR,
+            Catalog.getCatalog(principal).getString("login.error.sessions.failed"), thrown);
       }
 
       if(isNonlocalClient(principal)) {
@@ -267,7 +394,7 @@ public abstract class AbstractSecurityFilter
 
          if(sameClientPrincipals.size() >= maxSessions) {
             sameClientPrincipals.subList(0, sameClientPrincipals.size() - (maxSessions - 1))
-               .forEach(authentication::logout);
+               .forEach(authenticationService::logout);
          }
       }
    }
@@ -290,7 +417,7 @@ public abstract class AbstractSecurityFilter
          return null;
       }
 
-      final HttpSession session = request.getSession();
+      final HttpSession session = request.getSession(false);
 
       if(session != null) {
          try {
@@ -328,7 +455,7 @@ public abstract class AbstractSecurityFilter
             (Principal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
          if(principal != null) {
-            AuthenticationService.getInstance().logout(principal, uriInfo.getRemoteIp(), "");
+            authenticationService.logout(principal, uriInfo.getRemoteIp(), "");
          }
 
          if(invalidate) {
@@ -414,8 +541,16 @@ public abstract class AbstractSecurityFilter
    @SuppressWarnings("WeakerAccess")
    protected ClientInfo createClientInfo(IdentityID userID, ServletRequest request) {
       HttpServletRequest httpRequest = (HttpServletRequest) request;
-      String remoteAddress = httpRequest.getHeader("X-Forwarded-For");
-      remoteAddress = remoteAddress == null ? httpRequest.getRemoteAddr() : remoteAddress;
+      String remoteAddress = httpRequest.getHeader("X-Original-Forwarded-For");
+
+      if(!StringUtils.hasText(remoteAddress)) {
+         remoteAddress = httpRequest.getHeader("X-Forwarded-For");
+      }
+
+      if(!StringUtils.hasText(remoteAddress)) {
+         remoteAddress = httpRequest.getRemoteAddr();
+      }
+
       return new ClientInfo(userID, remoteAddress,
                             httpRequest.getSession(true).getId(), request.getLocale());
    }
@@ -629,7 +764,43 @@ public abstract class AbstractSecurityFilter
          return false;
       }
 
+      if(!isNavigationRequest(request)) {
+         SUtil.sendError(response, HttpServletResponse.SC_UNAUTHORIZED);
+         return false;
+      }
+
       return true;
+   }
+
+   /**
+    * Determines if an HTTP request is a navigation (document) request, i.e. one for which a
+    * redirect to an HTML login page is meaningful. A subresource request (script, stylesheet,
+    * image, font, ...) hands the response body to the script or style parser instead, so a login
+    * page returned for one of those is executed as JavaScript or CSS rather than prompting the
+    * user to log in.
+    *
+    * @param request the HTTP request object.
+    *
+    * @return {@code true} if the request is a navigation request or its type could not be
+    *         determined; {@code false} if it is known to be a subresource request.
+    */
+   private boolean isNavigationRequest(HttpServletRequest request) {
+      // Sec-Fetch-Dest is sent by all current browsers, but only to a trustworthy origin (HTTPS
+      // or localhost). Requests without it (plain HTTP origins, older browsers, non-browser
+      // clients) are treated as navigation requests, preserving the prior behavior. This is
+      // therefore a second line of defense only; a resource that must load without a session has
+      // to be listed in publicResources.
+      String fetchDest = request.getHeader("Sec-Fetch-Dest");
+      return fetchDest == null || Arrays.stream(navigationFetchDestinations)
+         .anyMatch(dest -> dest.equalsIgnoreCase(fetchDest));
+   }
+
+   protected boolean isAnonymousPrincipal(SRPrincipal principal) {
+      if(principal == null || principal.getName() == null) {
+         return false;
+      }
+
+      return ClientInfo.ANONYMOUS.equals(IdentityID.getIdentityIDFromKey(principal.getName()).getName());
    }
 
    private boolean isNonlocalClient(SRPrincipal principal) {
@@ -664,6 +835,13 @@ public abstract class AbstractSecurityFilter
       return "true".equals(securityAllowIframe.get());
    }
 
+   protected AuthenticationService getAuthenticationService() {
+      return authenticationService;
+   }
+
+   private final SessionLicenseServiceProvider sessionLicenseServiceProvider;
+   private final AuthenticationService authenticationService;
+
    private final AntPathMatcher pathMatcher = new AntPathMatcher();
    private boolean sessionAccessRegistered = false;
 
@@ -697,13 +875,44 @@ public abstract class AbstractSecurityFilter
       "/app/*.ttf",
       "/app/*.woff",
       "/app/assets/**",
+      // the Enterprise Manager static resources must be public for the same reason as the
+      // /app resources above: they are fetched by the browser before a session exists (or after
+      // one has been invalidated), and a login page returned in their place is executed by the
+      // script or style parser instead of being displayed (Bug #75775)
+      "/em/*.js",
+      "/em/*.css",
+      "/em/*.cur",
+      "/em/*.eot",
+      "/em/*.ico",
+      "/em/*.png",
+      "/em/*.svg",
+      "/em/*.ttf",
+      "/em/*.woff",
+      "/em/assets/**",
+      // the icon font and cursor images referenced by em/styles.css are emitted into a media
+      // subdirectory, which the single-segment patterns above cannot match
+      "/em/media/**",
       "/ping",
       "/css/**",
       "/images/**",
       "/js/**",
       "/webjars/**",
       "/sso/jwks",
+      "/robots.txt",
+   };
+   /**
+    * The Sec-Fetch-Dest values that identify a request whose response is displayed as a document
+    * and for which a redirect to the login page is therefore meaningful.
+    */
+   private static final String[] navigationFetchDestinations = {
+      "document", "iframe", "frame", "embed", "object"
    };
    protected static final String ORG_COOKIE = "X-INETSOFT-ORGID";
+   /**
+    * Session attribute to mark fresh anonymous sessions that can be invalidated on error responses.
+    * Set by {@link AbstractSecurityFilter} during anonymous session creation, read and cleared by
+    * {@link DefaultAuthorizationFilter} after processing the request.
+    */
+   protected static final String FRESH_ANONYMOUS_SESSION_ATTR = "inetsoft.fresh.anonymous.session";
    private static final Logger LOG = LoggerFactory.getLogger(AbstractSecurityFilter.class);
 }

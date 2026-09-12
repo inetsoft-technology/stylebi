@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Query Selection)'" [cshid]="'AutoDrill'" (onCancel)="cancel()">
 </modal-header>
 <div class="modal-body" enterSubmit (onEnter)="ok()" (onEsc)="cancel()">
@@ -26,44 +26,48 @@
     </legend>
     <div class="bordered-box bd-gray tree-container">
       <asset-tree [datasources]="false" [columns]="false" [viewsheets]="false"
-                  [readOnly]="true"
-                  [dataSourcePath]="selectedEntry?.path"
-                  [dataSourceScope]="selectedEntry?.scope"
-                  (nodeSelected)="selectWorksheet($event)">
+        [readOnly]="true"
+        [dataSourcePath]="selectedEntry?.path"
+        [dataSourceScope]="selectedEntry?.scope"
+        (nodeSelected)="selectWorksheet($event)">
       </asset-tree>
     </div>
   </fieldset>
-  <fieldset *ngIf="queryParams != null && queryParams.length != 0" class="parameter-container">
-    <legend>
-      <div class="new-viewsheet-legend">
-        _#(Values for Query Parameters)
-      </div>
-    </legend>
-    <div class="parameter-content pt-2">
-      <ng-container *ngFor="let param of queryParams; let i = index;">
-        <div #dropdownBody class="field-combo" [class.form-group]="i != queryParams.length - 1">
-          <div #dropDownToggle class="field-combo-toggle form-floating form-control dropdown-toggle bd-gray"
-               [fixedDropdown]="dropdownMenu" [autoClose]="closeMenu"
-               dropdownPlacement="bottom">
-            <div class="field-combo-text ps-1">
-              {{getSelectedParamVal(param)}}&nbsp;
-            </div>
-            <label class="base-font-size"><span>{{param}}</span></label>
-          </div>
+  @if (queryParams != null && queryParams.length != 0) {
+    <fieldset class="parameter-container">
+      <legend>
+        <div class="new-viewsheet-legend">
+          _#(Values for Query Parameters)
         </div>
-        <ng-template #dropdownMenu>
-          <div class="dropdown-pane" [style.min-width.px]="dropdownMinWidth">
-            <select-attribute-pane *ngIf="entities" [entities]="entities" [info]="getSelectedInfo(param)"
-                                   (onSelectItem)="selectItem($event, param)">
-            </select-attribute-pane>
-            <select-query-field-pane [fields]="fields" [selectedField]="getSelectedParamVal(param)"
-                                     (onSelectField)="selectItem($event, param)">
-            </select-query-field-pane>
+      </legend>
+      <div class="parameter-content pt-2">
+        @for (param of queryParams; track param; let i = $index) {
+          <div #dropdownBody class="field-combo" [class.form-group]="i != queryParams.length - 1">
+            <div #dropDownToggle class="field-combo-toggle form-floating form-control dropdown-toggle bd-gray"
+              [fixedDropdown]="dropdownMenu" [autoClose]="closeMenu"
+              dropdownPlacement="bottom">
+              <div class="field-combo-text ps-1">
+                {{getSelectedParamVal(param)}}&nbsp;
+              </div>
+              <label class="base-font-size"><span>{{param}}</span></label>
+            </div>
           </div>
-        </ng-template>
-      </ng-container>
-    </div>
-  </fieldset>
+          <ng-template #dropdownMenu>
+            <div class="dropdown-pane" [style.min-width.px]="dropdownMinWidth">
+              @if (entities) {
+                <select-attribute-pane [entities]="entities" [info]="getSelectedInfo(param)"
+                  (onSelectItem)="selectItem($event, param)">
+                </select-attribute-pane>
+              }
+              <select-query-field-pane [fields]="fields" [selectedField]="getSelectedParamVal(param)"
+                (onSelectField)="selectItem($event, param)">
+              </select-query-field-pane>
+            </div>
+          </ng-template>
+        }
+      </div>
+    </fieldset>
+  }
 </div>
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="okDisabled()">_#(OK)</button>

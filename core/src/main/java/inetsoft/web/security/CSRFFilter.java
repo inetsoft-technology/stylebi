@@ -19,6 +19,8 @@ package inetsoft.web.security;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.AuthenticationService;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import org.apache.commons.lang3.StringUtils;
@@ -34,6 +36,12 @@ import java.util.UUID;
  * Filter that provides CSRF protection using the double submit cookies approach.
  */
 public class CSRFFilter extends AbstractSecurityFilter {
+   public CSRFFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                     AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
+   }
+
    @Override
    public void doFilter(ServletRequest request, ServletResponse response,
                         FilterChain filterChain)

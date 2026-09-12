@@ -18,9 +18,11 @@
 package inetsoft.web.viewsheet.event.table;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 @Value.Immutable
+@Serial.Structural
 @JsonDeserialize(as = ImmutableDrillEvent.class)
 public interface DrillEvent extends BaseTableEvent {
    // drill row

@@ -81,16 +81,31 @@ import { PagingControlModel } from "../../model/paging-control-model";
 import { PagingControlService } from "../../../common/services/paging-control.service";
 import { VSTabService } from "../../util/vs-tab.service";
 import { HyperlinkModel } from "../../../common/data/hyperlink-model";
+import { VSPreviewTable } from "./vs-preview-table.component";
+import { VSLoadingDisplay } from "../vs-loading-display/vs-loading-display.component";
+import { VSAnnotation } from "../annotation/vs-annotation.component";
+import { VSHiddenAnnotation } from "../annotation/vs-hidden-annotation.component";
+import { SelectionBoxDirective } from "../../../widget/directive/selection-box.directive";
+import { TouchScrollDirective } from "../../../widget/scroll/touch-scroll.directive";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
+import { VSTableCell } from "./vs-table-cell.component";
+import { VSTitle } from "../title/vs-title.component";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+
 
 const ADD_DATA_URI: string = "/events/annotation/add-data-annotation";
 const ADD_ASSEMBLY_URI: string = "/events/annotation/add-assembly-annotation";
 const UPDATE_COLUMNS = "/events/vswizard/binding/update-columns";
 
 @Component({
-   selector: "vs-table",
-   templateUrl: "vs-table.component.html",
-   styleUrls: ["base-table.scss", "vs-table.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "vs-table",
+    templateUrl: "vs-table.component.html",
+    styleUrls: ["base-table.scss", "vs-table.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, VSTitle, NgbTooltip, VSTableCell, TooltipDirective, SafeFontDirective, TouchScrollDirective, SelectionBoxDirective, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay, VSPreviewTable]
 })
 export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestroy, AfterViewInit {
    @Input()
@@ -730,8 +745,13 @@ export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestro
       return map && super.isColumnSelected(map.get(row), column);
    }
 
-   public isHyperlink(cell: BaseTableCellModel): boolean {
-      return cell.hyperlinks != null && cell.hyperlinks.length > 0 && !this.model.form && cell.underline;
+   public hasRowHyperlink(row: number): boolean {
+      return row > -1 && !!this.rowHyperlinks && !!this.rowHyperlinks[row];
+   }
+
+   public isHyperlink(cell: BaseTableCellModel, row: number = -1): boolean {
+      return (cell.hyperlinks != null && cell.hyperlinks.length > 0 || this.hasRowHyperlink(row)) &&
+         !this.model.form && cell.underline;
    }
 
    public selectTitle(event: MouseEvent): void {
@@ -1213,9 +1233,9 @@ export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestro
 
    /** @inheritDoc */
    protected positionDataAnnotations(): boolean {
-      // Since *ngFor was changed to use trackByConstant, this component's cells QueryList no longer
-      // updates on scroll events or loadTableData commands. Added a setTimeout to wait an extra tick
-      // for the cell values to update to correctly display annotations.
+      // The @for blocks reuse cell DOM by position (track $index), so this component's cells
+      // QueryList does not always update synchronously on scroll events or loadTableData commands.
+      // Wait an extra tick for the cell values to update to correctly display annotations.
       this.zone.run(() => {
          setTimeout(() => {
             const lt = this.positionAnnotationsToCell(this.model.leftTopAnnotations,

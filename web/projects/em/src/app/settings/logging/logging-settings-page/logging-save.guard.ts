@@ -15,41 +15,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {
-   ActivatedRouteSnapshot,
-   CanDeactivate,
-   RouterStateSnapshot
-} from "@angular/router";
-import { LoggingSettingsPageComponent } from "./logging-settings-page.component";
-import { Injectable } from "@angular/core";
-import { Observable, of } from "rxjs";
+import { inject } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
+import { ActivatedRouteSnapshot, CanDeactivateFn, RouterStateSnapshot } from "@angular/router";
+import { Observable, of } from "rxjs";
+import { map } from "rxjs/operators";
 import { Tool } from "../../../../../../shared/util/tool";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
-import { map } from "rxjs/operators";
+import { LoggingSettingsPageComponent } from "./logging-settings-page.component";
 
-@Injectable()
-export class LoggingSaveGuard implements CanDeactivate<LoggingSettingsPageComponent> {
-   constructor(private dialog: MatDialog) {
+export const loggingSaveGuard: CanDeactivateFn<LoggingSettingsPageComponent> = (component: LoggingSettingsPageComponent, currentRoute: ActivatedRouteSnapshot, currentState: RouterStateSnapshot, nextState: RouterStateSnapshot): Observable<boolean> => {
+   const dialog = inject(MatDialog);
+
+   if(component.model && component.newModel && !Tool.isEquals(component.model, component.newModel)) {
+      const ref = dialog.open(MessageDialog, {
+         data: {
+            title: "_#(js:em.settings.loggingChanged)",
+            content: "_#(js:em.settings.logging.confirm)",
+            type: MessageDialogType.CONFIRMATION
+         }
+      });
+
+      return ref.afterClosed().pipe(
+         map(result => !!result)
+      );
    }
 
-   canDeactivate(component: LoggingSettingsPageComponent, currentRoute: ActivatedRouteSnapshot,
-                 currentState: RouterStateSnapshot, nextState?: RouterStateSnapshot): Observable<boolean>
-   {
-      if(component.model && component.newModel && !Tool.isEquals(component.model, component.newModel)) {
-         const ref = this.dialog.open(MessageDialog, {
-            data: {
-               title: "_#(js:em.settings.loggingChanged)",
-               content: "_#(js:em.settings.logging.confirm)",
-               type: MessageDialogType.CONFIRMATION
-            }
-         });
-
-         return ref.afterClosed().pipe(
-             map(result => result ? true : false)
-         );
-      }
-
-      return of(true);
-   }
-}
+   return of(true);
+};

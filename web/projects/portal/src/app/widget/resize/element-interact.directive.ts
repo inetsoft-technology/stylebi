@@ -53,7 +53,8 @@ export interface InteractInfo {
 }
 
 @Directive({
-   selector: "[elementInteractable]"
+    selector: "[elementInteractable]",
+    standalone: true
 })
 export class ElementInteractDirective implements OnInit, OnDestroy {
    @Input() resizeOptions: number =

@@ -20,13 +20,9 @@ package inetsoft.web.vswizard.recommender.object;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
-import inetsoft.uql.viewsheet.VSAggregateRef;
-import inetsoft.uql.viewsheet.graph.ChartRef;
-import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.vswizard.model.VSWizardData;
 import inetsoft.web.vswizard.model.recommender.*;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
-import org.apache.commons.lang3.ArrayUtils;
 import org.springframework.stereotype.Component;
 
 import java.security.Principal;
@@ -87,36 +83,19 @@ public class VSFilterRecommendationFactory
          return null;
       }
 
-      VSChartInfo tempInfo = temp.getVSChartInfo();
       AssetEntry[] entries = wizardData.getSelectedEntries();
-      ChartRef[] fields =
-         (ChartRef[]) ArrayUtils.addAll(tempInfo.getXFields(), tempInfo.getYFields());
 
       if(entries == null || entries.length < 1) {
          return null;
       }
 
       List<DataRef> refs = new ArrayList<>();
-      Arrays.asList(fields).forEach(field ->
-         refs.add(WizardRecommenderUtil.createColumnRef(getField(field, entries))));
-      return refs.toArray(new DataRef[0]);
-   }
 
-   private static AssetEntry getField(DataRef field, AssetEntry[] entries) {
       for(AssetEntry entry : entries) {
-         String entryName = WizardRecommenderUtil.getFieldName(entry);
-         String vsName = null;
-
-         if(field instanceof VSAggregateRef) {
-            vsName = ((VSAggregateRef) field).getVSName();
-         }
-
-         if(entryName != null && (entryName.equals(field.getName()) || entryName.equals(vsName))) {
-            return entry;
-         }
+         refs.add(WizardRecommenderUtil.createColumnRef(entry));
       }
 
-      return null;
+      return refs.toArray(new DataRef[0]);
    }
 
    private static final List<VSSubType> NUMERIC_RECOMMENDATION = Arrays.asList(

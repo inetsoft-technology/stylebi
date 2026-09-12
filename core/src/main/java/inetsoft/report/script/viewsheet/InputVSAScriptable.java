@@ -21,9 +21,6 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
-import inetsoft.util.script.NativeJavaArray2;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 
 /**
  * The input viewsheet assembly scriptable in viewsheet scope.
@@ -52,16 +49,16 @@ public class InputVSAScriptable extends VSAScriptable {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       Viewsheet vs = box.getViewsheet();
       VSAssembly vassembly = assembly == null ? null :
          (VSAssembly) vs.getAssembly(assembly);
 
       if(!(vassembly instanceof InputVSAssembly)) {
-         return Undefined.instance;
+         return null;
       }
 
-      return super.get(name, start);
+      return super.getMember(name);
    }
 
    @Override
@@ -243,27 +240,11 @@ public class InputVSAScriptable extends VSAScriptable {
       return null;
    }
 
-   /**
-    * This function is called if the referenced is used without any indexing,
-    * e.g. name + 2
-    */
-   @Override
-   public Object getDefaultValue(Class hint) {
-      VSAssembly vassembly = getVSAssembly();
-
-      if(!(vassembly instanceof InputVSAssembly)) {
-         return Undefined.instance;
-      }
-
-      if(vassembly instanceof SingleInputVSAssembly) {
-         return ((SingleInputVSAssembly) vassembly).getSelectedObject();
-      }
-      else if(vassembly instanceof CompositeInputVSAssembly) {
-         return ((CompositeInputVSAssembly) vassembly).getSelectedObjects();
-      }
-
-      return Undefined.instance;
-   }
+   // NOTE (Feature #75423): Rhino getDefaultValue(Class) — which returned the
+   // input's selected value when the scriptable was used as a scalar (e.g.
+   // name + 2) — has no direct equivalent in the GraalJS ProxyObject model and
+   // is removed per the migration recipe. Revisit if scalar coercion of input
+   // scriptables is required post-cutover.
 
    public Object getSelectedObject() {
       VSAssembly vassembly = getVSAssembly();
@@ -290,7 +271,7 @@ public class InputVSAScriptable extends VSAScriptable {
 
       if(vassembly instanceof InputVSAssembly) {
          InputVSAssemblyInfo info = (InputVSAssemblyInfo) vassembly.getVSAssemblyInfo();
-         return new NativeJavaArray2(info.getSelectedObjects(), getParentScope());
+         return info.getSelectedObjects();
       }
 
       return null;
@@ -310,7 +291,7 @@ public class InputVSAScriptable extends VSAScriptable {
 
       if(vassembly instanceof InputVSAssembly) {
          InputVSAssemblyInfo info = (InputVSAssemblyInfo) vassembly.getVSAssemblyInfo();
-         return new NativeJavaArray2(info.getSelectedLabels(), getParentScope());
+         return info.getSelectedLabels();
       }
 
       return null;

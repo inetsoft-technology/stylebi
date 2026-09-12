@@ -15,14 +15,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {Component, EventEmitter, Input, OnInit, Output} from "@angular/core";
-import {UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, ValidationErrors, Validators} from "@angular/forms";
-import {Observable} from "rxjs";
+import {Component, EventEmitter, Input, OnDestroy, OnInit, Output} from "@angular/core";
+import { UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, ValidationErrors, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import {Observable, Subscription} from "rxjs";
 import {map, startWith, take} from "rxjs/operators";
 import {ConnectionStatus} from "../security-provider-model/connection-status";
 import {DatabaseAuthenticationProviderModel} from "../security-provider-model/database-authentication-provider-model";
 import {SecurityProviderService} from "../security-provider.service";
 import {Tool} from "../../../../../../../shared/util/tool";
+import { MatIcon } from "@angular/material/icon";
+import { QueryItemViewComponent } from "./query-item-view/query-item-view.component";
+import { MatButton, MatIconButton } from "@angular/material/button";
+import { MatOption } from "@angular/material/core";
+import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { AsyncPipe, NgIf } from "@angular/common";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatHint, MatError, MatSuffix } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 const HASH_ALGORITHMS: string[] = ["BCRYPT", "MD2", "MD4", "MD5",
    "GOST3411", "GOST3411-2012-256", "GOST3411-2012-512",
@@ -39,20 +49,25 @@ const HASH_ALGORITHMS: string[] = ["BCRYPT", "MD2", "MD4", "MD5",
    "DSTU7564-256", "DSTU7564-384", "DSTU7564-512", "None"];
 
 @Component({
-   selector: "em-database-provider-view",
-   templateUrl: "./database-provider-view.component.html",
-   styleUrls: ["./database-provider-view.component.scss"]
+    selector: "em-database-provider-view",
+    templateUrl: "./database-provider-view.component.html",
+    styleUrls: ["./database-provider-view.component.scss"],
+    imports: [NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatHint, MatError, MatCheckbox, MatAutocompleteTrigger, MatAutocomplete, MatOption, MatButton, QueryItemViewComponent, MatIconButton, MatSuffix, MatIcon, AsyncPipe]
 })
-export class DatabaseProviderViewComponent implements OnInit {
+export class DatabaseProviderViewComponent implements OnInit, OnDestroy {
    @Input() form: UntypedFormGroup;
    connectionStatus: string = "_#(js:em.security.testlogin.note4)";
    filteredAlgorithms: Observable<string[]>;
    @Output() changed = new EventEmitter<void>();
    private _model: DatabaseAuthenticationProviderModel;
+   private subscriptions = new Subscription();
+   private valueChangesSubscription = Subscription.EMPTY;
 
    @Input()
    set model(model: DatabaseAuthenticationProviderModel) {
       this._model = model;
+      this.subscriptions.remove(this.valueChangesSubscription);
+      this.valueChangesSubscription.unsubscribe();
 
       if(model && this.form) {
          if(!this.dbForm) {
@@ -62,11 +77,12 @@ export class DatabaseProviderViewComponent implements OnInit {
          this.dbForm.patchValue(model);
          this.dbForm.controls["sysAdminRoles"].setValue(model.sysAdminRoles);
          this.dbForm.controls["orgAdminRoles"].setValue(model.orgAdminRoles);
-         this.dbForm.valueChanges.subscribe((val) => {
+         this.valueChangesSubscription = this.dbForm.valueChanges.subscribe((val) => {
             if(!Tool.isEquals(this.model, val)) {
                this.changed.emit();
             }
          });
+         this.subscriptions.add(this.valueChangesSubscription);
       }
    }
 
@@ -188,6 +204,10 @@ export class DatabaseProviderViewComponent implements OnInit {
       }
    }
 
+   ngOnDestroy() {
+      this.subscriptions.unsubscribe();
+   }
+
    private filterHashAlgorithms(input: string): string[] {
       const filterValue: string = input.toLowerCase();
       return HASH_ALGORITHMS.filter(algo => algo.toLowerCase().startsWith(filterValue));
@@ -218,7 +238,7 @@ export class DatabaseProviderViewComponent implements OnInit {
             map((input: string) => input ? this.filterHashAlgorithms(input) : HASH_ALGORITHMS)
          );
 
-      this.dbForm.controls["requiresLogin"].valueChanges.subscribe(val => {
+      this.subscriptions.add(this.dbForm.controls["requiresLogin"].valueChanges.subscribe(val => {
          if(val) {
             if(this.model?.useCredential) {
                this.dbForm.controls["secretId"].setValidators([Validators.required]);
@@ -237,9 +257,9 @@ export class DatabaseProviderViewComponent implements OnInit {
          this.dbForm.controls["secretId"].updateValueAndValidity();
          this.dbForm.controls["user"].updateValueAndValidity();
          this.dbForm.controls["password"].updateValueAndValidity();
-      });
+      }));
 
-      this.dbForm.controls["useCredential"].valueChanges.subscribe(val => {
+      this.subscriptions.add(this.dbForm.controls["useCredential"].valueChanges.subscribe(val => {
          if(val) {
             this.dbForm.controls["secretId"].setValidators([Validators.required]);
             this.dbForm.controls["user"].clearValidators();
@@ -254,13 +274,14 @@ export class DatabaseProviderViewComponent implements OnInit {
          this.dbForm.controls["secretId"].updateValueAndValidity();
          this.dbForm.controls["user"].updateValueAndValidity();
          this.dbForm.controls["password"].updateValueAndValidity();
-      });
+      }));
    }
 
    get canTestConnection(): boolean {
       return this.dbForm && this.dbForm.controls["driver"].valid &&
          this.dbForm.controls["url"].valid && this.dbForm.controls["user"].valid &&
-         this.dbForm.controls["password"].valid && this.dbForm.controls["hashAlgorithm"].valid;
+         this.dbForm.controls["password"].valid && this.dbForm.controls["secretId"].valid &&
+         this.dbForm.controls["hashAlgorithm"].valid;
    }
 
    testConnection(): void {

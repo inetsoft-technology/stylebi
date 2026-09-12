@@ -15,17 +15,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
-   Component,
-   ElementRef, EventEmitter,
-   Inject,
-   Input, Output,
-   TemplateRef,
-   ViewChild, ViewEncapsulation
+  Component,
+  ElementRef, EventEmitter,
+  Inject,
+  Input, Output,
+  TemplateRef,
+  ViewChild, ViewEncapsulation,
+  DOCUMENT
 } from "@angular/core";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { concat as observableConcat, Observable, of as observableOf } from "rxjs";
 import { map } from "rxjs/operators";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
@@ -66,7 +67,7 @@ import { SQLQueryDialogColumn } from "../../../composer/data/ws/sql-dialog-colum
 import { BasicSqlQueryModel } from "../../../composer/data/ws/basic-sql-query-model";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { SlideOutOptions } from "../../slide-out/slide-out-options";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule } from "@angular/forms";
 import { SqlQueryDialogController } from "./sql-query-dialog-controller";
 import { ConditionItemPaneProvider } from "../../../common/data/condition/condition-item-pane-provider";
 import { BaseTableCellModel } from "../../../vsobjects/model/base-table-cell-model";
@@ -76,7 +77,13 @@ import {
 import {
    SqlQueryPreviewPaneComponent
 } from "../../../portal/data/data-datasource-browser/datasources-database/database-query/query-preview/sql-query-preview-pane.component";
-import { NgbNavChangeEvent } from "@ng-bootstrap/ng-bootstrap/nav/nav";
+import { NgbNavChangeEvent } from "@ng-bootstrap/ng-bootstrap";
+import { ConjunctionPipe } from "../../../portal/data/model/datasources/database/vpm/condition/conjunction/conjunction.pipe";
+import { ClausePipe } from "../../../portal/data/model/datasources/database/vpm/condition/clause/clause.pipe";
+import { VPMConditionDialog } from "../../../portal/dialog/vpm-condition-dialog/vpm-condition-dialog.component";
+import { SQLQueryJoinDialog } from "./sql-query-join-dialog.component";
+import { HelpLinkDirective } from "../../help-link/help-link.directive";
+import { SQLQueryDialogListComponent } from "./sql-query-dialog-list.component";
 
 interface ColumnTablePair {
    columns: AssetEntry[];
@@ -86,10 +93,11 @@ interface ColumnTablePair {
 const UPDATE_QUERY_URI: string = "../api/composer/ws/sql-query-dialog/query/update";
 
 @Component({
-   selector: "simple-query-pane",
-   templateUrl: "simple-query-pane.component.html",
-   styleUrls: ["simple-query-pane.component.scss"],
-   encapsulation: ViewEncapsulation.None
+    selector: "simple-query-pane",
+    templateUrl: "simple-query-pane.component.html",
+    styleUrls: ["simple-query-pane.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, TreeComponent, SQLQueryDialogListComponent, FormsModule, HelpLinkDirective, SqlQueryPreviewPaneComponent, NgbNavOutlet, SQLQueryJoinDialog, VPMConditionDialog, ClausePipe, ConjunctionPipe]
 })
 export class SimpleQueryPaneComponent {
    @Input() queryModel: SqlQueryDialogModel;
@@ -389,6 +397,14 @@ export class SimpleQueryPaneComponent {
          let tableColumns: ColumnTablePair[] = [];
 
          tableColumnsObs.subscribe((tablePair) => {
+                  // Bug #75600 fix: previously tableColumns.push(tablePair) ran inside this
+                  // forEach, so a table with N non-duplicate columns was queued N times,
+                  // causing addColumns() to receive N^2 duplicate column entries. The dedup
+                  // check against standalone columns still runs per-column below (it decides
+                  // whether the table has any non-duplicate columns to contribute), but the
+                  // tablePair itself is now pushed at most once per dropped table.
+                  let includeTable = false;
+
                   tablePair.columns.forEach((tableColumn) => {
                      let columnIndex = !!columns ?
                            columns.findIndex((columnsPair) => Tool.isEquals(tableColumn, columnsPair.columnEntry)) : -1;
@@ -397,9 +413,13 @@ export class SimpleQueryPaneComponent {
                         columns.splice(columnIndex, 1);
                      }
                      else {
-                        tableColumns.push(tablePair);
+                        includeTable = true;
                      }
                   });
+
+                  if(includeTable) {
+                     tableColumns.push(tablePair);
+                  }
                }, (err) => {
                },
                () => {
@@ -638,9 +658,21 @@ export class SimpleQueryPaneComponent {
             .set("runtimeId", this.runtimeId)
             .set("datasource", this.datasource);
 
-         this.http.post(UPDATE_QUERY_URI, this.model, {params: params}).subscribe(data => {
-            this._defaultTab = next;
-         });
+         this.http.post<{errorMsg: string}>(UPDATE_QUERY_URI, this.model, {params: params})
+            .subscribe({
+               next: res => {
+                  if(res?.errorMsg) {
+                     ComponentTool.showMessageDialog(this.modal, "_#(js:Error)", res.errorMsg);
+                  }
+                  else {
+                     this._defaultTab = next;
+                  }
+               },
+               error: () => {
+                  ComponentTool.showMessageDialog(
+                     this.modal, "_#(js:Error)", "_#(js:common.network.error)");
+               }
+            });
       }
       else {
          this._defaultTab = next;

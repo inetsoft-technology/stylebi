@@ -106,14 +106,19 @@ export function getCalcTableRetrievalScriptContext(layout: CalcTableLayout,
 
    const groupCellsSet = new Set<string>();
    const aggregateCellsSet = new Set<string>();
-   let rowNumber = layout.tableRows.length;
-   let colNumber = layout.tableColumns.length;
+   const rowNumber = layout.tableRows.length;
+   const colNumber = layout.tableColumns.length;
 
-   for(let i = 0; i <= rowNumber; i++) {
+   for(let i = 0; i < rowNumber; i++) {
       const row = layout.tableRows[i];
 
-      for(let j = 0; j <= colNumber; j++) {
-         const cell = row.tableCells[j];
+      for(let j = 0; j < colNumber; j++) {
+         const cell = row?.tableCells?.[j];
+
+         if(!cell?.cellPath?.path?.length) {
+            continue;
+         }
+
          const cellPath = cell.cellPath.path[0];
          const binding = cellBindings[cellPath];
          const bindingType = getCellBindingType(binding);

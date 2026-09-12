@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.schedule;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
@@ -39,11 +40,17 @@ public class EMScheduleTaskActionController {
    @Autowired
    public EMScheduleTaskActionController(ScheduleTaskActionService actionService,
                                          SecurityProvider securityProvider,
-                                         AssetRepository assetRepository)
+                                         AssetRepository assetRepository,
+                                         EMScheduleTaskActionServiceProxy emActionService,
+                                         ViewsheetService viewsheetService,
+                                         ScheduleTaskActionServiceProxy actionServiceProxy)
    {
       this.actionService = actionService;
       this.securityProvider = securityProvider;
       this.assetRepository = assetRepository;
+      this.emActionService = emActionService;
+      this.viewsheetService = viewsheetService;
+      this.actionServiceProxy = actionServiceProxy;
    }
 
    @GetMapping("/api/em/schedule/task/action/emails")
@@ -104,97 +111,6 @@ public class EMScheduleTaskActionController {
    }
 
    /**
-    * Gets a table of scheduled tasks.
-    *
-    * @param taskName  the name of the task
-    * @param index     the index of the action
-    * @param principal the user
-    *
-    * @return the action model
-    *
-    * @throws Exception if could not get task or action
-    */
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule/tasks",
-         actions = ResourceAction.ACCESS
-      )
-   )
-   @GetMapping("/api/em/schedule/task/action")
-   public ScheduleActionModel getTaskAction(@RequestParam("name") String taskName,
-                                            @RequestParam("index") int index,
-                                            Principal principal)
-      throws Exception
-   {
-      return actionService.getTaskAction(taskName, index, principal, true);
-   }
-
-   /**
-    * Removes an action from the task.
-    *
-    * @param taskName  the name of the task
-    * @param items     the indexes of the actions to remove (in reverse sort)
-    * @param principal the user
-    *
-    * @throws Exception if could not get task or actions
-    */
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule/tasks",
-         actions = ResourceAction.ACCESS
-      )
-   )
-   @GetMapping("/api/em/schedule/task/action/delete")
-   public void deleteTaskActions(@RequestParam("name") String taskName,
-                                 @RequestParam("owner") String taskOwner,
-                                 @RequestBody int[] items,
-                                 Principal principal)
-      throws Exception
-   {
-      actionService.deleteTaskActions(taskName, taskOwner, items, principal);
-   }
-
-   /**
-    * Saves the specified schedule task action
-    *
-    * @param taskName  the name of the task
-    * @param index     the index of the action
-    * @param principal the user
-    *
-    * @throws Exception if could not get task or action
-    */
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule/tasks",
-         actions = ResourceAction.ACCESS
-      )
-   )
-   @PostMapping("/api/em/schedule/task/action")
-   public TaskActionListModel saveTaskAction(@RequestParam("name") String taskName,
-                                             @RequestParam("oldTaskName") String oldTaskName,
-                                             @RequestParam("owner") String owner,
-                                             @RequestParam("index") int index,
-                                             @RequestBody ScheduleActionModel model,
-                                             @LinkUri String linkURI,
-                                             Principal principal)
-      throws Exception
-   {
-      IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
-      ScheduleActionModel[] taskActionList = actionService.saveTaskAction(
-         taskName, oldTaskName, ownerID, index, model, linkURI, principal, true);
-
-      return TaskActionListModel.builder()
-         .actionList(Arrays.stream(taskActionList)
-                        .map(ScheduleActionModel::label)
-                        .toArray(String[]::new))
-         .build();
-
-   }
-
-   /**
     * Get the bookmarks of a specific sheet.
     *
     * @param id        the id of the viewsheet.
@@ -235,7 +151,12 @@ public class EMScheduleTaskActionController {
    public boolean hasPrintLayout(@DecodeParam("id") String id, Principal principal)
       throws Exception
    {
-      return actionService.hasPrintLayout(id, principal);
+      AssetEntry entry = AssetEntry.createAssetEntry(id);
+      String runtimeId = viewsheetService.openViewsheet(entry, principal, false);
+      boolean hasPrintLayout = actionServiceProxy.hasPrintLayout(runtimeId, principal);
+      emActionService.closeViewsheet(id, principal);
+
+      return hasPrintLayout;
    }
 
    /**
@@ -260,8 +181,13 @@ public class EMScheduleTaskActionController {
                                                     Principal principal)
       throws Exception
    {
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+      String runtimeId = viewsheetService.openViewsheet(entry, principal, false);
+      List<ScheduleAlertModel> highlights = actionServiceProxy.getViewsheetHighlights(runtimeId, principal);
+      emActionService.closeViewsheet(identifier, principal);
+
       return HighlightListModel.builder()
-         .highlights(actionService.getViewsheetHighlights(identifier, principal))
+         .highlights(highlights)
          .build();
    }
 
@@ -287,8 +213,12 @@ public class EMScheduleTaskActionController {
                                                           Principal principal)
       throws Exception
    {
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
+      List<String> params = actionServiceProxy.getViewsheetParameters(runtimeId, principal);
+      emActionService.closeViewsheet(identifier, null);
       return ViewsheetParametersModel.builder()
-         .parameters(actionService.getViewsheetParameters(identifier, principal))
+         .parameters(params)
          .build();
 
    }
@@ -315,7 +245,7 @@ public class EMScheduleTaskActionController {
       @DecodeParam("id") String identifier,
       Principal principal) throws Exception
    {
-      return actionService.getViewsheetTableDataAssemblies(identifier, principal);
+      return emActionService.getViewsheetTableDataAssemblies(identifier, principal);
    }
 
    @Secured(
@@ -435,4 +365,8 @@ public class EMScheduleTaskActionController {
    private final ScheduleTaskActionService actionService;
    private final SecurityProvider securityProvider;
    private final AssetRepository assetRepository;
+   private final EMScheduleTaskActionServiceProxy emActionService;
+   private final ViewsheetService viewsheetService;
+   private final ScheduleTaskActionServiceProxy actionServiceProxy;
+
 }

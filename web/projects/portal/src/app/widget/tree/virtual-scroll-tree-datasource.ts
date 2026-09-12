@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { NgZone } from "@angular/core";
 import { BehaviorSubject, Observable, Subject } from "rxjs";
 import { TreeNodeModel } from "./tree-node-model";
 import { TreeSearchPipe } from "./tree-search.pipe";
@@ -31,6 +32,7 @@ export class VirtualScrollTreeDatasource {
    private searchFilter: string;
    private searchCollapsedValues: any[] = [];
    private _searchEndNode: (node: TreeNodeModel) => boolean;
+   private _scrollCleanup: (() => void) | null = null;
 
    public setSearchEndNode(searchEndNode: (node: TreeNodeModel) => boolean): void {
       this._searchEndNode = searchEndNode;
@@ -87,16 +89,31 @@ export class VirtualScrollTreeDatasource {
       this.refreshByRoot0(root, undefined, true, this.searchMode, ignoreNodes);
    }
 
-   public registerScrollContainer(element: HTMLElement): Observable<any[]> {
-      element.addEventListener("scroll", e => {
+   public registerScrollContainer(element: HTMLElement, ngZone: NgZone): Observable<any[]> {
+      if(this._scrollCleanup) {
+         this._scrollCleanup();
+         this._scrollCleanup = null;
+      }
+
+      const handler = (e: Event) => {
          this.dispatcher.next(this.dispatcher.value);
 
          if(e.target instanceof HTMLElement) {
             this.scrollTop.next(e.target.scrollTop);
          }
+      };
+
+      ngZone.runOutsideAngular(() => {
+         element.addEventListener("scroll", handler);
       });
 
+      this._scrollCleanup = () => element.removeEventListener("scroll", handler);
       return this.dispatcher.asObservable();
+   }
+
+   public cleanup(): void {
+      this._scrollCleanup?.();
+      this._scrollCleanup = null;
    }
 
    /**

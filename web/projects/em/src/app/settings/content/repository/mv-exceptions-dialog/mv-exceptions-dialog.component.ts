@@ -16,15 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {Component, Inject, OnInit} from "@angular/core";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
 import {MVExceptionModel} from "../../../../../../../shared/util/model/mv/mv-exception-model";
 import {ColumnInfo} from "../../../../common/util/table/column-info";
 import { ExpandableRowTableInfo } from "../../../../common/util/table/expandable-row-table/expandable-row-table-info";
+import { MatButton } from "@angular/material/button";
+import { TableView } from "../../../../common/util/table/table-view.component";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 @Component({
-   selector: "em-mv-exceptions-dialog",
-   templateUrl: "./mv-exceptions-dialog.component.html",
-   styleUrls: ["./mv-exceptions-dialog.component.scss"]
+    selector: "em-mv-exceptions-dialog",
+    templateUrl: "./mv-exceptions-dialog.component.html",
+    styleUrls: ["./mv-exceptions-dialog.component.scss"],
+    imports: [ModalHeaderComponent, MatDialogContent, TableView, MatDialogActions, MatButton, MatDialogClose]
 })
 export class MvExceptionsDialogComponent implements OnInit {
    exceptions: MVExceptionModel[];

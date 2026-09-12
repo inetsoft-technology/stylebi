@@ -178,7 +178,8 @@ public class PoiExcelVSUtil {
       }
 
       XSSFFont xfont = PoiExcelVSUtil.findFont(
-         book, txtFont.isBold(), color, (short) (size * 20), txtFont.getFamily(),
+         book, txtFont.isBold(), color, (short) (size * 20),
+         VSFontHelper.getExportFontFamily(txtFont),
          txtFont.isItalic(), bStrikeOut, ssstyle, hustyle);
 
       if(xfont == null) {
@@ -205,7 +206,7 @@ public class PoiExcelVSUtil {
          }
 
          xfont.setFontHeight((short) (size * 20));
-         xfont.setFontName(txtFont.getFamily());
+         xfont.setFontName(VSFontHelper.getExportFontFamily(txtFont));
          xfont.setItalic(txtFont.isItalic());
          xfont.setStrikeout(bStrikeOut);
          xfont.setTypeOffset(ssstyle);

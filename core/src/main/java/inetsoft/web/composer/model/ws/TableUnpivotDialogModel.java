@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.ws;
 
-public class TableUnpivotDialogModel {
+import java.io.Serializable;
+
+public class TableUnpivotDialogModel implements Serializable {
    public int getLevel() {
       return level;
    }

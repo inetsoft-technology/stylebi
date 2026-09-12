@@ -27,11 +27,17 @@ import { GeoMappingDialogModel } from "../../../data/chart/geo-mapping-dialog-mo
 import { MapFeature } from "../../../data/chart/map-feature";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../../../common/util/component-tool";
+import { LargeFormFieldComponent } from "../../../../widget/large-form-field/large-form-field.component";
+import { FormsModule } from "@angular/forms";
+
+import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
+import { BlockMouseDirective } from "../../../../widget/mouse-event/block-mouse.directive";
 
 @Component({
-   selector: "geo-mapping-dialog",
-   templateUrl: "geo-mapping-dialog.component.html",
-   styleUrls: ["geo-mapping-dialog.component.scss"]
+    selector: "geo-mapping-dialog",
+    templateUrl: "geo-mapping-dialog.component.html",
+    styleUrls: ["geo-mapping-dialog.component.scss"],
+    imports: [BlockMouseDirective, ModalHeaderComponent, FormsModule, LargeFormFieldComponent, ScrollableTableDirective]
 })
 export class GeoMappingDialog implements OnInit {
    @Input() provider: GeoProvider;
@@ -364,12 +370,6 @@ export class GeoMappingDialog implements OnInit {
    }
 
    checkDuplicateMapping(): void {
-      let msize = Object.keys(this.manualMappings).length;
-
-      if(msize == 0) {
-         this.chartGeoModel.option.mapping.dupMapping = null;
-      }
-
       let map = {};
 
       for(let name in this.manualMappings) {
@@ -422,7 +422,9 @@ export class GeoMappingDialog implements OnInit {
       }
 
       this.chartGeoModel.option.mapping.dupMapping =
-         <{ [key: string]: Array<string>} >dupMapping;
+         Object.keys(dupMapping).length > 0
+            ? <{ [key: string]: Array<string>} >dupMapping
+            : null;
    }
 
    ok(evt: any): void {

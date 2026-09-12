@@ -28,25 +28,25 @@ public class PresentationPdfGenerationSettingsService {
    public PresentationPdfGenerationSettingsModel getModel(boolean globalProperty) {
       String openFirst = null;
 
-      if("true".equals(SreeEnv.getProperty("pdf.open.bookmark", false, !globalProperty))) {
+      if("true".equalsIgnoreCase(SreeEnv.getProperty("pdf.open.bookmark", false, !globalProperty))) {
          openFirst = "bookmark";
       }
-      else if("true".equals(SreeEnv.getProperty("pdf.open.thumbnail", false, !globalProperty))) {
+      else if("true".equalsIgnoreCase(SreeEnv.getProperty("pdf.open.thumbnail", false, !globalProperty))) {
          openFirst = "thumbnail";
       }
 
       return PresentationPdfGenerationSettingsModel.builder()
-         .compressText("true".equals(SreeEnv.getProperty("pdf.compress.text", false, !globalProperty)))
-         .compressImage("true".equals(SreeEnv.getProperty("pdf.compress.image", false, !globalProperty)))
-         .asciiOnly("true".equals(SreeEnv.getProperty("pdf.output.ascii", false, !globalProperty)))
-         .mapSymbols("true".equals(SreeEnv.getProperty("pdf.map.symbols", false, !globalProperty)))
-         .pdfEmbedCmap("true".equals(SreeEnv.getProperty("pdf.embed.cmap", false, !globalProperty)))
-         .pdfEmbedFont("true".equals(SreeEnv.getProperty("pdf.embed.font", false, !globalProperty)))
+         .compressText("true".equalsIgnoreCase(SreeEnv.getProperty("pdf.compress.text", false, !globalProperty)))
+         .compressImage("true".equalsIgnoreCase(SreeEnv.getProperty("pdf.compress.image", false, !globalProperty)))
+         .asciiOnly("true".equalsIgnoreCase(SreeEnv.getProperty("pdf.output.ascii", false, !globalProperty)))
+         .mapSymbols("true".equalsIgnoreCase(SreeEnv.getProperty("pdf.map.symbols", false, !globalProperty)))
+         .pdfEmbedCmap("true".equalsIgnoreCase(SreeEnv.getProperty("pdf.embed.cmap", false, !globalProperty)))
+         .pdfEmbedFont("true".equalsIgnoreCase(SreeEnv.getProperty("pdf.embed.font", false, !globalProperty)))
          .cidFontPath(SreeEnv.getProperty("font.truetype.path", false, !globalProperty))
          .afmFontPath(SreeEnv.getProperty("font.afm.path", false, !globalProperty))
          .openFirst(openFirst)
-         .browserEmbedPdf("embed".equals(SreeEnv.getProperty("pdf.output.attachment", false, !globalProperty)))
-         .pdfHyperlinks("true".equals(SreeEnv.getProperty("pdf.generate.links", false, !globalProperty)))
+         .browserEmbedPdf("embed".equalsIgnoreCase(SreeEnv.getProperty("pdf.output.attachment", false, !globalProperty)))
+         .pdfHyperlinks("true".equalsIgnoreCase(SreeEnv.getProperty("pdf.generate.links", false, !globalProperty)))
          .build();
    }
 

@@ -18,11 +18,13 @@
 package inetsoft.web.composer.model.ws;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import java.util.Optional;
 
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableValueRangeDialogModelValidator.class)
 public abstract class ValueRangeDialogModelValidator {
    public abstract Optional<String> invalidName();

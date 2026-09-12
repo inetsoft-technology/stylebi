@@ -1,45 +1,51 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<div class="field-container" [class.is-ie]="isIE" *ngIf="bindingModel">
-  <div class="field-row" *ngIf="!isVS()">
-    <div class="field-list-label">_#(Groups)</div>
-    <div class="field-list">
-      <table-data-editor fieldType="groups" [refs]="bindingModel.groups"
-         [grayedOutValues]="grayedOutValues" [bindingModel]="bindingModel">
-      </table-data-editor>
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (bindingModel) {
+  <div class="field-container" [class.is-ie]="isIE">
+    @if (!isVS()) {
+      <div class="field-row">
+        <div class="field-list-label">_#(Groups)</div>
+        <div class="field-list">
+          <table-data-editor fieldType="groups" [refs]="bindingModel.groups"
+            [grayedOutValues]="grayedOutValues" [bindingModel]="bindingModel">
+          </table-data-editor>
+        </div>
+      </div>
+    }
+    <div class="field-row">
+      <div class="field-list-label">_#(Details)</div>
+      <div class="field-list">
+        <table-data-editor fieldType="details" [refs]="bindingModel.details"
+          [grayedOutValues]="grayedOutValues" [bindingModel]="bindingModel"
+          (onPopUpWarning)="onPopUpWarning.emit($event)">
+        </table-data-editor>
+      </div>
     </div>
+    @if (!isVS()) {
+      <div class="field-row">
+        <div class="field-list-label">_#(Aggregates)</div>
+        <div class="field-list">
+          <table-data-editor fieldType="aggregates" [refs]="bindingModel.aggregates"
+            [groupNum]="bindingModel.groups.length" [bindingModel]="bindingModel"
+            [grayedOutValues]="grayedOutValues">
+          </table-data-editor>
+        </div>
+      </div>
+    }
   </div>
-  <div class="field-row">
-    <div class="field-list-label">_#(Details)</div>
-    <div class="field-list">
-      <table-data-editor fieldType="details" [refs]="bindingModel.details"
-         [grayedOutValues]="grayedOutValues" [bindingModel]="bindingModel"
-         (onPopUpWarning)="onPopUpWarning.emit($event)">
-      </table-data-editor>
-    </div>
-  </div>
-  <div class="field-row" *ngIf="!isVS()">
-    <div class="field-list-label">_#(Aggregates)</div>
-    <div class="field-list">
-      <table-data-editor fieldType="aggregates" [refs]="bindingModel.aggregates"
-         [groupNum]="bindingModel.groups.length" [bindingModel]="bindingModel"
-         [grayedOutValues]="grayedOutValues">
-      </table-data-editor>
-    </div>
-  </div>
-</div>
+}

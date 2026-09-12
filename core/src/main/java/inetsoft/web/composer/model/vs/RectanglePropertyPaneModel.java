@@ -19,8 +19,10 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class RectanglePropertyPaneModel {
+public class RectanglePropertyPaneModel implements Serializable {
    public LinePropPaneModel getLinePropPaneModel() {
       if(linePropPaneModel == null) {
          linePropPaneModel = new LinePropPaneModel();
@@ -49,6 +51,20 @@ public class RectanglePropertyPaneModel {
       this.fillPropPaneModel = fillPropPaneModel;
    }
 
+   public ShadowPropPaneModel getShadowPropPaneModel() {
+      if(shadowPropPaneModel == null) {
+         shadowPropPaneModel = new ShadowPropPaneModel();
+      }
+
+      return shadowPropPaneModel;
+   }
+
+   public void setShadowPropPaneModel(
+      ShadowPropPaneModel shadowPropPaneModel)
+   {
+      this.shadowPropPaneModel = shadowPropPaneModel;
+   }
+
    public int getRadius() {
       return radius;
    }
@@ -63,10 +79,12 @@ public class RectanglePropertyPaneModel {
          "radius=" + radius +
          ", linePropPaneModel=" + linePropPaneModel +
          ", fillPropPaneModel=" + fillPropPaneModel +
+         ", shadowPropPaneModel=" + shadowPropPaneModel +
          '}';
    }
 
    private int radius;
    private LinePropPaneModel linePropPaneModel;
    private FillPropPaneModel fillPropPaneModel;
+   private ShadowPropPaneModel shadowPropPaneModel;
 }

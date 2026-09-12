@@ -17,15 +17,6 @@
  */
 package inetsoft.web.vswizard.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.asset.Assembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.web.vswizard.model.VSWizardOriginalModel;
-import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
-import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -38,11 +29,9 @@ import java.security.Principal;
 public class VSWizardObjectToolbarController {
 
    @Autowired
-   public VSWizardObjectToolbarController(ViewsheetService viewsheetService,
-                                          VSWizardTemporaryInfoService temporaryInfoService)
+   public VSWizardObjectToolbarController(VSWizardObjectToolbarServiceProxy vsWizardObjectToolbarServiceProxy)
    {
-      this.viewsheetService = viewsheetService;
-      this.temporaryInfoService = temporaryInfoService;
+      this.vsWizardObjectToolbarServiceProxy = vsWizardObjectToolbarServiceProxy;
    }
 
    @GetMapping("/api/vswizard/object/toolbar/full-editor")
@@ -53,43 +42,8 @@ public class VSWizardObjectToolbarController {
       throws Exception
    {
 
-      RuntimeViewsheet rvs = this.viewsheetService.getViewsheet(id, principal);
-
-      if(rvs == null) {
-         LOGGER.error("The viewsheet does not exist: {}", id);
-         return;
-      }
-
-      if(assemblyName == null) {
-         // may be null if the chart is not bound (Bug #44232)
-         return;
-      }
-
-      Viewsheet vs = rvs.getViewsheet();
-      Assembly assembly = vs.getAssembly(assemblyName);
-
-      if(assembly == null) {
-         LOGGER.error("The assembly does not exist: {}", assemblyName);
-         return;
-      }
-
-      VSTemporaryInfo vsTemporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
-      VSWizardOriginalModel originalModel = vsTemporaryInfo.getOriginalModel();
-
-      if(originalModel != null) {
-         String originalName = originalModel.getOriginalName();
-         Assembly originalAssembly = vs.getAssembly(originalName);
-
-         if(originalAssembly != null &&
-            assembly.getAssemblyType() == originalAssembly.getAssemblyType())
-         {
-            assembly.setPixelSize(originalAssembly.getPixelSize());
-         }
-      }
+      vsWizardObjectToolbarServiceProxy.gotoFullEditor(id, assemblyName, principal);
    }
 
-   private final ViewsheetService viewsheetService;
-   private final VSWizardTemporaryInfoService temporaryInfoService;
-
-   private static final Logger LOGGER = LoggerFactory.getLogger(VSWizardObjectToolbarController.class);
+   private final VSWizardObjectToolbarServiceProxy vsWizardObjectToolbarServiceProxy;
 }

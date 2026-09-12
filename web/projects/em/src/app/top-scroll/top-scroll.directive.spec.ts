@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { TopScrollDirective } from "./top-scroll.directive";
 
 describe("TopScrollDirective", () => {
@@ -24,7 +25,7 @@ describe("TopScrollDirective", () => {
    beforeEach(() => {
       scrollable = {};
       scrollSupport = {
-         attach: jest.fn()
+         attach: vi.fn()
       };
    });
 

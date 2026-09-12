@@ -17,9 +17,10 @@
  */
 package inetsoft.web.composer.model.vs;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class VSDeviceLayoutDialogModel {
+public class VSDeviceLayoutDialogModel implements Serializable {
    public String getName() {
       return name;
    }

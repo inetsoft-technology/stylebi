@@ -19,13 +19,17 @@ package inetsoft.web.vswizard;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
+import inetsoft.web.AspectTask;
+import inetsoft.web.ServiceProxyContext;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import org.aspectj.lang.JoinPoint;
-import org.aspectj.lang.annotation.Aspect;
-import org.aspectj.lang.annotation.Before;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.*;
 import org.springframework.stereotype.Component;
 
 import java.security.Principal;
@@ -34,13 +38,8 @@ import java.util.Date;
 @Component
 @Aspect
 public class RecommendedAspect {
-   public RecommendedAspect(VSWizardTemporaryInfoService temporaryInfoService,
-                            RuntimeViewsheetRef runtimeViewsheetRef,
-                            ViewsheetService viewsheetService)
-   {
-      this.temporaryInfoService = temporaryInfoService;
+   public RecommendedAspect(RuntimeViewsheetRef runtimeViewsheetRef) {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.viewsheetService = viewsheetService;
    }
 
    @Before("@annotation(org.springframework.messaging.handler.annotation.MessageMapping) " +
@@ -51,10 +50,9 @@ public class RecommendedAspect {
       Tool.getUserMessage();
    }
 
-   @Before("@annotation(Recommend) && within(inetsoft.web.vswizard..*)")
-   public void updateLatestTime(JoinPoint joinPoint) throws Throwable {
-      Date recommendTime = new Date();
-      Object[] args = joinPoint.getArgs();
+   @Around("@annotation(Recommend) && within(inetsoft.web.vswizard..*)")
+   public Object updateLatestTime(ProceedingJoinPoint pjp) throws Throwable {
+      Object[] args = pjp.getArgs();
       Principal principal = null;
 
       for(Object arg : args) {
@@ -64,35 +62,68 @@ public class RecommendedAspect {
          }
       }
 
-      if(principal == null) {
-         return;
+      String runtimeId = runtimeViewsheetRef.getRuntimeId();
+      RecommendedAspectTask task = null;
+
+      if(principal != null && runtimeId != null) {
+         task = new RecommendedAspectTask(runtimeId, new Date());
+         ServiceProxyContext.aspectTasks.get().add(task);
       }
 
-      RuntimeViewsheet rvs =
-         viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-
-      if(rvs == null) {
-         return;
+      try {
+         return pjp.proceed();
       }
-
-      VSTemporaryInfo temporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
-
-      if(temporaryInfo != null) {
-         Date oldTime = temporaryInfo.getRecommendLatestTime();
-
-         if(oldTime != null) {
-            temporaryInfo.setRecommendLatestTime(recommendTime.after(oldTime) ?
-               recommendTime : oldTime);
-         }
-         else {
-            temporaryInfo.setRecommendLatestTime(recommendTime);
+      finally {
+         if(task != null) {
+            ServiceProxyContext.aspectTasks.get().remove(task);
          }
       }
-
-      RecommendSequentialContext.setStartTime(recommendTime);
    }
 
-   private final VSWizardTemporaryInfoService temporaryInfoService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final ViewsheetService viewsheetService;
+
+   public static final class RecommendedAspectTask implements AspectTask {
+      public RecommendedAspectTask(String id, Date startTime) {
+         this.id = id;
+         this.startTime = startTime;
+      }
+
+      @Override
+      public void preprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
+         try {
+            ViewsheetService viewsheetService = ConfigurationContext.getContext()
+               .getSpringBean(ViewsheetService.class);
+            RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, contextPrincipal);
+
+            if(rvs != null) {
+               VSWizardTemporaryInfoService temporaryInfoService =
+                  ConfigurationContext.getContext().getSpringBean(VSWizardTemporaryInfoService.class);
+               VSTemporaryInfo temporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
+
+               if(temporaryInfo != null) {
+                  Date oldTime = temporaryInfo.getRecommendLatestTime();
+
+                  if(oldTime != null) {
+                     temporaryInfo.setRecommendLatestTime(startTime.after(oldTime) ?
+                                                             startTime : oldTime);
+                  }
+                  else {
+                     temporaryInfo.setRecommendLatestTime(startTime);
+                  }
+               }
+
+               RecommendSequentialContext.setStartTime(startTime);
+            }
+         }
+         catch(RuntimeException e) {
+            throw e;
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Failed to set recommender context", e);
+         }
+      }
+
+      private final String id;
+      private final Date startTime;
+   }
 }

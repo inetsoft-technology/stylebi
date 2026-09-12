@@ -19,10 +19,12 @@ import { Component, Input, OnInit } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { OutputGeneralPaneModel } from "../../data/vs/output-general-pane-model";
+import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.component";
 
 @Component({
-   selector: "output-general-pane",
-   templateUrl: "output-general-pane.component.html",
+    selector: "output-general-pane",
+    templateUrl: "output-general-pane.component.html",
+    imports: [GeneralPropPane]
 })
 export class OutputGeneralPane implements OnInit {
    @Input() vsId: string;

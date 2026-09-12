@@ -24,14 +24,15 @@ import { StyleConstants } from "../../common/util/style-constants";
 import { UIContextService } from "../../common/services/ui-context.service";
 
 @Component({
-   selector: "title-format-pane",
-   templateUrl: "title-format-pane.component.html",
-   styles: [`
+    selector: "title-format-pane",
+    templateUrl: "title-format-pane.component.html",
+    styles: [`
       .right {
          width:70px;
          text-align:right;
       }
-   `]
+   `],
+    imports: [DynamicComboBox, RotationRadioGroup]
 })
 export class TitleFormatPane {
    @Input() viewer: boolean = false;

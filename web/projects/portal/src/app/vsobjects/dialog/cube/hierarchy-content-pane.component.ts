@@ -18,10 +18,13 @@
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { HierarchyContentPaneModel } from "../../model/hierarchy-content-pane-model";
 import { VSDimensionMemberModel } from "../../model/vs-dimension-member-model";
+import { NgFor } from "@angular/common";
 
 @Component({
-   selector: "hierarchy-content-pane",
-   templateUrl: "hierarchy-content-pane.component.html"
+    selector: "hierarchy-content-pane",
+    templateUrl: "hierarchy-content-pane.component.html",
+    standalone: true,
+    imports: [NgFor]
 })
 export class HierarchyContentPane {
    @Input() model: HierarchyContentPaneModel;

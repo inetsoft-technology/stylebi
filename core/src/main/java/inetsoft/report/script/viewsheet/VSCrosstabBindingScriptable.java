@@ -28,7 +28,6 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.util.Tool;
-import org.mozilla.javascript.Scriptable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -139,19 +138,12 @@ public class VSCrosstabBindingScriptable extends PropertyScriptable {
    }
 
    /**
-    * Removes a indexed property from this object.
-    */
-   @Override
-   public void delete(int i) {
-   }
-
-   /**
     * Get an array of property ids.
     */
    @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       init();
-      return super.getIds();
+      return super.getMemberKeys();
    }
 
    /**
@@ -166,37 +158,37 @@ public class VSCrosstabBindingScriptable extends PropertyScriptable {
     * Sets a named property in this object.
     */
    @Override
-   public void put(String name, Scriptable start, Object value) {
+   public void putMember(String name, Object value) {
       init();
 
-      super.put(name, start, value);
+      super.putMember(name, value);
    }
 
    /**
     * Indicates whether or not a named property is defined in an object.
     */
    @Override
-   public boolean has(String name, Scriptable start) {
+   public boolean hasMember(String name) {
       init();
-      return super.has(name, start);
+      return super.hasMember(name);
    }
 
    /**
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       init();
-      return super.get(name, start);
+      return super.getMember(name);
    }
 
    /**
     * Get the type of a named property from the object.
     */
    @Override
-   public Class getType(String name, Scriptable start) {
+   public Class getType(String name) {
       init();
-      return super.getType(name, start);
+      return super.getType(name);
    }
 
    /**
@@ -844,7 +836,6 @@ public class VSCrosstabBindingScriptable extends PropertyScriptable {
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
-   @Override
    public String getClassName() {
       return "VSCrosstabInfo";
    }

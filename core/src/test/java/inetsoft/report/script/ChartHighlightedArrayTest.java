@@ -18,8 +18,9 @@
 
 package inetsoft.report.script;
 
-import inetsoft.graph.*;
-import inetsoft.graph.coord.*;
+import inetsoft.graph.AxisSpec;
+import inetsoft.graph.EGraph;
+import inetsoft.graph.coord.AbstractParallelCoord;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.IntervalElement;
 import inetsoft.graph.scale.Scale;
@@ -28,13 +29,23 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.HLColorFrame;
 import inetsoft.report.filter.Highlight;
 import inetsoft.report.script.viewsheet.ChartVSAScriptable;
-import org.junit.jupiter.api.*;
+import inetsoft.test.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class ChartHighlightedArrayTest {
    private ChartHighlightedArray chartHighlightedArray;
    private ChartVSAScriptable mockChartVSAScriptable;
@@ -59,13 +70,13 @@ public class ChartHighlightedArrayTest {
       mockCommonChartScriptable(eGraph);
 
       chartHighlightedArray = new ChartHighlightedArray(mockChartVSAScriptable);
-      assertTrue(chartHighlightedArray.has("highlight1", null));
+      assertTrue(chartHighlightedArray.hasMember("highlight1"));
       //hcolor no highlight
-      assertFalse((boolean)chartHighlightedArray.get("highlight1", null));
+      assertFalse((boolean)chartHighlightedArray.getMember("highlight1"));
 
       assertEquals("[highlightname]", chartHighlightedArray.getDisplaySuffix());
       assertEquals("[]", chartHighlightedArray.getSuffix());
-      assertArrayEquals(new Object[] {"highlight1"}, chartHighlightedArray.getIds());
+      assertArrayEquals(new Object[] {"highlight1"}, chartHighlightedArray.getMemberKeys());
    }
 
    /**
@@ -95,8 +106,8 @@ public class ChartHighlightedArrayTest {
 
       chartHighlightedArray = new ChartHighlightedArray(mockChartVSAScriptable);
 
-      assertTrue(chartHighlightedArray.has("hightlight2", null));
-      assertFalse((boolean)chartHighlightedArray.get("hightlight2", null));
+      assertTrue(chartHighlightedArray.hasMember("hightlight2"));
+      assertFalse((boolean)chartHighlightedArray.getMember("hightlight2"));
    }
 
    private void mockCommonChartScriptable(EGraph eGraph) {

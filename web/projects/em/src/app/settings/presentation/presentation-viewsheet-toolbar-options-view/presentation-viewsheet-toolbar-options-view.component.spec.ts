@@ -15,7 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
@@ -38,7 +39,7 @@ describe("PresentationViewsheetToolbarOptionsViewComponent", () => {
    let component: PresentationViewsheetToolbarOptionsViewComponent;
    let fixture: ComponentFixture<PresentationViewsheetToolbarOptionsViewComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             HttpClientTestingModule,
@@ -54,13 +55,9 @@ describe("PresentationViewsheetToolbarOptionsViewComponent", () => {
             MatCheckboxModule,
             MatSnackBarModule,
             MatIconModule,
-            MatTableModule
-         ],
-         declarations: [
-            PresentationViewsheetToolbarOptionsViewComponent,
-            ToolbarOptionsTableViewComponent
-         ]
-      })
+            MatTableModule,
+            PresentationViewsheetToolbarOptionsViewComponent, ToolbarOptionsTableViewComponent]
+         })
          .compileComponents();
    }));
 

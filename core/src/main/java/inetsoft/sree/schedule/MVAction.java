@@ -23,6 +23,7 @@ import inetsoft.mv.fs.internal.ClusterUtil;
 import inetsoft.sree.internal.Mailer;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.SimpleMessage;
+import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.*;
@@ -254,10 +255,19 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
          boolean exists = mv.hasData();
 
          if(createInScheduler) {
+            long timeout = ScheduleTask.getTaskTimeout();
+
             try {
                MVCallable creator = new MVCallable(mv, principal);
                mvFuture = Cluster.getInstance().submit(creator, true);
-               String message = mvFuture.get(10L, TimeUnit.MINUTES);
+               String message;
+
+               if(timeout > 0) {
+                  message = mvFuture.get(timeout, TimeUnit.MILLISECONDS);
+               }
+               else {
+                  message = mvFuture.get();
+               }
 
                if(message != null) {
                   throw new RuntimeException(message);
@@ -266,6 +276,11 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
                   thisMv.setSuccess(true);
                   thisMv.setUpdated(exists);
                }
+            }
+            catch(TimeoutException ex) {
+               mvFuture.cancel(true);
+               throw new RuntimeException("MV creation timed out after " + (timeout / 1000) +
+                                             "s: " + mv.getName(), ex);
             }
             finally {
                mvFuture = null;
@@ -409,7 +424,9 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
 
    @Override
    public void cancel() {
-      if(mvFuture != null) {
+      Future<String> future = mvFuture;
+
+      if(future != null) {
          MVCancelledMessage mvCancelledMessage = new MVCancelledMessage(mvname);
 
          try {
@@ -419,11 +436,13 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
             LOG.debug("Failed to send MV cancelled message", e);
          }
 
-         mvFuture.cancel(true);
+         future.cancel(true);
       }
 
-      if(runningCreators.get(mvname) != null) {
-         runningCreators.get(mvname).cancel();
+      MVCreator creator = runningCreators.get(mvname);
+
+      if(creator != null) {
+         creator.cancel();
       }
    }
 
@@ -461,6 +480,11 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
 
             if(principal != null) {
                ThreadContext.setContextPrincipal(principal);
+               String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
+               if(orgId != null) {
+                  OrganizationContextHolder.setCurrentOrgId(orgId);
+               }
             }
 
             if(isCanceled()) {
@@ -499,6 +523,9 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
             LOG.error("Failed to create MV: {}", mv.getName(), ex);
             throw new Exception("MV Creation failed: " + mv.getName() + " [" + ex + "]");
          }
+         finally {
+            OrganizationContextHolder.clear();
+         }
       }
 
       private boolean isCanceled() {
@@ -519,7 +546,7 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
    private MVDef mv;
    private volatile boolean reloadMv = false;
    private String email;
-   private Future<String> mvFuture;
+   private volatile Future<String> mvFuture;
    private static final Map<String, MVCreator> runningCreators = new ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(MVAction.class);
 }

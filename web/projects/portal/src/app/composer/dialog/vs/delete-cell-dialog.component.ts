@@ -18,10 +18,15 @@
 import { Component, OnInit, Output, EventEmitter } from "@angular/core";
 import { ModelService } from "../../../widget/services/model.service";
 import { DeleteCellDialogModel } from "../../data/vs/delete-cell-dialog-model";
+import { FormsModule } from "@angular/forms";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "delete-cell-dialog",
-   templateUrl: "delete-cell-dialog.component.html"
+    selector: "delete-cell-dialog",
+    templateUrl: "delete-cell-dialog.component.html",
+    standalone: true,
+    imports: [NgIf, EnterSubmitDirective, FormsModule]
 })
 
 export class DeleteCellDialog implements OnInit {

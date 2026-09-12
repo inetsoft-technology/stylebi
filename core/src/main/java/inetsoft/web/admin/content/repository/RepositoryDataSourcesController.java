@@ -40,10 +40,14 @@ import java.util.Objects;
 public class RepositoryDataSourcesController {
    @Autowired
    public RepositoryDataSourcesController(DatabaseDatasourcesService databaseDatasourcesService,
-                                          ResourcePermissionService permissionService)
+                                          ResourcePermissionService permissionService,
+                                          Config uqlConfig,
+                                          XRepository xRepository)
    {
       this.databaseDatasourcesService = databaseDatasourcesService;
       this.permissionService = permissionService;
+      this.uqlConfig = uqlConfig;
+      this.xRepository = xRepository;
    }
 
    @GetMapping("/api/em/settings/content/repository/dataSource/driverAvailability")
@@ -134,8 +138,7 @@ public class RepositoryDataSourcesController {
          }
 
          if(!create) {
-            XRepository repository = XFactory.getRepository();
-            XDataSource dataSource = repository.getDataSource(path);
+            XDataSource dataSource = xRepository.getDataSource(path);
 
             if(dataSource == null) {
                return new ConnectionStatus("Datasource Lost");
@@ -183,7 +186,7 @@ public class RepositoryDataSourcesController {
                                      @RequestParam("driver") String driver)
    {
       if(CustomDatabaseType.TYPE.equals(dbType)) {
-         dbType = Config.getJDBCType(driver);
+         dbType = uqlConfig.getJDBCType(driver);
       }
 
       SQLHelper sqlHelper = SQLHelper.getSQLHelper(Objects.toString(dbType, "").toLowerCase());
@@ -193,4 +196,6 @@ public class RepositoryDataSourcesController {
 
    private final DatabaseDatasourcesService databaseDatasourcesService;
    private final ResourcePermissionService permissionService;
+   private final Config uqlConfig;
+   private final XRepository xRepository;
 }

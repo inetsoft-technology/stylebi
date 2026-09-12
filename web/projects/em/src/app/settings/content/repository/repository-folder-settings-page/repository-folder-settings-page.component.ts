@@ -25,6 +25,8 @@ import { Tool } from "../../../../../../../shared/util/tool";
 import { convertToKey, IdentityId } from "../../../security/users/identity-id";
 import { RepositoryFolderSettingsModel } from "./repository-folder-settings.model";
 import { SetRepositoryFolderSettingsModel } from "./set-repository-folder-settings.model";
+import { RepositoryFolderSettingsViewComponent } from "../repository-folder-settings-view/repository-folder-settings-view.component";
+
 
 export interface RepositoryFolderEditorModel extends RepositoryEditorModel {
    folderModel: RepositoryFolderSettingsModel;
@@ -33,9 +35,10 @@ export interface RepositoryFolderEditorModel extends RepositoryEditorModel {
 }
 
 @Component({
-   selector: "em-repository-folder-settings-page",
-   templateUrl: "./repository-folder-settings-page.component.html",
-   styleUrls: ["./repository-folder-settings-page.component.scss"]
+    selector: "em-repository-folder-settings-page",
+    templateUrl: "./repository-folder-settings-page.component.html",
+    styleUrls: ["./repository-folder-settings-page.component.scss"],
+    imports: [RepositoryFolderSettingsViewComponent]
 })
 export class RepositoryFolderSettingsPageComponent implements OnChanges {
    @Input() model: RepositoryFolderEditorModel;

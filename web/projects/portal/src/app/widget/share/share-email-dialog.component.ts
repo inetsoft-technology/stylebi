@@ -27,11 +27,16 @@ import { ShareEmailModel } from "./share-email-model";
 import { ShareService } from "./share.service";
 import { GuiTool } from "../../common/util/gui-tool";
 import { Tool } from "../../../../../shared/util/tool";
+import { EmailPane } from "../email-dialog/email-pane.component";
+
+import { EnterSubmitDirective } from "../directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 
 @Component({
-   selector: "share-email-dialog",
-   templateUrl: "./share-email-dialog.component.html",
-   styleUrls: ["./share-email-dialog.component.scss"]
+    selector: "share-email-dialog",
+    templateUrl: "./share-email-dialog.component.html",
+    styleUrls: ["./share-email-dialog.component.scss"],
+    imports: [ModalHeaderComponent, EnterSubmitDirective, EmailPane]
 })
 export class ShareEmailDialogComponent implements OnInit {
    @Input() viewsheetId: string;

@@ -37,11 +37,17 @@ import { VSSubmitEvent } from "../../event/vs-submit-event";
 import { FormInputService } from "../../util/form-input.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { GlobalSubmitService } from "../../util/global-submit.service";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
+import { NgStyle } from "@angular/common";
 
 @Component({
-   selector: "vs-submit",
-   templateUrl: "vs-submit.component.html",
-   styleUrls: ["vs-submit.component.scss"]
+    selector: "vs-submit",
+    templateUrl: "vs-submit.component.html",
+    styleUrls: ["vs-submit.component.scss"],
+    imports: [TooltipIfDirective, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, NgStyle]
 })
 export class VSSubmit extends NavigationComponent<VSSubmitModel> implements OnChanges {
    @Input() selected: boolean = false;

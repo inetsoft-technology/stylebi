@@ -19,13 +19,15 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Optional;
 
 /**
  * Utility functions for forms.
@@ -38,9 +40,9 @@ public final class FormUtil {
     * Check the form table data whether is changed.
     */
    public static boolean checkFormData(RuntimeViewsheet rvs, String name) {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null || name == null) {
+      if(box.isEmpty() || name == null) {
          return false;
       }
 
@@ -55,7 +57,7 @@ public final class FormUtil {
                ((TableVSAssemblyInfo) afino).isForm())
             {
                FormTableLens flens =
-                  box.getFormTableLens(vass[i].getAbsoluteName());
+                  box.get().getFormTableLens(vass[i].getAbsoluteName());
 
                if(isDepended(vs, vass[i], name) && formDataChanged(flens)) {
                   return true;
@@ -122,12 +124,26 @@ public final class FormUtil {
    }
 
    /**
+    * Check if the form (data write-back) features are enabled. This is controlled by the
+    * {@code vs.form.enabled} property, which is enabled unless explicitly set to
+    * {@code false}. It is not a licensed component.
+    */
+   public static boolean isFormEnabled() {
+      try {
+         return !"false".equals(SreeEnv.getProperty("vs.form.enabled"));
+      }
+      catch(Exception ignore) {
+         // the properties engine may not be initialized yet, treat form as disabled
+         return false;
+      }
+   }
+
+   /**
     * Check if the viewsheet contains input form.
     * @param tblonly true to only check for form table.
     */
    public static boolean containsForm(Viewsheet viewsheet, boolean tblonly) {
-      return LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM) &&
-         checkContainsForm(viewsheet, tblonly);
+      return isFormEnabled() && checkContainsForm(viewsheet, tblonly);
    }
 
    /**

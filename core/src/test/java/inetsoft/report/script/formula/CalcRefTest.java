@@ -20,9 +20,16 @@ package inetsoft.report.script.formula;
 
 import inetsoft.report.internal.table.*;
 import inetsoft.report.script.viewsheet.CalcTableVSAScriptable;
+import inetsoft.test.*;
 import inetsoft.util.script.FormulaContext;
+import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 
@@ -30,6 +37,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class CalcRefTest {
    private CalcRef calcRef;
    private CalcTableVSAScriptable mockCalcTableVSAScriptable;
@@ -57,12 +69,12 @@ public class CalcRefTest {
       // Test case for id = "#"
       when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(mockContext);
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      assertEquals(5, calcRef.get("#", mockCalcTableVSAScriptable));
+      assertEquals(5, calcRef.getMember("#"));
 
       // Test case for id = "#", but context is null
       when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(null);
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      assertEquals(0, calcRef.get("#", mockCalcTableVSAScriptable));
+      assertEquals(0, calcRef.getMember("#"));
    }
 
    /**
@@ -73,7 +85,7 @@ public class CalcRefTest {
       provideMockCalcCellMap("cell1", new Point[] {point0});
 
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      assertArrayEquals(new Object[] {null}, (Object[])(calcRef.get("**", mockCalcTableVSAScriptable)));
+      assertArrayEquals(new Object[] {null}, (Object[])(calcRef.getMember("**")));
    }
 
    /**
@@ -85,7 +97,7 @@ public class CalcRefTest {
 
       // test when context is null
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      Object result = calcRef.get("*", mockCalcTableVSAScriptable);
+      Object result = calcRef.getMember("*");
       assertArrayEquals(new Object[0], (Object[])result);
 
       // test when context is not null
@@ -94,7 +106,7 @@ public class CalcRefTest {
       when(mockContext.getGroup("cell1")).thenReturn(mockGroup);
 
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      Object result2 = calcRef.get("*", mockCalcTableVSAScriptable);
+      Object result2 = calcRef.getMember("*");
       assertNull(result2);
    }
 
@@ -109,7 +121,7 @@ public class CalcRefTest {
       provideMockCalcCellMap("cell1", new Point[] {point0});
 
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      assertArrayEquals(new Object[] {null}, (Object[])(calcRef.get("+", mockCalcTableVSAScriptable)));
+      assertArrayEquals(new Object[] {null}, (Object[])(calcRef.getMember("+")));
    }
 
    /**
@@ -124,7 +136,7 @@ public class CalcRefTest {
       provideMockGroup(mockContext, "cell1", 1, "value1");
 
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      Object result = calcRef.get(".", mockCalcTableVSAScriptable);
+      Object result = calcRef.getMember(".");
       assertEquals("value1", result);
 
       //check group == null and location length is 1
@@ -133,15 +145,45 @@ public class CalcRefTest {
       when(mockRuntimeCalcTableLens.getObject(0, 0)).thenReturn(1);
 
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      Object result1 = calcRef.get(".", mockCalcTableVSAScriptable);
+      Object result1 = calcRef.getMember(".");
       assertEquals(1, result1);
 
       //check group == null and location length > 1
       when(mockCalcCellMap.getLocations("cell1", mockContext)).thenReturn(new Point[] {point0, point1});
       when(mockRuntimeCalcTableLens.getObject(0, 0)).thenReturn(1);
 
-      Object result2 = calcRef.get(".", mockCalcTableVSAScriptable);
+      Object result2 = calcRef.getMember(".");
       assertArrayEquals(new Object[] {1, null}, (Object[])result2);
+   }
+
+   /**
+    * test get with valueOf (GraalJS ToPrimitive coercion)
+    */
+   @Test
+   void testGetWithValueOf() {
+      FormulaContext.pushCellLocation(point0);
+      when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(mockContext);
+      provideMockGroup(mockContext, "cell1", 1, "value1");
+
+      calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
+      Object member = calcRef.getMember("valueOf");
+      assertInstanceOf(ProxyExecutable.class, member);
+      assertEquals("value1", ((ProxyExecutable) member).execute());
+   }
+
+   /**
+    * test get with toString (GraalJS ToPrimitive coercion)
+    */
+   @Test
+   void testGetWithToString() {
+      FormulaContext.pushCellLocation(point0);
+      when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(mockContext);
+      provideMockGroup(mockContext, "cell1", 1, "value1");
+
+      calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
+      Object member = calcRef.getMember("toString");
+      assertInstanceOf(ProxyExecutable.class, member);
+      assertEquals("value1", ((ProxyExecutable) member).execute());
    }
 
    /**
@@ -156,13 +198,13 @@ public class CalcRefTest {
 
       // Test positive positional reference
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      Object result = calcRef.get("+1", mockCalcTableVSAScriptable);
+      Object result = calcRef.getMember("+1");
       assertNull(result);
 
       // Test negative positional reference
       when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(null);
       provideMockCalcCellMap("cell1", new Point[] {point0});
-      Object result2 = calcRef.get("2", mockCalcTableVSAScriptable);
+      Object result2 = calcRef.getMember("2");
       assertNull(result2);
    }
 
@@ -176,9 +218,72 @@ public class CalcRefTest {
       provideMockCalcCellMap("cell1", new Point[] {point0});
 
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      assertNull(calcRef.get(0, mockCalcTableVSAScriptable));
+      assertNull(calcRef.getArrayElement(0L));
    }
 
+
+   /**
+    * Bug #75738: when a $name reference is consumed as plain data by host
+    * utilities (JSObject.split/splitN, called from CALC aggregates such as
+    * sum($x)/nthLargest($x)), ScriptUtil.unwrap must resolve the live CalcRef to
+    * its referenced scalar value instead of leaving the wrapper to fall back to
+    * Object.toString() (which produced "...CalcRef@<hash>" and 0).
+    */
+   @Test
+   void testScriptUtilUnwrapScalarRef() {
+      FormulaContext.pushCellLocation(point0);
+
+      try {
+         when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(mockContext);
+         provideMockGroup(mockContext, "cell1", 1, 42.0);
+
+         calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
+
+         assertEquals(42.0, inetsoft.util.script.ScriptUtil.unwrap(calcRef));
+         // split() string-splits a scalar (Tool.split), so a numeric ref reads
+         // back as its string form; splitN then parses it to the real number so
+         // numeric aggregates (sum/average/...) compute correctly.
+         assertArrayEquals(new Object[] { "42.0" },
+                           inetsoft.util.script.JSObject.split(calcRef));
+         assertArrayEquals(new double[] { 42.0 },
+                           inetsoft.util.script.JSObject.splitN(calcRef));
+      }
+      finally {
+         FormulaContext.popCellLocation();
+      }
+   }
+
+   /**
+    * Bug #75738: an array-valued group reference (multiple cell locations) must
+    * unwrap to the underlying Object[] of cell values, so JSObject.split/splitN
+    * see real data. This is the case the issue's proposed CalcRef.toString()
+    * fix would have broken (String.valueOf(Object[]) yields "[Ljava...@<hash>").
+    */
+   @Test
+   void testScriptUtilUnwrapArrayRef() {
+      FormulaContext.pushCellLocation(point0);
+
+      try {
+         when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(mockContext);
+         // group == null so unwrap() falls to the cmap multi-location branch
+         when(mockContext.getGroup("cell1")).thenReturn(null);
+         CalcCellMap mockCalcCellMap = provideMockCalcCellMap("cell1", new Point[] { point0, point1 });
+         when(mockRuntimeCalcTableLens.getObject(0, 0)).thenReturn(100.0);
+         when(mockRuntimeCalcTableLens.getObject(1, 0)).thenReturn(200.0);
+
+         calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
+
+         assertArrayEquals(new Object[] { 100.0, 200.0 },
+                           (Object[]) inetsoft.util.script.ScriptUtil.unwrap(calcRef));
+         assertArrayEquals(new Object[] { 100.0, 200.0 },
+                           inetsoft.util.script.JSObject.split(calcRef));
+         assertArrayEquals(new double[] { 100.0, 200.0 },
+                           inetsoft.util.script.JSObject.splitN(calcRef));
+      }
+      finally {
+         FormulaContext.popCellLocation();
+      }
+   }
 
    private CalcCellMap provideMockCalcCellMap(String cellName, Point[] points) {
       CalcCellMap mockCalcCellMap = mock(CalcCellMap.class);

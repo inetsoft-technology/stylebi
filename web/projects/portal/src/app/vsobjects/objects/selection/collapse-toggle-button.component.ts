@@ -20,10 +20,12 @@ import { GuiTool } from "../../../common/util/gui-tool";
 import { AbstractVSActions } from "../../action/abstract-vs-actions";
 import { ContextProvider } from "../../context-provider.service";
 
+
 @Component({
-   selector: "collapse-toggle-button",
-   templateUrl: "collapse-toggle-button.component.html",
-   styleUrls: ["collapse-toggle-button.component.scss"]
+    selector: "collapse-toggle-button",
+    templateUrl: "collapse-toggle-button.component.html",
+    styleUrls: ["collapse-toggle-button.component.scss"],
+    imports: []
 })
 export class CollapseToggleButton {
    @Input() public collapsed = false;

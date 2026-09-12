@@ -17,14 +17,19 @@
  */
 import { HttpParams } from "@angular/common/http";
 import { AfterViewInit, Component, Input, OnInit, ViewChild } from "@angular/core";
-import { FormGroup } from "@angular/forms";
+import { FormGroup, FormsModule } from "@angular/forms";
 import { MatPaginator } from "@angular/material/paginator";
-import { MatSort, Sort } from "@angular/material/sort";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatSort, Sort, MatSortHeader } from "@angular/material/sort";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { EMPTY, Observable, of } from "rxjs";
 import { mergeMap } from "rxjs/operators";
 import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
 import { AuditRecordList, AuditRecordParameters } from "./audit-record";
+import { MatButton } from "@angular/material/button";
+import { MatSlider, MatSliderRangeThumb } from "@angular/material/slider";
+
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { LoadingSpinnerComponent } from "../../common/util/loading-spinner/loading-spinner.component";
 
 export interface AuditRowRenderer<R> {
    name: string;
@@ -33,9 +38,10 @@ export interface AuditRowRenderer<R> {
 }
 
 @Component({
-   selector: "em-audit-table-view",
-   templateUrl: "./audit-table-view.component.html",
-   styleUrls: ["./audit-table-view.component.scss"]
+    selector: "em-audit-table-view",
+    templateUrl: "./audit-table-view.component.html",
+    styleUrls: ["./audit-table-view.component.scss"],
+    imports: [LoadingSpinnerComponent, MatCard, MatCardContent, MatSlider, MatSliderRangeThumb, FormsModule, MatButton, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatSortHeader, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator]
 })
 export class AuditTableViewComponent<R> implements OnInit, AfterViewInit {
    @Input() dateRangeVisible = true;

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {HttpClient, HttpErrorResponse} from "@angular/common/http";
+import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import {Component, EventEmitter, Input, OnChanges, Output, SimpleChanges} from "@angular/core";
 import {TableInfo} from "../../../../common/util/table/table-info";
 import {RepositoryFolderTrashcanTableModel} from "./repository-folder-trashcan-table-model";
@@ -27,15 +27,17 @@ import {RepositoryEditorModel} from "../../../../../../../shared/util/model/repo
 import {catchError} from "rxjs/operators";
 import {throwError} from "rxjs";
 import {Tool} from "../../../../../../../shared/util/tool";
+import { RepositoryFolderTrashcanSettingsViewComponent } from "../repository-folder-trashcan-settings-view/repository-folder-trashcan-settings-view.component";
 
 export interface RepositoryTrashcanFolderEditorModel extends RepositoryEditorModel {
    reports: RepositoryFolderTrashcanTableModel[];
 }
 
 @Component({
-   selector: "em-repository-folder-trashcan-settings-page",
-   templateUrl: "./repository-folder-trashcan-settings-page.component.html",
-   styleUrls: ["./repository-folder-trashcan-settings-page.component.scss"]
+    selector: "em-repository-folder-trashcan-settings-page",
+    templateUrl: "./repository-folder-trashcan-settings-page.component.html",
+    styleUrls: ["./repository-folder-trashcan-settings-page.component.scss"],
+    imports: [RepositoryFolderTrashcanSettingsViewComponent]
 })
 export class RepositoryFolderTrashcanSettingsPageComponent implements OnChanges {
    @Input() model: RepositoryTrashcanFolderEditorModel;

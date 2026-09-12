@@ -21,6 +21,8 @@ package inetsoft.web.admin.content.repository.model;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.value.Value;
 
+import javax.annotation.Nullable;
+
 @Value.Immutable
 @JsonSerialize(as = ImmutableCreateMVResponse.class)
 public interface CreateMVResponse {
@@ -31,6 +33,9 @@ public interface CreateMVResponse {
    default boolean complete() {
       return true;
    }
+
+   @Nullable
+   String error();
 
    static CreateMVResponse.Builder builder() {
       return new CreateMVResponse.Builder();

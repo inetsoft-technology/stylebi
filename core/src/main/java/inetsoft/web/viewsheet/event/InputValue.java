@@ -18,9 +18,11 @@
 package inetsoft.web.viewsheet.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 @Value.Immutable
+@Serial.Structural
 @JsonDeserialize(as = ImmutableInputValue.class)
 public interface InputValue {
    String assemblyName();

@@ -35,7 +35,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const VIEWSHEET_PROPERTY_URI: string = "composer/vs/viewsheet-object-property-dialog-model/";
 
 @Directive({
-   selector: "[cViewsheetActionHandler]"
+    selector: "[cViewsheetActionHandler]",
+    standalone: true
 })
 export class ViewsheetActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSViewsheetModel;
@@ -107,6 +108,9 @@ export class ViewsheetActionHandlerDirective extends AbstractActionHandler imple
          dialog.openToScript = openToScript;
          dialog.scriptTreeModel = loadingScriptTreeModel;
          this.modelService.getModel(scriptUri, params).subscribe(res => dialog.scriptTreeModel = res);
+      },
+      (error: any) => {
+         console.error("Failed to get viewsheet property model: ", error);
       });
    }
 }

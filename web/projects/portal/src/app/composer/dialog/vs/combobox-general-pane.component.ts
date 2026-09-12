@@ -16,13 +16,23 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { ComboboxGeneralPaneModel } from "../../data/vs/combobox-general-pane-model";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { ListValuesPane } from "./list-values-pane.component";
+import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.component";
 
 @Component({
-   selector: "combobox-general-pane",
-   templateUrl: "combobox-general-pane.component.html",
+    selector: "combobox-general-pane",
+    templateUrl: "combobox-general-pane.component.html",
+    imports: [
+        GeneralPropPane,
+        FormsModule,
+        ReactiveFormsModule,
+        ListValuesPane,
+        SizePositionPane,
+    ]
 })
 export class ComboboxGeneralPane implements OnInit {
    @Input() model: ComboboxGeneralPaneModel;

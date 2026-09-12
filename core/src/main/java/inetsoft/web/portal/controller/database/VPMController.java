@@ -24,9 +24,11 @@ import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
+import inetsoft.uql.util.ColumnCache;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.erm.vpm.VpmCondition;
@@ -55,6 +57,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 
 import java.io.FileNotFoundException;
 import java.security.Principal;
@@ -71,13 +75,19 @@ public class VPMController {
    public VPMController(DataRefModelFactoryService dataRefModelFactoryService,
                         DatabaseTreeService databaseTreeService,
                         DataSourceService dataSourceService, XRepository repository,
-                        SecurityEngine securityEngine)
+                        SecurityEngine securityEngine,
+                        DependencyHandler dependencyHandler,
+                        RenameTransformHandler renameTransformHandler,
+                        ColumnCache columnCache)
    {
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.databaseTreeService = databaseTreeService;
       this.dataSourceService = dataSourceService;
       this.repository = repository;
       this.securityEngine = securityEngine;
+      this.dependencyHandler = dependencyHandler;
+      this.renameTransformHandler = renameTransformHandler;
+      this.columnCache = columnCache;
    }
 
    /**
@@ -86,6 +96,11 @@ public class VPMController {
     * @return the list of operations.
     *
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/vpm/operations")
    public List<Operation> getOperations() {
       return ConditionUtil.getOperationList();
@@ -100,6 +115,11 @@ public class VPMController {
     *
     * @throws Exception if the database is not found.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/vpm/physicalModels/nodes")
    public List<TreeNodeModel> getPhysicalModelNameNodes(@RequestParam("database") String database,
                                                         Principal principal)
@@ -125,6 +145,11 @@ public class VPMController {
     *
     * @param name data source name.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/data/datasources/permissions/**")
    public boolean getParentPermissions(@RemainingPath String name, Principal principal)
       throws Exception
@@ -132,6 +157,11 @@ public class VPMController {
       return dataSourceService.checkPermission(name, ResourceAction.WRITE, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/data/vpm/checkDuplicate")
    public boolean checkLogicalModelDuplicate(@RequestParam("database") String database,
                                              @RequestParam("name") String name)
@@ -168,6 +198,11 @@ public class VPMController {
     *
     * @throws Exception if the model could not be obtained.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/vpm/models")
    public VPMDefinition getModel(@RequestParam("database") String database,
                                  @RequestParam("vpm") String name, Principal principal)
@@ -204,6 +239,11 @@ public class VPMController {
     *
     * @throws Exception if the model could not be obtained.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/vpm/physicalModel/tables")
    public List<Column> getPhysicalModelTables(@RequestParam("database") String database,
                                               @RequestParam("tableName") String name,
@@ -272,7 +312,6 @@ public class VPMController {
       }
 
       if(!view) {
-         XRepository repository = XFactory.getRepository();
          JDBCDataSource jdx = (JDBCDataSource) dataSourceService.getDataSource(
             dataModel.getDataSource());
          DefaultMetaDataProvider metaData =
@@ -304,6 +343,11 @@ public class VPMController {
     *
     * @throws Exception if the model could not be obtained.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/vpm/physicalModel/tablePath/**")
    public String getTablePath(@RemainingPath String database,
                               @RequestBody StringWrapper tableNameWrapper)
@@ -338,6 +382,11 @@ public class VPMController {
     *
     * @throws Exception if the database could not be added.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/vpm/models")
    @ResponseStatus(HttpStatus.CREATED)
    @Audited(
@@ -378,7 +427,6 @@ public class VPMController {
          IdentityID.getIdentityIDFromKey(principal.getName()).getName() : null;
       entry.setCreatedUsername(createdUsername);
       dataSourceService.updateDataSourceAssetEntry(entry);
-      DependencyHandler dependencyHandler = DependencyHandler.getInstance();
       dependencyHandler.updateVPMDependencies(vpm, null, database, entry);
    }
 
@@ -386,6 +434,11 @@ public class VPMController {
     * @param event   rename event.
     * @throws Exception if the model could not be renamed.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @Audited(
       actionName = ActionRecord.ACTION_NAME_RENAME,
       objectType = ActionRecord.OBJECT_TYPE_VIRTUAL_PRIVATE_MODEL
@@ -438,8 +491,8 @@ public class VPMController {
       path = database + "/" + newName;
       AssetEntry nentry = new AssetEntry(
          AssetRepository.QUERY_SCOPE, AssetEntry.Type.VPM, path, null);
-      DependencyHandler.getInstance().updateDependencies(entry, nentry);
-      RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
+      dependencyHandler.updateDependencies(entry, nentry);
+      renameTransformHandler.addTransformTask(rinfo);
       nentry = dataSourceService.getModelAssetEntry(nentry);
 
       nentry.setCreatedUsername(user);
@@ -454,6 +507,11 @@ public class VPMController {
     *
     * @throws Exception if the model could not be updated.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping(value = "/api/data/vpm/models")
    @Audited(
       actionName = ActionRecord.ACTION_NAME_EDIT,
@@ -495,7 +553,6 @@ public class VPMController {
       VirtualPrivateModel nvpm = createVPM(vpm);
       dataModel.addVirtualPrivateModel(nvpm, true);
       repository.updateDataModel(dataModel);
-      DependencyHandler dependencyHandler = DependencyHandler.getInstance();
       dependencyHandler.updateVPMDependencies(nvpm, ovpm, database, entry);
 
       entry = dataSourceService.getModelAssetEntry(entry);
@@ -512,6 +569,11 @@ public class VPMController {
     *
     * @throws Exception if the model could not be removed.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/vpm/remove")
    public void removeModel(@RequestBody RemoveDataModelEvent event,
                            Principal principal)
@@ -544,7 +606,7 @@ public class VPMController {
          String path = database + "/" + name;
          AssetEntry entry = new AssetEntry(
             AssetRepository.QUERY_SCOPE, AssetEntry.Type.VPM, path, null);
-         DependencyHandler.getInstance().deleteDependencies(entry);
+         dependencyHandler.deleteDependencies(entry);
       }
 
       repository.updateDataModel(dataModel);
@@ -569,6 +631,11 @@ public class VPMController {
     * @return the users and roles data.
     *
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/vpm/usersRoles")
    public TestData getUsersRoles(Principal principal) {
       boolean siteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
@@ -625,6 +692,11 @@ public class VPMController {
     *
     * @throws Exception if an error prevents data from being obtained.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/vpm/test")
    public String test(@RequestBody VpmTestEvent event) throws Exception {
       String database = event.getDatabase();
@@ -703,6 +775,11 @@ public class VPMController {
     *
     * @throws Exception if the columns could not be obtained.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/vpm/columns/**")
    public List<Column> getTableColumns(@RemainingPath String database,
                                        @RequestBody StringWrapper tnameWrapper,
@@ -738,6 +815,11 @@ public class VPMController {
     *
     * @throws Exception if an error prevents the models from being listed.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/vpm/browse/**")
    public AssetListBrowseModel getModels(@RemainingPath String database, Principal principal)
       throws Exception
@@ -749,6 +831,11 @@ public class VPMController {
     * Search the vpm names defined for the specified database.
     * @return the models.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/vpm/search/names")
    public AssetListBrowseModel getSearchModelNames(@RequestBody SearchDataCommand command,
                                                    Principal principal)
@@ -761,6 +848,11 @@ public class VPMController {
     * Search the vpms defined for the specified database.
     * @return the models.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/vpm/search")
    public AssetListBrowseModel getSearchModels(@RequestBody SearchDataCommand command,
                                                Principal principal)
@@ -770,6 +862,11 @@ public class VPMController {
    }
 
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/vpm/hiddenColumn/tree")
    public List<TreeNodeModel> getAvailableTreeNodes(@RequestBody DatabaseTreeNode pnode,
                                                     Principal principal)
@@ -797,6 +894,11 @@ public class VPMController {
          .collect(Collectors.toList());
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/vpm/hiddenColumn/fullTree/**")
    public FullDataBaseTreeModel getAvailableTree(@RemainingPath String database, Principal principal)
       throws Exception
@@ -823,6 +925,11 @@ public class VPMController {
     *
     * @return the updated model.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/vpm/sql-query-dialog/data-source-tree")
    public TreeNodeModel getDataSourceTreeNode(
       @RequestParam("dataSource") String dataSource,
@@ -880,6 +987,11 @@ public class VPMController {
          .build();
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/vpm/sql-query-dialog/table-columns")
    @ResponseBody
    public AssetEntry[] getTableColumns(@RequestBody AssetEntry tableEntry, Principal principal) throws Exception {
@@ -891,6 +1003,11 @@ public class VPMController {
     *
     * @return the updated model.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/vpm/sql-query-dialog/browse-data")
    @ResponseBody
    public BrowseDataModel browseData(@RequestParam("dataSource") String dataSource,
@@ -903,7 +1020,7 @@ public class VPMController {
 
       XQuery query = new JDBCQuery();
       query.setName(dataSource);
-      XDataSource xds = XFactory.getRepository().getDataSource(dataSource);
+      XDataSource xds = repository.getDataSource(dataSource);
       query.setDataSource(xds);
       BrowsedData browsedData = new BrowsedData(query, dataRef.getEntity(), dataRef.getAttribute(),
          dataRef.getDataType(), null, null, false, true);
@@ -1293,6 +1410,11 @@ public class VPMController {
     *
     * @return list of browser suggestions.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/vpm/browserData")
    public List<String> getBrowserData(@RequestBody BrowserData data) throws Exception {
       List<String> results = new ArrayList<>();
@@ -1327,7 +1449,7 @@ public class VPMController {
       query.setSQLDefinition(sql);
       query.setDataSource(jdx);
 
-      ColumnCache cache = ColumnCache.getColumnCache();
+      ColumnCache cache = columnCache;
       String[][] bdata = cache.getColumnDataString(
          query, tableName, column, type, null, null, true);
 
@@ -1488,4 +1610,7 @@ public class VPMController {
    private final DataSourceService dataSourceService;
    private final XRepository repository;
    private final SecurityEngine securityEngine;
+   private final DependencyHandler dependencyHandler;
+   private final RenameTransformHandler renameTransformHandler;
+   private final ColumnCache columnCache;
 }

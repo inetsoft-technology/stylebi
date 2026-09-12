@@ -17,17 +17,8 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import {
-   AbstractControl,
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   FormGroupDirective,
-   NgForm,
-   ValidationErrors,
-   Validators,
-} from "@angular/forms";
-import { ErrorStateMatcher } from "@angular/material/core";
+import { AbstractControl, UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, FormGroupDirective, NgForm, ValidationErrors, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { ErrorStateMatcher, MatOption } from "@angular/material/core";
 import { MatDialog } from "@angular/material/dialog";
 import { Observable } from "rxjs";
 import { map, startWith } from "rxjs/operators";
@@ -39,8 +30,20 @@ import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { IdentityIdWithLabel } from "../../security/users/idenity-id-with-label";
 import { KEY_DELIMITER, IdentityId } from "../../security/users/identity-id";
 import { DateTimeService } from "../task-condition-pane/date-time.service";
-import { TimeZoneValue } from "../task-condition-pane/time-zone-select/time-zone-select-component";
+import { TimeZoneValue, TimeZoneSelectComponent } from "../task-condition-pane/time-zone-select/time-zone-select-component";
 import { ExecuteAsDialogComponent } from "./execute-as-dialog.component";
+import { MatIcon } from "@angular/material/icon";
+import { MatTooltip } from "@angular/material/tooltip";
+import { MatProgressSpinner } from "@angular/material/progress-spinner";
+import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
+import { MatSelect } from "@angular/material/select";
+import { MatButton, MatIconButton } from "@angular/material/button";
+import { MatDatepickerInput, MatDatepickerToggle, MatDatepicker } from "@angular/material/datepicker";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { AsyncPipe, NgIf } from "@angular/common";
+import { MatSlideToggle } from "@angular/material/slide-toggle";
 
 export interface TaskOptionChanges {
    valid: boolean;
@@ -59,10 +62,11 @@ export class GroupErrorState implements ErrorStateMatcher {
 }
 
 @Component({
-   selector: "em-task-options-pane",
-   templateUrl: "./task-options-pane.component.html",
-   styleUrls: ["./task-options-pane.component.scss"],
-   providers: [ DateTimeService ]
+    selector: "em-task-options-pane",
+    templateUrl: "./task-options-pane.component.html",
+    styleUrls: ["./task-options-pane.component.scss"],
+    providers: [DateTimeService],
+    imports: [NgIf, FormsModule, ReactiveFormsModule, MatSlideToggle, MatCheckbox, MatFormField, MatLabel, MatInput, MatDatepickerInput, MatDatepickerToggle, MatSuffix, MatDatepicker, MatError, MatButton, TimeZoneSelectComponent, MatSelect, MatOption, MatAutocompleteTrigger, MatAutocomplete, MatProgressSpinner, MatIconButton, MatTooltip, MatIcon, AsyncPipe]
 })
 export class TaskOptionsPane {
    @Input() timeZoneOptions: TimeZoneModel[];
@@ -141,7 +145,7 @@ export class TaskOptionsPane {
    {
       this.optionsForm = fb.group(
          {
-            taskEnabled: [true],
+            taskEnabled: [false],
             deleteIfNotScheduledToRun: [false],
             startDate: [new Date()],
             endDate: [new Date()],
@@ -199,6 +203,10 @@ export class TaskOptionsPane {
          );
    }
 
+   get showOptions(): boolean {
+      return !!this.optionsForm.get("taskEnabled").value;
+   }
+
    fireModelChanged(): void {
       const tzValue = this.optionsForm.get("timeZone").value as TimeZoneValue;
       this.model.enabled = !!this.optionsForm.get("taskEnabled").value;
@@ -223,17 +231,23 @@ export class TaskOptionsPane {
    }
 
    /**
-    * ignore the owner because the sso user do not in the provider.
+    * ignore the owner only when sso is enabled, because the sso user do not in the provider.
     */
    private formValidIgnoreOwner(): boolean {
       if(this.optionsForm.valid) {
          return true;
       }
 
+      // honor group-level errors (e.g. dateGreaterThan from the dateSmallerThan validator),
+      // which are not attached to any individual control
+      if(this.optionsForm.errors) {
+         return false;
+      }
+
       for(let controlsKey in this.optionsForm.controls) {
          let control = this.optionsForm.controls[controlsKey];
 
-         if(!control || "owner" == controlsKey) {
+         if(!control || ("owner" == controlsKey && this.ssoEnable)) {
             continue;
          }
 

@@ -103,7 +103,7 @@ public final class SubMVTask extends AbstractMapTask {
                throw new Exception("The sub mv of the block not found: " + bid);
             }
 
-            query = getQuery();
+            SubMVQuery query = getQuery();
             SubTableBlock data = null;
 
             try {
@@ -162,6 +162,10 @@ public final class SubMVTask extends AbstractMapTask {
    public void cancel() {
       super.cancel();
 
+      // read the query from the task's own state rather than a field assigned partway
+      // through run(), so a cancel arriving before the block is loaded is not lost
+      SubMVQuery query = getQuery();
+
       if(query != null) {
          query.cancel();
       }
@@ -176,9 +180,6 @@ public final class SubMVTask extends AbstractMapTask {
    public void setOrgID(String orgID) {
       //
    }
-
-
-   private SubMVQuery query;
 
    private static final Logger LOG = LoggerFactory.getLogger(SubMVTask.class);
 }

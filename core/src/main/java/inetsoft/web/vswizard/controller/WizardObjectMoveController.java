@@ -18,15 +18,12 @@
 package inetsoft.web.vswizard.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.web.composer.vs.objects.event.MoveVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.MultiMoveVsObjectEvent;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.LinkUri;
-import inetsoft.web.vswizard.service.WizardVSObjectService;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
@@ -35,13 +32,12 @@ import java.security.Principal;
 
 @Controller
 public class WizardObjectMoveController {
-   public WizardObjectMoveController(WizardVSObjectService wizardVSObjectService,
+   public WizardObjectMoveController(WizardObjectMoveServiceProxy wizardObjectMoveServiceProxy,
                                      RuntimeViewsheetRef runtimeViewsheetRef,
                                      ViewsheetService engine)
    {
-      this.wizardVSObjectService = wizardVSObjectService;
+      this.wizardObjectMoveServiceProxy = wizardObjectMoveServiceProxy;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.engine = engine;
    }
 
    @Undoable
@@ -50,22 +46,7 @@ public class WizardObjectMoveController {
                           Principal principal, CommandDispatcher commandDispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs = engine.getViewsheet(
-         runtimeViewsheetRef.getRuntimeId(), principal);
-
-      if(rvs == null) {
-         return;
-      }
-
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockWrite();
-
-      try {
-         this.wizardVSObjectService.moveVSObject(rvs, event, linkUri, principal, commandDispatcher);
-      }
-      finally {
-         box.unlockWrite();
-      }
+      wizardObjectMoveServiceProxy.moveObject(runtimeViewsheetRef.getRuntimeId(), event, linkUri, principal, commandDispatcher);
    }
 
    @Undoable
@@ -75,24 +56,9 @@ public class WizardObjectMoveController {
                            @LinkUri String linkUri)
       throws Exception
    {
-      RuntimeViewsheet rvs = engine.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-
-      if(rvs == null) {
-         return;
-      }
-
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockWrite();
-
-      try {
-         this.wizardVSObjectService.moveVSObjects(rvs, multiEvent, linkUri, principal, dispatcher);
-      }
-      finally {
-         box.unlockWrite();
-      }
+      wizardObjectMoveServiceProxy.moveObjects(runtimeViewsheetRef.getRuntimeId(), multiEvent, principal, dispatcher, linkUri);
    }
 
-   private final WizardVSObjectService wizardVSObjectService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final ViewsheetService engine;
+   private final WizardObjectMoveServiceProxy wizardObjectMoveServiceProxy;
 }

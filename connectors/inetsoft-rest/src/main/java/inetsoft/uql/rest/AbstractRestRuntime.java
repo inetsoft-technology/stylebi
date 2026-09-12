@@ -40,9 +40,20 @@ public abstract class AbstractRestRuntime extends TabularRuntime {
    public XTableNode runQuery(TabularQuery tabularQuery, VariableTable params) {
       final AbstractRestQuery query = (AbstractRestQuery) tabularQuery;
       QueryManager manager = (QueryManager) query.getProperty("queryManager");
-      ExecutorService executor = Executors.newSingleThreadExecutor(GroupedThread::new);
+      ExecutorService executor = Executors.newSingleThreadExecutor(
+         r -> new GroupedThread(r, ThreadContext.getContextPrincipal()));
       boolean cancelled = false;
       XTableNode result = null;
+      boolean preview = false;
+
+      try {
+         preview = params != null && "true".equals(params.get(XQuery.HINT_PREVIEW));
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to get the preview hint for " + query.getName(), ex);
+      }
+
+      final boolean liveMode = preview;
 
       try {
          final QueryRunner queryRunner = getQueryRunner(query);
@@ -60,7 +71,7 @@ public abstract class AbstractRestRuntime extends TabularRuntime {
                if(queryRunner instanceof AbstractQueryRunner) {
                   AbstractQueryRunner<?> queryRunner2 = (AbstractQueryRunner<?>) queryRunner;
                   queryRunner2.setExecutionThread(Thread.currentThread());
-                  queryRunner2.setLiveMode("true".equals(params.get(XQuery.HINT_PREVIEW)));
+                  queryRunner2.setLiveMode(liveMode);
 
                   Object ts = params.get(XQuery.HINT_TOUCH_TIMESTAMP);
 
@@ -106,10 +117,23 @@ public abstract class AbstractRestRuntime extends TabularRuntime {
                TimedQueue.remove(timeoutRunnable);
 
                if(timedOut[0]) {
-                  LOG.error("Query timed out. Failed to load data for " + query.getName());
-                  Tool.addUserMessage(Catalog.getCatalog().getString("common.timeout",
-                                                                     query.getName()),
-                                      ConfirmException.ERROR);
+                  // a cancelled live/preview query already returns whatever partial data
+                  // was fetched (see QueryRunner.run()), so notify with a non-blocking
+                  // toast instead of the modal error dialog that would otherwise make the
+                  // partial result look like a failure
+                  if(liveMode) {
+                     LOG.info("Query timed out during preview, returning partial results " +
+                              "for " + query.getName());
+                     Tool.addUserMessage(Catalog.getCatalog().getString("common.timeout.partial",
+                                                                        query.getName()),
+                                         ConfirmException.INFO);
+                  }
+                  else {
+                     LOG.error("Query timed out. Failed to load data for " + query.getName());
+                     Tool.addUserMessage(Catalog.getCatalog().getString("common.timeout",
+                                                                        query.getName()),
+                                         ConfirmException.ERROR);
+                  }
                }
             }
 

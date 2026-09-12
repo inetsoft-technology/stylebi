@@ -162,7 +162,18 @@ public class XFormatInfo implements XMLSerializable, Serializable, Cloneable {
       if(format == null) {
          return Catalog.getCatalog().getString("none");
       }
-      else {
+      else if(format.equals(TableFormat.MESSAGE_FORMAT)) {
+         // MessageFormat sample text does not need a resolved Format instance.
+         if(formatSpec != null) {
+            result = format + ": " + formatSpec;
+         }
+         else {
+            result = format;
+         }
+      }
+      // TableFormat.getFormat() returns null when construction fails (e.g. malformed
+      // custom pattern); fall back to "none" instead of NPEing on fmt.format(...).
+      else if(fmt != null) {
          if(format.equals(TableFormat.DATE_FORMAT)) {
             result = fmt.format(new Date());
          }
@@ -171,14 +182,6 @@ public class XFormatInfo implements XMLSerializable, Serializable, Cloneable {
          {
             Duration duration = Duration.parse("P1DT12H30M30.5S");
             result = fmt.format(duration.toMillis());
-         }
-         else if(format.equals(TableFormat.MESSAGE_FORMAT)) {
-            if(formatSpec != null) {
-               result = format + ": " + formatSpec;
-            }
-            else {
-               result = format;
-            }
          }
          else if(format.equals(TableFormat.DECIMAL_FORMAT)) {
             result = "##.00%".equals(formatSpec) || "##.##\"%\"".equals(formatSpec) ?

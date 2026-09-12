@@ -1,0 +1,71 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.sree.internal.cluster.ignite;
+
+import inetsoft.sree.internal.cluster.SingletonCallableTask;
+import inetsoft.sree.internal.cluster.SingletonRunnableTask;
+
+import java.io.Serializable;
+import java.util.UUID;
+
+/**
+ * Wrapper submitted to the distributed service task queue. Carries the task itself plus
+ * enough metadata for the executor to send the result back to the originating node.
+ */
+class ServiceTaskRequest implements Serializable {
+   private static final long serialVersionUID = 1L;
+
+   ServiceTaskRequest(String taskId, UUID callerNodeId, SingletonCallableTask<?> task) {
+      this.taskId = taskId;
+      this.callerNodeId = callerNodeId;
+      this.callableTask = task;
+      this.runnableTask = null;
+   }
+
+   ServiceTaskRequest(String taskId, UUID callerNodeId, SingletonRunnableTask task) {
+      this.taskId = taskId;
+      this.callerNodeId = callerNodeId;
+      this.callableTask = null;
+      this.runnableTask = task;
+   }
+
+   String getTaskId() {
+      return taskId;
+   }
+
+   UUID getCallerNodeId() {
+      return callerNodeId;
+   }
+
+   SingletonCallableTask<?> getCallableTask() {
+      return callableTask;
+   }
+
+   SingletonRunnableTask getRunnableTask() {
+      return runnableTask;
+   }
+
+   boolean isCallable() {
+      return callableTask != null;
+   }
+
+   private final String taskId;
+   private final UUID callerNodeId;
+   private final SingletonCallableTask<?> callableTask;
+   private final SingletonRunnableTask runnableTask;
+}

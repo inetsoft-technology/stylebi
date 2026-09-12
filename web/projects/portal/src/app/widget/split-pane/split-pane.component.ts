@@ -29,10 +29,11 @@ import {
 import Split from "split.js";
 
 @Component({
-   selector: "split-pane",
-   templateUrl: "split-pane.component.html",
-   styleUrls: ["split-pane.component.scss"],
-   encapsulation: ViewEncapsulation.None
+    selector: "split-pane",
+    templateUrl: "split-pane.component.html",
+    styleUrls: ["split-pane.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    standalone: true
 })
 export class SplitPane implements OnInit, OnChanges {
    @Input() sizes: number[];

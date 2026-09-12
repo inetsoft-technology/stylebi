@@ -172,7 +172,7 @@ public class PartialDeploymentJarInfo implements XMLSerializable, Serializable {
       if(folderAlias != null && !folderAlias.isEmpty()) {
          for(Map.Entry<String, String> e : folderAlias.entrySet()) {
             writer.println("<alias>");
-            writer.format("<key>%s</key>%n", Tool.escape(e.getKey() + ""));
+            writer.format("<key>%s</key>%n", Tool.escape(e.getKey()));
             writer.format("<value>%s</value>%n", Tool.escape(e.getValue()));
             writer.println("</alias>");
          }
@@ -278,7 +278,7 @@ public class PartialDeploymentJarInfo implements XMLSerializable, Serializable {
       Version oldVersion = getSemanticVersion(version);
       Version curVersion = getSemanticVersion("13.1"); // schema changed
 
-      return oldVersion == null || oldVersion.lessThan(curVersion);
+      return oldVersion == null || oldVersion.isLowerThan(curVersion);
    }
 
    private Version getSemanticVersion(String version) {
@@ -287,13 +287,13 @@ public class PartialDeploymentJarInfo implements XMLSerializable, Serializable {
       }
 
       try {
-         return Version.valueOf(version);
+         return Version.parse(version);
       }
       catch(Exception ignore) {
       }
 
       try {
-         return Version.valueOf(version + ".0");
+         return Version.parse(version + ".0");
       }
       catch(Exception ignore) {
       }
@@ -394,7 +394,7 @@ public class PartialDeploymentJarInfo implements XMLSerializable, Serializable {
       return dependeciesMap;
    }
 
-   public void setDependeciesMap(Map<String, List<String>> dependeciesMap) {
+   public void setDependenciesMap(Map<String, List<String>> dependeciesMap) {
       this.dependeciesMap = dependeciesMap;
    }
 
@@ -418,16 +418,16 @@ public class PartialDeploymentJarInfo implements XMLSerializable, Serializable {
    private HashMap<String, String> folderDescription = new HashMap<>();
    private Timestamp deploymentDate;
    private boolean overwriting;
-   private transient boolean jarFileTransformed;
-   private transient Map<String, String> queryFolderMap = new HashMap<>(); // key -> query name, value -> folder
-   private transient Map<String, List<String>> dependeciesMap = new HashMap<>(); // key -> query name, value-> file name
+   private boolean jarFileTransformed;
+   private Map<String, String> queryFolderMap = new HashMap<>(); // key -> query name, value -> folder
+   private Map<String, List<String>> dependeciesMap = new HashMap<>(); // key -> query name, value-> file name
    private String version;
    private String name;
    private List<XAsset> entryList;
    private List<SelectedAsset> selectedEntries;
    private List<RequiredAsset> dependentAssets;
 
-   public static final class SelectedAsset implements XMLSerializable {
+   public static final class SelectedAsset implements XMLSerializable, Serializable {
       public String getType() {
          return type;
       }
@@ -582,7 +582,7 @@ public class PartialDeploymentJarInfo implements XMLSerializable, Serializable {
       private long lastModifiedTime;
    }
 
-   public static final class RequiredAsset implements XMLSerializable {
+   public static final class RequiredAsset implements XMLSerializable, Serializable {
       public String getType() {
          return type;
       }

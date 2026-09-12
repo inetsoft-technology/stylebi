@@ -141,7 +141,8 @@ public class ParameterService {
       }
 
       if(assembly instanceof TextVSAssembly) {
-         refreshTextParameters(rvs.getViewsheetSandbox(), (TextVSAssemblyInfo) assembly.getInfo());
+         rvs.getViewsheetSandbox().ifPresent(
+            b -> refreshTextParameters(b, (TextVSAssemblyInfo) assembly.getInfo()));
       }
 
       if(assembly instanceof Viewsheet) {

@@ -19,19 +19,27 @@ import {
    Component,
    EventEmitter,
    Input,
+   OnDestroy,
    OnInit,
    Output,
 } from "@angular/core";
 import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
 import { TimeInstant } from "../../common/data/time-instant";
 import { DateTimeChangeType } from "./date-time-change-type";
+import { TimeValueEditorComponent } from "./time-value-editor.component";
+import { DatePickerComponent } from "./date-picker.component";
+
 
 @Component({
-   selector: "date-time-picker",
-   templateUrl: "date-time-picker.component.html",
-   styleUrls: ["date-time-picker.component.scss"],
+    selector: "date-time-picker",
+    templateUrl: "date-time-picker.component.html",
+    styleUrls: ["date-time-picker.component.scss"],
+    imports: [
+    DatePickerComponent,
+    TimeValueEditorComponent
+]
 })
-export class DateTimePickerComponent implements OnInit {
+export class DateTimePickerComponent implements OnInit, OnDestroy {
    @Input() promptTime: boolean;
    @Input() promptDate: boolean = true;
    @Input() date: string = "";
@@ -42,6 +50,7 @@ export class DateTimePickerComponent implements OnInit {
    timeFormat: string = DateTypeFormatter.ISO_8601_TIME_FORMAT;
    selectTime: string;
    dateTime: TimeInstant;
+   private destroyed = false;
 
    ngOnInit(): void {
       let autoSetCurrent = false;
@@ -55,8 +64,20 @@ export class DateTimePickerComponent implements OnInit {
       this.initTime(this.dateTime);
 
       if(this.emitAutoSet && autoSetCurrent) {
-         this.dateTimeValueChange(DateTimeChangeType.AUTO);
+         // Defer emission to avoid NG0100 when this component is initialized inside a
+         // fixed dropdown whose view is attached to applicationRef outside the normal
+         // component tree — synchronous emission during ngOnInit triggers a second CD
+         // pass on the already-checked parent, causing ExpressionChangedAfterItHasBeenCheckedError.
+         Promise.resolve().then(() => {
+            if(!this.destroyed) {
+               this.dateTimeValueChange(DateTimeChangeType.AUTO);
+            }
+         });
       }
+   }
+
+   ngOnDestroy(): void {
+      this.destroyed = true;
    }
 
    initTime(dateTime: TimeInstant): void {
@@ -92,7 +113,8 @@ export class DateTimePickerComponent implements OnInit {
    }
 
    dateTimeValueChange(changeType: DateTimeChangeType) {
-      this.onCommit.emit(this.formatTimeString(this.dateTime));
-      this.valueChanged.emit({value: this.formatTimeString(this.dateTime), changeType: changeType});
+      const formatted = this.formatTimeString(this.dateTime);
+      this.onCommit.emit(formatted);
+      this.valueChanged.emit({value: formatted, changeType: changeType});
    }
 }

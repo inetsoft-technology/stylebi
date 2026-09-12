@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.value.Value;
 
+import javax.annotation.Nullable;
 import java.util.List;
 
 @Value.Immutable
@@ -32,6 +33,8 @@ public interface ScheduleTaskEditorModel {
    List<ScheduleConditionModel> conditions();
    List<ScheduleActionModel> actions();
    TaskOptionsPaneModel options();
+   @Nullable
+   String orgId();
 
    static ScheduleTaskEditorModel.Builder builder() {
       return new ScheduleTaskEditorModel.Builder();

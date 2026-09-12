@@ -21,7 +21,6 @@ import inetsoft.mv.MVManager;
 import inetsoft.mv.fs.FSService;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
-import inetsoft.util.FileSystemService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,14 +28,9 @@ import java.util.Objects;
 
 public class FSMessageHandler implements MessageListener {
    public FSMessageHandler() {
-       FSService.getConfig();
-       String home = FSService.getConfig().getWorkDir("localhost");
-
-      if(home != null) {
-         home = FileSystemService.getInstance().getFile(home).getAbsolutePath();
-         Cluster cluster = Cluster.getInstance();
-         ClusterUtil.setWorkDir(cluster.getLocalMember(), home);
-      }
+      // eagerly initialize the FSService singleton: getConfig() goes through
+      // getService(), which constructs it lazily. Not a dead call.
+      FSService.getConfig();
    }
 
    @Override

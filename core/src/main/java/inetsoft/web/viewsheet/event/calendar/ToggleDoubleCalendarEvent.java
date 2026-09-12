@@ -17,24 +17,20 @@
  */
 package inetsoft.web.viewsheet.event.calendar;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
+import org.immutables.value.Value;
+
 /**
  * Class that encapsulates the parameters for toggling double calendar.
  *
  * @since 12.3
  */
-public class ToggleDoubleCalendarEvent extends CalendarSelectionEvent {
-   public boolean isDoubleCalendar() {
-      return doubleCalendar;
-   }
-
-   public void setDoubleCalendar(boolean doubleCalendar) {
-      this.doubleCalendar = doubleCalendar;
-   }
-
-   @Override
-   public String toString() {
-      return "{doubleCalendar:" + doubleCalendar + "}";
-   }
-
-   private boolean doubleCalendar;
+@Value.Immutable
+@Serial.Structural
+@JsonSerialize(as = ImmutableToggleDoubleCalendarEvent.class)
+@JsonDeserialize(as = ImmutableToggleDoubleCalendarEvent.class)
+public abstract class ToggleDoubleCalendarEvent extends CalendarSelectionEvent {
+   public abstract boolean doubleCalendar();
 }

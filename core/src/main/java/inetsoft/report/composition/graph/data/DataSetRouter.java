@@ -18,6 +18,12 @@
 package inetsoft.report.composition.graph.data;
 
 import inetsoft.graph.data.DataSet;
+import inetsoft.graph.data.DataSetFilter;
+import inetsoft.report.composition.graph.VSDataSet;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.viewsheet.VSDataRef;
+import inetsoft.uql.viewsheet.XDimensionRef;
+import inetsoft.util.Tool;
 
 import java.util.*;
 
@@ -53,7 +59,18 @@ public class DataSetRouter extends AbstractRouter {
          }
       }
 
+      // Part-date-group fields (HourOfDay, DayOfWeek, MonthOfYear, Quarter) navigate
+      // previous/next in natural calendar order when the field has no display sort, or when
+      // its display sort is value-based (e.g. a Top-N "Sort By Value" ranking) — "previous
+      // hour" has no meaning in rank-value order. An explicit label sort (ascending,
+      // descending, or specific order) is honored instead, so that calc navigation stays
+      // aligned with the order the values are actually plotted in. (76059, 75664-1)
+      XDimensionRef partDateDim = getPartDateDimension(data, field);
       comp = data.getComparator(field);
+
+      if(partDateDim != null && (comp == null || isSortByValue(partDateDim))) {
+         comp = PART_DATE_ORDER;
+      }
 
       if(comp != null) {
          Collections.sort(v, comp);
@@ -62,6 +79,63 @@ public class DataSetRouter extends AbstractRouter {
       values = new Object[v.size()];
       v.toArray(values);
    }
+
+   /**
+    * Get the dimension backing the field if it is a part-date-group dimension (HourOfDay,
+    * DayOfWeek, MonthOfYear, Quarter, etc.), or null if the field is not one.
+    */
+   private static XDimensionRef getPartDateDimension(DataSet data, String field) {
+      DataSet root = data instanceof DataSetFilter
+         ? ((DataSetFilter) data).getRootDataSet() : data;
+
+      if(!(root instanceof VSDataSet)) {
+         return null;
+      }
+
+      VSDataRef ref = ((VSDataSet) root).getDataRef(field);
+
+      if(!(ref instanceof XDimensionRef)) {
+         return null;
+      }
+
+      XDimensionRef dim = (XDimensionRef) ref;
+      return (dim.getDateLevel() & XConstants.PART_DATE_GROUP) != 0 ? dim : null;
+   }
+
+   /**
+    * Check if the dimension is sorted by an aggregate value (as set by a Top-N/Bottom-N
+    * "Sort By Value" ranking) rather than by its own labels.
+    */
+   private static boolean isSortByValue(XDimensionRef dim) {
+      int order = dim.getOrder();
+      return order == XConstants.SORT_VALUE_ASC || order == XConstants.SORT_VALUE_DESC;
+   }
+
+   /**
+    * Natural calendar order for part-date-group dimension values. Values are normally
+    * emitted as Integer, so numeric order is calendar order. Nulls sort first to match the
+    * position the null group occupies on an ascending axis, and any non-numeric label (e.g.
+    * the "Others" group produced by a Top-N ranking) sorts after all numeric values rather
+    * than failing the comparison.
+    */
+   private static final Comparator PART_DATE_ORDER = (a, b) -> {
+      if(a == null || b == null) {
+         return a == b ? 0 : (a == null ? -1 : 1);
+      }
+
+      boolean anum = a instanceof Number;
+      boolean bnum = b instanceof Number;
+
+      if(anum && bnum) {
+         return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
+      }
+
+      if(anum != bnum) {
+         return anum ? -1 : 1;
+      }
+
+      return Tool.compare(a, b);
+   };
 
    @Override
    public Object[] getValues() {

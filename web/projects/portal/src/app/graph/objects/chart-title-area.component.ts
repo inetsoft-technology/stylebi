@@ -22,16 +22,19 @@ import { Title } from "../model/title";
 import { ChartService } from "../services/chart.service";
 import { ChartObjectAreaBase } from "./chart-object-area-base";
 import { GuiTool } from "../../common/util/gui-tool";
+import { ChartImageDirective } from "./chart-image.directive";
+
 
 @Component({
-   selector: "chart-title-area",
-   templateUrl: "chart-title-area.component.html",
-   styleUrls: ["chart-title-area.component.scss"],
-   providers: [{
-      provide: ChartObjectAreaBase,
-      useExisting: ChartTitleArea
-   }],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "chart-title-area",
+    templateUrl: "chart-title-area.component.html",
+    styleUrls: ["chart-title-area.component.scss"],
+    providers: [{
+            provide: ChartObjectAreaBase,
+            useExisting: ChartTitleArea
+        }],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [ChartImageDirective]
 })
 export class ChartTitleArea extends ChartObjectAreaBase<Title> {
    @Output() selectRegion = new EventEmitter();

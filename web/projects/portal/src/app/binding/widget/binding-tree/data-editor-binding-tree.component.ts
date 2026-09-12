@@ -38,10 +38,12 @@ import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropd
 import { DataRef } from "../../../common/data/data-ref";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { ViewsheetClientService } from "../../../common/viewsheet-client/viewsheet-client.service";
+import { BindingTreeComponent } from "./binding-tree.component";
 
 @Component({
-   selector: "data-editor-binding-tree",
-   templateUrl: "data-editor-binding-tree.component.html"
+    selector: "data-editor-binding-tree",
+    templateUrl: "data-editor-binding-tree.component.html",
+    imports: [BindingTreeComponent]
 })
 export class DataEditorBindingTree implements OnChanges {
    @HostBinding("hidden")

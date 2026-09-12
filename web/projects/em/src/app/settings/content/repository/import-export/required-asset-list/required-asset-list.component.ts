@@ -18,23 +18,25 @@
 import { animate, state, style, transition, trigger } from "@angular/animations";
 import { SelectionModel } from "@angular/cdk/collections";
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
-import { MatSort } from "@angular/material/sort";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatSort, MatSortHeader } from "@angular/material/sort";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { DateTypeFormatter } from "../../../../../../../../shared/util/date-type-formatter";
 import { RequiredAssetModel } from "../required-asset-model";
+import { MatCheckbox } from "@angular/material/checkbox";
 
 @Component({
-   selector: "em-required-asset-list",
-   templateUrl: "./required-asset-list.component.html",
-   styleUrls: ["./required-asset-list.component.scss"],
-   animations: [
-      trigger("detailExpand", [
-         state("collapsed, void", style({height: "0px", minHeight: "0"})),
-         state("expanded", style({height: "*"})),
-         transition("expanded <=> collapsed", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)")),
-         transition("expanded <=> void", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)"))
-      ]),
-   ]
+    selector: "em-required-asset-list",
+    templateUrl: "./required-asset-list.component.html",
+    styleUrls: ["./required-asset-list.component.scss"],
+    animations: [
+        trigger("detailExpand", [
+            state("collapsed, void", style({ height: "0px", minHeight: "0" })),
+            state("expanded", style({ height: "*" })),
+            transition("expanded <=> collapsed", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)")),
+            transition("expanded <=> void", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)"))
+        ]),
+    ],
+    imports: [MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class RequiredAssetListComponent implements OnInit {
    @Input()

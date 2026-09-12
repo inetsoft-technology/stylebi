@@ -71,13 +71,11 @@ public class HTMLCrosstabHelper extends HTMLTableDataHelper {
    public void write(PrintWriter writer, TableDataVSAssembly assembly, VSTableLens lens) {
       TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getVSAssemblyInfo();
 
-      if(info == null) {
+      if(info == null || lens == null) {
          return;
       }
 
-      if(lens != null) {
-         lens.initTableGrid(info);
-      }
+      lens.initTableGrid(info);
 
       isWritten = new SparseMatrix();
       Rectangle2D bounds = vHelper.getBounds(info);
@@ -145,7 +143,7 @@ public class HTMLCrosstabHelper extends HTMLTableDataHelper {
          totalWidth += columnWidths[i];
       }
 
-      // fill the last column, same as the front-end logic in BaseTableController
+      // fill the last column, same as the front-end logic in BaseTableService
       if(totalWidth < bounds.getWidth()) {
          for(int i = columnWidths.length - 1; i >= 0; i--) {
             if(columnWidths[i] > 0) {

@@ -23,8 +23,10 @@ import { Secured } from "../../../secured";
 import { LogSettingsModel } from "../log-settings-model";
 import { HttpClient } from "@angular/common/http";
 import { Observable } from "rxjs";
-import { LogSettingsChanges } from "../logging-settings-view/logging-settings-view.component";
+import { ErrorHandlerService } from "../../../common/util/error/error-handler.service";
+import { LogSettingsChanges, LoggingSettingsViewComponent } from "../logging-settings-view/logging-settings-view.component";
 import { Tool } from "../../../../../../shared/util/tool";
+import { EditorPanelComponent } from "../../../common/util/editor-panel/editor-panel.component";
 
 @Secured({
    route: "/settings/logging",
@@ -40,9 +42,10 @@ import { Tool } from "../../../../../../shared/util/tool";
    link: "EMSettingsLogging"
 })
 @Component({
-   selector: "em-logging-settings-page",
-   templateUrl: "./logging-settings-page.component.html",
-   styleUrls: ["./logging-settings-page.component.scss"]
+    selector: "em-logging-settings-page",
+    templateUrl: "./logging-settings-page.component.html",
+    styleUrls: ["./logging-settings-page.component.scss"],
+    imports: [EditorPanelComponent, LoggingSettingsViewComponent]
 })
 export class LoggingSettingsPageComponent implements OnInit {
    model: LogSettingsModel;
@@ -50,7 +53,8 @@ export class LoggingSettingsPageComponent implements OnInit {
    valid: boolean = false;
 
    constructor(private pageTitle: PageHeaderService,
-               private http: HttpClient)
+               private http: HttpClient,
+               private errorService: ErrorHandlerService)
    {
    }
 
@@ -67,9 +71,14 @@ export class LoggingSettingsPageComponent implements OnInit {
    }
 
    setConfiguration() {
-      this.http.post("../api/em/log/setting/set-configuration", this.newModel).subscribe(() => {
-         this.model = this.newModel;
-         this.valid = false;
+      this.http.post("../api/em/log/setting/set-configuration", this.newModel).subscribe({
+         next: () => {
+            this.model = this.newModel;
+            this.valid = false;
+         },
+         // without this the server's rejection is swallowed and the page simply fails to
+         // update, which is exactly the silent failure this change exists to end
+         error: (error) => this.errorService.showDialog(error, "_#(js:em.common.log.saveFailed)")
       });
    }
 

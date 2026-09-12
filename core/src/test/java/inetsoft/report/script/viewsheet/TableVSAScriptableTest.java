@@ -18,9 +18,9 @@
 
 package inetsoft.report.script.viewsheet;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.Hyperlink;
-import inetsoft.report.composition.*;
+import inetsoft.report.composition.FormTableRow;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.report.lens.AttributeTableLens;
@@ -30,36 +30,43 @@ import inetsoft.report.script.TableRow;
 import inetsoft.test.*;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
-import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
-
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.Mock;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
-import java.security.Principal;
 import java.util.*;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "TableVSAScriptableTest.vso")
+@Tag("core")
+@Tag("integration")
 public class TableVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private TableVSAScriptable tableVSAScriptable, tableVSAScriptable2;
    private TableVSAssemblyInfo tableVSAssemblyInfo;
    private TableVSAssembly tableVSAssembly, tableVSAssembly2;
    private VSAScriptable vsaScriptable;
-
-   @Mock
-   ViewsheetService viewsheetService;
 
    @BeforeEach
    void setUp() {
@@ -92,7 +99,7 @@ public class TableVSAScriptableTest {
                            "titleVisible", "flyOnClick", "tipOnClick", "keepRowHeightOnPrint"})
    void testAddProperties(String propertyName) {
       tableVSAScriptable.addProperties();
-      assert tableVSAScriptable.get(propertyName, tableVSAScriptable) instanceof Boolean;
+      assert tableVSAScriptable.getMember(propertyName) instanceof Boolean;
    }
 
    @ParameterizedTest
@@ -109,7 +116,7 @@ public class TableVSAScriptableTest {
    })
    void testSetProperty(String propertyName, Object propertyValue, Object expectedValue) {
       tableVSAScriptable.setProperty(propertyName, propertyValue);
-      assertEquals(expectedValue, tableVSAScriptable.get(propertyName, tableVSAScriptable));
+      assertEquals(expectedValue, tableVSAScriptable.getMember(propertyName));
    }
 
    @Test
@@ -229,7 +236,7 @@ public class TableVSAScriptableTest {
       tableVSAScriptable2.setHyperlink(1, 1, "http://www.inetsoft.com");
       tableVSAScriptable2.setHyperlink(1, 2, vsLink);
 
-      AttributeTableLens tableLens = (AttributeTableLens)tableVSAScriptable2.get("tablelens", tableVSAScriptable2);
+      AttributeTableLens tableLens = (AttributeTableLens)tableVSAScriptable2.getMember("tablelens");
       assertEquals("http://www.inetsoft.com", tableLens.getHyperlink(1, 1).getLink());
       assertEquals(Hyperlink.WEB_LINK, tableLens.getHyperlink(1, 1).getLinkType());
       assertEquals("1^128^__NULL__^test", tableLens.getHyperlink(1, 2).getLink());
@@ -257,25 +264,24 @@ public class TableVSAScriptableTest {
       processAssembly("TableView1");
 
       //test get actions
-      assertNull(tableVSAScriptable2.get("value", tableVSAScriptable2));
+      assertNull(tableVSAScriptable2.getMember("value"));
       assertEquals("CONTACT_ID",
-                   ((TableRow) tableVSAScriptable2.get("field", tableVSAScriptable2)).get(0, null));
-      assertEquals(36, tableVSAScriptable2.get("row", tableVSAScriptable2));
-      assertEquals(4, tableVSAScriptable2.get("col", tableVSAScriptable2));
+                   ((TableRow) tableVSAScriptable2.getMember("field")).getArrayElement(0L));
+      assertEquals(36, tableVSAScriptable2.getMember("row"));
+      assertEquals(4, tableVSAScriptable2.getMember("col"));
       assertEquals(1,
-                   ((TableArray)tableVSAScriptable2.get("data", tableVSAScriptable2)).getTable().getObject(1, 1));
+                   ((TableArray)tableVSAScriptable2.getMember("data")).getTable().getObject(1, 1));
       assertEquals(1,
-                   ((TableArray)tableVSAScriptable2.get("table", tableVSAScriptable2)).getTable().getObject(1, 1));
-      assertEquals(36, tableVSAScriptable2.get("data.length", tableVSAScriptable2));
-      assertEquals(4, tableVSAScriptable2.get("data.size", tableVSAScriptable2));
-      assertNull(tableVSAScriptable2.get("dataConditions", tableVSAScriptable2));
+                   ((TableArray)tableVSAScriptable2.getMember("table")).getTable().getObject(1, 1));
+      assertEquals(36, tableVSAScriptable2.getMember("data.length"));
+      assertEquals(4, tableVSAScriptable2.getMember("data.size"));
+      assertNull(tableVSAScriptable2.getMember("dataConditions"));
 
       //for non-form table, can't append/insert/delete row, keep original row count
       tableVSAScriptable2.appendRow(1);
       tableVSAScriptable2.insertRow(3);
       tableVSAScriptable2.deleteRow(30);
-      AttributeTableLens tableLens1 = (AttributeTableLens)tableVSAScriptable2.get(
-         "tablelens", tableVSAScriptable2);
+      AttributeTableLens tableLens1 = (AttributeTableLens)tableVSAScriptable2.getMember("tablelens");
       assertEquals(36, tableLens1.getRowCount());
    }
 
@@ -299,8 +305,7 @@ public class TableVSAScriptableTest {
       //set presenter by column header
       tableVSAScriptable2.setPresenter("CONTACT_ID", barPresenter, null);
 
-      AttributeTableLens tableLens1 = (AttributeTableLens)tableVSAScriptable2.get(
-         "tablelens", tableVSAScriptable2);
+      AttributeTableLens tableLens1 = (AttributeTableLens)tableVSAScriptable2.getMember("tablelens");
       assertEquals(qrCodePresenter.getDisplayName(),
                    tableLens1.getPresenter(2, 2).getDisplayName());
       assertEquals(bar2Presenter.getDisplayName(), tableLens1.getPresenter(1).getDisplayName());
@@ -329,8 +334,7 @@ public class TableVSAScriptableTest {
       //form table has 36 rows, append 1 row and insert 1 row
       tableVSAScriptable2.appendRow(1);
       tableVSAScriptable2.insertRow(3);
-      AttributeTableLens tableLens2 = (AttributeTableLens)tableVSAScriptable2.get(
-         "tablelens", tableVSAScriptable2);
+      AttributeTableLens tableLens2 = (AttributeTableLens)tableVSAScriptable2.getMember("tablelens");
       assertEquals(38, tableLens2.getRowCount());
       //delete row 35
       tableVSAScriptable2.deleteRow(35);
@@ -369,10 +373,7 @@ public class TableVSAScriptableTest {
     */
    private void processAssembly(String assemblyName) throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
-      Principal principal = mock(Principal.class);
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
-         .thenReturn(viewsheetResource.getRuntimeViewsheet());
+      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox().orElseThrow();
 
       tableVSAssembly2 = (TableVSAssembly) viewsheetResource
          .getRuntimeViewsheet().getViewsheet().getAssembly(assemblyName);
@@ -383,11 +384,6 @@ public class TableVSAScriptableTest {
    public static final String ASSET_ID = "1^128^__NULL__^TableVSAScriptableTest";
 
    @RegisterExtension
-   @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
-
-   @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension viewsheetResource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 }

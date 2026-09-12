@@ -17,10 +17,11 @@
  */
 package inetsoft.web.security;
 
-import inetsoft.sree.ClientInfo;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.AuthenticationService;
 import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.util.ThreadContext;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,6 +37,12 @@ import java.util.Locale;
  * @since 12.3
  */
 public class RequestPrincipalFilter extends AbstractSecurityFilter {
+   public RequestPrincipalFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                                 AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
+   }
+
    @Override
    public void doFilter(ServletRequest request, ServletResponse response,
                         FilterChain chain) throws IOException, ServletException
@@ -43,18 +50,13 @@ public class RequestPrincipalFilter extends AbstractSecurityFilter {
       HttpServletRequest httpRequest = (HttpServletRequest) request;
       Principal oldPrincipal = ThreadContext.getContextPrincipal();
       Locale oldLocale = ThreadContext.getLocale();
+      boolean oldProfiling = ThreadContext.isProfiling();
 
       if(!isPublicApi(httpRequest)) {
          Principal principal = getPrincipal(httpRequest);
 
          if(principal != null) {
             if(principal instanceof SRPrincipal) {
-               ClientInfo user = ((SRPrincipal) principal).getUser();
-
-               if(user != null) {
-                  user.setLocale(httpRequest.getLocale());
-               }
-
                ThreadContext.setContextPrincipal(principal);
                ThreadContext.setLocale(((SRPrincipal) principal).getLocale());
                ((SRPrincipal) principal).setLastAccess(System.currentTimeMillis());
@@ -70,6 +72,7 @@ public class RequestPrincipalFilter extends AbstractSecurityFilter {
       finally {
          ThreadContext.setContextPrincipal(oldPrincipal);
          ThreadContext.setLocale(oldLocale);
+         ThreadContext.setProfiling(oldProfiling);
       }
    }
 

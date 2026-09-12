@@ -19,9 +19,8 @@ package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.GradientColor;
+import inetsoft.uql.viewsheet.ShapeShadow;
 import inetsoft.uql.viewsheet.internal.ShapeVSAssemblyInfo;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 
 /**
  * The shape viewsheet assembly scriptable in viewsheet scope.
@@ -77,6 +76,8 @@ public class ShapeVSAScriptable extends VSAScriptable {
                      GradientColor.class, getClass(), this);
          addProperty("shadow", "isShadow", "setShadow",
                      boolean.class, info.getClass(), info);
+         addProperty("shadowInfo", "getShadowInfo", "setShadowInfo",
+                     ShapeShadow.class, info.getClass(), info);
       }
 
       addProperty("lineStyle", "getLineStyle", "setLineStyle",
@@ -87,12 +88,12 @@ public class ShapeVSAScriptable extends VSAScriptable {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       if(!(getVSAssemblyInfo() instanceof ShapeVSAssemblyInfo)) {
-         return Undefined.instance;
+         return null;
       }
 
-      return super.get(name, start);
+      return super.getMember(name);
    }
 
    /**

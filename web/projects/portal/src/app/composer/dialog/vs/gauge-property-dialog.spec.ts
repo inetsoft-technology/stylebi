@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { of as observableOf } from "rxjs";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -65,7 +65,7 @@ import { GaugePropertyDialog } from "./gauge-property-dialog.component";
 import { NumberRangePane } from "./number-range-pane.component";
 import { OutputGeneralPane } from "./output-general-pane.component";
 import { RangePane } from "./range-pane.component";
-
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 let createModel = () => {
    return <GaugePropertyDialogModel> {
@@ -132,32 +132,55 @@ describe("GaugePropertyDialog Integration Test", () => {
    let trapService: any;
    let dialogService: any;
 
-   beforeEach(async(() => {
-      trapService = { checkTrap: jest.fn() };
-      fixedDropdownService = { open: jest.fn() };
+   beforeEach(waitForAsync(() => {
+      trapService = { checkTrap: vi.fn() };
+      fixedDropdownService = { open: vi.fn() };
       contextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn(),
-         getObjectChange: jest.fn(() => observableOf({}))
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn(),
+         getObjectChange: vi.fn(() => observableOf({}))
       };
-      dialogService = { checkScript: jest.fn() };
+      dialogService = { checkScript: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            GaugePropertyDialog,
+            GaugeGeneralPane,
+            DataOutputPane,
+            GaugeAdvancedPane,
+            VSAssemblyScriptPane,
+            OutputGeneralPane,
+            NumberRangePane,
+            FacePane,
+            TreeDropdownComponent,
+            RangePane,
+            ScriptPane,
+            GeneralPropPane,
+            TreeComponent,
+            FormulaEditorDialog,
+            ColorEditor,
+            BasicGeneralPane,
+            TreeNodeComponent,
+            NewAggrDialog,
+            ColorPicker,
+            ColorEditorDialog,
+            ColorMap,
+            ColorSlider,
+            ColorComponentEditor,
+            ColorPane,
+            TreeSearchPipe,
+            FixedDropdownDirective,
+            EnterSubmitDirective,
+            DefaultFocusDirective,
+            SizePositionPane,
          ],
-         declarations: [
-            GaugePropertyDialog, GaugeGeneralPane, DataOutputPane, GaugeAdvancedPane,
-            VSAssemblyScriptPane, OutputGeneralPane, NumberRangePane, FacePane,
-            TreeDropdownComponent, RangePane, ScriptPane,
-            GeneralPropPane, TreeComponent, FormulaEditorDialog, ColorEditor,
-            BasicGeneralPane, TreeNodeComponent, NewAggrDialog, ColorPicker,
-            ColorEditorDialog, ColorMap, ColorSlider, ColorComponentEditor, ColorPane,
-            TreeSearchPipe, FixedDropdownDirective, EnterSubmitDirective,
-            DefaultFocusDirective, SizePositionPane
-         ],
+         
          providers: [
             { provide: FixedDropdownService, useValue: fixedDropdownService },
             { provide: UIContextService, useValue: contextService },

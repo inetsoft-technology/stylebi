@@ -26,10 +26,14 @@ import {
 } from "../repository-schedule-task-folder-settings-page/schedule-task-folder-settings-model";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+
 
 @Component({
-   selector: "em-repository-schedule-task-folder-settings-view",
-   templateUrl: "./repository-schedule-task-folder-settings-view.component.html"
+    selector: "em-repository-schedule-task-folder-settings-view",
+    templateUrl: "./repository-schedule-task-folder-settings-view.component.html",
+    imports: [EditorPanelComponent, ResourcePermissionComponent]
 })
 export class RepositoryScheduleTaskFolderSettingsViewComponent implements OnChanges {
    @Input() model: ScheduleTaskFolderSettingsModel;

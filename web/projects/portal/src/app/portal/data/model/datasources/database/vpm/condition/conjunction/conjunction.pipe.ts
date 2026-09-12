@@ -25,7 +25,8 @@ import { ConjunctionModel } from "./conjunction-model";
  *
  */
 @Pipe({
-   name: "conjunctionToString"
+    name: "conjunctionToString",
+    standalone: true
 })
 export class ConjunctionPipe implements PipeTransform {
    transform(conjunction: ConjunctionModel): string {

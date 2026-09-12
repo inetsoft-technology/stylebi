@@ -18,7 +18,6 @@
 package inetsoft.util.script;
 
 import inetsoft.util.CoreTool;
-import org.mozilla.javascript.NativeArray;
 
 import java.math.BigInteger;
 import java.time.LocalDate;
@@ -591,12 +590,12 @@ public class CalcUtil {
       Object[] arr = JavaScriptEngine.split(obj);
 
       for(int i = 0; i < arr.length; i++) {
-         if(arr[i] instanceof NativeArray) {
+         if(JSObject.isArray(arr[i])) {
             arr[i] = JavaScriptEngine.split(arr[i]);
 
             if(arr[i] instanceof Object[]) {
                for(int j = 0; j < ((Object[]) arr[i]).length; j++) {
-                  if(((Object[]) arr[i])[j] instanceof NativeArray) {
+                  if(JSObject.isArray(((Object[]) arr[i])[j])) {
                      ((Object[]) arr[i])[j] =
                         JavaScriptEngine.split(((Object[]) arr[i])[j]);
                   }

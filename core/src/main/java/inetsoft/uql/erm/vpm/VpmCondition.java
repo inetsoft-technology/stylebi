@@ -170,7 +170,7 @@ public class VpmCondition extends VpmObject {
 
       if(partition != null) {
          XDataModel model = source == null ? null :
-            XFactory.getRepository().getDataModel(source.getFullName());
+            XRepository.getRepository().getDataModel(source.getFullName());
          xpart = model == null ? null : model.getPartition(partition, user);
 
          if(xpart != null) {
@@ -274,17 +274,17 @@ public class VpmCondition extends VpmObject {
       StringArray tarray = new StringArray("table", tables);
       StringArray tsarray = new StringArray("talias", taliases);
       StringArray carray = new StringArray("column", columns);
-      scope.put("tables", scope, tarray);
-      scope.put("taliases", scope, tsarray);
-      scope.put("columns", scope, carray);
-      scope.put("condition", scope, condition);
-      scope.put("partition", scope, partition);
+      scope.putMember("tables", tarray);
+      scope.putMember("taliases", tsarray);
+      scope.putMember("columns", carray);
+      scope.putMember("condition", condition);
+      scope.putMember("partition", partition);
 
       if(WSExecution.getAssetQuerySandbox() != null) {
-         scope.put("creatingMV", scope, WSExecution.getAssetQuerySandbox().isCreatingMV());
+         scope.putMember("creatingMV", WSExecution.getAssetQuerySandbox().isCreatingMV());
       }
       else {
-         scope.put("creatingMV", scope, false);
+         scope.putMember("creatingMV", false);
       }
 
       Object result;
@@ -302,6 +302,18 @@ public class VpmCondition extends VpmObject {
             LOG.error("Failed to execute trigger script of conditions.", ex);
             return "1 = 2";
          }
+      }
+
+      // Bug #75669: A VPM trigger script activates its condition by referencing (or
+      // assigning) the `condition` variable, relying on that value becoming the script's
+      // completion value. Under Rhino a trailing statement that produced no value (e.g. a
+      // non-matching if in the last loop iteration) left the completion value intact;
+      // GraalJS follows current ECMAScript rules where such a statement yields undefined
+      // and clobbers the loop's completion value, so the reference no longer surfaces as
+      // the result. When the script used `condition` but the completion value came back
+      // null, fall back to the (possibly reassigned) condition value.
+      if(result == null && scope.isConditionUsed()) {
+         result = scope.getMember("condition");
       }
 
       if(result == null) {

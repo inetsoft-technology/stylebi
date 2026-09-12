@@ -76,13 +76,18 @@ public class UpgradableReadWriteLock {
    }
 
    /**
-    * Unlock all currently locked locks, and stored the current lock states to be restored
-    * in restoreLocks().
+    * Unlock all currently locked locks, and store the current lock states to be restored
+    * in {@link #restoreLocks()}.
+    *
+    * <p>Safe for re-entrant use: the saved states are kept on a per-thread stack, so a
+    * nested unlockAll()/restoreLocks() pair does not discard the state saved by an
+    * enclosing unlockAll(). Each call must be paired with a restoreLocks() on the same
+    * thread.</p>
     */
    public void unlockAll() {
-      List<Integer> olocks = thisOldLocks.get();
+      List<Integer> olocks = new ArrayList<>();
       Stack<Integer> stack = (Stack<Integer>) getStack().clone();
-      olocks.clear();
+      thisOldLocks.get().push(olocks);
 
       while(!stack.empty()) {
          Integer op = stack.pop();
@@ -100,23 +105,35 @@ public class UpgradableReadWriteLock {
    }
 
    /**
-    * Restore the locks unlocked in unlockAll.
+    * Restore the locks unlocked in the matching unlockAll.
     */
    public void restoreLocks() {
-      List<Integer> olocks = thisOldLocks.get();
+      Deque<List<Integer>> saved = thisOldLocks.get();
 
-      for(int i = olocks.size() - 1; i >= 0; i--) {
-         switch(olocks.get(i)) {
-         case 0:
-            lockRead();
-            break;
-         case 1:
-            lockWrite();
-            break;
-         }
+      if(saved.isEmpty()) {
+         thisOldLocks.remove();
+         return;
       }
 
-      thisOldLocks.remove();
+      List<Integer> olocks = saved.pop();
+
+      try {
+         for(int i = olocks.size() - 1; i >= 0; i--) {
+            switch(olocks.get(i)) {
+            case 0:
+               lockRead();
+               break;
+            case 1:
+               lockWrite();
+               break;
+            }
+         }
+      }
+      finally {
+         if(saved.isEmpty()) {
+            thisOldLocks.remove();
+         }
+      }
    }
 
    private int pop() {
@@ -141,8 +158,8 @@ public class UpgradableReadWriteLock {
    }
 
    private final ReadWriteLock thisLock = new ReentrantReadWriteLock(false);
-   private static final ThreadLocal<List<Integer>> thisOldLocks =
-      ThreadLocal.withInitial(ArrayList::new);
+   private final ThreadLocal<Deque<List<Integer>>> thisOldLocks =
+      ThreadLocal.withInitial(ArrayDeque::new);
    private static final ThreadLocal<Map<Object,Stack<Integer>>> thisLockState =
       ThreadLocal.withInitial(HashMap::new);
 }

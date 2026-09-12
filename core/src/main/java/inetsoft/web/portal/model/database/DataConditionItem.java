@@ -21,13 +21,15 @@ package inetsoft.web.portal.model.database;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
+import java.io.Serializable;
+
 @SuppressWarnings({ "unused", "WeakerAccess" })
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
    @JsonSubTypes.Type(value = Clause.class, name = "clause"),
    @JsonSubTypes.Type(value = Conjunction.class, name = "conjunction"),
 })
-public class DataConditionItem {
+public class DataConditionItem implements Serializable {
    public DataConditionItem(String type) {
       this.type = type;
    }

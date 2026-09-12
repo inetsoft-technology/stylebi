@@ -20,7 +20,6 @@ package inetsoft.web.assistant;
 import inetsoft.sree.SreeEnv;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import org.apache.hc.core5.ssl.SSLContextBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -31,11 +30,15 @@ import org.springframework.web.socket.handler.AbstractWebSocketHandler;
 import org.springframework.http.HttpHeaders;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
+import java.net.Socket;
 import java.net.URI;
 import java.security.KeyManagementException;
-import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
@@ -224,22 +227,22 @@ public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
       StandardWebSocketClient client = new StandardWebSocketClient();
 
       // SSL verification is configurable via chat.app.server.ssl.verify.
-      // Default: trust all, suitable for private-network deployments with self-signed certs
-      // (matching the nginx "proxy_ssl_verify off" used in Docker Compose).
+      // Default: skip both certificate chain and hostname verification, suitable for
+      // private-network deployments with self-signed certs (matching the nginx
+      // "proxy_ssl_verify off" used in Docker Compose).
       // Set to "true" to use the JVM default trust store in production.
       // Changing this property requires a server restart.
       if(!AIAssistantController.isSslVerifyEnabled()) {
-         LOG.warn("SSL certificate verification is disabled for AI assistant WebSocket proxy " +
-            "connections (chat.app.server.ssl.verify=false). Set to true in production when the " +
-            "assistant server uses a CA-signed certificate.");
+         LOG.warn("SSL certificate and hostname verification are disabled for AI assistant " +
+            "WebSocket proxy connections (chat.app.server.ssl.verify=false). Set to true in " +
+            "production when the assistant server uses a CA-signed certificate.");
 
          try {
-            SSLContext sslContext = SSLContextBuilder.create()
-               .loadTrustMaterial(null, (chain, authType) -> true)
-               .build();
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, new TrustManager[] { TRUST_ALL }, null);
             client.setUserProperties(Map.of("org.apache.tomcat.websocket.SSL_CONTEXT", sslContext));
          }
-         catch(NoSuchAlgorithmException | KeyManagementException | KeyStoreException e) {
+         catch(NoSuchAlgorithmException | KeyManagementException e) {
             LOG.warn("Could not configure trust-all SSL context for assistant WebSocket proxy", e);
          }
       }
@@ -285,6 +288,56 @@ public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
    private volatile StandardWebSocketClient wsClient;
    private volatile ScheduledExecutorService cleanup;
    private final Map<String, WebSocketSession> upstreamSessions = new ConcurrentHashMap<>();
+
+   /**
+    * Trusts every certificate chain <em>and</em> every hostname, for
+    * chat.app.server.ssl.verify=false.
+    *
+    * <p>This must be an {@link X509ExtendedTrustManager}, not a plain {@code X509TrustManager},
+    * and that is not a style preference. JSSE performs hostname verification <em>inside</em> the
+    * trust manager, so a plain {@code X509TrustManager} gets wrapped in one that still runs the
+    * identity check -- and Tomcat's {@code WsWebSocketContainer.createSSLEngine} unconditionally
+    * sets the endpoint identification algorithm to "HTTPS" with no user property to override it.
+    * With a plain manager the chain is trusted but a certificate whose CN/SAN does not match the
+    * host is still refused, which is not what the operator asked for. Overriding the
+    * {@code SSLEngine} and {@code Socket} overloads here is what actually disables the check.
+    *
+    * <p>The HTTP-side counterpart is {@code AIAssistantController.createHealthClient}, which
+    * reaches the same result differently: {@code HttpClient} lets it clear the algorithm via
+    * {@code SSLParameters.setEndpointIdentificationAlgorithm("")}, an option the Tomcat
+    * WebSocket client does not expose.
+    */
+   private static final X509ExtendedTrustManager TRUST_ALL = new X509ExtendedTrustManager() {
+      @Override
+      public void checkClientTrusted(X509Certificate[] chain, String authType) {
+      }
+
+      @Override
+      public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket) {
+      }
+
+      @Override
+      public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine) {
+      }
+
+      @Override
+      public void checkServerTrusted(X509Certificate[] chain, String authType) {
+      }
+
+      @Override
+      public void checkServerTrusted(X509Certificate[] chain, String authType, Socket socket) {
+      }
+
+      @Override
+      public void checkServerTrusted(X509Certificate[] chain, String authType, SSLEngine engine) {
+      }
+
+      @Override
+      public X509Certificate[] getAcceptedIssuers() {
+         return new X509Certificate[0];
+      }
+   };
+
    private static final List<String> FORWARD_WS_HEADERS =
       List.of("Authorization", "x-client-id", "x-request-id");
    private static final Logger LOG = LoggerFactory.getLogger(AssistantWebSocketProxyHandler.class);

@@ -17,7 +17,6 @@
  */
 package inetsoft.web.portal.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.graph.*;
 import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.data.DataSet;
@@ -25,7 +24,6 @@ import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.scale.Scale;
 import inetsoft.report.TableLens;
-import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.GraphGenerator;
 import inetsoft.report.filter.SortFilter;
 import inetsoft.report.internal.binding.BaseField;
@@ -39,7 +37,6 @@ import inetsoft.util.Catalog;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.graphics.SVGSupport;
 import inetsoft.util.log.LogContext;
-import inetsoft.util.profile.Profile;
 import inetsoft.util.profile.ProfileInfo;
 import inetsoft.web.reportviewer.HandleExceptions;
 import inetsoft.web.reportviewer.model.ProfileTableDataEvent;
@@ -58,8 +55,8 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.text.SimpleDateFormat;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
@@ -67,8 +64,11 @@ import java.util.zip.GZIPOutputStream;
 @RestController
 public class PortalProfileController {
    @Autowired
-   public PortalProfileController(ViewsheetService viewsheetService) {
-      this.viewsheetService = viewsheetService;
+   public PortalProfileController(PortalProfileServiceProxy portalProfileServiceProxy,
+                                  CustomThemesManager customThemesManager)
+   {
+      this.portalProfileServiceProxy = portalProfileServiceProxy;
+      this.customThemesManager = customThemesManager;
    }
 
    @GetMapping("/api/portal/profile/group-by")
@@ -77,22 +77,25 @@ public class PortalProfileController {
                                             @RequestParam("isViewsheet") boolean isViewsheet,
                                             Principal principal) throws Exception
    {
-      String recordsKey = getRecordsKey(name, isViewsheet, principal);
       Catalog catalog = Catalog.getCatalog(principal);
-      ProfileInfo pinfo = Profile.getInstance().getProfileInfo();
+      PortalProfileService.ProfileResult profileResult = portalProfileServiceProxy.getProfileInfo(name, isViewsheet, principal);
+      ProfileInfo pinfo = profileResult.info;
 
       GroupByFieldList list = new GroupByFieldList();
       list.getFields().add(new GroupByField(catalog.getString("Cycle Name"), "cycle"));
 
-      List<ExecutionBreakDownRecord> records = pinfo.getProfileRecords(recordsKey);
+      if(pinfo != null) {
+         List<ExecutionBreakDownRecord> records = pinfo.getProfileRecords(profileResult.recordsKey);
 
-      if(records != null) {
-         list.getFields().addAll(records.stream()
-            .flatMap(r -> r.getContexts().stream())
-            .distinct()
-            .sorted()
-            .map(c -> new GroupByField(getContextLabel(c, catalog), c.name()))
-            .collect(Collectors.toList()));
+         if(records != null) {
+            records = new ArrayList<>(records);
+            list.getFields().addAll(records.stream()
+                                       .flatMap(r -> r.getContexts().stream())
+                                       .distinct()
+                                       .sorted()
+                                       .map(c -> new GroupByField(getContextLabel(c, catalog), c.name()))
+                                       .toList());
+         }
       }
 
       return list;
@@ -109,7 +112,7 @@ public class PortalProfileController {
       throws Exception
    {
       Object[][] data =
-         prepareChartData(getRecordsKey(name, isViewsheet, principal), groupBy, principal);
+         prepareChartData(portalProfileServiceProxy.getProfileInfo(name, isViewsheet, principal), groupBy, principal);
       Catalog catalog = Catalog.getCatalog(principal);
       String xTitle = "cycle".equals(groupBy) ? catalog.getString(CHART_X_TITLE) :
          getContextLabel(LogContext.valueOf(groupBy), catalog);
@@ -153,7 +156,7 @@ public class PortalProfileController {
       Principal principal) throws Exception
    {
       Object[][] data = getTableData(showSummarize,
-         getRecordsKey(event.getObjectName(), isViewsheet, principal), timeZone, principal);
+          portalProfileServiceProxy.getProfileInfo(event.getObjectName(), isViewsheet, principal), timeZone, principal);
 
       if(data == null) {
          return null;
@@ -188,7 +191,7 @@ public class PortalProfileController {
                              HttpServletResponse response, Principal principal) throws Exception
    {
       Object[][] data =
-         getTableData(false, getRecordsKey(name, isViewsheet, principal), timeZone, principal);
+         getTableData(false, portalProfileServiceProxy.getProfileInfo(name, isViewsheet, principal), timeZone, principal);
 
       if(data == null) {
          data = new Object[][] {
@@ -212,16 +215,25 @@ public class PortalProfileController {
       }
    }
 
-   private Object[][] getTableData(boolean showSummarize, String name, String timeZone,
+   private Object[][] getTableData(boolean showSummarize, PortalProfileService.ProfileResult profileResult, String timeZone,
                                    Principal principal)
    {
       Catalog catalog = Catalog.getCatalog(principal);
-      ProfileInfo pinfo = Profile.getInstance().getProfileInfo();
+      ProfileInfo pinfo = profileResult.info;
+      String name = profileResult.recordsKey;
+
+      if(pinfo == null) {
+         return null;
+      }
+
       List<ExecutionBreakDownRecord> records = pinfo.getProfileRecords(name);
 
       if(records == null) {
          return null;
       }
+
+      // snapshot the list to avoid concurrent modification while the viewsheet is still loading
+      records = new ArrayList<>(records);
 
       if(showSummarize) {
          long postCycle = pinfo.getCyclePost(name);
@@ -256,7 +268,7 @@ public class PortalProfileController {
          .flatMap(r -> r.getContexts().stream())
          .distinct()
          .sorted()
-         .collect(Collectors.toList());
+         .toList();
 
       SimpleDateFormat formatter = new SimpleDateFormat("HH:mm:ss:SSS");
       formatter.setTimeZone(TimeZone.getTimeZone(timeZone));
@@ -289,8 +301,7 @@ public class PortalProfileController {
    }
 
    private Object stripOrganization(Object obj) {
-      if(obj instanceof String) {
-         String fullID = (String) obj;
+      if(obj instanceof String fullID) {
          int idx = fullID.lastIndexOf("^");
 
          if(idx > 0) {
@@ -302,24 +313,16 @@ public class PortalProfileController {
    }
 
    private String getContextLabel(LogContext context, Catalog catalog) {
-      switch(context) {
-      case DASHBOARD:
-         return catalog.getString("asset.type.VIEWSHEET");
-      case QUERY:
-         return catalog.getString("asset.type.XQUERY");
-      case MODEL:
-         return catalog.getString("asset.type.XLOGICALMODEL");
-      case WORKSHEET:
-         return catalog.getString("asset.type.WORKSHEET");
-      case SCHEDULE_TASK:
-         return catalog.getString("asset.type.SCHEDULETASK");
-      case ASSEMBLY:
-         return catalog.getString("Component");
-      case TABLE:
-         return catalog.getString("Table");
-      default:
-         return context.name();
-      }
+      return switch(context) {
+         case DASHBOARD -> catalog.getString("asset.type.VIEWSHEET");
+         case QUERY -> catalog.getString("asset.type.XQUERY");
+         case MODEL -> catalog.getString("asset.type.XLOGICALMODEL");
+         case WORKSHEET -> catalog.getString("asset.type.WORKSHEET");
+         case SCHEDULE_TASK -> catalog.getString("asset.type.SCHEDULETASK");
+         case ASSEMBLY -> catalog.getString("Component");
+         case TABLE -> catalog.getString("Table");
+         default -> context.name();
+      };
    }
 
    private void addSummaryData(Map<String, Long> map, String cycle, long spendTime) {
@@ -334,9 +337,15 @@ public class PortalProfileController {
       return end - start;
    }
 
-   private Object[][] prepareChartData(String name, String groupBy, Principal principal) {
+   private Object[][] prepareChartData(PortalProfileService.ProfileResult profileResult, String groupBy, Principal principal) {
       Catalog catalog = Catalog.getCatalog(principal);
-      ProfileInfo pinfo = Profile.getInstance().getProfileInfo();
+      ProfileInfo pinfo = profileResult.info;
+      String name = profileResult.recordsKey;
+
+      if(pinfo == null) {
+         return null;
+      }
+
       Object[] header;
       Stream<Object[]> values;
 
@@ -366,11 +375,17 @@ public class PortalProfileController {
    }
 
    private Stream<Object[]> prepareContextChartData(String name, LogContext context, ProfileInfo pinfo) {
+      if(pinfo == null) {
+         return Stream.empty();
+      }
+
       List<ExecutionBreakDownRecord> records = pinfo.getProfileRecords(name);
 
       if(records == null) {
          return Stream.empty();
       }
+
+      records = new ArrayList<>(records);
 
       return records.stream()
          .filter(r -> r.getContext(context) != null)
@@ -394,7 +409,7 @@ public class PortalProfileController {
          return null;
       }
 
-      boolean dark = CustomThemesManager.getManager().isEMDarkTheme();
+      boolean dark = customThemesManager.isEMDarkTheme();
       Color fgColor = dark ? Color.lightGray : GDefaults.DEFAULT_TEXT_COLOR;
       Color bgColor = dark ? new Color(0x424242) : Color.WHITE;
       Color titleColor = dark ? Color.lightGray : GDefaults.DEFAULT_TITLE_COLOR;
@@ -485,26 +500,13 @@ public class PortalProfileController {
       return g;
    }
 
-   private String getRecordsKey(String name, Boolean isViewsheet, Principal principal) throws Exception {
-      String key = name;
-
-      if(isViewsheet) {
-         RuntimeViewsheet rvs = viewsheetService.getViewsheet(name, principal);
-
-         if(rvs != null) {
-            key = rvs.getViewsheetSandbox().getID();
-         }
-      }
-
-      return key;
-   }
-
    private static final int CHART_WIDTH = 650;
    private static final int CHART_HEIGHT = 330;
    private static final String CHART_X_TITLE = "Record Cycle Name";
    private static final Logger LOG = LoggerFactory.getLogger(PortalProfileController.class);
 
-   private final ViewsheetService viewsheetService;
+   private final PortalProfileServiceProxy portalProfileServiceProxy;
+   private final CustomThemesManager customThemesManager;
 
    public static final class GroupByField {
       @SuppressWarnings("unused")

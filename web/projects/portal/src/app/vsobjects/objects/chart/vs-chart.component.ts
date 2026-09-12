@@ -17,6 +17,7 @@
  */
 import { HttpParams } from "@angular/common/http";
 import {
+   ChangeDetectionStrategy,
    ChangeDetectorRef,
    Component,
    ElementRef,
@@ -99,6 +100,16 @@ import { GraphTypes } from "../../../common/graph-types";
 import { FullScreenService } from "../../../common/services/full-screen.service";
 import { Dimension } from "../../../common/data/dimension";
 import { VSTabService } from "../../util/vs-tab.service";
+import { VSLoadingDisplay } from "../vs-loading-display/vs-loading-display.component";
+import { VSAnnotation } from "../annotation/vs-annotation.component";
+import { VSPreviewTable } from "../table/vs-preview-table.component";
+import { VSHiddenAnnotation } from "../annotation/vs-hidden-annotation.component";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { VSTitle } from "../title/vs-title.component";
+import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+
 
 const CHART_AREAS_URI: string = "/events/vschart/areas";
 const CHART_PLOT_RESIZE_URL: string = "/events/vschart/resize-plot";
@@ -114,9 +125,11 @@ const CHART_DETAIL_FORMAT_URI: string = "../vschart/showdetails/format-model";
 const CHART_WIZARD_CHANGE_TITLE_URL = "/events/vswizard/preview/changeDescription";
 
 @Component({
-   selector: "vs-chart",
-   templateUrl: "vs-chart.component.html",
-   styleUrls: ["vs-chart.component.scss"]
+    selector: "vs-chart",
+    templateUrl: "vs-chart.component.html",
+    styleUrls: ["vs-chart.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [VSDataTipDirective, VSPopComponentDirective, TooltipDirective, VSTitle, ChartArea, OutOfZoneDirective, VSHiddenAnnotation, VSPreviewTable, VSAnnotation, VSLoadingDisplay]
 })
 export class VSChart extends AbstractVSObject<VSChartModel>
    implements OnInit, OnDestroy, SelectableObject
@@ -173,7 +186,6 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    private chartAreasRetryCount: number = 0;
    private readonly MAX_CHART_AREAS_RETRIES = 5;
    private subscriptions = Subscription.EMPTY;
-   private isIE: boolean = GuiTool.isIE();
    private isIFrame: boolean = GuiTool.isIFrame();
    // Stashed by processSetChartAreasCommand so that the model setter can apply fresh
    // chart areas immediately when Angular's CD re-binds the model, instead of issuing
@@ -183,6 +195,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    // Fallback timeout handle: clears loading state if chart-area's onLoad never fires
    // (e.g. during rapid max-mode transitions). (Bug #74278)
    private chartLoadingTimeout: ReturnType<typeof setTimeout> | null = null;
+   private showHintsTimer: ReturnType<typeof setTimeout> | null = null;
    // DOM clone of chart-area shown while tiles reload, so the old chart stays visible. (Bug #74260)
    private chartSnapshot: HTMLElement | null = null;
 
@@ -196,10 +209,6 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
       if(!m.sheetMaxMode || m.maxMode || this.isDataTip()) {
          const event = new VSChartEvent(this._model, this._model.maxMode, this.container);
-
-         if(this.vsInfo?.orgId) {
-            event.setOrgId(this.vsInfo.orgId);
-         }
 
          // If a SetChartAreasCommand already arrived in this same event-loop tick
          // (i.e. from the server's proactive refresh paired with RefreshVSObjectCommand),
@@ -682,8 +691,8 @@ export class VSChart extends AbstractVSObject<VSChartModel>
          .reverse()
          .find((region) => region != null);
       const chartContainerBounds = this.chartContainer.nativeElement.getBoundingClientRect();
-      let x = (event.clientX - chartContainerBounds.left) / this.scale;
-      let y = (event.clientY - chartContainerBounds.top) / this.scale;
+      let x = (event.clientX - chartContainerBounds.left) / this.scale + this.scrollLeft;
+      let y = (event.clientY - chartContainerBounds.top) / this.scale + this.scrollTop;
 
       // triggered from mini menu
       if(event.button == 0) {
@@ -838,6 +847,8 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    onScroll(point: Point) {
       this.scrollLeft = point.x;
       this.scrollTop = point.y;
+      this.model.annotationScrollLeft = point.x;
+      this.model.annotationScrollTop = point.y;
    }
 
    mouseLeave(event: MouseEvent) {
@@ -975,6 +986,11 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       if(this.chartAreasRetryTimer) {
          clearTimeout(this.chartAreasRetryTimer);
          this.chartAreasRetryTimer = null;
+      }
+
+      if(this.showHintsTimer) {
+         clearTimeout(this.showHintsTimer);
+         this.showHintsTimer = null;
       }
 
       this.subscriptions.unsubscribe();
@@ -1147,6 +1163,40 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       // Canvases are blank after cloneNode; remove them (they're only selection overlays)
       Array.from(clone.querySelectorAll("canvas")).forEach((c: Element) => c.remove());
 
+      // Tile <img> elements use blob: object URLs owned by ChartImageDirective, which
+      // revokes them when a tile reloads or the directive is destroyed (Bug #75515). The
+      // cloned images are not managed by the directive, so once the underlying blob is
+      // revoked they fail to (re)load with net::ERR_FAILED, leaving the snapshot blank.
+      // Repoint each loaded tile's clone at a self-contained data URL captured from the
+      // already-decoded original, so the snapshot no longer depends on the blob URLs
+      // surviving. The element stays an <img> so existing tag/class CSS selectors (e.g.
+      // ".chart-plot-area__tile img { position: absolute }") still apply. (Bug #75714)
+      const originalImages = chartAreaEl.querySelectorAll("img");
+      const cloneImages = clone.querySelectorAll("img");
+
+      for(let i = 0; i < cloneImages.length; i++) {
+         const cloneImg = cloneImages[i] as HTMLImageElement;
+         const originalImg = originalImages[i] as HTMLImageElement;
+
+         // drawImage requires a fully decoded source image; blob tiles are same-origin so
+         // the canvas is never tainted. Anything not yet loaded would be broken anyway.
+         if(originalImg && originalImg.complete && originalImg.naturalWidth > 0) {
+            try {
+               const canvas = document.createElement("canvas");
+               canvas.width = originalImg.naturalWidth;
+               canvas.height = originalImg.naturalHeight;
+               canvas.getContext("2d").drawImage(originalImg, 0, 0);
+               cloneImg.src = canvas.toDataURL();
+            }
+            catch(e) {
+               cloneImg.remove();
+            }
+         }
+         else {
+            cloneImg.remove();
+         }
+      }
+
       container.appendChild(clone);
       this.chartSnapshot = clone;
    }
@@ -1267,8 +1317,17 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       }
 
       if(this.mobileDevice) {
+         if(this.showHintsTimer) {
+            clearTimeout(this.showHintsTimer);
+         }
+
          this.showHints = true;
-         setTimeout(() => this.showHints = false, 1000);
+         this.detectChanges();
+         this.showHintsTimer = setTimeout(() => {
+            this.showHintsTimer = null;
+            this.showHints = false;
+            this.detectChanges();
+         }, 1000);
       }
    }
 
@@ -1331,16 +1390,10 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
    changeSizeRatio(sizeRatio: number, vertical: boolean): void {
       const chartEvent = new VSChartPlotResizeEvent(this.model, false, sizeRatio, vertical);
-
-      if(this.isIE) {
-         let key = this.getAssemblyName() + (vertical ? "vertical-resize-slider" : "horizontal-resize-slider");
-         this.debounceService.debounce(key, () => {
-            this.viewsheetClient.sendEvent(CHART_PLOT_RESIZE_URL, chartEvent);
-         }, 400, []);
-      }
-      else {
+      const key = this.getAssemblyName() + (vertical ? "vertical-resize-slider" : "horizontal-resize-slider");
+      this.debounceService.debounce(key, () => {
          this.viewsheetClient.sendEvent(CHART_PLOT_RESIZE_URL, chartEvent);
-      }
+      }, 400, []);
    }
 
    public changeTitle(title: string): void {

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ComponentTool } from "../../../common/util/component-tool";
 import { CheckboxPropertyDialogModel } from "../../data/vs/checkbox-property-dialog-model";
 import { ListValuesPaneModel } from "../../data/vs/list-values-pane-model";
@@ -79,20 +80,20 @@ describe("radiobutton property dialog componnet unit case", () => {
    let dialogService: any;
 
    beforeEach(() => {
-      modalService = { open: jest.fn() };
+      modalService = { open: vi.fn() };
       contextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn(),
-         getObjectChange: jest.fn(() => observableOf({}))
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn(),
+         getObjectChange: vi.fn(() => observableOf({}))
       };
       comboxServiceTmp = {
-         validateEmbeddedValues: jest.fn(),
-         validateQueryValues: jest.fn()
+         validateEmbeddedValues: vi.fn(),
+         validateQueryValues: vi.fn()
       };
-      dialogService = { checkScript: jest.fn((id, scripts, ok: Function, cancel) => ok()) };
-      trapService = { checkTrap: jest.fn() };
+      dialogService = { checkScript: vi.fn((id, scripts, ok: Function, cancel) => ok()) };
+      trapService = { checkTrap: vi.fn() };
       comboBoxEditorValidationService = new ComboBoxEditorValidationService(modalService);
       radioProDialog = new CheckboxPropertyDialog(comboBoxEditorValidationService, trapService, contextService, dialogService);
       radioProDialog.model = createModel();
@@ -101,7 +102,7 @@ describe("radiobutton property dialog componnet unit case", () => {
    //Bug #18850 should pop up confirm dialog
    it("should pop up confirm dialog when query type unmatch embedded type ", () => {
       radioProDialog.model.checkboxGeneralPaneModel.listValuesPaneModel = createListModel();
-      const showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      const showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
       showConfirmDialog.mockImplementation(() => Promise.resolve("true"));
       radioProDialog.ok();
       expect(showConfirmDialog).toHaveBeenCalled();
@@ -114,7 +115,7 @@ describe("radiobutton property dialog componnet unit case", () => {
       checkboBoxDialog.model.checkboxGeneralPaneModel.listValuesPaneModel = createListModel();
       comboxServiceTmp.validateEmbeddedValues.mockImplementation(() => true);
       comboxServiceTmp.validateQueryValues.mockImplementation(() => Promise.resolve(true));
-      const checkTrap = jest.spyOn(checkboBoxDialog, "checkTrap");
+      const checkTrap = vi.spyOn(checkboBoxDialog, "checkTrap");
       checkboBoxDialog.ok();
       expect(checkTrap).not.toHaveBeenCalled();
    });

@@ -23,94 +23,131 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
-import inetsoft.util.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.messaging.simp.annotation.SubscribeMapping;
-import org.springframework.stereotype.Controller;
-
+import inetsoft.util.Debouncer;
+import inetsoft.util.DefaultDebouncer;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.messaging.AbstractSubProtocolEvent;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
+
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.security.Principal;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Controller
-@Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class MVChangeController implements MessageListener {
    @Autowired
-   public MVChangeController(SimpMessagingTemplate messagingTemplate)
+   public MVChangeController(SimpMessagingTemplate messagingTemplate, MVManager mvManager,
+                             Cluster cluster, SecurityEngine securityEngine)
    {
       this.messagingTemplate = messagingTemplate;
+      this.mvManager = mvManager;
+      this.cluster = cluster;
+      this.securityEngine = securityEngine;
       this.debouncer = new DefaultDebouncer<>();
    }
 
    @PostConstruct
-   public void addListeners() throws Exception {
-      MVManager.getManager().addPropertyChangeListener(this.mvListener);
-      Cluster.getInstance().addMessageListener(this);
+   public void addListeners() {
+      mvManager.addPropertyChangeListener(this.mvListener);
+      cluster.addMessageListener(this);
    }
 
    @PreDestroy
-   public void removeListeners() throws Exception {
-      MVManager.getManager().removePropertyChangeListener(this.mvListener);
-      Cluster.getInstance().removeMessageListener(this);
-      debouncer.close();
+   public void removeListeners() {
+      try {
+         mvManager.removePropertyChangeListener(this.mvListener);
+         cluster.removeMessageListener(this);
+         debouncer.close();
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listeners during shutdown", e);
+      }
    }
 
    @SubscribeMapping(CHANGE_TOPIC)
-   public void subscribeToTopic(Principal principal) throws Exception {
-      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+   public void subscribeToTopic(StompHeaderAccessor header, Principal principal) throws Exception {
+      if(!securityEngine.getSecurityProvider().checkPermission(
          principal, ResourceType.EM_COMPONENT, "settings/content/materialized-views", ResourceAction.ACCESS))
       {
          throw new SecurityException("Unauthorized access to MV changes by user " + principal.getName());
       }
 
-      this.principal = principal;
+      final MessageHeaders messageHeaders = header.getMessageHeaders();
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      subscriptions.put(sessionId, principal);
+   }
+
+   @EventListener(SessionDisconnectEvent.class)
+   public void handleDisconnect(SessionDisconnectEvent event) {
+      removeSubscription(event);
+   }
+
+   private void removeSubscription(AbstractSubProtocolEvent event) {
+      final Message<byte[]> message = event.getMessage();
+      final MessageHeaders headers = message.getHeaders();
+      final String sessionId =
+         (String) headers.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+
+      if(sessionId != null) {
+         subscriptions.remove(sessionId);
+      }
    }
 
    private void mvPropertyChanged(PropertyChangeEvent event) {
       if(MVManager.MV_CHANGE_EVENT.equals(event.getPropertyName())) {
          String orgId = Util.getOrgIdFromEventSource(event.getSource());
-
-         if(orgId != null &&
-            !Tool.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(principal)))
-         {
-            return;
-         }
-
-         scheduleChangeMessage();
+         scheduleChangeMessage(orgId);
       }
    }
 
-   private void scheduleChangeMessage() {
-      debouncer.debounce("change", 1L, TimeUnit.SECONDS, this::sendChangeMessage);
+   private void scheduleChangeMessage(String orgId) {
+      debouncer.debounce("change-" + orgId, 1L, TimeUnit.SECONDS, () -> sendChangeMessage(orgId));
    }
 
-   private void sendChangeMessage() {
-      messagingTemplate
-         .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
+   private void sendChangeMessage(String orgId) {
+      for(Principal principal : subscriptions.values()) {
+         if(Objects.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(principal))) {
+            messagingTemplate
+               .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
+         }
+      }
    }
 
    @Override
    public void messageReceived(MessageEvent event) {
       if(event.getMessage() instanceof SimpleMessage simpleMessage) {
-         if(MVManager.MV_CHANGE_EVENT.equals(simpleMessage.getMessage()) &&
-            Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(principal), simpleMessage.getOrgID()))
-         {
-            scheduleChangeMessage();
+         if(MVManager.MV_CHANGE_EVENT.equals(simpleMessage.getMessage())) {
+            scheduleChangeMessage(simpleMessage.getOrgID());
          }
       }
    }
 
-   private Principal principal;
+   private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
 
    private final SimpMessagingTemplate messagingTemplate;
+   private final MVManager mvManager;
+   private final Cluster cluster;
+   private final SecurityEngine securityEngine;
    private final Debouncer<String> debouncer;
    private final PropertyChangeListener mvListener = this::mvPropertyChanged;
 
    private static final String CHANGE_TOPIC = "/em-mv-changed";
+   private static final Logger LOG = LoggerFactory.getLogger(MVChangeController.class);
 }

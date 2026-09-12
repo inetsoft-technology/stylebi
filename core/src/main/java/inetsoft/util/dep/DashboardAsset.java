@@ -73,7 +73,8 @@ public class DashboardAsset extends AbstractXAsset {
    public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       List<XAssetDependency> dependencies = new ArrayList<>();
       ids = new HashMap<>();
-      DashboardRegistry registry = DashboardRegistry.getRegistry(user);
+      DashboardRegistryManager drm = DashboardRegistryManager.getInstance();
+      DashboardRegistry registry = drm.getRegistry(user);
 
       if(registry != null) {
          board = registry.getDashboard(dashboard);
@@ -85,7 +86,7 @@ public class DashboardAsset extends AbstractXAsset {
          }
       }
 
-      DashboardRegistry.clear(user);
+      drm.clear(user);
       return dependencies.toArray(new XAssetDependency[0]);
    }
 
@@ -280,7 +281,7 @@ public class DashboardAsset extends AbstractXAsset {
    {
       Element elem = Tool.parseXML(input).getDocumentElement();
       boolean overwriting = config != null && config.isOverwriting();
-      DashboardRegistry registry = DashboardRegistry.getRegistry(user);
+      DashboardRegistry registry = DashboardRegistryManager.getInstance().getRegistry(user);
 
       if(registry.getDashboard(dashboard) != null && !overwriting) {
          return;
@@ -341,7 +342,7 @@ public class DashboardAsset extends AbstractXAsset {
    }
 
    public Dashboard getDashboard() {
-      return DashboardRegistry.getRegistry(user).getDashboard(dashboard);
+      return DashboardRegistryManager.getInstance().getRegistry(user).getDashboard(dashboard);
    }
 
    @Override

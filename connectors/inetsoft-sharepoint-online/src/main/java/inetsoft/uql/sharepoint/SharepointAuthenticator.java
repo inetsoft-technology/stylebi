@@ -19,7 +19,7 @@ package inetsoft.uql.sharepoint;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.graph.authentication.BaseAuthenticationProvider;
-import inetsoft.uql.XFactory;
+import inetsoft.uql.XRepository;
 import org.apache.hc.client5.http.ClientProtocolException;
 import org.apache.hc.client5.http.classic.HttpClient;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -120,7 +120,7 @@ class SharepointAuthenticator extends BaseAuthenticationProvider {
    private void saveTokens() {
       if(saveTokens) {
          try {
-            XFactory.getRepository().updateDataSource(dataSource, dataSource.getFullName());
+            XRepository.getRepository().updateDataSource(dataSource, dataSource.getFullName());
          }
          catch(Exception e) {
             LOG.error("Failed to save access token", e);

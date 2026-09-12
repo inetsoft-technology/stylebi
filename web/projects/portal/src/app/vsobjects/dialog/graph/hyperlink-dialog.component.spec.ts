@@ -41,6 +41,7 @@ import { VSTrapService } from "../../util/vs-trap.service";
 import { HyperlinkDialog } from "./hyperlink-dialog.component";
 
 @Component({
+   standalone: true,
    selector: "input-parameter-dialog",
    template: "<div></div>"
 })
@@ -53,6 +54,7 @@ class InputParameterDialog {
 }
 
 @Component({
+   standalone: true,
    selector: "repository-tree",
    template: "<div></div>"
 })
@@ -150,17 +152,18 @@ describe("hyperlink dialog componnet unit case", () => {
    };
 
    beforeEach(() => {
-      trapService = { checkTrap: jest.fn() };
-      modalService = { open: jest.fn() };
+      trapService = { checkTrap: vi.fn() };
+      modalService = { open: vi.fn() };
       repositoryTreeService = {
-         getRootFolder: jest.fn(),
-         getFolder: jest.fn(),
-         getAliasedPath: jest.fn()
+         getRootFolder: vi.fn(),
+         getFolder: vi.fn(),
+         getAliasedPath: vi.fn(),
+         getCSSIcon: vi.fn()
       };
-      modelService = { getModel: jest.fn() };
+      modelService = { getModel: vi.fn() };
       modelService.getModel.mockImplementation(() => observableOf(treeNode));
-      dragService = { getDragData: jest.fn() };
-      stompClient = { connect: jest.fn() };
+      dragService = { getDragData: vi.fn() };
+      stompClient = { connect: vi.fn() };
 
       stompClient.connect.mockImplementation(() => observableOf(null));
 
@@ -169,8 +172,8 @@ describe("hyperlink dialog componnet unit case", () => {
       }));
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule, HttpClientTestingModule],
-         declarations: [HyperlinkDialog, InputParameterDialog, LargeFormFieldComponent, RepositoryTreeComponent, GenericSelectableList, EnterSubmitDirective, TooltipDirective, FixedDropdownDirective],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule, HttpClientTestingModule, HyperlinkDialog, InputParameterDialog, LargeFormFieldComponent, RepositoryTreeComponent, GenericSelectableList, EnterSubmitDirective, TooltipDirective, FixedDropdownDirective],
+         
          providers: [TooltipService,
             {provide: VSTrapService, useValue: trapService},
             {provide: NgbModal, useValue: modalService},

@@ -1,47 +1,51 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="popup-editor__container">
-   <div class="popup-editor__button-group">
-      <button class="popup-editor__button btn" (click)="applyClick()"
-              title="_#(Apply)">
-         <i class="submit-icon icon-size-small btn-icon" aria-hidden="true"></i>
-      </button>
-   </div>
-   <div style="display:table;width:100%;">
-      <div style="display:table;">
-         <div class="slider-container">
-            <range-slider *ngIf="!singleValue" [model]="sliderOptions"
-                          (sliderChanged)="sliderChanged($event)">
-            </range-slider>
-            <slider *ngIf="singleValue" [model]="slider2Options"
-                    (sliderChanged)="slider2Changed($event)">
-            </slider>
-         </div>
+  <div class="popup-editor__button-group">
+    <button class="popup-editor__button btn" (click)="applyClick()"
+      title="_#(Apply)">
+      <i class="submit-icon icon-size-small btn-icon" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div style="display:table;width:100%;">
+    <div style="display:table;">
+      <div class="slider-container">
+        @if (!singleValue) {
+          <range-slider [model]="sliderOptions"
+            (sliderChanged)="sliderChanged($event)">
+          </range-slider>
+        }
+        @if (singleValue) {
+          <slider [model]="slider2Options"
+            (sliderChanged)="slider2Changed($event)">
+          </slider>
+        }
       </div>
-   </div>
-   <div style="display:table;width:100%;padding-left:5px;padding-right:5px;">
-      <div style="display:table-row">
-         <div style="display:table-cell;width:50%;text-align:left;">
-            <label>_#(Smallest)</label>
-         </div>
-         <div style="display:table-cell;width:50%;text-align:right;">
-            <label>_#(Largest)</label>
-         </div>
+    </div>
+  </div>
+  <div style="display:table;width:100%;padding-left:5px;padding-right:5px;">
+    <div style="display:table-row">
+      <div style="display:table-cell;width:50%;text-align:left;">
+        <label>_#(Smallest)</label>
       </div>
-   </div>
+      <div style="display:table-cell;width:50%;text-align:right;">
+        <label>_#(Largest)</label>
+      </div>
+    </div>
+  </div>
 </div>

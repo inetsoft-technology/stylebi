@@ -33,7 +33,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Catalog;
 import inetsoft.util.OrderedMap;
 import inetsoft.util.script.*;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -608,7 +608,7 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
          vval = null;
       }
 
-      Scriptable scope = null;
+      ScriptScope scope = null;
 
       try {
          ViewsheetSandbox vbox = box.getViewsheetSandbox();
@@ -761,7 +761,7 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
    protected Vector<DataRef[]> fieldmap = new Vector<>();
    protected transient int[][] colmap = null; // [] column indices for conditions
    private transient Object lastTbl = null;
-   private transient BitSet usedCols = new BitSet();
+   private BitSet usedCols = new BitSet();
    private transient ColumnIndexMap columnIndexMap = null;
    private static final Logger LOG = LoggerFactory.getLogger(ConditionGroup.class);
 }

@@ -44,19 +44,15 @@ describe("Label Input Field Test", () => {
    let fixture: ComponentFixture<LabelInputField>;
 
    beforeEach(() => {
-      changeDetectorRef = { detectChanges: jest.fn() };
+      changeDetectorRef = { detectChanges: vi.fn() };
       domService = {
-         requestRead: jest.fn(),
-         cancelAnimationFrame: jest.fn()
+         requestRead: vi.fn(),
+         cancelAnimationFrame: vi.fn()
       };
 
       TestBed.configureTestingModule({
-         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [
-            LabelInputField, DynamicComboBox, TargetComboBox, TreeComponent,
-            TreeNodeComponent, TreeDropdownComponent, FixedDropdownDirective,
-            TreeSearchPipe, TooltipDirective, EnterClickDirective, TooltipIfDirective
-         ],
+         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, LabelInputField, DynamicComboBox, TargetComboBox, TreeComponent, TreeNodeComponent, TreeDropdownComponent, FixedDropdownDirective, TreeSearchPipe, TooltipDirective, EnterClickDirective, TooltipIfDirective],
+         
          providers: [
             {provide: ChangeDetectorRef, useValue: changeDetectorRef},
             {provide: DomService, useValue: domService}

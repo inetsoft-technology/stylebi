@@ -24,15 +24,17 @@ import {
    OnDestroy,
    Output, ViewChild
 } from "@angular/core";
-import { UntypedFormGroup, Validators, UntypedFormControl, AbstractControl, ValidatorFn } from "@angular/forms";
+import { UntypedFormGroup, Validators, UntypedFormControl, AbstractControl, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
 import { FormValidators } from "../../../../../../../../../../shared/util/form-validators";
 import { Subscription } from "rxjs";
 
+
 @Component({
-   selector: "logical-model-entity-pane",
-   templateUrl: "logical-model-entity-pane.component.html",
-   styleUrls: ["logical-model-entity-pane.component.scss"]
+    selector: "logical-model-entity-pane",
+    templateUrl: "logical-model-entity-pane.component.html",
+    styleUrls: ["logical-model-entity-pane.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule]
 })
 export class LogicalModelEntityPane implements AfterViewInit, OnChanges, OnDestroy {
    @Input() existNames: string[] = [];
@@ -44,12 +46,13 @@ export class LogicalModelEntityPane implements AfterViewInit, OnChanges, OnDestr
    private inited: boolean = false;
    private editable: boolean = true;
    private subscription: Subscription;
+   private resetPending: any;
 
    @Input() set form(value: UntypedFormGroup) {
       this._form = value;
 
       if(this.inited) {
-         setTimeout(() => this.resetFormControl(), 0);
+         this.scheduleReset();
       }
    }
 
@@ -107,11 +110,30 @@ export class LogicalModelEntityPane implements AfterViewInit, OnChanges, OnDestr
    }
 
    ngOnChanges(): void {
-      this.inited = true;
-      this.resetFormControl();
+      if(!this.inited) {
+         this.inited = true;
+         this.resetFormControl();
+      }
+      else {
+         // Any post-init input change must defer the form rebuild: a reorder
+         // updates existNames, and selecting a different entity updates entity.
+         // Either way, rebuilding synchronously would mutate the shared form and
+         // change form.invalid after the parent's Save button [disabled] binding
+         // was already checked, throwing NG0100.
+         this.scheduleReset();
+      }
+   }
+
+   // Coalesce rapid successive deferred resets and cancel any pending one on
+   // destroy, so a stale timer never mutates the shared parent form after this
+   // editor is gone.
+   private scheduleReset(): void {
+      clearTimeout(this.resetPending);
+      this.resetPending = setTimeout(() => this.resetFormControl(), 0);
    }
 
    ngOnDestroy(): void {
+      clearTimeout(this.resetPending);
       this.unsubscribeForm();
    }
 

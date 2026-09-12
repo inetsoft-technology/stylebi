@@ -17,22 +17,15 @@
  */
 package inetsoft.web.composer.vs.objects.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.CurrentSelectionVSAssemblyInfo;
 import inetsoft.web.composer.vs.objects.event.VSObjectEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.stereotype.Controller;
-
-import java.awt.*;
 import java.security.Principal;
 
 /**
@@ -43,18 +36,13 @@ public class ComposerCurrentSelectionController {
    /**
     * Creates a new instance of <tt>ComposerCurrentSelectionController</tt>.
     *  @param runtimeViewsheetRef the runtime viewsheet reference
-    * @param coreLifecycleService the placeholder service
-    * @param viewsheetService
     */
    @Autowired
-   public ComposerCurrentSelectionController(
-      RuntimeViewsheetRef runtimeViewsheetRef,
-      CoreLifecycleService coreLifecycleService,
-      ViewsheetService viewsheetService)
+   public ComposerCurrentSelectionController(RuntimeViewsheetRef runtimeViewsheetRef,
+                                             ComposerCurrentSelectionServiceProxy composerCurrentSelectionServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.coreLifecycleService = coreLifecycleService;
-      this.viewsheetService = viewsheetService;
+      this.composerCurrentSelectionServiceProxy = composerCurrentSelectionServiceProxy;
    }
 
    /**
@@ -73,32 +61,10 @@ public class ComposerCurrentSelectionController {
                              VSObjectEvent event, Principal principal,
                              CommandDispatcher dispatcher) throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(
-         this.runtimeViewsheetRef.getRuntimeId(), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      String name = event.getName();
-
-      if(viewsheet == null) {
-         return;
-      }
-
-      VSAssembly assembly = (VSAssembly) viewsheet.getAssembly(name);
-
-      if(!(assembly instanceof CurrentSelectionVSAssembly)) {
-         return;
-      }
-
-      // sanity check
-      Dimension size = viewsheet.getPixelSize(assembly.getVSAssemblyInfo());
-      // reserve 50px for the mini-toolbar, otherwise resizer is covered
-      ratio = Math.max(0.05, Math.min((size.width - 50.0) / size.width, ratio));
-
-      CurrentSelectionVSAssembly containerAssembly = (CurrentSelectionVSAssembly) assembly;
-      ((CurrentSelectionVSAssemblyInfo) containerAssembly.getInfo()).setTitleRatio(ratio);
-      coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
+      composerCurrentSelectionServiceProxy.setTitleRatio(runtimeViewsheetRef.getRuntimeId(), ratio,
+                                                         event, principal, dispatcher);
    }
 
-   private final CoreLifecycleService coreLifecycleService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final ViewsheetService viewsheetService;
+   private ComposerCurrentSelectionServiceProxy composerCurrentSelectionServiceProxy;
 }

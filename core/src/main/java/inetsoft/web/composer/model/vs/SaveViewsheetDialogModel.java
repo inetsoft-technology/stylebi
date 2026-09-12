@@ -18,8 +18,9 @@
 package inetsoft.web.composer.model.vs;
 
 import javax.annotation.Nullable;
+import java.io.Serializable;
 
-public class SaveViewsheetDialogModel {
+public class SaveViewsheetDialogModel implements Serializable {
    public String getName() {
       return name;
    }

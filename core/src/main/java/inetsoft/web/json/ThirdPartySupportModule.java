@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.std.DateSerializer;
 
 import java.awt.*;
+import java.awt.geom.Point2D;
 import java.awt.geom.RectangularShape;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -44,6 +45,8 @@ public class ThirdPartySupportModule extends SimpleModule {
       addDeserializer(Dimension.class, new DimensionDeserializer());
       addSerializer(Point.class, new PointSerializer());
       addDeserializer(Point.class, new PointDeserializer());
+      addSerializer(Point2D.class, new Point2DSerializer());
+      addDeserializer(Point2D.Double.class, new Point2DDeserializer());
       addSerializer(Insets.class, new InsetsSerializer());
       addDeserializer(Insets.class, new InsetsDeserializer());
       addSerializer(RectangularShape.class, new RectangularShapeSerializer());

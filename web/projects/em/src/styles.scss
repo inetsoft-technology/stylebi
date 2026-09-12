@@ -15,18 +15,23 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-@import './styles/general';
-@import '~codemirror/lib/codemirror.css';
-@import '~codemirror/addon/dialog/dialog.css';
-@import '~codemirror/addon/fold/foldgutter.css';
-@import '~codemirror/addon/hint/show-hint.css';
-@import '~codemirror/addon/tern/tern.css';
-@import '~node_modules/ckeditor5/dist/ckeditor5.css';
+@use './styles/general';
+@import 'codemirror/lib/codemirror.css';
+@import 'codemirror/addon/dialog/dialog.css';
+@import 'codemirror/addon/fold/foldgutter.css';
+@import 'codemirror/addon/hint/show-hint.css';
+@import 'codemirror/addon/tern/tern.css';
+@import 'ckeditor5/ckeditor5.css';
 
 $inet-default-icon-color: black; // overridden later
-$ineticons-font-path: '~/../../portal/src/assets/ineticons/fonts';
+// Use a path relative to style.scss's location (projects/portal/src/assets/ineticons/)
+// so esbuild resolves and copies the font files into the EM output.
+$ineticons-font-path: 'fonts';
 @import '../../portal/src/assets/ineticons/style.scss';
-$brush-cursor-path: '~/../../portal/src/assets/cursor/brushcursor.gif';
+// style.scss makes a plain (non-!default) assignment to $brush-cursor-path, so
+// we re-override it after the import. Use a path relative to _icons.scss so
+// esbuild can resolve and copy the file into the EM output.
+$brush-cursor-path: '../assets/cursor/brushcursor.gif';
 @import '../../portal/src/scss/icons';
 
 .ineticons {
@@ -272,5 +277,32 @@ $brush-cursor-path: '~/../../portal/src/assets/cursor/brushcursor.gif';
   font-family: "Roboto", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
   line-height: 1.6;
   word-break: break-word;
+}
+
+#assistant-root {
+  font-size: 14px;
+
+  .MuiListItemText-root span,
+  .MuiTypography-root,
+  .MuiDrawer-paper,
+  .MuiPaper-root,
+  .markdown-paragraph,
+  .message-content {
+    font-size: 14px !important;
+  }
+
+  .chat-item.MuiListItemButton-root {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+    min-height: 36px !important;
+  }
+}
+
+ai-assistant-panel {
+  --ai-branding-title-font-size: 14px;
+
+  .panel-title {
+    font-size: 14px !important;
+  }
 }
 

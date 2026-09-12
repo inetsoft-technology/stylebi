@@ -15,11 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+@use 'sass:map';
+@use 'sass:string';
+
+$ineticons-css-prefix: ineticons !default;
+$brush-cursor-path: '../assets/cursor/brushcursor.gif' !default;
+
 %ineticons-base {
   @extend .#{$ineticons-css-prefix};
 }
 
-$ineticons-map: map-merge($ineticons-base-map, (
+$ineticons-map: map.merge($ineticons-base-map, (
   data-block-type-embedded-icon: $embedded-table-icon,
   folder-expanded-icon: $folder-open-icon,
   folder-collapsed-icon: $folder-icon,
@@ -29,7 +35,7 @@ $ineticons-map: map-merge($ineticons-base-map, (
 ));
 
 @function unicode($str) {
-  @return unquote("\"") + $str + unquote("\"");
+  @return string.unquote("\"") + $str + string.unquote("\"");
 }
 
 @each $icon-name, $icon-code in $ineticons-map {

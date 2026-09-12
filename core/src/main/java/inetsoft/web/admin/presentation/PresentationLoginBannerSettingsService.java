@@ -23,13 +23,16 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.presentation.model.PresentationLoginBannerSettingsModel;
 import inetsoft.web.viewsheet.Audited;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class PresentationLoginBannerSettingsService {
+   @Autowired
+   private PortalThemesManager portalThemesManager;
 
    public PresentationLoginBannerSettingsModel getModel(boolean global) {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
       manager.loadThemes();
       PortalWelcomePage welcomePage = manager.getWelcomePage();
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
@@ -54,7 +57,7 @@ public class PresentationLoginBannerSettingsService {
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    public void setModel(PresentationLoginBannerSettingsModel model, boolean global) {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
       PortalWelcomePage welcomePage;
 
@@ -90,7 +93,7 @@ public class PresentationLoginBannerSettingsService {
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    public void resetSettings(boolean global) {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
 
       if(global) {
          manager.setWelcomePage(new PortalWelcomePage());

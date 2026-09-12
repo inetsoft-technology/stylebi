@@ -33,6 +33,11 @@ import { MonitorLevelService } from "../../monitor-level.service";
 import { MonitoringDataService } from "../../monitoring-data.service";
 import { ClusterEnabledModel } from "../cluster-monitoring-model/cluster-enabled-model";
 import { ReportClusterNodeModel } from "../cluster-monitoring-model/report-cluster-node-model";
+import { MatIcon } from "@angular/material/icon";
+import { MatButton } from "@angular/material/button";
+import { ClusterMonitoringViewComponent } from "../cluster-monitoring-view/cluster-monitoring-view.component";
+import { MatCard, MatCardTitle } from "@angular/material/card";
+import { AsyncPipe } from "@angular/common";
 
 @Secured({
    route: "/monitoring/cluster",
@@ -54,9 +59,10 @@ import { ReportClusterNodeModel } from "../cluster-monitoring-model/report-clust
    link: "EMMonitoringCluster"
 })
 @Component({
-   selector: "em-cluster-monitoring-page",
-   templateUrl: "./cluster-monitoring-page.component.html",
-   styleUrls: ["./cluster-monitoring-page.component.scss"]
+    selector: "em-cluster-monitoring-page",
+    templateUrl: "./cluster-monitoring-page.component.html",
+    styleUrls: ["./cluster-monitoring-page.component.scss"],
+    imports: [MatCard, ClusterMonitoringViewComponent, MatButton, MatCardTitle, MatIcon, AsyncPipe]
 })
 export class ClusterMonitoringPageComponent implements OnInit, OnDestroy {
 

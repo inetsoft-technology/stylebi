@@ -20,10 +20,11 @@ package inetsoft.web.graph.model.dialog;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.uql.viewsheet.graph.TitleDescriptor;
 
+import java.io.Serializable;
 import java.util.Objects;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TitleFormatDialogModel {
+public class TitleFormatDialogModel implements Serializable {
    public TitleFormatDialogModel() {
    }
 

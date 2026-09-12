@@ -17,6 +17,8 @@
  */
 package inetsoft.report.script.viewsheet;
 
+import inetsoft.util.script.graal.ScriptScope;
+
 import java.util.HashSet;
 import java.util.Set;
 
@@ -26,7 +28,7 @@ import java.util.Set;
  * @version 11.5
  * @author InetSoft Technology Corp
  */
-public class VSEGraphScriptable {
+public class VSEGraphScriptable implements ScriptScope {
    /**
     * Create an instance of EGraph.
     */
@@ -35,9 +37,34 @@ public class VSEGraphScriptable {
    }
 
    /**
+    * Get a named member, not supported.
+    */
+   @Override
+   public Object getMember(String name) {
+      return null;
+   }
+
+   /**
+    * Indicate whether or not a named member is defined.
+    */
+   @Override
+   public boolean hasMember(String name) {
+      return false;
+   }
+
+   /**
+    * Define or replace a named member, not supported.
+    */
+   @Override
+   public void putMember(String name, Object value) {
+      // not supported
+   }
+
+   /**
     * Get ids for auto complite.
     */
-   public Object[] getIds() {
+   @Override
+   public Object[] getMemberKeys() {
       Set ids = new HashSet();
       ids.add("addElement()");
       ids.add("addForm()");

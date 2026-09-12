@@ -15,13 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {
-   HttpErrorResponse,
-   HttpEvent,
-   HttpHandler,
-   HttpInterceptor,
-   HttpRequest
-} from "@angular/common/http";
+import { HttpErrorResponse, HttpEvent, HttpHandler, HttpInterceptor, HttpRequest } from "@angular/common/http";
 import { Injectable } from "@angular/core";
 import { Observable } from "rxjs";
 import { tap } from "rxjs/operators";
@@ -41,14 +35,55 @@ export class InvalidSessionInterceptor implements HttpInterceptor {
       return next.handle(req).pipe(
          tap(
             () => {},
-            error => this.handleInvalidSession(error)
+            error => this.handleInvalidSession(req, error)
          )
       );
    }
 
-   private handleInvalidSession(error: HttpErrorResponse): void {
-      if(error.status === 401 || error.status === 403) {
+   /**
+    * Only 401 indicates that the session is gone. When the session has expired or been
+    * invalidated, the security filter chain answers XHR requests with 401
+    * (AbstractSecurityFilter.shouldSendAuthenticationRedirect); this interceptor marks every
+    * request as an XHR (see intercept() above), so that path always applies.
+    *
+    * 403 means the opposite: the session is valid and the user is authenticated, but is not
+    * permitted to access that particular resource. SecuredAspect throws on an @Secured denial
+    * and AdminExceptionHandler maps it to 403, so treating 403 as an expired session logs the
+    * user out of the EM entirely whenever any page issues a request they lack permission for.
+    */
+   private handleInvalidSession(req: HttpRequest<any>, error: HttpErrorResponse): void {
+      if(error.status === 401 && this.isSameOrigin(req.url)) {
          this.logoutService.sessionExpired();
+      }
+   }
+
+   /**
+    * Only the application's own (same-origin) responses indicate an expired
+    * session. A 401 from an absolute URL pointing at an external service
+    * (e.g. the OAuth proxy at data.inetsoft.com) is unrelated to the StyleBI
+    * session and must not trigger a logout.
+    */
+   private isSameOrigin(url: string): boolean {
+      // A non-http(s) scheme (e.g. data:, blob:, mailto:) is never one of the
+      // application's own session-bearing responses; treat it as cross-origin so
+      // it cannot trigger a logout.
+      if(/^[a-z][a-z0-9+.-]*:/i.test(url) && !/^https?:/i.test(url)) {
+         return false;
+      }
+
+      // relative path (e.g. "../api/...") is always same-origin
+      if(!/^(https?:)?\/\//i.test(url)) {
+         return true;
+      }
+
+      try {
+         // normalize protocol-relative URLs ("//host/path") before comparing
+         const absolute = url.startsWith("//") ? `${window.location.protocol}${url}` : url;
+         return new URL(absolute).origin === window.location.origin;
+      }
+      catch(e) {
+         // Malformed URL — treat as cross-origin to avoid spurious logouts.
+         return false;
       }
    }
 }

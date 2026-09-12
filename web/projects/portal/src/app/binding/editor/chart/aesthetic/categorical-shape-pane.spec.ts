@@ -45,11 +45,14 @@ describe("Categorical Shape Pane Unit Test", () => {
    function configureTestEnv(): void {
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule, FormsModule, NgbModule
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            CategoricalShapePane,
+            TextureComboBox,
+            TextureItem,
          ],
-         declarations: [
-            CategoricalShapePane, TextureComboBox, TextureItem
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
    }

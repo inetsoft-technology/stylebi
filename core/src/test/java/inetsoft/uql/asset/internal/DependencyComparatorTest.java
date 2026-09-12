@@ -17,13 +17,24 @@
  */
 package inetsoft.uql.asset.internal;
 
+import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.util.algo.Comparators;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.Arrays;
 import java.util.List;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class DependencyComparatorTest {
    @Test
    void transitivityContract() {

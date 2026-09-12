@@ -22,9 +22,10 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.condition.ConditionValueModel;
 
+import java.io.Serializable;
 import java.util.Date;
 
-public class DynamicValueModel {
+public class DynamicValueModel implements Serializable {
    public DynamicValueModel() {}
 
    public DynamicValueModel(String value) {

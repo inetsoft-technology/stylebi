@@ -17,6 +17,8 @@
  */
 package inetsoft.web.portal.controller.database;
 
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.util.data.CommonKVModel;
 import inetsoft.report.composition.event.AssetEventUtil;
@@ -32,6 +34,8 @@ import inetsoft.util.Tool;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.AutoDrillWorksheetParameters;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +47,11 @@ import java.util.*;
 @RestController
 public class DataAutoDrillController {
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("api/portal/data/autodrill/worksheet/params")
    public AutoDrillWorksheetParameters collectParameters(@RequestParam("wsIdentifier") String wsIdentifier, XPrincipal user)
       throws Exception
@@ -69,6 +78,11 @@ public class DataAutoDrillController {
       return new AutoDrillWorksheetParameters(list);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("api/portal/data/autodrill/worksheet/fields")
    public List<String> getWorksheetFields(@RequestParam("wsIdentifier") String wsIdentifier,
                                            Principal principal)
@@ -219,10 +233,12 @@ public class DataAutoDrillController {
    }
 
    private XRepository getXRepository() throws Exception {
-      return XFactory.getRepository();
+      return xRepository;
    }
 
    @Autowired
    private AssetRepository engine;
+   @Autowired
+   private XRepository xRepository;
    private static final Logger LOG = LoggerFactory.getLogger(DataAutoDrillController.class.getName());
 }

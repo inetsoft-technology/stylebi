@@ -453,7 +453,7 @@ public class BoundQuery extends AssetQuery {
       UniformSQL osql = (UniformSQL) oquery.getSQLDefinition();
       XSelection oselection = osql.getSelection();
       String name = getAttributeString(base);
-      SQLHelper helper = SQLHelper.getSQLHelper(osql);
+      SQLHelper helper = getSQLHelper(osql);
 
       // @by larryl, use indexOfColumn would not work if a column is used
       // twice with different aliases

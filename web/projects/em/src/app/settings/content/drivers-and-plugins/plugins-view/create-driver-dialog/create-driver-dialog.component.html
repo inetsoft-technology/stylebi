@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <em-modal-header [cshid]="'EMSettingsContentDriversPlugins'" [title]="'_#(em.data.databases.createDriver)'">
 </em-modal-header>
 <mat-dialog-content class="create-driver-dialog">
@@ -25,16 +25,18 @@
           <mat-radio-button value="upload">_#(Upload)</mat-radio-button>
           <div>
             <mat-list>
-              <mat-list-item *ngFor="let file of uploadForm.controls['uploadFiles']?.value">
-                <div class="fileListItem">
-                  <div class="flex-row">
-                    <span>{{ file.name }}</span>
+              @for (file of uploadForm.controls['uploadFiles']?.value; track file.name) {
+                <mat-list-item>
+                  <div class="fileListItem">
+                    <div class="flex-row">
+                      <span>{{ file.name }}</span>
+                    </div>
+                    <button mat-icon-button (click)="removeDriverFile(file)">
+                      <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+                    </button>
                   </div>
-                  <button mat-icon-button (click)="removeDriverFile(file)">
-                    <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
-                  </button>
-                </div>
-              </mat-list-item>
+                </mat-list-item>
+              }
             </mat-list>
             <input #uploadFileInput type="file" accept="application/java-archive" hidden multiple (change)="addDriverFiles($event)"/>
             <mat-error *ngIf="uploadForm.errors?.uploadFilesRequired">_#(em.data.databases.driver.uploadFilesRequired)</mat-error>
@@ -50,12 +52,16 @@
               <mat-hint *ngIf="!uploadForm.controls['mavenCoord']?.errors?.required || uploadForm.controls['mavenCoord']?.pristine">_#(em.data.databases.driver.mavenCoordHint)</mat-hint>
             </mat-form-field>
             <mat-autocomplete #mavenComplete="matAutocomplete">
-              <mat-option *ngIf="searching" class="is-searching">
-                <mat-spinner diameter="24"></mat-spinner>
-              </mat-option>
-              <ng-container *ngIf="!searching">
-                <mat-option *ngFor="let coord of filteredCoords" [value]="coord">{{ coord }}</mat-option>
-              </ng-container>
+              @if (searching) {
+                <mat-option class="is-searching">
+                  <mat-spinner diameter="24"></mat-spinner>
+                </mat-option>
+              }
+              @if (!searching) {
+                @for (coord of filteredCoords; track coord) {
+                  <mat-option [value]="coord">{{ coord }}</mat-option>
+                }
+              }
             </mat-autocomplete>
           </div>
         </mat-radio-group>
@@ -68,7 +74,9 @@
     <mat-step [stepControl]="driverForm" label="_#(em.data.databases.driver.selectDrivers)" [editable]="false" [state]="selectDriversStepState">
       <div class="step-content" [formGroup]="driverForm">
         <mat-selection-list formControlName="drivers">
-          <mat-list-option *ngFor="let driver of drivers" [value]="driver">{{driver}}</mat-list-option>
+          @for (driver of drivers; track driver) {
+            <mat-list-option [value]="driver">{{driver}}</mat-list-option>
+          }
         </mat-selection-list>
         <mat-error *ngIf="driverForm.controls['drivers']?.errors?.required">_#(em.data.databases.driver.driversRequired)</mat-error>
       </div>

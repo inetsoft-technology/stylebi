@@ -20,9 +20,11 @@ package inetsoft.web.viewsheet;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.value.Value;
 
+import java.io.Serializable;
+
 @Value.Immutable
 @JsonSerialize(as = ImmutableDataTipInLayoutCheckResult.class)
-public abstract class DataTipInLayoutCheckResult {
+public abstract class DataTipInLayoutCheckResult implements Serializable {
    public abstract boolean isAssemblyInLayout();
 
    public static ImmutableDataTipInLayoutCheckResult.Builder builder() {

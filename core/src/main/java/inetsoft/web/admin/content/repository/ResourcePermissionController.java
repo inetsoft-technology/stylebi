@@ -19,6 +19,8 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
 import inetsoft.util.*;
 import inetsoft.web.admin.security.ResourcePermissionModel;
@@ -32,8 +34,13 @@ import java.security.Principal;
 @RestController
 public class ResourcePermissionController {
    @Autowired
-   public ResourcePermissionController(ResourcePermissionService service) {
+   public ResourcePermissionController(ResourcePermissionService service,
+                                       SecurityEngine securityEngine,
+                                       ScheduleManager scheduleManager)
+   {
       this.resourcePermissionService = service;
+      this.securityEngine = securityEngine;
+      this.scheduleManager = scheduleManager;
    }
 
    @Secured(
@@ -47,14 +54,16 @@ public class ResourcePermissionController {
    public ResourcePermissionModel getRepositoryEntryPermissions(@RequestParam("path") String path,
                                                                 @RequestParam("type") int type,
                                                                 Principal principal)
+      throws Exception
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
       Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
+      checkPermission(resource, path, principal, ResourceAction.READ);
       boolean tableStyleFolder = type == (RepositoryEntry.FOLDER | RepositoryEntry.TABLE_STYLE);
       return this.resourcePermissionService.getTableModel(
          resource.getPath(), resource.getType(),
@@ -76,11 +85,36 @@ public class ResourcePermissionController {
       throws Exception
    {
       Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
+      checkPermission(resource, path, principal, ResourceAction.WRITE);
       String fullPath = Util.getObjectFullPath(type, path, principal);
       boolean tableStyleFolder = (type & (RepositoryEntry.FOLDER | RepositoryEntry.TABLE_STYLE)) != 0;
       this.resourcePermissionService.setResourcePermissions(
          resource.getPath(), resource.getType(), fullPath, permissionModel, principal, tableStyleFolder);
    }
 
+   private void checkPermission(Resource resource, String path, Principal principal,
+                                ResourceAction scheduleTaskAction)
+      throws Exception
+   {
+      boolean allowed;
+
+      if(resource.getType() == ResourceType.SCHEDULE_TASK) {
+         ScheduleTask task = scheduleManager.getScheduleTask(resource.getPath());
+         allowed = task != null &&
+            ScheduleManager.hasTaskPermission(task.getOwner(), principal, scheduleTaskAction);
+      }
+      else {
+         allowed = securityEngine.checkPermission(
+            principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN);
+      }
+
+      if(!allowed) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+   }
+
    private final ResourcePermissionService resourcePermissionService;
+   private final SecurityEngine securityEngine;
+   private final ScheduleManager scheduleManager;
 }

@@ -16,18 +16,30 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Inject, OnInit } from "@angular/core";
-import { AbstractControl, UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { AbstractControl, UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { FileData } from "../../../../../../../shared/util/model/file-data";
 import { Tool } from "../../../../../../../shared/util/tool";
+import { MatButton } from "@angular/material/button";
+import { MatIcon } from "@angular/material/icon";
+import { FileChooserComponent } from "../../../../common/util/file-chooser/file-chooser/file-chooser.component";
+
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "em-add-theme-dialog",
-   templateUrl: "./add-theme-dialog.component.html",
-   styleUrls: ["./add-theme-dialog.component.scss"]
+    selector: "em-add-theme-dialog",
+    templateUrl: "./add-theme-dialog.component.html",
+    styleUrls: ["./add-theme-dialog.component.scss"],
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, FileChooserComponent, MatIcon, MatSuffix, MatDialogActions, MatButton, MatDialogClose]
 })
 export class AddThemeDialogComponent implements OnInit {
+   /** Mirrors CustomTheme.DEFAULT_THEME_ID: the reserved ID of the built-in theme. */
+   private static readonly RESERVED_ID = "default";
+
    form: UntypedFormGroup;
    private ids: string[];
    private jar: FileData;
@@ -65,7 +77,11 @@ export class AddThemeDialogComponent implements OnInit {
    private createId(): string {
       const nameValue = this.form.get("name").value;
 
-      if(!this.ids.includes(nameValue)) {
+      // "default" is the reserved ID of the built-in theme and doubles as the sentinel meaning
+      // "no custom theme selected", so a theme that took it as its ID would be stored and listed
+      // but never applied. The server reserves it too; check it here as well so a stale or failed
+      // /themes/ids response cannot reintroduce the collision. The name is kept either way.
+      if(!this.ids.includes(nameValue) && nameValue !== AddThemeDialogComponent.RESERVED_ID) {
          return nameValue;
       }
 
@@ -78,7 +94,10 @@ export class AddThemeDialogComponent implements OnInit {
 
       let newId = base;
 
-      for(let counter = 1; !!this.ids.find(s => s == newId); counter++) {
+      for(let counter = 1;
+          !!this.ids.find(s => s == newId) || newId === AddThemeDialogComponent.RESERVED_ID;
+          counter++)
+      {
          newId = base + counter;
       }
 

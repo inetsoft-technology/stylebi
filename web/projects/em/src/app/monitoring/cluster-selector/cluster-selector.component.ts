@@ -16,14 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnDestroy, Output } from "@angular/core";
-import { Subscription } from "rxjs";
+import { interval, Subscription } from "rxjs";
+import { switchMap } from "rxjs/operators";
 import { ClusterNodesService } from "../cluster/cluster-nodes.service";
 import { MonitoringDataService } from "../monitoring-data.service";
+import { MatIcon } from "@angular/material/icon";
+import { MatFabButton } from "@angular/material/button";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField } from "@angular/material/form-field";
+
 
 @Component({
-   selector: "em-cluster-selector",
-   templateUrl: "./cluster-selector.component.html",
-   styleUrls: ["./cluster-selector.component.scss"]
+    selector: "em-cluster-selector",
+    templateUrl: "./cluster-selector.component.html",
+    styleUrls: ["./cluster-selector.component.scss"],
+    imports: [MatFormField, MatSelect, MatOption, MatFabButton, MatIcon]
 })
 export class ClusterSelectorComponent implements OnDestroy {
    @Input() refreshEnable = false;
@@ -45,6 +53,20 @@ export class ClusterSelectorComponent implements OnDestroy {
                }
             }
          ));
+
+         //Refresh nodes list every 60 seconds
+         this.subscriptions.add(
+            interval(60000)
+               .pipe(switchMap(() => this.clusterNodesService.getClusterNodes()))
+               .subscribe((data: string[]) => {
+                  this.clusterNodes = data;
+
+                  // fallback if selected node is no longer valid
+                  if(!data.includes(this.selectedNode)) {
+                     this.selectedNode = data[0];
+                  }
+               })
+         );
       }
    }
 

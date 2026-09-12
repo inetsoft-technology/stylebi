@@ -17,11 +17,17 @@
  */
 package inetsoft.report.composition;
 
+import com.davidehrmann.vcdiff.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.util.*;
 import inetsoft.util.swap.*;
+import inetsoft.web.json.TypedPropertyMapWrapper;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,9 +35,13 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * RuntimeSheet represents a abstract runtime sheet in editing time.
@@ -67,6 +77,116 @@ public abstract class RuntimeSheet {
    }
 
    /**
+    * The default heartbeat timeout, in milliseconds (3 minutes). This is also the minimum: a
+    * runtime sheet is reaped by WorksheetEngine.RecycleTask, which sweeps every three minutes,
+    * so a shorter window cannot be honoured any more precisely than the sweep and is raised to
+    * this value. No viewsheet.heartbeat.timeout entry ships in defaults.properties, so this
+    * constant is the only place the default lives.
+    */
+   public static final long DEFAULT_HEARTBEAT_TIMEOUT = 180000L;
+
+   /**
+    * Get the heartbeat timeout in milliseconds. A runtime sheet is considered
+    * timed out if no heartbeat has been received within this window. Defaults
+    * to DEFAULT_HEARTBEAT_TIMEOUT; configurable via the "viewsheet.heartbeat.timeout"
+    * property. Read on each call so it can be retuned without a restart.
+    *
+    * <p>A value that is not a number, and one that is below DEFAULT_HEARTBEAT_TIMEOUT, are both
+    * reported and replaced by DEFAULT_HEARTBEAT_TIMEOUT. The property can therefore only ever
+    * lengthen the window; see DEFAULT_HEARTBEAT_TIMEOUT for why a shorter one is not honoured.
+    *
+    * @return the heartbeat timeout in milliseconds, never less than DEFAULT_HEARTBEAT_TIMEOUT.
+    */
+   public static long getHeartbeatTimeout() {
+      String property = SreeEnv.getProperty("viewsheet.heartbeat.timeout");
+
+      if(property != null) {
+         try {
+            long configured = Long.parseLong(property);
+
+            if(configured < DEFAULT_HEARTBEAT_TIMEOUT) {
+               // the silently-overridden case is the one an operator is more likely to hit,
+               // since shortening the timeout is the usual reason to touch the property at all
+               warnHeartbeatTimeout(
+                  property,
+                  "viewsheet.heartbeat.timeout value \"{}\" is below the minimum of {} ms, " +
+                  "using {} ms; the heartbeat window cannot be shorter than the recycle sweep " +
+                  "interval",
+                  property, DEFAULT_HEARTBEAT_TIMEOUT, DEFAULT_HEARTBEAT_TIMEOUT);
+
+               return DEFAULT_HEARTBEAT_TIMEOUT;
+            }
+
+            forgetHeartbeatTimeoutWarning();
+            return configured;
+         }
+         catch(NumberFormatException ex) {
+            warnHeartbeatTimeout(
+               property,
+               "Invalid viewsheet.heartbeat.timeout value \"{}\", using the default of {} ms",
+               property, DEFAULT_HEARTBEAT_TIMEOUT);
+
+            return DEFAULT_HEARTBEAT_TIMEOUT;
+         }
+      }
+
+      forgetHeartbeatTimeoutWarning();
+      return DEFAULT_HEARTBEAT_TIMEOUT;
+   }
+
+   /**
+    * Report a viewsheet.heartbeat.timeout value that is not being used as configured, but only
+    * when it differs from the value most recently reported for the current organization.
+    * getHeartbeatTimeout() is reached from isTimeout(), which RecycleTask calls once per open
+    * sheet on every sweep, so an unconditional warning repeats in proportion to the number of
+    * open sheets.
+    *
+    * <p>The suppression is per organization because the property is: SreeEnv resolves it
+    * through an inetsoft.org.&lt;orgid&gt;. override when one exists, and RecycleTask sweeps
+    * every open sheet of every organization in the same pass. A single global key would let the
+    * first organization to report a value silence every other organization that happens to have
+    * configured the same one.
+    *
+    * @param property the raw property value, used to suppress a repeat of the same complaint.
+    */
+   private static void warnHeartbeatTimeout(String property, String format, Object... args) {
+      if(!Objects.equals(lastWarnedHeartbeatTimeout.put(warningOrgId(), property), property)) {
+         LOG.warn(format, args);
+      }
+   }
+
+   /**
+    * Drop the current organization's suppression state once the property is honoured again, so
+    * that a value which is corrected and later reintroduced is reported a second time rather
+    * than applied in silence. This runs on every heartbeat check; removing an absent key is a
+    * lookup that touches no lock.
+    */
+   private static void forgetHeartbeatTimeoutWarning() {
+      lastWarnedHeartbeatTimeout.remove(warningOrgId());
+   }
+
+   /**
+    * The organization the warning state is keyed on. Only ever a suppression key, so a context
+    * that cannot produce one must not fail the timeout read that asked for it.
+    */
+   private static String warningOrgId() {
+      try {
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+         return orgId == null ? "" : orgId;
+      }
+      catch(Exception ex) {
+         return "";
+      }
+   }
+
+   /**
+    * Check whether a heartbeat timestamp is older than the configured timeout.
+    */
+   static boolean isHeartbeatExpired(long heartbeat, long now) {
+      return heartbeat < now - getHeartbeatTimeout();
+   }
+
+   /**
     * Constructor.
     */
    public RuntimeSheet() {
@@ -86,6 +206,40 @@ public abstract class RuntimeSheet {
       isLockProcessed = false;
       points = new XSwappableSheetList(this.contextPrincipal);
 
+      access(true);
+   }
+
+   RuntimeSheet(RuntimeSheetState state, ObjectMapper mapper) {
+      entry = loadXml(new AssetEntry(), state.getEntry());
+      user = loadXPrincipal(state.getUser());
+      contextPrincipal = loadXPrincipal(state.getContextPrincipal());
+      editable = state.isEditable();
+
+      List<String> statePoints = state.getPoints();
+
+      if(statePoints != null) {
+         points = new XSwappableSheetList(contextPrincipal);
+
+         for(int i = 0; i < statePoints.size(); i += 2) {
+            points.add(loadSheet(statePoints.get(i), statePoints.get(i + 1)));
+         }
+      }
+
+      point = state.getPoint();
+      max = state.getMax();
+      savePoint = state.getSavePoint();
+      eid = state.getEid();
+      id = state.getId();
+      socketSessionId = state.getSocketSessionId();
+      socketUserName = state.getSocketUserName();
+      lowner = state.getLowner();
+      isLockProcessed = state.isLockProcessed();
+      disposed = state.isDisposed();
+      prop = loadPropMap(state.getProp(), mapper);
+      previousURL = state.getPreviousURL();
+
+      // Safe fallback: toSheet() will overwrite with the authoritative value from accessTimeMap
+      // when one exists. Without this, accessed == 0 and isTimeout() evicts immediately.
       access(true);
    }
 
@@ -109,6 +263,10 @@ public abstract class RuntimeSheet {
       return accessed;
    }
 
+   void setAccessed(long accessed) {
+      this.accessed = accessed;
+   }
+
    /**
     * Check if the runtime sheet is timeout.
     * @return <tt>true</tt> if time out, <tt>false</tt> otherwise.
@@ -116,8 +274,8 @@ public abstract class RuntimeSheet {
    public boolean isTimeout() {
       long now = System.currentTimeMillis();
 
-      // timeout if no heartbeat in 3 minutes
-      if(heartbeat < now - 180000) {
+      // timeout if no heartbeat within the configured window (default 3 minutes)
+      if(isHeartbeatExpired(heartbeat, now)) {
          return true;
       }
 
@@ -126,7 +284,6 @@ public abstract class RuntimeSheet {
    }
 
    /**
-    * @expire
     */
    protected long getMaxIdleTime0() {
       return getMaxIdleTime();
@@ -215,7 +372,7 @@ public abstract class RuntimeSheet {
 
    /**
     * Get the container viewsheet id.
-    * @returnt he container viewsheet id.
+    * @return the container viewsheet id.
     */
    public String getEmbeddedID() {
       return eid;
@@ -443,6 +600,291 @@ public abstract class RuntimeSheet {
     */
    public abstract boolean isPreview();
 
+   abstract RuntimeSheetState saveState(ObjectMapper mapper);
+
+   synchronized void saveState(RuntimeSheetState state, ObjectMapper mapper) {
+      state.setEntry(saveXml(entry));
+      if(user instanceof XPrincipal xuser) {
+         state.setUser(saveXml(xuser));
+      }
+
+      state.setContextPrincipal(saveXml(contextPrincipal));
+      state.setEditable(editable);
+
+      if(points != null) {
+         List<String> values = new ArrayList<>();
+
+         for(int i = 0; i < points.size(); i++) {
+            String[] classAndXml = points.getXmlForState(i);
+
+            if(classAndXml != null) {
+               values.add(classAndXml[0]);
+               values.add(classAndXml[1]);
+            }
+         }
+
+         state.setPoints(values);
+      }
+
+      state.setPoint(point);
+      state.setMax(max);
+      state.setSavePoint(savePoint);
+      state.setEid(eid);
+      state.setId(id);
+      state.setSocketSessionId(socketSessionId);
+      state.setSocketUserName(socketUserName);
+      state.setLowner(lowner);
+      state.setLockProcessed(isLockProcessed);
+      state.setDisposed(disposed);
+      state.setProp(savePropMap(prop, mapper));
+      state.setPreviousURL(previousURL);
+   }
+
+   String saveXml(XMLSerializable value) {
+      return saveXml(value, XMLSerializable::writeXML);
+   }
+
+   String saveXml(XPrincipal value) {
+      return saveXml(value, XPrincipal::writeXML);
+   }
+
+   private <T> String saveXml(T value, BiConsumer<T, PrintWriter> fn) {
+      if(value == null) {
+         return null;
+      }
+
+      StringWriter buffer = new StringWriter();
+      PrintWriter writer = new PrintWriter(buffer);
+      fn.accept(value, writer);
+      writer.flush();
+      return buffer.toString();
+   }
+
+   String saveJson(Object value, ObjectMapper mapper) {
+      if(value == null) {
+         return null;
+      }
+
+      try {
+         return mapper.writeValueAsString(value);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to save runtime sheet properties", e);
+         return null;
+      }
+   }
+
+   private static AbstractSheet loadSheet(String className, String xml) {
+      try {
+         AbstractSheet sheet =
+            (AbstractSheet) Class.forName(className).getConstructor().newInstance();
+         return loadXml(sheet, xml);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load sheet", e);
+         return null;
+      }
+   }
+
+   static <T extends XMLSerializable> T loadXml(T value, String xml) {
+      if(xml == null) {
+         return null;
+      }
+
+      try {
+         Document document = Tool.parseXML(new StringReader(xml));
+         value.parseXML(document.getDocumentElement());
+         return value;
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load value", e);
+      }
+
+      return null;
+   }
+
+   private static XPrincipal loadXPrincipal(String xml) {
+      if(xml == null) {
+         return null;
+      }
+
+      try {
+         Document document = Tool.parseXML(new StringReader(xml));
+         SRPrincipal principal = new SRPrincipal();
+         principal.parseXML(document.getDocumentElement());
+         return principal;
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load value", e);
+      }
+
+      return null;
+   }
+
+   static <T> T loadJson(Class<T> clazz, String json, ObjectMapper mapper) {
+      try {
+         return mapper.readValue(json, clazz);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load value", e);
+         return null;
+      }
+   }
+
+   /**
+    * Serializes the prop map with embedded type information for polymorphic values.
+    */
+   private String savePropMap(Map<String, Object> propMap, ObjectMapper mapper) {
+      if(propMap == null || propMap.isEmpty()) {
+         return null;
+      }
+
+      try {
+         return mapper.writeValueAsString(new TypedPropertyMapWrapper(propMap));
+      }
+      catch(Exception e) {
+         LOG.error("Failed to save prop map ({} entries, keys: {}): {}",
+                   propMap.size(), propMap.keySet(), e, e);
+         return null;
+      }
+   }
+
+   /**
+    * Deserializes the prop map, restoring type information for polymorphic values.
+    */
+   private Map<String, Object> loadPropMap(String json, ObjectMapper mapper) {
+      if(json == null || json.isEmpty()) {
+         return new HashMap<>();
+      }
+
+      try {
+         TypedPropertyMapWrapper wrapper = mapper.readValue(json, TypedPropertyMapWrapper.class);
+         return wrapper.getValues();
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load prop map (json length: {}): {}",
+                   json.length(), e, e);
+         return new HashMap<>();
+      }
+   }
+
+   /**
+    * Encode the undo/redo checkpoint points as VCDIFF binary deltas.
+    * Checkpoints are stored as deltas in reverse order (newest first), using the sheet XML as the base.
+    * Since the sheet contains the latest state, the newest checkpoint (end of list) will have
+    * the smallest delta from the sheet.
+    */
+   static void encodePointDeltas(RuntimeSheetState state, String sheetXml) {
+      List<String> points = state.getPoints();
+
+      if(points == null || points.isEmpty() || sheetXml == null) {
+         return;
+      }
+
+      List<byte[]> deltas = new ArrayList<>();
+
+      // Points alternates: [className, xml, className, xml, ...]
+      // Newest checkpoint is at the end, which is closest to the sheet.
+      // Store deltas in reverse order: sheet -> newest -> ... -> oldest
+      byte[] previousBytes = sheetXml.getBytes(StandardCharsets.UTF_8);
+
+      for(int i = points.size() - 2; i >= 0; i -= 2) {
+         String xml = points.get(i + 1);
+         byte[] currentBytes = xml.getBytes(StandardCharsets.UTF_8);
+
+         try {
+            byte[] delta = createVcdiffDelta(previousBytes, currentBytes);
+            deltas.add(delta);
+            previousBytes = currentBytes;
+         }
+         catch(IOException e) {
+            LOG.error("Failed to create VCDIFF delta for checkpoint, skipping", e);
+         }
+      }
+
+      state.setPointDeltas(deltas);
+      state.setPoints(null);  // Clear original points, now stored as deltas
+   }
+
+   /**
+    * Decode point deltas and populate the points list.
+    * Deltas are stored in reverse order (newest first), so we reconstruct from sheet -> newest -> oldest,
+    * then reverse to restore original order (oldest first).
+    * Each sheet is created immediately after decoding to minimize memory usage.
+    *
+    * @param deltas the delta-encoded checkpoint data
+    * @param sheetXml the base sheet XML to decode from
+    * @param sheetFactory function to create a sheet from XML
+    */
+   <T extends AbstractSheet> void decodePointDeltas(
+      List<byte[]> deltas, String sheetXml, Function<String, T> sheetFactory)
+   {
+      if(deltas == null || deltas.isEmpty() || sheetXml == null) {
+         if(points == null) {
+            points = new XSwappableSheetList(contextPrincipal);
+         }
+
+         return;
+      }
+
+      List<T> sheets = new ArrayList<>();
+      byte[] previousBytes = sheetXml.getBytes(StandardCharsets.UTF_8);
+
+      for(int i = 0; i < deltas.size(); i++) {
+         byte[] delta = deltas.get(i);
+         byte[] currentBytes;
+
+         try {
+            currentBytes = applyVcdiffDelta(previousBytes, delta);
+         }
+         catch(IOException e) {
+            LOG.error("Failed to apply VCDIFF delta for checkpoint at index {}", i, e);
+            continue;
+         }
+
+         String xml = new String(currentBytes, StandardCharsets.UTF_8);
+         previousBytes = currentBytes;
+
+         // Create sheet immediately so XML can be garbage collected
+         T sheet = sheetFactory.apply(xml);
+
+         if(sheet != null) {
+            sheets.add(sheet);
+         }
+      }
+
+      // Reverse to restore original order (oldest first)
+      Collections.reverse(sheets);
+
+      points = new XSwappableSheetList(contextPrincipal);
+
+      for(T sheet : sheets) {
+         points.add(sheet);
+      }
+   }
+
+   /**
+    * Create a VCDIFF binary delta between source and target.
+    */
+   static byte[] createVcdiffDelta(byte[] source, byte[] target) throws IOException {
+      ByteArrayOutputStream deltaOut = new ByteArrayOutputStream();
+      VCDiffEncoder<OutputStream> encoder = VCDiffEncoderBuilder.builder()
+         .withDictionary(source)
+         .buildSimple();
+      encoder.encode(target, deltaOut);
+      return deltaOut.toByteArray();
+   }
+
+   /**
+    * Apply a VCDIFF binary delta to source to reconstruct target.
+    */
+   static byte[] applyVcdiffDelta(byte[] source, byte[] delta) throws IOException {
+      ByteArrayOutputStream targetOut = new ByteArrayOutputStream();
+      VCDiffDecoder decoder = VCDiffDecoderBuilder.builder().buildSimple();
+      decoder.decode(source, delta, targetOut);
+      return targetOut.toByteArray();
+   }
+
    static final class XSwappableSheetList {
       public XSwappableSheetList(XPrincipal contextPrincipal) {
          this.values = new LinkedList<>();
@@ -459,7 +901,7 @@ public abstract class RuntimeSheet {
       }
 
       public AbstractSheet get(int index) {
-         AbstractSheet sheet = null;
+         AbstractSheet sheet;
          XSwappableSheet swappable = values.get(index);
 
          synchronized(swappable) {
@@ -510,6 +952,25 @@ public abstract class RuntimeSheet {
          }
       }
 
+      // Returns {className, xml} for saveState without calling access() or validate().
+      // Avoids the swap-in round-trip (decompress + DOM parse + object + reserialize)
+      // for checkpoints that are already on disk.
+      String[] getXmlForState(int index) {
+         XSwappableSheet swappable = values.get(index);
+
+         synchronized(swappable) {
+            String className = swappable.sheetClassName;
+            String xml = swappable.getXml();
+
+            if(className == null || xml == null) {
+               return null;
+            }
+
+            return new String[]{ className, xml };
+         }
+      }
+
+      @SuppressWarnings("removal")
       @Override
       protected void finalize() throws Throwable {
          dispose();
@@ -517,16 +978,18 @@ public abstract class RuntimeSheet {
       }
 
       private final List<XSwappableSheet> values;
-      private XPrincipal contextPrincipal;
+      private final XPrincipal contextPrincipal;
       private boolean disposed;
    }
 
-   private static final class XSwappableSheet extends XSwappable {
+   public static final class XSwappableSheet extends XSwappable {
       public XSwappableSheet(AbstractSheet sheet, XPrincipal contextPrincipal) {
          this.sheet = sheet;
+         this.sheetClassName = sheet != null ? sheet.getClass().getName() : null;
          this.contextPrincipal = contextPrincipal;
+         this.contextOrgId = OrganizationContextHolder.getCurrentOrgId();
          this.valid = true;
-         this.monitor = XSwapper.getMonitor();
+         this.monitor = XSwapper.getSwapper().getMonitor();
 
          if(monitor != null) {
             isCountHM = monitor.isLevelQualified(XSwappableMonitor.HITS);
@@ -537,17 +1000,17 @@ public abstract class RuntimeSheet {
       public void access() {
          if(isCountHM) {
             if(valid && !lastValid) {
-               monitor.countHits(XSwappableMonitor.REPORT, 1);
+               monitor.countHits(XSwappableMonitor.SHEET, 1);
                lastValid = true;
             }
             else if(!valid) {
-               monitor.countMisses(XSwappableMonitor.REPORT, 1);
+               monitor.countMisses(XSwappableMonitor.SHEET, 1);
                lastValid = false;
             }
          }
 
          if(!valid) {
-            DEBUG_LOG.debug("Validate swapped data: %s", this);
+            DEBUG_LOG.debug("Validate swapped data: {}", this);
             validate(false);
          }
       }
@@ -598,12 +1061,12 @@ public abstract class RuntimeSheet {
             Document document = Tool.parseXML(input);
 
             if(isCountRW) {
-               monitor.countRead(file.length(), XSwappableMonitor.DATA);
+               monitor.countRead(file.length(), XSwappableMonitor.SHEET);
             }
 
             Element element = document.getDocumentElement();
             Class<?> clazz = Class.forName(Tool.getAttribute(element, "class"));
-            AbstractSheet sheet = (AbstractSheet) clazz.newInstance();
+            AbstractSheet sheet = (AbstractSheet) clazz.getConstructor().newInstance();
             sheet.parseXML(element);
             this.sheet = sheet;
          }
@@ -627,7 +1090,12 @@ public abstract class RuntimeSheet {
       @Override
       public synchronized boolean swap() {
          XPrincipal oldContextPrincipal = (XPrincipal) ThreadContext.getContextPrincipal();
+         String oldOrgId = OrganizationContextHolder.getCurrentOrgId();
          ThreadContext.setContextPrincipal(this.contextPrincipal);
+
+         if(this.contextOrgId != null) {
+            OrganizationContextHolder.setCurrentOrgId(this.contextOrgId);
+         }
 
          try {
 
@@ -641,10 +1109,26 @@ public abstract class RuntimeSheet {
          }
          finally {
             ThreadContext.setContextPrincipal(oldContextPrincipal);
+
+            if(oldOrgId != null) {
+               OrganizationContextHolder.setCurrentOrgId(oldOrgId);
+            }
+            else {
+               OrganizationContextHolder.clear();
+            }
          }
       }
 
       private void _swap() {
+         // Guard against null sheet before opening the file. This can happen if validate()
+         // sets valid=true at the start of loading but the load fails (IOException, OOM,
+         // parse error), leaving sheet=null while getSwapPriority() returns 100 — causing
+         // XSwapper to call swap() again on a null sheet.
+         if(sheet == null) {
+            LOG.warn("Skipping swap: sheet is unexpectedly null (disposed={})", disposed);
+            return;
+         }
+
          File file = getFile(prefix + ".tdat");
          OutputStream output = null;
 
@@ -658,7 +1142,7 @@ public abstract class RuntimeSheet {
             }
 
             if(output != null) {
-               PrintWriter writer = new PrintWriter(new OutputStreamWriter(output, "UTF-8"));
+               PrintWriter writer = new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
                writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
                Worksheet.setIsTEMP(true);
                sheet.writeXML(writer);
@@ -668,7 +1152,7 @@ public abstract class RuntimeSheet {
             sheet = null;
 
             if(isCountRW && output != null) {
-               monitor.countWrite(file.length(), XSwappableMonitor.DATA);
+               monitor.countWrite(file.length(), XSwappableMonitor.SHEET);
             }
 
             output = null;
@@ -680,6 +1164,12 @@ public abstract class RuntimeSheet {
             Worksheet.setIsTEMP(false);
             IOUtils.closeQuietly(output);
          }
+      }
+
+      @Override
+      public File[] getSwapFiles() {
+         File file = getFile(prefix + ".tdat");
+         return new File[]{ file };
       }
 
       @Override
@@ -701,13 +1191,73 @@ public abstract class RuntimeSheet {
          return sheet;
       }
 
-      private AbstractSheet sheet = null;
-      private XPrincipal contextPrincipal;
-      private boolean valid = false;
+      // Returns the sheet's XML for saveState serialization without triggering validate().
+      // If the sheet is in memory, serializes to XML directly.
+      // If the sheet is swapped and is a Worksheet, falls back to validate() + writeXML() to
+      // produce non-ISTEMP XML — _swap() writes the .tdat with Worksheet.setIsTEMP(true), and
+      // storing that raw XML in Ignite causes SnapshotEmbeddedTableAssembly to reference temp
+      // paths local to this node when another node restores an undo checkpoint.
+      // For other sheet types (Viewsheet etc.), reads the .tdat file directly, skipping the
+      // DOM parse + object construction + re-serialize round-trip. The ISTEMP flag set by
+      // _swap() is a ThreadLocal read exclusively by SnapshotEmbeddedTableAssembly, which is
+      // a Worksheet-only class — Viewsheet.writeXML() never consults it, so raw .tdat bytes
+      // for non-Worksheet checkpoints are safe to store in Ignite without re-serialization.
+      String getXml() {
+         if(valid) {
+            if(sheet == null) {
+               return null;
+            }
+
+            StringWriter buffer = new StringWriter();
+            PrintWriter writer = new PrintWriter(buffer);
+            sheet.writeXML(writer);
+            writer.flush();
+            return buffer.toString();
+         }
+
+         // Worksheet checkpoints are written with Worksheet.setIsTEMP(true) by _swap().
+         // Fall back to validate() + writeXML() so Ignite receives non-ISTEMP XML.
+         if(Worksheet.class.getName().equals(sheetClassName)) {
+            validate(false);
+
+            if(sheet == null) {
+               return null;
+            }
+
+            StringWriter buffer = new StringWriter();
+            PrintWriter writer = new PrintWriter(buffer);
+            sheet.writeXML(writer);
+            writer.flush();
+            return buffer.toString();
+         }
+
+         File file = getFile(prefix + ".tdat");
+
+         if(!file.exists()) {
+            LOG.warn("Swap file missing for checkpoint serialization: {}", file);
+            return null;
+         }
+
+         try(InputStream in = Tool.createUncompressInputStream(new FileInputStream(file))) {
+            String xml = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            // Strip the XML declaration written by _swap() — saveState stores element XML only.
+            return xml.replaceFirst("^<\\?xml[^?]*\\?>\\s*", "");
+         }
+         catch(Exception e) {
+            LOG.error("Failed to read swapped sheet XML for state serialization", e);
+            return null;
+         }
+      }
+
+      private AbstractSheet sheet;
+      private final String sheetClassName;
+      private final XPrincipal contextPrincipal;
+      private final String contextOrgId;
+      private boolean valid;
       private boolean lastValid = false;
       private boolean completed = false;
       private boolean disposed = false;
-      private transient XSwappableMonitor monitor;
+      private final transient XSwappableMonitor monitor;
       private transient boolean isCountHM = false;
       private transient boolean isCountRW = false;
    }
@@ -728,9 +1278,13 @@ public abstract class RuntimeSheet {
    private String lowner;           // user who locked it
    private boolean isLockProcessed; // unlocked flag
    private boolean disposed;        // disposed flag
-   private long heartbeat = System.currentTimeMillis(); // heartbeat timestamp
+   volatile long heartbeat = System.currentTimeMillis(); // heartbeat timestamp
    private Map<String, Object> prop = new HashMap<>();
    private String previousURL;
+
+   // the viewsheet.heartbeat.timeout value most recently complained about, per organization,
+   // since the property itself is organization-scoped; see warnHeartbeatTimeout
+   private static final Map<String, String> lastWarnedHeartbeatTimeout = new ConcurrentHashMap<>();
 
    private static final Logger LOG =
       LoggerFactory.getLogger(RuntimeSheet.class);

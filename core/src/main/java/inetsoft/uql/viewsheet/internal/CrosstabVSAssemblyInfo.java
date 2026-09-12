@@ -18,7 +18,6 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.TableDataPath;
-import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
@@ -156,19 +155,6 @@ public class CrosstabVSAssemblyInfo extends CrossBaseVSAssemblyInfo
 
       if(cubeType != null) {
          writer.print(" cubeType=\"" + cubeType + "\"");
-      }
-
-      // for web
-      if("true".equals(SreeEnv.getProperty("vs.crosstab.sortonheader"))) {
-         writer.print(" sortOnHeader=\"true\"");
-      }
-
-      if("true".equals(SreeEnv.getProperty("sort.crosstab.aggregate"))) {
-         writer.print(" sortAggregate=\"true\"");
-      }
-
-      if("true".equals(SreeEnv.getProperty("sort.crosstab.dimension"))) {
-         writer.print(" sortDimension=\"true\"");
       }
    }
 

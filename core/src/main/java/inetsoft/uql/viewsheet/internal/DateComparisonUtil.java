@@ -21,6 +21,8 @@ import inetsoft.util.*;
 import inetsoft.util.data.CommonKVModel;
 import inetsoft.graph.*;
 import inetsoft.graph.aesthetic.VisualFrame;
+import inetsoft.graph.coord.Coordinate;
+import inetsoft.graph.coord.FacetCoord;
 import inetsoft.graph.data.CalcColumn;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.GraphElement;
@@ -383,8 +385,31 @@ public class DateComparisonUtil {
     *
     * @return <tt>true</tt> if contains, <tt>false</tt> otherwise.
     */
-   private static boolean containsAggregate(DataRef[] fields) {
+   public static boolean containsAggregate(DataRef[] fields) {
       return Arrays.stream(fields).anyMatch(VSAggregateRef.class::isInstance);
+   }
+
+   /**
+    * Derive the date dimension ref used for DC from a chart's X/Y fields using the same
+    * axis-aggregate logic as ChartDcProcessor.getComparisonDateRef(): X date only when Y
+    * has an aggregate, Y date only when X has an aggregate.
+    *
+    * @param xFields X-axis fields (design or runtime).
+    * @param yFields Y-axis fields (design or runtime).
+    * @return the date DataRef, or null if none found.
+    */
+   public static DataRef findDcDateRef(DataRef[] xFields, DataRef[] yFields) {
+      DataRef found = null;
+
+      if(containsAggregate(yFields)) {
+         found = findDateDimension(xFields);
+      }
+
+      if(found == null && containsAggregate(xFields)) {
+         found = findDateDimension(yFields);
+      }
+
+      return found;
    }
 
    public static void checkGraphValidity(ChartVSAssemblyInfo info, VGraph vgraph) {
@@ -617,12 +642,49 @@ public class DateComparisonUtil {
          Date startDate = dcInfo.getStartDate();
          DateSelector selector = new DateSelector(periodCol, startDate, null);
 
+         // Compute which part cells have data from the most recent (current) year.
+         // Orphaned cells — those with only comparison-year data — should be excluded
+         // from the x-axis scale so they don't produce spurious labels. Skip this when the
+         // part column is itself one of the dimensions the graph is faceted on: there,
+         // "part" identifies the facet rather than a position on a chronologically
+         // progressing axis, and the heuristic's sort-order-based "hasn't chronologically
+         // reached this part yet" test is meaningless — a facet with no row in the most
+         // recent period isn't a future bucket, it's a facet whose most recent period
+         // happens to be absent (see Bug #76388: DayOfWeek facets 5-7 have real data for
+         // every period except the last, and excluding them entirely from every period is
+         // wrong; the per-facet sub-chart already correctly shows only the periods that
+         // actually have data for it once this exclusion doesn't run first).
+         //
+         // The test is deliberately narrower than info.isFacet(). That flag is a single
+         // chart-wide boolean (GraphGenerator.createCoord() sets it from
+         // "coordinate instanceof FacetCoord"), so it is true whenever *any* axis carries
+         // two or more dimensions — including when an unrelated dimension (e.g. Region)
+         // shares the axis while the part column is still a plain chronological one. In
+         // that case the heuristic is still meaningful and must run, otherwise a genuinely
+         // unreached future part (e.g. December while the current year has only reached
+         // April) renders for the prior comparison periods. (Bug #76518)
+         //
+         // Also skip this for "Compare Data Of: All" (isCompareAll()) -- that mode
+         // intentionally shows every part of each comparison period unclipped, so a part
+         // the in-progress current period hasn't reached yet is not an orphan -- it's real
+         // historical data for the prior periods and must still render. Applying the
+         // heuristic there silently dropped whole weeks/months of valid comparison-year
+         // data. (Bug #76389)
+         final boolean partIsFacetDim =
+            info.isFacet() && isFacetedField(egraph.getCoordinate(), partCol);
+         final Set<Object> validParts = partIsFacetDim || dcInfo.isCompareAll() ?
+            Collections.emptySet() :
+            computeValidParts(data, periodCol, partCol, startDate);
+
          for(Scale scale : egraph.getCoordinate().getScales()) {
             String[] fields = scale.getFields();
 
             if(fields.length > 0 && Tool.equals(partCol, fields[0])) {
                Format fmt = scale.getAxisSpec().getTextSpec().getFormat();
-               applyGraphDataSelector(data, scale, new DateSelector(periodCol, startDate, fmt));
+               DateSelector basePartSel = new DateSelector(periodCol, startDate, fmt);
+               GraphtDataSelector partSelector = validParts.isEmpty() ? basePartSel
+                  : new ValidPartsSelector(validParts, partCol, basePartSel);
+               applyGraphDataSelector(data, scale, partSelector);
             }
             else if(scale instanceof LinearScale ||
                fields.length > 0 && Tool.equals(getBaseName(periodCol), (getBaseName(fields[0]))))
@@ -645,7 +707,9 @@ public class DateComparisonUtil {
 
             if(spec.getTextSpec().getFormat() instanceof DateComparisonFormat) {
                DateComparisonFormat fmt = (DateComparisonFormat) spec.getTextSpec().getFormat();
-               fmt.setGraphDataSelector(selector);
+               GraphtDataSelector fmtSelector = validParts.isEmpty() ? selector
+                  : new ValidPartsSelector(validParts, partCol, selector);
+               fmt.setGraphDataSelector(fmtSelector);
             }
          }
 
@@ -658,6 +722,206 @@ public class DateComparisonUtil {
             }
          }
       }
+   }
+
+   /**
+    * Check whether a field is one of the dimensions the graph is actually faceted on, i.e. it
+    * supplies a scale of a {@link FacetCoord}'s outer coordinate rather than of the innermost
+    * plot coordinate.
+    *
+    * <p>{@link VSChartInfo#isFacet()} cannot answer this: it is a single chart-wide boolean set
+    * from "coordinate instanceof FacetCoord", true whenever any axis carries two or more
+    * dimensions, regardless of which of them ended up as the facet levels.
+    * GraphGenerator.createCoord() consumes the innermost dimension of each axis as the plot axis
+    * and wraps every remaining outer dimension in a FacetCoord, so the coordinate tree built
+    * there is the authoritative record of what was faceted on. (Bug #76518)</p>
+    */
+   private static boolean isFacetedField(Coordinate coord, String field) {
+      if(field == null || !(coord instanceof FacetCoord)) {
+         return false;
+      }
+
+      FacetCoord facet = (FacetCoord) coord;
+      Coordinate outer = facet.getOuterCoordinate();
+
+      if(outer != null) {
+         for(Scale scale : outer.getScales()) {
+            String[] fields = scale == null ? null : scale.getFields();
+
+            // match on fields[0] exactly as applyDateRange()'s part-scale lookup does, so the
+            // two always agree on which scale is the part column's.
+            if(fields != null && fields.length > 0 && Tool.equals(field, fields[0])) {
+               return true;
+            }
+         }
+      }
+
+      // multi-level facets are nested: createCoord() wraps the previous FacetCoord as the inner
+      // coordinate of the next one, so keep walking inward.
+      Coordinate[] inners = facet.getInnerCoordinates();
+
+      if(inners != null) {
+         for(Coordinate inner : inners) {
+            if(isFacetedField(inner, field)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Find which part cells (x-axis positions) have data from the most recent year, or sort
+    * at or before the last part that year's own rows reach. Cells beyond that point are
+    * orphaned (the most recent, possibly in-progress, period hasn't chronologically reached
+    * them yet) and should be excluded from the axis. Returns the set of valid part cells, or
+    * an empty set when the data is not in year-bucket layout (per-part real dates, or no
+    * repeated period value). An empty return means "no orphan filtering should be applied."
+    * A part is not treated as orphaned merely because the most recent year's own rows have
+    * no match for it -- that is ordinary data sparsity, not an unreached future bucket, and
+    * older periods' real data for it must still render (Bug #76391).
+    */
+   static Set<Object> computeValidParts(DataSet data, String periodCol,
+                                        String partCol, Date startDate)
+   {
+      if(periodCol == null || partCol == null) {
+         return Collections.emptySet();
+      }
+
+      // Single pass: find max year date AND detect year-bucket layout (any date repeating
+      // across more than one row indicates period-bucket data rather than per-part real dates).
+      Date maxYearDate = null;
+      Set<Date> seenDates = new HashSet<>();
+      boolean isYearBucketCase = false;
+
+      for(int i = 0; i < data.getRowCount(); i++) {
+         Date date = toPeriodDate(data.getData(periodCol, i));
+
+         if(date != null && (startDate == null || !date.before(startDate))) {
+            if(maxYearDate == null || date.after(maxYearDate)) {
+               maxYearDate = date;
+            }
+
+            if(!seenDates.add(date)) {
+               isYearBucketCase = true;
+            }
+         }
+      }
+
+      // Return empty when there is no data or when all period dates are unique per row
+      // (per-part real-date charts) — orphan filtering must not apply in that case.
+      if(maxYearDate == null || !isYearBucketCase) {
+         return Collections.emptySet();
+      }
+
+      Set<Object> validParts = new HashSet<>();
+      final Date max = maxYearDate;
+      Object maxPart = null;
+
+      for(int i = 0; i < data.getRowCount(); i++) {
+         Date date = toPeriodDate(data.getData(periodCol, i));
+
+         if(max.equals(date)) {
+            Object part = data.getData(partCol, i);
+            validParts.add(part);
+
+            if(maxPart == null || Tool.compare(part, maxPart) > 0) {
+               maxPart = part;
+            }
+         }
+      }
+
+      // The most recent period doesn't necessarily carry a row for every part it has
+      // chronologically reached -- ordinary data sparsity (e.g. a week with no matching
+      // records) is not the same as a part the period genuinely hasn't happened yet (the
+      // "future bucket" case this heuristic exists to suppress, Bug #75152/#76389). Treat
+      // any part that sorts at or before the latest part the most recent period's own rows
+      // do reach as valid too, so an older period's real data for it isn't dropped just
+      // because the most recent period happens to have no row there. A part that sorts
+      // strictly after that point is left excluded, preserving the future-bucket
+      // suppression this method was introduced for. Scoped by the same startDate condition
+      // as the first pass, so a part appearing only in a row before startDate can't leak in
+      // here -- this loop's result should mean the same thing the first pass's scope means,
+      // not rely on every caller happening to already exclude those rows via a separate
+      // selector. (Bug #76391)
+      //
+      // For a MergePartCell (e.g. "12-1", "12-2" -- a month plus a tie-breaking sub-bucket
+      // for a week that spans two months), a strict tuple compare against maxPart is too
+      // narrow at the trailing edge: if the most recent period's own data reaches "12-1" but
+      // that year's calendar simply never produces a "12-2" split, "12-2" sorts after "12-1"
+      // and would stay excluded even though the most recent period plainly did reach month
+      // 12 -- the missing sub-bucket is calendar variation, not an unreached future month.
+      // Every family strictly before maxPart's own family is already fully valid from the
+      // plain tuple compare above (the leading component alone decides it), so only
+      // maxPart's own family can have this trailing-edge gap: also accept a part that
+      // shares maxPart's leading components (everything but the final, tie-breaking one),
+      // whatever its own trailing value. (Bug #76391)
+      List<Object> maxPartPrefix = mergePartCellPrefix(maxPart);
+
+      if(maxPart != null) {
+         for(int i = 0; i < data.getRowCount(); i++) {
+            Date date = toPeriodDate(data.getData(periodCol, i));
+
+            if(date == null || (startDate != null && date.before(startDate))) {
+               continue;
+            }
+
+            Object part = data.getData(partCol, i);
+
+            if(Tool.compare(part, maxPart) <= 0 ||
+               (maxPartPrefix != null && maxPartPrefix.equals(mergePartCellPrefix(part))))
+            {
+               validParts.add(part);
+            }
+         }
+      }
+
+      return validParts;
+   }
+
+   /**
+    * A MergePartCell's own values, minus the final (tie-breaking sub-bucket) value -- e.g.
+    * ["12"] for both "12-1" and "12-2". Returns null for anything that isn't a MergePartCell
+    * with at least two component values, so callers can distinguish "no prefix to compare"
+    * from "empty prefix."
+    */
+   private static List<Object> mergePartCellPrefix(Object part) {
+      if(!(part instanceof MergePartCell)) {
+         return null;
+      }
+
+      MergePartCell cell = (MergePartCell) part;
+      int size = cell.getMergedRefs().size();
+
+      if(size < 2) {
+         return null;
+      }
+
+      List<Object> prefix = new ArrayList<>(size - 1);
+
+      for(int i = 0; i < size - 1; i++) {
+         prefix.add(cell.getValue(i));
+      }
+
+      return prefix;
+   }
+
+   /** Extract a comparable Date from a period column value (raw Date or MergePartCell). */
+   private static Date toPeriodDate(Object val) {
+      if(val instanceof Date) {
+         return (Date) val;
+      }
+
+      if(val instanceof MergePartCell) {
+         // Use getDateGroupValue() to match DateSelector's MergePartCell handling.
+         // getOriginalRawDate() is only set for isIgnoreDcTemp refs; it is null in
+         // most DC configurations and would cause computeValidParts to return empty.
+         Object dateGroupValue = ((MergePartCell) val).getDateGroupValue();
+         return dateGroupValue instanceof Date ? (Date) dateGroupValue : null;
+      }
+
+      return null;
    }
 
    private static void applyGraphDataSelector(DataSet data, Scale scale,
@@ -1071,6 +1335,7 @@ public class DateComparisonUtil {
       }
 
       cal.setTime(date);
+      int refYear = cal.get(Calendar.YEAR);
       List<XDimensionRef> mergedRefs = cell.getMergedRefs();
 
       for(int i = 0; i < mergedRefs.size(); i++) {
@@ -1104,11 +1369,24 @@ public class DateComparisonUtil {
                cal.set(Calendar.DAY_OF_WEEK, Tool.getFirstDayOfWeek());
             }
             else if(mergedRef.getFullName().startsWith("WeekOfYear(")) {
-               // WeekOfYear is MMW where MM is month and W is week of month.
-               // @see JavaScriptEngine.datePart().
-               cal.set(Calendar.MONTH, value / 10 - 1);
-               cal.set(Calendar.WEEK_OF_MONTH, value % 10);
-               cal.set(Calendar.DAY_OF_WEEK, Tool.getFirstDayOfWeek());
+               if(mergedRef instanceof VSDimensionRef &&
+                  ((VSDimensionRef) mergedRef).isDcSequentialWeek())
+               {
+                  // Bug #75351: Same-Day comparison groups by the sequential week-of-year
+                  // (datePart 'ww') so weeks align across periods; decode via WEEK_OF_YEAR.
+                  cal.set(Calendar.WEEK_OF_YEAR, value);
+
+                  if(last) {
+                     cal.set(Calendar.DAY_OF_WEEK, Tool.getFirstDayOfWeek());
+                  }
+               }
+               else {
+                  // WeekOfYear is MMW where MM is month and W is week of month.
+                  // @see JavaScriptEngine.datePart().
+                  cal.set(Calendar.MONTH, value / 10 - 1);
+                  cal.set(Calendar.WEEK_OF_MONTH, value % 10);
+                  cal.set(Calendar.DAY_OF_WEEK, Tool.getFirstDayOfWeek());
+               }
             }
          }
          else {
@@ -1141,6 +1419,14 @@ public class DateComparisonUtil {
                cal.set(Calendar.DAY_OF_WEEK, value);
             }
          }
+      }
+
+      // Partial week at year start (e.g. Dec 28-Jan 3) may land in the previous year; advance one week.
+      if(cal.get(Calendar.YEAR) < refYear) {
+         cal.add(Calendar.DATE, 7);
+      }
+      else if(cal.get(Calendar.YEAR) > refYear) {
+         cal.add(Calendar.DATE, -7);
       }
 
       Format dateFmt = fmt != null ? fmt : XUtil.getDefaultDateFormat(formatLevel);
@@ -1781,6 +2067,26 @@ public class DateComparisonUtil {
       return dim.getFullName();
    }
 
+   /**
+    * Move the calendar back to the first day of its own week, honoring the calendar's
+    * configured {@link Calendar#getFirstDayOfWeek()}.
+    *
+    * <p>The obvious <code>-(DAY_OF_WEEK - 1)</code> rewind is only correct when the week
+    * starts on Sunday: <code>DAY_OF_WEEK</code> is always Sunday-anchored and is unaffected
+    * by {@link Calendar#setFirstDayOfWeek(int)}. With any other week start it lands on a day
+    * in the wrong week, so the <code>WEEK_OF_MONTH</code>/<code>WEEK_OF_YEAR</code> read that
+    * normally follows disagrees with the week start the same calendar is configured for --
+    * including producing week 0, which is outside the domain the callers encode.
+    *
+    * @return the same calendar, for chaining.
+    */
+   public static Calendar moveToWeekStart(Calendar calendar) {
+      int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
+      calendar.add(Calendar.DATE, -((dayOfWeek - calendar.getFirstDayOfWeek() + 7) % 7));
+
+      return calendar;
+   }
+
    public static boolean adjustCalendarByForceWM(Calendar calendar, int forceWM) {
       Date date = calendar.getTime();
       int weekOfMonth = calendar.get(Calendar.WEEK_OF_MONTH);
@@ -1979,5 +2285,23 @@ public class DateComparisonUtil {
       calendar.setMinimalDaysInFirstWeek(7);
 
       return calendar;
+   }
+
+   /** Selector that filters out orphaned part cells not present in the current-year set. */
+   private static final class ValidPartsSelector implements GraphtDataSelector {
+      private final Set<Object> validParts;
+      private final String partCol;
+      private final GraphtDataSelector base;
+
+      ValidPartsSelector(Set<Object> validParts, String partCol, GraphtDataSelector base) {
+         this.validParts = validParts;
+         this.partCol = partCol;
+         this.base = base;
+      }
+
+      @Override
+      public boolean accept(DataSet dataset, int row, String[] fields) {
+         return validParts.contains(dataset.getData(partCol, row)) && base.accept(dataset, row, fields);
+      }
    }
 }

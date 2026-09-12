@@ -279,6 +279,13 @@ public class CategoricalColorFrameWrapper extends ColorFrameWrapper {
          final String value = clrsNode.getAttribute("value");
          frame.setShareColors("true".equals(value));
       }
+      else {
+         // legacy viewsheets saved before the Share Colors feature existed have no
+         // <shareColors> element. writeContents() always writes it for current saves, so
+         // its absence means this frame's colors were never meant to sync with other
+         // frames bound to the same column; default to false to preserve them.
+         frame.setShareColors(false);
+      }
 
       if((clrsNode = Tool.getChildNodeByTagName(tag, "colorValueFrame")) != null) {
          colorValueFrame = "true".equals(clrsNode.getAttribute("value"));

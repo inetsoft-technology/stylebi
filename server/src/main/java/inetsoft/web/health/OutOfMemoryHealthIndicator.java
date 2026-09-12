@@ -27,8 +27,9 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class OutOfMemoryHealthIndicator implements HealthIndicator {
-   public OutOfMemoryHealthIndicator() {
-      service = OutOfMemoryHealthService.getInstance();
+   public OutOfMemoryHealthIndicator(OutOfMemoryHealthService service, StatusDumpService statusDumpService) {
+      this.service = service;
+      this.statusDumpService = statusDumpService;
    }
 
    @Override
@@ -38,7 +39,7 @@ public class OutOfMemoryHealthIndicator implements HealthIndicator {
       if(status.isOutOfMemory()) {
          LoggerFactory.getLogger(getClass()).error(
             "OutOfMemoryHealthIndicator DOWN: time={}", status.getTime());
-         StatusDumpService.getInstance().dumpStatus();
+         statusDumpService.dumpStatus();
          return Health.down().withDetail("time", status.getTime()).build();
       }
 
@@ -46,4 +47,5 @@ public class OutOfMemoryHealthIndicator implements HealthIndicator {
    }
 
    private final OutOfMemoryHealthService service;
+   private final StatusDumpService statusDumpService;
 }

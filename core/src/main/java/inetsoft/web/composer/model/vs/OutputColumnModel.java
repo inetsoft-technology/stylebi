@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class OutputColumnModel {
+import java.io.Serializable;
+
+public class OutputColumnModel implements Serializable {
    public String getDefaultFormula() {
       return defaultFormula;
    }

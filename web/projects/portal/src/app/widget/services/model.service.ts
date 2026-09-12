@@ -15,15 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {
-   HttpClient,
-   HttpErrorResponse,
-   HttpHeaders,
-   HttpParams,
-   HttpResponse
-} from "@angular/common/http";
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams, HttpResponse } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, throwError } from "rxjs";
 import { catchError } from "rxjs/operators";
@@ -37,7 +30,7 @@ export class ModelService {
    private readonly formHeaders: HttpHeaders;
    private _errorHandler: (error: any) => boolean;
 
-   constructor(private http: HttpClient, private modalService: NgbModal, private router: Router) {
+   constructor(private http: HttpClient, private modalService: NgbModal) {
       this.headers = new HttpHeaders({
          "Content-Type": "application/json",
          "X-Requested-With": "XMLHttpRequest",
@@ -56,11 +49,6 @@ export class ModelService {
 
    set errorHandler(handler: (error: any) => boolean) {
       this._errorHandler = handler;
-   }
-
-   getCurrentOrganization(): Observable<string> {
-      return this.http.get<string>("../api/em/navbar/organization");
-
    }
 
    getOrgMVGlobalResource(org: string): Observable<boolean> {
@@ -128,11 +116,6 @@ export class ModelService {
          res.status != 502 && res.status != 503)
       {
          ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", errMsg);
-      }
-
-      if(res.status == 502 || res.status == 503) {
-         this.router.navigate(["/reload"],
-            {queryParams: { redirectTo: this.router.url }, replaceUrl: true})
       }
 
       return throwError(errMsg);

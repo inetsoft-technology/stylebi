@@ -41,11 +41,17 @@ import {
 import { Tool } from "../../../../../shared/util/tool";
 import { ComponentTool } from "../../common/util/component-tool";
 import { GuiTool } from "../../common/util/gui-tool";
+import { JunctionOperatorPipe } from "./junction-operator.pipe";
+import { ConditionPipe } from "./condition.pipe";
+
+import { FormsModule } from "@angular/forms";
+import { ConditionItemPane } from "./condition-item-pane.component";
 
 @Component({
-   selector: "condition-pane",
-   templateUrl: "condition-pane.component.html",
-   styleUrls: ["condition-pane.component.scss"]
+    selector: "condition-pane",
+    templateUrl: "condition-pane.component.html",
+    styleUrls: ["condition-pane.component.scss"],
+    imports: [ConditionItemPane, FormsModule, ConditionPipe, JunctionOperatorPipe]
 })
 export class ConditionPane implements OnInit {
    JunctionOperatorType = JunctionOperatorType;

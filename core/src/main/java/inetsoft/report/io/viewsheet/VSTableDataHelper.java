@@ -28,7 +28,7 @@ import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
-import inetsoft.web.viewsheet.controller.table.BaseTableController;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import org.slf4j.Logger;
@@ -327,7 +327,7 @@ public abstract class VSTableDataHelper extends ExporterHelper {
       // information pre-populated, we can not return the rendered number of
       // lines per cell.
       if(lens != null) {
-         double[] colWidths = BaseTableController.getColWidths(assembly, lens);
+         double[] colWidths = BaseTableService.getColWidths(assembly, lens);
          lens.initTableGrid(info);
          lens.setColWidths(colWidths);
 
@@ -345,16 +345,45 @@ public abstract class VSTableDataHelper extends ExporterHelper {
       int infoWidth = CoordinateHelper.getAssemblySize(
          assembly, CoordinateHelper.getLensSize(lens, true)).width;
       calculateColumnsPosition(info, lens);
-      drawObjectFormat(info, lens, false);
-      writeTitle(info, infoWidth);
+      // clip the background fill too, not just the title/data drawn after it - the
+      // background is a plain unclipped fillRect (see ExportUtil.drawTextBox) that
+      // otherwise sticks out square past the rounded border at each corner.
+      beginRoundCornerClip(info, lens);
 
-      if(lens != null) {
-         writeData(info, lens);
+      try {
+         drawObjectFormat(info, lens, false);
+         writeTitle(info, infoWidth);
+
+         if(lens != null) {
+            writeData(info, lens);
+         }
+      }
+      finally {
+         // always restore the clip, even on failure, so a bad cell/title write doesn't
+         // leave the shared Graphics device (PDF/SVG) clipped for whatever is drawn next.
+         endRoundCornerClip();
       }
 
       // @by stephenwebster, draw after the data so the object borders are on top
       // of the data borders.
       drawObjectFormat(info, lens, true);
+   }
+
+   /**
+    * Clip subsequent drawing (the object's own background fill, title, and cell data) to
+    * the object's rounded-corner bounds, so none of it sticks out past the rounded border
+    * drawn afterward by {@link #drawObjectFormat}. No-op by default: cell content is
+    * written directly to a native grid (Excel) or shape-based slide (PowerPoint) in some
+    * export formats, neither of which support clipping; only Graphics2D-based exports
+    * (PDF/SVG) override this.
+    */
+   protected void beginRoundCornerClip(TableDataVSAssemblyInfo info, VSTableLens lens) {
+   }
+
+   /**
+    * Restore the clip pushed by {@link #beginRoundCornerClip}, if any.
+    */
+   protected void endRoundCornerClip() {
    }
 
    /**
@@ -829,6 +858,105 @@ public abstract class VSTableDataHelper extends ExporterHelper {
       }
 
       return null;
+   }
+
+   /**
+    * Shift a shrunk table so its rendered bottom stays flush with the
+    * bottom-tabs tab bar. Mirrors viewer {@code BaseTable.getObjectTop()}.
+    * Computes rendered height from padded row heights (PDF/PNG/HTML/Excel);
+    * print layout renders unpadded and must use the three-arg overload.
+    */
+   public static void applyShrunkBottomTabsShift(TableDataVSAssembly assembly,
+                                                 VSTableLens lens)
+   {
+      if(assembly == null || lens == null) {
+         return;
+      }
+
+      TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getVSAssemblyInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      applyShrunkBottomTabsShift(
+         assembly, info.getPixelSize().height, computeShrunkRenderedHeight(info, lens));
+   }
+
+   /**
+    * Variant for pipelines that allocate the table from something other than
+    * {@code pixelSize.height} (e.g. print layout uses {@code layoutSize}).
+    */
+   public static void applyShrunkBottomTabsShift(TableDataVSAssembly assembly,
+                                                 int designHeight,
+                                                 int actualRenderedHeight)
+   {
+      if(assembly == null) {
+         return;
+      }
+
+      TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getVSAssemblyInfo();
+
+      if(info == null || !info.isShrink() || info.getMaxSize() != null) {
+         return;
+      }
+
+      if(!TabVSAssemblyInfo.isInBottomTabs(assembly)) {
+         return;
+      }
+
+      int shift = designHeight - actualRenderedHeight;
+
+      if(shift <= 0) {
+         return;
+      }
+
+      Point offset = info.getPixelOffset();
+
+      if(offset != null) {
+         info.setPixelOffset(new Point(offset.x, offset.y + shift));
+      }
+
+      Point layout = info.getLayoutPosition();
+
+      if(layout != null) {
+         info.setLayoutPosition(new Point(layout.x, layout.y + shift));
+      }
+   }
+
+   private static int computeShrunkRenderedHeight(TableDataVSAssemblyInfo info,
+                                                  VSTableLens lens)
+   {
+      int rowCount = lens.getRowCount();
+
+      // rowCount < 0 means the lens hasn't fully loaded; that only happens
+      // with > initTableGrid's 10k row budget. Such a table can't be shrunk
+      // within the design box anyway — return the design height so shift = 0.
+      if(rowCount < 0) {
+         return info.getPixelSize().height;
+      }
+
+      int height = info.isTitleVisible() ? info.getTitleHeight() : 0;
+      int[] rowHeights = lens.getRowHeights();
+
+      for(int i = 0; i < rowCount; i++) {
+         double rowH = AssetUtil.defh;
+
+         if(rowHeights != null && i < rowHeights.length) {
+            double wrappedH = lens.getWrappedHeight(i, true);
+
+            if(!Double.isNaN(wrappedH)) {
+               rowH = wrappedH;
+            }
+            else if(rowHeights[i] > 0) {
+               rowH = rowHeights[i];
+            }
+         }
+
+         height += (int) lens.getRowHeightWithPadding(rowH, i);
+      }
+
+      return Math.min(height, info.getPixelSize().height);
    }
 
    private static final Logger LOG =

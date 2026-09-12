@@ -18,10 +18,18 @@
 import { Component, Input, Output, EventEmitter, ViewChild } from "@angular/core";
 import { NamedGroupPane } from "./named-group-pane.component";
 import { GroupCondition } from "../data/named-group-info";
+import { BlockMouseDirective } from "../../widget/mouse-event/block-mouse.directive";
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "named-group-view",
-   templateUrl: "named-group-view-dialog.component.html",
+    selector: "named-group-view",
+    templateUrl: "named-group-view-dialog.component.html",
+    standalone: true,
+    imports: [
+        ModalHeaderComponent,
+        BlockMouseDirective,
+        NamedGroupPane,
+    ],
 })
 export class NamedGroupView {
    @ViewChild("namedGroupPane", {static: true}) property: NamedGroupPane;

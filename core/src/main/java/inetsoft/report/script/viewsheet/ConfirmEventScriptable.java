@@ -17,8 +17,7 @@
  */
 package inetsoft.report.script.viewsheet;
 
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
+import inetsoft.util.script.graal.ScriptScope;
 
 /**
  * The confirm event scriptable in viewsheet scope.
@@ -26,18 +25,16 @@ import org.mozilla.javascript.ScriptableObject;
  * @version 12.0
  * @author InetSoft Technology Corp
  */
-public class ConfirmEventScriptable extends ScriptableObject {
+public class ConfirmEventScriptable implements ScriptScope {
    /**
     * Create a confirm event scriptable.
     */
    public ConfirmEventScriptable() {
-      super();
    }
 
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
-   @Override
    public String getClassName() {
       return "ConfirmEvent";
    }
@@ -46,9 +43,7 @@ public class ConfirmEventScriptable extends ScriptableObject {
     * Sets a named property in this object.
     */
    @Override
-   public void put(String name, Scriptable start, Object value) {
-      super.put(name, start, value);
-
+   public void putMember(String name, Object value) {
       if("confirmed".equals(name)) {
          confirmed = "true".equals(value.toString());
       }
@@ -58,19 +53,19 @@ public class ConfirmEventScriptable extends ScriptableObject {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       if("confirmed".equals(name)) {
          return confirmed;
       }
 
-      return super.get(name, start);
+      return null;
    }
 
    /**
     * Indicate whether or not a named property is defined in an object.
     */
    @Override
-   public boolean has(String name, Scriptable start) {
+   public boolean hasMember(String name) {
       return "confirmed".equals(name);
    }
 
@@ -78,7 +73,7 @@ public class ConfirmEventScriptable extends ScriptableObject {
     * Get an array of property ids.
     */
    @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       return new String[]{"confirmed"};
    }
 

@@ -15,18 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+
 import {
-   ChangeDetectorRef,
-   Component,
-   ElementRef,
-   EventEmitter,
-   Inject,
-   Input,
-   OnInit,
-   Output,
-   Renderer2,
-   ViewChild
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  EventEmitter,
+  Inject,
+  Input,
+  OnInit,
+  Output,
+  Renderer2,
+  ViewChild,
+  DOCUMENT
 } from "@angular/core";
 import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { GuiTool } from "../../common/util/gui-tool";
@@ -36,6 +37,11 @@ import { SortInfo } from "../../vsobjects/objects/table/sort-info";
 import { ModelService } from "../../widget/services/model.service";
 import { ProfileTableDataEvent } from "../model/profile-table-data-event";
 import { DownloadService } from "../../../../../shared/download/download.service";
+import { DefaultFocusDirective } from "../../widget/directive/default-focus.directive";
+import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive";
+import { TouchScrollDirective } from "../../widget/scroll/touch-scroll.directive";
+import { FormsModule } from "@angular/forms";
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 const GET_PROFILE_CHART: string = "../api/image/portal/profile/image";
 const GET_PROFILE_TABLE_URL = "../api/portal/profile/table";
@@ -52,9 +58,10 @@ interface GroupByFieldList {
 }
 
 @Component({
-   selector: "profiling-dialog",
-   templateUrl: "profiling-dialog.component.html",
-   styleUrls: ["./profiling-dialog.component.scss"]
+    selector: "profiling-dialog",
+    templateUrl: "profiling-dialog.component.html",
+    styleUrls: ["./profiling-dialog.component.scss"],
+    imports: [ModalHeaderComponent, FormsModule, TouchScrollDirective, NgbTooltip, OutOfZoneDirective, DefaultFocusDirective]
 })
 export class ProfilingDialog implements OnInit {
    @Input() objName: string;

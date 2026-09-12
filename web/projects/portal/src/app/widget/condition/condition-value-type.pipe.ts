@@ -25,7 +25,8 @@ import { ConditionValueType } from "../../common/data/condition/condition-value-
  *
  */
 @Pipe({
-   name: "conditionValueTypeToString"
+    name: "conditionValueTypeToString",
+    standalone: true
 })
 export class ConditionValueTypePipe implements PipeTransform {
    transform(type: ConditionValueType): string {

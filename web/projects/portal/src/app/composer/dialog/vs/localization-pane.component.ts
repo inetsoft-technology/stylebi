@@ -19,11 +19,18 @@ import { Component, Input } from "@angular/core";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { LocalizationComponent } from "../../data/vs/localization-component";
 import { LocalizationPaneModel } from "../../data/vs/localization-pane-model";
+import { ElidedCellComponent } from "../../../widget/elided-cell/elided-cell.component";
+import { ScrollableTableDirective } from "../../../widget/scrollable-table/scrollable-table.directive";
+import { TreeComponent } from "../../../widget/tree/tree.component";
+import { ShuffleListComponent } from "../../../widget/shuffle-list/shuffle-list.component";
+import { FormsModule } from "@angular/forms";
+
 
 @Component({
-   selector: "localization-pane",
-   templateUrl: "localization-pane.component.html",
-   styleUrls: ["localization-pane.component.scss"]
+    selector: "localization-pane",
+    templateUrl: "localization-pane.component.html",
+    styleUrls: ["localization-pane.component.scss"],
+    imports: [FormsModule, ShuffleListComponent, TreeComponent, ScrollableTableDirective, ElidedCellComponent]
 })
 
 export class LocalizationPane {

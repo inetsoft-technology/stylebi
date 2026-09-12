@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <em-modal-header [cshid]="'EMSettingsScheduleSettings'" [title]="title">
 </em-modal-header>
 <mat-dialog-content>
@@ -28,7 +28,7 @@
                 <mat-label>_#(Filter)</mat-label>
                 <input matInput [(ngModel)]="searchText">
                 <button mat-icon-button matIconSuffix title="_#(Clear)" aria-label="_#(Clear)"
-                        (click)="searchText = ''" [disabled]="!searchText">
+                  (click)="searchText = ''" [disabled]="!searchText">
                   <mat-icon fontSet="ineticons" fontIcon="close-circle-icon"></mat-icon>
                 </button>
               </mat-form-field>
@@ -36,19 +36,27 @@
             <div class="path-list-container">
               <div #scrollViewport class="path-scroll-pane">
                 <mat-list role="list">
-                  <ng-container *ngFor="let path of classpath; let i = index">
-                    <mat-list-item  *ngIf="matchSearch(path)" (click)="selectPath(i)"
-                                    (dblclick)="editPath()"
-                                    [class.selected]="isSelectedPath(i)">
-                      <div *ngIf="!isEditingPath(i)" class="path-item" [title]="path">{{path}}</div>
-                      <mat-form-field subscriptSizing="dynamic" *ngIf="isEditingPath(i)" class="full-width editing" appearance="outline"
-                                      color="accent">
-                        <input matInput #pathEditInput [value]="path" (blur)="clearEdit(i)"
-                               (input)="pathChange(i, $event)">
-                      </mat-form-field>
-                    </mat-list-item>
-                    <mat-divider *ngIf="matchSearch(path)"></mat-divider>
-                  </ng-container>
+                  @for (path of classpath; track path; let i = $index) {
+                    @if (matchSearch(path)) {
+                      <mat-list-item  (click)="selectPath(i)"
+                        (dblclick)="editPath()"
+                        [class.selected]="isSelectedPath(i)">
+                        @if (!isEditingPath(i)) {
+                          <div class="path-item" [title]="path">{{path}}</div>
+                        }
+                        @if (isEditingPath(i)) {
+                          <mat-form-field subscriptSizing="dynamic" class="full-width editing" appearance="outline"
+                            color="accent">
+                            <input matInput #pathEditInput [value]="path" (blur)="clearEdit(i)"
+                              (input)="pathChange(i, $event)">
+                          </mat-form-field>
+                        }
+                      </mat-list-item>
+                    }
+                    @if (matchSearch(path)) {
+                      <mat-divider></mat-divider>
+                    }
+                  }
 
                 </mat-list>
               </div>
@@ -63,15 +71,15 @@
           <div class="right-button-group">
             <button mat-button mat-stroked-button (click)="newPath()">_#(New)</button>
             <button mat-button mat-stroked-button (click)="editPath()"
-                    [disabled]="this.selectedIndex < 0">_#(Edit)</button>
+            [disabled]="this.selectedIndex < 0">_#(Edit)</button>
             <button mat-button mat-stroked-button (click)="deletePath()"
-                    [disabled]="this.selectedIndex < 0">_#(Delete)</button>
+            [disabled]="this.selectedIndex < 0">_#(Delete)</button>
           </div>
           <div class="right-button-group">
             <button mat-button mat-stroked-button (click)="moveDownPath()"
-                    [disabled]="!!searchText || selectedIndex < 0 ||selectedIndex >= classpath.length - 1">_#(Move Down)</button>
+            [disabled]="!!searchText || selectedIndex < 0 ||selectedIndex >= classpath.length - 1">_#(Move Down)</button>
             <button mat-button mat-stroked-button (click)="moveUpPath()"
-                    [disabled]="!!searchText || selectedIndex <= 0">_#(Move Up)</button>
+            [disabled]="!!searchText || selectedIndex <= 0">_#(Move Up)</button>
           </div>
           <div class="right-button-group">
             <button mat-button mat-stroked-button (click)="editText()">_#(Edit Text)</button>

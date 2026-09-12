@@ -17,13 +17,18 @@
  */
 import { Component, Input, OnInit } from "@angular/core";
 import { ChartLinePaneModel } from "../../model/chart-line-pane-model";
-import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
+import { MultiSelect } from "../../../widget/multi-select/multi-select.component";
+import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
+import { GridLineDropdown } from "../../../widget/format/grid-line-dropdown.component";
+
 
 @Component({
-   selector: "chart-line-pane",
-   templateUrl: "chart-line-pane.component.html",
-   styleUrls: ["chart-line-pane.component.scss"]
+    selector: "chart-line-pane",
+    templateUrl: "chart-line-pane.component.html",
+    styleUrls: ["chart-line-pane.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, GridLineDropdown, ColorEditor, MultiSelect]
 })
 export class ChartLinePane implements OnInit {
    @Input() model: ChartLinePaneModel;

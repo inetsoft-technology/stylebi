@@ -30,7 +30,8 @@ import { SubqueryValue } from "../../common/data/condition/subquery-value";
  *
  */
 @Pipe({
-   name: "conditionValueToString"
+    name: "conditionValueToString",
+    standalone: true
 })
 export class ConditionValuePipe implements PipeTransform {
    transform(value: ConditionValue): string {

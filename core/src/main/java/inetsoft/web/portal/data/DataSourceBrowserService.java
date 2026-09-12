@@ -62,12 +62,18 @@ public class DataSourceBrowserService {
    public DataSourceBrowserService(SecurityEngine securityEngine,
                                    RepositoryObjectService repositoryObjectService,
                                    XRepository repository,
-                                   DataSourceService dataSourceService)
+                                   DataSourceService dataSourceService,
+                                   DataSourceRegistry dataSourceRegistry,
+                                   Config uqlConfig,
+                                   RenameTransformHandler renameTransformHandler)
    {
       this.securityEngine = securityEngine;
       this.repository = repository;
       this.repositoryObjectService = repositoryObjectService;
       this.dataSourceService = dataSourceService;
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.uqlConfig = uqlConfig;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    public List<DataSourceInfo> getDataSources(String path, boolean root, String[] movingFolders,
@@ -75,7 +81,7 @@ public class DataSourceBrowserService {
       throws Exception
    {
       Locale locale = getLocale(principal);
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
       List<DataSourceInfo> dataSources = new ArrayList<>();
 
       if(path == null && root) {
@@ -107,7 +113,7 @@ public class DataSourceBrowserService {
    }
 
    public DataSourceInfo getDataSourceFolder(String path, Principal principal) throws Exception {
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
       return getDSFolderInfo(registry.getDataSourceFolder(path), null, principal);
    }
 
@@ -134,7 +140,7 @@ public class DataSourceBrowserService {
       throws Exception
    {
       Locale locale = getLocale(principal);
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
       List<DataSourceInfo> dataSources = new ArrayList<>();
 
       for(String name : getDataSources(path, true)) {
@@ -168,7 +174,7 @@ public class DataSourceBrowserService {
     * @return rure if has sub datasource folder
     */
    private boolean hasSubDataSourceFolder(DataSourceFolder dsFolder, String[] movingFolders) {
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
       String folderName = "/".equals(dsFolder.getFullName()) ? null : dsFolder.getFullName();
       List<String> folders = registry.getSubfolderNames(folderName);
 
@@ -258,12 +264,12 @@ public class DataSourceBrowserService {
          }
       }
 
-      for(String type : Config.getTabularDataSourceTypes()) {
+      for(String type : uqlConfig.getTabularDataSourceTypes()) {
          if(!existing.contains(type)) {
             TabularDataSourceTypeModel model = new TabularDataSourceTypeModel();
             model.setName(type);
             model.setDataSource(null);
-            model.setLabel(Config.getDisplayLabel(type, locale));
+            model.setLabel(uqlConfig.getDisplayLabel(type, locale));
             model.setExists(false);
             models.add(model);
          }
@@ -316,7 +322,7 @@ public class DataSourceBrowserService {
    {
       boolean isJDBC = dataSource instanceof JDBCDataSource;
       String label = isJDBC ? Catalog.getCatalog().getString("Database") :
-         Config.getDisplayLabel(dataSource.getType(), locale);
+         uqlConfig.getDisplayLabel(dataSource.getType(), locale);
       String typeName;
 
       if(isJDBC) {
@@ -416,7 +422,7 @@ public class DataSourceBrowserService {
          DependencyTransformer.prepareChildrenSources(path, childrenSources, repository);
          RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
             path, newPath, childrenSources);
-         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+         renameTransformHandler.addTransformTask(dinfo);
 
          folder.setName(newPath);
          Permission permission =
@@ -458,7 +464,7 @@ public class DataSourceBrowserService {
          paths = path.split("/");
       }
 
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
 
       for(int i = 0; i < paths.length; i++) {
          if(i > 0) {
@@ -526,7 +532,7 @@ public class DataSourceBrowserService {
     * @return a list of data sources.
     */
    private List<String> getDataSources(String path, boolean search) {
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
       List<String> dsnames = registry.getSubDataSourceNames(path, search);
       Collections.sort(dsnames);
       List<String> dataSources = new ArrayList<>(dsnames);
@@ -598,7 +604,7 @@ public class DataSourceBrowserService {
 
    @DatasourceIgnoreGlobalShare
    public CheckDuplicateResponse checkItemsDuplicate(DataSourceInfo[] items, String path) {
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
 
       for(DataSourceInfo item : items) {
          String ipath = item.path();
@@ -614,7 +620,7 @@ public class DataSourceBrowserService {
    }
 
    public void moveDataSource(MoveCommand[] items, Principal principal) throws Exception {
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
 
       // log action
       String objectName;
@@ -659,7 +665,7 @@ public class DataSourceBrowserService {
                registry.renameDataSourceFolder(oname, nname);
 
                for(RenameDependencyInfo renameDependencyInfo : renameDependencyInfos) {
-                  RenameTransformHandler.getTransformHandler().addTransformTask(renameDependencyInfo);
+                  this.renameTransformHandler.addTransformTask(renameDependencyInfo);
                }
 
                objectName = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER,
@@ -694,12 +700,12 @@ public class DataSourceBrowserService {
                   if(ds instanceof XMLADataSource) {
                      RenameDependencyInfo dinfo = DependencyTransformer.createCubeDependencyInfo(
                         oname, ds.getFullName());
-                     RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+                     renameTransformHandler.addTransformTask(dinfo);
                   }
                   else {
                      RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
                         oname, ds.getFullName());
-                     RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+                     renameTransformHandler.addTransformTask(dinfo);
                   }
                }
 
@@ -771,12 +777,7 @@ public class DataSourceBrowserService {
    }
 
    private DataSourceRegistry getDSRegistry() {
-      try {
-         return DataSourceRegistry.getRegistry();
-      }
-      catch(Exception ex) {
-         throw new RuntimeException("Failed to get data source registry", ex);
-      }
+      return dataSourceRegistry;
    }
 
    private DataSourceFolder getRootFolder(Principal principal) {
@@ -789,6 +790,9 @@ public class DataSourceBrowserService {
    private final XRepository repository;
    private final RepositoryObjectService repositoryObjectService;
    private final DataSourceService dataSourceService;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final Config uqlConfig;
+   private final RenameTransformHandler renameTransformHandler;
 
    private static final Logger LOG = LoggerFactory.getLogger(DataSourceBrowserService.class);
 }

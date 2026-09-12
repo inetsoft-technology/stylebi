@@ -17,12 +17,14 @@
  */
 package inetsoft.web.composer.vs.objects.event;
 
+import java.io.Serializable;
+
 /**
  * Class that encapsulates the parameters grouping column fields for charts and tables.
  *
  * @since 12.3
  */
-public class GroupFieldsEvent extends TableCellEvent {
+public class GroupFieldsEvent extends TableCellEvent implements Serializable {
    public String getGroupName() {
       return groupName;
    }

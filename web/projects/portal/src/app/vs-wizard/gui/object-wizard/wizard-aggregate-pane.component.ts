@@ -31,14 +31,19 @@ import { AggregateFormula } from "../../../binding/util/aggregate-formula";
 import { SetWizardBindingFormatEvent } from "../../model/event/set-wizard-binding-format-event";
 import { SummaryAttrUtil } from "../../../binding/util/summary-attr-util";
 import { VSObjectType } from "../../../common/data/vs-object-type";
+import { VSWizardDetailItem } from "./wizard-detail-item.component";
+import { VSWizardAggregateItem } from "./wizard-aggregate-item.component";
+import { VSWizardGroupItem } from "./wizard-group-item.component";
+
 
 const UPDATE_COLUMNS = "/events/vswizard/binding/update-columns";
 const UPDATE_WIZARD_BINDING_FORMAT = "/events/vswizard/object/format";
 
 @Component({
-   selector: "wizard-aggregate-pane",
-   templateUrl: "./wizard-aggregate-pane.component.html",
-   styleUrls: ["./wizard-aggregate-pane.component.scss"]
+    selector: "wizard-aggregate-pane",
+    templateUrl: "./wizard-aggregate-pane.component.html",
+    styleUrls: ["./wizard-aggregate-pane.component.scss"],
+    imports: [VSWizardGroupItem, VSWizardAggregateItem, VSWizardDetailItem]
 })
 export class VSWizardAggregatePane implements OnInit {
    @Input() dimensions: ChartDimensionRef[];

@@ -43,6 +43,11 @@ export interface SecuredDescriptor {
     * Whether hide the view for multi tenancy
     */
    hiddenForMultiTenancy?: boolean
+
+   /**
+    * Whether the view requires multi-tenancy to be enabled
+    */
+   requiresMultiTenancy?: boolean
 }
 
 /**

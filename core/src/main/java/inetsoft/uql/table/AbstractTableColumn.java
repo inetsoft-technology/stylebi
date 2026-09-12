@@ -39,7 +39,7 @@ import java.util.Date;
  */
 public abstract class AbstractTableColumn implements XTableColumn, XSerializable {
    protected AbstractTableColumn() {
-      monitor = XSwapper.getMonitor();
+      monitor = XSwapper.getSwapper().getMonitor();
       swapInfo = "Created at " + new Date();
 
       if(monitor != null) {
@@ -68,13 +68,14 @@ public abstract class AbstractTableColumn implements XTableColumn, XSerializable
 
       if(buf0 != null) {
          ByteBuffer buf = XSwapUtil.compressByteBuffer(buf0);
-         swapsize = buf.remaining();
+         int size = buf.remaining();
 
          if(isCountRW) {
-            monitor.countWrite(swapsize, XSwappableMonitor.DATA);
+            monitor.countWrite(size, XSwappableMonitor.DATA);
          }
 
          fc.write(buf);
+         swapsize = size;
          ByteBufferPool.releaseByteBuffer(buf0);
          invalidate();
       }

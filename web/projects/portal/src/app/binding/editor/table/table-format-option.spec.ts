@@ -38,7 +38,7 @@ describe("Table Format Option Unit Test", () => {
    });
 
    //Bug #20380
-   it("table format option should be applied", (done) => {
+   it("table format option should be applied", () => new Promise<void>((done) => {
       let formatModel = createTableFormatInfo();
       tableFormatOpt.format = formatModel;
 
@@ -48,5 +48,5 @@ describe("Table Format Option Unit Test", () => {
          done();
       });
       tableFormatOpt.updateFormatOption();
-   });
+   }));
 });

@@ -87,7 +87,7 @@ describe("ChartTargetDialog Unit Test", () => {
 
    beforeEach(() => {
       chartTargetDialog = new ChartTargetDialog(
-         <any> { open: jest.fn() }, <any> { isAdhoc: jest.fn() });
+         <any> { open: vi.fn() }, <any> { isAdhoc: vi.fn() });
    });
 
    // Bug #9954 show error when trying to create statistics line with time field
@@ -95,7 +95,7 @@ describe("ChartTargetDialog Unit Test", () => {
       chartTargetDialog.chartTarget = createModel();
       chartTargetDialog.chartTarget.tabFlag = 2;
       chartTargetDialog.chartTarget.measure.dateField = true;
-      let showMessageDialog = jest.spyOn(ComponentTool, "showMessageDialog");
+      let showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog");
       showMessageDialog.mockImplementation(() => Promise.resolve("ok"));
 
       chartTargetDialog.saveChanges();

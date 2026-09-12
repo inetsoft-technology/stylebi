@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -29,24 +30,24 @@ describe("CustomProviderViewComponent", () => {
    let fixture: ComponentFixture<CustomProviderViewComponent>;
 
    beforeEach(() => {
-      // (window.document.body as any).createTextRange = jest.fn().mockImplementation(() => ({
-      //    setEnd: jest.fn(),
-      //    setStart: jest.fn(),
-      //    getBoundingClientRect: jest.fn(() => ({right: 0})),
-      //    getClientRects: jest.fn(() => ({length: 0, left: 0, right: 0}))
+      // (window.document.body as any).createTextRange = vi.fn().mockImplementation(() => ({
+      //    setEnd: vi.fn(),
+      //    setStart: vi.fn(),
+      //    getBoundingClientRect: vi.fn(() => ({right: 0})),
+      //    getClientRects: vi.fn(() => ({length: 0, left: 0, right: 0}))
       // }));
       const codemirror = {
-         createTernServer: jest.fn(() => {}),
-         getEcmaScriptDefs: jest.fn(() => [{"Date": {"prototype": {}}}]),
-         createCodeMirrorInstance: jest.fn(() => ({
-            getCursor: jest.fn(),
-            setCursor: jest.fn(),
-            getValue: jest.fn(() => {}),
-            setValue: jest.fn(),
-            refresh: jest.fn(),
-            focus: jest.fn(),
-            on: jest.fn(),
-            toTextArea: jest.fn()
+         createTernServer: vi.fn(() => {}),
+         getEcmaScriptDefs: vi.fn(() => [{"Date": {"prototype": {}}}]),
+         createCodeMirrorInstance: vi.fn(() => ({
+            getCursor: vi.fn(),
+            setCursor: vi.fn(),
+            getValue: vi.fn(() => {}),
+            setValue: vi.fn(),
+            refresh: vi.fn(),
+            focus: vi.fn(),
+            on: vi.fn(),
+            toTextArea: vi.fn()
          }))
       };
 
@@ -56,11 +57,8 @@ describe("CustomProviderViewComponent", () => {
             FormsModule,
             ReactiveFormsModule,
             MatInputModule,
-            MatIconModule
-         ],
-         declarations: [
-            CustomProviderViewComponent
-         ],
+            MatIconModule,
+            CustomProviderViewComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

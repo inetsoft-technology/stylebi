@@ -23,10 +23,13 @@ import { HttpClient } from "@angular/common/http";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { isValidConditionList } from "../../data/model/datasources/database/vpm/condition/util/vpm-condition.util";
 import { ComponentTool } from "../../../common/util/component-tool";
+import { VPMConditionPane } from "./vpm-condition-pane/vpm-condition-pane.component";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "vpm-condition-dialog",
-   templateUrl: "vpm-condition-dialog.component.html"
+    selector: "vpm-condition-dialog",
+    templateUrl: "vpm-condition-dialog.component.html",
+    imports: [ModalHeaderComponent, VPMConditionPane]
 })
 export class VPMConditionDialog implements OnInit {
    @Input() model: VPMConditionDialogModel;

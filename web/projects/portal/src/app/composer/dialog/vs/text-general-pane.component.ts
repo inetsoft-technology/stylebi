@@ -16,14 +16,36 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { TextGeneralPaneModel } from "../../data/vs/text-general-pane-model";
 import { PopLocation, PopComponentService } from "../../../vsobjects/objects/data-tip/pop-component.service";
+import { TruncatePipe } from "../../../widget/pipe/truncate.pipe";
+import { NotificationsComponent } from "../../../widget/notifications/notifications.component";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { PaddingPane } from "../../../vsobjects/dialog/padding-pane.component";
+import { AlphaDropdown } from "../../../widget/format/alpha-dropdown.component";
+import { NgFor, NgIf } from "@angular/common";
+import { TipPane } from "../../../vsobjects/dialog/graph/tip-pane.component";
+import { TextPane } from "./text-pane.component";
+import { OutputGeneralPane } from "./output-general-pane.component";
 
 @Component({
-   selector: "text-general-pane",
-   templateUrl: "text-general-pane.component.html",
+    selector: "text-general-pane",
+    templateUrl: "text-general-pane.component.html",
+    imports: [
+        OutputGeneralPane,
+        TextPane,
+        TipPane,
+        FormsModule,
+        NgFor,
+        AlphaDropdown,
+        NgIf,
+        PaddingPane,
+        SizePositionPane,
+        NotificationsComponent,
+        TruncatePipe,
+    ]
 })
 export class TextGeneralPane implements OnInit {
    @Input() model: TextGeneralPaneModel;

@@ -18,7 +18,7 @@
 package inetsoft.web.admin.monitoring;
 
 import inetsoft.util.*;
-import inetsoft.web.service.BaseSubscribeChangHandler;
+import inetsoft.web.service.BaseSubscribeChangeHandler;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +26,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.concurrent.ConcurrentMapCache;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
-import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.handler.DestinationPatternsMessageCondition;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
@@ -35,14 +34,10 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.simp.user.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
-import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
 import java.security.Principal;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -52,7 +47,7 @@ import java.util.stream.Stream;
  */
 @Service
 @Lazy(false)
-public class MonitoringDataService extends BaseSubscribeChangHandler {
+public class MonitoringDataService extends BaseSubscribeChangeHandler {
    @Autowired
    public MonitoringDataService(SimpUserRegistry userRegistry,
                                 SimpMessagingTemplate messageTemplate)
@@ -68,17 +63,9 @@ public class MonitoringDataService extends BaseSubscribeChangHandler {
    }
 
    /**
-    * On unsubscribe remove the subscriber that matches the event's subscription ID.
-    */
-   @EventListener
-   public void handleUnsubscribe(SessionUnsubscribeEvent event) {
-      super.handleUnsubscribe(event);
-   }
-
-   /**
     * On disconnect remove all subscribers for the given session.
     */
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       super.handleDisconnect(event);
    }
@@ -93,6 +80,7 @@ public class MonitoringDataService extends BaseSubscribeChangHandler {
     * @return the most recent value posted to this topic if not-null, otherwise the result
     * of executing the supplier function.
     */
+   @SuppressWarnings("unchecked")
    public <T> T addSubscriber(StompHeaderAccessor headerAccessor, Supplier<T> supplier) {
       final String sessionId = headerAccessor.getSessionId();
       final MessageHeaders messageHeaders = headerAccessor.getMessageHeaders();
@@ -115,7 +103,7 @@ public class MonitoringDataService extends BaseSubscribeChangHandler {
       final Object monitoringData = dataCache.get(subscriber, monitoringSubscriber::get);
 
       if(monitoringData == null) {
-         LOG.warn("Monitoring data is missing: " + monitoringSubscriber.supplier);
+         LOG.warn("Monitoring data is missing: {}", monitoringSubscriber.supplier);
          return null;
       }
 
@@ -152,16 +140,33 @@ public class MonitoringDataService extends BaseSubscribeChangHandler {
    /**
     * Update all subscribers of a websocket session
     */
+   public void updateSession(String sessionId) {
+      updateSession(sessionId, 1L, TimeUnit.SECONDS);
+   }
+
+   /**
+    * Update all subscribers of a websocket session
+    */
    public void updateSession(StompHeaderAccessor headerAccessor,  long interval,
                              TimeUnit intervalUnit)
    {
       final MessageHeaders messageHeaders = headerAccessor.getMessageHeaders();
       final String sessionId =
          (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
-      debouncer.debounce(sessionId, interval, intervalUnit, () -> updateSession(sessionId));
+      updateSession(sessionId, interval, intervalUnit);
+
    }
 
-   private void updateSession(String sessionId) {
+   /**
+    * Update all subscribers of a websocket session
+    */
+   private void updateSession(String sessionId,  long interval,
+                             TimeUnit intervalUnit)
+   {
+      debouncer.debounce(sessionId, interval, intervalUnit, () -> updateSession0(sessionId));
+   }
+
+   private void updateSession0(String sessionId) {
       lock();
 
       try {
@@ -234,15 +239,13 @@ public class MonitoringDataService extends BaseSubscribeChangHandler {
       public Object get() {
          ThreadContext.setContextPrincipal(getUser());
 
-         if(Thread.currentThread() instanceof GroupedThread) {
-            GroupedThread groupedThread = (GroupedThread) Thread.currentThread();
+         if(Thread.currentThread() instanceof GroupedThread groupedThread) {
             groupedThread.setPrincipal(getUser());
          }
 
          Object result = supplier.get();
 
-         if(Thread.currentThread() instanceof GroupedThread) {
-            GroupedThread groupedThread = (GroupedThread) Thread.currentThread();
+         if(Thread.currentThread() instanceof GroupedThread groupedThread) {
             groupedThread.setPrincipal(null);
             groupedThread.removeRecords();
          }
@@ -253,6 +256,7 @@ public class MonitoringDataService extends BaseSubscribeChangHandler {
          // clear the ThreadContext thread local variables
          ThreadContext.setPrincipal(null);
          ThreadContext.setLocale(null);
+         ThreadContext.setProfiling(null);
 
          return result;
       }
@@ -262,6 +266,7 @@ public class MonitoringDataService extends BaseSubscribeChangHandler {
          if(this == o) {
             return true;
          }
+
          if(o == null || getClass() != o.getClass()) {
             return false;
          }

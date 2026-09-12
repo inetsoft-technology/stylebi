@@ -20,12 +20,16 @@ package inetsoft.sree.schedule;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import inetsoft.util.XMLSerializable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 
 import java.io.*;
 import java.time.Duration;
 import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
@@ -222,8 +226,14 @@ public final class TimeRange implements XMLSerializable, Serializable, Comparabl
     */
    public static List<TimeRange> getTimeRanges() {
       String property = SreeEnv.getProperty("schedule.time.ranges");
+
+      if(property == null || property.trim().isEmpty()) {
+         return new ArrayList<>();
+      }
+
       return Arrays.stream(property.split(";"))
          .map(TimeRange::parse)
+         .filter(Objects::nonNull)
          .collect(Collectors.toList());
    }
 
@@ -293,19 +303,59 @@ public final class TimeRange implements XMLSerializable, Serializable, Comparabl
       return matched.orElse(range);
    }
 
+   /**
+    * Parses a single time range definition. The property may be set by hand or through the
+    * generic property editor, neither of which validates it, so a malformed definition is
+    * ignored instead of being propagated to the callers of {@link #getTimeRanges()}.
+    *
+    * @param text the time range definition.
+    *
+    * @return the time range or {@code null} if the definition is malformed.
+    */
    private static TimeRange parse(String text) {
       String[] values = text.split(",");
+
+      if(values.length < 4) {
+         logInvalidRange(text, "expected 4 comma-separated fields, found " + values.length);
+         return null;
+      }
+
       String name = values[0];
       String def = values[1];
-      String start = values[2];
-      String end = values[3];
+      LocalTime startTime;
+      LocalTime endTime;
+
+      try {
+         startTime = LocalTime.parse(values[2]);
+         endTime = LocalTime.parse(values[3]);
+      }
+      catch(DateTimeParseException e) {
+         logInvalidRange(text, "invalid time \"" + e.getParsedString() + "\"");
+         return null;
+      }
 
       TimeRange range = new TimeRange();
       range.setName(name);
       range.setDefault("1".equals(def));
-      range.setStartTime(LocalTime.parse(start));
-      range.setEndTime(LocalTime.parse(end));
+      range.setStartTime(startTime);
+      range.setEndTime(endTime);
       return range;
+   }
+
+   /**
+    * Logs a malformed time range definition. Each distinct definition is only logged once,
+    * because the time ranges are read on every scheduler tick.
+    *
+    * @param text   the malformed definition.
+    * @param reason the reason that it could not be parsed.
+    */
+   private static void logInvalidRange(String text, String reason) {
+      if(loggedInvalidRanges.size() < 100 && loggedInvalidRanges.add(text)) {
+         LOG.warn(
+            "Ignoring malformed time range \"{}\" in the schedule.time.ranges property: {}. " +
+            "Each time range must be in the form \"name,default,startTime,endTime\", for " +
+            "example \"Morning,0,06:00,12:00\".", text, reason);
+      }
    }
 
    private static String format(TimeRange range) {
@@ -324,4 +374,7 @@ public final class TimeRange implements XMLSerializable, Serializable, Comparabl
    private LocalTime startTime;
    private LocalTime endTime;
    private boolean defaultRange;
+
+   private static final Set<String> loggedInvalidRanges = ConcurrentHashMap.newKeySet();
+   private static final Logger LOG = LoggerFactory.getLogger(TimeRange.class);
 }

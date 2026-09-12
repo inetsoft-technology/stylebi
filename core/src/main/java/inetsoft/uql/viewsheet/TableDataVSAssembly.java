@@ -92,6 +92,14 @@ public abstract class TableDataVSAssembly extends DataVSAssembly
       }
 
       this.dconds = detail;
+
+      // When detail condition is cleared (show details dialog closed),
+      // also clear the tip condition so it can be properly refreshed
+      // when the user hovers over the datatip again.
+      if(detail == null || detail.isEmpty()) {
+         setTipConditionList(null);
+      }
+
       return DETAIL_INPUT_DATA_CHANGED;
    }
 

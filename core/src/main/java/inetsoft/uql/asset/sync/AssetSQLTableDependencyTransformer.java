@@ -74,32 +74,20 @@ public class AssetSQLTableDependencyTransformer extends AssetDependencyTransform
       String nname = info.getNewName();
 
       //For sql binding, its prefix and source is all datasource's full name.
-      if(info.isDataSource()) {
+      // Match exactly or at path boundary to avoid false positives (e.g., "folder1" matching "f1")
+      if(info.isDataSource() || info.isDataSourceFolder()) {
          Element snode = Tool.getChildNodeByTagName(elem, "prefix");
+         String sval = Tool.getValue(snode);
 
-         if(Tool.equals(oname, Tool.getValue(snode))) {
-            replaceCDATANode(snode, nname);
+         if(sval != null && (sval.equals(oname) || sval.endsWith("/" + oname))) {
+            replaceCDATANode(snode, sval.replace(oname, nname));
          }
 
          snode = Tool.getChildNodeByTagName(elem, "source");
+         sval = Tool.getValue(snode);
 
-         if(Tool.equals(oname, Tool.getValue(snode))) {
-            replaceCDATANode(snode, nname);
-         }
-      }
-      else if(info.isDataSourceFolder()) {
-         Element pnode = Tool.getChildNodeByTagName(elem, "prefix");
-         String opre = Tool.getValue(pnode);
-
-         if(Tool.equals(opre, oname)) {
-            replaceCDATANode(pnode, nname);
-         }
-
-         Element snode = Tool.getChildNodeByTagName(elem, "source");
-         String source = Tool.getValue(snode);
-
-         if(Tool.equals(source, oname)) {
-            replaceCDATANode(snode, nname);
+         if(sval != null && (sval.equals(oname) || sval.endsWith("/" + oname))) {
+            replaceCDATANode(snode, sval.replace(oname, nname));
          }
       }
    }

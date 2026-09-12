@@ -18,6 +18,7 @@
 package inetsoft.uql.jdbc;
 
 import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -38,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * against a fix that happens to preserve order for this one hash arrangement
  * but not in general.
  */
+@Tag("core")
 class JDBCQueryVariableOrderTest {
    @RepeatedTest(5)
    void variablesShouldBeOrderedByAppearanceInSql() {

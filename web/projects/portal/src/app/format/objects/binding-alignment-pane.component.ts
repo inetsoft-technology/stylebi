@@ -18,10 +18,12 @@
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { AlignmentInfo } from "../../common/data/format-info-model";
 
+
 @Component({
-   selector: "binding-alignment-pane",
-   styleUrls: ["binding-alignment-pane.component.scss"],
-   templateUrl: "binding-alignment-pane.component.html",
+    selector: "binding-alignment-pane",
+    styleUrls: ["binding-alignment-pane.component.scss"],
+    templateUrl: "binding-alignment-pane.component.html",
+    imports: []
 })
 export class BindingAlignmentPane {
    @Input() enableHAlign: boolean;

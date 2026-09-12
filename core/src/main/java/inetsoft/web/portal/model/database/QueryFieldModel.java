@@ -17,7 +17,9 @@
  */
 package inetsoft.web.portal.model.database;
 
-public class QueryFieldModel {
+import java.io.Serializable;
+
+public class QueryFieldModel implements Serializable {
    public String getName() {
       return name;
    }

@@ -19,12 +19,14 @@ package inetsoft.web.composer.ws.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 /**
  * Event used to layout the position of the assemblies in a worksheet view.
  */
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableWSLayoutGraphEvent.class)
 @JsonDeserialize(as = ImmutableWSLayoutGraphEvent.class)
 public abstract class WSLayoutGraphEvent {

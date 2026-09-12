@@ -17,22 +17,17 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnDestroy, Output } from "@angular/core";
-import {
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   FormGroupDirective,
-   NgForm,
-   Validators
-} from "@angular/forms";
-import { ErrorStateMatcher } from "@angular/material/core";
+import { UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, FormGroupDirective, NgForm, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { ErrorStateMatcher, MatOption } from "@angular/material/core";
 import { Subscription } from "rxjs";
 import {
    OAuthAuthorizationService,
    OAuthParameters
 } from "../../../../../../portal/src/app/common/services/oauth-authorization.service";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
+import { Tool } from "../../../../../../shared/util/tool";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
+import { MatSnackBar } from "@angular/material/snack-bar";
 import { Searchable } from "../../../searchable";
 import { IdentityId } from "../../security/users/identity-id";
 import { GeneralSettingsChanges } from "../general-settings-page/general-settings-page.component";
@@ -42,6 +37,15 @@ import {
    SMTPAuthType,
 } from "./email-settings-model";
 import { ContextHelp } from "../../../context-help";
+import { MatButton } from "@angular/material/button";
+import { MatIcon } from "@angular/material/icon";
+import { MatSelect } from "@angular/material/select";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
+
+import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 @Searchable({
    route: "/settings/general#email",
@@ -53,9 +57,10 @@ import { ContextHelp } from "../../../context-help";
    link: "EMGeneralEmail"
 })
 @Component({
-   selector: "em-email-settings-view",
-   templateUrl: "./email-settings-view.component.html",
-   styleUrls: ["./email-settings-view.component.scss"]
+    selector: "em-email-settings-view",
+    templateUrl: "./email-settings-view.component.html",
+    styleUrls: ["./email-settings-view.component.scss"],
+    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, MatSelect, MatOption, MatIcon, MatSuffix, MatCardActions, MatButton]
 })
 export class EmailSettingsViewComponent implements OnDestroy {
    @Output() modelChanged = new EventEmitter<GeneralSettingsChanges>();
@@ -88,6 +93,7 @@ export class EmailSettingsViewComponent implements OnDestroy {
                private usersService: ScheduleUsersService,
                defaultErrorMatcher: ErrorStateMatcher,
                private httpClient: HttpClient,
+               private snackBar: MatSnackBar,
                private oauthService: OAuthAuthorizationService,)
    {
       this.errorStateMatcher = {
@@ -358,14 +364,34 @@ export class EmailSettingsViewComponent implements OnDestroy {
 
       // The specific parameter we need from the server is the license key
       this.httpClient.post<OAuthParameters>("../api/em/general/settings/email/oauth-params", paramsRequest)
-         .subscribe((authParams) => {
-            this.oauthService.authorize(authParams).subscribe((oAuthTokens) => {
-               const expiration = new Date(oAuthTokens.expiration).getTime();
-               this.form.get("smtpAccessToken").setValue(oAuthTokens.accessToken);
-               this.form.get("smtpRefreshToken").setValue(oAuthTokens.refreshToken);
-               this.form.get("tokenExpiration").setValue(expiration);
-            });
+         .subscribe({
+            next: (authParams) => {
+               this.oauthService.authorize(authParams).subscribe({
+                  next: (oAuthTokens) => {
+                     const expiration = new Date(oAuthTokens.expiration).getTime();
+                     this.form.get("smtpAccessToken").setValue(oAuthTokens.accessToken);
+                     this.form.get("smtpRefreshToken").setValue(oAuthTokens.refreshToken);
+                     this.form.get("tokenExpiration").setValue(expiration);
+                  },
+                  error: () => this.showAuthorizeError()
+               });
+            },
+            // The oauth-params POST can fail for reasons unrelated to OAuth
+            // configuration (server 500, network error). Surface the server's
+            // own message when present rather than the misleading "verify your
+            // OAuth settings" text; fall back to it only when there is none.
+            error: (err) => {
+               const message = err?.error?.message;
+               message ? this.snackBar.open(message, "_#(js:Close)",
+                                            {duration: Tool.SNACKBAR_DURATION})
+                       : this.showAuthorizeError();
+            }
          });
+   }
+
+   private showAuthorizeError() {
+      this.snackBar.open("_#(js:em.mail.smtp.authorizeFailed)", "_#(js:Close)",
+                         {duration: Tool.SNACKBAR_DURATION});
    }
 
    protected readonly SMTPAuthType = SMTPAuthType;

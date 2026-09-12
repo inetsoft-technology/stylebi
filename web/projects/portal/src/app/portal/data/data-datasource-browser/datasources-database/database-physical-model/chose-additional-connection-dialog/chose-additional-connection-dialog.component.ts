@@ -15,11 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges } from "@angular/core";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Observable } from "rxjs";
 import { ComponentTool } from "../../../../../../common/util/component-tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+
+import { DefaultFocusDirective } from "../../../../../../widget/directive/default-focus.directive";
+import { FormsModule } from "@angular/forms";
+import { ModalHeaderComponent } from "../../../../../../widget/modal-header/modal-header.component";
 
 const DEFAULT_CONNECTION: string = "(Default Connection)";
 const GET_DATABASE_ADDITIONAL_CONNECTIONS_URI: string = "../api/portal/data/database/additionConnections";
@@ -27,11 +31,12 @@ const EXTENDED_LOGICAL_DUPLICATE_NAME_CHECK_URI: string = "../api/data/logicalMo
 const EXTENDED_PHYSICAL_DUPLICATE_NAME_CHECK_URI: string = "../api/data/physicalModel/extended/checkDuplicate";
 
 @Component({
-  selector: "chose-additional-connection-dialog",
-  templateUrl: "./chose-additional-connection-dialog.component.html",
-  styleUrls: ["./chose-additional-connection-dialog.component.scss"]
+    selector: "chose-additional-connection-dialog",
+    templateUrl: "./chose-additional-connection-dialog.component.html",
+    styleUrls: ["./chose-additional-connection-dialog.component.scss"],
+    imports: [ModalHeaderComponent, FormsModule, DefaultFocusDirective]
 })
-export class ChoseAdditionalConnectionDialog implements OnInit {
+export class ChoseAdditionalConnectionDialog implements OnInit, OnChanges {
   @Input() database: string;
   @Input() isView: boolean = false;
   @Input() physicalView: string;
@@ -42,10 +47,18 @@ export class ChoseAdditionalConnectionDialog implements OnInit {
   public static default_connection: string = DEFAULT_CONNECTION;
   selectedConnection: string = DEFAULT_CONNECTION;
   helpLinkKey: string;
+  titleLabel: string = "";
 
   constructor(private http: HttpClient, protected modalService: NgbModal) { }
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if(changes["isView"]) {
+      this.titleLabel = this.getTitle();
+    }
+  }
+
   ngOnInit(): void {
+    this.titleLabel = this.getTitle();
     this.connections = [DEFAULT_CONNECTION];
     let params: HttpParams = new HttpParams().set("database", this.database);
     this.http.get<string[]>(GET_DATABASE_ADDITIONAL_CONNECTIONS_URI, {params: params})

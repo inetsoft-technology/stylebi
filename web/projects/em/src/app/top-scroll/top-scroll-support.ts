@@ -47,7 +47,7 @@ export class TopScrollSupport implements OnDestroy {
    ngOnDestroy(): void {
       this.detach();
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    attach(element: any): void {

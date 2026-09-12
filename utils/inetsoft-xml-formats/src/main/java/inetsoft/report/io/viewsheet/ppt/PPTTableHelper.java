@@ -135,6 +135,7 @@ public class PPTTableHelper extends VSTableHelper {
          format2.getUserDefinedFormat().setBorders(format.getBorders());
          format2.getUserDefinedFormat().setBorderColors(format.getBorderColors());
          format2.getUserDefinedFormat().setBackground(null);
+         format2.getUserDefinedFormat().setRoundCorner(format.getRoundCorner());
 
          format = format2;
       }
@@ -143,6 +144,10 @@ public class PPTTableHelper extends VSTableHelper {
          format.getUserDefinedFormat().setBorders(new Insets(0, 0, 0, 0));
       }
 
+      // vHelper is reused across individual cell writes, which set a non-zero cellType
+      // (CELL_TAIL/CELL_CONTENT) for per-side border dedup; reset it here so this
+      // whole-object border draw isn't mistaken for a per-cell one.
+      vHelper.setCellType(0);
       vHelper.setValue(null);
       vHelper.setBounds(bounds);
       vHelper.setFormat(format);

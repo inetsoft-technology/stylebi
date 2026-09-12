@@ -21,8 +21,7 @@ import com.inetsoft.connectors.RRuntime;
 import inetsoft.report.script.TableArray;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.ScriptUtil;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
+import inetsoft.util.script.graal.ScriptScope;
 import org.rosuda.REngine.REXP;
 import org.rosuda.REngine.REngineException;
 import org.rosuda.REngine.Rserve.RConnection;
@@ -30,23 +29,24 @@ import org.rosuda.REngine.Rserve.RserveException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
-public class RConnectionScriptable extends ScriptableObject {
+public class RConnectionScriptable implements ScriptScope {
    public RConnectionScriptable(RConnection connection) {
       this.connection = connection;
    }
 
-   @Override
    public String getClassName() {
       return "RConnection";
    }
 
    @Override
-   public Object get(String name, Scriptable start) {
-      if(super.has(name, start)) {
-         return super.get(name, start);
+   public Object getMember(String name) {
+      if(members.containsKey(name)) {
+         return members.get(name);
       }
       else if(scriptExecuted || remoteProperties.contains(name)) {
          try {
@@ -61,16 +61,16 @@ public class RConnectionScriptable extends ScriptableObject {
          }
          catch(REngineException e) {
             LOG.debug("Failed to get value of symbol '{}' from R server", name, e);
-            return Scriptable.NOT_FOUND;
+            return null;
          }
       }
 
-      return Scriptable.NOT_FOUND;
+      return null;
    }
 
    @Override
-   public boolean has(String name, Scriptable start) {
-      if(super.has(name, start) || remoteProperties.contains(name)) {
+   public boolean hasMember(String name) {
+      if(members.containsKey(name) || remoteProperties.contains(name)) {
          return true;
       }
       else if(scriptExecuted) {
@@ -86,7 +86,7 @@ public class RConnectionScriptable extends ScriptableObject {
    }
 
    @Override
-   public void put(String name, Scriptable start, Object value) {
+   public void putMember(String name, Object value) {
       remoteProperties.add(name);
 
       try {
@@ -104,6 +104,24 @@ public class RConnectionScriptable extends ScriptableObject {
       }
    }
 
+   @Override
+   public boolean removeMember(String name) {
+      boolean had = members.remove(name) != null;
+      had |= remoteProperties.remove(name);
+      return had;
+   }
+
+   @Override
+   public Object[] getMemberKeys() {
+      Map<String, Object> keys = new LinkedHashMap<>(members);
+
+      for(String name : remoteProperties) {
+         keys.putIfAbsent(name, null);
+      }
+
+      return keys.keySet().toArray();
+   }
+
    public void setScriptExecuted(boolean scriptExecuted) {
       this.scriptExecuted = scriptExecuted;
    }
@@ -111,7 +129,8 @@ public class RConnectionScriptable extends ScriptableObject {
    private final RConnection connection;
    private final REXPDecoder decoder = new REXPDecoder();
    private final REXPEncoder encoder = new REXPEncoder();
-   private final Set<String> remoteProperties = new HashSet<>();
+   private final Set<String> remoteProperties = new LinkedHashSet<>();
+   private final Map<String, Object> members = new LinkedHashMap<>();
    private boolean scriptExecuted = false;
 
    private static final Logger LOG = LoggerFactory.getLogger(RConnectionScriptable.class);

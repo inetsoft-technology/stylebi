@@ -19,7 +19,7 @@ import { BreakpointObserver } from "@angular/cdk/layout";
 import { HttpClient } from "@angular/common/http";
 import { Component, OnInit } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
-import { Observable, of } from "rxjs";
+import { forkJoin, Observable, of } from "rxjs";
 import { map } from "rxjs/operators";
 import { CommonKVModel } from "../../../../../../portal/src/app/common/data/common-kv-model";
 import { DownloadService } from "../../../../../../shared/download/download.service";
@@ -31,6 +31,9 @@ import { Searchable } from "../../../searchable";
 import { Secured } from "../../../secured";
 import { AddThemeDialogComponent } from "./add-theme-dialog/add-theme-dialog.component";
 import { CustomThemeModel } from "./custom-theme-model";
+import { ThemeEditorViewComponent } from "./theme-editor-view/theme-editor-view.component";
+import { ThemeListViewComponent } from "./theme-list-view/theme-list-view.component";
+import { MatDrawerContainer, MatDrawer, MatDrawerContent } from "@angular/material/sidenav";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
 
@@ -52,9 +55,10 @@ interface CustomThemeList {
    link: "EMThemes"
 })
 @Component({
-   selector: "em-presentation-themes-view",
-   templateUrl: "./presentation-themes-view.component.html",
-   styleUrls: ["./presentation-themes-view.component.scss"]
+    selector: "em-presentation-themes-view",
+    templateUrl: "./presentation-themes-view.component.html",
+    styleUrls: ["./presentation-themes-view.component.scss"],
+    imports: [MatDrawerContainer, MatDrawer, ThemeListViewComponent, MatDrawerContent, ThemeEditorViewComponent]
 })
 export class PresentationThemesViewComponent implements OnInit {
    themes: CustomThemeModel[] = [];
@@ -63,6 +67,7 @@ export class PresentationThemesViewComponent implements OnInit {
    //For small device use only
    editing = false;
    isSiteAdmin = false;
+   isMultiTenant = false;
    orgId: string = null;
    ids: string[] = [];
 
@@ -96,11 +101,14 @@ export class PresentationThemesViewComponent implements OnInit {
             this.unselectedThemeNames = this.themes.map(t => t.name);
          });
 
-      this.http.get<CommonKVModel<string, boolean>>("../api/em/navbar/userInfo")
-         .subscribe((model: CommonKVModel<string, boolean>) => {
-            this.isSiteAdmin = model.value;
-            this.orgId = model.key;
-         });
+      forkJoin({
+         userInfo: this.http.get<CommonKVModel<string, boolean>>("../api/em/navbar/userInfo"),
+         isMultiTenant: this.http.get<boolean>("../api/em/navbar/isMultiTenant")
+      }).subscribe(({ userInfo, isMultiTenant }) => {
+         this.isSiteAdmin = userInfo.value;
+         this.orgId = userInfo.key;
+         this.isMultiTenant = isMultiTenant;
+      });
    }
 
    onThemeSelected(id: string) {
@@ -182,14 +190,13 @@ export class PresentationThemesViewComponent implements OnInit {
             });
 
             ref.afterClosed().subscribe(result => {
-               result.global = this.isSiteAdmin && this.orgId == "host-org";
-
                if(!!result) {
+                  result.global = this.isSiteAdmin && this.orgId == "host-org";
                   this.http.post<CustomThemeModel>("../api/em/settings/presentation/themes", result).subscribe(model => {
                      const newThemes = this.themes.slice();
                      newThemes.push(model);
                      this.setThemes(newThemes);
-                     this.onThemeSelected(model.id);
+                     this.setSelection(model)
                   });
                }
             });
@@ -200,7 +207,7 @@ export class PresentationThemesViewComponent implements OnInit {
    saveTheme(current: CustomThemeModel): void {
       if(!!current) {
          const uri = `../api/em/settings/presentation/themes/${Tool.byteEncode(current.id)}`;
-         this.http.put(uri, current).subscribe(() => {
+         this.http.put<CustomThemeModel>(uri, current).subscribe(model => {
             const newThemes = this.themes.slice();
             const index = newThemes.findIndex(t => t.id === current.id);
 
@@ -208,6 +215,13 @@ export class PresentationThemesViewComponent implements OnInit {
                this.clearSelection();
             }
             else {
+               // renaming a theme may change its id on the server (the id follows the
+               // name when they were initialized equal), so adopt the effective id from
+               // the response or subsequent delete/download/save would target a stale id
+               if(!!model?.id) {
+                  current.id = model.id;
+               }
+
                newThemes[index] = Tool.clone(current);
 
                // if current theme is the new default theme then reset the defaultTheme property of

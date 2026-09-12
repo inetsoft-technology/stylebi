@@ -15,18 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+
 import {
-   ApplicationRef,
-   ComponentFactory,
-   ComponentFactoryResolver,
-   ComponentRef,
-   Inject,
-   Injectable,
-   Injector,
-   TemplateRef,
-   Type,
-   ViewRef
+  ApplicationRef,
+  ComponentFactory,
+  ComponentFactoryResolver,
+  ComponentRef,
+  Inject,
+  Injectable,
+  Injector,
+  TemplateRef,
+  Type,
+  ViewRef,
+  DOCUMENT
 } from "@angular/core";
 import { Rectangle } from "../../common/data/rectangle";
 import { GuiTool } from "../../common/util/gui-tool";

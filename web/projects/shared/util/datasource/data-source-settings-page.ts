@@ -331,6 +331,9 @@ export abstract class DataSourceSettingsPage implements OnInit, OnDestroy {
          else if(connection && connection.status === "Datasource Lost") {
             this.showMessage("_#(js:data.datasources.saveDataSourceLost)");
          }
+         else if(connection && connection.status === "Invalid Folder") {
+            this.showMessage("_#(js:data.datasources.invalidParentFolder)");
+         }
          else {
             this.afterDatabaseSave();
          }

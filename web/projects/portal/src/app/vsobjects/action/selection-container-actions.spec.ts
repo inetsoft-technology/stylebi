@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { TestUtils } from "../../common/test/test-utils";
 import { ComposerContextProviderFactory, ViewerContextProviderFactory } from "../context-provider.service";
 import { SelectionContainerActions } from "./selection-container-actions";
@@ -108,7 +109,7 @@ describe("SelectionContainerActions", () => {
 
    //Bug #19986 should not display menu action when as data tip component
    it("should not display menu action when as data tip component", () => {
-      const dataTipService: any = { isDataTip: jest.fn() };
+      const dataTipService: any = { isDataTip: vi.fn() };
       dataTipService.isDataTip.mockImplementation(() => true);
       const model = createModel();
       const actions = new SelectionContainerActions(model, ViewerContextProviderFactory(false), false, null, dataTipService);

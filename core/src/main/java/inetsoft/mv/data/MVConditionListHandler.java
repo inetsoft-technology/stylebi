@@ -47,6 +47,7 @@ public class MVConditionListHandler extends ConditionListHandler {
       super();
 
       this.mvdef = def;
+      this.mv = mv;
       this.vars = vars;
       Worksheet ws = table.getWorksheet();
       this.box = new AssetQuerySandbox(ws == null ? new Worksheet() : ws);
@@ -139,7 +140,7 @@ public class MVConditionListHandler extends ConditionListHandler {
       Object val = null;
       String exp = eval.getExpression();
       ScriptEnv senv = box.getScriptEnv();
-      MVScriptable scriptable = new MVScriptable(mvdef, mvcol);
+      MVScriptable scriptable = new MVScriptable(mvdef, mvcol, mv);
 
       try {
          senv.put("MV", scriptable);
@@ -263,6 +264,7 @@ public class MVConditionListHandler extends ConditionListHandler {
    private Map<String, String> colmap = new HashMap<>();
    private MVDef mvdef;
    private MVColumn mvcol;
+   private MV mv;
    private VariableTable vars;
    private AssetQuerySandbox box;
 }

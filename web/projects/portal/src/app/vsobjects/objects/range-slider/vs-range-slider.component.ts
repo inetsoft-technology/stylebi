@@ -44,7 +44,8 @@ import { ModelService } from "../../../widget/services/model.service";
 import { DialogService } from "../../../widget/slide-out/dialog-service.service";
 import { RangeSliderActions } from "../../action/range-slider-actions";
 import { ContextProvider } from "../../context-provider.service";
-import { RangeSliderEditDialog } from "../../dialog/range-slider-edit-dialog.component";
+import { RangeSliderEditDialog, TIME_BASE_DATE, TIME_OF_DAY_INCREMENT }
+   from "../../dialog/range-slider-edit-dialog.component";
 import { RangeSliderPropertyDialog } from "../../dialog/range-slider-property-dialog.component";
 import { ApplySelectionListEvent } from "../../event/apply-selection-list-event";
 import { ChangeVSObjectTextEvent } from "../../event/change-vs-object-text-event";
@@ -64,6 +65,16 @@ import { FocusRegions } from "../selection/vs-selection.component";
 import { SlideOutOptions } from "../../../widget/slide-out/slide-out-options";
 import { GlobalSubmitService } from "../../util/global-submit.service";
 import { XSchema } from "../../../common/data/xschema";
+import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
+import { InteractableDirective } from "../../../widget/interact/interactable.directive";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { FormsModule } from "@angular/forms";
+import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
+import { CollapseToggleButton } from "../selection/collapse-toggle-button.component";
+
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
 
 const RANGESLIDER_PROPERTY_URI: string = "composer/vs/range-slider-property-dialog-model/";
 const URI_UPDATE_TITLE_RATIO: string = "/events/composer/viewsheet/currentSelection/titleRatio/";
@@ -71,9 +82,10 @@ const RANGE_SLIDER_MAX_MODE_URL: string = "/events/vs/assembly/max-mode/toggle";
 enum Handle { Left, Middle, Right, None }
 
 @Component({
-   selector: "vs-range-slider",
-   templateUrl: "vs-range-slider.component.html",
-   styleUrls: ["vs-range-slider.component.scss"]
+    selector: "vs-range-slider",
+    templateUrl: "vs-range-slider.component.html",
+    styleUrls: ["vs-range-slider.component.scss"],
+    imports: [VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, CollapseToggleButton, MiniMenu, TooltipIfDirective, FormsModule, DefaultFocusDirective, InteractableDirective, TooltipDirective]
 })
 export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    implements OnInit, OnDestroy, OnChanges
@@ -99,6 +111,13 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    readonly rangeValueOffset: number = 10;
    readonly tickOffset: number = 5;
    readonly isMobile: boolean = GuiTool.isMobileDevice();
+
+   // Cached computed values — updated in ngOnChanges (model change) and at mutation sites
+   minLabel: string = "";
+   maxLabel: string = "";
+   bodyHeight: number = 0;
+   currentLabel: string = "";
+   containerLabel: string = "";
 
    mouseHandle: Handle = Handle.None;
    private startingXPosition: number;
@@ -318,6 +337,23 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       }
    }
 
+   private updateLabels(): void {
+      if(!this.model || !this.model.labels) {
+         this.minLabel = "";
+         this.maxLabel = "";
+         this.bodyHeight = 0;
+         this.currentLabel = "";
+         this.containerLabel = "";
+         return;
+      }
+
+      this.minLabel = this.getMinLabel();
+      this.maxLabel = this.getMaxLabel();
+      this.bodyHeight = this.getBodyHeight();
+      this.currentLabel = this.getCurrentLabel();
+      this.containerLabel = this.getContainerLabel();
+   }
+
    calculatePositions(): void {
       this.rangeLineWidth = this.model.maxRangeBarWidth - (2 * this.pointerOffset) - 1;
       this.widthBetweenTicks = this.getWidthBetweenTicks();
@@ -326,7 +362,8 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          : this.rangeLineWidth;
       this._leftHandlePosition = this.model.labels.length > 1 ? this.getLeftHandlePosition() : 0;
       this.ticks = this.getTicks();
-      this.textSize = GuiTool.measureText(this.getCurrentLabel(), this.model.objectFormat.font);
+      this.updateLabels();
+      this.textSize = GuiTool.measureText(this.currentLabel, this.model.objectFormat.font);
    }
 
    private getWidthBetweenTicks(): number {
@@ -495,6 +532,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       }
 
       this.startingXPosition = GuiTool.pageX(event) * (1 / this.viewsheetScale);
+      this.updateLabels();
    }
 
    mouseUp(event: MouseEvent|TouchEvent): void {
@@ -558,6 +596,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
 
       this.model.selectStart = this.getIndex(this._leftHandlePosition);
       this.model.selectEnd = this.getIndex(this._rightHandlePosition);
+      this.updateLabels();
    }
 
    // get the index (in selection list) of the mouse position
@@ -718,6 +757,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
                }
             }
 
+            this.updateLabels();
             this.updateSelections(this.model.selectStart, this.model.selectEnd);
          }, options);
       if (this.model.dataType && XSchema.isDateType(this.model.dataType)) {
@@ -733,6 +773,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
                                           this.model.values[this.model.labels.length - 1]);
 
          const normalizeStr = (s: string) =>
+            timeIncrement === TIME_OF_DAY_INCREMENT ? `${TIME_BASE_DATE}T${s}` :
             timeIncrement === "t" ? s.replace(" ", "T") : s + "T00:00";
 
          editDialog.currentMin = new Date(normalizeStr(currMinStr));
@@ -755,11 +796,22 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    private extractTimeIncrement(value: string): string {
       const typeMatch = value.match(/^\{([a-zA-Z]+)\s+'/);
       if(typeMatch) {
-         return typeMatch[1].charAt(0);
+         // the server writes the tick values as y/m/d (date levels), t (time of day) or
+         // ts (timestamp). t and ts must be kept apart, they need different input types.
+         switch(typeMatch[1]) {
+         case "t":
+            return TIME_OF_DAY_INCREMENT;
+         case "ts":
+            return "t";
+         default:
+            return typeMatch[1].charAt(0);
+         }
       }
       const sanitized = value.replace(/[a-zA-Z'"{}]/g, "").trim();
-      if(sanitized.includes(":")) { return "t"; }
       const dashCount = (sanitized.match(/-/g) || []).length;
+      if(sanitized.includes(":")) {
+         return dashCount === 0 ? TIME_OF_DAY_INCREMENT : "t";
+      }
       return dashCount === 0 ? "y" : dashCount === 1 ? "m" : "d";
    }
 
@@ -772,6 +824,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          case "d":
             return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
          case "t":
+         case TIME_OF_DAY_INCREMENT:
             return date.getTime();
          default:
             throw new Error(`Unrecognised timeIncrement value: "${timeIncrement}"`);
@@ -781,6 +834,10 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    private labelToTimestamp(timeIncrement: string, value: string): number {
       const match = value.match(/\{[a-zA-Z]+\s+'(.+)'\s*}/);
       const sanitized = match ? match[1] : value.replace(/[a-zA-Z'"{}]/g, "").trim();
+
+      if (timeIncrement === TIME_OF_DAY_INCREMENT) {
+         return new Date(`${TIME_BASE_DATE}T${sanitized}`).getTime();
+      }
 
       if (timeIncrement === "t") {
          return new Date(sanitized.replace(" ", "T")).getTime();
@@ -839,7 +896,8 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
             return { currMinStr, currMaxStr, rangeMinStr, rangeMaxStr };
          }
          case "d":
-         case "t": {
+         case "t":
+         case TIME_OF_DAY_INCREMENT: {
             return this.sanitizeDateLabels(selectStart, selectEnd, rangeMin, rangeMax);
          }
          default : {
@@ -1015,10 +1073,12 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          case Handle.Left:
             this._leftHandlePosition = this.handleMoved(movement, this._leftHandlePosition);
             this.model.selectStart = this.getIndex(this._leftHandlePosition);
+            this.updateLabels();
             break;
          case Handle.Right:
             this._rightHandlePosition = this.handleMoved(movement, this._rightHandlePosition);
             this.model.selectEnd = this.getIndex(this._rightHandlePosition);
+            this.updateLabels();
             break;
          case Handle.Middle:
             this.moveMiddle(movement);

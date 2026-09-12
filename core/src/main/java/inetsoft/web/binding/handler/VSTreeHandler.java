@@ -32,7 +32,8 @@ import inetsoft.report.internal.graph.MapHelper;
 import inetsoft.sree.security.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
-import inetsoft.uql.erm.*;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
@@ -50,8 +51,9 @@ import java.util.stream.Collectors;
 @Component
 public class VSTreeHandler {
    @Autowired
-   public VSTreeHandler(VSChartHandler chartHandler) {
+   public VSTreeHandler(VSChartHandler chartHandler, SecurityEngine securityEngine) {
       this.chartHandler = chartHandler;
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -62,9 +64,20 @@ public class VSTreeHandler {
       throws Exception
    {
       Viewsheet vs0 = rvs.getViewsheet();
+
+      // viewsheet may have been disposed/reset concurrently (e.g. user interacts with the
+      // binding tree before a heavy chart finishes loading), so vs0 can be null here.
+      if(vs0 == null) {
+         return null;
+      }
+
       String aname = info.getAbsoluteName2();
       aname = aname == null ? info.getAbsoluteName() : aname;
       ChartVSAssembly chart = (ChartVSAssembly) vs0.getAssembly(aname);
+
+      if(chart == null) {
+         return null;
+      }
 
       final Viewsheet vs = chart.getViewsheet();
       final String name = chart.getName();
@@ -97,9 +110,9 @@ public class VSTreeHandler {
              */
             @Override
             public void aggInfoInvalid(VSAssemblyInfo info) throws Exception {
-               ViewsheetSandbox box = rvs.getViewsheetSandbox();
+               Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-               if(box == null) {
+               if(box.isEmpty()) {
                   return;
                }
 
@@ -107,7 +120,7 @@ public class VSTreeHandler {
                chart.setVSAssemblyInfo(info);
 
                if(!isWizard) {
-                  box.updateAssembly(chart.getAbsoluteName());
+                  box.get().updateAssembly(chart.getAbsoluteName());
                }
             }
 
@@ -176,12 +189,17 @@ public class VSTreeHandler {
    private void buildGeoColumns(VSChartInfo cinfo2, final RuntimeViewsheet rvs, Viewsheet vs,
                                 ChartVSAssembly chart, BaseTreeModelBuilder builder) throws Exception
    {
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
       ColumnSelection cols = cinfo2.getGeoColumns();
 
       if(cols.getAttributeCount() > 0) {
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
-         DataSet data = chartHandler.getChartData(box, chart);
-         chartHandler.updateGeoColumns(box, vs, chart, cinfo2);
+         DataSet data = chartHandler.getChartData(box.get(), chart);
+         chartHandler.updateGeoColumns(box.get(), vs, chart, cinfo2);
          ColumnSelection rcols = cinfo2.getRTGeoColumns();
 
          for(int i = 0; i < rcols.getAttributeCount(); i++) {
@@ -214,6 +232,12 @@ public class VSTreeHandler {
       String aname = cinfo.getAbsoluteName();
       VSAssembly cass = vs0 == null ? null : (VSAssembly) vs0.getAssembly(aname);
 
+      // viewsheet may have been disposed/reset concurrently (e.g. user interacts with the
+      // binding tree before a heavy operation finishes), so cass can be null here.
+      if(cass == null) {
+         return null;
+      }
+
       SourceInfo sinfo = cinfo.getSourceInfo();
       String prefix = null;
       String source = null;
@@ -243,14 +267,14 @@ public class VSTreeHandler {
              */
             @Override
             public void aggInfoInvalid(VSAssemblyInfo info) throws Exception {
-               ViewsheetSandbox box = rvs.getViewsheetSandbox();
+               Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-               if(box == null) {
+               if(box.isEmpty()) {
                   return;
                }
 
-               VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
-               box.updateAssembly(assembly.getAbsoluteName());
+               VSAssembly assembly = vs.getAssembly(name);
+               box.get().updateAssembly(assembly.getAbsoluteName());
                assembly.setVSAssemblyInfo(info);
             }
 
@@ -303,14 +327,16 @@ public class VSTreeHandler {
          });
 
       AggregateInfo ainfo = null;
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      // event called from ConvertTableRefEvent?
-      if(cinfo instanceof CrosstabVSAssemblyInfo) {
-         ainfo = getAggregateInfo(vs, ((CrosstabVSAssemblyInfo) cinfo), box, engine);
-      }
-      else if(cinfo instanceof CalcTableVSAssemblyInfo) {
-         ainfo = getAggregateInfo(vs, ((CalcTableVSAssemblyInfo) cinfo), box, engine);
+      if(box.isPresent()) {
+         // event called from ConvertTableRefEvent?
+         if(cinfo instanceof CrosstabVSAssemblyInfo) {
+            ainfo = getAggregateInfo(vs, ((CrosstabVSAssemblyInfo) cinfo), box.get(), engine);
+         }
+         else if(cinfo instanceof CalcTableVSAssemblyInfo) {
+            ainfo = getAggregateInfo(vs, ((CalcTableVSAssemblyInfo) cinfo), box.get(), engine);
+         }
       }
 
       checkBaseWSChanged(vs, sinfo, builder, ainfo);
@@ -439,7 +465,7 @@ public class VSTreeHandler {
          .collect(Collectors.toList());
 
       boolean calculatedFieldPermission =
-         SecurityEngine.getSecurity().checkPermission(
+         securityEngine.checkPermission(
             user, ResourceType.VIEWSHEET_CALCULATED_FIELD, "*", ResourceAction.ACCESS);
 
       return TreeNodeModel.builder()
@@ -516,11 +542,11 @@ public class VSTreeHandler {
                                         pId);
       AssetTreeModel.Node root = new AssetTreeModel.Node(entry);
 
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       List<Assembly> assemblies = Arrays.stream(vs.getAssemblies(true))
          .filter(a -> isAssemblyBindable(assembly, a, vs))
          .sorted(Comparator.comparing(Assembly::getAbsoluteName))
-         .collect(Collectors.toList());
+         .toList();
 
       AggregateInfo ainfo = null;
       SourceInfo sinfo = null;
@@ -542,16 +568,18 @@ public class VSTreeHandler {
          sinfo = ((CalcTableVSAssembly) assembly).getSourceInfo();
       }
 
-      for(Assembly assembly0 : assemblies) {
-         if(((VSAssembly) assembly0).isWizardEditing()) {
-            continue;
-         }
+      if(box.isPresent()) {
+         for(Assembly assembly0 : assemblies) {
+            if(((VSAssembly) assembly0).isWizardEditing()) {
+               continue;
+            }
 
-         if(((VSAssembly) assembly0).getName().startsWith("_temp_")) {
-            continue;
-         }
+            if(assembly0.getName().startsWith("_temp_")) {
+               continue;
+            }
 
-         appendVSAssemblyTree(root, assembly, assembly0, vs, box, sinfo, ainfo, metadata, user);
+            appendVSAssemblyTree(root, assembly, assembly0, vs, box.get(), sinfo, ainfo, metadata, user);
+         }
       }
 
       if(root.getNodeCount() > 0) {
@@ -751,4 +779,5 @@ public class VSTreeHandler {
 
    private static final String LOCAL_STR = "localStr";
    private final VSChartHandler chartHandler;
+   private final SecurityEngine securityEngine;
 }

@@ -50,11 +50,20 @@ import { VSChart } from "../../vsobjects/objects/chart/vs-chart.component";
 import { AbstractVSObject } from "../../vsobjects/objects/abstract-vsobject.component";
 import { CalcTableLayoutPane } from "./vs-calc-table-layout.component";
 import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.service";
+import { MiniToolbar } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.component";
+import { BCalcTableActionHandlerDirective } from "../action/b-calctable-action-handler.directive";
+import { BCrosstabActionHandlerDirective } from "../action/b-crosstab-action-handler.directive";
+import { VSCrosstab } from "../../vsobjects/objects/table/vs-crosstab.component";
+import { BTableActionHandlerDirective } from "../action/b-table-action-handler.directive";
+import { VSTable } from "../../vsobjects/objects/table/vs-table.component";
+import { ActionsContextmenuAnchorDirective } from "../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
+
 
 @Component({
-   selector: "vs-object-view",
-   templateUrl: "vs-object-view.component.html",
-   styleUrls: ["vs-object-view.component.scss"]
+    selector: "vs-object-view",
+    templateUrl: "vs-object-view.component.html",
+    styleUrls: ["vs-object-view.component.scss"],
+    imports: [ActionsContextmenuAnchorDirective, VSChart, VSTable, BTableActionHandlerDirective, VSCrosstab, BCrosstabActionHandlerDirective, CalcTableLayoutPane, BCalcTableActionHandlerDirective, MiniToolbar]
 })
 export class VSObjectView extends CommandProcessor implements OnDestroy, OnInit, AfterViewInit {
    @Input() linkUri: string;
@@ -77,6 +86,7 @@ export class VSObjectView extends CommandProcessor implements OnDestroy, OnInit,
    @ViewChild("objectView") objectView: ElementRef;
    @ViewChild("object") object: AbstractVSObject<VSObjectModel>;
    @ViewChild("calcObject") calcObject: CalcTableLayoutPane;
+   private getFormatsTimer: any;
 
    constructor(private clientService: ViewsheetClientService,
                private actionFactory: AssemblyActionFactory,
@@ -101,6 +111,7 @@ export class VSObjectView extends CommandProcessor implements OnDestroy, OnInit,
    }
 
    ngOnDestroy(): void {
+      clearTimeout(this.getFormatsTimer);
       super.cleanup();
    }
 
@@ -149,6 +160,10 @@ export class VSObjectView extends CommandProcessor implements OnDestroy, OnInit,
 
    //only resize vstable and vscrosstable
    public resizeModelView(): void {
+      if(!this.model) {
+         return;
+      }
+
       if(this.model.objectType == "VSTable" || this.model.objectType == "VSCrosstab" ||
          this.model.objectType == "VSCalcTable")
       {
@@ -234,7 +249,7 @@ export class VSObjectView extends CommandProcessor implements OnDestroy, OnInit,
 
    @HostListener("click", ["$event"])
    getFormats(event: MouseEvent): void {
-      setTimeout(() => {
+      this.getFormatsTimer = setTimeout(() => {
          this.onUpdateData.emit("getCurrentFormat");
       }, 250);
    }

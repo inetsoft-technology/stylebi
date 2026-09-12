@@ -18,30 +18,41 @@
 package inetsoft.web.composer;
 
 import inetsoft.report.LibManager;
-import inetsoft.report.PropertyChangeEvent;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import inetsoft.web.composer.model.AssetChangeEventModel;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.messaging.*;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.beans.PropertyChangeEvent;
 import java.security.Principal;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 @Controller
-@Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class AssetTreeRefreshController {
    @Autowired
    public void setAssetRepository(AssetRepository assetRepository) {
@@ -53,54 +64,159 @@ public class AssetTreeRefreshController {
       this.messagingTemplate = messagingTemplate;
    }
 
-   @PreDestroy
-   public void preDestroy() throws Exception {
-      assetRepository.removeAssetChangeListener(listener);
-      LibManager.getManager().removeActionListener(libraryListener);
-      AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
-
-      if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
-         runtimeAssetRepository.removeAssetChangeListener(listener);
-      }
-
-      this.debouncer.close();
+   @Autowired
+   public void setSecurityEngine(SecurityEngine securityEngine) {
+      this.securityEngine = securityEngine;
    }
 
-   @SubscribeMapping("/asset-changed")
-   public void subscribeToTopic(Principal principal) {
-      currentPrincipal = principal;
-      destination = SUtil.getUserDestination(principal);
+   @Autowired
+   public void setDataSourceRegistry(DataSourceRegistry dataSourceRegistry) {
+      this.dataSourceRegistry = dataSourceRegistry;
+   }
+
+   @Autowired
+   public void setLibManagerProvider(LibManagerProvider libManagerProvider) {
+      this.libManagerProvider = libManagerProvider;
+   }
+
+   @PostConstruct
+   public void addListeners() {
       assetRepository.addAssetChangeListener(listener);
-      LibManager.getManager().addActionListener(libraryListener);
+      dataSourceRegistry.addRefreshedListener(this::dataSourceRefreshed);
       AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
 
       if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
          runtimeAssetRepository.addAssetChangeListener(listener);
       }
 
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
-      final String orgId = ((XPrincipal) principal).getOrgId();
-      registry.addRefreshedListener(event -> {
+      for(String orgId : securityEngine.getOrganizations()) {
+         addLibManagerListener(orgId);
+      }
+   }
+
+   @PreDestroy
+   public void preDestroy() {
+      try {
+         assetRepository.removeAssetChangeListener(listener);
+         dataSourceRegistry.removeRefreshedListener(this::dataSourceRefreshed);
+         AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
+
+         if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
+            runtimeAssetRepository.removeAssetChangeListener(listener);
+         }
+
+         for(String orgId : securityEngine.getOrganizations()) {
+            removeLibManagerListener(orgId);
+         }
+
+         this.debouncer.close();
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to clean up during shutdown", e);
+      }
+   }
+
+   @SubscribeMapping("/asset-changed")
+   public void subscribeToTopic(StompHeaderAccessor header, Principal principal) {
+      final MessageHeaders messageHeaders = header.getMessageHeaders();
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      subscriptions.put(sessionId, principal);
+
+      if(principal instanceof XPrincipal) {
+         String orgId = ((XPrincipal) principal).getCurrentOrgId();
+         addLibManagerListener(orgId);
+      }
+   }
+
+   @EventListener(SessionDisconnectEvent.class)
+   public void handleDisconnect(SessionDisconnectEvent event) {
+      removeSubscription(event);
+   }
+
+   private void removeSubscription(AbstractSubProtocolEvent event) {
+      final Message<byte[]> message = event.getMessage();
+      final MessageHeaders headers = message.getHeaders();
+      final String sessionId =
+         (String) headers.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+
+      if(sessionId != null) {
+         subscriptions.remove(sessionId);
+      }
+   }
+
+   private void dataSourceRefreshed(PropertyChangeEvent event) {
+      for(Principal principal : subscriptions.values()) {
          // Data Source Entry
+         String orgId = ((XPrincipal) principal).getOrgId();
          AssetEntry entry = AssetEntry.createAssetEntry("0^65605^__NULL__^/^" + orgId);
-         String eventOrgID = ((PropertyChangeEvent) event).getOrgID();
+         String eventOrgID = getOrgId(event);
 
          //only propagate asset changed event to listener if global asset or same organization, extraneous otherwise
          if(eventOrgID == null || orgId == null || Tool.equals(eventOrgID, orgId)) {
             AssetChangeEventModel eventModel = AssetChangeEventModel.builder()
-            .parentEntry(entry)
-            .oldIdentifier(null)
-            .newIdentifier(entry.toIdentifier())
-            .build();
-
-            messagingTemplate.convertAndSendToUser(destination, "/asset-changed", eventModel);
+               .parentEntry(entry)
+               .oldIdentifier(null)
+               .newIdentifier(entry.toIdentifier())
+               .build();
+            messagingTemplate.convertAndSendToUser(
+               SUtil.getUserDestination(principal), "/asset-changed", eventModel);
          }
-      });
+      }
+   }
+
+   private String getOrgId(PropertyChangeEvent event) {
+      if(event instanceof inetsoft.report.PropertyChangeEvent e) {
+         return e.getOrgID();
+      }
+
+      return null;
+   }
+
+   private String getOrgId(ActionEvent event) {
+      if(event instanceof inetsoft.report.ActionEvent e) {
+         return e.getOrgID();
+      }
+
+      return null;
+   }
+
+   private void sendMessages(AssetChangeEventModel eventModel, String orgId) {
+      sendMessages(eventModel, p -> Objects.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(p)));
+   }
+
+   private void sendMessages(AssetChangeEventModel eventModel, Predicate<Principal> cond) {
+      for(Principal user : subscriptions.values()) {
+         if(cond.test(user)) {
+            messagingTemplate.convertAndSendToUser(
+               SUtil.getUserDestination(user), "/asset-changed", eventModel);
+         }
+      }
+   }
+
+   private void addLibManagerListener(String orgId) {
+      if(!libManagerListenerOrgs.contains(orgId)) {
+         libManagerProvider.getManager(orgId).addActionListener(libraryListener);
+         libManagerListenerOrgs.add(orgId);
+      }
+   }
+
+   private void removeLibManagerListener(String orgId) {
+      libManagerProvider.getManager(orgId).removeActionListener(libraryListener);
+      libManagerListenerOrgs.remove(orgId);
    }
 
    private AssetRepository assetRepository;
    private SimpMessagingTemplate messagingTemplate;
-   private String destination;
+   private SecurityEngine securityEngine;
+   private DataSourceRegistry dataSourceRegistry;
+   private LibManagerProvider libManagerProvider;
+   private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
+   private static final Logger LOG = LoggerFactory.getLogger(AssetTreeRefreshController.class);
+
+   private final Debouncer<String> debouncer = new DefaultDebouncer<>(false);
+   private final Set<String> libManagerListenerOrgs = new HashSet<>();
+
    private final AssetChangeListener listener = new AssetChangeListener() {
       @Override
       public void assetChanged(AssetChangeEvent event) {
@@ -112,19 +228,19 @@ public class AssetTreeRefreshController {
                .build();
 
             debouncer.debounce("change" + (event.getAssetEntry().getParent() != null ?
-               event.getAssetEntry().getParent().toIdentifier() : ""), 2, TimeUnit.SECONDS, () ->
-               messagingTemplate.convertAndSendToUser(destination, "/asset-changed", eventModel)
+               event.getAssetEntry().getParent().toIdentifier() : ""), 2, TimeUnit.SECONDS,
+                               () -> sendMessages(eventModel, u -> isSameOrg(event, u))
             );
          }
       }
 
+      private boolean isSameOrg(AssetChangeEvent event, Principal user) {
+         String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(user);
+         return event.getAssetEntry() == null ||
+            Tool.equals(currentOrgID, event.getAssetEntry().getOrgID());
+      }
+
       private boolean canSendEvent(AssetChangeEvent event) {
-         String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(currentPrincipal);
-
-         if(event.getAssetEntry() != null && !Tool.equals(currentOrgID, event.getAssetEntry().getOrgID())) {
-            return false;
-         }
-
          return event.isRoot() && event.getChangeType() != AssetChangeEvent.AUTO_SAVE_ADD &&
             (event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED &&
                event.getAssetEntry().getParent() != null ||
@@ -132,58 +248,29 @@ public class AssetTreeRefreshController {
       }
 
       private boolean isConnectionInitialized() {
-         return messagingTemplate != null && destination != null;
+         return messagingTemplate != null && !subscriptions.isEmpty();
       }
    };
 
    private final ActionListener libraryListener = new ActionListener() {
       @Override
       public void actionPerformed(ActionEvent event) {
-         int changeType = event.getID();
-         String orgId = event instanceof inetsoft.report.ActionEvent e ?
-            e.getOrgID() : null;
-         String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(currentPrincipal);
+         debouncer.debounce("lib_changed" + getOrgId(event), 2, TimeUnit.SECONDS, () -> {
+            AssetEntry root = new AssetEntry(
+               AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.LIBRARY_FOLDER, "/", null,
+               getOrgId(event));
 
-         if(orgId != null && !Tool.equals(orgId, currentOrgID)) {
-            return;
-         }
-
-         AssetChangeEventModel eventModel = null;
-
-         if(changeType == LibManager.SCRIPT_ADDED || changeType == LibManager.SCRIPT_REMOVED ||
-            changeType == LibManager.SCRIPT_MODIFIED)
-         {
-            AssetEntry scriptRootEntry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
-                                                        AssetEntry.Type.SCRIPT_FOLDER, "/" + SCRIPT, null);
-
-            eventModel = AssetChangeEventModel.builder()
-               .parentEntry(scriptRootEntry)
+            AssetChangeEventModel eventModel = AssetChangeEventModel.builder()
+               .parentEntry(root)
                .oldIdentifier(null)
-               .newIdentifier(scriptRootEntry.toIdentifier())
+               .newIdentifier(root.toIdentifier())
                .build();
-         }
 
-         if(changeType == LibManager.STYLE_ADDED || changeType == LibManager.STYLE_REMOVED ||
-            changeType == LibManager.STYLE_MODIFIED)
-         {
-            AssetEntry scriptRootEntry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
-                                                        AssetEntry.Type.TABLE_STYLE_FOLDER, "/" + TABLE_STYLE, null);
-
-            eventModel = AssetChangeEventModel.builder()
-               .parentEntry(scriptRootEntry)
-               .oldIdentifier(null)
-               .newIdentifier(scriptRootEntry.toIdentifier())
-               .build();
-         }
-
-         if(eventModel != null) {
-            messagingTemplate.convertAndSendToUser(destination, "/asset-changed", eventModel);
-         }
+            if(eventModel != null) {
+               sendMessages(eventModel, getOrgId(event));
+            }
+         });
       }
    };
 
-   private Principal currentPrincipal;
-   final private Debouncer<String> debouncer = new DefaultDebouncer<>(false);
-   private static final String TABLE_STYLE = "Table Style";
-   private static final String SCRIPT = "Script Function";
 }

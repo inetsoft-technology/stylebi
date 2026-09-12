@@ -1,0 +1,183 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.web.composer.vs.dialog;
+
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.test.*;
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.ViewsheetInfo;
+import inetsoft.uql.viewsheet.vslayout.*;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.composer.model.vs.*;
+import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.awt.*;
+import java.security.Principal;
+import java.util.*;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome()
+@ExtendWith({MockitoExtension.class})
+@Tag("core")
+public class ViewsheetPropertyDialogServiceTest {
+   @BeforeEach
+   public void setup() throws Exception {
+      service = new ViewsheetPropertyDialogService(coreLifecycleService, viewsheetService,
+                                                   layoutService, viewsheetSettingsService,
+                                                   vsAssemblyInfoHandler, null,
+                                                   null, null);
+   }
+
+   // Bug #16756 Update layout info if it has same id as incoming layout
+   @Test
+   public void layoutIsUpdated() throws Exception {
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(viewsheetSandbox));
+      ViewsheetInfo viewsheetInfo = new ViewsheetInfo();
+      when(viewsheet.getViewsheetInfo()).thenReturn(viewsheetInfo);
+      LayoutInfo layoutInfo = new LayoutInfo();
+      List<ViewsheetLayout> viewsheetLayoutList = new ArrayList<>();
+      ViewsheetLayout viewsheetLayout = new ViewsheetLayout();
+      viewsheetLayout.setID("VSLayout001");
+      List<VSAssemblyLayout> assemblyLayouts = new ArrayList<>();
+      assemblyLayouts.add(new VSAssemblyLayout(
+         "Bar001", new Point(0, 0), new Dimension(0, 0)));
+      viewsheetLayout.setVSAssemblyLayouts(assemblyLayouts);
+      viewsheetLayoutList.add(viewsheetLayout);
+      layoutInfo.setViewsheetLayouts(viewsheetLayoutList);
+      when(viewsheet.getLayoutInfo()).thenReturn(layoutInfo);
+
+      ViewsheetPropertyDialogModel model = ViewsheetPropertyDialogModel.builder().build();
+      ScreensPaneModel screensPaneModel = model.screensPane();
+      FiltersPaneModel filtersPaneModel = model.filtersPane();
+      List<VSDeviceLayoutDialogModel> deviceLayouts = screensPaneModel.getDeviceLayouts();
+      VSDeviceLayoutDialogModel deviceLayout = new VSDeviceLayoutDialogModel();
+      deviceLayout.setId("VSLayout001");
+      deviceLayout.setName("Foo001");
+      deviceLayout.setSelectedDevices(new ArrayList<>());
+      deviceLayouts.add(deviceLayout);
+      model.vsOptionsPane().getViewsheetParametersDialogModel().setDisabledParameters(new String[0]);
+      filtersPaneModel.setSharedFilters(new ArrayList<>());
+      filtersPaneModel.setFilters(new ArrayList<>());
+      screensPaneModel.setDevices(new ArrayList<>());
+
+      if(model.localizationPane() != null) {
+         model.localizationPane().setLocalized(new ArrayList<>());
+      }
+
+      service.setViewsheetInfo("Viewsheet1", model, null, commandDispatcher, null, null);
+      viewsheetLayoutList = layoutInfo.getViewsheetLayouts();
+      assertEquals(1, viewsheetLayoutList.size());
+      viewsheetLayout = viewsheetLayoutList.get(0);
+      assertEquals("VSLayout001", viewsheetLayout.getID());
+      assertEquals("Foo001", viewsheetLayout.getName());
+      assertNotNull(viewsheetLayout.getVSAssemblyLayout("Bar001"));
+   }
+
+   // Bug: a PrintLayout whose PrintInfo.size was never populated (legacy/otherwise-constructed
+   // data, not created via the setViewsheetInfo write path) crashed getViewsheetInfo() with an
+   // unconditional NPE from PrintInfo.getSize(), which set_print_layout/manage_device_layout hit
+   // on every call since it reads the current state first.
+   @Test
+   public void getViewsheetInfo_printLayoutWithNullSize_doesNotThrow() throws Exception {
+      DeviceRegistry deviceRegistry = mock(DeviceRegistry.class);
+      when(deviceRegistry.getDevices()).thenReturn(new DeviceInfo[0]);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.isSecurityEnabled()).thenReturn(true);
+      AssetRepository assetRepository = mock(AssetRepository.class);
+
+      ViewsheetPropertyDialogService service = new ViewsheetPropertyDialogService(
+         coreLifecycleService, viewsheetService, layoutService, viewsheetSettingsService,
+         vsAssemblyInfoHandler, securityEngine, null, deviceRegistry);
+
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(viewsheetService.getAssetRepository()).thenReturn(assetRepository);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getViewsheetInfo()).thenReturn(new ViewsheetInfo());
+      when(viewsheet.getAssemblies()).thenReturn(new Assembly[0]);
+
+      LayoutInfo layoutInfo = new LayoutInfo();
+      layoutInfo.setViewsheetLayouts(new ArrayList<>());
+      PrintLayout printLayout = new PrintLayout();
+      PrintInfo printInfo = new PrintInfo();
+      printInfo.setSize(null); // simulate a print layout whose size was never populated
+      printLayout.setPrintInfo(printInfo);
+      layoutInfo.setPrintLayout(printLayout);
+      when(viewsheet.getLayoutInfo()).thenReturn(layoutInfo);
+
+      try(MockedStatic<LicenseManager> license = mockStatic(LicenseManager.class);
+          MockedStatic<OrganizationManager> orgManagerStatic = mockStatic(OrganizationManager.class);
+          MockedStatic<SUtil> sutil = mockStatic(SUtil.class))
+      {
+         license.when(LicenseManager::isEnterprise).thenReturn(false);
+         OrganizationManager orgManager = mock(OrganizationManager.class);
+         orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+         when(orgManager.isSiteAdmin(nullable(Principal.class))).thenReturn(false);
+         sutil.when(SUtil::isMultiTenant).thenReturn(true);
+
+         ViewsheetPropertyDialogModel model = assertDoesNotThrow(
+            () -> service.getViewsheetInfo("Viewsheet1", null));
+
+         assertNotNull(model.screensPane().getPrintLayout());
+      }
+   }
+
+   @Mock ViewsheetService viewsheetService;
+   @Mock ViewsheetSettingsService viewsheetSettingsService;
+   @Mock CoreLifecycleService coreLifecycleService;
+   @Mock VSLayoutService layoutService;
+   @Mock RuntimeViewsheet rvs;
+   @Mock Viewsheet viewsheet;
+   @Mock ViewsheetSandbox viewsheetSandbox;
+   @Mock CommandDispatcher commandDispatcher;
+   @Mock VSAssemblyInfoHandler vsAssemblyInfoHandler;
+   private ViewsheetPropertyDialogService service;
+}

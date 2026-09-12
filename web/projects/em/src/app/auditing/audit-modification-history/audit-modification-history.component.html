@@ -1,50 +1,62 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <em-audit-table-view [displayedColumns]="displayedColumns" [columnRenderers]="columnRenderers" [parameterForm]="form" [fetchParameters]="fetchParameters" [fetchData]="fetchData">
   <section class="flex-row" [formGroup]="form">
-    <mat-form-field *ngIf="organizationFilter" appearance="outline" color="accent" class="flex">
-      <mat-label>_#(Resource Organizations)</mat-label>
-      <mat-select formControlName="selectedOrganizations" multiple>
-        <mat-option *ngFor="let organization of organizationNames; let i = index" [value]="organization">{{organizationNames[i]}}</mat-option>
-      </mat-select>
-    </mat-form-field>
+    @if (organizationFilter) {
+      <mat-form-field appearance="outline" color="accent" class="flex">
+        <mat-label>_#(Resource Organizations)</mat-label>
+        <mat-select formControlName="selectedOrganizations" multiple>
+          @for (organization of organizationNames; track organization; let i = $index) {
+            <mat-option [value]="organization">{{organizationNames[i]}}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    }
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Users)</mat-label>
       <mat-select formControlName="selectedUsers" multiple>
-        <mat-option *ngFor="let user of users" [value]="user">{{user}}</mat-option>
+        @for (user of users; track user) {
+          <mat-option [value]="user">{{user}}</mat-option>
+        }
       </mat-select>
     </mat-form-field>
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Object Types)</mat-label>
       <mat-select formControlName="selectedTypes" multiple>
-        <mat-option *ngFor="let type of objectTypes" [value]="type">{{getAssetTypeLabel(type)}}</mat-option>
+        @for (type of objectTypes; track type) {
+          <mat-option [value]="type">{{getAssetTypeLabel(type)}}</mat-option>
+        }
       </mat-select>
     </mat-form-field>
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Modify Status)</mat-label>
       <mat-select formControlName="selectedStatuses" multiple>
-        <mat-option *ngFor="let modifyStatus of modifyStatuses" [value]="modifyStatus">{{getModifyStatusLabel(modifyStatus)}}</mat-option>
+        @for (modifyStatus of modifyStatuses; track modifyStatus) {
+          <mat-option [value]="modifyStatus">{{getModifyStatusLabel(modifyStatus)}}</mat-option>
+        }
       </mat-select>
     </mat-form-field>
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Hosts)</mat-label>
       <mat-select formControlName="selectedHosts" multiple>
-        <mat-option *ngFor="let host of hosts" [value]="host">{{host}}</mat-option>
+        @for (host of hosts; track host) {
+          <mat-option [value]="host">{{host}}</mat-option>
+        }
       </mat-select>
     </mat-form-field>
   </section>

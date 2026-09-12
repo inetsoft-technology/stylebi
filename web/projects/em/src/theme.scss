@@ -20,7 +20,8 @@ $roboto-font-path: '../app/assets';
 @import 'node_modules/roboto-fontface/css/roboto/sass/roboto-fontface.scss';
 
 @import './app-theme';
-@include mat.core();
+@include mat.elevation-classes();
+@include mat.app-background();
 @import './styles/theme';
 
 @include mat.all-component-themes($em-theme);
@@ -35,11 +36,16 @@ body {
   margin: 0;
 }
 
+.toolbar-raised-button {
+  --mat-toolbar-container-background-color: #f5f5f5;
+}
+
 .mat-mdc-snack-bar-container .mdc-snackbar__surface {
   background-color: var(--inet-em-accent-A100) !important;
 
   .mat-mdc-snack-bar-label {
     color: var(--inet-em-dark-primary-text);
+    font-size: 14px;
   }
 }
 
@@ -56,4 +62,29 @@ body {
   font-size: 12px;
   font-weight: 400;
   line-height: 20px;
+}
+
+// Fix radio button label font size to match checkbox (12px)
+.mat-mdc-radio-button {
+  --mat-checkbox-label-text-size: 12px;
+}
+
+// Fix font size and alignment for tree nodes in select dropdowns (CDK overlay)
+.select-viewsheet-tree .mat-tree-node,
+.select-report-tree .mat-tree-node {
+  > span {
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+
+    .mat-icon {
+      margin-right: 4px;
+      display: flex;
+      align-items: center;
+    }
+  }
+
+  .mat-mdc-option {
+    font-size: 12px;
+  }
 }

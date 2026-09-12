@@ -19,20 +19,20 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
-import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeNode;
 import inetsoft.web.admin.schedule.model.*;
-import inetsoft.web.security.*;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.service.LinkUri;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.net.URLDecoder;
 import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -49,10 +49,14 @@ public class EMScheduleTaskController {
     */
    @Autowired
    public EMScheduleTaskController(ScheduleTaskService scheduleTaskService,
-                                   ScheduleTaskFolderService scheduleTaskFolderService)
+                                   ScheduleTaskFolderService scheduleTaskFolderService,
+                                   SecurityEngine securityEngine,
+                                   ScheduleManager scheduleManager)
    {
       this.scheduleTaskService = scheduleTaskService;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
+      this.securityEngine = securityEngine;
+      this.scheduleManager = scheduleManager;
    }
 
    /**
@@ -79,6 +83,7 @@ public class EMScheduleTaskController {
    @PostMapping("/api/em/schedule/new")
    public ScheduleTaskDialogModel getNewTaskDialogModel(
       @RequestParam("timeZone") String timeZone,
+      @RequestParam(value = "orgId", required = false) String orgId,
       @RequestBody(required = false) ContentRepositoryTreeNode parentInfo,
       Principal principal) throws Exception
    {
@@ -100,7 +105,7 @@ public class EMScheduleTaskController {
             "schedule.tasks.nopermission.create"));
       }
 
-      return scheduleTaskService.getNewTaskDialogModel(null, principal, true, true, parentEntry, timeZone);
+      return scheduleTaskService.getNewTaskDialogModel(null, principal, true, true, parentEntry, timeZone, orgId);
    }
 
    /**
@@ -197,12 +202,10 @@ public class EMScheduleTaskController {
       throws Exception
    {
       final ToggleTaskResponse.Builder builder = ToggleTaskResponse.builder();
-      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
-
       for(String name : list.taskNames()) {
          ScheduleTask task = scheduleManager.getScheduleTask(name);
 
-         if(!(SecurityEngine.getSecurity().checkPermission(principal, ResourceType.SCHEDULE_TASK, name,
+         if(!(securityEngine.checkPermission(principal, ResourceType.SCHEDULE_TASK, name,
             ResourceAction.WRITE) ||
             (task != null && scheduleTaskService.canDeleteTask(task, principal))))
          {
@@ -232,18 +235,20 @@ public class EMScheduleTaskController {
    public ExecuteAsIdentitiesModel getExecuteAsUsers(@RequestParam("owner") String owner,
                                                      Principal principal)
    {
-      IdentityID ownerId = new IdentityID(owner, OrganizationManager.getInstance().getCurrentOrgID());
+      IdentityID ownerId = new IdentityID(owner, OrganizationManager.getInstance().getCurrentOrgID(principal));
       ExecuteAsIdentitiesModel model = new ExecuteAsIdentitiesModel();
       model.setUsers(this.scheduleTaskService.getExecuteAsUsers(ownerId, principal)
                         .stream()
                         .distinct()
                         .collect(Collectors.toList()));
       List<IdentityID> groups = this.scheduleTaskService.getExecuteAsGroups(owner, principal);
-      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider securityProvider = securityEngine.getSecurityProvider();
       model.setGroups(groups);
       return model;
    }
 
    private final ScheduleTaskService scheduleTaskService;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
+   private final SecurityEngine securityEngine;
+   private final ScheduleManager scheduleManager;
 }

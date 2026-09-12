@@ -26,7 +26,6 @@ import inetsoft.report.composition.QueryTreeModel.QueryNode;
 import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.report.composition.execution.*;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -2114,7 +2113,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
       // if VPM exists, don't allow creating MV from portal (it could be skipped
       // if not properly configured).
       if(REJECT_VPM.get() && source != null) {
-         XDataModel model = XFactory.getRepository().getDataModel(source.getFullName());
+         XDataModel model = XRepository.getRepository().getDataModel(source.getFullName());
 
          if(model != null && model.getVirtualPrivateModelNames().length > 0) {
             throw new SecurityException(Catalog.getCatalog().getString("vs.mv.portal.vpm"));
@@ -2396,6 +2395,25 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
     */
    private String getWorksheetPath() {
       return Tool.getUniqueName(mvname, 61) + ".ws";
+   }
+
+   /**
+    * Persist the worksheet to storage and clear it from the container in memory.
+    * This reduces the serialized size of the MVDef when distributed across the cluster.
+    * The worksheet can be reloaded from storage on demand via parseWorksheet().
+    */
+   public void persistAndClearWorksheet() {
+      MVContainer c = this.container;
+
+      if(c != null && c.ws != null) {
+         try {
+            writeWorksheet(c.ws);
+            c.ws = null;
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to persist MV worksheet for {}", mvname, e);
+         }
+      }
    }
 
    /**
@@ -2706,7 +2724,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    // true if disable MV when VPM exists
    public static final ThreadLocal<Boolean> REJECT_VPM = ThreadLocal.withInitial(() -> false);
 
-   transient MVContainer container = null;
+   MVContainer container = null;
    private transient SoftReference<MVContainer> containerRef = new SoftReference<>(null);
    private String plan = null; // query plan of the mvDef
    private String mvname = null; // name of this mv

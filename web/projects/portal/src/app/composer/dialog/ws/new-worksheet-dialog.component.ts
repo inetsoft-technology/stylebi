@@ -19,6 +19,9 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { DatabaseDataSource } from "../../../../../../shared/util/model/database-data-source";
 import { TabularDataSourceTypeModel } from "../../../../../../shared/util/model/tabular-data-source-type-model";
 
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
+
 export enum WSObjectType {
    EMBEDDED_TABLE,
    UPLOAD_FILE,
@@ -30,9 +33,10 @@ export enum WSObjectType {
 }
 
 @Component({
-   selector: "new-worksheet-dialog",
-   templateUrl: "new-worksheet-dialog.component.html",
-   styleUrls: ["new-worksheet-dialog.component.scss"]
+    selector: "new-worksheet-dialog",
+    templateUrl: "new-worksheet-dialog.component.html",
+    styleUrls: ["new-worksheet-dialog.component.scss"],
+    imports: [ModalHeaderComponent, EnterSubmitDirective]
 })
 export class NewWorksheetDialog {
    @Input() tabularDataSourceTypes: TabularDataSourceTypeModel[];

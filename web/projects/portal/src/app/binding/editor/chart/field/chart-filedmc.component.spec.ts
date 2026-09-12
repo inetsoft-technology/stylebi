@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { XSchema } from "../../../../common/data/xschema";
 import { TestUtils } from "../../../../common/test/test-utils";
 import { ChartAggregateRef } from "../../../data/chart/chart-aggregate-ref";
@@ -42,18 +43,18 @@ describe("chart fieldmc component unit case", () => {
    let model: ChartBindingModel;
 
    beforeEach(() => {
-      bindingService = { getURLParams: jest.fn() };
+      bindingService = { getURLParams: vi.fn() };
       editorService = {
          bindingModel: null,
-         changeChartRef: jest.fn(),
-         getDNDType: jest.fn(),
-         setBindingModel: jest.fn()
+         changeChartRef: vi.fn(),
+         getDNDType: vi.fn(),
+         setBindingModel: vi.fn()
       };
-      dndService = { setDragStartStyle: jest.fn() };
+      dndService = { setDragStartStyle: vi.fn() };
       uiContextService = {};
       elem = {};
       renderer = {};
-      modalService = { open: jest.fn() };
+      modalService = { open: vi.fn() };
       dcService = {};
 
       chartFieldmc = new ChartFieldmc(bindingService, editorService, dndService,
@@ -124,7 +125,7 @@ describe("chart fieldmc component unit case", () => {
 
    //for Bug #19285
    it("should not change chartRef if the value is null", () => {
-      let changeChartRef = jest.spyOn(chartFieldmc, "changeChartRef");
+      let changeChartRef = vi.spyOn(chartFieldmc, "changeChartRef");
       let chartDim = TestUtils.createMockChartDimensionRef("state");
       chartDim.columnValue = "state";
       model = TestUtils.createMockChartBindingModel();

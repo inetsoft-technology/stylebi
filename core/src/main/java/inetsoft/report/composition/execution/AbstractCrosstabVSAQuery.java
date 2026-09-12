@@ -367,33 +367,60 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             box.getVariableTable().put(XQuery.HINT_IGNORE_MAX_ROWS, "true");
          }
 
-         TableLens base = null;
-         DataRef[] rheaders = null;
-         DataRef[] cheaders = null;
-         DataRef[] aggregates = null;
+         TableLens base;
+         TableAssembly baseTable;
+         DataRef[] rheaders;
+         DataRef[] cheaders;
+         DataRef[] aggregates;
 
+         // Keep the data fetch out of the cinfo monitor. getTableLens() releases and
+         // re-acquires the sandbox lock around the asset cache fetch (76233), so holding
+         // monitor(cinfo) across it inverted the order every write path takes -- sandbox
+         // lock first, then the crosstab info -- and deadlocked the whole viewsheet against
+         // ViewsheetSandbox.updateAssembly() -> VSCrosstabInfo.update(). (76549)
+         //
+         // The monitor still covers the prepare phase, which is what rewrites the runtime
+         // refs and what the reads below must be consistent with. Prepare is not
+         // unconditionally non-blocking though, so this narrowing fixes the reported case
+         // rather than the whole deadlock class. Two prepare paths still release the sandbox
+         // lock while this monitor is held:
+         //   - a crosstab bound to another VS assembly (SourceInfo.VS_ASSEMBLY) reaches
+         //     VSAQuery.createAssemblyTable() -> box.getTableData();
+         //   - for any source type, CubeVSAQuery.createBaseTableAssembly0() calls
+         //     setSharedCondition(box.getBrushingChart(..), ..), and for a brushed chart
+         //     carrying dynamic values that runs a script which can re-enter box.getData().
+         // Both land in ViewsheetSandbox.doExecuteData(), whose lockWrite() first drops this
+         // thread's read lock and then competes for the write lock, so the counterpart can be
+         // any writer that subsequently needs this monitor -- not only a second crosstab
+         // query. Both are pre-existing and out of scope here.
+         //
+         // Narrowing does widen one race: a concurrent prepare for the same crosstab can now
+         // run while this thread's query is in flight, and prepare mutates shared state (the
+         // bound table it registers in box.getWorksheet() under a deterministic name, and the
+         // VSDimensionRefs it re-ranks). ChartVSAQuery handles the equivalent exposure by
+         // querying a private table clone; the crosstab path does not do that yet.
          synchronized(cinfo) {
-            base = getAssetBaseTableLens(postDrill);
-            DataRef[] aggrs = cinfo.getRuntimeAggregates();
+            baseTable = prepareAssetBaseTable(postDrill);
 
-            if(aggrs == null || aggrs.length == 0) {
-               DataRef[] rows = cinfo.getRuntimeRowHeaders();
-               DataRef[] cols = cinfo.getRuntimeColHeaders();
-               return (rows == null || rows.length == 0) &&
-                  (cols == null || cols.length == 0) ? null : base;
-            }
-
-            // show detail? do nothing
-            if(details != null && details.getSize() > 0) {
-               return base;
-            }
-            else if(isDetail() || base == null || cinfo == null) {
-               return null;
-            }
-
+            // read after prepare -- getTableAssembly() rewrites these
+            aggregates = cinfo.getRuntimeAggregates();
             rheaders = cinfo.getRuntimeRowHeaders();
             cheaders = cinfo.getRuntimeColHeaders();
-            aggregates = cinfo.getRuntimeAggregates();
+         }
+
+         base = executeAssetBaseTable(baseTable, cinfo);
+
+         if(aggregates == null || aggregates.length == 0) {
+            return (rheaders == null || rheaders.length == 0) &&
+               (cheaders == null || cheaders.length == 0) ? null : base;
+         }
+
+         // show detail? do nothing
+         if(details != null && details.getSize() > 0) {
+            return base;
+         }
+         else if(isDetail() || base == null) {
+            return null;
          }
 
          DataRef[] oaggs = oldInfo.getRuntimeAggregates();
@@ -816,6 +843,14 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
                                      Map<String, String> calcHeaderMap)
    {
       String[] measurename = new String[formula.length];
+      // per-index original (pre-calc-prefix) name, only set where a calculator applies;
+      // used to rebuild calcHeaderMap below, keyed by the final (post-dedup) measurename,
+      // instead of putting into calcHeaderMap immediately -- two calculator aggregates on
+      // the same column (e.g. SUM(col) and AVG(col) both with "Percent of Grand Total")
+      // can compute the same prefixed name here, and an immediate put() would have one
+      // entry silently overwrite the other under a key that no longer matches either
+      // aggregate's final, deduped measurename.
+      String[] calcOriginalNames = applyCalc ? new String[formula.length] : null;
 
       for(int i = 0; i < formula.length; i++) {
          if(formula[i] instanceof CalcFieldFormula) {
@@ -832,9 +867,71 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             Calculator calc = ((VSAggregateRef) aggrs[i]).getCalculator();
             String originalName = measurename[i];
             measurename[i] = calc.getPrefix() + measurename[i];
+            calcOriginalNames[i] = originalName;
+         }
+      }
 
-            if(calcHeaderMap != null) {
-               calcHeaderMap.put(measurename[i], originalName);
+      // Multiple aggregates (e.g. a raw sum and a "percent of total" calculator) can
+      // share the same underlying column and therefore the same measure name here.
+      // The calc table conversion (CalcTableVSAQuery.createCrosstabAssemblies) disambiguates
+      // duplicate aggregate binding values the same way ("name", "name.1", "name.2", ...), and
+      // a calc table's grand-total cells reference the measure by this bare, unqualified name
+      // (no "@group:value" suffix) -- so measureHeaders must use the identical disambiguated
+      // names or TableArray.hasMember() won't find the duplicate and the cell silently
+      // resolves to undefined/null.
+      //
+      // Only names shared by at least one CalcFieldFormula-backed (calculator-derived)
+      // aggregate are renamed here -- CalcTableVSAQuery.createCrosstabAssemblies dedups
+      // aggregate binding values unconditionally by position, regardless of formula type,
+      // so whichever aggregate is NOT the first occurrence of a colliding name -- plain or
+      // calculator-derived -- ends up bound to the disambiguated "name.1" in the calc
+      // table. Renaming only when the *later* occurrence itself is a CalcFieldFormula would
+      // miss the case where a calculator aggregate is first and a plain aggregate collides
+      // with it second: the plain aggregate's calc-table binding is still "name.1", but its
+      // measureHeaders entry would stay "name", reproducing the same null-lookup bug for
+      // that ordering. A name shared only by plain aggregates has no calc-table binding
+      // riding on it, so those are left as-is -- ordinary live crosstabs' visible
+      // summary-header text (CrossTabFilter.getHeaders()/addSummaryHeaders()) stays
+      // unaffected unless a calculator is actually involved in the collision.
+      Map<String, Boolean> hasCalcMember = new HashMap<>();
+
+      for(int i = 0; i < measurename.length; i++) {
+         String name = measurename[i];
+
+         if(name == null) {
+            continue;
+         }
+
+         hasCalcMember.merge(name, formula[i] instanceof CalcFieldFormula, Boolean::logicalOr);
+      }
+
+      Map<String, Integer> dupCounts = new HashMap<>();
+
+      for(int i = 0; i < measurename.length; i++) {
+         String name = measurename[i];
+
+         if(name == null) {
+            continue;
+         }
+
+         Integer dup = dupCounts.get(name);
+
+         if(dup == null) {
+            dupCounts.put(name, 1);
+         }
+         else {
+            dupCounts.put(name, dup + 1);
+
+            if(hasCalcMember.get(name)) {
+               measurename[i] = name + "." + dup;
+            }
+         }
+      }
+
+      if(calcHeaderMap != null) {
+         for(int i = 0; i < measurename.length; i++) {
+            if(calcOriginalNames[i] != null) {
+               calcHeaderMap.put(measurename[i], calcOriginalNames[i]);
             }
          }
       }
@@ -1107,11 +1204,17 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
    }
 
    /**
-    * Get the asset base table lens.
+    * Prepare the base table assembly for the asset query.
+    *
+    * <p>This mutates the crosstab runtime refs -- getTableAssembly() rewrites the runtime
+    * row headers and the pushed-down aggregates -- so the caller must hold the
+    * VSCrosstabInfo monitor across it. It must not execute the crosstab's own query; that
+    * is {@link #executeAssetBaseTable(TableAssembly, VSCrosstabInfo)}. (76549)
+    *
     * @param post true if the aggregate is done in post processingj
-    * @return the asset base table lens.
+    * @return the prepared base table assembly, or null if there is nothing to execute.
     */
-   private TableLens getAssetBaseTableLens(boolean post) throws Exception {
+   private TableAssembly prepareAssetBaseTable(boolean post) throws Exception {
       CrosstabDataVSAssembly cassembly = (CrosstabDataVSAssembly) getAssembly();
       VSCrosstabInfo cinfo = cassembly.getVSCrosstabInfo();
       TableAssembly table = getTableAssembly(false, post);
@@ -1183,6 +1286,27 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          }
       }
 
+      return table;
+   }
+
+   /**
+    * Execute the prepared base table assembly and return the base lens.
+    *
+    * <p>Must NOT be called while holding the VSCrosstabInfo monitor: getTableLens()
+    * releases and restores the sandbox lock around the asset cache fetch, and blocking to
+    * re-acquire that lock while holding the monitor inverts the lock order every write path
+    * uses -- sandbox lock first, then the crosstab info. (76549)
+    *
+    * @param table the prepared base table assembly, may be null.
+    * @return the base table lens, or null if there was nothing to execute.
+    */
+   private TableLens executeAssetBaseTable(TableAssembly table, VSCrosstabInfo cinfo)
+      throws Exception
+   {
+      if(table == null) {
+         return null;
+      }
+
       TableLens lens = getTableLens(table);
       lens = getDcMergeDateTableLens(lens, table, null);
 
@@ -1237,6 +1361,7 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
 
       groupInfo = new AggregateInfo();
       ColumnSelection cols = table.getColumnSelection();
+
       AggregateInfo allGroupInfo = new AggregateInfo();
       DataRef[] grows = cinfo.getRuntimeRowHeaders();
       DataRef[] gcols = cinfo.getRuntimeColHeaders();
@@ -1255,9 +1380,83 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             VSDimensionRef ref = (VSDimensionRef) grps[i][j];
             GroupRef gref = ref.createGroupRef(cols);
 
-            if(gref == null) {
+            // Bug #73729: Handle detail-based calc fields used as crosstab dimensions.
+            //
+            // When a detail calc field (e.g., "CalcField1") is used as a dimension,
+            // the column selection may contain both:
+            //   - "CalcField1" (CalculateRef) - contains the formula expression
+            //   - "Sales.CalcField1" (ColumnRef) - entity-qualified name wrapper
+            //
+            // The createGroupRef() method above may find the ColumnRef wrapper instead
+            // of the CalculateRef. Since the ColumnRef doesn't contain the formula,
+            // the calc field won't be computed in the query, causing "column not found"
+            // errors later.
+            //
+            // Solution: Explicitly search for the CalculateRef and use it directly,
+            // bypassing whatever createGroupRef() returned.
+            String dimName = ref.getGroupColumnValue();
+            if(dimName == null || dimName.isEmpty()) {
+               dimName = ref.getName();
+            }
+
+            CalculateRef calcRef = null;
+            for(int c = 0; c < cols.getAttributeCount(); c++) {
+               DataRef colRef = cols.getAttribute(c);
+               if(colRef instanceof CalculateRef &&
+                  ((CalculateRef) colRef).isBaseOnDetail() &&
+                  dimName.equals(colRef.getName()))
+               {
+                  calcRef = (CalculateRef) colRef;
+                  break;
+               }
+            }
+
+            if(calcRef != null) {
+               // Ensure the CalculateRef is in the column selection so the formula
+               // is computed in the query.
+               cols.removeAttribute(calcRef);
+               cols.addAttribute(calcRef);
+
+               // If the dimension has a named group, use the GroupRef from
+               // createGroupRef() which wraps a NamedRangeRef for the group
+               // mapping. The CalculateRef above ensures the calc field formula
+               // runs, and the NamedRangeRef transforms the computed values
+               // into group names.
+               if(ref.isNameGroup() && gref != null) {
+                  DataRef dref = gref.getDataRef();
+                  cols.removeAttribute(dref);
+                  cols.addAttribute(dref);
+
+                  if(!groupInfo.containsGroup(gref)) {
+                     groupInfo.addGroup(gref);
+                  }
+
+                  if(!allGroupInfo.containsGroup(gref)) {
+                     allGroupInfo.addGroup(gref);
+                  }
+
+                  continue;
+               }
+
+               // No named group - use the CalculateRef directly (Bug #73729)
+               gref = new GroupRef(calcRef);
+
+               if(!groupInfo.containsGroup(gref)) {
+                  groupInfo.addGroup(gref);
+               }
+
+               if(!allGroupInfo.containsGroup(gref)) {
+                  allGroupInfo.addGroup(gref);
+               }
+
+               // Skip normal processing below - it would call getColumnRefFromAttribute()
+               // which could replace our CalculateRef with the wrong column reference
                continue;
             }
+            else if(gref == null) {
+               continue;
+            }
+            // End Bug #73729 handling
 
             DataRef dref = gref.getDataRef();
             cols.removeAttribute(dref);

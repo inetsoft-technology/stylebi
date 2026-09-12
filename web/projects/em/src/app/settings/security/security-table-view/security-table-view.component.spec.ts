@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { CommonModule } from "@angular/common";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
@@ -31,7 +32,7 @@ import { of, Subject } from "rxjs";
 import { IdentityType } from "../../../../../../shared/data/identity-type";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { MatTooltipModule } from "@angular/material/tooltip";
-import { SecurityTreeDialogModule } from "../security-tree-dialog/security-tree-dialog.module";
+import { SecurityTreeDialogComponent } from "../security-tree-dialog/security-tree-dialog.component";
 import { IdentityModel } from "./identity-model";
 import { SecurityTableViewComponent } from "./security-table-view.component";
 import { IdentityClipboardService, COPY_PASTE_CONTEXT_IDENTITY_MEMBERS, COPY_PASTE_CONTEXT_IDENTITY_ROLES } from "./identity-clipboard.service";
@@ -47,12 +48,12 @@ describe("SecurityTableViewComponent", () => {
 
   beforeEach(waitForAsync(() => {
     mockClipboardService = {
-      canPaste: jest.fn(() => false),
-      hasContent: jest.fn(() => false),
-      copiedCount: jest.fn(() => 0),
-      copiedTotal: jest.fn(() => 0),
-      copy: jest.fn(),
-      paste: jest.fn(() => null)
+      canPaste: vi.fn(() => false),
+      hasContent: vi.fn(() => false),
+      copiedCount: vi.fn(() => 0),
+      copiedTotal: vi.fn(() => 0),
+      copy: vi.fn(),
+      paste: vi.fn(() => null)
     };
 
     TestBed.configureTestingModule({
@@ -67,10 +68,9 @@ describe("SecurityTableViewComponent", () => {
         MatIconModule,
         MatSnackBarModule,
         MatTooltipModule,
-        SecurityTreeDialogModule,
-        MatPaginatorModule
-      ],
-      declarations: [ SecurityTableViewComponent ],
+        SecurityTreeDialogComponent,
+        MatPaginatorModule,
+            SecurityTableViewComponent],
       providers: [
         { provide: IdentityClipboardService, useValue: mockClipboardService }
       ]
@@ -118,7 +118,7 @@ describe("SecurityTableViewComponent", () => {
 
     it("should show snack bar after copying", () => {
       const snackBar = TestBed.inject(MatSnackBar);
-      const snackSpy = jest.spyOn(snackBar, "open");
+      const snackSpy = vi.spyOn(snackBar, "open");
       component.dataSource = [makeIdentity("alice")];
       component.ngOnChanges({ dataSource: { currentValue: component.dataSource, previousValue: null, firstChange: true, isFirstChange: () => true } });
 
@@ -141,7 +141,7 @@ describe("SecurityTableViewComponent", () => {
   describe("pasteIdentities", () => {
     it("should not open dialog when clipboard is empty", () => {
       mockClipboardService.paste.mockReturnValue(null);
-      const dialogSpy = jest.spyOn(component["dialog"], "open");
+      const dialogSpy = vi.spyOn(component["dialog"], "open");
 
       component.pasteIdentities();
 
@@ -150,7 +150,7 @@ describe("SecurityTableViewComponent", () => {
 
     it("should not open dialog when paste returns empty array", () => {
       mockClipboardService.paste.mockReturnValue([]);
-      const dialogSpy = jest.spyOn(component["dialog"], "open");
+      const dialogSpy = vi.spyOn(component["dialog"], "open");
 
       component.pasteIdentities();
 
@@ -160,7 +160,7 @@ describe("SecurityTableViewComponent", () => {
     it("should emit pasteReplaceIdentities when dialog is confirmed", () => {
       const identities = [makeIdentity("alice")];
       mockClipboardService.paste.mockReturnValue(identities);
-      jest.spyOn(component["dialog"], "open").mockReturnValue({ afterClosed: () => of(true) } as any);
+      vi.spyOn(component["dialog"], "open").mockReturnValue({ afterClosed: () => of(true) } as any);
 
       const emitted: IdentityModel[][] = [];
       component.pasteReplaceIdentities.subscribe(v => emitted.push(v));
@@ -174,7 +174,7 @@ describe("SecurityTableViewComponent", () => {
     it("should not emit pasteReplaceIdentities when dialog is cancelled", () => {
       const identities = [makeIdentity("alice")];
       mockClipboardService.paste.mockReturnValue(identities);
-      jest.spyOn(component["dialog"], "open").mockReturnValue({ afterClosed: () => of(false) } as any);
+      vi.spyOn(component["dialog"], "open").mockReturnValue({ afterClosed: () => of(false) } as any);
 
       const emitted: IdentityModel[][] = [];
       component.pasteReplaceIdentities.subscribe(v => emitted.push(v));
@@ -189,7 +189,7 @@ describe("SecurityTableViewComponent", () => {
       component.pasteContexts = [COPY_PASTE_CONTEXT_IDENTITY_ROLES, COPY_PASTE_CONTEXT_IDENTITY_MEMBERS];
       const identities = [makeIdentity("alice")];
       mockClipboardService.paste.mockReturnValue(identities);
-      jest.spyOn(component["dialog"], "open").mockReturnValue({ afterClosed: () => of(true) } as any);
+      vi.spyOn(component["dialog"], "open").mockReturnValue({ afterClosed: () => of(true) } as any);
 
       component.pasteIdentities();
 
@@ -204,7 +204,7 @@ describe("SecurityTableViewComponent", () => {
       const identities = [makeIdentity("alice")];
       mockClipboardService.paste.mockReturnValue(identities);
       const dialogClose$ = new Subject<boolean>();
-      const dialogSpy = jest.spyOn(component["dialog"], "open")
+      const dialogSpy = vi.spyOn(component["dialog"], "open")
         .mockReturnValue({ afterClosed: () => dialogClose$ } as any);
 
       component.pasteIdentities();
@@ -225,7 +225,7 @@ describe("SecurityTableViewComponent", () => {
       component.copyPasteContext = COPY_PASTE_CONTEXT_IDENTITY_MEMBERS;
       component.pasteExcludeIdentities = [self];
       mockClipboardService.paste.mockReturnValue([makeIdentity("bob")]);
-      jest.spyOn(component["dialog"], "open").mockReturnValue({ afterClosed: () => of(true) } as any);
+      vi.spyOn(component["dialog"], "open").mockReturnValue({ afterClosed: () => of(true) } as any);
 
       component.pasteIdentities();
 

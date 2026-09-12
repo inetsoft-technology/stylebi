@@ -32,6 +32,8 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.context.annotation.ScopedProxyMode;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
@@ -40,8 +42,12 @@ import java.util.Arrays;
 @Controller
 @Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class OrganizationChangedController implements MessageListener {
-   public OrganizationChangedController(SimpMessagingTemplate messagingTemplate) {
+   public OrganizationChangedController(SimpMessagingTemplate messagingTemplate,
+                                        Cluster cluster, SecurityEngine securityEngine)
+   {
       this.messagingTemplate = messagingTemplate;
+      this.cluster = cluster;
+      this.securityEngine = securityEngine;
    }
 
    @SubscribeMapping(CHANGE_TOPIC)
@@ -51,12 +57,17 @@ public class OrganizationChangedController implements MessageListener {
 
    @PostConstruct
    public void addListeners() throws Exception {
-      Cluster.getInstance().addMessageListener(this);
+      cluster.addMessageListener(this);
    }
 
    @PreDestroy
-   public void removeListeners() throws Exception {
-      Cluster.getInstance().removeMessageListener(this);
+   public void removeListeners() {
+      try {
+         cluster.removeMessageListener(this);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listeners during shutdown", e);
+      }
    }
 
    @Override
@@ -86,7 +97,7 @@ public class OrganizationChangedController implements MessageListener {
       String newOrgName = message.getIdentity() != null ? message.getIdentity().getName() : null;
 
       EditableAuthenticationProvider provider =
-         SUtil.getEditableAuthenticationProvider(SecurityEngine.getSecurity().getSecurityProvider(),
+         SUtil.getEditableAuthenticationProvider(securityEngine.getSecurityProvider(),
             new IdentityID(newOrgName, newOrgId), Identity.ORGANIZATION);
 
       messagingTemplate
@@ -97,7 +108,10 @@ public class OrganizationChangedController implements MessageListener {
                                   .build());
    }
 
-   private final SimpMessagingTemplate messagingTemplate;
+   private final transient SimpMessagingTemplate messagingTemplate;
+   private final Cluster cluster;
+   private final SecurityEngine securityEngine;
    private Principal principal;
    private static final String CHANGE_TOPIC = "/current-org-changed";
+   private static final Logger LOG = LoggerFactory.getLogger(OrganizationChangedController.class);
 }

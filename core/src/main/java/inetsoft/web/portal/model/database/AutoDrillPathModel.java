@@ -19,9 +19,10 @@ package inetsoft.web.portal.model.database;
 
 import inetsoft.uql.DrillPath;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class AutoDrillPathModel {
+public class AutoDrillPathModel implements Serializable {
    public String getName() {
       return name;
    }

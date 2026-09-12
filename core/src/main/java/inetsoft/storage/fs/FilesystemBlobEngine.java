@@ -19,9 +19,13 @@ package inetsoft.storage.fs;
 
 import inetsoft.storage.BlobEngine;
 import inetsoft.util.Tool;
+import org.apache.commons.io.FileUtils;
+import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.*;
+import java.util.stream.Stream;
+import java.util.Set;
 
 /**
  * {@code FilesystemBlobEngine} is an implementation of {@link BlobEngine} that stores blobs to a
@@ -78,6 +82,71 @@ public class FilesystemBlobEngine implements BlobEngine {
    @Override
    public void delete(String id, String digest) throws IOException {
       Files.delete(getPath(id, digest));
+   }
+
+   @Override
+   public void deleteAll(String id, Set<String> digests) throws IOException {
+      if(digests == null || digests.isEmpty()) {
+         return;
+      }
+
+      IOException lastError = null;
+      int failCount = 0;
+
+      for(String digest : digests) {
+         try {
+            Path path = getPath(id, digest);
+
+            if(Files.exists(path)) {
+               Files.delete(path);
+            }
+         }
+         catch(IOException e) {
+            lastError = e;
+            failCount++;
+         }
+      }
+
+      if(lastError != null) {
+         throw new IOException(
+            "Failed to delete " + failCount + " of " + digests.size() + " blobs", lastError);
+      }
+   }
+
+   public void deleteStore(String id) {
+      try {
+         if(id == null || id.isBlank()) {
+            return;
+         }
+
+         Path root = base.resolve(id).normalize();
+         Path baseNorm = base.normalize();
+
+         if(!root.startsWith(baseNorm)) {
+            throw new IOException("Can not delete outside blob base: " + root);
+         }
+
+         if(!Files.exists(root)) {
+            return;
+         }
+
+        FileUtils.deleteDirectory(root.toFile());
+      }
+      catch(Exception e) {
+         LoggerFactory.getLogger(FilesystemBlobEngine.class)
+            .error("Failed to delete BlobEngine Storage folders: ", e);
+      }
+   }
+
+   @Override
+   public void list(String id, PrintWriter writer) throws IOException {
+      Path storagePath = base.resolve(id);
+
+      try (Stream<Path> paths = Files.walk(storagePath)) {
+         paths.filter(Files::isRegularFile)
+            .map(base::relativize)
+            .forEach(writer::println);
+      }
    }
 
    private Path getPath(String id, String digest) {

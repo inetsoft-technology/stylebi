@@ -16,19 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import {
-   HttpClient,
-} from "@angular/common/http";
+import { HttpClient } from "@angular/common/http";
 import {
    Component,
    Inject,
    ViewChild
 } from "@angular/core";
-import {
-   MAT_DIALOG_DATA,
-   MatDialog,
-   MatDialogConfig, MatDialogRef,
-} from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialog, MatDialogConfig, MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
 import { Tool } from "../../../../../../shared/util/tool";
 import { StagedFileChooserComponent } from "../../../common/util/file-chooser/staged-file-chooser/staged-file-chooser.component";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
@@ -36,11 +30,32 @@ import { FlatTreeNode } from "../../../common/util/tree/flat-tree-model";
 import { DataSpaceTreeNode } from "../../content/data-space/data-space-tree-node";
 import { DeleteDataSpaceTreeNodesRequest } from "../../content/data-space/model/delete-data-space-tree-nodes-request";
 import { ShapesTreeDataSource } from "./shapes-tree-data-source";
+import { MultiSelectTreeNodeDirective } from "../../../common/util/tree/multi-select-tree-node.directive";
+import { FlatTreeViewComponent } from "../../../common/util/tree/flat-tree-view.component";
+import { MatProgressBar } from "@angular/material/progress-bar";
+
+import { MatButton } from "@angular/material/button";
+import { FormsModule } from "@angular/forms";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-header.component";
 
 @Component({
-   selector: "em-custom-shape-dialog",
-   templateUrl: "custom-shape-dialog.component.html",
-   styleUrls: ["custom-shape-dialog.component.scss"],
+    selector: "em-custom-shape-dialog",
+    templateUrl: "custom-shape-dialog.component.html",
+    styleUrls: ["custom-shape-dialog.component.scss"],
+    imports: [
+    ModalHeaderComponent,
+    MatDialogContent,
+    MatCheckbox,
+    FormsModule,
+    StagedFileChooserComponent,
+    MatButton,
+    MatProgressBar,
+    FlatTreeViewComponent,
+    MultiSelectTreeNodeDirective,
+    MatDialogActions,
+    MatDialogClose
+]
 })
 export class CustomShapeDialogComponent {
    @ViewChild("fileChooser", { static: true }) fileChooser: StagedFileChooserComponent;

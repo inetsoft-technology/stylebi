@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ChangeDetectorRef, NgModule, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ChangeDetectorRef, NO_ERRORS_SCHEMA } from "@angular/core";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ColorComponentEditor } from "../../widget/color-picker/color-component-editor.component";
@@ -94,32 +94,41 @@ let createModel: () => TableViewGeneralPaneModel = () => {
    };
 };
 
-@NgModule({
-   declarations: [
-      FixedDropdownComponent,
-      FixedDropdownContextmenuComponent
-   ],
-   entryComponents: [
-      FixedDropdownComponent,
-      FixedDropdownContextmenuComponent
-   ]
-})
-class TestModule {}
-
 describe("TableViewGeneralPane Unit Test", () => {
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, TestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            TableViewGeneralPane,
+            FixedDropdownComponent,
+            FixedDropdownContextmenuComponent,
+            TitlePropPane,
+            TreeDropdownComponent,
+            GeneralPropPane,
+            TreeComponent,
+            FormulaEditorDialog,
+            ColorEditor,
+            TableStylePane,
+            BasicGeneralPane,
+            TreeNodeComponent,
+            NewAggrDialog,
+            ColorPicker,
+            ScriptPane,
+            ColorEditorDialog,
+            ColorMap,
+            ColorSlider,
+            ColorComponentEditor,
+            ColorPane,
+            MessageDialog,
+            TreeSearchPipe,
+            FixedDropdownDirective,
+            DefaultFocusDirective,
+            FixedDropdownDirective,
+            SizePositionPane,
          ],
-         declarations: [
-            TableViewGeneralPane, TitlePropPane, TreeDropdownComponent,
-            GeneralPropPane, TreeComponent, FormulaEditorDialog, ColorEditor, TableStylePane,
-            BasicGeneralPane, TreeNodeComponent, NewAggrDialog, ColorPicker, ScriptPane,
-            ColorEditorDialog, ColorMap, ColorSlider, ColorComponentEditor, ColorPane,
-            MessageDialog, TreeSearchPipe, FixedDropdownDirective, DefaultFocusDirective,
-            FixedDropdownDirective, SizePositionPane
-         ],
+         
          providers: [
             ChangeDetectorRef, NgbModal, DragService, FixedDropdownService,
             DropdownStackService
@@ -130,7 +139,7 @@ describe("TableViewGeneralPane Unit Test", () => {
    }));
 
    // Bug #10802 should have submit on change checkbox if set to show
-   it("should show submit on change checkbox", (done) => {
+   it("should show submit on change checkbox", () => new Promise<void>((done) => {
       let fixture: ComponentFixture<TableViewGeneralPane> = TestBed.createComponent(TableViewGeneralPane);
       let model: TableViewGeneralPaneModel = createModel();
       model.showSubmitOnChange = true;
@@ -145,5 +154,5 @@ describe("TableViewGeneralPane Unit Test", () => {
          expect(submitOnChangeLabel).toBeTruthy();
          done();
       });
-   });
+   }));
 });

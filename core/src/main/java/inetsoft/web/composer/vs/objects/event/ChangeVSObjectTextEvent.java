@@ -17,12 +17,14 @@
  */
 package inetsoft.web.composer.vs.objects.event;
 
+import java.io.Serializable;
+
 /**
  * Class that encapsulates the parameters for changing the text used in an object.
  *
  * @since 12.3
  */
-public class ChangeVSObjectTextEvent extends VSObjectEvent {
+public class ChangeVSObjectTextEvent extends VSObjectEvent implements Serializable {
    /**
     * Gets the text of the object.
     *

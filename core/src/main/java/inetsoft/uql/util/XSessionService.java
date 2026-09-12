@@ -17,7 +17,7 @@
  */
 package inetsoft.uql.util;
 
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -61,31 +61,6 @@ public class XSessionService {
    public static final String VIEWSHEET = "vs_";
 
    /**
-    * Create a session id.
-    * @param type the specified type.
-    * @param desc the specified description.
-    * @return the created session id.
-    */
-   public static synchronized String createSessionID(String type, String desc) {
-      return getService().createSessionID0(type, desc);
-   }
-
-   /**
-    * Clear cached session manager.
-    */
-   public static synchronized void clear() {
-      SingletonManager.reset(XSessionService.class);
-   }
-
-   /**
-    * Get the session service.
-    * @return the session service.
-    */
-   private static XSessionService getService() {
-      return SingletonManager.getInstance(XSessionService.class);
-   }
-
-   /**
     * Constructor.
     */
    public XSessionService() {
@@ -101,12 +76,20 @@ public class XSessionService {
    }
 
    /**
+    * Get the session service.
+    * @return the session service.
+    */
+   public static XSessionService getService() {
+      return ConfigurationContext.getContext().getSpringBean(XSessionService.class);
+   }
+
+   /**
     * Create a session id.
     * @param type the specified type.
     * @param desc the specified description.
     * @return the created session id.
     */
-   private String createSessionID0(String type, String desc) {
+   public String createSessionID(String type, String desc) {
       AtomicLong counter = smap.get(type);
 
       if(counter == null) {

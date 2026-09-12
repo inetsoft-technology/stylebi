@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { Observable, of as observableOf } from "rxjs";
 import { DataInputPaneModel } from "../../data/vs/data-input-pane-model";
 import { DataInputPane, PopupEmbeddedTable } from "./data-input-pane.component";
@@ -178,8 +179,8 @@ describe("Data Input Pane Popup Table Test", () => {
    let httpService: any;
 
    beforeEach(() => {
-      httpService = { get: jest.fn() };
-      dataInputPane = new DataInputPane(httpService, {} as any);
+      httpService = { get: vi.fn() };
+      dataInputPane = new DataInputPane(httpService, null);
       dataInputPane.model = createModel();
       dataInputPane.runtimeId = "Viewsheet1";
       dataInputPane.variableValues = [];

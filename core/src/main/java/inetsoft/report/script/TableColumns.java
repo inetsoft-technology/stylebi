@@ -21,9 +21,9 @@ import inetsoft.report.*;
 import inetsoft.report.internal.TableElementDef;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.util.script.ArrayObject;
+import inetsoft.util.script.graal.ScriptArrayScope;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
-import org.mozilla.javascript.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +35,7 @@ import java.util.stream.IntStream;
 /**
  * This array represents columns in a table.
  */
-public abstract class TableColumns extends ScriptableObject implements ArrayObject {
+public abstract class TableColumns implements ArrayObject, ScriptArrayScope {
    /**
     * @param property property name, e.g. Object, Background.
     */
@@ -116,28 +116,20 @@ public abstract class TableColumns extends ScriptableObject implements ArrayObje
       }
    }
 
-   @Override
    public String getClassName() {
       return "TableColumns";
    }
 
    @Override
-   public boolean has(String id, Scriptable start) {
+   public boolean hasMember(String id) {
       init();
 
       return id.equals("length") || colmap.containsKey(id) ||
-         colmap2.containsKey(id) || super.has(id, start);
+         colmap2.containsKey(id) || members.containsKey(id);
    }
 
    @Override
-   public boolean has(int index, Scriptable start) {
-      init();
-
-      return 0 <= index && (length0 < 0 || index < length0);
-   }
-
-   @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       init();
 
       if(id.equals("length")) {
@@ -160,12 +152,13 @@ public abstract class TableColumns extends ScriptableObject implements ArrayObje
          }
       }
 
-      return super.get(id, start);
+      return members.get(id);
    }
 
    @Override
-   public Object get(int index, Scriptable start) {
+   public Object getArrayElement(long lindex) {
       init();
+      int index = (int) lindex;
 
       if(getMethod != null) {
          try {
@@ -176,11 +169,26 @@ public abstract class TableColumns extends ScriptableObject implements ArrayObje
          }
       }
 
-      return Undefined.instance;
+      return null;
    }
 
    @Override
-   public void put(String id, Scriptable start, Object value) {
+   public long getArraySize() {
+      init();
+      return Math.max(0, getLength());
+   }
+
+   /**
+    * Set an indexed property in this object. Ported from the Rhino
+    * {@code put(int, Scriptable, Object)}. (#75423)
+    */
+   @Override
+   public void setArrayElement(long index, Object value) {
+      putIndexed((int) index, value);
+   }
+
+   @Override
+   public void putMember(String id, Object value) {
       init();
 
       if(colProp) {
@@ -191,19 +199,18 @@ public abstract class TableColumns extends ScriptableObject implements ArrayObje
          }
 
          if(col >= 0) {
-            put(col, start, value);
+            putIndexed(col, value);
             return;
          }
       }
 
       // Ignore assignments to "length"--it's readonly.
       if(!id.equals("length")) {
-         super.put(id, start, value);
+         members.put(id, value);
       }
    }
 
-   @Override
-   public void put(int index, Scriptable start, Object value) {
+   private void putIndexed(int index, Object value) {
       init();
 
       // don't check for length otherwise it could cause a deadlock
@@ -229,19 +236,7 @@ public abstract class TableColumns extends ScriptableObject implements ArrayObje
    }
 
    @Override
-   public Object getDefaultValue(Class hint) {
-      if(hint == ScriptRuntime.BooleanClass) {
-         return Boolean.TRUE;
-      }
-      else if(hint == ScriptRuntime.NumberClass) {
-         return ScriptRuntime.NaNobj;
-      }
-
-      return this;
-   }
-
-   @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       init();
 
       if(colProp) {
@@ -259,21 +254,6 @@ public abstract class TableColumns extends ScriptableObject implements ArrayObje
       else {
          return IntStream.range(0, getLength()).boxed().toArray();
       }
-   }
-
-   @Override
-   public boolean hasInstance(Scriptable value) {
-      return false;
-   }
-
-   @Override
-   public Scriptable getPrototype() {
-      return prototype;
-   }
-
-   @Override
-   public void setPrototype(Scriptable prototype) {
-      this.prototype = prototype;
    }
 
    /**
@@ -304,7 +284,7 @@ public abstract class TableColumns extends ScriptableObject implements ArrayObje
       return length0;
    }
 
-   private Scriptable prototype;
+   private final Map<String, Object> members = new LinkedHashMap<>();
    private TableLens table;
    private Method setMethod = null;
    private Method getMethod = null;

@@ -15,9 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { ReactiveFormsModule } from "@angular/forms";
 import { RepositoryDataSourceFolderSettingsViewComponent } from "./repository-data-source-folder-settings-view.component";
 
@@ -25,15 +26,12 @@ describe("RepositoryDataSourceFolderSettingsViewComponent", () => {
    let component: RepositoryDataSourceFolderSettingsViewComponent;
    let fixture: ComponentFixture<RepositoryDataSourceFolderSettingsViewComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             HttpClientTestingModule,
-            ReactiveFormsModule
-         ],
-         declarations: [
-            RepositoryDataSourceFolderSettingsViewComponent
-         ],
+            ReactiveFormsModule,
+            RepositoryDataSourceFolderSettingsViewComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

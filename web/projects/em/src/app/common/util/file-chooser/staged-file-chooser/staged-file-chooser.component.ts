@@ -15,27 +15,30 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {
-   HttpClient,
-   HttpEventType,
-   HttpParams,
-   HttpRequest,
-   HttpResponse
-} from "@angular/common/http";
-import { ChangeDetectorRef, Component, Input, OnInit } from "@angular/core";
+import { HttpClient, HttpEventType, HttpParams, HttpRequest, HttpResponse } from "@angular/common/http";
+import { ChangeDetectorRef, Component, HostBinding, Input, OnInit } from "@angular/core";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { Observable, Subject } from "rxjs";
 import { UploadFilesResponse } from "./upload-files-response";
+import { MatProgressBar } from "@angular/material/progress-bar";
+import { MatInput } from "@angular/material/input";
+import { MatFormField } from "@angular/material/form-field";
+import { FormsModule } from "@angular/forms";
+import { MatDivider } from "@angular/material/divider";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatButton } from "@angular/material/button";
+import { MatList, MatListItem } from "@angular/material/list";
+
+import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Component({
-   selector: "em-staged-file-chooser",
-   templateUrl: "./staged-file-chooser.component.html",
-   styleUrls: ["./staged-file-chooser.component.scss"],
-   host: { // eslint-disable-line @angular-eslint/no-host-metadata-property
-      "class": "em-staged-file-chooser"
-   }
+    selector: "em-staged-file-chooser",
+    templateUrl: "./staged-file-chooser.component.html",
+    styleUrls: ["./staged-file-chooser.component.scss"],
+    imports: [MatCard, MatCardHeader, MatCardContent, MatList, MatListItem, MatIconButton, MatIcon, MatDivider, FormsModule, MatFormField, MatInput, MatProgressBar, MatCardActions, MatButton]
 })
 export class StagedFileChooserComponent implements OnInit {
+   @HostBinding("class") hostClass = "em-staged-file-chooser";
    @Input() header: string;
    @Input() accept: string;
    @Input() disabled = false;

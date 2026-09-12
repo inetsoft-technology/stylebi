@@ -18,6 +18,8 @@
 
 package inetsoft.web.security;
 
+import inetsoft.sree.security.AuthenticationService;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.util.ThreadContext;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,6 +30,12 @@ import java.io.IOException;
  * Prevents some requests from refreshing the session (updating lastAccessedTime)
  */
 public class SessionRefreshDisabledFilter extends AbstractSecurityFilter {
+   public SessionRefreshDisabledFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                                       AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
+   }
+
    @Override
    public void doFilter(ServletRequest request, ServletResponse response,
                         FilterChain chain) throws IOException, ServletException

@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.vs.objects.event;
 
-public class VSSetMeasuresEvent extends VSObjectEvent {
+import java.io.Serializable;
+
+public class VSSetMeasuresEvent extends VSObjectEvent implements Serializable {
 
    public void setTextWidth(int textWidth) {
       this.textWidth = textWidth;

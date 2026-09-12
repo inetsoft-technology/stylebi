@@ -28,13 +28,15 @@ import { ComposerCustomMessageModel } from "../../data/composer-custom-message-m
 import { ComposerRecentService } from "../composer-recent.service";
 import { OpenLibraryAssetEvent } from "../../data/open-libraryAsset-event";
 import { GuiTool } from "../../../common/util/gui-tool";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 
 const COMPOSER_CUSTOM_MESSAGE_URI: string = "../api/composer/customMessage";
 
 @Component({
-   selector: "composer-empty-editor",
-   templateUrl: "composer-empty-editor.component.html",
-   styleUrls: ["composer-empty-editor.component.scss"]
+    selector: "composer-empty-editor",
+    templateUrl: "composer-empty-editor.component.html",
+    styleUrls: ["composer-empty-editor.component.scss"],
+    imports: [OutOfZoneDirective]
 })
 export class ComposerEmptyEditor implements OnInit {
    @Output() onOpenSheet = new EventEmitter<OpenSheetEvent>();
@@ -68,7 +70,7 @@ export class ComposerEmptyEditor implements OnInit {
 
    get createWSMessage(): string {
       if(!!this.customMessageModel?.worksheetCreateMessage &&
-         this.customMessageModel.worksheetCreateMessage.trim().length >= 0)
+         this.customMessageModel.worksheetCreateMessage.trim().length > 0)
       {
          return this.customMessageModel?.worksheetCreateMessage;
       }

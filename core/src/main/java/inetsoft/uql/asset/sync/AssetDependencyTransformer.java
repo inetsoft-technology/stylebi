@@ -261,7 +261,7 @@ public class AssetDependencyTransformer extends DependencyTransformer {
       }
 
       if(asset.isQuery() || asset.isLogicModel()) {
-         AssetDataCache.clearCache();
+         AssetDataCache.getCache().clearCache();
          XSessionManager.getSessionManager().clearCache();
       }
 

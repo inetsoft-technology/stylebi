@@ -17,6 +17,8 @@
  */
 package inetsoft.web.security;
 
+import inetsoft.sree.security.AuthenticationService;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 
@@ -26,6 +28,12 @@ import java.io.IOException;
  * Filter that handles logging the user out of the application.
  */
 public class LogoutFilter extends AbstractLogoutFilter {
+   public LogoutFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                       AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
+   }
+
    @Override
    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
       throws IOException, ServletException
@@ -54,9 +62,12 @@ public class LogoutFilter extends AbstractLogoutFilter {
    private void handleSessionExpired(HttpServletRequest request, HttpServletResponse response)
       throws IOException
    {
-      response.sendRedirect(getLogoutRedirectUri(request));
+      // Compute redirect URI before invalidating — getLogoutRedirectUri reads the session principal.
+      String redirectUri = getLogoutRedirectUri(request);
+      logout(request); // invalidates session and releases license slot
+      response.sendRedirect(redirectUri);
    }
 
    public static final String LOGOUT_URI = "/logout";
-   private static final String EXPIRED_URI = "/sessionexpired";
+   public static final String EXPIRED_URI = "/sessionexpired";
 }

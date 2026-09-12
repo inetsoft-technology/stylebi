@@ -59,6 +59,7 @@ export class DataTipService {
    private inited = {}; // track if data tip has been initialized
    private _dataTipChanged = new Subject<void>();
    private _showHideDataTip = new Subject<void>();
+   private _scrolled = new Subject<void>();
 
    constructor(private viewsheetClient: ViewsheetClientService, private zone: NgZone)
    {
@@ -309,5 +310,18 @@ export class DataTipService {
 
    get showHideDataTip(): Subject<void> {
       return this._showHideDataTip;
+   }
+
+   get scrolled(): Subject<void> {
+      return this._scrolled;
+   }
+
+   /**
+    * Notify that the viewer has scrolled so an active data tip on an OnPush
+    * component (e.g. crosstab, table, calc table) can be marked for check to
+    * recompute its position.
+    */
+   notifyScrolled(): void {
+      this._scrolled.next();
    }
 }

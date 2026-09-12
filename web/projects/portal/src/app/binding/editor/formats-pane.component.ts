@@ -33,9 +33,10 @@ import { ComboMode } from "../../widget/dynamic-combo-box/dynamic-combo-box-mode
 import { FontService } from "../../widget/services/font.service";
 
 @Component({
-   selector: "formats-pane",
-   templateUrl: "formats-pane.component.html",
-   styleUrls: ["formats-pane.component.scss"],
+    selector: "formats-pane",
+    templateUrl: "formats-pane.component.html",
+    styleUrls: ["formats-pane.component.scss"],
+    standalone: true,
 })
 export class FormatsPane implements OnInit, OnChanges {
    @HostBinding("hidden")

@@ -22,15 +22,17 @@ import { PresentationSettingsViewComponent } from "./presentation-settings-view.
 
 @Secured({
    route: "/settings/presentation/org-settings",
-   label: "Presentation Org Settings"
+   label: "Presentation Org Settings",
+   requiresMultiTenancy: true
 })
 @ContextHelp({
    route: "/settings/presentation/org-settings",
    link: "EMSettingsPresentation"
 })
 @Component({
-   selector: "em-presentation-org-settings-view",
-   templateUrl: "./presentation-org-settings-view.component.html"
+    selector: "em-presentation-org-settings-view",
+    templateUrl: "./presentation-org-settings-view.component.html",
+    imports: [PresentationSettingsViewComponent]
 })
 export class PresentationOrgSettingsViewComponent {
    @ViewChild("settingsView") settingsView: PresentationSettingsViewComponent;

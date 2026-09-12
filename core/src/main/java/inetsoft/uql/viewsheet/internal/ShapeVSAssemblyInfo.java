@@ -22,6 +22,7 @@ import inetsoft.report.StyleConstants;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.DynamicValue;
 import inetsoft.uql.viewsheet.DynamicValue2;
+import inetsoft.uql.viewsheet.ShapeShadow;
 import inetsoft.util.Tool;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -101,6 +102,25 @@ public class ShapeVSAssemblyInfo extends VSAssemblyInfo implements BaseAnnotatio
    }
 
    /**
+    * Get the drop shadow settings (color, opacity, direction, distance, blur).
+    * Never null; the shadow is only drawn when isShadow() is also true.
+    */
+   public ShapeShadow getShadowInfo() {
+      if(shadowInfo == null) {
+         shadowInfo = new ShapeShadow();
+      }
+
+      return shadowInfo;
+   }
+
+   /**
+    * Set the drop shadow settings.
+    */
+   public void setShadowInfo(ShapeShadow shadowInfo) {
+      this.shadowInfo = shadowInfo == null ? new ShapeShadow() : shadowInfo;
+   }
+
+   /**
     * Get the dynamic property values. Dynamic properties are properties that
     * can be a variable or a script.
     * @return the dynamic values.
@@ -145,6 +165,13 @@ public class ShapeVSAssemblyInfo extends VSAssemblyInfo implements BaseAnnotatio
    protected void writeContents(PrintWriter writer) {
       super.writeContents(writer);
 
+      ShapeShadow shadow0 = getShadowInfo();
+      writer.print("<shadowInfo color=\"" + Tool.escape(shadow0.getColor() + "") +
+                   "\" alpha=\"" + shadow0.getAlpha() +
+                   "\" direction=\"" + Tool.escape(shadow0.getDirection() + "") +
+                   "\" distance=\"" + shadow0.getDistance() +
+                   "\" blur=\"" + shadow0.getBlur() + "\"/>");
+
       if(annotations != null && !annotations.isEmpty()) {
          writer.print("<annotations>");
 
@@ -167,6 +194,20 @@ public class ShapeVSAssemblyInfo extends VSAssemblyInfo implements BaseAnnotatio
    protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
       super.parseContents(elem, isSiteAdminImport);
 
+      // absent for assets saved before shadow settings existed; keep defaults
+      Element snode = Tool.getChildNodeByTagName(elem, "shadowInfo");
+
+      if(snode != null) {
+         ShapeShadow shadow0 = new ShapeShadow();
+         shadow0.setColor(getShadowAttr(snode, "color", ShapeShadow.DEFAULT_COLOR));
+         shadow0.setDirection(getShadowAttr(snode, "direction", ShapeShadow.SOUTH_EAST));
+         shadow0.setAlpha(getShadowIntAttr(snode, "alpha", ShapeShadow.DEFAULT_ALPHA));
+         shadow0.setDistance(
+            getShadowIntAttr(snode, "distance", ShapeShadow.DEFAULT_DISTANCE));
+         shadow0.setBlur(getShadowIntAttr(snode, "blur", ShapeShadow.DEFAULT_BLUR));
+         shadowInfo = shadow0;
+      }
+
       Element anode = Tool.getChildNodeByTagName(elem, "annotations");
 
       if(anode != null) {
@@ -181,6 +222,21 @@ public class ShapeVSAssemblyInfo extends VSAssemblyInfo implements BaseAnnotatio
          }
       }
    }
+   private static String getShadowAttr(Element elem, String name, String def) {
+      String val = Tool.getAttribute(elem, name);
+      return val == null || val.isEmpty() ? def : val;
+   }
+
+   private static int getShadowIntAttr(Element elem, String name, int def) {
+      try {
+         String val = Tool.getAttribute(elem, name);
+         return val == null || val.isEmpty() ? def : Integer.parseInt(val);
+      }
+      catch(NumberFormatException ex) {
+         return def;
+      }
+   }
+
    /**
     * Copy the view part assembly info.
     * @param info the specified viewsheet assembly info.
@@ -193,6 +249,11 @@ public class ShapeVSAssemblyInfo extends VSAssemblyInfo implements BaseAnnotatio
 
       if(!Tool.equals(shadow, cinfo.shadow)) {
          shadow = cinfo.shadow;
+         result = true;
+      }
+
+      if(!Tool.equals(getShadowInfo(), cinfo.getShadowInfo())) {
+         shadowInfo = cinfo.getShadowInfo();
          result = true;
       }
 
@@ -228,6 +289,10 @@ public class ShapeVSAssemblyInfo extends VSAssemblyInfo implements BaseAnnotatio
 
          if(lineStyleValue != null) {
             sinfo.lineStyleValue = (DynamicValue2) lineStyleValue.clone();
+         }
+
+         if(shadowInfo != null) {
+            sinfo.shadowInfo = (ShapeShadow) shadowInfo.clone();
          }
 
          if(scalingRatio != null) {
@@ -326,6 +391,7 @@ public class ShapeVSAssemblyInfo extends VSAssemblyInfo implements BaseAnnotatio
    // view
    private Boolean islocked = false;
    private DynamicValue shadow = new DynamicValue("false", XSchema.BOOLEAN);
+   private ShapeShadow shadowInfo = new ShapeShadow();
    private DynamicValue2 lineStyleValue =
       new DynamicValue2(StyleConstants.THIN_LINE + "", XSchema.INTEGER);
    private DimensionD scalingRatio = new DimensionD(1.0, 1.0);

@@ -504,7 +504,7 @@ public abstract class XDataSource implements Serializable, Cloneable, XMLSeriali
    }
 
    public boolean displayAPIKeyTip() {
-      return !LicenseManager.getInstance().isEnterprise() && Tool.isEmptyString(SreeEnv.getProperty("license.key"));
+      return !LicenseManager.isEnterprise() && Tool.isEmptyString(SreeEnv.getProperty("license.key"));
    }
 
    private String name;

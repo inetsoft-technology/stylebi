@@ -35,7 +35,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const SELECTIONTREE_PROPERTY_URI: string = "composer/vs/selection-tree-property-dialog-model/";
 
 @Directive({
-   selector: "[cSelectionTreeActionHandler]"
+    selector: "[cSelectionTreeActionHandler]",
+    standalone: true
 })
 export class SelectionTreeActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSSelectionTreeModel;

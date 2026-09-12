@@ -26,13 +26,22 @@ import { XSchema } from "../../../common/data/xschema";
 import { OutputCubeModel } from "../../data/vs/output-cube-model";
 import { Tool } from "../../../../../../shared/util/tool";
 import { HttpClient, HttpHeaders, HttpParams } from "@angular/common/http";
+import { FormsModule } from "@angular/forms";
+
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { TreeDropdownComponent } from "../../../widget/tree/tree-dropdown.component";
 
 const TABLE_COLUMNS_URI: string = "../vs/dataOutput/table/columns";
 const CUBE_COLUMNS_URI: string = "../vs/dataOutput/cube/columns";
 
 @Component({
-   selector: "data-output-pane",
-   templateUrl: "data-output-pane.component.html",
+    selector: "data-output-pane",
+    templateUrl: "data-output-pane.component.html",
+    imports: [
+    TreeDropdownComponent,
+    DynamicComboBox,
+    FormsModule
+]
 })
 export class DataOutputPane implements OnInit {
    @Input() runtimeId: string;
@@ -44,6 +53,7 @@ export class DataOutputPane implements OnInit {
    aggregates: any[] = this.getDefaultAggregates();
    twoColumns: boolean = false;
    hasN: boolean = false;
+   npLabel: string = "";
    sqlProvider: boolean = true;
    tableType: string = "";
    currentLabel: string = "";
@@ -208,6 +218,7 @@ export class DataOutputPane implements OnInit {
       }
 
       this.updateColumn2();
+      this.updateNPLabel();
    }
 
    // When the column type is selected, update the column value and aggregates
@@ -470,6 +481,7 @@ export class DataOutputPane implements OnInit {
       }
 
       this.selectAgg(this.model.aggregate ? this.model.aggregate : this.aggregates[0].formulaName);
+      this.updateNPLabel();
    }
 
    updateColumn2(): void {
@@ -546,8 +558,8 @@ export class DataOutputPane implements OnInit {
       return idx >= 0 && this.columns[idx].aggregateCalcField;
    }
 
-   getNPLabel(): string {
-      return AggregateFormula.getNPLabel(this.model.aggregate);
+   private updateNPLabel(): void {
+      this.npLabel = AggregateFormula.getNPLabel(this.model.aggregate);
    }
 
    isNValid(): boolean {

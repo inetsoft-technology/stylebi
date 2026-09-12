@@ -115,7 +115,12 @@ public class UploadController {
             principal, ResourceType.UPLOAD_DRIVERS, "*", ResourceAction.ACCESS);
       }
       else if(uploadType.equals("shape")) {
-         return true;
+         return securityEngine.checkPermission(principal, ResourceType.EM, "*",
+            ResourceAction.ACCESS) &&
+            (securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+               "settings/presentation/settings", ResourceAction.ACCESS) ||
+             securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+               "settings/presentation/org-settings", ResourceAction.ACCESS));
       }
       else {
          return securityEngine.checkPermission(principal, ResourceType.EM, "*",
@@ -137,19 +142,9 @@ public class UploadController {
    }
 
    private UploadedFile uploadFile(MultipartFile upload) {
-      File file = FileSystemService.getInstance().getCacheTempFile("upload", ".dat");
-      file.deleteOnExit();
-
-      try(FileOutputStream out = new FileOutputStream(file)) {
-         out.write(upload.getBytes());
-      }
-      catch(IOException e) {
-         throw new RuntimeException("Failed to copy upload to local file system", e);
-      }
-
       return UploadedFile.builder()
          .fileName(Objects.requireNonNull(upload.getOriginalFilename()))
-         .file(file)
+         .multipartFile(upload)
          .build();
    }
 

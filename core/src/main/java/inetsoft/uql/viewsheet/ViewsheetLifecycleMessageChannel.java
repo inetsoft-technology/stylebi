@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.viewsheet;
 
+import inetsoft.util.ConfigurationContext;
+
 import java.util.*;
 
 /**

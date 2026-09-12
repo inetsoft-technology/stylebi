@@ -16,22 +16,25 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, OnChanges, Output, SimpleChanges } from "@angular/core";
-import {
-   FormGroupDirective,
-   NgForm,
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   Validators
-} from "@angular/forms";
-import {ErrorStateMatcher} from "@angular/material/core";
+import { FormGroupDirective, NgForm, UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { ErrorStateMatcher, MatOption } from "@angular/material/core";
 import {GuiTool} from "../../../../../../../portal/src/app/common/util/gui-tool";
 import {CSVConfigModel} from "../../../../../../../shared/schedule/model/csv-config-model";
 import {ExportFormatModel} from "../../../../../../../shared/schedule/model/export-format-model";
 import {FormValidators} from "../../../../../../../shared/util/form-validators";
 import {DashboardOptions} from "../../model/dashboard-options";
 import {ReportOptions} from "../../model/reports-options";
-import {BurstEmailDialogData} from "../burst-email-dialog/burst-email-dialog.component";
+import { MatCkeditorComponent } from "../../../../common/util/mat-ckeditor/mat-ckeditor.component";
+import { EmCSVConfigPaneComponent } from "../em-csv-config-pane.component";
+import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
+import { MatSelect } from "@angular/material/select";
+import { EmailPickerComponent } from "../../../email-picker/email-picker.component";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardHeader, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 export interface DeliveryEmails {
    valid: boolean;
@@ -39,8 +42,6 @@ export interface DeliveryEmails {
    sender: string;
    recipients: string;
    subject: string;
-   burstEmails: string;
-   burstQueryType: string;
    bundledAsZip: boolean;
    useCredential: boolean;
    secretId: string;
@@ -59,9 +60,10 @@ export interface DeliveryEmails {
 }
 
 @Component({
-   selector: "em-delivery-emails",
-   templateUrl: "./delivery-emails.component.html",
-   styleUrls: ["./delivery-emails.component.scss"]
+    selector: "em-delivery-emails",
+    templateUrl: "./delivery-emails.component.html",
+    styleUrls: ["./delivery-emails.component.scss"],
+    imports: [NgIf, MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, MatCardContent, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, EmailPickerComponent, MatSelect, MatOption, MatRadioGroup, MatRadioButton, EmCSVConfigPaneComponent, MatCkeditorComponent]
 })
 export class DeliveryEmailsComponent implements OnInit, OnChanges {
    @Input() enabled: boolean = false;
@@ -96,15 +98,6 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
 
    get bccAddress(): string {
       return this.form.get("bccAddress").value;
-   }
-
-   @Input()
-   set burstEmails(burstEmails: string) {
-      this.form.get("burstEmails").setValue(!burstEmails ? null : burstEmails);
-   }
-
-   get burstEmails(): string {
-      return this.form.get("burstEmails").value;
    }
 
    @Input()
@@ -279,14 +272,12 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
    form: UntypedFormGroup;
    isIE = GuiTool.isIE();
    errorStateMatcher: ErrorStateMatcher;
-   burstQueryType: string;
 
    constructor(fb: UntypedFormBuilder, defaultErrorMatcher: ErrorStateMatcher) {
       this.form = fb.group(
          {
             sender: ["", [Validators.required, Validators.email]],
             recipients: [""],
-            burstEmails: [""],
             subject: [""],
             format: ["", [Validators.required]],
             emailMatchLayout: [true],
@@ -421,18 +412,18 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
       this.togglePasswordForm(true);
    }
 
-   changeEmails(data: string | BurstEmailDialogData) {
-      this.recipients = <string> data;
+   changeEmails(data: string) {
+      this.recipients = data;
       this.fireDeliveryChanged();
    }
 
-   changeCCEmails(data: string | BurstEmailDialogData) {
-      this.ccAddress = <string> data;
+   changeCCEmails(data: string) {
+      this.ccAddress = data;
       this.fireDeliveryChanged();
    }
 
-   changeBCCEmails(data: string | BurstEmailDialogData) {
-      this.bccAddress = <string> data;
+   changeBCCEmails(data: string) {
+      this.bccAddress = data;
       this.fireDeliveryChanged();
    }
 
@@ -444,8 +435,6 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
          enabled: this.enabled,
          sender: this.sender,
          recipients: this.recipients,
-         burstEmails: !this.enabled ? null : this.burstEmails,
-         burstQueryType: this.burstQueryType,
          subject: this.subject,
          bundledAsZip: this.bundledAsZip,
          useCredential: this.useCredential,
@@ -466,13 +455,17 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
    }
 
    private isValid(): boolean {
-      if(this.format == "CSV" && this.type === "viewsheet" &&
+      if(!this.enabled) {
+         return true;
+      }
+
+      if(this.format === "CSV" && this.type === "viewsheet" &&
          this.csvExportModel?.selectedAssemblies?.length == 0)
       {
          return false;
       }
 
-      return !this.enabled || this.form.valid;
+      return this.form.valid;
    }
 
    private initVerifyZipPassword() {

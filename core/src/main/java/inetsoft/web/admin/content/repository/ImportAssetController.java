@@ -17,42 +17,34 @@
  */
 package inetsoft.web.admin.content.repository;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import inetsoft.sree.RepositoryEntry;
-import inetsoft.sree.internal.DeployManagerService;
-import inetsoft.sree.internal.DeploymentInfo;
-import inetsoft.sree.security.*;
-import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.asset.AssetRepository;
-import inetsoft.util.*;
-import inetsoft.web.admin.content.repository.model.ExportedAssetsModel;
-import inetsoft.web.admin.content.repository.model.ImportAssetResponse;
-import inetsoft.web.admin.deploy.*;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.model.FileData;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.*;
-import java.lang.invoke.MethodHandles;
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 
 @RestController
 public class ImportAssetController {
-   public ImportAssetController(DeployService deployService) {
-      this.deployService = deployService;
-      this.importCache = Caffeine.newBuilder()
-         .expireAfterAccess(10L, TimeUnit.MINUTES)
-         .maximumSize(1000L)
-         .build();
+   @Autowired
+   public ImportAssetController(ImportAssetServiceProxy importService, Cluster cluster) {
+      this.importService = importService;
+      this.cluster = cluster;
+   }
+
+   @PostConstruct
+   public void initializeCache() {
+      // ensure that the cache is initialized because ImportAssetService may be lazily initialized
+      // in a different order than the controller and proxy
+      cluster.registerSpringProxyPartitionedCache(ImportAssetService.CACHE_NAME);
+      cluster.getCache(ImportAssetService.CACHE_NAME);
    }
 
    @Secured(
@@ -63,26 +55,11 @@ public class ImportAssetController {
       )
    )
    @PostMapping("/api/em/content/repository/set-jar-file")
-   public ExportedAssetsModel setJarFile(
-      @RequestBody FileData file, HttpServletRequest request,
-      Principal principal) throws Exception
+   public ExportedAssetsModel setJarFile(@RequestBody FileData file, Principal principal)
+      throws Exception
    {
-      FileSystemService fileService = FileSystemService.getInstance();
-      File temp = fileService.getCacheTempFile("import", "zip");
-      fileService.remove(temp, 600000);
-
-      try(OutputStream output = new FileOutputStream(temp)) {
-         ByteArrayInputStream input =
-            new ByteArrayInputStream(Base64.getDecoder().decode(file.content()));
-         Tool.copyTo(input, output);
-      }
-
-      ImportJarProperties properties = deployService.setJarFile(temp.getAbsolutePath(), false);
-      request.getSession(true).setAttribute(PROPS_ATTR, properties);
-
-      boolean isImportAsSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
-
-      return getJarInfo(null, request, principal, isImportAsSiteAdmin);
+      String importId = UUID.randomUUID().toString();
+      return importService.setJarFile(importId, file, principal);
    }
 
    @Secured(
@@ -92,25 +69,16 @@ public class ImportAssetController {
          actions = ResourceAction.ACCESS
       )
    )
-   @GetMapping("/api/em/content/repository/update-import-info")
+   @GetMapping("/api/em/content/repository/update-import-info/{importId}")
    public ExportedAssetsModel updateImportInfo(
-      HttpServletRequest request,
+      @PathVariable("importId") String importId,
       @RequestParam(name = "targetLocation") String targetLocation,
       @RequestParam(name = "locationType") Integer locationType,
       @RequestParam(name = "locationUser", required = false) String locationUser,
       Principal principal) throws Exception
    {
-      IdentityID locationUserID = IdentityID.getIdentityIDFromKey(locationUser);
-      AssetEntry targetFolder = targetLocation != null && locationType != null ?
-         createImportTargetFolderEntry(targetLocation, locationType, locationUserID) : null;
-      final ImportTargetFolderInfo targetFolderInfo = targetFolder == null ? null :
-         new ImportTargetFolderInfo(targetFolder, true);
-
-      if(targetFolderInfo == null) {
-         return null;
-      }
-
-      return getJarInfo(targetFolderInfo, request, principal);
+      return importService.updateImportInfo(
+         importId, targetLocation, locationType, locationUser, principal);
    }
 
    @Secured(
@@ -120,12 +88,11 @@ public class ImportAssetController {
          actions = ResourceAction.ACCESS
       )
    )
-   @GetMapping("/api/em/content/repository/get-jar-file-info")
-   public ExportedAssetsModel getJarFileInfo(
-      HttpServletRequest request,
-      Principal principal)  throws Exception
+   @GetMapping("/api/em/content/repository/get-jar-file-info/{importId}")
+   public ExportedAssetsModel getJarFileInfo(@PathVariable("importId") String importId,
+                                             Principal principal)  throws Exception
    {
-      return getJarInfo(null, request, principal);
+      return importService.getJarFileInfo(importId, principal);
    }
 
    @Secured(
@@ -135,83 +102,18 @@ public class ImportAssetController {
          actions = ResourceAction.ACCESS
       )
    )
-   @PostMapping("/api/em/content/repository/import/{overwriting}")
-   public ImportAssetResponse importAsset(
-      HttpServletRequest req, Principal principal,
-      @RequestParam(name = "importId", required = false) String importId,
+   @GetMapping("/api/em/content/repository/import-bookmark-conflicts/{importId}")
+   public List<BookmarkConflict> getBookmarkConflicts(
+      @PathVariable("importId") String importId,
       @RequestParam(name = "targetLocation", required = false) String targetLocation,
       @RequestParam(name = "locationType", required = false) Integer locationType,
       @RequestParam(name = "locationUser", required = false) String locationUser,
       @RequestParam(name = "dependenciesApplyTarget", defaultValue = "true") Boolean dependenciesApplyTarget,
-      @RequestBody() List<String> ignoreList,
-      @PathVariable("overwriting") boolean overwriting) throws Exception
+      @RequestParam(name = "ignoreList", required = false) List<String> ignoreList,
+      Principal principal) throws Exception
    {
-      if(principal instanceof SRPrincipal && ((SRPrincipal) principal).isSelfOrganization()) {
-         ArrayList<String> errors = new ArrayList<>();
-         errors.add(Catalog.getCatalog().getString("em.import.ignoreSelfImport"));
-         return ImportAssetResponse.builder()
-            .failedAssets(errors)
-            .failed(true).build();
-      }
-
-      IdentityID locationUserID = IdentityID.getIdentityIDFromKey(locationUser);
-
-      if(importId != null) {
-         CompletableFuture<ImportAssetResponse> future = importCache.getIfPresent(importId);
-
-         if(future != null) {
-            if(future.isDone()) {
-               importCache.invalidate(importId);
-               return future.get();
-            }
-            else {
-               return ImportAssetResponse.builder().complete(false).build();
-            }
-         }
-      }
-
-      HttpSession session = req.getSession(true);
-      PartialDeploymentJarInfo info = (PartialDeploymentJarInfo) session.getAttribute(INFO_ATTR);
-      ImportJarProperties properties = (ImportJarProperties) session.getAttribute(PROPS_ATTR);
-      DeploymentInfo deploymentInfo = new DeploymentInfo(info, properties);
-      session.removeAttribute(INFO_ATTR);
-      session.removeAttribute(PROPS_ATTR);
-
-      if(info == null) {
-         LOG.warn("Current session is missing the imported jar info.");
-         return ImportAssetResponse.builder().failed(true).build();
-      }
-
-      AssetEntry targetFolder = targetLocation != null && locationType != null ?
-         createImportTargetFolderEntry(targetLocation, locationType, locationUserID) : null;
-      final ImportTargetFolderInfo targetFolderInfo = targetFolder == null ? null :
-         new ImportTargetFolderInfo(targetFolder, dependenciesApplyTarget);
-
-      if(importId == null) {
-         return deployService.importAsset(deploymentInfo, ignoreList, overwriting,
-            targetFolderInfo, principal);
-      }
-      else if(importCache.getIfPresent(importId) == null) {
-         CompletableFuture<ImportAssetResponse> future = new CompletableFuture<>();
-         importCache.put(importId, future);
-         ThreadPool.addOnDemand(() -> {
-            Principal oPrincipal = ThreadContext.getPrincipal();
-            ThreadContext.setPrincipal(principal);
-
-            try {
-               ImportAssetResponse response = deployService.importAsset(
-                  deploymentInfo, ignoreList, overwriting, targetFolderInfo, principal);
-               future.complete(response);
-            }
-            catch(Exception e) {
-               future.completeExceptionally(e);
-            }
-
-            ThreadContext.setPrincipal(oPrincipal);
-         });
-      }
-
-      return ImportAssetResponse.builder().complete(false).build();
+      return importService.getBookmarkConflicts(importId, targetLocation, locationType,
+         locationUser, dependenciesApplyTarget, ignoreList, principal);
    }
 
    @Secured(
@@ -221,85 +123,44 @@ public class ImportAssetController {
          actions = ResourceAction.ACCESS
       )
    )
-   @GetMapping("/api/em/content/repository/import/clear-cache")
-   public void importFinish(HttpServletRequest req) {
-      HttpSession session = req.getSession(false);
-
-      if(session == null) {
-         return;
-      }
-
-      ImportJarProperties properties = (ImportJarProperties) session.getAttribute(PROPS_ATTR);
-
-      if(properties == null) {
-         return;
-      }
-
-      String cacheFolder = properties.unzipFolderPath();
-      Tool.deleteFile(new File(cacheFolder));
-   }
-
-   private AssetEntry createImportTargetFolderEntry(String targetLocation, Integer locationType,
-                                                    IdentityID locationUser)
+   @PostMapping("/api/em/content/repository/import/{importId}")
+   public ImportAssetResponse importAsset(
+      @PathVariable("importId") String importId,
+      @RequestParam(name = "targetLocation", required = false) String targetLocation,
+      @RequestParam(name = "locationType", required = false) Integer locationType,
+      @RequestParam(name = "locationUser", required = false) String locationUser,
+      @RequestParam(name = "dependenciesApplyTarget", defaultValue = "true") Boolean dependenciesApplyTarget,
+      @RequestBody ImportAssetRequest importRequest,
+      @RequestParam("overwrite") boolean overwriting,
+      @RequestParam("background") boolean background, Principal principal) throws Exception
    {
-      boolean userScope = locationUser != null && !Tool.isEmptyString(locationUser.name) &&
-         !"__NULL__".equals(locationUser.name);
-      int scope = userScope ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
+      List<String> ignoreList = importRequest.getIgnoreList();
 
-      if((RepositoryEntry.FOLDER & locationType) != RepositoryEntry.FOLDER) {
-         return null;
-      }
-
-      if((RepositoryEntry.REPOSITORY & locationType) == RepositoryEntry.REPOSITORY ||
-         (RepositoryEntry.USER & locationType) == RepositoryEntry.USER ||
-         RepositoryEntry.FOLDER  == locationType)
-      {
-         return new AssetEntry(scope, AssetEntry.Type.REPOSITORY_FOLDER, targetLocation,
-            locationUser);
-      }
-      else if((RepositoryEntry.WORKSHEET_FOLDER & locationType) == RepositoryEntry.WORKSHEET_FOLDER)
-      {
-         return new AssetEntry(scope, AssetEntry.Type.FOLDER, targetLocation,
-            locationUser);
-      }
-      else if((RepositoryEntry.DATA_SOURCE_FOLDER & locationType) ==
-         RepositoryEntry.DATA_SOURCE_FOLDER)
-      {
-         return new AssetEntry(scope, AssetEntry.Type.DATA_SOURCE_FOLDER, targetLocation,
-            locationUser);
+      Map<String, Boolean> resolutionMap = new HashMap<>();
+      for(BookmarkConflictResolution r : importRequest.getBookmarkResolutions()) {
+         if(!r.isKeepImported()) {
+            String key = r.getViewsheetPath() + "|" + r.getUser() + "|" + r.getBookmarkName();
+            resolutionMap.put(key, Boolean.FALSE);
+         }
       }
 
-      return null;
+      return importService.importAsset(
+         importId, targetLocation, locationType, locationUser, dependenciesApplyTarget, ignoreList,
+         overwriting, background, principal, resolutionMap);
    }
 
-   private ExportedAssetsModel getJarInfo(ImportTargetFolderInfo targetFolderInfo,
-                                          HttpServletRequest request, Principal principal)
-      throws Exception
-   {
-      return getJarInfo(targetFolderInfo, request, principal, false);
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
+   @DeleteMapping("/api/em/content/repository/import/{importId}")
+   public void finishImport(@PathVariable("importId") String importId) {
+      importService.finishImport(importId);
    }
 
-   private ExportedAssetsModel getJarInfo(ImportTargetFolderInfo targetFolderInfo,
-                                          HttpServletRequest request, Principal principal, boolean isImportAsSiteAdmin)
-      throws Exception
-   {
-      HttpSession session = request.getSession(true);
-      ImportJarProperties properties = (ImportJarProperties) session.getAttribute(PROPS_ATTR);
-      PartialDeploymentJarInfo info = DeployManagerService.getInfo(properties.unzipFolderPath(), isImportAsSiteAdmin);
-
-      if(info == null) {
-         throw new RuntimeException("Failed to get Jar info from " + properties.unzipFolderPath());
-      }
-
-      session.setAttribute(INFO_ATTR, info);
-      DeploymentInfo deploymentInfo = new DeploymentInfo(info, properties);
-
-      return deployService.getJarFileInfo(deploymentInfo, targetFolderInfo, principal);
-   }
-
-   private final DeployService deployService;
-   private final Cache<String, CompletableFuture<ImportAssetResponse>> importCache;
-   private static final String PROPS_ATTR = "__private_deployJarProperties";
-   private static final String INFO_ATTR = "__private_deployJarInfo";
-   private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+   private final ImportAssetServiceProxy importService;
+   private final Cluster cluster;
 }

@@ -18,26 +18,31 @@
 package inetsoft.report.script;
 
 import inetsoft.report.*;
+import inetsoft.report.filter.CalcFilter;
+import inetsoft.report.filter.CrossFilter;
 import inetsoft.report.internal.*;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.lens.SubTableLens;
+import inetsoft.report.internal.Util;
 import inetsoft.report.script.formula.CellRange;
 import inetsoft.uql.XTable;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ArrayObject;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptArrayScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.lang.reflect.Method;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This represents an array of table rows.
  */
-public class TableArray extends ScriptableObject implements ArrayObject, Wrapper {
+public class TableArray implements ArrayObject, ScriptArrayScope {
    /**
     * Create a table array directly from a table.
     */
@@ -65,19 +70,90 @@ public class TableArray extends ScriptableObject implements ArrayObject, Wrapper
       return null;
    }
 
-   @Override
    public String getClassName() {
       return "Table";
    }
 
    @Override
-   public boolean has(String id, Scriptable start) {
-      return id.equals("length") || id.equals("size") || super.has(id, start);
+   public boolean hasMember(String id) {
+      if(id == null) {
+         return false;
+      }
+
+      if(id.equals("length") || id.equals("size") || members.containsKey(id)) {
+         return true;
+      }
+
+      XTable lens = getTable();
+
+      if(lens == null) {
+         return false;
+      }
+
+      // Unlike Rhino (whose get() was always invoked on read), GraalJS only
+      // calls getMember when hasMember reports the member present. A calc cell
+      // formula reads columns dynamically as data['Col'] (and data['Col@grp?cond'],
+      // data['*@...']) which are resolved lazily in getMember. Report those as
+      // present so the read is dispatched — otherwise data['Col'] reads as
+      // undefined and group expansion collapses to zero rows. Mirrors the
+      // column-existence check in TableRow.hasMember. (#75423)
+      //
+      // The leading '=' (expression, e.g. table['=state + ", " + id']) and '{}'
+      // (summary, e.g. table['{Sum(id)}']) forms are also resolved lazily in
+      // getMember via NamedCellRange -- Util.findColumn can never match them as
+      // literal columns, so they must be reported present here too, otherwise the
+      // reference resolves to undefined and indexing it (e.g. [row]) throws. (#75662)
+      if(id.indexOf('@') >= 0 || id.indexOf('?') >= 0 || id.indexOf(':') >= 0 ||
+         id.indexOf("^_^") >= 0 || id.startsWith("*") ||
+         id.startsWith("=") || id.startsWith("{"))
+      {
+         return true;
+      }
+
+      // A crosstab flattens its own row/col dimension values into headers, so a bare
+      // reference to the dimension's name (e.g. data['city']) never appears as literal
+      // column/header text and Util.findColumn below can't find it -- only the
+      // dimension's values (e.g. "Aachen") do. Defer to getMember, which resolves
+      // dimension names directly against the crosstab (see NamedCellRange), but only
+      // for ids that actually name a row/col dimension -- a genuinely nonexistent
+      // property should still report absent, not be over-claimed as present.
+      if(lens instanceof CrossFilter && isCrosstabDimension((CrossFilter) lens, id)) {
+         return true;
+      }
+
+      // A bare (unqualified) reference to one of the crosstab's own measure/aggregate
+      // names, e.g. data['Sum(category_id)'] with no "@group:value" qualifier -- as
+      // generated for a calc table's grand-total cell, which has no row/col group to
+      // qualify with. The measure name never appears as a literal column header either
+      // (it varies per data cell path, not per fixed column), so without this check
+      // Util.findColumn below fails to find it, hasMember() reports it absent, and
+      // GraalJS never calls getMember() at all -- the reference silently resolves to
+      // undefined instead of dispatching to NamedCellRange/CrosstabGroupSelector, which
+      // do know how to resolve it.
+      if(lens instanceof CalcFilter && ((CalcFilter) lens).getMeasureHeaders().contains(id)) {
+         return true;
+      }
+
+      return Util.findColumn(lens, id) >= 0;
    }
 
-   @Override
-   public boolean has(int index, Scriptable start) {
-      return getTable() != null && min <= index && getTable().moreRows(index);
+   /**
+    * Check if id names one of the crosstab's own row or column dimensions.
+    */
+   private static boolean isCrosstabDimension(CrossFilter table, String id) {
+      for(int i = 0; i < table.getRowHeaderCount(); i++) {
+         if(Tool.equals(table.getRowHeader(i), id)) {
+            return true;
+         }
+      }
+
+      for(int i = 0; i < table.getColHeaderCount(); i++) {
+         if(Tool.equals(table.getColHeader(i), id)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -88,7 +164,7 @@ public class TableArray extends ScriptableObject implements ArrayObject, Wrapper
     * - *@groups?condition (sub table)
     */
    @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       if(id.equals("length")) {
          XTable lens = getTable();
 
@@ -113,6 +189,7 @@ public class TableArray extends ScriptableObject implements ArrayObject, Wrapper
          CellRange range = CellRange.parse(id);
          id = Tool.replaceAll(id, "^_^", ":");
          range.setProcessCalc(calcArray);
+         range.setBaseTableReference(isBaseTableReference());
          boolean subtable = id.startsWith("*");
          Collection cells = range.getCells(getTable(), subtable);
 
@@ -156,7 +233,15 @@ public class TableArray extends ScriptableObject implements ArrayObject, Wrapper
                }
             };
 
-            return new TableArray(sub);
+            // Propagate the base-table-reference flag so a chained column access
+            // on the returned subtable (e.g. table['*']['col']) keeps reading flat
+            // rather than re-routing through crosstab/grouped summary cells. (#75663)
+            return new TableArray(sub) {
+               @Override
+               protected boolean isBaseTableReference() {
+                  return TableArray.this.isBaseTableReference();
+               }
+            };
          }
          else {
             return range.getCollectionValue(cells, calcArray);
@@ -166,7 +251,7 @@ public class TableArray extends ScriptableObject implements ArrayObject, Wrapper
          LOG.warn("Failed to get table property: " + id, ex);
       }
 
-      return super.get(id, start);
+      return members.get(id);
    }
 
    /**
@@ -183,7 +268,8 @@ public class TableArray extends ScriptableObject implements ArrayObject, Wrapper
    }
 
    @Override
-   public Object get(int index, Scriptable start) {
+   public Object getArrayElement(long lindex) {
+      int index = (int) lindex;
       XTable lens = getTable();
 
       if(lens != null && min <= index && lens.moreRows(index)) {
@@ -224,14 +310,35 @@ public class TableArray extends ScriptableObject implements ArrayObject, Wrapper
          }
       }
 
-      return Undefined.instance;
+      return null;
    }
 
    @Override
-   public void put(String id, Scriptable start, Object value) {
+   public long getArraySize() {
+      XTable lens = getTable();
+
+      if(lens == null) {
+         return 0;
+      }
+
+      lens.moreRows(Integer.MAX_VALUE);
+      return lens.getRowCount();
+   }
+
+   /**
+    * Set an indexed property in this object. Ported from the Rhino
+    * {@code put(int, Scriptable, Object)}, which was a no-op. (#75423)
+    */
+   @Override
+   public void setArrayElement(long index, Object value) {
+      // do nothing
+   }
+
+   @Override
+   public void putMember(String id, Object value) {
       // Ignore assignments to "length"--it's readonly.
       if(!id.equals("length") && !id.equals("size")) {
-         super.put(id, start, value);
+         members.put(id, value);
       }
       else {
          XTable lens = getTable();
@@ -250,24 +357,7 @@ public class TableArray extends ScriptableObject implements ArrayObject, Wrapper
    }
 
    @Override
-   public void put(int index, Scriptable start, Object value) {
-   }
-
-   @Override
-   public Object getDefaultValue(Class hint) {
-      if(hint == ScriptRuntime.BooleanClass) {
-         return Boolean.TRUE;
-      }
-
-      if(hint == ScriptRuntime.NumberClass) {
-         return ScriptRuntime.NaNobj;
-      }
-
-      return this;
-   }
-
-   @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       XTable lens = getTable();
       int length = 0;
 
@@ -288,19 +378,15 @@ public class TableArray extends ScriptableObject implements ArrayObject, Wrapper
       return result;
    }
 
-   @Override
-   public boolean hasInstance(Scriptable value) {
+   /**
+    * Check whether this array is a worksheet table referenced by name from a
+    * script (e.g. {@code table['col']}). Subclasses that represent a by-name
+    * worksheet table override this so a bare column reference reads the table's
+    * column values as a flat table instead of grouped/crosstab summary cells.
+    * (#75663)
+    */
+   protected boolean isBaseTableReference() {
       return false;
-   }
-
-   @Override
-   public Scriptable getPrototype() {
-      return prototype;
-   }
-
-   @Override
-   public void setPrototype(Scriptable prototype) {
-      this.prototype = prototype;
    }
 
    /**
@@ -314,7 +400,6 @@ public class TableArray extends ScriptableObject implements ArrayObject, Wrapper
     * Unwrap the object by returning the wrapped value.
     * @return a wrapped value
     */
-   @Override
    public Object unwrap() {
       return getTable();
    }
@@ -374,7 +459,7 @@ public class TableArray extends ScriptableObject implements ArrayObject, Wrapper
    private static final int MAX_ROWS = 100;
    protected boolean data = false; // true if use data (non-filter) table
 
-   private Scriptable prototype;
+   protected final Map<String, Object> members = new LinkedHashMap<>();
    private XTable table = null; // table lens
    private TableRow[] rows = new TableRow[MAX_ROWS]; // cached TableRow
    private int rowsStartIdx = 0; // starting row index corresponds to rows[0]

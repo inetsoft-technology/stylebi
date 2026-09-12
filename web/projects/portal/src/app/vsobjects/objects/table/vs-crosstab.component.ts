@@ -54,7 +54,7 @@ import { DebounceService } from "../../../widget/services/debounce.service";
 import { ModelService } from "../../../widget/services/model.service";
 import { ScaleService } from "../../../widget/services/scale/scale-service";
 import { DialogService } from "../../../widget/slide-out/dialog-service.service";
-import { CrosstabActions } from "../../action/crosstab-actions";
+import { CrosstabActions, getCrosstabDrillDirection } from "../../action/crosstab-actions";
 import { ClearSelectionCommand } from "../../command/clear-selection-command";
 import { LoadTableDataCommand } from "../../command/load-table-data-command";
 import { ContextProvider } from "../../context-provider.service";
@@ -86,6 +86,20 @@ import { ShowHideCrosstabColumnsEvent } from "../../event/show-hide-crosstab-col
 import { PagingControlModel } from "../../model/paging-control-model";
 import { PagingControlService } from "../../../common/services/paging-control.service";
 import { VSTabService } from "../../util/vs-tab.service";
+import { VSPreviewTable } from "./vs-preview-table.component";
+import { VSLoadingDisplay } from "../vs-loading-display/vs-loading-display.component";
+import { VSAnnotation } from "../annotation/vs-annotation.component";
+import { VSHiddenAnnotation } from "../annotation/vs-hidden-annotation.component";
+import { TouchScrollDirective } from "../../../widget/scroll/touch-scroll.directive";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { VSSimpleCell } from "./vs-simple-cell.component";
+import { SelectionBoxDirective } from "../../../widget/directive/selection-box.directive";
+import { VSTitle } from "../title/vs-title.component";
+import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+
 
 const CROSSTAB_ACTION_DRILL = "/events/crosstab/action/drill";
 const CROSSTAB_DRILL_CELLS_URI = "/events/table/drill/cells";
@@ -96,10 +110,11 @@ const DATE_COMPARISON_CLEAR_URI: string = "composer/vs/date-comparison-dialog-mo
 const SCRIPT_TREE_URL: string = "../api/vsscriptable/scriptTree";
 
 @Component({
-   selector: "vs-crosstab",
-   templateUrl: "vs-crosstab.component.html",
-   styleUrls: ["base-table.scss", "vs-crosstab.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "vs-crosstab",
+    templateUrl: "vs-crosstab.component.html",
+    styleUrls: ["base-table.scss", "vs-crosstab.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, TooltipDirective, VSTitle, NgbTooltip, SelectionBoxDirective, VSSimpleCell, SafeFontDirective, VSTableCell, TouchScrollDirective, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay, VSPreviewTable]
 })
 export class VSCrosstab extends BaseTable<VSCrosstabModel> implements OnInit, OnChanges, OnDestroy {
    @Input() set model(model: VSCrosstabModel) {
@@ -949,7 +964,7 @@ export class VSCrosstab extends BaseTable<VSCrosstabModel> implements OnInit, On
             }
          }
 
-         if(!this.mobileDevice && this.model.dataTip && this.model.isTipOnClick) {
+         if(tip.length != 0 && !this.mobileDevice && this.model.dataTip && this.model.isTipOnClick) {
             tip += "_#(js:composer.graph.ctrlSelect)";
          }
 
@@ -1399,19 +1414,13 @@ export class VSCrosstab extends BaseTable<VSCrosstabModel> implements OnInit, On
          drillEvent = DrillEvent.builder(model.absoluteName)
             .row(c.row)
             .col(c.col)
-            .direction(VSCrosstab.getDrillDirection(model, c.row, c.col))
+            .direction(getCrosstabDrillDirection(model, c.row, c.col))
             .drillOp(isDrillUp ? ChartConstants.DRILL_UP_OP : ChartConstants.DRILL_DOWN_OP)
             .drillAll(!drillField)
             .field(c.field)
             .build();
          events.push(drillEvent);
       });
-   }
-
-   public static getDrillDirection(model: VSCrosstabModel, row: number, col: number): string {
-      return row >= model.headerRowCount && col < model.headerColCount
-         ? ChartConstants.DRILL_DIRECTION_Y
-         : ChartConstants.DRILL_DIRECTION_X;
    }
 
    private drillAction(isDrillUp: boolean = false): void {

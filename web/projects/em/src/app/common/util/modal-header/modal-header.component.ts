@@ -16,11 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input } from "@angular/core";
+import { HelpLinkDirective } from "../../../help/help-link.directive";
+
 
 @Component({
-   selector: "em-modal-header",
-   templateUrl: "./modal-header.component.html",
-   styleUrls: ["./modal-header.component.scss"]
+    selector: "em-modal-header",
+    templateUrl: "./modal-header.component.html",
+    styleUrls: ["./modal-header.component.scss"],
+    imports: [HelpLinkDirective]
 })
 export class ModalHeaderComponent {
    @Input() title: string = "";

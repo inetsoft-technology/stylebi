@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf, Subject } from "rxjs";
@@ -68,25 +68,32 @@ describe("Table Advanced Pane Unit Test", () => {
    let fixture: ComponentFixture<TableAdvancedPane>;
    let advancedPane: TableAdvancedPane;
 
-   beforeEach(async(() => {
-      let modelService = { getModel: jest.fn() };
+   beforeEach(waitForAsync(() => {
+      let modelService = { getModel: vi.fn() };
       modelService.getModel.mockImplementation(() => observableOf([]));
       let uiContextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn(),
-         getObjectChange: jest.fn()
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn(),
+         getObjectChange: vi.fn()
       };
       uiContextService.getObjectChange.mockImplementation(() => new Subject<any>().asObservable());
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            TableAdvancedPane,
+            TipPane,
+            TipCustomizeDialog,
+            AlphaDropdown,
+            FixedDropdownDirective,
+            LargeFormFieldComponent,
          ],
-         declarations: [
-            TableAdvancedPane, TipPane, TipCustomizeDialog, AlphaDropdown, FixedDropdownDirective, LargeFormFieldComponent
-         ],
+         
          providers: [
             NgbModal, DebounceService,
             {provide: ModelService, useValue: modelService},
@@ -101,7 +108,7 @@ describe("Table Advanced Pane Unit Test", () => {
       fixture.detectChanges();
    }));
 
-   it("test disable and enable status on advanced pane", (done) => {
+   it("test disable and enable status on advanced pane", () => new Promise<void>((done) => {
       let shrinkToFit: HTMLInputElement = fixture.nativeElement.querySelector(".shrinkToFit_id input[type=checkbox]");
       let enableAdhocEdit: HTMLInputElement = fixture.nativeElement.querySelector(".enableAdhoc_id input[type=checkbox]");
       let addRow: HTMLInputElement = fixture.nativeElement.querySelector(".addRow_id input[type=checkbox]");
@@ -135,6 +142,6 @@ describe("Table Advanced Pane Unit Test", () => {
 
          done();
       });
-   });
+   }));
 
 });

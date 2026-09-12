@@ -18,10 +18,10 @@
 import { FlatTreeControl } from "@angular/cdk/tree";
 import { HttpErrorResponse } from "@angular/common/http";
 import { Component, Inject, OnDestroy, OnInit } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { MatTreeFlatDataSource, MatTreeFlattener } from "@angular/material/tree";
+import { MatTreeFlatDataSource, MatTreeFlattener, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding } from "@angular/material/tree";
 import { Observable, of as observableOf, Subject, throwError } from "rxjs";
 import { catchError, debounceTime, distinctUntilChanged, map, tap } from "rxjs/operators";
 import {
@@ -33,6 +33,17 @@ import {
 import { Tool } from "../../../../../../shared/util/tool";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { SearchComparator } from "../../../../../../portal/src/app/widget/tree/search-comparator";
+import { MatDivider } from "@angular/material/divider";
+import { MatList, MatListItem, MatListItemIcon } from "@angular/material/list";
+import { MatOption } from "@angular/material/core";
+
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatButton } from "@angular/material/button";
+import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatSuffix, MatError } from "@angular/material/form-field";
+import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 export interface EmailListDialogData {
    emails: string[];
@@ -55,9 +66,10 @@ export class EmailFlatNode {
 }
 
 @Component({
-   selector: "em-email-list-dialog",
-   templateUrl: "./email-list-dialog.component.html",
-   styleUrls: ["./email-list-dialog.component.scss"]
+    selector: "em-email-list-dialog",
+    templateUrl: "./email-list-dialog.component.html",
+    styleUrls: ["./email-list-dialog.component.scss"],
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatInput, MatAutocompleteTrigger, MatIconButton, MatSuffix, MatIcon, MatError, MatAutocomplete, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatOption, MatList, MatListItem, MatListItemIcon, MatDivider, MatDialogActions, MatButton, MatDialogClose]
 })
 export class EmailListDialogComponent implements OnInit, OnDestroy {
    autocompleteEmails = true;
@@ -99,7 +111,11 @@ export class EmailListDialogComponent implements OnInit, OnDestroy {
 
          if(!strs || !(strs.some((str) => this.emailIdentities.indexOf(str) == -1))) {
             this.treeControl.collapseAll();
-            this.dataSource.data = this.originalDataSource;
+
+            if(this.originalDataSource) {
+               this.dataSource.data = this.originalDataSource;
+            }
+
             return;
          }
 
@@ -126,6 +142,10 @@ export class EmailListDialogComponent implements OnInit, OnDestroy {
             distinctUntilChanged()
          )
          .subscribe((val: string) => {
+            if(!this.originalDataSource) {
+               return;
+            }
+
             let splits: string[] = val.split(",");
             let searchStr = splits[splits.length - 1];
             this.dataSource.data = this.searchEmailTree(Tool.clone(this.originalDataSource), searchStr);
@@ -134,7 +154,7 @@ export class EmailListDialogComponent implements OnInit, OnDestroy {
    }
 
    ngOnDestroy() {
-      this.searchTextchanges$.unsubscribe();
+      this.searchTextchanges$.complete();
    }
 
    close() {
@@ -333,7 +353,7 @@ export class EmailListDialogComponent implements OnInit, OnDestroy {
    }
 
    private searchEmailTree(roots: EmailNode[], searchStr: string): EmailNode[] {
-      if(!searchStr) {
+      if(!searchStr || !roots) {
          return roots;
       }
 

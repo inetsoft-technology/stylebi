@@ -19,8 +19,10 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TextInputColumnOptionPaneModel {
+public class TextInputColumnOptionPaneModel implements Serializable {
    public TextEditorModel getTextEditorModel() {
       if(textEditorModel == null) {
          textEditorModel = new TextEditorModel();

@@ -15,8 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { DebugElement, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -50,15 +51,25 @@ describe("Number Range Pane Tests", () => {
    let numberRangeInputs: DebugElement[];
    let el: HTMLInputElement;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, ReactiveFormsModule, FormsModule, DropDownTestModule
+            NgbModule,
+            ReactiveFormsModule,
+            FormsModule,
+            DropDownTestModule,
+            NumberRangePane,
+            FormulaEditorDialog,
+            NewAggrDialog,
+            MessageDialog,
+            ScriptPane,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
+            FixedDropdownDirective,
+            DynamicComboBox,
          ],
-         declarations: [NumberRangePane, FormulaEditorDialog,
-            NewAggrDialog, MessageDialog, ScriptPane, TreeComponent,
-            TreeNodeComponent, TreeSearchPipe, FixedDropdownDirective, DynamicComboBox
-         ],
+         
          schemas: [ NO_ERRORS_SCHEMA ]
       });
 

@@ -15,9 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { CommonModule } from "@angular/common";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatExpansionModule } from "@angular/material/expansion";
 import { MatFormFieldModule } from "@angular/material/form-field";
@@ -32,7 +33,7 @@ describe("RegularTableComponent", () => {
    let component: RegularTableComponent<TableModel>;
    let fixture: ComponentFixture<RegularTableComponent<TableModel>>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             NoopAnimationsModule,
@@ -42,9 +43,9 @@ describe("RegularTableComponent", () => {
             MatCheckboxModule,
             MatExpansionModule,
             MatFormFieldModule,
-            MatListModule
+            MatListModule,
+            RegularTableComponent
          ],
-         declarations: [RegularTableComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

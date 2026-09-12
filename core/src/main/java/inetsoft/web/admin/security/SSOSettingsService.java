@@ -39,12 +39,14 @@ import java.util.*;
 public class SSOSettingsService {
    @Autowired
    public SSOSettingsService(SecurityEngine engine, OpenIDConfig openIDConfig,
-                             CustomSSOConfig customConfig, SSOFilterPublisher publisher)
+                             CustomSSOConfig customConfig, SSOFilterPublisher publisher,
+                             Cluster cluster)
    {
       this.engine = engine;
       this.openIDConfig = openIDConfig;
       this.customConfig = customConfig;
       this.publisher = publisher;
+      this.cluster = cluster;
    }
 
    /**
@@ -184,7 +186,11 @@ public class SSOSettingsService {
       return Tool.split(SreeEnv.getProperty("sso.default.roles"), ',');
    }
 
-   public void updateSSOSettings(SSOSettingsModel model) {
+   /**
+    * @return {@code true} if the settings were valid and applied; {@code false} if validation
+    *         failed and nothing was changed.
+    */
+   public boolean updateSSOSettings(SSOSettingsModel model) {
       final SSOType ssoType = model.activeFilterType();
       SSOType activeFilterType = getActiveFilterType();
 
@@ -205,14 +211,24 @@ public class SSOSettingsService {
             publisher.changeSSOFilterType(SSOType.SAML);
          }
          else {
-            return;
+            return false;
          }
       }
       else if(ssoType == SSOType.OPENID) {
          final OpenIdAttributesModel openIdAttributesModel = model.openIdAttributesModel();
          assert openIdAttributesModel != null;
+
+         if(!validateOpenIdAttributes(openIdAttributesModel)) {
+            return false;
+         }
+
          openIDConfig.setScopes(openIdAttributesModel.scopes());
-         openIDConfig.setIssuer(openIdAttributesModel.issuer());
+         // The EM form always submits issuer as "" (never null) unless OIDC Discovery is used, and
+         // an empty string persists as-is (PropertiesEngine only treats a literal null as "remove").
+         // OpenIDFilterBaseFilter treats a non-null issuer as "set" and requires an exact JWT claim
+         // match, so a persisted "" would fail every login. Normalize blank to null so a
+         // non-Discovery config stays "issuer not set" at runtime, matching the optional contract.
+         openIDConfig.setIssuer(Tool.isEmptyString(openIdAttributesModel.issuer()) ? null : openIdAttributesModel.issuer());
          openIDConfig.setAudience(openIdAttributesModel.audience());
          openIDConfig.setAuthorizationEndpoint(openIdAttributesModel.authorizationEndpoint());
          openIDConfig.setTokenEndpoint(openIdAttributesModel.tokenEndpoint());
@@ -236,6 +252,11 @@ public class SSOSettingsService {
       else if(ssoType == SSOType.CUSTOM) {
          CustomSSOAttributesModel customModel = model.customAttributesModel();
          assert customModel != null;
+
+         if(!validateCustomAttributes(customModel)) {
+            return false;
+         }
+
          customConfig.setClassName(customModel.useJavaClass() ? customModel.javaClassName() : null);
          customConfig.setInlineGroovyClass(
             customModel.useInlineGroovy() ? customModel.inlineGroovyClass() : null);
@@ -259,7 +280,7 @@ public class SSOSettingsService {
 
          if(ssoType != activeFilterType) {
             try {
-               Cluster.getInstance().sendMessage(new SSOTypeChangedMessage(activeFilterType, ssoType));
+               cluster.sendMessage(new SSOTypeChangedMessage(ssoType, activeFilterType));
             }
             catch(Exception ex) {
                LOG.debug("Failed to send sso type changed message", ex);
@@ -271,6 +292,8 @@ public class SSOSettingsService {
          publisher.changeSSOFilterType(SSOType.NONE);
          SreeEnv.setProperty("sso.protocol.type", ssoType.getName());
       }
+
+      return true;
    }
 
    /**
@@ -284,9 +307,10 @@ public class SSOSettingsService {
       settingsMap.put("onelogin.saml2.sp.entityid", model.spEntityId());
       settingsMap.put("onelogin.saml2.idp.x509cert", model.idpPublicKey());
       settingsMap.put("onelogin.saml2.idp.single_logout_service.url", model.idpLogoutUrl());
-      settingsMap.put("saml.roles.attribute", model.roleClaim());
-      settingsMap.put("saml.groups.attribute", model.groupClaim());
-      settingsMap.put("saml.orgID.attribute", model.orgIDClaim());
+      //the saml.*.attribute claim names are StyleBI's own and are not part of the java-saml
+      //settings vocabulary, so they cannot be checked here -- fromValues drops keys it does
+      //not recognise. Nothing validates a claim name anywhere; a wrong one saves cleanly and
+      //silently maps nothing at login (see SAMLFilter.ClaimNames).
       final Saml2Settings settings = new SettingsBuilder().fromValues(settingsMap).build();
       final List<String> errors = settings.checkSettings();
       final boolean valid = errors.isEmpty();
@@ -299,9 +323,62 @@ public class SSOSettingsService {
       return valid;
    }
 
+   /**
+    * Check whether the OpenID attributes are valid before applying changes so we don't get
+    * locked out. The issuer is intentionally not required here: it has no manual input in the EM
+    * UI (it is only ever populated via the OIDC Discovery helper), and OpenIDFilterBaseFilter
+    * treats it as optional at runtime (only adds an extra claim check when it is set), so
+    * requiring it here would reject legitimate configurations that don't use Discovery.
+    */
+   private boolean validateOpenIdAttributes(OpenIdAttributesModel model) {
+      final List<String> missing = new ArrayList<>();
+
+      if(Tool.isEmptyString(model.authorizationEndpoint())) {
+         missing.add("authorization endpoint");
+      }
+
+      if(Tool.isEmptyString(model.tokenEndpoint())) {
+         missing.add("token endpoint");
+      }
+
+      if(Tool.isCloudSecrets()) {
+         if(Tool.isEmptyString(model.secretId())) {
+            missing.add("secret");
+         }
+      }
+      else if(Tool.isEmptyString(model.clientId())) {
+         missing.add("client id");
+      }
+
+      if(!missing.isEmpty()) {
+         LOG.error("Invalid OpenID properties, missing: {}", String.join(", ", missing));
+      }
+
+      return missing.isEmpty();
+   }
+
+   /**
+    * Check whether the Custom SSO attributes are valid before applying changes so we don't get
+    * locked out
+    */
+   private boolean validateCustomAttributes(CustomSSOAttributesModel model) {
+      if(model.useJavaClass() && !Tool.isEmptyString(model.javaClassName())) {
+         return true;
+      }
+
+      if(model.useInlineGroovy() && !Tool.isEmptyString(model.inlineGroovyClass())) {
+         return true;
+      }
+
+      LOG.error("Invalid Custom SSO properties: a Java class name or inline Groovy script " +
+                "is required");
+      return false;
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
    private final SecurityEngine engine;
    private final OpenIDConfig openIDConfig;
    private final CustomSSOConfig customConfig;
    private final SSOFilterPublisher publisher;
+   private final Cluster cluster;
 }

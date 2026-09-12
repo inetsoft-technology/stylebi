@@ -26,8 +26,9 @@ import { SearchComparator } from "../tree/search-comparator";
 const EXPAND_IDENTITY_NODE_URI = "../api/vs/expand-identity-node";
 
 @Component({
-  selector: "identity-tree",
-  templateUrl: "identity-tree.component.html"
+    selector: "identity-tree",
+    templateUrl: "identity-tree.component.html",
+    imports: [TreeComponent]
 })
 export class IdentityTreeComponent {
    @ViewChild("tree") tree: TreeComponent;

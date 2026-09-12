@@ -18,10 +18,13 @@
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { LineEndStyles } from "./line-arrow-type-dropdown.enum";
 
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
+
 @Component({
-   selector: "line-arrow-type-dropdown",
-   templateUrl: "line-arrow-type-dropdown.component.html",
-   styleUrls: ["line-arrow-type-dropdown.component.scss"]
+    selector: "line-arrow-type-dropdown",
+    templateUrl: "line-arrow-type-dropdown.component.html",
+    styleUrls: ["line-arrow-type-dropdown.component.scss"],
+    imports: [FixedDropdownDirective]
 })
 export class LineArrowTypeDropdown {
    @Input() style: number;

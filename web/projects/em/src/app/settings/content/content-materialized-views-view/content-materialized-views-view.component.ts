@@ -20,6 +20,7 @@ import { ContextHelp } from "../../../context-help";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Searchable } from "../../../searchable";
 import { Secured } from "../../../secured";
+import { MvManagementViewComponent } from "../materialized-views/mv-management-view/mv-management-view.component";
 
 @Secured({
    route: "/settings/content/materialized-views",
@@ -36,9 +37,10 @@ import { Secured } from "../../../secured";
    link: "EMSettingsContentMaterializedViews"
 })
 @Component({
-   selector: "em-content-materialized-views-view",
-   templateUrl: "./content-materialized-views-view.component.html",
-   styleUrls: ["./content-materialized-views-view.component.scss"]
+    selector: "em-content-materialized-views-view",
+    templateUrl: "./content-materialized-views-view.component.html",
+    styleUrls: ["./content-materialized-views-view.component.scss"],
+    imports: [MvManagementViewComponent]
 })
 export class ContentMaterializedViewsViewComponent implements OnInit {
    constructor(private pageTitle: PageHeaderService) {

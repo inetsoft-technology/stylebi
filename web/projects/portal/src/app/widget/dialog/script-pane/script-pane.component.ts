@@ -42,13 +42,19 @@ import { CodemirrorHighlightTextInfo } from "../codemirror-highlight-text-info";
 import { TreeTool } from "../../../common/util/tree-tool";
 import { CodemirrorService } from "../../../../../../shared/util/codemirror/codemirror.service";
 import { ScriptSettingsService } from "./script-settings.service";
+import { OutOfZoneDirective } from "../../directive/out-of-zone.directive";
+import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
+import { TreeComponent } from "../../tree/tree.component";
+import { VirtualScrollTreeComponent } from "../../tree/virtual-scroll-tree/virtual-scroll-tree.component";
+
 
 const LINT_MARKERS = "CodeMirror-lint-markers";
 
 @Component({
-   selector: "script-pane",
-   templateUrl: "script-pane.component.html",
-   styleUrls: ["script-pane.component.scss"]
+    selector: "script-pane",
+    templateUrl: "script-pane.component.html",
+    styleUrls: ["script-pane.component.scss"],
+    imports: [VirtualScrollTreeComponent, TreeComponent, NgbTooltip, OutOfZoneDirective]
 })
 export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDestroy, OnChanges {
    @Input() columnTreeRoot: TreeNodeModel;
@@ -253,6 +259,9 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
             }, 0);
          });
       }
+      else if(!this.isEditorElementDisplayed()) {
+         this.viewChecked = false;
+      }
    }
 
    ngOnDestroy(): void {
@@ -302,27 +311,30 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
                completeSingle: false
             };
             config.extraKeys = {
-               "Ctrl-O": (cm) => this.ternServer.showDocs(cm, cm.getCursor()),
-               "Ctrl-Space": (cm) => this.ternServer.complete(cm),
-               "Alt-/": (cm) => this.ternServer.complete(cm),
+               "Ctrl-O": (cm) => this.ternServer?.showDocs(cm, cm.getCursor()),
+               "Ctrl-Space": (cm) => this.ternServer?.complete(cm),
+               "Alt-/": (cm) => this.ternServer?.complete(cm),
                "Ctrl-/": "toggleComment"
             };
 
             const defs = this.codemirrorService.getEcmaScriptDefs();
-            delete (defs[0]["Date"]["prototype"]).toJSON;
 
-            if(this.scriptDefinitions) {
-               defs.push(this.scriptDefinitions);
+            if(defs) {
+               delete (defs[0]["Date"]["prototype"]).toJSON;
+
+               if(this.scriptDefinitions) {
+                  defs.push(this.scriptDefinitions);
+               }
+
+               this.ternServer = this.codemirrorService.createTernServer({
+                  defs: defs,
+                  useWorker: false,
+                  queryOptions: {completions: {guess: false}}
+               });
+
+               this.ternServer.options.typeTip = this.docTooltip;
+               this.ternServer.options.hintDelay = 17000;
             }
-
-            this.ternServer = this.codemirrorService.createTernServer({
-               defs: defs,
-               useWorker: false,
-               queryOptions: {completions: {guess: false}}
-            });
-
-            this.ternServer.options.typeTip = this.docTooltip;
-            this.ternServer.options.hintDelay = 17000;
          }
 
          this.codemirrorInstance = this.codemirrorService.createCodeMirrorInstance(
@@ -355,7 +367,7 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
 
          if(!this.sql) {
             this.codemirrorInstance.on(
-               "cursorActivity", (cm) => this.ternServer.updateArgHints(cm));
+               "cursorActivity", (cm) => this.ternServer?.updateArgHints(cm));
          }
 
          this.codemirrorInstance.on("inputRead", (cm, changeObj) => {
@@ -385,8 +397,13 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
                      this.cancelAutocomplete = null;
                   }
 
-                  this.ternServer.complete(cm);
+                  this.ternServer?.complete(cm);
                   const completion = cm.state.completionActive;
+
+                  if(!completion) {
+                     return;
+                  }
+
                   const pick = completion.pick;
                   const select = completion.select;
                   completion.pick = function(data, i) {
@@ -410,7 +427,7 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
                }
                else {
                   this.delayAutocomplete(() => {
-                     this.ternServer.complete(cm);
+                     this.ternServer?.complete(cm);
                   });
                }
             }

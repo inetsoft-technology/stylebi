@@ -28,9 +28,10 @@ import { GraphColumnInfo } from "../../../model/datasources/database/physical-mo
 import { JoinThumbnailService } from "./join-thumbnail.service";
 
 @Component({
-   selector: "edit-join-table-column",
-   templateUrl: "edit-join-table-column.component.html",
-   styleUrls: ["edit-join-table-column.component.scss"]
+    selector: "edit-join-table-column",
+    templateUrl: "edit-join-table-column.component.html",
+    styleUrls: ["edit-join-table-column.component.scss"],
+    standalone: true
 })
 export class EditJoinTableColumnComponent implements OnInit, AfterViewInit, OnDestroy {
    @Input() column: GraphColumnInfo;

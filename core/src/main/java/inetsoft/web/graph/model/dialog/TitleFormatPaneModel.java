@@ -17,7 +17,9 @@
  */
 package inetsoft.web.graph.model.dialog;
 
-public class TitleFormatPaneModel {
+import java.io.Serializable;
+
+public class TitleFormatPaneModel implements Serializable {
    public String getTitle() {
       return title;
    }

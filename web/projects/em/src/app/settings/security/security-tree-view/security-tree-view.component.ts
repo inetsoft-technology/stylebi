@@ -34,13 +34,22 @@ import { SecurityTreeDataService } from "./security-tree-data.service";
 import { SecurityTreeFlattener } from "./security-tree-flattener";
 import { FlatSecurityTreeNode, SecurityTreeNode } from "./security-tree-node";
 import { IdentityType } from "../../../../../../shared/data/identity-type";
-import {IdentityId} from "../users/identity-id";
+import { equalsIdentity } from "../users/identity-id";
+import { MatIconButton } from "@angular/material/button";
+import { CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf } from "@angular/cdk/scrolling";
+import { MatProgressBar } from "@angular/material/progress-bar";
+import { DecimalPipe } from "@angular/common";
+import { MatIcon } from "@angular/material/icon";
+import { FormsModule } from "@angular/forms";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field";
 
 @Component({
-   selector: "em-security-tree-view",
-   templateUrl: "./security-tree-view.component.html",
-   styleUrls: ["./security-tree-view.component.scss"],
-   providers: [SecurityTreeDataService]
+    selector: "em-security-tree-view",
+    templateUrl: "./security-tree-view.component.html",
+    styleUrls: ["./security-tree-view.component.scss"],
+    providers: [SecurityTreeDataService],
+    imports: [MatFormField, MatLabel, MatInput, FormsModule, MatIcon, MatSuffix, MatProgressBar, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, MatIconButton, DecimalPipe]
 })
 export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
    SelectionTransfer<SecurityTreeNode>
@@ -117,15 +126,16 @@ export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
    restoreExpandedState(nodes: FlatSecurityTreeNode[], selected: FlatSecurityTreeNode[]): void {
       this.treeControl.expansionModel.clear();
 
-      // Starting from the leftmost node expand the comparable node in the new list
-      selected.sort((a, b) => a.level - b.level)
-         .forEach((oldNode) => {
-            const newNode = nodes.find((node) => oldNode.equals(node));
+      // Collect all matching nodes first, then batch-select in one operation so that
+      // expansionModel.changed fires once instead of once per node.
+      const toExpand = selected
+         .sort((a, b) => a.level - b.level)
+         .map(oldNode => nodes.find(node => oldNode.equals(node)))
+         .filter((n): n is FlatSecurityTreeNode => n != null);
 
-            if(newNode != null) {
-               this.treeControl.expand(newNode);
-            }
-         });
+      if(toExpand.length > 0) {
+         this.treeControl.expansionModel.select(...toExpand);
+      }
    }
 
    sendSelection(): SecurityTreeNode[] {
@@ -166,7 +176,13 @@ export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
 
             const newIndex = this.flattenTree.indexOf(node);
             const lastIndex = this.flattenTree.findIndex(treeNode =>
-               treeNode.getData().identityID.name === last.identityID.name && treeNode.getData().type === last.type);
+               this.isSameNode(treeNode.getData(), last));
+
+            if(newIndex < 0 || lastIndex < 0) {
+               this.selectedNodes = [nodeData];
+               this.selectionChanged.emit(this.selectedNodes.slice(0));
+               return;
+            }
 
             this.selectedNodes = this.flattenTree
                .slice(Math.min(newIndex, lastIndex) + 1, Math.max(newIndex, lastIndex))
@@ -181,7 +197,8 @@ export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
          }
       }
       else if(event.ctrlKey) {
-         const index = this.selectedNodes.indexOf(nodeData);
+         const index = this.selectedNodes.findIndex(selectedNode =>
+            this.isSameNode(selectedNode, nodeData));
 
          if(index >= 0) {
             this.selectedNodes.splice(index, 1);
@@ -196,8 +213,7 @@ export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
 
    isSelected(node: FlatSecurityTreeNode): boolean {
       return node && this.selectedNodes
-            .some((selectedNode) => selectedNode.identityID.name === node.getData().identityID.name &&
-            selectedNode.type === node.getData().type);
+            .some((selectedNode) => this.isSameNode(selectedNode, node.getData()));
    }
 
    public hasChild(_nodeData: FlatSecurityTreeNode) {
@@ -234,7 +250,14 @@ export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
    }
 
    private isIdentityFolder(node: SecurityTreeNode): boolean {
-      return ["Users", "Groups", "Roles"].includes(node.identityID.name);
+      return ["Users", "Groups", "Roles", "Organizations", "Organization Roles"]
+         .includes(node.identityID.name);
+   }
+
+   private isSameNode(left: SecurityTreeNode, right: SecurityTreeNode): boolean {
+      return !!left && !!right &&
+         equalsIdentity(left.identityID, right.identityID) &&
+         left.type === right.type;
    }
 
    trackByFn(index, node: FlatSecurityTreeNode) {

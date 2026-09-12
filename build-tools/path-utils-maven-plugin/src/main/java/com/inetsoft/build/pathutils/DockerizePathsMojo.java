@@ -55,11 +55,14 @@ public class DockerizePathsMojo extends AbstractMojo {
             }
 
             if(sourceValue != null) {
+               String targetValue = sourceValue;
+
                if(sourceValue.matches("^[A-Za-z]:.+$")) {
-                  String targetValue = "/" + sourceValue.substring(0, 1).toLowerCase() +
+                  targetValue = "/" + sourceValue.substring(0, 1).toLowerCase() +
                      "/" + sourceValue.substring(3).replace('\\', '/');
-                  project.getProperties().put(target, targetValue);
                }
+
+               project.getProperties().put(target, targetValue);
             }
          }
       }

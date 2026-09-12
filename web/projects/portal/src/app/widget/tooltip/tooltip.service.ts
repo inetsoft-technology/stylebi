@@ -15,15 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+
 import {
-   ApplicationRef,
-   ComponentFactory,
-   ComponentFactoryResolver,
-   ComponentRef,
-   Inject,
-   Injectable,
-   Injector
+  ApplicationRef,
+  ComponentFactory,
+  ComponentFactoryResolver,
+  ComponentRef,
+  Inject,
+  Injectable,
+  Injector,
+  DOCUMENT
 } from "@angular/core";
 import { TooltipComponent } from "./tooltip.component";
 

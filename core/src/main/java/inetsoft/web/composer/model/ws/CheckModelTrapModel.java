@@ -19,10 +19,12 @@ package inetsoft.web.composer.model.ws;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.web.binding.drm.ColumnRefModel;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 @Value.Immutable
 @JsonSerialize(as = ImmutableCheckModelTrapModel.class)
+@Serial.Structural
 public abstract class CheckModelTrapModel {
    @Value.Default
    public ColumnRefModel[] trapFields() {

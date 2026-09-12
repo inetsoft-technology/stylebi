@@ -18,11 +18,9 @@
 package inetsoft.sree.web;
 
 import inetsoft.sree.security.SRPrincipal;
-import inetsoft.util.SingletonManager;
 
 import java.util.Set;
 
-@SingletonManager.Singleton(SessionLicenseService.Reference.class)
 public interface SessionLicenseManager extends AutoCloseable {
    /**
     * Acquires a new session license from the session license pool for the given
@@ -30,6 +28,18 @@ public interface SessionLicenseManager extends AutoCloseable {
     * @param srPrincipal The user principal
     */
    void newSession(SRPrincipal srPrincipal);
+
+   /**
+    * Acquires a new session license, optionally terminating the session identified by
+    * {@code sessionIdToReplace} first if the session limit has been reached.
+    *
+    * @param srPrincipal       the user principal acquiring the new session.
+    * @param sessionIdToReplace the session ID of an existing session to terminate if needed,
+    *                           or {@code null} to use the standard behaviour.
+    */
+   default void newSession(SRPrincipal srPrincipal, String sessionIdToReplace) {
+      newSession(srPrincipal);
+   }
 
    /**
     * Releases the session associated with the given principal so that it can

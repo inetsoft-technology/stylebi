@@ -17,19 +17,21 @@
  */
 package inetsoft.web.composer.ws.joins;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.uql.asset.*;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.WorksheetController;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
 import java.security.Principal;
 import java.util.ArrayList;
 
 @Controller
 public class JoinCompatibilityController extends WorksheetController {
+
+   public JoinCompatibilityController(JoinCompatibilityServiceProxy joinCompatibilityServiceProxy)
+   {
+      this.joinCompatibilityServiceProxy = joinCompatibilityServiceProxy;
+   }
+
    @RequestMapping(
       value = "api/composer/worksheet/join/compatible-insertion-tables/{runtimeId}",
       method = RequestMethod.GET)
@@ -39,29 +41,8 @@ public class JoinCompatibilityController extends WorksheetController {
       Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      final RuntimeWorksheet rws = getWorksheetEngine().getWorksheet(runtimeId, principal);
-      final Worksheet ws = rws.getWorksheet();
-      final AbstractJoinTableAssembly joinTable =
-         (AbstractJoinTableAssembly) ws.getAssembly(joinTableName);
-      final ArrayList<String> validTables = new ArrayList<>();
-      final Assembly[] assemblies = ws.getAssemblies();
-
-      for(Assembly assembly : assemblies) {
-         if(joinTable == assembly || !(assembly instanceof TableAssembly)) {
-            continue;
-         }
-
-         if(joinTable.getTableAssembly(assembly.getAbsoluteName()) != null) {
-            continue;
-         }
-
-         if(!WorksheetEventUtil.checkCyclicalDependency(
-            ws, joinTable, (TableAssembly) assembly))
-         {
-            validTables.add(assembly.getAbsoluteName());
-         }
-      }
-
-      return validTables;
+      return new ArrayList<>(joinCompatibilityServiceProxy.getCompatibleInsertionTables(runtimeId, joinTableName, principal));
    }
+
+   private final JoinCompatibilityServiceProxy joinCompatibilityServiceProxy;
 }

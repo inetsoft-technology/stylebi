@@ -31,7 +31,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.viewsheet.internal.PopVSAssemblyInfo.PopLocation;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import inetsoft.web.composer.vs.objects.controller.ComposerAdhocFilterController;
+import inetsoft.web.composer.vs.objects.controller.ComposerAdhocFilterService;
 import inetsoft.web.viewsheet.model.annotation.VSAnnotationModel;
 import inetsoft.web.viewsheet.model.calendar.VSCalendarModel;
 import inetsoft.web.viewsheet.model.chart.VSChartModel;
@@ -220,7 +220,7 @@ public abstract class VSObjectModel<T extends VSAssembly> {
       cubeType = VSUtil.getCubeType(assembly);
       wsCube = VSUtil.isWorksheetCube(assembly);
       genTime = System.currentTimeMillis();
-      adhocFilterEnabled = !ComposerAdhocFilterController.findContainers(vs, assembly).isEmpty();
+      adhocFilterEnabled = !ComposerAdhocFilterService.findContainers(vs, assembly).isEmpty();
 
       if(assemblyInfo instanceof DataVSAssemblyInfo) {
          SourceInfo sourceInfo = ((DataVSAssemblyInfo) assemblyInfo).getSourceInfo();

@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-import java.io.PrintWriter;
+import java.io.*;
 import java.io.Serializable;
 import java.util.*;
 
@@ -392,6 +392,10 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
     * is not saved as part of the query definition.
     */
    public void setProperty(String name, Object val) {
+      if(propmap == null) {
+         propmap = new HashMap<>();
+      }
+
       propmap.put(name, val);
    }
 
@@ -399,14 +403,14 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
     * Get a property value.
     */
    public Object getProperty(String name) {
-      return propmap.get(name);
+      return propmap == null ? null : propmap.get(name);
    }
 
    /**
     * Get a set of property keys
     */
    public Set<String> getPropertyKeys() {
-      return propmap.keySet();
+      return propmap == null ? Collections.emptySet() : propmap.keySet();
    }
 
    /**
@@ -877,6 +881,12 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
       this.modifiedBy = modifiedBy;
    }
 
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      propmap = new HashMap<>();
+   }
+
    /**
     * Create a clone of this object.
     */
@@ -894,7 +904,7 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
             nquery.varmap = Collections.synchronizedMap(new LinkedHashMap<>(varmap));
          }
 
-         nquery.propmap = (HashMap<String, Object>) propmap.clone();
+         nquery.propmap = propmap == null ? new HashMap<>() : (HashMap<String, Object>) propmap.clone();
          nquery.dependencies = new HashSet<>(dependencies);
 
          return nquery;
@@ -967,7 +977,7 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
    private int timeout = 0; // query timeout
    private boolean visible = true; // visible in composer
    private String partition = null; // associated partition
-   private HashMap<String, Object> propmap = new HashMap<>(); // properties
+   private transient HashMap<String, Object> propmap = new HashMap<>(); // properties
    private HashSet<AssetObject> dependencies = new HashSet<>(); // outer dependencies
 
    private long created;

@@ -21,7 +21,9 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.UserEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.util.Catalog;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
@@ -29,12 +31,15 @@ import java.util.*;
 /**
  * Class that supports user locale registration.
  */
+@Service
+@Lazy
 public class LocaleService {
 
    /**
     * Creates a new instance of {@code LocaleService}.
     */
-   public LocaleService() {
+   public LocaleService(SecurityEngine securityEngine) {
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -43,7 +48,7 @@ public class LocaleService {
     * @return the shared service.
     */
    public static LocaleService getInstance() {
-      return SingletonManager.getInstance(LocaleService.class);
+      return ConfigurationContext.getContext().getSpringBean(LocaleService.class);
    }
 
    /**
@@ -91,7 +96,7 @@ public class LocaleService {
          locale = localeMap.get(localeName);
       }
       else if(SUtil.MY_LOCALE.equals(localeName)) {
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
          User user = provider.getUser(userId);
 
          if(user != null) {
@@ -155,5 +160,6 @@ public class LocaleService {
    }
 
    private String localeAvailable = null;
+   private final SecurityEngine securityEngine;
    private final Map<String, String> localeMap = new HashMap<>();
 }

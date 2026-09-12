@@ -17,11 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.VSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.ChangeTabStateEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -39,17 +34,12 @@ public class VSTabController {
     *
     * @param runtimeViewsheetRef reference to the runtime viewsheet associated with the
     *                            WebSocket session.
-    * @param viewsheetService
     */
    @Autowired
-   public VSTabController(
-      RuntimeViewsheetRef runtimeViewsheetRef,
-      CoreLifecycleService coreLifecycleService,
-      ViewsheetService viewsheetService)
+   public VSTabController(RuntimeViewsheetRef runtimeViewsheetRef, VSTabServiceProxy vsTabServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.coreLifecycleService = coreLifecycleService;
-      this.viewsheetService = viewsheetService;
+      this.vsTabServiceProxy = vsTabServiceProxy;
    }
 
    @Undoable
@@ -58,28 +48,10 @@ public class VSTabController {
                          @Payload ChangeTabStateEvent event, @LinkUri String linkUri,
                          Principal principal, CommandDispatcher dispatcher) throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(),
-                                                           principal);
-      Viewsheet vs = rvs.getViewsheet();
-
-      if(vs == null) {
-         return;
-      }
-
-      // Name of assembly that will be displayed
-      String compName = event.getTarget();
-
-      // Tab assembly
-      VSAssembly tassembly = (VSAssembly) vs.getAssembly(name);
-
-      if(tassembly != null) {
-         ((TabVSAssemblyInfo) tassembly.getVSAssemblyInfo()).setSelectedValue(compName);
-         ((TabVSAssemblyInfo) tassembly.getVSAssemblyInfo()).setSelected(null);
-         coreLifecycleService.execute(rvs, name, linkUri, VSAssembly.VIEW_CHANGED, dispatcher);
-      }
+      vsTabServiceProxy.changeTab(runtimeViewsheetRef.getRuntimeId(), name, event, linkUri,
+                                  principal, dispatcher);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final CoreLifecycleService coreLifecycleService;
-   private final ViewsheetService viewsheetService;
+   private VSTabServiceProxy vsTabServiceProxy;
 }

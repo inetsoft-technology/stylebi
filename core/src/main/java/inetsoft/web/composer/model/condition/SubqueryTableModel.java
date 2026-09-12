@@ -20,8 +20,10 @@ package inetsoft.web.composer.model.condition;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.web.binding.drm.DataRefModel;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class SubqueryTableModel {
+public class SubqueryTableModel implements Serializable {
    public String getName() {
       return name;
    }

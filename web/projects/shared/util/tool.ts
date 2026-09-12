@@ -607,7 +607,7 @@ export namespace Tool {
             const cost = source[i - 1] === target[j - 1] ? 0 : 1;
             dist[i][j] = Math.min(Math.min(dist[i - 1][j] + 1, dist[i][j - 1] + 1), dist[i - 1][j - 1] + cost);
 
-            if(i > 1 && j > 1 && source[i - 1] === target[j - 2] && source[1 - 2] === target[j - 1]) {
+            if(i > 1 && j > 1 && source[i - 1] === target[j - 2] && source[i - 2] === target[j - 1]) {
                dist[i][j] = Math.min(dist[i][j], dist[i - 2][j - 2] + cost);
             }
          }
@@ -1041,9 +1041,9 @@ export namespace Tool {
    }
 
    export function hasOtherMessage(message: string) {
-      let textPattern = new RegExp(Tool.TEXT_LIMIT_PREFIX + '.*?' +
+      let textPattern = new RegExp(Tool.TEXT_LIMIT_PREFIX + ".*?" +
          Tool.TEXT_LIMIT_SUFFIX, "g");
-      let columnPattern = new RegExp(Tool.COLUMN_LIMIT_PREFIX + '.*?' +
+      let columnPattern = new RegExp(Tool.COLUMN_LIMIT_PREFIX + ".*?" +
          Tool.COLUMN_LIMIT_SUFFIX, "g");
       message = message.replace(textPattern, "");
       message = message.replace(columnPattern, "");

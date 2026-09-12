@@ -19,6 +19,7 @@
 package inetsoft.setup;
 
 import java.io.File;
+import java.util.Map;
 
 /**
  * Interface for classes that extend the setup process during storage initialization.
@@ -30,6 +31,7 @@ import java.io.File;
  *    <li>{@link #afterPluginsInstalled(Context)}</li>
  *    <li>{@link #afterSecurityConfigured(Context)}</li>
  *    <li>{@link #afterFilesImported(Context)}</li>
+ *    <li>{@link #installAssets(Context)}</li>
  *    <li>{@link #afterAssetsInstalled(Context)}</li>
  * </ol>
  */
@@ -90,6 +92,17 @@ public interface SetupExtension {
    }
 
    /**
+    * Called to import assets into storage.
+    *
+    * @param context the setup context.
+    *
+    * @return the context with any modifications made by the extension.
+    */
+   default Context installAssets(Context context) {
+      return context;
+   }
+
+   /**
     * Called after the assets have been imported into storage.
     *
     * @param context the setup context.
@@ -112,9 +125,73 @@ public interface SetupExtension {
     *                         data space.
     * @param assetsDirectory  the path to the directory containing the assets to be imported.
     * @param scriptsDirectory the path to the directory containing the scripts to execute.
+    * @param attributes       arbitrary attributes that can be used to share state between
+    *                         extensions. Any values that implement {@link AutoCloseable} will be
+    *                         closed when the setup is complete.
     */
    record Context(boolean initialized, File configDirectory, File pluginsDirectory,
-                  File filesDirectory, File assetsDirectory, File scriptsDirectory)
+                  File filesDirectory, File assetsDirectory, File scriptsDirectory,
+                  Map<String, Object> attributes)
    {
+   }
+
+   /**
+    * Enumeration of the different setup phases.
+    */
+   enum Phase {
+      /**
+       * Phase at the start of setup before any other actions have been performed.
+       */
+      START("start", false),
+      /**
+       * Phase after the initial application properties have been applied.
+       */
+      AFTER_PROPERTIES_SET("afterPropertiesSet", false),
+      /**
+       * Phase after the plugins have been installed into storage.
+       */
+      AFTER_PLUGINS_INSTALLED("afterPluginsInstalled", false),
+      /**
+       * Phase after the initial security settings have been applied.
+       */
+      AFTER_SECURITY_CONFIGURED("afterSecurityConfigured", false),
+      /**
+       * Phase after the files have been imported into the data space.
+       */
+      AFTER_FILES_IMPORTED("afterFilesImported", false),
+      /**
+       * Phase to import assets into storage.
+       */
+      INSTALL_ASSETS("installAssets", true),
+      /**
+       * Phase after the assets have been imported into storage.
+       */
+      AFTER_ASSETS_INSTALLED("afterAssetsInstalled", true);
+
+      private final String phase;
+      private final boolean clientApiAvailable;
+
+      Phase(String phase, boolean clientApiAvailable) {
+         this.phase = phase;
+         this.clientApiAvailable = clientApiAvailable;
+      }
+
+      /**
+       * Gets the name of the phase as used in setup scripts.
+       *
+       * @return the name of the phase.
+       */
+      public String getPhase() {
+         return phase;
+      }
+
+      /**
+       * Determines if the client API is available during this phase.
+       *
+       * @return {@code true} if the client API is available, {@code false} otherwise.
+       */
+      public boolean isClientApiAvailable() {
+         return clientApiAvailable;
+      }
    }
 }

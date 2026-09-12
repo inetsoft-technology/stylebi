@@ -30,7 +30,6 @@ import { DndService } from "../common/dnd/dnd.service";
 import { VSDndService } from "../common/dnd/vs-dnd.service";
 import { ModelService } from "../widget/services/model.service";
 import { UIContextService } from "../common/services/ui-context.service";
-import { VirtualScrollService } from "../widget/tree/virtual-scroll.service";
 import { ViewsheetClientService } from "../common/viewsheet-client";
 
 export const SERVICE_PROVIDERS: any[] = [

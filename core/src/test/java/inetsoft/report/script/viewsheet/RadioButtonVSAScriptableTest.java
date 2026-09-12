@@ -19,22 +19,31 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.viewsheet.ListData;
-import inetsoft.uql.viewsheet.RadioButtonVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.test.*;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.RadioButtonVSAssemblyInfo;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class RadioButtonVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private RadioButtonVSAScriptable radioButtonVSAScriptable;
@@ -77,27 +86,27 @@ public class RadioButtonVSAScriptableTest {
 
    @Test
    void testGet() {
-      assertNull(radioButtonVSAScriptable.get("value", radioButtonVSAScriptable));
+      assertNull(radioButtonVSAScriptable.getMember("value"));
       radioButtonVSAScriptable.setCellValue("value1");
-      assertEquals("value1", radioButtonVSAScriptable.get("value", radioButtonVSAScriptable));
-      assertEquals("RadioButton", radioButtonVSAScriptable.get("title", radioButtonVSAScriptable));
+      assertEquals("value1", radioButtonVSAScriptable.getMember("value"));
+      assertEquals("RadioButton", radioButtonVSAScriptable.getMember("title"));
    }
 
    @Test
    void testHas() {
-      assertFalse(radioButtonVSAScriptable.has("property1", radioButtonVSAScriptable));
+      assertFalse(radioButtonVSAScriptable.hasMember("property1"));
       radioButtonVSAScriptable.setCellValue("value1");
-      assertTrue(radioButtonVSAScriptable.has("value", radioButtonVSAScriptable));
-      assertTrue(radioButtonVSAScriptable.has("titleVisible", radioButtonVSAScriptable));
+      assertTrue(radioButtonVSAScriptable.hasMember("value"));
+      assertTrue(radioButtonVSAScriptable.hasMember("titleVisible"));
    }
 
    @Test
    void testAddProperties() {
       radioButtonVSAScriptable.addProperties();
 
-      assertEquals("RadioButton", radioButtonVSAScriptable.get("title", radioButtonVSAScriptable));
-      assertEquals(true, radioButtonVSAScriptable.get("titleVisible", radioButtonVSAScriptable));
-      assertNull(radioButtonVSAScriptable.get("value", radioButtonVSAScriptable));
+      assertEquals("RadioButton", radioButtonVSAScriptable.getMember("title"));
+      assertEquals(true, radioButtonVSAScriptable.getMember("titleVisible"));
+      assertNull(radioButtonVSAScriptable.getMember("value"));
    }
 
    @Test
@@ -149,14 +158,14 @@ public class RadioButtonVSAScriptableTest {
 
    @Test
    void testGetDefaultValue() {
-      assertNull(radioButtonVSAScriptable.getDefaultValue(String.class));
+      assertNull(radioButtonVSAScriptable.getSelectedObject());
       radioButtonVSAScriptable.setSelectedObject("value1");
-      assertEquals("value1", radioButtonVSAScriptable.getDefaultValue(String.class));
+      assertEquals("value1", radioButtonVSAScriptable.getSelectedObject());
 
       //set default value with Date type
       radioButtonVSAScriptable.setDataType("Date");
       radioButtonVSAScriptable.setSelectedObject(new Date(125, 1, 20));
       assertEquals("2025-02-20",
-                   simpleDateFormat.format(radioButtonVSAScriptable.getDefaultValue(String.class)));
+                   simpleDateFormat.format(radioButtonVSAScriptable.getSelectedObject()));
    }
 }

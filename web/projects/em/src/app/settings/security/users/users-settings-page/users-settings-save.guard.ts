@@ -15,73 +15,62 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
-import {
-   ActivatedRouteSnapshot,
-   CanDeactivate,
-   RouterStateSnapshot
-} from "@angular/router";
-import { catchError, map, switchMap } from "rxjs/operators";
-import { UsersSettingsPageComponent } from "./users-settings-page.component";
+import { inject } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
+import { ActivatedRouteSnapshot, CanDeactivateFn, RouterStateSnapshot } from "@angular/router";
 import { Observable, of } from "rxjs";
+import { catchError, map, switchMap } from "rxjs/operators";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
+import { UsersSettingsPageComponent } from "./users-settings-page.component";
 
-@Injectable()
-export class UsersSettingsSaveGuard implements CanDeactivate<UsersSettingsPageComponent> {
-   constructor(private dialog: MatDialog) {
-   }
-
-   canDeactivate(component: UsersSettingsPageComponent, currentRoute: ActivatedRouteSnapshot,
-                 currentState: RouterStateSnapshot, nextState?: RouterStateSnapshot): Observable<boolean>
-   {
-      if(component && component.hasIncompleteNewUser) {
-         const ref = this.dialog.open(MessageDialog, {
-            data: {
-               title: "_#(js:em.users.newUser.incompleteTitle)",
-               content: "_#(js:em.users.newUser.incompleteContent)",
-               type: MessageDialogType.CONFIRMATION
-            }
-         });
-
-         return ref.afterClosed().pipe(
-            switchMap(result => {
-               if(result) {
-                  return component.clearIncompleteNewUser(false).pipe(
-                     map(() => true),
-                     catchError(() => of(false))
-                  );
-               }
-
-               return of(false);
-            }),
-            switchMap(canLeave => {
-               if(canLeave && component.pageChanged) {
-                  return this.confirmPageChanged();
-               }
-
-               return of(canLeave);
-            })
-         );
+const confirmPageChanged = (dialog: MatDialog): Observable<boolean> => {
+   const ref = dialog.open(MessageDialog, {
+      data: {
+         title: "_#(js:em.settings.userSettingsChanged)",
+         content: "_#(js:em.settings.userSettings.confirm)",
+         type: MessageDialogType.CONFIRMATION
       }
+   });
 
-      if(component && component.pageChanged) {
-         return this.confirmPageChanged();
-      }
+   return ref.afterClosed().pipe(map(result => !!result));
+};
 
-      return of(true);
-   }
+export const usersSettingsSaveGuard: CanDeactivateFn<UsersSettingsPageComponent> = (component: UsersSettingsPageComponent, currentRoute: ActivatedRouteSnapshot, currentState: RouterStateSnapshot, nextState: RouterStateSnapshot): Observable<boolean> => {
+   const dialog = inject(MatDialog);
 
-   private confirmPageChanged(): Observable<boolean> {
-      const ref = this.dialog.open(MessageDialog, {
+   if(component && component.hasIncompleteNewUser) {
+      const ref = dialog.open(MessageDialog, {
          data: {
-            title: "_#(js:em.settings.userSettingsChanged)",
-            content: "_#(js:em.settings.userSettings.confirm)",
+            title: "_#(js:em.users.newUser.incompleteTitle)",
+            content: "_#(js:em.users.newUser.incompleteContent)",
             type: MessageDialogType.CONFIRMATION
          }
       });
 
-      return ref.afterClosed().pipe(map(result => !!result));
+      return ref.afterClosed().pipe(
+         switchMap(result => {
+            if(result) {
+               return component.clearIncompleteNewUser(false).pipe(
+                  map(() => true),
+                  catchError(() => of(false))
+               );
+            }
+
+            return of(false);
+         }),
+         switchMap(canLeave => {
+            if(canLeave && component.pageChanged) {
+               return confirmPageChanged(dialog);
+            }
+
+            return of(canLeave);
+         })
+      );
    }
 
-}
+   if(component && component.pageChanged) {
+      return confirmPageChanged(dialog);
+   }
+
+   return of(true);
+};

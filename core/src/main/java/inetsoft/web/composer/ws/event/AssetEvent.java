@@ -18,8 +18,9 @@
 package inetsoft.web.composer.ws.event;
 
 import javax.annotation.Nullable;
+import java.io.Serializable;
 
-public interface AssetEvent {
+public interface AssetEvent extends Serializable {
    /**
     * @return the assembly name
     */

@@ -15,9 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http";
-import { Component, OnInit, ViewEncapsulation } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { HttpErrorResponse } from "@angular/common/http";
+import { Component, HostBinding, OnInit, ViewChild, ViewEncapsulation } from "@angular/core";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { ActivatedRoute, Router } from "@angular/router";
@@ -40,13 +40,22 @@ import { Tool } from "../../../../../../shared/util/tool";
 import { ContextHelp } from "../../../context-help";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { convertToKey } from "../../security/users/identity-id";
-import { TaskActionChanges } from "../task-action-pane/task-action-pane.component";
-import { TaskConditionChanges } from "../task-condition-pane/task-condition-pane.component";
-import { TaskOptionChanges } from "../task-options-pane/task-options-pane.component";
+import { TaskActionChanges, TaskActionPaneComponent } from "../task-action-pane/task-action-pane.component";
+import { TaskConditionChanges, TaskConditionPaneComponent } from "../task-condition-pane/task-condition-pane.component";
+import { TaskOptionChanges, TaskOptionsPane } from "../task-options-pane/task-options-pane.component";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
+import { ScheduleTaskEditorDataService } from "./schedule-task-editor-data.service";
+import { LoadingSpinnerComponent } from "../../../common/util/loading-spinner/loading-spinner.component";
+import { MatButton } from "@angular/material/button";
+import { MatTooltip } from "@angular/material/tooltip";
+import { MatNavList, MatListItem } from "@angular/material/list";
+import { MatCard, MatCardContent, MatCardActions } from "@angular/material/card";
+import { MatTabGroup, MatTab, MatTabContent } from "@angular/material/tabs";
 
-const EDIT_TASKS_URI = "../api/em/schedule/edit";
-const SAVE_TASK_URI = "../api/em/schedule/task/save";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { EditorPanelComponent } from "../../../common/util/editor-panel/editor-panel.component";
+import { NgIf } from "@angular/common";
 
 export class TaskItem {
    valid = true;
@@ -60,15 +69,15 @@ export class TaskItem {
    link: "EMSettingsScheduleTask"
 })
 @Component({
-   selector: "em-schedule-task-editor-page",
-   templateUrl: "./schedule-task-editor-page.component.html",
-   styleUrls: ["./schedule-task-editor-page.component.scss"],
-   encapsulation: ViewEncapsulation.None,
-   host: { // eslint-disable-line @angular-eslint/no-host-metadata-property
-      "class": "schedule-task-editor"
-   }
+    selector: "em-schedule-task-editor-page",
+    templateUrl: "./schedule-task-editor-page.component.html",
+    styleUrls: ["./schedule-task-editor-page.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    imports: [NgIf, EditorPanelComponent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatInput, MatError, MatTabGroup, MatTab, MatCard, MatCardContent, MatNavList, MatListItem, MatTooltip, MatCardActions, MatButton, TaskConditionPaneComponent, MatTabContent, TaskActionPaneComponent, TaskOptionsPane, LoadingSpinnerComponent]
 })
 export class ScheduleTaskEditorPageComponent implements OnInit {
+   @HostBinding("class") hostClass = "schedule-task-editor";
+   @ViewChild("editorPanel") editorPanel: EditorPanelComponent;
    originalModel: ScheduleTaskDialogModel;
    model: ScheduleTaskDialogModel;
 
@@ -157,7 +166,8 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
    loading = true;
    taskChanged = false;
 
-   constructor(private http: HttpClient, private dialog: MatDialog,
+   constructor(private dataService: ScheduleTaskEditorDataService,
+               private dialog: MatDialog,
                private router: Router, private route: ActivatedRoute,
                private snackBar: MatSnackBar, formBuilder: UntypedFormBuilder,
                private pageTitle: PageHeaderService,
@@ -172,14 +182,16 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
    ngOnInit() {
       this.scheduleTaskNamesService.loadScheduleTaskNames();
       this.route.params.subscribe(params => {
-         let taskParams = new HttpParams().set("taskName", params.task);
-
-         this.http.get(EDIT_TASKS_URI, {params: taskParams}).subscribe(
+         this.dataService.loadTask(params.task).subscribe(
             (model: ScheduleTaskDialogModel) => {
                this.loading = false;
                this.model = model;
                this.form.controls["taskName"].setValue(this.model.label);
 
+               // Long timezone label for display; strip leading day fragment via slice(4), assuming "DD, "
+               // prefix (common en-US style). Boundary: some locales omit the comma (single space after
+               // day), in which case slice(4) can truncate the first character of the zone name — rare;
+               // most browser defaults still match "DD, " so end users typically do not see an issue.
                this.model.timeZone = new Date().toLocaleDateString([],{
                   day: "2-digit",
                   timeZoneName: "long",
@@ -352,7 +364,8 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
          oldTaskName: this.model.name,
          conditions: this.model.taskConditionPaneModel.conditions,
          actions: this.model.taskActionPaneModel.actions,
-         options: this.model.taskOptionsPaneModel
+         options: this.model.taskOptionsPaneModel,
+         orgId: this.pageTitle.currentOrgId
       };
 
       // remove folderPermission property from actions as it's only used on the portal side
@@ -363,7 +376,7 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
          }
       }
 
-      this.http.post<ScheduleTaskDialogModel>(SAVE_TASK_URI, model)
+      this.dataService.saveTask(model)
          .pipe(
             catchError(error => this.handleSaveError(error))
          )
@@ -385,9 +398,9 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
             this.snackBar.open("_#(js:em.schedule.task.saveSuccess)", null, {
                duration: Tool.SNACKBAR_DURATION
             });
-         });
 
-      this.taskChanged = false;
+            this.taskChanged = false;
+         });
    }
 
    close(): void {
@@ -415,6 +428,12 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
       this.conditionItems = this.model.taskConditionPaneModel.conditions.map((condition) => {
          return new TaskItem(`condition-${this.nextConditionId++}`, condition.label);
       });
+      if(this.conditionItems.length > 0) {
+         this.selectedConditionIndex = Math.min(
+            Math.max(this.selectedConditionIndex, 0),
+            this.conditionItems.length - 1
+         );
+      }
 
       this.nextActionId = 0;
       this.selectedActionIndex = this.selectedActionIndex == -1 ? 0 : this.selectedActionIndex;
@@ -426,6 +445,12 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
       this.actionItems = this.model.taskActionPaneModel.actions.map((action) => {
          return new TaskItem(`action-${this.nextActionId++}`, action.label);
       });
+      if(this.actionItems.length > 0) {
+         this.selectedActionIndex = Math.min(
+            Math.max(this.selectedActionIndex, 0),
+            this.actionItems.length - 1
+         );
+      }
    }
 
    private appendCondition(appendItem: boolean = false): void {
@@ -477,6 +502,14 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
       });
 
       console.error("Failed to save task: ", error);
+
+      // EditorPanelComponent.handleClick() optimistically disables the Save button on click
+      // and relies on the [applyDisabled] input binding to re-enable it. Angular only re-pushes
+      // that input when the bound expression's value actually changes; on a failed save, "valid"
+      // is unchanged from before the click, so the binding update is skipped and the button is
+      // left stuck disabled. Force a resync here.
+      this.editorPanel?.changeApplyDisabledState(!this.valid);
+
       return throwError(error);
    }
 }

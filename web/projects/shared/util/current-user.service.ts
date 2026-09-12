@@ -17,14 +17,20 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { Observable } from "rxjs";
-import { shareReplay } from "rxjs/operators";
+import { Observable, of } from "rxjs";
+import { catchError, shareReplay } from "rxjs/operators";
 import { CurrentUser } from "../../portal/src/app/portal/current-user";
 
 @Injectable({
    providedIn: "root"
 })
 export class CurrentUserService {
+   // only successful responses are cached: shareReplay uses resetOnError=true, so a failed
+   // call resets the replay buffer and the next subscriber re-issues the request. The
+   // catchError is applied per-subscriber in the getters rather than here, because a
+   // catchError inside this pipe would complete the stream and shareReplay never resets a
+   // completed buffer (resetOnComplete=false) -- the null would be cached for the lifetime
+   // of the page, leaving every later subscriber without a current user and no retry.
    private emCurrentUser$: Observable<CurrentUser> =
       this.http.get<CurrentUser>("../api/em/security/get-current-user").pipe(
          shareReplay({ bufferSize: 1, refCount: true })
@@ -38,10 +44,10 @@ export class CurrentUserService {
    constructor(private http: HttpClient) {}
 
    getEmCurrentUser(): Observable<CurrentUser> {
-      return this.emCurrentUser$;
+      return this.emCurrentUser$.pipe(catchError(() => of(null)));
    }
 
    getPortalCurrentUser(): Observable<CurrentUser> {
-      return this.portalCurrentUser$;
+      return this.portalCurrentUser$.pipe(catchError(() => of(null)));
    }
 }

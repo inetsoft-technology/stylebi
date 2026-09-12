@@ -31,6 +31,10 @@ import java.security.Principal;
 
 @Controller
 public class ErrorController {
+   public ErrorController(CustomThemesManager customThemesManager) {
+      this.customThemesManager = customThemesManager;
+   }
+
    @RequestMapping(
       value = "errors",
       method = RequestMethod.GET,
@@ -63,8 +67,8 @@ public class ErrorController {
 
       errorPage.addObject("errorTitle", errorTitle);
       errorPage.addObject("errorMsg", errorMsg);
-      boolean isCustomTheme = !Tool.isEmptyString(CustomThemesManager.getManager().getSelectedTheme()) &&
-                              !"default".equals(CustomThemesManager.getManager().getSelectedTheme());
+      boolean isCustomTheme = !Tool.isEmptyString(customThemesManager.getSelectedTheme()) &&
+                              !"default".equals(customThemesManager.getSelectedTheme());
       errorPage.addObject("customTheme", isCustomTheme);
       return errorPage;
    }
@@ -85,9 +89,11 @@ public class ErrorController {
       final String error = WebUtils.getErrorMessage(request);
       model.addObject("errorMsg", error);
       model.addObject("errorTitle", catalog.getString("Error"));
-      boolean isCustomTheme = !Tool.isEmptyString(CustomThemesManager.getManager().getSelectedTheme()) &&
-                              !"default".equals(CustomThemesManager.getManager().getSelectedTheme());
+      boolean isCustomTheme = !Tool.isEmptyString(customThemesManager.getSelectedTheme()) &&
+                              !"default".equals(customThemesManager.getSelectedTheme());
       model.addObject("customTheme", isCustomTheme);
       return model;
    }
+
+   private final CustomThemesManager customThemesManager;
 }

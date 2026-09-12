@@ -20,7 +20,7 @@ import {
    ChangeDetectorRef,
    Component,
    ElementRef,
-   EventEmitter,
+   EventEmitter, forwardRef,
    HostListener,
    Input,
    OnChanges,
@@ -42,12 +42,24 @@ import { TreeNodeModel } from "./tree-node-model";
 import { TreeComponent } from "./tree.component";
 import { SearchComparator } from "./search-comparator";
 import { VirtualScrollTreeDatasource } from "./virtual-scroll-tree-datasource";
+import { TreeSearchPipe } from "./tree-search.pipe";
+import { TooltipDirective } from "../tooltip/tooltip.directive";
+import { EnterClickDirective } from "../directive/enter-click.directive";
+import { OutOfZoneDirective } from "../directive/out-of-zone.directive";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "tree-node",
-   templateUrl: "tree-node.component.html",
-   styleUrls: ["tree-node.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: "tree-node",
+    templateUrl: "tree-node.component.html",
+    styleUrls: ["tree-node.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [
+    OutOfZoneDirective,
+    EnterClickDirective,
+    NgClass,
+    TooltipDirective,
+    TreeSearchPipe
+]
 })
 export class TreeNodeComponent implements OnInit, OnDestroy, OnChanges {
    @Input() tree: TreeComponent;
@@ -77,7 +89,7 @@ export class TreeNodeComponent implements OnInit, OnDestroy, OnChanges {
    @Input() parentLoading: boolean = false;
    @Input() searchEndNode: (node: TreeNodeModel) => boolean;
    @Output() onContextmenu = new EventEmitter<[MouseEvent | any, TreeNodeModel]>();
-   @ViewChildren(TreeNodeComponent) nodes: QueryList<TreeNodeComponent>;
+   @ViewChildren(forwardRef(() => TreeNodeComponent)) nodes: QueryList<TreeNodeComponent>;
    @ViewChild("nodeElement") nodeElement: ElementRef;
    @ViewChild("toggleElement") toggleElement: ElementRef;
    readonly INDENT_SIZE: number = 15;
@@ -87,6 +99,7 @@ export class TreeNodeComponent implements OnInit, OnDestroy, OnChanges {
    private timeOutEvent: any = 0;
    private subscription = Subscription.EMPTY;
    public inViewport = true;
+   public hasMenu = false;
 
    constructor(private dragService: DragService, private cdRef: ChangeDetectorRef) {
    }
@@ -112,6 +125,10 @@ export class TreeNodeComponent implements OnInit, OnDestroy, OnChanges {
    }
 
    ngOnChanges(changes: SimpleChanges) {
+      if(changes["node"] || changes["tree"] || changes["contextmenu"]) {
+         this.updateHasMenu();
+      }
+
       if(this.node && (changes["node"] || changes["tree"] || changes["dataSource"] ||
          changes["useVirtualScroll"]))
       {
@@ -641,9 +658,20 @@ export class TreeNodeComponent implements OnInit, OnDestroy, OnChanges {
       }
    }
 
-   hasMenu(): boolean {
-      return this.contextmenu && (!this.tree.hasMenuFunction ||
-                                  this.tree.hasMenuFunction(this.node))
-         && !GuiTool.isMobileDevice();
+   // Cached in ngOnChanges instead of being called from the template on every
+   // change-detection cycle, since hasMenuFunction(node) and isMobileDevice() are
+   // relatively expensive. This assumes hasMenuFunction's result for a node only
+   // changes when the node, tree or contextmenu input changes - which holds because
+   // all hasMenuFunction implementations are pure functions of the node, and the
+   // node object reference is replaced when its data changes. Note that [tree] is
+   // bound to the owning TreeComponent's stable "this" reference, so changes["tree"]
+   // only fires on first render; callers whose hasMenuFunction depends on state other
+   // than the node must replace the node object. Note that hasMenuFunction itself
+   // must not change dynamically after the tree is first bound, as changes["tree"]
+   // only fires on first render and the cache would not be refreshed.
+   private updateHasMenu(): void {
+      this.hasMenu = !!this.contextmenu && !!this.node &&
+         (!this.tree || !this.tree.hasMenuFunction || this.tree.hasMenuFunction(this.node)) &&
+         !GuiTool.isMobileDevice();
    }
 }

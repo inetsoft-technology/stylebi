@@ -25,39 +25,50 @@ import inetsoft.util.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.messaging.AbstractSubProtocolEvent;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.security.Principal;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Controller
-@Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class PluginChangeController {
    @Autowired
-   public PluginChangeController(SimpMessagingTemplate messagingTemplate) {
+   public PluginChangeController(SimpMessagingTemplate messagingTemplate,
+                                 Plugins plugins,
+                                 SecurityEngine securityEngine)
+   {
+      this.securityEngine = securityEngine;
       this.debouncer = new DefaultDebouncer<>();
       this.messagingTemplate = messagingTemplate;
+      this.plugins = plugins;
    }
 
    @PostConstruct
    public void addListeners() {
-      Plugins.getInstance().addActionListener(this.pluginListener);
+      plugins.addActionListener(this.pluginListener);
    }
 
    @PreDestroy
    public void removeListeners() {
-      Plugins.getInstance().removeActionListener(this.pluginListener);
+      plugins.removeActionListener(this.pluginListener);
    }
 
    @SubscribeMapping(CHANGE_TOPIC)
-   public void subscribeToTopic(Principal principal) throws Exception {
-      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+   public void subscribeToTopic(StompHeaderAccessor header, Principal principal) throws SecurityException {
+      if(!securityEngine.getSecurityProvider().checkPermission(
          principal, ResourceType.EM_COMPONENT, "settings/content/drivers-and-plugins", ResourceAction.ACCESS))
       {
          // User lacks plugin management access (e.g. Organization Administrator). Silently
@@ -67,7 +78,26 @@ public class PluginChangeController {
          return;
       }
 
-      this.principal = principal;
+      final MessageHeaders messageHeaders = header.getMessageHeaders();
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      subscriptions.put(sessionId, principal);
+   }
+
+   @EventListener(SessionDisconnectEvent.class)
+   public void handleDisconnect(SessionDisconnectEvent event) {
+      removeSubscription(event);
+   }
+
+   private void removeSubscription(AbstractSubProtocolEvent event) {
+      final Message<byte[]> message = event.getMessage();
+      final MessageHeaders headers = message.getHeaders();
+      final String sessionId =
+         (String) headers.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+
+      if(sessionId != null) {
+         subscriptions.remove(sessionId);
+      }
    }
 
    private void pluginChanged(ActionEvent actionEvent) {
@@ -75,13 +105,17 @@ public class PluginChangeController {
    }
 
    private void sendChangeMessage() {
-      messagingTemplate
-         .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
+      for(Principal principal : subscriptions.values()) {
+         messagingTemplate
+            .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
+      }
    }
 
-   private Principal principal;
+   private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
    private final Debouncer<String> debouncer;
    private final SimpMessagingTemplate messagingTemplate;
+   private final Plugins plugins;
+   private final SecurityEngine securityEngine;
    private static final String CHANGE_TOPIC = "/em-plugin-changed";
    private final ActionListener pluginListener = this::pluginChanged;
 }

@@ -320,29 +320,34 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
          }
 
          try(DistributedTransaction tx = cluster.startTx()) {
-            lists.removeAll();
+            // Ignite doesn't allow the no-arg (clear-everything) removeAll() inside a
+            // transaction; only the keyed overload is transaction-safe.
             lists.put(ORG_LIST, new TreeSet<>(Arrays.asList(newOrganizations.result())));
             lists.put(USER_LIST, new TreeSet<>(Arrays.asList(newUsers.result())));
             lists.put(GROUP_LIST, new TreeSet<>(Arrays.asList(newGroups.result())));
             lists.put(ROLE_LIST, new TreeSet<>(Arrays.asList(newRoles.result())));
 
-            orgNames.removeAll();
+            orgNames.removeAll(new HashSet<>(orgNames.keySet()));
             orgNames.putAll(newOrgNames);
 
-            orgMembers.removeAll();
+            orgMembers.removeAll(new HashSet<>(orgMembers.keySet()));
             orgMembers.putAll(newOrgMembers);
 
-            orgRoles.removeAll();
+            orgRoles.removeAll(new HashSet<>(orgRoles.keySet()));
             orgRoles.putAll(newOrgRoles);
 
-            groupUsers.removeAll();
-            userRoles.removeAll();
+            groupUsers.removeAll(new HashSet<>(groupUsers.keySet()));
+            userRoles.removeAll(new HashSet<>(userRoles.keySet()));
             userRoles.putAll(newUserRoles.result());
-            userEmails.removeAll();
+            userEmails.removeAll(new HashSet<>(userEmails.keySet()));
 
             tx.commit();
             lastLoadTime.set(System.currentTimeMillis());
          }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to load database authentication cache for provider '{}'", providerName, ex);
+         handleError();
       }
       finally {
          loadingCount.set(0);

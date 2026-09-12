@@ -282,8 +282,19 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       list.add(aggr.getTextField());
 
       if(aggr instanceof RelationChartInfo) {
-         list.add(((RelationChartInfo) aggr).getNodeColorField());
-         list.add(((RelationChartInfo) aggr).getNodeSizeField());
+         AestheticRef nodeColorField = ((RelationChartInfo) aggr).getNodeColorField();
+         AestheticRef nodeSizeField = ((RelationChartInfo) aggr).getNodeSizeField();
+
+         // VSDimensionRef nodeColorField and nodeSizeField are excluded here; ChartVSAQuery
+         // adds them back as MAX aggregates to prevent extra GROUP BY rows per relation chart
+         // target node. VSAggregateRef variants flow through the normal aggregate path unchanged.
+         if(nodeColorField == null || !(nodeColorField.getDataRef() instanceof VSDimensionRef)) {
+            list.add(nodeColorField);
+         }
+
+         if(nodeSizeField == null || !(nodeSizeField.getDataRef() instanceof VSDimensionRef)) {
+            list.add(nodeSizeField);
+         }
       }
 
       return list.stream().filter(a -> a != null).collect(Collectors.toList());
@@ -2652,36 +2663,17 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    }
 
    /**
-    * Convert a 3D chart type to its non-3D equivalent when loading saved content. (74483)
-    */
-   private static int migrate3DChartType(int type) {
-      if(type == GraphTypes.CHART_3D_BAR) {
-         return GraphTypes.CHART_BAR;
-      }
-
-      if(type == GraphTypes.CHART_3D_BAR_STACK) {
-         return GraphTypes.CHART_BAR_STACK;
-      }
-
-      if(type == GraphTypes.CHART_3D_PIE) {
-         return GraphTypes.CHART_PIE;
-      }
-
-      return type;
-   }
-
-   /**
     * Parse attributes.
     */
    protected void parseAttributes(Element elem) {
       String val;
 
       if((val = Tool.getAttribute(elem, "chartType")) != null) {
-         setChartType(migrate3DChartType(Integer.parseInt(val)));
+         setChartType(Integer.parseInt(val));
       }
 
       if((val = Tool.getAttribute(elem, "rtype")) != null) {
-         setRTChartType(migrate3DChartType(Integer.parseInt(val)));
+         setRTChartType(Integer.parseInt(val));
       }
 
       if((val = Tool.getAttribute(elem, "separated")) != null) {
@@ -3869,9 +3861,9 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    private List<ChartRef> xrefs = Collections.synchronizedList(new ArrayList<>()); // x refs
    private List<ChartRef> yrefs = Collections.synchronizedList(new ArrayList<>()); // y fields
    private List<ChartRef> grefs = Collections.synchronizedList(new ArrayList<>()); // break-by fields
-   private ChartRef[] rxrefs; // runtime x chart refs
-   private ChartRef[] ryrefs; // runtime y chart refs
-   private ChartRef[] rgrefs; // runtime group refs
+   private ChartRef[] rxrefs = new ChartRef[0]; // runtime x chart refs
+   private ChartRef[] ryrefs = new ChartRef[0]; // runtime y chart refs
+   private ChartRef[] rgrefs = new ChartRef[0]; // runtime group refs
    private ChartRef pathRef;
    private boolean aggregated; // boolean aggregated
    private boolean donut = false; // if donut chart (with a middle total label)

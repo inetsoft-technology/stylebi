@@ -17,6 +17,7 @@
  */
 package inetsoft.sree;
 
+import com.google.common.base.Suppliers;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SRPrincipal;
@@ -32,6 +33,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -245,7 +247,7 @@ public class UserEnv {
       if(user == null ||
          ClientInfo.ANONYMOUS.equals(user.getName()))
       {
-         return enableAnonymous;
+         return enableAnonymous.get();
       }
 
       return true;
@@ -476,6 +478,34 @@ public class UserEnv {
    }
 
    /**
+    * Remove a user's saved properties file. Called when a user is deleted so the
+    * sreeUserData/{name}_{orgID}.xml file is not left orphaned.
+    */
+   public static void removeUser(IdentityID userIdentity) {
+      if(userIdentity == null) {
+         return;
+      }
+
+      String userFile = getUserFile(userIdentity.convertToKey());
+      DataSpace space = DataSpace.getDataSpace();
+
+      try {
+         removeChangeListener(space, userFile);
+
+         if(space.exists(USER_DIR, userFile)) {
+            space.delete(USER_DIR, userFile);
+         }
+
+         synchronized(propmap) {
+            propmap.keySet().removeIf(k -> userIdentity.equals(getName(k)));
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove user properties for {}", userIdentity, e);
+      }
+   }
+
+   /**
     * Get the user names containing a UserEnv file
     */
    public static Set<String> getUsersWithFile() {
@@ -542,7 +572,7 @@ public class UserEnv {
                IdentityID user = getName(key);
                int index = e.getFile().indexOf(".xml");
 
-               if(index >= 0 && e.getFile().substring(0, index).equals(user.name)) {
+               if(index >= 0 && e.getFile().substring(0, index).equals(user.name + "_" + user.orgID)) {
                   propmap.remove(key);
                   return;
                }
@@ -599,15 +629,19 @@ public class UserEnv {
    private static final String USER_DIR = "sreeUserData";
    // data change listener manager
    private static final DataChangeListenerManager dmgr = new DataChangeListenerManager();
-   private static final boolean enableAnonymous =
-      "true".equals(SreeEnv.getProperty("anonymous.userdata.save"));
+   private static final Supplier<Boolean> enableAnonymous = Suppliers.memoize(
+      () -> "true".equals(SreeEnv.getProperty("anonymous.userdata.save")));
    private static final Logger LOG =
       LoggerFactory.getLogger(UserEnv.class);
    private static final Set<String> transients = new HashSet<>();
    private static final Set<ChangeListenerRecord> changeListenerTracker =
       ConcurrentHashMap.newKeySet();
    private static final ScheduledExecutorService changeListenerCleanupThread =
-      Executors.newSingleThreadScheduledExecutor();
+      Executors.newSingleThreadScheduledExecutor(r -> {
+         Thread t = new Thread(r, "UserEnvChangeListenerCleanup");
+         t.setDaemon(true);
+         return t;
+      });
 
    static {
       transients.add("locale");

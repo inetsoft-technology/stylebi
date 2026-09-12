@@ -26,12 +26,15 @@ import { StyleConstants } from "../../../common/util/style-constants";
 import { SummaryAttrUtil } from "../../util/summary-attr-util";
 import { XSchema } from "../../../common/data/xschema";
 
+import { FormsModule } from "@angular/forms";
+
 const DEFAULT_N_P_NVALUE: number = 1;
 
 @Component({
-   selector: "calc-aggregate-option",
-   templateUrl: "calc-aggregate-option.component.html",
-   styleUrls: ["calc-aggregate-option.component.scss"]
+    selector: "calc-aggregate-option",
+    templateUrl: "calc-aggregate-option.component.html",
+    styleUrls: ["calc-aggregate-option.component.scss"],
+    imports: [FormsModule]
 })
 export class CalcAggregateOption implements OnInit, OnChanges {
    @Input() dataRef: DataRef;
@@ -43,6 +46,7 @@ export class CalcAggregateOption implements OnInit, OnChanges {
    aggregate: any = {};
    formulas: AggregateFormula[] = new Array<AggregateFormula>();
    _nStr: string = "";
+   npLabel: string = "";
 
    public constructor(private editorService: VSCalcTableEditorService,
       private bindingService: BindingService) {
@@ -51,14 +55,19 @@ export class CalcAggregateOption implements OnInit, OnChanges {
 
    ngOnInit() {
       this._nStr = this.nValue != null ? this.nValue + "" : "";
+      this.updateNPLabel();
    }
 
-   ngOnChanges(changes: SimpleChanges) {
+   ngOnChanges(_changes: SimpleChanges) {
       this.formulas = AssetUtil.getAggregateModel(this.dataRef);
 
       if(this.dataRef?.dataType == XSchema.BOOLEAN) {
          this.formulas = this.formulas.concat(AggregateFormula.NTH_MOST_FREQUENT);
       }
+   }
+
+   get percents(): any[] {
+      return this.getPercents();
    }
 
    get availableFields() {
@@ -110,6 +119,7 @@ export class CalcAggregateOption implements OnInit, OnChanges {
       }
 
       this.updateFormula();
+      this.updateNPLabel();
    }
 
    get secondCol(): string {
@@ -312,8 +322,8 @@ export class CalcAggregateOption implements OnInit, OnChanges {
       return formula;
    }
 
-   getNPLabel(): string {
-      return AggregateFormula.getNPLabel(this.baseFormula);
+   private updateNPLabel(): void {
+      this.npLabel = AggregateFormula.getNPLabel(this.baseFormula);
    }
 
    isPthFormula(): boolean {

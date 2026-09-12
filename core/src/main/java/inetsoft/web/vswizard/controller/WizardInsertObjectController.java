@@ -17,15 +17,11 @@
  */
 package inetsoft.web.vswizard.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.web.composer.vs.objects.event.AddNewVSObjectEvent;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.LinkUri;
-import inetsoft.web.vswizard.service.WizardVSObjectService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -36,13 +32,11 @@ import java.security.Principal;
 @Controller
 public class WizardInsertObjectController {
    @Autowired
-   public WizardInsertObjectController(ViewsheetService engine,
-                                       RuntimeViewsheetRef runtimeViewsheetRef,
-                                       WizardVSObjectService wizardVsObjectService)
+   public WizardInsertObjectController(RuntimeViewsheetRef runtimeViewsheetRef,
+                                       WizardInsertObjectServiceProxy wizardInsertObjectServiceProxy)
    {
-      this.engine = engine;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.wizardVsObjectService = wizardVsObjectService;
+      this.wizardInsertObjectServiceProxy = wizardInsertObjectServiceProxy;
    }
 
    @Undoable
@@ -51,26 +45,10 @@ public class WizardInsertObjectController {
                              Principal principal, CommandDispatcher commandDispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs =
-        this.engine.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-
-      if(rvs == null) {
-         return;
-      }
-
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockWrite();
-
-      try {
-         this.wizardVsObjectService.insertVsObject(rvs, event, linkUri, principal,
-                                                   commandDispatcher);
-      }
-      finally {
-         box.unlockWrite();
-      }
+      wizardInsertObjectServiceProxy.addTextObject(runtimeViewsheetRef.getRuntimeId(), event,
+                                                   linkUri, principal, commandDispatcher);
    }
 
-   private final ViewsheetService engine;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final WizardVSObjectService wizardVsObjectService;
+   private final WizardInsertObjectServiceProxy wizardInsertObjectServiceProxy;
 }

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, ViewChild } from "@angular/core";
 import { EntityModel } from "../../../../model/datasources/database/physical-model/logical-model/entity-model";
 import { AttributeModel } from "../../../../model/datasources/database/physical-model/logical-model/attribute-model";
 import { SelectedItem } from "./logical-model.component";
@@ -39,15 +39,25 @@ import { ElementModel } from "../../../../model/datasources/database/physical-mo
 import { LogicalModelService } from "./logical-model-service";
 import { UntypedFormGroup } from "@angular/forms";
 import { CheckDependenciesEvent } from "../../../../model/datasources/database/events/check-dependencies-event";
+import { LogicalModelExpressionEditor } from "./expression-attribute-editor/logical-model-expression-editor.component";
+import { LogicalModelColumnEditor } from "./column-attribute-editor/logical-model-column-editor.component";
+import { LogicalModelEntityEditor } from "./entity-editor/logical-model-entity-editor.component";
+import { LoadingIndicatorPaneComponent } from "../../common-components/loading-indicator-pane/loading-indicator-pane.component";
+import { ElementTreeNode } from "./element-tree-node/element-tree-node.component";
+
+import { FixedDropdownDirective } from "../../../../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { SplitPane } from "../../../../../../widget/split-pane/split-pane.component";
+import { Subscription } from "rxjs";
 
 const LOGICAL_MODEL_CHECK_DEPENDENCIES_URI: string = "../api/data/logicalmodel/checkOuterDependencies";
 
 @Component({
-   selector: "logical-model-property-pane",
-   templateUrl: "logical-model-property-pane.component.html",
-   styleUrls: ["../database-model-pane.scss", "logical-model-property-pane.component.scss"]
+    selector: "logical-model-property-pane",
+    templateUrl: "logical-model-property-pane.component.html",
+    styleUrls: ["../database-model-pane.scss", "logical-model-property-pane.component.scss"],
+    imports: [SplitPane, FixedDropdownDirective, ElementTreeNode, LoadingIndicatorPaneComponent, LogicalModelEntityEditor, LogicalModelColumnEditor, LogicalModelExpressionEditor]
 })
-export class LogicalModelPropertyPane implements OnInit {
+export class LogicalModelPropertyPane implements OnInit, OnDestroy {
    @Input() databaseName: string;
    @Input() physicalModelName: string;
    @Input() additional: string;
@@ -86,6 +96,7 @@ export class LogicalModelPropertyPane implements OnInit {
    newEntity = false;
    expanded: EntityModel[] = []; // for multi-select with shift.
    private _logicalModel: LogicalModelDefinition;
+   private checkOuterDependenciesSubscription: Subscription;
 
    constructor(private dataModelNameChangeService: DataModelNameChangeService,
                private folderChangeService: FolderChangeService,
@@ -102,6 +113,10 @@ export class LogicalModelPropertyPane implements OnInit {
       };
    }
 
+   ngOnDestroy(): void {
+      this.checkOuterDependenciesSubscription?.unsubscribe();
+   }
+
    get editingEle() {
       return this._editingEle;
    }
@@ -111,7 +126,10 @@ export class LogicalModelPropertyPane implements OnInit {
       this.updateExistNames();
    }
 
-   attributeOrderChanged() {
+   attributeOrderChanged(event: {entityIndex: number, oldAttrIndex: number, newAttrIndex: number}) {
+      // _editingEle is the same object reference that element-tree-node mutates via
+      // selectedEles (movedItem.attribute-- / movedItem.attribute++), so the index
+      // is already correct by the time this handler runs — no further adjustment needed.
       this.updateExistNames();
    }
 
@@ -289,28 +307,29 @@ export class LogicalModelPropertyPane implements OnInit {
       event.modelElements = models;
       event.newCreate = !this.editing;
 
-      this.httpClient.post(LOGICAL_MODEL_CHECK_DEPENDENCIES_URI, event).subscribe((result: any) => {
-         if(!!result && !!result.body) {
-            ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", result.body,
-               {"yes": "_#(js:Yes)", "no": "_#(js:No)"})
-               .then((btn) => {
-                  if(btn == "yes") {
-                     this.deleteSelectedItem0(deleteEles);
-                  }
-               });
-         }
-         else {
-            const title: string = "_#(js:data.logicalmodel.removeElements)";
-            const message: string = "_#(js:data.logicalmodel.confirmRemoveElements)";
+      this.checkOuterDependenciesSubscription =
+         this.httpClient.post(LOGICAL_MODEL_CHECK_DEPENDENCIES_URI, event).subscribe((result: any) => {
+            if(!!result && !!result.body) {
+               ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", result.body,
+                  {"yes": "_#(js:Yes)", "no": "_#(js:No)"})
+                  .then((btn) => {
+                     if(btn == "yes") {
+                        this.deleteSelectedItem0(deleteEles);
+                     }
+                  });
+            }
+            else {
+               const title: string = "_#(js:data.logicalmodel.removeElements)";
+               const message: string = "_#(js:data.logicalmodel.confirmRemoveElements)";
 
-            ComponentTool.showConfirmDialog(this.modalService, title, message)
-               .then((buttonClicked: string) => {
-                  if(buttonClicked == "ok") {
-                     this.deleteSelectedItem0(deleteEles);
-                  }
-               });
-         }
-      });
+               ComponentTool.showConfirmDialog(this.modalService, title, message)
+                  .then((buttonClicked: string) => {
+                     if(buttonClicked == "ok") {
+                        this.deleteSelectedItem0(deleteEles);
+                     }
+                  });
+            }
+         });
    }
 
    deleteSelectedItem0(deleteEles: SelectedItem[]): void {

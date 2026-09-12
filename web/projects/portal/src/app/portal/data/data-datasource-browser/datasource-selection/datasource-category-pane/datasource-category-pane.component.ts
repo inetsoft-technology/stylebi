@@ -17,11 +17,13 @@
  */
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from "@angular/core";
 
+
 @Component({
-   selector: "datasource-category-pane",
-   templateUrl: "datasource-category-pane.component.html",
-   styleUrls: ["datasource-category-pane.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "datasource-category-pane",
+    templateUrl: "datasource-category-pane.component.html",
+    styleUrls: ["datasource-category-pane.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: []
 })
 export class DatasourceCategoryPaneComponent {
    @Input() categories: string[];

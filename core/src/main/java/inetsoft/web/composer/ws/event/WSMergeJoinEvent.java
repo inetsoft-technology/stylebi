@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.ws.event;
 
-public class WSMergeJoinEvent {
+import java.io.Serializable;
+
+public class WSMergeJoinEvent implements Serializable {
 
    public String[] getTableNames() {
       return tableNames;

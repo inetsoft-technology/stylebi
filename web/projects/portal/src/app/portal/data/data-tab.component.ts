@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, OnDestroy, ViewChild } from "@angular/core";
+import { AfterViewInit, Component, OnDestroy, ViewChild } from "@angular/core";
 import { Subscription } from "rxjs";
 import {
    AiAssistantService,
@@ -24,14 +24,17 @@ import {
 import { RepositoryClientService } from "../../common/repository-client/repository-client.service";
 import { SplitPane } from "../../widget/split-pane/split-pane.component";
 import { DataPhysicalModelService } from "./services/data-physical-model.service";
+import { RouterOutlet } from "@angular/router";
+import { DataSourcesTreeViewComponent } from "./data-navigation-tree/data-sources-tree-view.component";
 
 @Component({
-   selector: "p-data-tab",
-   templateUrl: "./data-tab.component.html",
-   styleUrls: ["./data-tab.component.scss"],
-   providers: [RepositoryClientService]
+    selector: "p-data-tab",
+    templateUrl: "./data-tab.component.html",
+    styleUrls: ["./data-tab.component.scss"],
+    providers: [RepositoryClientService],
+    imports: [SplitPane, DataSourcesTreeViewComponent, RouterOutlet]
 })
-export class DataTabComponent implements OnDestroy {
+export class DataTabComponent implements AfterViewInit, OnDestroy {
    @ViewChild(SplitPane) splitPane: SplitPane;
 
    readonly INIT_TREE_PANE_SIZE = 25;
@@ -51,6 +54,10 @@ export class DataTabComponent implements OnDestroy {
       });
    }
 
+   ngAfterViewInit(): void {
+      this.updateDataTreePane();
+   }
+
    ngOnDestroy(): void {
       if(!!this.subscription) {
          this.subscription.unsubscribe();
@@ -64,6 +71,10 @@ export class DataTabComponent implements OnDestroy {
    }
 
    updateDataTreePane(): void {
+      if(!this.splitPane) {
+         return;
+      }
+
       if(!this.treePaneCollapsed) {
          this.splitPane.setSizes([this.treePaneSize, 100 - this.treePaneSize]);
       }

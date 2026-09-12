@@ -17,24 +17,20 @@
  */
 package inetsoft.web.viewsheet.event.calendar;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
+import org.immutables.value.Value;
+
 /**
  * Class that encapsulates the parameters for toggling range/comparison mode.
  *
  * @since 12.3
  */
-public class ToggleRangeComparisonEvent extends CalendarSelectionEvent {
-   public boolean isPeriod() {
-      return period;
-   }
-
-   public void setPeriod(boolean period) {
-      this.period = period;
-   }
-
-   @Override
-   public String toString() {
-      return "{period:" + period + "}";
-   }
-
-   private boolean period;
+@Value.Immutable
+@Serial.Structural
+@JsonSerialize(as = ImmutableToggleRangeComparisonEvent.class)
+@JsonDeserialize(as = ImmutableToggleRangeComparisonEvent.class)
+public abstract class ToggleRangeComparisonEvent extends CalendarSelectionEvent {
+   public abstract boolean period();
 }

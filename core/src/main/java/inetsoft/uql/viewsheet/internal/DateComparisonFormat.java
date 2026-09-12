@@ -150,6 +150,32 @@ public class DateComparisonFormat extends Format {
             }
          }
 
+         // NOTE (Bug #76390): this used to remove "orphaned" part entries here --
+         // i.e. any partCol value not in DateComparisonUtil.computeValidParts(data,
+         // dateCol, partCol, null) -- and blank that part's axis label entirely,
+         // using the same "does this part have a row in the single most recent
+         // period" heuristic as DateComparisonUtil.applyDateRange()'s
+         // ValidPartsSelector. That heuristic is sound for ValidPartsSelector, which
+         // filters raw, not-yet-verified rows out of the plotted/exported dataset
+         // before anything here runs.
+         //
+         // But every entry partDates can ever contain is, by construction (see the
+         // loop above), already backed by a real row with a real plotted value --
+         // there is no "spurious future" data to discover and strip at this point.
+         // In a faceted date-comparison chart, one partCol value legitimately *is*
+         // one facet group, and different facet groups routinely finish carrying
+         // real data for the newest comparison period at different times (e.g. one
+         // WeekOfMonth bucket has already reached this year's data, another hasn't)
+         // -- that is ordinary, expected asymmetry, not a sign that a facet group's
+         // own historical entries are invalid. Applying the single dataset-wide
+         // "most recent period" heuristic here treated every part but the one
+         // holding the single latest date as fully orphaned and wiped its label
+         // outright, even though its underlying dates/bars (in partDates, and thus
+         // in the rendered chart) were completely correct. So this consumer no
+         // longer removes any partDates entries; the underlying row-level future
+         // exclusion Bug #75152/#76389 rely on is still enforced by
+         // DateComparisonUtil.applyDateRange()'s ValidPartsSelector, upstream of
+         // this class.
          this.partDates = partDates;
          this.partDates2 = partDates2;
          fixDisplayShortDate();
@@ -262,6 +288,7 @@ public class DateComparisonFormat extends Format {
                                boolean onlyShowMostRecentDate)
    {
       initPartDate();
+
       Set<Date> dates = partDates.get(obj);
       dates = dates == null ? partDates2.get(obj) : dates;
       Format dateFmt = format != null ?
@@ -373,6 +400,7 @@ public class DateComparisonFormat extends Format {
       Calendar cal = new GregorianCalendar();
       cal.setTime(date);
       cal.setMinimalDaysInFirstWeek(7);
+      cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
 
       // week-of-year is MMW (month and week-of-month)
       if(datePart == Calendar.WEEK_OF_YEAR) {

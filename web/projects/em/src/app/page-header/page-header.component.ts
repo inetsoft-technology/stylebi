@@ -32,11 +32,22 @@ import { CustomRouteReuseStrategy } from "../custom-route-reuse-strategy";
 import { OrganizationDropdownService } from "../navbar/organization-dropdown.service";
 import { EmPageHeaderModel } from "./em-page-header-model";
 import { PageHeaderService } from "./page-header.service";
+import { MatSelect } from "@angular/material/select";
+import { MatOption } from "@angular/material/core";
+import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
+import { FormsModule } from "@angular/forms";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field";
+
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+import { MatToolbar } from "@angular/material/toolbar";
 
 @Component({
-   selector: "em-page-header",
-   templateUrl: "./page-header.component.html",
-   styleUrls: ["./page-header.component.scss"]
+    selector: "em-page-header",
+    templateUrl: "./page-header.component.html",
+    styleUrls: ["./page-header.component.scss"],
+    imports: [MatToolbar, MatIconButton, MatIcon, MatFormField, MatLabel, MatInput, FormsModule, MatAutocompleteTrigger, MatSuffix, MatAutocomplete, MatOption, MatSelect]
 })
 export class PageHeaderComponent implements OnInit, OnDestroy {
    @Input() title: string;
@@ -75,7 +86,7 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
          this.refreshSubscription = this.orgDropdownService.onRefresh.pipe(debounceTime(100))
             .subscribe((res) => {
                this.currentProvider = res.provider;
-               this.refreshModel(this.currentProvider, res.providerChanged);
+               this.refreshModel(this.currentProvider, res.providerChanged, res.renameOnly);
             });
       }
 
@@ -100,7 +111,7 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
       );
    }
 
-   private refreshModel(currentProvider: string, providerChanged?: boolean): void {
+   private refreshModel(currentProvider: string, providerChanged?: boolean, renameOnly?: boolean): void {
       const params = new HttpParams()
          .set("provider", !!currentProvider ? currentProvider : "")
          .set("providerChanged", !!providerChanged ? providerChanged : "false");
@@ -110,8 +121,9 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
          .subscribe((result: EmPageHeaderModel) => {
             this.model = result;
             this.currentProvider = result.providerName;
+            this.pageTitle.currentOrgId = result.currOrgID;
 
-            if(oldOrg != null && this.model != null && this.model.currOrgID != oldOrg) {
+            if(!renameOnly && oldOrg != null && this.model != null && this.model.currOrgID != oldOrg) {
                // Notify of an externally-detected org change (e.g. changed from another session or admin action).
                this.orgDropdownService.notifyOrgChange();
                let currRoute = this.router.url;
@@ -142,6 +154,8 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
    }
 
    changeOrg(){
+      this.pageTitle.currentOrgId = this.model.currOrgID;
+
       this.http.post("../api/em/pageheader/organization", this.model)
          .subscribe(() => {
             // Notify of the user-initiated org change before routing, so clipboard is cleared immediately.

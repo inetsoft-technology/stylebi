@@ -56,7 +56,11 @@ public class MapDBKeyValueEngine implements KeyValueEngine {
       }
 
       this.directory = directory;
-      cacheExecutor = Executors.newSingleThreadScheduledExecutor();
+      cacheExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+         Thread thread = new Thread(r, "MapDBKeyValueEngine");
+         thread.setDaemon(true);
+         return thread;
+      });
       cacheExecutor.scheduleWithFixedDelay(this::flushDatabases, 1L, 1L, TimeUnit.MINUTES);
    }
 
@@ -132,6 +136,11 @@ public class MapDBKeyValueEngine implements KeyValueEngine {
             tempDbFile.delete();
          }
       }
+   }
+
+   @Override
+   public long size(String id) {
+      return read(id, map -> (long) map.size());
    }
 
    @Override
@@ -301,7 +310,11 @@ public class MapDBKeyValueEngine implements KeyValueEngine {
    private final Path directory;
    private final ScheduledExecutorService cacheExecutor;
    private final Map<String, CacheEntry> dbCache = new HashMap<>();
-   private final Debouncer<String> commitDebouncer = new DefaultDebouncer<>(false, Thread::new);
+   private final Debouncer<String> commitDebouncer = new DefaultDebouncer<>(false, r -> {
+      Thread thread = new Thread(r, "MapDBKeyValueEngineDebouncer");
+      thread.setDaemon(true);
+      return thread;
+   });
    private volatile boolean closed = false;
 
    private static final class CacheEntry {

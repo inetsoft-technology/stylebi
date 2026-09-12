@@ -18,7 +18,7 @@
 package inetsoft.util.script;
 
 
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 
 import java.awt.*;
 import java.util.Stack;
@@ -79,14 +79,22 @@ public class FormulaContext {
    /**
     * Get the containing scope of the formula execution.
     */
-   public static Scriptable getScope() {
-      return (Scriptable) get(scope);
+   public static ScriptScope getScope() {
+      return (ScriptScope) get(scope);
    }
-   
+
+   /**
+    * Get the current execution scope (top of the scope stack), or null.
+    * Wired into the GraalJS engine's BindingRootProxy scope-chain fallback.
+    */
+   public static ScriptScope getExecScriptScope() {
+      return getScope();
+   }
+
    /**
     * Set the containing scope of the formula execution.
     */
-   public static void pushScope(Scriptable scriptable) {
+   public static void pushScope(ScriptScope scriptable) {
       push(scope, scriptable);
    }
     

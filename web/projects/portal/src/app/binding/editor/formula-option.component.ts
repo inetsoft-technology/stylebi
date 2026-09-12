@@ -29,9 +29,12 @@ import { Tool } from "../../../../../shared/util/tool";
 import isEmpty = Tool.isEmpty;
 import { DataRefType } from "../../common/data/data-ref-type";
 
+import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
+
 @Component({
-   selector: "formula-option",
-   templateUrl: "formula-option.component.html",
+    selector: "formula-option",
+    templateUrl: "formula-option.component.html",
+    imports: [DynamicComboBox]
 })
 export class FormulaOption implements OnInit {
    @Input() vsId: any;
@@ -45,6 +48,7 @@ export class FormulaOption implements OnInit {
    @Input() aggregated: boolean = true;
    @Output() formulaChange: EventEmitter<any> = new EventEmitter<any>();
    availableValues: any[];
+   npLabel: string = "";
 
    constructor(private bindingService: BindingService, private modalService: NgbModal) {
    }
@@ -52,6 +56,7 @@ export class FormulaOption implements OnInit {
    ngOnInit() {
       this.availableValues = this.getAvailableFields();
       this.initSecondaryColumn();
+      this.updateNPLabel();
    }
 
    get formulaLabel(): string {
@@ -101,6 +106,7 @@ export class FormulaOption implements OnInit {
       this.aggregate.formula = val;
       this.availableValues = this.getAvailableFields();
       this.fixSecondaryColumn();
+      this.updateNPLabel();
       this.formulaChange.emit();
    }
 
@@ -194,8 +200,8 @@ export class FormulaOption implements OnInit {
                !(<any>f).baseOnDetail);
    }
 
-   getNPLabel(): string {
-      return AggregateFormula.getNPLabel(this.aggregate.formula);
+   private updateNPLabel(): void {
+      this.npLabel = AggregateFormula.getNPLabel(this.aggregate.formula);
    }
 
    isNValid(): boolean {

@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.net.*;
+import java.nio.charset.StandardCharsets;
 
 public class ElasticRestRuntime extends TabularRuntime {
    public XTableNode runQuery(TabularQuery query0, VariableTable params) {
@@ -99,7 +100,8 @@ public class ElasticRestRuntime extends TabularRuntime {
          conn = (HttpURLConnection) url.openConnection();
 
          String userpass = restDS.getUser() + ":" + restDS.getPassword();
-         String basicAuth = "Basic " + Base64.encodeBase64String(userpass.getBytes());
+         String basicAuth = "Basic " +
+            Base64.encodeBase64String(userpass.getBytes(StandardCharsets.UTF_8));
          conn.setRequestProperty("Authorization", basicAuth);
          conn.getInputStream();
       }
@@ -123,7 +125,8 @@ public class ElasticRestRuntime extends TabularRuntime {
 
       if(user != null && password != null) {
          String credential = new String(
-            Base64.encodeBase64((user + ":" + password).getBytes()));
+            Base64.encodeBase64((user + ":" + password).getBytes(StandardCharsets.UTF_8)),
+            StandardCharsets.US_ASCII);
          conn.setRequestProperty("Authorization", "Basic " + credential);
       }
 

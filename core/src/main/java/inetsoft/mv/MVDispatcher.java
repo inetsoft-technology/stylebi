@@ -249,7 +249,7 @@ public class MVDispatcher {
                }
 
                MVCompositeDispatcher dispatcher =
-                  new MVCompositeDispatcher(def, vars);
+                  new MVCompositeDispatcher(def, vars, ThreadContext.getContextPrincipal());
                dispatcher.number = this.number;
                dispatcher.isDate = this.isDate;
                dispatcher.isDateTime = this.isDateTime;
@@ -490,7 +490,7 @@ public class MVDispatcher {
             MVCreatorUtil.setupTable(def, assembly, box);
 
             // set time as now, not to use cached data when create mv
-            data = AssetDataCache.getData(null, assembly, box, null,
+            data = AssetDataCache.getCache().getData(null, assembly, box, null,
                                           AssetQuerySandbox.RUNTIME_MODE,
                                           false, System.currentTimeMillis(),
                                           box.getQueryManager());

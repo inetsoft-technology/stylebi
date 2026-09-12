@@ -55,15 +55,23 @@ import { BaseTableCellModel } from "../../model/base-table-cell-model";
 import { ShowHyperlinkService } from "../../show-hyperlink.service";
 import { DetailDndInfo } from "./detail-dnd-info";
 import { SortInfo } from "./sort-info";
+import { FormattingPane } from "../../../format/objects/formatting-pane.component";
+import { NotificationsComponent } from "../../../widget/notifications/notifications.component";
+import { TouchScrollDirective } from "../../../widget/scroll/touch-scroll.directive";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { FormsModule } from "@angular/forms";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { NgClass, NgStyle } from "@angular/common";
 
 const CHART_DETAIL_COLWIDTH_URI: string = "../api/vs/showdetails/colwidth";
 const CHART_DATA_COLWIDTH_URI: string = "../api/vs/showdata/colwidth";
 const INITIAL_COLUMN_WIDTH: number = 80;
 
 @Component({
-   selector: "preview-table",
-   templateUrl: "preview-table.component.html",
-   styleUrls: ["preview-table.component.scss"]
+    selector: "preview-table",
+    templateUrl: "preview-table.component.html",
+    styleUrls: ["preview-table.component.scss"],
+    imports: [OutOfZoneDirective, NgClass, FixedDropdownDirective, FormsModule, DefaultFocusDirective, TouchScrollDirective, NgStyle, NgbTooltip, NotificationsComponent, FormattingPane]
 })
 export class PreviewTableComponent implements OnDestroy, AfterViewChecked, AfterContentChecked {
    @Input() sortEnabled: boolean = false;
@@ -112,7 +120,8 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
    tableHeight: number;
    scrollY: number = 0;
    horizontalDist = 0;
-   columnRightPositions: number[];
+   // undefined until the first tableData response runs through initColumnWidths()/updateWidths()
+   columnRightPositions: number[] | undefined;
    columnIndexRange: Range;
    leftOfColRangeWidth: number;
    rightOfColRangeWidth: number;
@@ -367,6 +376,13 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
    }
 
    startResize(event: MouseEvent, index: number) {
+      if(this.columnRightPositions == null) {
+         // Columns haven't been initialized yet (no tableData response applied) — there is
+         // no resize handle to render at this point, but guard anyway since this shares the
+         // same "not yet initialized" hazard as updateColumnRange().
+         return;
+      }
+
       event.preventDefault();
       this.windowListeners = [
          this.renderer.listen("window", "mousemove", (e) => this.resizeMove(e)),
@@ -476,6 +492,13 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
    }
 
    private updateColumnRange(): void {
+      if(this.columnRightPositions == null) {
+         // Not yet initialized — e.g. a window:resize fired before the first tableData
+         // response ran through initColumnWidths()/updateWidths(). Nothing to range yet;
+         // updateWidths() will call this again once column widths are computed.
+         return;
+      }
+
       const leftViewBound = this.previewContainer.nativeElement.scrollLeft;
       const rightViewBound = leftViewBound + this.previewContainer.nativeElement.clientWidth;
       const search = BinarySearch.numbers(this.columnRightPositions);

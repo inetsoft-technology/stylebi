@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -50,24 +50,6 @@ import { ActionAccordion } from "./action-accordion.component";
 import { ValueTypes } from "../../../../../vsobjects/model/dynamic-value-model";
 
 describe("Action Accordion Unit Test", () => {
-   const createRepletActionModel: () => GeneralActionModel = () => {
-      return {
-         label: "test action",
-         actionClass: "GeneralActionModel",
-         actionType: "RepletAction",
-         bundledAsZip: false,
-         deliverEmailsEnabled: false,
-         folderPermission: true,
-         format: "PDF",
-         fromEmail: "reportserver@inetsoft.com",
-         notificationEnabled: false,
-         printOnServerEnabled: false,
-         saveToServerEnabled: false,
-         ccAddress: "",
-         bccAddress: ""
-      };
-   };
-
    const createVSActionModel: () => GeneralActionModel = () => {
       return {
          label: "test action",
@@ -118,7 +100,7 @@ describe("Action Accordion Unit Test", () => {
          emailDeliveryEnabled: true,
          expandEnabled: true,
          cvsEnabled: false,
-         action: createRepletActionModel(),
+         action: createVSActionModel(),
          actions: [],
          userDefinedClasses: [],
          userDefinedClassLabels: [],
@@ -134,36 +116,53 @@ describe("Action Accordion Unit Test", () => {
       };
    };
 
-   let ngbService = { open: jest.fn() };
-   let deObservable = { debounceTime: jest.fn() };
+   let ngbService = { open: vi.fn() };
+   let deObservable = { debounceTime: vi.fn() };
    let scheduleUsersService = {
-      init: jest.fn(),
-      getOwners: jest.fn(() => new BehaviorSubject([]) ),
-      getGroups: jest.fn(() => new BehaviorSubject([]) ),
-      getRoles: jest.fn(() => new BehaviorSubject([]) ),
-      getEmailUsers: jest.fn(() => new BehaviorSubject([]) ),
-      getEmailGroups: jest.fn(() => new BehaviorSubject([]) ),
-      getAdminName: jest.fn(() => new BehaviorSubject("admin") ),
+      init: vi.fn(),
+      getOwners: vi.fn(() => new BehaviorSubject([]) ),
+      getGroups: vi.fn(() => new BehaviorSubject([]) ),
+      getRoles: vi.fn(() => new BehaviorSubject([]) ),
+      getEmailUsers: vi.fn(() => new BehaviorSubject([]) ),
+      getEmailGroups: vi.fn(() => new BehaviorSubject([]) ),
+      getAdminName: vi.fn(() => new BehaviorSubject("admin") ),
    };
    deObservable.debounceTime.mockImplementation(() => new Subject());
 
    let fixture: ComponentFixture<ActionAccordion>;
    let actionAccordion: ActionAccordion;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            ActionAccordion,
+            GenericSelectableList,
+            ParameterTable,
+            AddParameterDialog,
+            EnterSubmitDirective,
+            EmailAddrDialog,
+            EmbeddedEmailPane,
+            QueryEmailPane,
+            IdentityTreeComponent,
+            ShuffleListComponent,
+            AssetTreeComponent,
+            TreeComponent,
+            TreeNodeComponent,
+            TooltipDirective,
+            TreeSearchPipe,
+            VariableInputDialog,
+            VariableValueEditor,
+            VariableCollectionSelector,
+            TimeInstantValueEditorComponent,
+            TimeValueEditorComponent,
+            DateValueEditorComponent,
+            TimepickerComponent,
          ],
-         declarations: [
-            ActionAccordion, GenericSelectableList, ParameterTable,
-            AddParameterDialog, EnterSubmitDirective, EmailAddrDialog, EmbeddedEmailPane,
-            QueryEmailPane, IdentityTreeComponent, ShuffleListComponent,
-            AssetTreeComponent, TreeComponent, TreeNodeComponent, TooltipDirective,
-            TreeSearchPipe, VariableInputDialog, VariableValueEditor, VariableCollectionSelector,
-            TimeInstantValueEditorComponent, TimeValueEditorComponent, DateValueEditorComponent,
-            TimepickerComponent
-         ],
+         
          providers: [
             { provide: NgbModal, useValue: ngbService },
             { provide: Observable, useValue: deObservable },
@@ -176,14 +175,14 @@ describe("Action Accordion Unit Test", () => {
       actionAccordion = <ActionAccordion>fixture.componentInstance;
       actionAccordion.parentForm = new FormGroup({});
       actionAccordion.model = createModel();
-      actionAccordion.action = createRepletActionModel();
+      actionAccordion.action = createVSActionModel();
       fixture.detectChanges();
    }));
 
    //Bug #19603 clear all parameters
    //Bug #21202 should display correct info when asset has parameter
    it("check clear all parameters", () => {
-      jest.spyOn(ComponentTool, "showConfirmDialog").mockImplementation(() => Promise.resolve("ok"));
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockImplementation(() => Promise.resolve("ok"));
       actionAccordion.parameters = [
          {name: "a", type: "string", value: {value: "a", type: ValueTypes.VALUE}, array: false},
          {name: "b", type: "string", value: {value: "b", type: ValueTypes.VALUE}, array: false}];
@@ -209,7 +208,7 @@ describe("Action Accordion Unit Test", () => {
    //Bug #19792 options for dashboard 'deliver to emails'
    //Bug #21304 should not display email browser button when set in em
    //Bug #21313 should deal with burst action
-   xit("check Deliver to Emails status", () => {
+   it.skip("check Deliver to Emails status", () => {
       let match = fixture.debugElement.query(By.css("label.match-layout-id"));
       let expand = fixture.debugElement.query(By.css("label.expand-tables-and-charts-id"));
       let from = fixture.debugElement.query(By.css("input#from")).nativeElement;
@@ -240,27 +239,8 @@ describe("Action Accordion Unit Test", () => {
          "user name(:email address)[,user name(:email address)]");
    });
 
-   //Bug #21295 should get correct highlight name for alert
-   it("should get correct highlight name for alert", () => {
-      actionAccordion.highlights = [{
-         element: "TableView1",
-         highlight: "highlight1 (2)",
-         condition: "[STATE] [is] [equal to] [NJ]",
-         count: 1
-      }];
-      fixture.detectChanges()
+   // Bug #21295 "should get correct highlight name for alert" — removed from this file.
+   // Covered by action-accordion.component.interaction.tl.spec.ts:
+   //   "ActionAccordion — highlightSelectionChange > parses ' (' suffix from highlight name before storing"
 
-      let underHighlight = fixture.nativeElement.querySelector(
-         "input[name=underHighlightCondition]");
-      underHighlight.click();
-      fixture.detectChanges();
-
-      let highlightCheck = fixture.nativeElement.querySelector(
-         "tr td input[type=checkbox]");
-      highlightCheck.click();
-      fixture.detectChanges();
-
-      expect(actionAccordion.action.highlightAssemblies[0]).toBe("TableView1");
-      expect(actionAccordion.action.highlightNames[0]).toBe("highlight1");
-   });
 });

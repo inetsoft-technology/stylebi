@@ -53,7 +53,8 @@ import { ContextProvider } from "../../vsobjects/context-provider.service";
 const CALC_TABLE_PROPERTY_URI: string = "composer/vs/calc-table-property-dialog-model/";
 
 @Directive({
-   selector: "[bCalcTableActionHandler]"
+    selector: "[bCalcTableActionHandler]",
+    standalone: true
 })
 export class BCalcTableActionHandlerDirective extends AbstractActionHandler implements AfterViewInit, OnDestroy {
    @Input() vsObject: VSCalcTableModel;

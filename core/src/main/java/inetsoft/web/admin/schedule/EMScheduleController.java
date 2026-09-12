@@ -29,8 +29,6 @@ import inetsoft.report.composition.graph.GraphGenerator;
 import inetsoft.report.composition.region.*;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.sree.portal.CustomThemesManager;
-import inetsoft.sree.portal.PortalThemesManager;
-import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AssetEntry;
@@ -60,15 +58,15 @@ import java.util.*;
 @RestController
 public class EMScheduleController {
    @Autowired
-   public EMScheduleController(ScheduleManager scheduleManager, ScheduleService scheduleService,
-                               ScheduleTaskService taskService, ScheduleTaskFolderService taskFolderService,
-                               ScheduleUsersChangeService usersChangeService)
+   public EMScheduleController(ScheduleService scheduleService,
+                               ScheduleTaskService taskService,
+                               ScheduleUsersChangeService usersChangeService,
+                               CustomThemesManager customThemesManager)
    {
       this.scheduleService = scheduleService;
-      this.scheduleManager = scheduleManager;
       this.taskService = taskService;
-      this.taskFolderService = taskFolderService;
       this.usersChangeService = usersChangeService;
+      this.customThemesManager = customThemesManager;
    }
 
    /**
@@ -223,12 +221,32 @@ public class EMScheduleController {
       this.usersChangeService.addSubscriber(stompHeaderAccessor);
    }
 
+   /**
+    * The user/group list returned here is not specific to schedule tasks: it also backs the
+    * email recipient pickers on the General settings page and the Security settings pages, all
+    * of which are reachable without any schedule permission. Gating it on
+    * "settings/schedule/tasks" alone made simply opening Settings fail for such users. Mirrors
+    * the permission set of {@code /api/em/settings/schedule/check-mail}.
+    */
    @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule/tasks",
-         actions = ResourceAction.ACCESS
-      )
+      value = {
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/general",
+            actions = ResourceAction.ACCESS
+         ),
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/schedule/tasks",
+            actions = ResourceAction.ACCESS
+         ),
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/security/users",
+            actions = ResourceAction.ACCESS
+         )
+      },
+      operator = "OR"
    )
    @GetMapping("/api/em/schedule/users-model")
    public UsersModel getUsersModel(@PermissionUser Principal principal) throws Exception
@@ -386,7 +404,7 @@ public class EMScheduleController {
          max = Math.max(max, point.hardCount() + point.softCount());
       }
 
-      boolean isDarkEM = CustomThemesManager.getManager().isEMDarkTheme();
+      boolean isDarkEM = customThemesManager.isEMDarkTheme();
       Color fgColor = isDarkEM ? Color.lightGray : GDefaults.DEFAULT_TEXT_COLOR;
       Color bgColor = isDarkEM ? new Color(0x424242) : Color.WHITE;
       DataSet dataSet = new DefaultDataSet(data);
@@ -543,8 +561,7 @@ public class EMScheduleController {
    }
 
    private final ScheduleService scheduleService;
-   private final ScheduleManager scheduleManager;
    private final ScheduleTaskService taskService;
-   private final ScheduleTaskFolderService taskFolderService;
    private final ScheduleUsersChangeService usersChangeService;
+   private final CustomThemesManager customThemesManager;
 }

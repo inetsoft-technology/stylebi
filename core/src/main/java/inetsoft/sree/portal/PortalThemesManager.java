@@ -19,19 +19,28 @@ package inetsoft.sree.portal;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.*;
 import inetsoft.util.gui.GuiTool;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 import org.w3c.dom.*;
 
 import javax.xml.xpath.*;
 import java.awt.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 
 /**
@@ -41,8 +50,65 @@ import java.util.stream.Collectors;
  * @version 8.5, 07/12/2006
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(PortalThemesManager.Reference.class)
+@Service
+@Lazy
 public class PortalThemesManager implements XMLSerializable, AutoCloseable {
+   // For non-Spring environments (tests, non-Spring processes)
+   public PortalThemesManager() {
+      this(null, DataSpace.getDataSpace());
+   }
+
+   @Autowired
+   public PortalThemesManager(Cluster cluster, DataSpace dataSpace) {
+      this.cluster = cluster;
+      this.dataSpace = dataSpace;
+      this.changeListener = e -> {
+         LOG.debug(e.toString());
+
+         // Hold the same distributed lock used by save() so that a concurrent save
+         // on any pod cannot interleave with reset() + loadThemes() on this pod,
+         // and vice versa. The lock's per-thread reentrancy means the nested
+         // save() call inside loadThemes() acquires safely.
+         Lock lock = cluster.getLock(DISTRIBUTED_LOCK_NAME);
+         lock.lock();
+
+         try {
+            // The data space delivers change notifications asynchronously (on the
+            // BlobStorageEvent thread), so the listener de-registration that
+            // saveUnderLock() does around its own write cannot suppress the
+            // notification for that write -- it routinely arrives after the write
+            // has committed and the listener has been re-registered. Reloading then
+            // would discard any in-memory change made since (or resurrect one that
+            // was removed), because parseXML() replaces the cssEntries/logoEntries/
+            // faviconEntries/welcomePageEntries maps wholesale from the file.
+            //
+            // Decide by content rather than by the event's timestamp: the timestamp is
+            // stamped by whichever node wrote the blob, so with even a few milliseconds
+            // of clock skew a remote write can carry an older timestamp than our own
+            // last write and would be skipped, losing that node's change. If the file
+            // already holds exactly what this instance last wrote or loaded, there is
+            // nothing to reload no matter who wrote it or when.
+            String digest = fileDigest(dataSpace, getThemesFile());
+
+            if(digest != null && digest.equals(syncedDigest)) {
+               return;
+            }
+
+            // set before loading: loadThemes() may itself call save() (the missing-file
+            // fallback), and that save must have the last word on syncedDigest
+            syncedDigest = digest;
+            reset();
+            loadThemes();
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to load portal themes", ex);
+         }
+         finally {
+            lock.unlock();
+         }
+      };
+   }
+
    /**
     * Help button.
     */
@@ -84,7 +150,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
     * Return a portal themes manager.
     */
    public static synchronized PortalThemesManager getManager() {
-      return SingletonManager.getInstance(PortalThemesManager.class);
+      return ConfigurationContext.getContext().getSpringBean(PortalThemesManager.class);
    }
 
    /**
@@ -491,38 +557,69 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    @Override
+   @PreDestroy
    public void close() throws Exception {
       dmgr.clear();
    }
 
    public static void clear() {
-      SingletonManager.reset(PortalThemesManager.class);
+      PortalThemesManager manager = getManager();
+      manager.dmgr.clear();
+      manager.loadThemes();
    }
 
    /**
     * Save portal themes to a .xml file.
     */
    public void save() {
-      String name = SreeEnv.getPath("portal.themes.file", "portalthemes.xml");
-      DataSpace space = DataSpace.getDataSpace();
+      // Ignite reentrant lock is reentrant per thread, so nested calls from the same
+      // thread (e.g. changeListener -> loadThemes -> save) acquire safely.
+      Lock lock = cluster.getLock(DISTRIBUTED_LOCK_NAME);
+      lock.lock();
+
+      try {
+         saveUnderLock();
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   /**
+    * Performs the actual write without acquiring the distributed lock.
+    * Must only be called by save(), which acquires the lock first.
+    */
+   private void saveUnderLock() {
+      String name = getThemesFile();
+      DataSpace space = dataSpace;
 
       try {
          dmgr.removeChangeListener(space, null, name, changeListener);
 
+         // build the document in memory so that the exact bytes written can be
+         // digested for the changeListener's self-write fence
+         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+         PrintWriter writer =
+            new PrintWriter(new OutputStreamWriter(buffer, StandardCharsets.UTF_8));
+
+         writer.println("<?xml version=\"1.0\"?>");
+         writer.println("<PortalThemes>");
+         writer.println("<Version>" + FileVersions.PORTAL_THEMES + "</Version>");
+         writeXML(writer);
+         writer.println("</PortalThemes>");
+         writer.flush();
+
+         byte[] content = buffer.toByteArray();
+
          try(DataSpace.Transaction tx = space.beginTransaction();
              OutputStream out = tx.newStream(null, name))
          {
-
-            PrintWriter writer = new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
-
-            writer.println("<?xml version=\"1.0\"?>");
-            writer.println("<PortalThemes>");
-            writer.println("<Version>" + FileVersions.PORTAL_THEMES + "</Version>");
-            writeXML(writer);
-            writer.println("</PortalThemes>");
-            writer.flush();
-
+            out.write(content);
             tx.commit();
+            // Record what we just wrote while the distributed lock is still held and
+            // before the listener is re-registered below, so the notification for this
+            // write is recognized as our own no matter when it is delivered.
+            syncedDigest = digest(content);
          }
       }
       catch(Throwable ex) {
@@ -882,11 +979,32 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    /**
+    * Get the data space file that holds the portal themes. The name is resolved from the
+    * portal.themes.file property on first use and pinned for the lifetime of this manager.
+    * The load path, the save path and the change listener registration must all name the
+    * same file; if the property were re-read on each save, changing it on a running server
+    * would leave the loaded configuration coming from the old file while every subsequent
+    * save went to the new one, and would strand the change listener on the old file. A
+    * change to the property therefore takes effect on the next restart.
+    */
+   private String getThemesFile() {
+      String name = themesFile;
+
+      if(name == null) {
+         // a race here is benign, getPath() is deterministic
+         name = themesFile = SreeEnv.getPath("portal.themes.file", "portalthemes.xml");
+      }
+
+      return name;
+   }
+
+   /**
     * Build up the portal manager by parse a .xml file.
     */
+   @PostConstruct
    public void loadThemes() {
-      DataSpace space = DataSpace.getDataSpace();
-      String name = SreeEnv.getPath("portal.themes.file", "portalthemes.xml");
+      DataSpace space = dataSpace;
+      String name = getThemesFile();
       boolean saveFile = false;
 
       try {
@@ -922,7 +1040,14 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
             parseXML(node);
          }
 
-         dmgr.addChangeListener(space, null, name, changeListener);
+         if(!saveFile) {
+            // Only register listener here when no save is needed. When saveFile
+            // is true, save() handles listener registration itself
+            // (removes before write, re-adds after), so registering here first
+            // would open a race window where a remote change notification could
+            // fire reset() between this line and the save call below.
+            dmgr.addChangeListener(space, null, name, changeListener);
+         }
       }
       catch(Exception ex) {
          LOG.error("Failed to load portal themes file: " + name, ex);
@@ -932,12 +1057,16 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       }
 
       if(saveFile) {
+         // save() acquires the distributed lock. If the caller already holds it
+         // (e.g. changeListener), Ignite's per-thread reentrancy means the nested
+         // lock() call is safe. For non-changeListener callers (e.g. setModel()),
+         // save() ensures the lock is always held before writing.
          save();
       }
    }
 
    private void initUserFonts() {
-      for(FontFaceModel fontFace : PortalThemesManager.getManager().getUserFontFaces()) {
+      for(FontFaceModel fontFace : getUserFontFaces()) {
          Font font = GuiTool.getUserFont(fontFace.fontName(), fontFace.getFileNamePrefix());
 
          if(font != null) {
@@ -946,20 +1075,42 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       }
    }
 
+   private final Cluster cluster;
+   private final DataSpace dataSpace;
+
    /**
     * Data change listener.
     */
-   private final DataChangeListener changeListener = e -> {
-      LOG.debug(e.toString());
-      reset();
+   private final DataChangeListener changeListener;
 
+   /**
+    * Digest of the current content of the themes file, or null when it cannot be read
+    * (missing file, read error) -- null never matches, so the caller reloads.
+    */
+   private String fileDigest(DataSpace space, String name) {
+      try(InputStream in = space.getInputStream(null, name)) {
+         return in == null ? null : digest(in.readAllBytes());
+      }
+      catch(IOException ex) {
+         // a missing file is not this branch (getInputStream returns null for that), so
+         // this is a real read failure: the self-write fence is disabled for this
+         // notification and the reload goes ahead
+         LOG.warn("Failed to read portal themes file for self-write detection, " +
+                     "will reload: " + name, ex);
+         return null;
+      }
+   }
+
+   private String digest(byte[] content) {
       try {
-         loadThemes();
+         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
       }
-      catch(Exception ex) {
-         LOG.error("Failed to load portal themes", ex);
+      catch(NoSuchAlgorithmException ex) {
+         // cannot happen, SHA-256 is required of every JRE; fail safe by never matching
+         LOG.debug("SHA-256 unavailable, portal themes self-write detection disabled", ex);
+         return null;
       }
-   };
+   }
 
    /**
     * Reset variables before reload.
@@ -1002,36 +1153,23 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    private PortalWelcomePage welcomePage;
    private List<PortalTab> portalTabs = new ArrayList<>();
    private String copyright;
+   private volatile String themesFile;
+   /**
+    * Digest of the themes file content this instance's in-memory configuration
+    * corresponds to -- what saveUnderLock() last wrote, or what changeListener last
+    * loaded. A change notification for a file that still digests to this describes a
+    * write this instance already knows about, so reloading would only clobber
+    * in-memory changes made since. Written and read under DISTRIBUTED_LOCK_NAME.
+    * Null means "unknown", which fails safe: the reload goes ahead.
+    */
+   private volatile String syncedDigest;
    private final DataChangeListenerManager dmgr = new DataChangeListenerManager();
 
    private static final Logger LOG = LoggerFactory.getLogger(PortalThemesManager.class);
 
-   @SingletonManager.ShutdownOrder()
-   public static final class Reference extends SingletonManager.Reference<PortalThemesManager> {
-      @Override
-      public synchronized PortalThemesManager get(Object... parameters) {
-         if(manager == null) {
-            manager = new PortalThemesManager();
-            manager.loadThemes();
-         }
+   /** Distributed lock name shared across all cluster nodes. Use a literal so it
+    *  remains stable if the class is ever renamed or moved to a different package. */
+   private static final String DISTRIBUTED_LOCK_NAME =
+      "inetsoft.sree.portal.PortalThemesManager.save";
 
-         return manager;
-      }
-
-      @Override
-      public void dispose() {
-         if(manager != null) {
-            try {
-               manager.close();
-            }
-            catch(Exception e) {
-               LOG.warn("Failed to close theme manager", e);
-            }
-
-            manager = null;
-         }
-      }
-
-      private PortalThemesManager manager;
-   }
 }

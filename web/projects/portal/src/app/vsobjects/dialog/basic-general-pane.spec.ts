@@ -51,11 +51,14 @@ describe("Basic general pane Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            BasicGeneralPane,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            BasicGeneralPane, FixedDropdownDirective
-         ],
+         
          providers: [
             NgbModal
          ],

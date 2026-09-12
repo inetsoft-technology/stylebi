@@ -43,10 +43,13 @@ import {
 import {
    DataSourceFolderSettingsModel
 } from "../repository-data-source-folder-settings-page/data-source-folder-settings-model";
+import { RepositoryScheduleTaskFolderSettingsViewComponent } from "../repository-schedule-task-folder-settings-view/repository-schedule-task-folder-settings-view.component";
+
 
 @Component({
-   selector: "em-repository-schedule-task-folder-settings-page",
-   templateUrl: "./repository-schedule-task-folder-settings-page.component.html"
+    selector: "em-repository-schedule-task-folder-settings-page",
+    templateUrl: "./repository-schedule-task-folder-settings-page.component.html",
+    imports: [RepositoryScheduleTaskFolderSettingsViewComponent]
 })
 export class RepositoryScheduleTaskFolderSettingsPageComponent implements OnInit {
    @Input() model: ScheduleTaskFolderEditorModel;

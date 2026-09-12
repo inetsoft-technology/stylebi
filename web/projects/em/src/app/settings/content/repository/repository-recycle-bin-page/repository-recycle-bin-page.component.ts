@@ -22,6 +22,10 @@ import { MatSnackBar } from "@angular/material/snack-bar";
 import { catchError } from "rxjs/operators";
 import { throwError } from "rxjs";
 import { Tool } from "../../../../../../../shared/util/tool";
+import { RepositoryRecycleBinViewComponent } from "../repository-recycle-bin-view/repository-recycle-bin-view.component";
+import { MatTabGroup, MatTab } from "@angular/material/tabs";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+
 
 export interface RepositoryRecycleBinModel extends RepositoryEditorModel {
    originalPath: string;
@@ -34,8 +38,9 @@ export interface RepositoryRecycleBinModel extends RepositoryEditorModel {
 const RECOVER_RECYCLE_BIN_ENTRY: string = "../api/em/content/repository/tree/recycleNode/restore";
 
 @Component({
-   selector: "em-repository-recycle-bin-page",
-   templateUrl: "./repository-recycle-bin-page.component.html"
+    selector: "em-repository-recycle-bin-page",
+    templateUrl: "./repository-recycle-bin-page.component.html",
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, RepositoryRecycleBinViewComponent]
 })
 export class RepositoryRecycleBinPageComponent {
    @Input() model: RepositoryRecycleBinModel;

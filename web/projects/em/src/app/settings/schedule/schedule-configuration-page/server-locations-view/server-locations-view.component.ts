@@ -26,14 +26,19 @@ import {
    SimpleChanges
 } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { ServerLocation } from "../../../../../../../shared/schedule/model/server-location";
 import { ServerLocationEditorComponent } from "../server-location-editor/server-location-editor.component";
+import { MatButton } from "@angular/material/button";
+
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Component({
-   selector: "em-server-locations-view",
-   templateUrl: "./server-locations-view.component.html",
-   styleUrls: ["./server-locations-view.component.scss"]
+    selector: "em-server-locations-view",
+    templateUrl: "./server-locations-view.component.html",
+    styleUrls: ["./server-locations-view.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions, MatButton]
 })
 export class ServerLocationsViewComponent implements OnInit, OnChanges {
    @Input() cloudSecrets: boolean;

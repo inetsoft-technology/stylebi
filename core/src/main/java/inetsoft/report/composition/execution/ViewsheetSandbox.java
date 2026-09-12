@@ -50,6 +50,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.web.viewsheet.service.SharedFilterService;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import org.slf4j.Logger;
@@ -62,8 +63,7 @@ import java.lang.reflect.Array;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
@@ -87,6 +87,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    public ViewsheetSandbox(Viewsheet vs, int vmode, Principal user, AssetEntry entry) {
       this(null, vs, vmode, user, true, entry, null);
+   }
+
+   public ViewsheetSandbox(Viewsheet vs, int vmode, Principal user, AssetEntry entry, String boxRid) {
+      this(null, vs, vmode, user, true, entry, null, boxRid);
+   }
+
+   public ViewsheetSandbox(Viewsheet vs, int vmode, Principal user, boolean reset, AssetEntry entry,
+                           String boxRid)
+   {
+      this(null, vs, vmode, user, reset, entry, null, boxRid);
    }
 
    /**
@@ -113,6 +123,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                            Principal user, boolean reset, AssetEntry entry,
                            List<String> parentVsIds)
    {
+      this(root, vs, vmode, user, reset, entry, parentVsIds, null);
+   }
+
+   public ViewsheetSandbox(ViewsheetSandbox root, Viewsheet vs, int vmode,
+                           Principal user, boolean reset, AssetEntry entry,
+                           List<String> parentVsIds, String boxRid)
+   {
       super();
 
       this.root = root == null ? this : root;
@@ -120,6 +137,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this.entry = entry;
       this.nolimit = new HashSet<>();
       this.qmgrs = new ConcurrentHashMap<>();
+      this.flyoverLocks = new ConcurrentHashMap<>();
       this.dmap = new DataMap();
       this.dKeyMap = new DataMap();
       this.fmap = new HashMap<>();
@@ -132,7 +150,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this.pairs = new SoftHashMap<>(0);
       this.metarep = new TableMetaDataRepository();
       this.user = user;
-      this.rid = XSessionService.createSessionID(XSessionService.VIEWSHEET, null);
+      this.rid = boxRid != null ? boxRid : XSessionService.getService().createSessionID(XSessionService.VIEWSHEET, null);
       this.parentVsIds = parentVsIds;
       setViewsheet(vs, true);
 
@@ -509,6 +527,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Get the lock object used to serialize concurrent flyover requests (e.g. two different
+    * source assemblies flying over the same target) that would otherwise race on the target
+    * assembly's shared query/condition state. One lock per assembly name, scoped to this
+    * sandbox instance so it is reclaimed with it, mirroring {@link #getQueryManager(String)}.
+    */
+   public Object getFlyoverLock(String name) {
+      return flyoverLocks.computeIfAbsent(name, k -> new Object());
+   }
+
+   /**
     * Get the general query manager for tracking queries in this sandbox.
     */
    public QueryManager getQueryManager() {
@@ -660,7 +688,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // cancel executing queries
       cancelAllQueries();
       // cancel pending queries
-      AssetDataCache.cancel(rid, !wizard);
+      AssetDataCache.getCache().cancel(rid, !wizard);
    }
 
    /**
@@ -668,20 +696,56 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    public void dispose() {
       disposed = true;
-      getQueryManager().cancel(); // cancel executing queries
-      metarep.dispose();
+
+      try {
+         getQueryManager().cancel(); // cancel executing queries
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to cancel query manager during dispose", ex);
+      }
+
+      try {
+         metarep.dispose();
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to dispose metarep during dispose", ex);
+      }
 
       if(wbox != null) {
-         wbox.dispose();
+         try {
+            wbox.dispose();
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to dispose worksheet sandbox during dispose", ex);
+         }
+
          wbox = null;
       }
 
       // dispose data
-      dmap.dispose();
-      dKeyMap.dispose();
+      try {
+         dmap.dispose();
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to dispose dmap during dispose", ex);
+      }
+
+      try {
+         dKeyMap.dispose();
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to dispose dKeyMap during dispose", ex);
+      }
+
       tmap.clear();
 
-      cancel();
+      try {
+         cancel();
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to cancel during dispose", ex);
+      }
+
       nolimit.clear();
 
       // dispose view
@@ -701,7 +765,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          ViewsheetSandbox box = bmap.remove(name);
 
          if(box != null) {
-            box.dispose();
+            try {
+               box.dispose();
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to dispose nested sandbox: {}", name, ex);
+            }
          }
       }
 
@@ -1045,11 +1114,47 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       DateCompareAbleAssemblyInfo info = (DateCompareAbleAssemblyInfo) vsAssemblyInfo;
       DateComparisonInfo dateComparisonInfo = DateComparisonUtil.getDateComparison(info, vs);
 
+      // getDateComparison() may return null if DC hasn't been applied to the runtime chart
+      // state yet (the initial worksheet-table setup call happens before ChartDcProcessor
+      // runs). Fall back to the assembly's raw DC info only when DC is genuinely enabled
+      // and the share-from assembly reference is valid — preserving all other null semantics.
+      if(dateComparisonInfo == null) {
+         boolean dcEnabled = !(info instanceof DataVSAssemblyInfo) ||
+            ((DataVSAssemblyInfo) info).isDateComparisonEnabled();
+         VSAssembly shareAssembly = (vs != null && !Tool.isEmptyString(info.getComparisonShareFrom()))
+            ? vs.getAssembly(info.getComparisonShareFrom()) : null;
+         boolean validShare = Tool.isEmptyString(info.getComparisonShareFrom()) ||
+            (shareAssembly != null &&
+               shareAssembly.getVSAssemblyInfo() instanceof DateCompareAbleAssemblyInfo);
+
+         if(dcEnabled && validShare) {
+            dateComparisonInfo = info.getDateComparisonInfo();
+         }
+      }
+
       if(dateComparisonInfo == null) {
          return null;
       }
 
-      return dateComparisonInfo.getDateComparisonConditions(info.getDateComparisonRef());
+      VSDataRef dcRef = info.getDateComparisonRef();
+
+      // dateComparisonRef is only set by ChartDcProcessor.process() during chart execution.
+      // For the early worksheet-table setup call, derive the date ref from the chart's
+      // design fields, using the same axis-aggregate logic as ChartDcProcessor.
+      if(dcRef == null && vsAssemblyInfo instanceof ChartVSAssemblyInfo) {
+         VSChartInfo cinfo = ((ChartVSAssemblyInfo) vsAssemblyInfo).getVSChartInfo();
+
+         if(cinfo != null) {
+            // Use the shared utility to match ChartDcProcessor.getComparisonDateRef() logic.
+            DataRef found = DateComparisonUtil.findDcDateRef(cinfo.getXFields(), cinfo.getYFields());
+
+            if(found instanceof VSDataRef) {
+               dcRef = (VSDataRef) found;
+            }
+         }
+      }
+
+      return dateComparisonInfo.getDateComparisonConditions(dcRef);
    }
 
    /**
@@ -1607,7 +1712,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                {
                   executeView(entry.getName(), false, initing);
                }
-               else if(!(info instanceof ViewsheetVSAssemblyInfo)) {
+               else {
+                  // Bug #72320: embedded viewsheet (ViewsheetVSAssemblyInfo) scripts that use
+                  // thisParameter must also be executed and deferred, like non-embedded assemblies,
+                  // so parameter values propagate correctly from parent to embedded viewsheet.
                   executeView(entry.getName(), false, initing);
                   thisParameterScriptAssemblies.add(entry.getName());
                }
@@ -2048,6 +2156,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
       finally {
          schanged.set(null);
+      }
+
+      // processSelections() above may have changed conditions so cached data in dmap
+      // should not be reused when output assemblies are subsequently executed.
+      // mirrors the same clearing done in the reset() path (see reset()).
+      for(AssemblyEntry dataEntry : clist.getDataList()) {
+         resetDataMap(dataEntry.getName());
       }
    }
 
@@ -3102,7 +3217,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    {
       // @davidd, Method moved from RuntimeViewsheet in v11.4b r39236.
       String filterId = vs.getViewsheetInfo().getFilterID(fassembly.getName());
+      return processSharedFilters(fassembly, filterId, clist, processChange);
+   }
 
+   public boolean processSharedFilters(VSAssembly fassembly,
+                                       String filterId,
+                                       ChangedAssemblyList clist,
+                                       boolean processChange)
+      throws Exception
+   {
       // Check whether this filter has already been processed
       if(filterId != null && clist != null && clist.isShareFilterProcessed(filterId)) {
          return false;
@@ -3119,7 +3242,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       boolean result = false;
 
       for(ViewsheetSandbox box : boxes) {
-         result |= box.applySharedFilters(fassembly, clist, processChange);
+         result |= box.applySharedFilters(fassembly, filterId, clist, processChange);
       }
 
       return result;
@@ -3137,6 +3260,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @return <tt>true</tt> if assemblies are changed
     */
    private boolean applySharedFilters(VSAssembly fassembly,
+                                      String filterId,
                                       ChangedAssemblyList clist,
                                       boolean processChange)
       throws Exception
@@ -3144,7 +3268,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       boolean result = false;
 
       List<VSAssembly> tassemblies =
-         VSUtil.getSharedVSAssemblies(getViewsheet(), fassembly);
+         VSUtil.getSharedVSAssemblies(getViewsheet(), fassembly, filterId);
 
       for(VSAssembly tassembly : tassemblies) {
          int hint = VSAssembly.NONE_CHANGED;
@@ -3171,6 +3295,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          // @by davidd, If the from and to assemblies come from different
          // viewsheets, then we force processing. Otherwise the
          // clist.selectionList would have entries of other viewsheets.
+         // Note: when fassembly is dispatched to a remote cluster node via Ignite,
+         // VSAssemblyInfo.vs is transient and getViewsheet() returns null. The null
+         // comparison (null != tassembly.getViewsheet()) is always true, which is the
+         // correct behavior — cross-viewsheet filters always require forced processing.
          if(fassembly.getViewsheet() != tassembly.getViewsheet()) {
             processChange = true;
          }
@@ -3913,7 +4041,21 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          if(ass instanceof EmbeddedTableAssembly) {
             EmbeddedTableAssembly eassembly = (EmbeddedTableAssembly) ass;
-            DataRef column = iassembly.getColumn();
+            // resolve the column from the current column selection instead of relying on
+            // iassembly.getColumn(), which is only refreshed on a full sandbox reset and
+            // may be stale if the binding was changed without reopening the viewsheet.
+            // use the runtime column value so a variable or expression binding resolves
+            // to the column it evaluates to instead of the literal $(var)/=expr text.
+            String cname = iassembly.getRuntimeColumnValue();
+            DataRef column = cname == null
+               ? null : eassembly.getColumnSelection(false).getAttribute(cname);
+
+            // a dynamic value that has not been executed yet resolves to null, fall back
+            // to the column resolved by InputVSAssemblyInfo.update()
+            if(column == null) {
+               column = iassembly.getColumn();
+            }
+
             int row = iassembly.getRow();
 
             if(column != null && row > 0) {
@@ -3924,7 +4066,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   edata.setObject(row, col, cdata);
                   // if the embedded table is changed by input, any cached data
                   // depending on it should be cleared
-                  AssetDataCache.removeCacheDependence(eassembly);
+                  AssetDataCache.getCache().removeCacheDependence(eassembly);
                   removeInputProcessed(eassembly.getAssemblyEntry(), clist);
                }
             }
@@ -4228,8 +4370,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
 
          // if is a crosstab or a rotated table, the condition list has to be
-         // post processed, otherwise we should check if aggregate info exists
-         boolean post = !tassembly.isPlain();
+         // post processed, otherwise we should check if aggregate info exists.
+         // isPlain() only reflects the crosstab UI flag, so also check for a
+         // non-empty AggregateInfo (e.g. a chart-bound table with group/aggregate
+         // columns) to avoid pushing a condition on an aggregated column into the
+         // SQL WHERE clause, which produces an invalid non-aggregate SELECT column.
+         boolean post = !tassembly.isPlain() || !tassembly.getAggregateInfo().isEmpty();
          ColumnSelection columns = tassembly.getColumnSelection(post);
          conds = VSUtil.normalizeConditionList(columns, conds);
 
@@ -4584,10 +4730,29 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             if(sassembly instanceof TimeSliderVSAssembly &&
                clist.getSelectionList().contains(sassembly.getAssemblyEntry()))
             {
-               TimeSliderVSAQuery query = (TimeSliderVSAQuery) VSAQuery.
-                  createVSAQuery(this, sassembly, DataMap.NORMAL);
-               Object obj = getData(sassembly.getName());
-               query.refreshSelectionValue(obj);
+               TimeSliderVSAssembly tsassembly = (TimeSliderVSAssembly) sassembly;
+
+               try {
+                  TimeSliderVSAQuery query = (TimeSliderVSAQuery) VSAQuery.
+                     createVSAQuery(this, sassembly, DataMap.NORMAL);
+                  Object obj = getData(sassembly.getName());
+                  query.refreshSelectionValue(obj);
+               }
+               catch(ConfirmException | CancelledException ex) {
+                  throw ex;
+               }
+               catch(Exception ex) {
+                  // The column this slider is bound to (e.g. a chart measure, if this
+                  // slider is a filter on a chart) may have just been removed from its
+                  // source by the change that triggered this refresh. Don't let one
+                  // stale binding fail refreshing every other selection on the sheet;
+                  // just leave this slider showing no selection until it is rebound
+                  // or removed.
+                  LOG.warn("Failed to refresh selection value for: {}",
+                     sassembly.getAbsoluteName(), ex);
+                  tsassembly.setSelectionList(null);
+                  tsassembly.setStateSelectionList(null);
+               }
             }
 
             if(sassembly instanceof CalendarVSAssembly &&
@@ -4874,6 +5039,20 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          executeScript(assembly);
 
+         // reposition input child in bottom-tab container after script may
+         // have changed label properties (visible, position, gap, font)
+         if(assembly instanceof InputVSAssembly &&
+            assembly.getContainer() instanceof TabVSAssembly tabContainer)
+         {
+            TabVSAssemblyInfo tabInfo =
+               (TabVSAssemblyInfo) tabContainer.getVSAssemblyInfo();
+
+            if(tabInfo.isBottomTabs()) {
+               TabVSAssemblyInfo.repositionChildForBottomTabs(
+                  tabInfo, assembly.getVSAssemblyInfo(), assembly.getPixelSize());
+            }
+         }
+
          // by yanie: bug1412619712845
          // updateHighlight after script execution to make sure the value set
          // via script can be used in highlight in time.
@@ -4900,18 +5079,69 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
    }
 
-   private void applyShareFilter(VSAssembly assembly) throws Exception {
-      RuntimeViewsheet[] arr = ViewsheetEngine.getViewsheetEngine().
-         getRuntimeViewsheets(getUser());
+   private void applyShareFilter(VSAssembly assembly) {
+      // Resolve filterId on the source node while getViewsheet() is available.
+      // VSAssemblyInfo.vs is transient and returns null on remote cluster nodes.
+      final String filterId = getViewsheet().getViewsheetInfo().getFilterID(assembly.getName());
 
-      for(RuntimeViewsheet rvs : arr) {
-         if(rvs == null || rvs.getViewsheet() == getViewsheet()) {
-            continue;
+      if(filterId == null) {
+         return;
+      }
+
+      ViewsheetService engine = ViewsheetEngine.getViewsheetEngine();
+
+      if(!engine.hasAtLeastRuntimeViewsheets(getUser(), 2)) {
+         return;
+      }
+
+            // Use identity hash to identify the source viewsheet and skip it in the task.
+      // A runtime ID lookup is not safe here because applyShareFilter is called during
+      // viewsheet open (openVS=true) before the RuntimeViewsheet may be registered in
+      // the cache. identityHashCode collisions are theoretically possible but extremely
+      // rare; on remote nodes the source viewsheet is never present so no skip is needed.
+      final int viewsheetIdentity = System.identityHashCode(getViewsheet());
+      final Principal user = getUser();
+
+      // Fire-and-forget — invokeOnAll may block up to 5 minutes waiting on remote nodes
+      // and must not block sandbox execution.
+      CompletableFuture.runAsync(
+         () -> engine.invokeOnAll(new ApplyShareFilterTask(assembly, filterId, viewsheetIdentity, user)),
+         SharedFilterService.SHARED_FILTER_EXECUTOR);
+   }
+
+   private static final class ApplyShareFilterTask implements ViewsheetService.Task<String> {
+      public ApplyShareFilterTask(VSAssembly assembly, String filterId,
+                                  int viewsheetIdentity, Principal user)
+      {
+         this.assembly = assembly;
+         this.filterId = filterId;
+         this.viewsheetIdentity = viewsheetIdentity;
+         this.user = user;
+      }
+
+      @Override
+      public String apply(ViewsheetService service) throws Exception {
+         RuntimeViewsheet[] arr = service.getRuntimeViewsheets(user);
+
+         for(RuntimeViewsheet rvs : arr) {
+            if(rvs == null || System.identityHashCode(rvs.getViewsheet()) == viewsheetIdentity) {
+               continue;
+            }
+
+            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+            if(box.isPresent()) {
+               box.get().processSharedFilters(assembly, filterId, null, true);
+            }
          }
 
-         rvs.getViewsheetSandbox().processSharedFilters(
-            assembly, null, true);
+         return null;
       }
+
+      private final VSAssembly assembly;
+      private final String filterId;
+      private final int viewsheetIdentity;
+      private final Principal user;
    }
 
    /**
@@ -5299,7 +5529,17 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
 
          name = name.substring(index + 1);
-         return box.getData(name, initial, type);
+         // Release outer sandbox locks during sub-sandbox data fetch to prevent blocking
+         // background threads (e.g. TableMetaDataRepository.shrink) that need a read lock.
+         // The outer sandbox's state is not mutated during a sub-sandbox data fetch, so it
+         // is safe to release outer locks here. This mirrors the pattern in doExecuteData(). (74129)
+         try {
+            unlockAll();
+            return box.getData(name, initial, type);
+         }
+         finally {
+            restoreLocks();
+         }
       }
 
       if(disposed) {
@@ -5919,7 +6159,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       Object result;
 
+      // query.getData() submits to the AssetData thread pool and blocks in Processor.join()
+      // until the query completes. If the caller (e.g. refreshViewsheet) holds the sandbox
+      // write lock, that write lock is held for the full duration of the data fetch — blocking
+      // background threads (e.g. TableMetaDataRepository.shrink) from acquiring a read lock.
+      // Assembly mutations have already been done above under lockWrite(); the data fetch
+      // itself does not mutate assembly state, so it is safe to release outer locks here.
+      // This mirrors the same pattern used in getVGraphPair() for chart init. (74001)
       try {
+         thisLock.unlockAll();
+
          if(assembly instanceof ListInputVSAssembly ||
             assembly instanceof TableVSAssembly &&
                ((TableVSAssemblyInfo) assembly.getInfo()).isForm())
@@ -5937,6 +6186,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
       finally {
          getVariableTable().remove("_FORM_");
+         thisLock.restoreLocks();
       }
 
       return result;
@@ -6474,11 +6724,21 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          ViewsheetSandbox box = getSandbox(name.substring(0, index));
          name = name.substring(index + 1);
 
-         if(disposed) {
+         if(disposed || box == null) {
             return null;
          }
 
-         return box.getVGraphPair(name, init, maxsize, export, scaleFont, forceExpand, ignoreSize);
+         // Release outer sandbox locks during sub-sandbox graph computation to prevent blocking
+         // background threads (e.g. TableMetaDataRepository.shrink) that need a read lock.
+         // The outer sandbox's state is not mutated during a sub-sandbox graph fetch, so it
+         // is safe to release outer locks here. This mirrors the pattern in doExecuteData(). (74129)
+         try {
+            unlockAll();
+            return box.getVGraphPair(name, init, maxsize, export, scaleFont, forceExpand, ignoreSize);
+         }
+         finally {
+            restoreLocks();
+         }
       }
 
       if(disposed) {
@@ -7120,20 +7380,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             List<TableMetaDataKey> keys = new ArrayList<>(metamap.keySet());
 
             for(TableMetaDataKey key : keys) {
-               TableAssembly tassembly = (TableAssembly) ws.getAssembly(key.getTable());
-
-               if(tassembly == null) {
-                  TableMetaData metadata = metamap.remove(key);
-
-                  if(metadata != null) {
-                     metadata.dispose();
-                  }
-               }
-
-               TableMetaDataKey key2 = TableMetaDataKey.createKey(
-                  key.getTable(), getViewsheet(), vmode);
-
-               if(!Tool.equals(key, key2)) {
+               // Remove entries for tables that no longer exist in the worksheet.
+               // Stale entries for tables that still exist (column/aggregate changes)
+               // are self-healing: getTableMetaDataFromTable() calls createKey(), detects
+               // any key mismatch, disposes the old TableMetaData entry (releasing its
+               // resources), and inserts a fresh entry — so proactive eviction here is
+               // unnecessary. The createKey() call also invokes appendCalcField() as a
+               // side effect, which modifies shared table assembly state and causes
+               // IndexOutOfBoundsException under concurrent load.
+               if(ws.getAssembly(key.getTable()) == null) {
                   TableMetaData metadata = metamap.remove(key);
 
                   if(metadata != null) {
@@ -7159,8 +7414,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          // this is triggered from ws action when ws is modified, at which point the
          // ws is locked. the shrink() method will call lockRead, which assumes it's
          // called before ws is locked. we run it in a separate thread to avoid deadlock
-         debouncer.debounce("shrink" + System.identityHashCode(ViewsheetSandbox.this), 1,
-                            TimeUnit.SECONDS, () -> ThreadPool.addOnDemand(this::shrink));
+         final Principal principal = ThreadContext.getContextPrincipal();
+         debouncer.debounce("shrink" + System.identityHashCode(ViewsheetSandbox.this), 5,
+                            TimeUnit.SECONDS, () -> {
+               ThreadPool.ContextRunnable runnable = new ThreadPool.AbstractContextRunnable() {
+                  @Override
+                  public void run() {
+                     TableMetaDataRepository.this.shrink();
+                  }
+               };
+               runnable.setPrincipal(principal);
+               ThreadPool.addOnDemand(runnable);
+            });
       }
 
       /**
@@ -7287,7 +7552,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                table.setProperty("metadata", "true");
             }
 
-            TableLens data = AssetDataCache.getData(rid, table, wbox, null, mode,
+            TableLens data = AssetDataCache.getCache().getData(rid, table, wbox, null, mode,
                                                     true, getTouchTimestamp(), queryMgr);
             final TableMetaData metadata;
 
@@ -7581,6 +7846,30 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // see above
       if(!AssetDataCache.isProcessorThread()) {
          thisLock.unlockRead();
+      }
+   }
+
+   /**
+    * Temporarily release all held locks. Must be paired with restoreLocks().
+    * Use when calling long-running operations (e.g. getData()) while a write lock is held,
+    * to prevent blocking background threads that need a read lock.
+    *
+    * <p>Safe for re-entrant use: a nested unlockAll()/restoreLocks() pair on the same
+    * thread does not discard the state saved by an enclosing unlockAll().</p>
+    */
+   public void unlockAll() {
+      if(!AssetDataCache.isProcessorThread()) {
+         thisLock.unlockAll();
+      }
+   }
+
+   /**
+    * Restore locks previously released by {@link #unlockAll()}.
+    * Must be called on the same thread that called unlockAll().
+    */
+   public void restoreLocks() {
+      if(!AssetDataCache.isProcessorThread()) {
+         thisLock.restoreLocks();
       }
    }
 
@@ -7944,6 +8233,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private final boolean outputNullToZero = "true".equals(SreeEnv.getProperty("output.null.to.zero"));
    private final Set<String> nolimit; // tables to ignore time limit
    private final Map<String, QueryManager> qmgrs; // specific query manager for each assembly
+   private final Map<String, Object> flyoverLocks; // per-assembly lock for flyover coordination
    private long selectionTS; // selection timestamp
    private long touchTS = -1; // touch timestamp of data changes
    private long execTS = -1; // last execution time

@@ -22,11 +22,15 @@ import { Subscription } from "rxjs";
 import { PortalTabsService } from "../../services/portal-tabs.service";
 import { DashboardTabModel } from "../dashboard-tab-model";
 import { DashboardService } from "../dashboard.service";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { EnterClickDirective } from "../../../widget/directive/enter-click.directive";
+
 
 @Component({
-   selector: "p-dashboard-landing",
-   templateUrl: "./dashboard-landing.component.html",
-   styleUrls: ["./dashboard-landing.component.scss"]
+    selector: "p-dashboard-landing",
+    templateUrl: "./dashboard-landing.component.html",
+    styleUrls: ["./dashboard-landing.component.scss"],
+    imports: [EnterClickDirective, DefaultFocusDirective]
 })
 export class DashboardLandingComponent implements OnInit, OnDestroy {
    model: DashboardTabModel;

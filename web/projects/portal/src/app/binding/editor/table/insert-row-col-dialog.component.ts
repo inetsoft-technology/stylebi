@@ -16,11 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+
+import { FormsModule } from "@angular/forms";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "insert-row-col-dialog",
-   templateUrl: "insert-row-col-dialog.component.html",
-   styleUrls: ["insert-row-col-dialog.component.scss"]
+    selector: "insert-row-col-dialog",
+    templateUrl: "insert-row-col-dialog.component.html",
+    styleUrls: ["insert-row-col-dialog.component.scss"],
+    imports: [ModalHeaderComponent, FormsModule, ApplyButtonComponent]
 })
 
 export class InsertRowColDialog {

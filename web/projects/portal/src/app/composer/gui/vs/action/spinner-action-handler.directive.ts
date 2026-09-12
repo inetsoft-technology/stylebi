@@ -35,7 +35,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const SPINNER_PROPERTY_URI: string = "composer/vs/spinner-property-dialog-model/";
 
 @Directive({
-   selector: "[cSpinnerActionHandler]"
+    selector: "[cSpinnerActionHandler]",
+    standalone: true
 })
 export class SpinnerActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSSpinnerModel;

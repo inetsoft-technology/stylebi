@@ -16,11 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter, OnInit } from "@angular/core";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "string-value-editor",
-   templateUrl: "string-value-editor.component.html",
-   styleUrls: ["./string-value-editor.component.scss"]
+    selector: "string-value-editor",
+    templateUrl: "string-value-editor.component.html",
+    styleUrls: ["./string-value-editor.component.scss"],
+    imports: [FormsModule]
 })
 export class StringValueEditor implements OnInit {
    @Input() value: string;

@@ -18,7 +18,7 @@
 
 import { CommonModule } from "@angular/common";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -121,7 +121,7 @@ describe("LinePanel Unit Tests", () => {
    let fixture: ComponentFixture<LinePanel>;
    let linePanel: LinePanel;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             CommonModule,
@@ -129,8 +129,6 @@ describe("LinePanel Unit Tests", () => {
             FormsModule,
             ReactiveFormsModule,
             DropDownTestModule,
-         ],
-         declarations: [
             LinePanel,
             ValueInputField,
             DateInputField,
@@ -154,8 +152,9 @@ describe("LinePanel Unit Tests", () => {
             ColorPane,
             ScriptPane,
             FixedDropdownDirective,
-            DynamicComboBox
+            DynamicComboBox,
          ],
+         
          providers: [
             NgbModal,
             FormulaEditorService,

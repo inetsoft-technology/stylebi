@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { DataSourceInfo } from "../model/data-source-info";
@@ -31,16 +31,20 @@ import { DataSourceBrowserModel } from "../data-datasource-browser/data-source-b
 import { DataSourceBrowserViewModel } from "../model/data-source-browser-view-model";
 import { PortalDataType } from "../data-navigation-tree/portal-data-type";
 
+import { DataSourcesBrowser } from "../data-datasource-browser/data-source-browser/data-sources-browser.component";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
+
 export const FAKE_ROOT_PATH: string = "_fake_root_";
 const ROOT_LABEL: string = "_#(js:Data Source)";
 const GET_DATA_SOURCE_URI: string = "../api/data/datasources/browser";
 const CHECK_MOVE_DUPLICATE_URI: string = "../api/data/datasources/move/checkDuplicate";
 
 @Component({
-   selector: "move-datasource-dialog",
-   templateUrl: "move-datasource-dialog.component.html"
+    selector: "move-datasource-dialog",
+    templateUrl: "move-datasource-dialog.component.html",
+    imports: [ModalHeaderComponent, DataSourcesBrowser]
 })
-export class MoveDataSourceDialogComponent implements OnInit {
+export class MoveDataSourceDialogComponent implements OnInit, OnChanges {
    @Input() originalPaths: string[] = [];
    @Input() parentPath: string = "/";
    @Input() parentScope: number = 1;
@@ -52,6 +56,7 @@ export class MoveDataSourceDialogComponent implements OnInit {
    folderPath: string;
    folderScope: number;
    AssetType = AssetType;
+   isFolder: boolean = false;
 
    private readonly fakeRootFolder: DataSourceInfo = {
       name: "_#(js:data.datasets.home)",
@@ -73,9 +78,21 @@ export class MoveDataSourceDialogComponent implements OnInit {
                public config: MoveAssetDialogDataConfig) {
    }
 
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["multi"] || changes["items"]) {
+         this.isFolder = this.computeIsFolder();
+      }
+   }
+
    ngOnInit(): void {
       this.folderPath = null;
       this.folderScope = this.parentScope;
+      this.isFolder = this.computeIsFolder();
+   }
+
+   private computeIsFolder(): boolean {
+      return this.multi ||
+         (this.items.length > 0 && this.items[0].type.name === PortalDataType.DATA_SOURCE_FOLDER);
    }
 
    public openFolderRequest: (path: string, assetType?: string, scope?: number) => Observable<DataSourceBrowserViewModel> =
@@ -127,14 +144,6 @@ export class MoveDataSourceDialogComponent implements OnInit {
       }
    }
 
-   /**
-    * If the items being moved are folder types.
-    * @returns {boolean}   true if folder type item or multi move
-    */
-   isFolder(): boolean {
-      return this.multi ||
-         (this.items.length > 0 && this.items[0].type.name === PortalDataType.DATA_SOURCE_FOLDER);
-   }
 
    get rootLabel(): string {
       return ROOT_LABEL;

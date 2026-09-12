@@ -20,7 +20,8 @@ import { Input, AfterContentInit, AfterContentChecked, Directive, ElementRef } f
 declare const window;
 
 @Directive({
-   selector: "table[wScrollableTable]"
+    selector: "table[wScrollableTable]",
+    standalone: true
 })
 export class ScrollableTableDirective implements AfterContentInit, AfterContentChecked {
    @Input() fixedWidths: number[] = null;
@@ -50,6 +51,7 @@ export class ScrollableTableDirective implements AfterContentInit, AfterContentC
             headCells[i].style.width = `${thead.offsetWidth / headCells.length}px`;
          }
 
+         this.setBodyHeight();
          return;
       }
 
@@ -67,22 +69,7 @@ export class ScrollableTableDirective implements AfterContentInit, AfterContentC
          totalw += w;
       }
 
-      const tableStyle = window.getComputedStyle(table);
-
-      if(tbody.style.height == null) {
-         let tableHeight: string;
-
-         if(tableStyle.maxHeight && tableStyle.maxHeight !== "none") {
-            tableHeight = tableStyle.maxHeight;
-         }
-         else {
-            tableHeight = tableStyle.height;
-         }
-
-         if(tableHeight) {
-            tbody.style.height = `calc(${tableHeight} - ${thead.offsetHeight}px)`;
-         }
-      }
+      this.setBodyHeight();
 
       const scroll = tbody.scrollHeight > table.offsetHeight - thead.offsetHeight;
       const bodyw = Math.min(tbody.offsetWidth, table.parentElement.offsetWidth);
@@ -99,6 +86,28 @@ export class ScrollableTableDirective implements AfterContentInit, AfterContentC
             ? `${colw + 16}px` : `${colw}px`;
          bodyCells[i].style.width = `${colw}px`;
          bodyCells[i].style.maxWidth = `${colw}px`;
+      }
+   }
+
+   private setBodyHeight(): void {
+      const table = this.element.nativeElement;
+      const thead = table.querySelector("thead");
+      const tbody = table.querySelector("tbody");
+
+      if(!tbody.style.height) {
+         const tableStyle = window.getComputedStyle(table);
+         let tableHeight: string;
+
+         if(tableStyle.maxHeight && tableStyle.maxHeight !== "none") {
+            tableHeight = tableStyle.maxHeight;
+         }
+         else {
+            tableHeight = tableStyle.height;
+         }
+
+         if(tableHeight) {
+            tbody.style.height = `calc(${tableHeight} - ${thead.offsetHeight}px)`;
+         }
       }
    }
 

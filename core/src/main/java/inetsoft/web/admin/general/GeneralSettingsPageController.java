@@ -66,7 +66,7 @@ public class GeneralSettingsPageController {
    @GetMapping("/api/em/general/settings/model")
    public GeneralSettingsPageModel getPageModel(Principal principal) throws Exception {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      if (SecurityEngine.getSecurity().isSecurityEnabled() &&
+      if (securityEngine.isSecurityEnabled() &&
               SUtil.isMultiTenant() && !OrganizationManager.getInstance().isSiteAdmin(principal)) {
          return GeneralSettingsPageModel.builder()
                  .mvSettingsModel(mvSettingsService.getModel(principal))
@@ -97,7 +97,7 @@ public class GeneralSettingsPageController {
                                                 Principal principal,  HttpServletRequest request)
       throws Exception
    {
-      if(SecurityEngine.getSecurity().isSecurityEnabled() && SUtil.isMultiTenant() &&
+      if(securityEngine.isSecurityEnabled() && SUtil.isMultiTenant() &&
          !OrganizationManager.getInstance().isSiteAdmin(principal))
       {
          if(model.mvSettingsModel() != null) {
@@ -142,7 +142,7 @@ public class GeneralSettingsPageController {
    )
    @PostMapping("/api/em/general/settings/data-space/backup")
    public ConnectionStatus backup(@RequestBody BackupDataModel model, Principal principal) {
-      return new ConnectionStatus(DataSpaceSettingsService.backup(model));
+      return new ConnectionStatus(dataSpaceSettingsService.doBackup(model));
    }
 
    @Secured(

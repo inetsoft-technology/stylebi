@@ -20,7 +20,8 @@ import { ActivatedRoute, Router } from "@angular/router";
 import { PortalTabsService } from "./services/portal-tabs.service";
 
 @Component({
-   template: ""
+    template: "",
+    standalone: true
 })
 export class PortalRedirectComponent implements AfterViewInit {
    constructor(private portalTabsService: PortalTabsService, private router: Router,

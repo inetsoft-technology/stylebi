@@ -189,9 +189,9 @@ public class CSSDictionary {
       if(dictionary != null) {
          long now = System.currentTimeMillis();
 
-         // optimization, avoid repeatedly checking for last modified time. allow 3s for
+         // optimization, avoid repeatedly checking for last modified time. allow 10s for
          // css dictionary change to become effective.
-         if(dictionary.lastCheck + 3000 < now) {
+         if(dictionary.lastCheck + 10000 < now) {
             long lastModified = getLastModified(cssDir, cssFile, isReport);
             dictionary.lastCheck = now;
 
@@ -251,19 +251,36 @@ public class CSSDictionary {
          return System.currentTimeMillis();
       }
 
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      long now = System.currentTimeMillis();
+      Long lastCheck = ORG_LAST_CHECK.get(orgID);
+
+      if(lastCheck != null && now - lastCheck <= 10000) {
+         return ORG_LAST_MODIFIED.getOrDefault(orgID, -1L);
+      }
+
       Map<String, String> cssEntries = PortalThemesManager.getManager().getCssEntries();
-      String orgFile = cssEntries.get(OrganizationManager.getInstance().getCurrentOrgID());
+      String orgFile = cssEntries.get(orgID);
       List<String> otherFiles = new ArrayList<>();
-      otherFiles.add(orgFile);
+
+      if(orgFile != null) {
+         otherFiles.add(orgFile);
+      }
 
       if(!Tool.equals(otherFiles, dict.otherFiles)) {
-         return System.currentTimeMillis();
+         ORG_LAST_CHECK.put(orgID, now);
+         ORG_LAST_MODIFIED.put(orgID, now);
+         return now;
       }
 
       long orgLastModified = getLastModified(dict.cssDir, orgFile, false);
       long globalLastModified = getLastModified(dict.cssDir, "format.css", false);
+      long result = Math.max(orgLastModified, globalLastModified);
 
-      return Math.max(orgLastModified, globalLastModified);
+      ORG_LAST_CHECK.put(orgID, now);
+      ORG_LAST_MODIFIED.put(orgID, result);
+
+      return result;
    }
 
    // get css file last modified time
@@ -375,9 +392,6 @@ public class CSSDictionary {
     */
    @SuppressWarnings("UnusedParameters")
    protected synchronized void init() {
-      // clear contains out-of-date css
-      clear();
-
       // clear data change listeners
       dmgr.clear();
 
@@ -406,6 +420,13 @@ public class CSSDictionary {
             }
          }
 
+         // parse into a local so this.css is never observed in a partially
+         // built (or null) state by concurrent readers. The change listener
+         // fires init() on the blob-storage callback thread; publishing the
+         // fully merged stylesheet in a single assignment at the end keeps
+         // getStyle() from returning null styles during re-initialization.
+         CascadingStyleSheet userCSS = null;
+
          if(cssDir != null && cssFile != null) {
             if(!space.exists(cssDir, cssFile)) {
                try {
@@ -419,18 +440,18 @@ public class CSSDictionary {
 
             this.ts = space.getLastModified(cssDir, cssFile);
             dmgr.addChangeListener(space, cssDir, cssFile, changeListener);
-            css = parse(cssDir, cssFile, false);
+            userCSS = parse(cssDir, cssFile, false);
          }
 
-         if(defaultReportCSS != null && !defaultReportCSS.equals(css)) {
+         if(defaultReportCSS != null && !defaultReportCSS.equals(userCSS)) {
             for(ICSSTopLevelRule rule : defaultReportCSS.getAllStyleRules()) {
                assert defaultCSS != null;
                defaultCSS.addRule(rule);
             }
          }
 
-         if(css != null) {
-            for(ICSSTopLevelRule rule : css.getAllStyleRules()) {
+         if(userCSS != null) {
+            for(ICSSTopLevelRule rule : userCSS.getAllStyleRules()) {
                assert defaultCSS != null;
                defaultCSS.addRule(rule);
             }
@@ -455,9 +476,13 @@ public class CSSDictionary {
             }
          }
 
+         // publish the fully built stylesheet in a single assignment, then
+         // rebuild the derived maps and drop any stale cached styles
          css = defaultCSS;
          initCSSClasses();
          initCSSIDs();
+         styleCache.clear();
+         selectorPresentCache.clear();
       }
       catch(Exception ex) {
          LOG.error("Failed to read {} from {}", cssFile, cssDir, ex);
@@ -998,6 +1023,9 @@ public class CSSDictionary {
       try {
          // reinitialize css dictionary
          init();
+      }
+      catch(ShutdownException ex) {
+         LOG.debug("CSS Dictionary re-initialized during shutdown", ex);
       }
       catch(Exception ex) {
          LOG.error("Failed to re-initialize CSS", ex);
@@ -2224,7 +2252,8 @@ public class CSSDictionary {
          }
 
          MapKey mapKey = (MapKey) o;
-         return (isReport == mapKey.isReport && Objects.equals(orgId, mapKey.orgId) || !isReport) &&
+         return isReport == mapKey.isReport &&
+            Objects.equals(orgId, mapKey.orgId) &&
             Objects.equals(cssDir, mapKey.cssDir) &&
             Objects.equals(cssFile, mapKey.cssFile);
       }
@@ -2245,7 +2274,7 @@ public class CSSDictionary {
    private final Map<String, Set<String>> idMap = new HashMap<>();
    private final Map<String, Set<String>> classMap = new HashMap<>();
 
-   private CascadingStyleSheet css;
+   private volatile CascadingStyleSheet css;
    private String cssDir;
    private String cssFile;
    private final List<String> otherFiles;
@@ -2261,6 +2290,8 @@ public class CSSDictionary {
    private static final ReadWriteLock DICTIONARIES_LOCK =
       new ReentrantReadWriteLock(true);
    private static Map<String, CascadingStyleSheet> styleSheets = new ConcurrentHashMap<>();
+   private static final ConcurrentHashMap<String, Long> ORG_LAST_CHECK = new ConcurrentHashMap<>();
+   private static final ConcurrentHashMap<String, Long> ORG_LAST_MODIFIED = new ConcurrentHashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(CSSDictionary.class);
 }

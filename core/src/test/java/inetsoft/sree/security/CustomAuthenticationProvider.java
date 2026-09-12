@@ -29,7 +29,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+import org.junit.jupiter.api.Tag;
 
+@Tag("core")
 public class CustomAuthenticationProvider extends AbstractAuthenticationProvider {
    @Override
    public IdentityID[] getUsers() {

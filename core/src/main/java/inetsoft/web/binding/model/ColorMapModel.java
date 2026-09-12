@@ -19,11 +19,13 @@ package inetsoft.web.binding.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link ColorMap}
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ColorMapModel {
+public class ColorMapModel implements Serializable {
    public ColorMapModel() {
    }
 

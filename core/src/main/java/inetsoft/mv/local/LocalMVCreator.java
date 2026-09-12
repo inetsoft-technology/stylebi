@@ -67,6 +67,7 @@ public class LocalMVCreator extends AbstractMVCreator implements MessageListener
       }
 
       XFileSystem sys = server.getFSystem();
+      sys.refresh(FSService.getDataNode().getBSystem(), true);
       String name = def.getName();
       XFile file = sys.get(name);
 

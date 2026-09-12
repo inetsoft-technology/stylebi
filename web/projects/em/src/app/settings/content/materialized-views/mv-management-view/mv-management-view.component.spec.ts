@@ -15,9 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
@@ -31,15 +32,15 @@ import { MatSelectModule } from "@angular/material/select";
 import { MatSortModule } from "@angular/material/sort";
 import { MatTableModule } from "@angular/material/table";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { RouterTestingModule } from "@angular/router/testing";
-import { EditorPanelModule } from "../../../../common/util/editor-panel/editor-panel.module";
-import { LoadingSpinnerModule } from "../../../../common/util/loading-spinner/loading-spinner.module";
-import { MessageDialogModule } from "../../../../common/util/message-dialog.module";
-import { TableViewModule } from "../../../../common/util/table/table-view.module";
-import { MvManagementViewComponent } from "./mv-management-view.component";
+import { RouterModule } from "@angular/router";
+import { Subject } from "rxjs";
 import { SsoHeartbeatService } from "../../../../../../../shared/sso/sso-heartbeat.service";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner/loading-spinner.component";
+import { MessageDialog } from "../../../../common/util/message-dialog";
+import { TableView } from "../../../../common/util/table/table-view.component";
 import { MVChangeService } from "./mv-change.service";
-import { of as observableOf, Subject } from "rxjs";
+import { MvManagementViewComponent } from "./mv-management-view.component";
 
 describe("MvManagementViewComponent", () => {
    let component: MvManagementViewComponent;
@@ -47,8 +48,8 @@ describe("MvManagementViewComponent", () => {
    let ssoHeartbeatService: any;
    let changes = new Subject<void>();
 
-   beforeEach(async(() => {
-      ssoHeartbeatService = { heartbeat: jest.fn() };
+   beforeEach(waitForAsync(() => {
+      ssoHeartbeatService = { heartbeat: vi.fn() };
       const changeService = {
         mvChanged: changes.asObservable()
       };
@@ -58,8 +59,8 @@ describe("MvManagementViewComponent", () => {
             NoopAnimationsModule,
             FormsModule,
             HttpClientTestingModule,
-            RouterTestingModule,
-            LoadingSpinnerModule,
+            RouterModule.forRoot([]),
+            LoadingSpinnerComponent,
             MatButtonModule,
             MatCardModule,
             MatCheckboxModule,
@@ -71,12 +72,11 @@ describe("MvManagementViewComponent", () => {
             MatSelectModule,
             MatSortModule,
             MatTableModule,
-            MessageDialogModule,
+            MessageDialog,
             ReactiveFormsModule,
-            TableViewModule,
-            EditorPanelModule
-         ],
-         declarations: [MvManagementViewComponent],
+            TableView,
+            EditorPanelComponent,
+            MvManagementViewComponent],
          providers: [
             { provide: SsoHeartbeatService, useValue: ssoHeartbeatService }
          ],

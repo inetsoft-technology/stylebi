@@ -24,6 +24,8 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.sree.security.ldap.*;
 import inetsoft.uql.XPrincipal;
@@ -31,12 +33,11 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.data.MapModel;
-import inetsoft.web.service.BaseSubscribeChangHandler;
+import inetsoft.web.service.BaseSubscribeChangeHandler;
 import inetsoft.web.viewsheet.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.handler.DestinationPatternsMessageCondition;
@@ -45,7 +46,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
-import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
 import java.security.Principal;
 import java.util.*;
@@ -54,24 +54,32 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
-@EnableAspectJAutoProxy(proxyTargetClass = true)
-public class AuthenticationProviderService extends BaseSubscribeChangHandler implements MessageListener {
+public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
    @Autowired
    public AuthenticationProviderService(SecurityEngine securityEngine, ObjectMapper objectMapper,
-                                        SimpMessagingTemplate messageTemplate)
+                                        SimpMessagingTemplate messageTemplate,
+                                        Cluster cluster)
    {
       super(messageTemplate);
       this.securityEngine = securityEngine;
       this.objectMapper = objectMapper;
-      Cluster.getInstance().addMessageListener(this);
+      this.cluster = cluster;
    }
 
-   @EventListener
-   public void handleUnsubscribe(SessionUnsubscribeEvent event) {
-      super.handleUnsubscribe(event);
+   @PostConstruct
+   public void init() {
+      messageListener = this::messageReceived;
+      cluster.addMessageListener(messageListener);
    }
 
-   @EventListener
+   @PreDestroy
+   public void destroy() {
+      if(messageListener != null) {
+         cluster.removeMessageListener(messageListener);
+      }
+   }
+
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       super.handleDisconnect(event);
    }
@@ -90,15 +98,15 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
          .get(DestinationPatternsMessageCondition.LOOKUP_DESTINATION_HEADER);
       final String subscriptionId =
          (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
-      final BaseSubscribeChangHandler.BaseSubscriber subscriber =
-         new BaseSubscribeChangHandler.BaseSubscriber(sessionId, subscriptionId,
-                                                      lookupDestination, destination, headerAccessor.getUser());
+      final BaseSubscribeChangeHandler.BaseSubscriber subscriber =
+         new BaseSubscribeChangeHandler.BaseSubscriber(sessionId, subscriptionId,
+                                                       lookupDestination, destination, headerAccessor.getUser());
 
       return addSubscriber(subscriber);
    }
 
    public AuthenticationProviderModel getAuthenticationProvider(String name) {
-      boolean enterprise = LicenseManager.getInstance().isEnterprise();
+      boolean enterprise = LicenseManager.isEnterprise();
       AuthenticationProvider selectedProvider = getProviderByName(name);
       AuthenticationProviderModel.Builder builder = AuthenticationProviderModel.builder()
          .providerName(name)
@@ -216,7 +224,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
       SecurityProviderStatusList.Builder builder = SecurityProviderStatusList.builder();
 
       if(chain.isEmpty()) {
-         LOG.warn("The authentication chain has not been initialized.");
+         LOG.debug("The authentication chain has not been initialized.");
       }
       else {
          chain.get().stream()
@@ -335,7 +343,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
       try {
          String msg = withProviderFromModel(model, provider ->
             provider.isPresent() ? null :
-            Catalog.getCatalog().getString("em.security.testlogin.note4"));
+            Catalog.getCatalog().getString("em.security.testlogin.note4"), true);
 
          if(msg != null) {
             return msg;
@@ -630,20 +638,22 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
       UserRoleListModel.Builder builder = UserRoleListModel.builder();
 
       if(model.providerType() == SecurityProviderType.DATABASE) {
-         AuthenticationProvider provider = getProviderFromModel(model).orElse(null);
-         if(provider instanceof DatabaseAuthenticationProvider) {
-            setIgnoreCache(provider, true);
-            Map<IdentityID, IdentityID[]> userRoles =
-               ((DatabaseAuthenticationProvider) provider).getAllUserRoles();
-            setIgnoreCache(provider, false);
+         return withProviderFromModel(model, optProvider -> {
+            if(optProvider.orElse(null) instanceof DatabaseAuthenticationProvider dbProvider) {
+               setIgnoreCache(dbProvider, true);
+               Map<IdentityID, IdentityID[]> userRoles = dbProvider.getAllUserRoles();
+               setIgnoreCache(dbProvider, false);
 
-            for(Map.Entry<IdentityID, IdentityID[]> e : userRoles.entrySet()) {
-               builder.addList(UserRolesModel.builder()
-                                  .user(e.getKey())
-                                  .addRoles(e.getValue())
-                                  .build());
+               for(Map.Entry<IdentityID, IdentityID[]> e : userRoles.entrySet()) {
+                  builder.addList(UserRolesModel.builder()
+                                     .user(e.getKey())
+                                     .addRoles(e.getValue())
+                                     .build());
+               }
             }
-         }
+
+            return builder.build();
+         });
       }
 
       return builder.build();
@@ -697,7 +707,23 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
    }
 
    private <T> T withProviderFromModel(AuthenticationProviderModel model, Function<Optional<AuthenticationProvider>, T> fn) throws Exception {
-      Optional<AuthenticationProvider> provider = getProviderFromModel(model);
+      return withProviderFromModel(model, fn, false);
+   }
+
+   private <T> T withProviderFromModel(AuthenticationProviderModel model, Function<Optional<AuthenticationProvider>, T> fn, boolean rethrowCreationException) throws Exception {
+      Optional<AuthenticationProvider> provider;
+
+      try {
+         provider = getProviderFromModel(model);
+      }
+      catch(Exception e) {
+         if(rethrowCreationException) {
+            throw e;
+         }
+
+         LOG.warn("Could not create authentication provider from model", e);
+         return fn.apply(Optional.empty());
+      }
 
       try {
          return fn.apply(provider);
@@ -864,14 +890,18 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
       }
    }
 
-   @Override
    public void messageReceived(MessageEvent event) {
       if(event.getMessage() instanceof AuthenticationProvidersChanged) {
          getSubscribers().stream()
             .filter(sub -> sub.getUser() instanceof XPrincipal)
             .forEach(sub -> {
-               this.debouncer.debounce(((XPrincipal) sub.getUser()).getSessionID(), 1L, TimeUnit.SECONDS,
-                                       () -> sendToSubscriber(sub));
+               // key on the subscriber, not just the user session: a user with more than one
+               // live subscription (two EM tabs, or a reconnected socket whose old subscriber
+               // has not been removed yet) would otherwise collapse into a single debounce
+               // entry and only one arbitrarily-chosen subscriber would be notified
+               String key = ((XPrincipal) sub.getUser()).getSessionID() + ":" +
+                  sub.getSessionId() + ":" + sub.getSubscriptionId();
+               this.debouncer.debounce(key, 1L, TimeUnit.SECONDS, () -> sendToSubscriber(sub));
             });
       }
    }
@@ -900,6 +930,8 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
 
    private final SecurityEngine securityEngine;
    private final ObjectMapper objectMapper;
+   private final Cluster cluster;
    private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();
-   private final Logger LOG = LoggerFactory.getLogger(AuthenticationProviderService.class);
+   private MessageListener messageListener;
+   private static final Logger LOG = LoggerFactory.getLogger(AuthenticationProviderService.class);
 }

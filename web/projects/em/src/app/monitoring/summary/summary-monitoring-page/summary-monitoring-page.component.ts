@@ -48,6 +48,13 @@ import { SummaryChartInfo } from "../summary-monitoring-view/summary-monitoring-
 import { SummaryChartLegend } from "../summary-monitoring-view/summary-monitoring-chart-view/summary-chart-legend";
 import { HeapDumpRequest } from "./heap-dump-request";
 import { ServerSummaryModel } from "./server-summary-model";
+import { MatCard } from "@angular/material/card";
+import { SummaryMonitoringTableViewComponent } from "../summary-monitoring-view/summary-monitoring-table-view/summary-monitoring-table-view.component";
+import { SummaryMonitoringChartViewComponent } from "../summary-monitoring-view/summary-monitoring-chart-view/summary-monitoring-chart-view.component";
+import { MatGridList, MatGridTile } from "@angular/material/grid-list";
+import { MatButton } from "@angular/material/button";
+import { KeyValuePipe } from "@angular/common";
+import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selector.component";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
 
@@ -61,6 +68,7 @@ export interface ChartInfo {
    label: "Summary",
    children: [
       { route: "/monitoring/summary/heapMemory", label: "Heap Memory Usage" },
+      { route: "/monitoring/summary/offHeapMemory", label: "Off-Heap Memory Usage" },
       { route: "/monitoring/summary/cpuUsage", label: "CPU Usage" },
       { route: "/monitoring/summary/gcCount", label: "GC Count" },
       { route: "/monitoring/summary/gcTime", label: "GC Time" },
@@ -86,9 +94,10 @@ export interface ChartInfo {
    link: "EMMonitoringSummary"
 })
 @Component({
-   selector: "em-summary-monitoring-page",
-   templateUrl: "./summary-monitoring-page.component.html",
-   styleUrls: ["./summary-monitoring-page.component.scss"]
+    selector: "em-summary-monitoring-page",
+    templateUrl: "./summary-monitoring-page.component.html",
+    styleUrls: ["./summary-monitoring-page.component.scss"],
+    imports: [ClusterSelectorComponent, MatButton, MatGridList, MatGridTile, SummaryMonitoringChartViewComponent, SummaryMonitoringTableViewComponent, MatCard, KeyValuePipe]
 })
 export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterContentChecked {
    @ViewChild("summaryPageContainer", { static: true }) pageContainer;
@@ -97,6 +106,12 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
    heapMemoryInfo: SummaryChartInfo = {
       title: "_#(js:Heap Memory Usage)",
       name: "memUsage",
+      monitorLevel: MonitorLevel.OFF
+   };
+
+   offHeapMemoryInfo: SummaryChartInfo = {
+      title: "_#(js:Off-Heap Memory Usage)",
+      name: "offHeapMemory",
       monitorLevel: MonitorLevel.OFF
    };
 
@@ -143,6 +158,7 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
    executionLegends: SummaryChartLegend[];
    diskCacheLegends: SummaryChartLegend[];
    memLegends: SummaryChartLegend[];
+   offHeapMemLegends: SummaryChartLegend[];
    cpuLegends: SummaryChartLegend[];
    gcCountLegends: SummaryChartLegend[];
    gcTimeLegends: SummaryChartLegend[];
@@ -170,6 +186,7 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
    private top5Subscription = Subscription.EMPTY;
 
    heapMemoryVisible = false;
+   offHeapMemoryVisible = false;
    cpuUsageVisible = false;
    gcCountVisible = false;
    gcTimeVisible = false;
@@ -208,6 +225,7 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
             }),
             tap(permissions => {
                this.heapMemoryVisible = permissions.permissions.heapMemory;
+               this.offHeapMemoryVisible = permissions.permissions.offHeapMemory;
                this.cpuUsageVisible = permissions.permissions.cpuUsage;
                this.gcCountVisible = permissions.permissions.gcCount;
                this.gcTimeVisible = permissions.permissions.gcTime;
@@ -264,6 +282,7 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
             this.diskCacheLegends = model.legends.diskCache;
             this.executionLegends = model.legends.execution;
             this.memLegends = model.legends.memUsage;
+            this.offHeapMemLegends = model.legends.offHeapMemory;
             this.cpuLegends = model.legends.cpuUsage;
             this.gcCountLegends = model.legends.gcCount;
             this.gcTimeLegends = model.legends.gcTime;
@@ -334,7 +353,7 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
          width: "500px",
          data: {
             title: "_#(js:Confirm)",
-            content: "_#(js:em.confirm.heapDump.prefix)" + storagePath +"_#(js:em.confirm.heapDump.suffix)",
+            content: "_#(js:em.confirm.heapDump.prefix) " + storagePath +"_#(js:em.confirm.heapDump.suffix)",
             type: MessageDialogType.CONFIRMATION
          }
       }).afterClosed().subscribe(value => {
@@ -347,6 +366,16 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
 
    getUsageHistory() {
       let url = "../em/monitoring/server/get-usage-history";
+
+      if(this.clusterEnabled && this.selectedClusterNode) {
+         url += "?clusterNode=" + encodeURIComponent(this.selectedClusterNode);
+      }
+
+      this.downloadService.download(url);
+   }
+
+   getClusterCacheUsage() {
+      let url = "../em/monitoring/server/get-cluster-cache-usage";
 
       if(this.clusterEnabled && this.selectedClusterNode) {
          url += "?clusterNode=" + encodeURIComponent(this.selectedClusterNode);

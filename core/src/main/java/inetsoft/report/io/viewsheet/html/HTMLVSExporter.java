@@ -27,7 +27,9 @@ import inetsoft.report.gui.viewsheet.VSImage;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.report.io.viewsheet.AbstractVSExporter;
 import inetsoft.report.io.viewsheet.ExportUtil;
+import inetsoft.report.io.viewsheet.ShapeShadowUtil;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
@@ -142,10 +144,55 @@ public class HTMLVSExporter extends AbstractVSExporter {
       Rectangle2D fullBounds = expandBoundsForLabel(helper.getBounds(info), labelInfo);
       Rectangle2D[] bounds = splitInputBounds(fullBounds, labelInfo);
 
-      helper.writeText(writer, bounds[0], getLabelFormat(labelInfo),
+      // HTML uses overflow:hidden to clip rather than positioning on a shared canvas,
+      // so we don't need to materialize a default font (PDF/SVG do, since
+      // PDFPrinter.setFont(null) silently keeps a stale printer font). Passing the raw
+      // labelFormat lets CSS inherit when no font is set, keeping the label close to
+      // the viewer's rendering (Roboto at the inherited size). splitInputBounds() already
+      // sizes the label box from the label font, so a label that has one needs no further
+      // vertical compensation; one that does not still needs the fallback below.
+      VSCompositeFormat labelFormat = labelInfo.getLabelFormat();
+      helper.writeText(writer, adjustLabelBoundsForInheritedFont(bounds[0], labelFormat,
+                                                                labelInfo.getLabelPosition()),
+         labelFormat != null ? labelFormat : new VSCompositeFormat(),
          labelInfo.getLabelText(), null, false, null, false, info.getZIndex());
 
       return bounds[1];
+   }
+
+   /**
+    * Keep the label box at least the default row height when the label has no font of its
+    * own. writeText() emits the box height with overflow:hidden, but with no font in the
+    * format it emits no font-size either, so the browser renders the label in its inherited
+    * font -- a size this exporter cannot measure. splitInputBounds() sized the box from the
+    * AWT fallback font instead, which is shorter than the inherited text tends to be, and
+    * the text would then be clipped.
+    */
+   private static Rectangle2D adjustLabelBoundsForInheritedFont(Rectangle2D labelBounds,
+      VSCompositeFormat labelFormat, String position)
+   {
+      if(labelFormat != null && labelFormat.getFont() != null) {
+         return labelBounds;
+      }
+
+      double extra = AssetUtil.defh - labelBounds.getHeight();
+
+      if(extra <= 0) {
+         return labelBounds;
+      }
+
+      double y = labelBounds.getY();
+
+      if(LabelInfo.LEFT.equals(position) || LabelInfo.RIGHT.equals(position)) {
+         y -= extra / 2.0;  // stay centered on the widget
+      }
+      else if(LabelInfo.TOP.equals(position)) {
+         y -= extra;  // grow upward; the widget is anchored below
+      }
+      // BOTTOM: grow downward, away from the widget
+
+      return new Rectangle2D.Double(labelBounds.getX(), y, labelBounds.getWidth(),
+                                    AssetUtil.defh);
    }
 
    /**
@@ -199,7 +246,10 @@ public class HTMLVSExporter extends AbstractVSExporter {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
       if(info != null) {
-         Rectangle2D bounds = helper.getBounds(info);
+         // a shape's shadow can fall outside the assembly's own bounds; a no-op
+         // for everything else
+         Rectangle2D bounds = ShapeShadowUtil.expandForShadow(
+            helper.getBounds(info), info, helper.getScale());
          BufferedImage img = getImage(assembly);
          boolean ignoreBackground = assembly instanceof ShapeVSAssembly ||
             assembly instanceof GaugeVSAssembly || assembly instanceof TabVSAssembly;

@@ -27,13 +27,16 @@ import {
 } from "@angular/core";
 import { DebounceService } from "../services/debounce.service";
 import { GuiTool } from "../../common/util/gui-tool";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
+
 
 const DROPDOWN_TAB_WIDTH = 50;
 
 @Component({
-   selector: "responsive-tabs",
-   templateUrl: "responsive-tabs.component.html",
-   styleUrls: ["responsive-tabs.component.scss"]
+    selector: "responsive-tabs",
+    templateUrl: "responsive-tabs.component.html",
+    styleUrls: ["responsive-tabs.component.scss"],
+    imports: [FixedDropdownDirective]
 })
 export class ResponsiveTabsComponent implements OnInit {
    @ViewChild("tabSet") tabSet: ElementRef;
@@ -73,6 +76,10 @@ export class ResponsiveTabsComponent implements OnInit {
    }
 
    private updateView(): void {
+      if(!this.tabSet) {
+         return;
+      }
+
       // need to unhide the tabs to figure out if they can fit in cases where
       // the window size gets larger
       if(this.firstTabDropdownIndex !== -1) {

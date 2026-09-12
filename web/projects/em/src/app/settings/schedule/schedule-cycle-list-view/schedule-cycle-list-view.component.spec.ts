@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
@@ -24,7 +25,7 @@ import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
 import { MatTableModule } from "@angular/material/table";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { RouterTestingModule } from "@angular/router/testing";
+import { RouterModule } from "@angular/router";
 import { ScheduleCycleListViewComponent } from "./schedule-cycle-list-view.component";
 
 describe("ScheduleCycleListViewComponent", () => {
@@ -42,12 +43,9 @@ describe("ScheduleCycleListViewComponent", () => {
             MatInputModule,
             NoopAnimationsModule,
             MatIconModule,
-            RouterTestingModule
-         ],
-         declarations: [
-            ScheduleCycleListViewComponent
-         ]
-      })
+            RouterModule.forRoot([]),
+            ScheduleCycleListViewComponent]
+         })
          .compileComponents();
 
       fixture = TestBed.createComponent(ScheduleCycleListViewComponent);

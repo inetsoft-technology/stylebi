@@ -36,7 +36,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const RANGESLIDER_PROPERTY_URI: string = "composer/vs/range-slider-property-dialog-model/";
 
 @Directive({
-   selector: "[cRangeSliderActionHandler]"
+    selector: "[cRangeSliderActionHandler]",
+    standalone: true
 })
 export class RangeSliderActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSRangeSliderModel;

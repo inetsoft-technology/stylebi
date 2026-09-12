@@ -18,6 +18,7 @@
 package inetsoft.web.admin.presentation;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.presentation.model.PresentationTimeSettingsModel;
 import inetsoft.web.viewsheet.Audited;
@@ -44,6 +45,7 @@ public class PresentationTimeSettingsService {
       SreeEnv.setProperty("week.start", model.weekStart(), !globalSettings);
       SreeEnv.setProperty("schedule.time.12hours", model.scheduleTime12Hours()+"", !globalSettings);
       SreeEnv.save();
+      Tool.clearWeekStartCache();
    }
 
    @Audited(
@@ -55,5 +57,6 @@ public class PresentationTimeSettingsService {
       SreeEnv.resetProperty("week.start", !globalSettings);
       SreeEnv.resetProperty("schedule.time.12hours", !globalSettings);
       SreeEnv.save();
+      Tool.clearWeekStartCache();
    }
 }

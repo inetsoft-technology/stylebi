@@ -71,7 +71,8 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
          return assembly;
       }
 
-      return assembly = (VSAssembly) super.getAssembly().clone();
+      VSAssembly base = super.getAssembly();
+      return assembly = base == null ? null : (VSAssembly) base.clone();
    }
 
    /**
@@ -612,15 +613,30 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
          assemblyInfo.getChartDescriptor() : assemblyInfo.getRTChartDescriptor();
 
       desc.setSortOthersLast(cinfo);
+      Worksheet ws = table != null ? table.getWorksheet() : null;
 
       if(table == null || isDetail()) {
          mergeZoomConds(table, null);
+
+         if(table != null) {
+            ws.removeAssembly(table.getName());
+            ws.addAssembly(table);
+         }
+
          return table;
       }
 
       if(groups.size() <= 1) {
          subcols = null;
          mergeZoomConds(table, null);
+
+         // Register the clone in the worksheet before applyDiscreteAggregates. The join table
+         // built inside that method stores child names in tnames[] and resolves them via
+         // ws.getAssembly() at execution time. Without this the local WorksheetWrapper still
+         // holds the original bound table under the same name, so the join would execute
+         // against the unmodified table instead of the clone with chart aggregate/column info.
+         ws.removeAssembly(table.getName());
+         ws.addAssembly(table);
 
          table = applyDiscreteAggregates(table, cinfo);
 
@@ -639,7 +655,6 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
       subcols = new SubColumns[subs.length];
       String ozoomTable = zoomTable;
       TableAssemblyOperator[] ops = new TableAssemblyOperator[subs.length - 1];
-      Worksheet ws = table.getWorksheet();
       int idx = 0;
 
       for(Set group : groups.keySet()) {
@@ -811,7 +826,12 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
             })
             .forEach(a -> {
                AggregateRef aref = (AggregateRef) a;
-               DataRef ref2 = cols2.getAttribute(aref.getDataRef().getName());
+               // Match by attribute (alias/attribute, as createAggregateRef does) rather
+               // than by raw qualified name, so the aggregated column is re-qualified to the
+               // discrete mirror table's own column. Otherwise it keeps the base table's
+               // inner alias and ends up out of scope in the generated sub-query (e.g. a
+               // discrete measure with no preceding same-axis dimension). (Bug #75328)
+               DataRef ref2 = AssetUtil.getColumnRefFromAttribute(cols2, aref.getDataRef());
 
                if(ref2 == null) {
                   cols2.addAttribute(aref.getDataRef());
@@ -1190,6 +1210,16 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
          }
       }
 
+      // Chart binding updates aggregate, sort, and column selections while the same source table can
+      // be requested by data tips, chart-area refreshes, and image refreshes. Work on a private table
+      // snapshot before validation can remove fields that another request is simultaneously changing.
+      table = (TableAssembly) table.clone();
+
+      // AbstractWSAssembly.clone() catches Exception and returns null on error.
+      if(table == null) {
+         return null;
+      }
+
       ChartVSAssembly cassembly = (ChartVSAssembly) getAssembly();
       ColumnSelection cols = table.getColumnSelection();
       VSChartInfo cinfo = cassembly.getVSChartInfo();
@@ -1410,6 +1440,51 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
          }
       }
 
+      // For relation charts, nodeColorField and nodeSizeField that are VSDimensionRefs are
+      // excluded from getAestheticRefs() to avoid GROUP BY row-splitting per target node
+      // (a dimension like MonthOfYear spanning two months produces multiple rows per node,
+      // causing node text/size measures to reflect only the first-encountered month).
+      // Add them back here as MAX aggregates so color/size frames still have the column
+      // available, using MAX as a consistent representative value per (Source, Target) group.
+      // Skipped for detail view: ainfo.clear() discards all aggregates in that path anyway.
+      if(!isDetail() && cinfo instanceof RelationVSChartInfo) {
+         RelationVSChartInfo rinfo = (RelationVSChartInfo) cinfo;
+         List<AestheticRef> nodeAestheticRefs = new ArrayList<>();
+         nodeAestheticRefs.add(rinfo.getNodeColorField());
+         nodeAestheticRefs.add(rinfo.getNodeSizeField());
+
+         for(AestheticRef nodeARef : nodeAestheticRefs) {
+            if(nodeARef == null || !(nodeARef.getDataRef() instanceof VSDimensionRef)) {
+               continue;
+            }
+
+            VSDimensionRef nodeDim = (VSDimensionRef) nodeARef.getDataRef();
+            GroupRef nodeGroup = nodeDim.createGroupRef(cols);
+
+            if(nodeGroup == null) {
+               continue;
+            }
+
+            ColumnRef nodeCol = (ColumnRef) nodeGroup.getDataRef();
+            int existingIdx = cols.indexOfAttribute(nodeCol);
+
+            if(existingIdx >= 0) {
+               nodeCol = (ColumnRef) cols.getAttribute(existingIdx);
+               cols.removeAttribute(existingIdx);
+            }
+
+            if(!colsSet.contains(nodeCol)) {
+               nodeCol.setVisible(true);
+               cols.addAttribute(counter++, nodeCol);
+               colsSet.add(nodeCol);
+            }
+
+            if(!ainfo.containsGroup(nodeCol) && !ainfo.containsAggregate(nodeCol)) {
+               ainfo.addAggregate(new AggregateRef(nodeCol, AggregateFormula.MAX));
+            }
+         }
+      }
+
       // @by billh, flag indicates whether to merge aggregate info to query
       // regardless of ranking condition. If ranking condition exists but it's
       // defined at the inner most dimension, it's also safe enough to merge
@@ -1427,59 +1502,102 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
             // dimension ref
             if(refs[i] instanceof VSDimensionRef) {
                VSDimensionRef vdim = (VSDimensionRef) refs[i];
+               boolean hasInnerDim = false;
 
-               if(rankingFields.contains(vdim.getFullName())) {
+               for(int j = i + 1; j < refs.length; j++) {
+                  if(refs[j] instanceof VSDimensionRef) {
+                     hasInnerDim = true;
+                     break;
+                  }
+               }
+
+               if(mergeDimRanking(vdim, cols, ainfo, rconds, rankingFields, null) &&
+                  hasInnerDim)
+               {
+                  mgrcond = false;
+               }
+            }
+         }
+
+         // Relation/Tree chart source and target fields are never included in
+         // cinfo.getRTFields() (AbstractChartInfo.getRTFields() only assembles x/y,
+         // group/path, and aesthetic refs), so a RankingCondition set on either of
+         // them would otherwise never be merged into the query, making Top N/Bottom N
+         // ranking a no-op for tree charts.
+         if(cinfo instanceof RelationChartInfo) {
+            RelationChartInfo rcinfo = (RelationChartInfo) cinfo;
+            ChartRef sourceField = rcinfo.getRTSourceField();
+            ChartRef targetField = rcinfo.getRTTargetField();
+            // guards the ainfo group name fallback in mergeDimRanking() against
+            // source and target matching the same (ambiguous/shared) group name
+            Set<GroupRef> usedGroups = new HashSet<>();
+
+            // source is the outer/parent grouping and target is the inner/child
+            // grouping in a tree chart, so ranking on source while target is also
+            // bound isn't innermost and needs the same per-group post-processing
+            // (mgrcond = false) as a non-innermost x/y dimension above.
+            if(sourceField instanceof VSDimensionRef) {
+               boolean merged = mergeDimRanking((VSDimensionRef) sourceField, cols, ainfo,
+                                                 rconds, rankingFields, usedGroups);
+
+               if(merged && targetField instanceof VSDimensionRef) {
+                  mgrcond = false;
+               }
+            }
+
+            if(targetField instanceof VSDimensionRef) {
+               mergeDimRanking((VSDimensionRef) targetField, cols, ainfo, rconds,
+                                rankingFields, usedGroups);
+            }
+
+            // VSDimensionRef-backed node color/size fields are excluded from
+            // getAestheticRefs() (bug #75253) and so never appear in cinfo.getRTFields()
+            // either, which means a RankingCondition set on the Node Color/Node Size well
+            // would never be merged into the query. Merge it here. Only source and target
+            // are actual groups in a relation chart query (the node dimension is added as a
+            // MAX aggregate), so a ranking is only meaningful when the node dimension is the
+            // same field as source or target - ranking on an ungrouped column can't be
+            // evaluated. rankingFields dedup keeps a ranking already merged from
+            // source/target from being applied twice.
+            String sourceName = sourceField instanceof VSDimensionRef ?
+               ((VSDimensionRef) sourceField).getFullName() : null;
+            String targetName = targetField instanceof VSDimensionRef ?
+               ((VSDimensionRef) targetField).getFullName() : null;
+            List<AestheticRef> nodeRankRefs = new ArrayList<>();
+
+            if(cinfo instanceof RelationVSChartInfo) {
+               nodeRankRefs.add(((RelationVSChartInfo) cinfo).getNodeColorField());
+               nodeRankRefs.add(((RelationVSChartInfo) cinfo).getNodeSizeField());
+            }
+
+            for(AestheticRef nodeARef : nodeRankRefs) {
+               if(nodeARef == null) {
                   continue;
                }
 
-               RankingCondition cond = vdim.getRankingCondition();
+               DataRef nodeRef = nodeARef.getRTDataRef() != null ?
+                  nodeARef.getRTDataRef() : nodeARef.getDataRef();
 
-               if(cond != null) {
-                  DataRef aref = cond.getDataRef();
-
-                  if(aref == null) {
-                     vdim.updateRanking(cols);
-                     cond = vdim.getRankingCondition();
-                  }
+               if(!(nodeRef instanceof VSDimensionRef)) {
+                  continue;
                }
 
-               if(cond != null) {
-                  // clone it, fix bug1343989398469
-                  cond = cond.clone();
+               VSDimensionRef nodeDim = (VSDimensionRef) nodeRef;
+               String nodeName = nodeDim.getFullName();
+               boolean isSource = nodeName != null && nodeName.equals(sourceName);
+               boolean isTarget = nodeName != null && nodeName.equals(targetName);
 
-                  for(int j = i + 1; j < refs.length; j++) {
-                     if(refs[j] instanceof VSDimensionRef) {
-                        mgrcond = false;
-                        break;
-                     }
-                  }
+               if(!isSource && !isTarget) {
+                  continue;
+               }
 
-                  GroupRef group = vdim.createGroupRef(cols);
+               boolean merged = mergeDimRanking(nodeDim, cols, ainfo, rconds,
+                                                 rankingFields, usedGroups);
 
-                  if(group == null) {
-                     continue;
-                  }
-
-                  DataRef aref = cond.getDataRef();
-                  aref = AssetUtil.getColumnRefFromAttribute(cols, aref);
-                  DataRef aref2 = (aref != null) ? findRef(ainfo, aref) : null;
-
-                  if(aref2 == null) {
-                     LOG.warn("Ranking column not found: " + aref);
-                     continue;
-                  }
-
-                  cond.setDataRef(aref2);
-                  DataRef gref = group.getDataRef();
-                  ConditionItem ranking = new ConditionItem(gref, cond, 0);
-
-                  if(rconds.getSize() > 0) {
-                     JunctionOperator op = new JunctionOperator();
-                     rconds.append(op);
-                  }
-
-                  rconds.append(ranking);
-                  rankingFields.add(vdim.getFullName());
+               // ranking on the outer (source) grouping while target is also bound isn't
+               // innermost, so it needs the same per-group post-processing as above.
+               if(merged && isSource && targetField instanceof VSDimensionRef) {
+                  mgrcond = false;
                }
             }
          }
@@ -1544,6 +1662,30 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
          }
          else {
             table.setSortInfo(sorts);
+         }
+      }
+
+      // Align generated grouping/sorting refs with the final private column selection before
+      // resetColumnSelection() validates and rebuilds public columns.
+      for(GroupRef group : ainfo.getGroups()) {
+         ColumnRef column = AssetUtil.getColumnRefFromAttribute(cols, group.getDataRef());
+
+         if(column != null) {
+            group.setDataRef(column);
+         }
+         else if(group.getDataRef() instanceof ColumnRef) {
+            cols.addAttribute((ColumnRef) group.getDataRef());
+         }
+      }
+
+      for(SortRef sort : sorts.getSorts()) {
+         ColumnRef column = AssetUtil.getColumnRefFromAttribute(cols, sort.getDataRef());
+
+         if(column != null) {
+            sort.setDataRef(column);
+         }
+         else if(sort.getDataRef() instanceof ColumnRef) {
+            cols.addAttribute((ColumnRef) sort.getDataRef());
          }
       }
 
@@ -1727,6 +1869,7 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
    private MirrorTableAssembly createMirrorTableAssembly(TableAssembly table, String vname) {
       String mname = Assembly.TABLE_VS + vname + "_mirror";
       Worksheet ws = table.getWorksheet();
+      ws.addAssembly(table);
       MirrorTableAssembly mtable = new MirrorTableAssembly(ws, mname, null, false, table);
 
       normalizeTable(mtable);
@@ -1971,6 +2114,102 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
    }
 
    /**
+    * Merge a dimension ref's RankingCondition (if any) into the ranking condition list.
+    * @param usedGroups when non-null, tracks which ainfo groups have already been
+    *                    claimed by a prior call in the same ranking pass (e.g. a tree
+    *                    chart's source/target fields), so that two different fields
+    *                    with an ambiguous/shared qualified name can't both resolve to
+    *                    the same group. Pass null when callers are guaranteed distinct
+    *                    (e.g. cinfo.getRTFields(), which never duplicates a column).
+    * @return true if this ref has a RankingCondition, regardless of whether the merge
+    *         into rconds actually succeeded - callers use this to decide whether
+    *         ranking on a non-innermost dimension should disable query-level merging
+    *         (mgrcond).
+    */
+   private boolean mergeDimRanking(VSDimensionRef vdim, ColumnSelection cols,
+                                    AggregateInfo ainfo, ConditionList rconds,
+                                    Set<String> rankingFields, Set<GroupRef> usedGroups)
+   {
+      if(rankingFields.contains(vdim.getFullName())) {
+         return false;
+      }
+
+      RankingCondition cond = vdim.getRankingCondition();
+
+      if(cond != null) {
+         DataRef aref = cond.getDataRef();
+
+         if(aref == null) {
+            vdim.updateRanking(cols);
+            cond = vdim.getRankingCondition();
+         }
+      }
+
+      if(cond == null) {
+         return false;
+      }
+
+      // clone it, fix bug1343989398469
+      cond = cond.clone();
+      GroupRef group = vdim.createGroupRef(cols);
+
+      // Fields that aren't part of the x/y binding loop (e.g. a tree chart's source
+      // and target) may not have their column synced into `cols` yet - that sync
+      // happens later, in the "Align generated grouping/sorting refs" loop - so
+      // createGroupRef(cols) can spuriously return null even though ainfo already has
+      // a real group for this field. Fall back to the matching group already
+      // registered on ainfo, tolerating a table-qualified name (e.g. "Query1.State"
+      // vs "State"). Skip any group already claimed via usedGroups to avoid two
+      // different fields resolving to the same ambiguous/shared qualified name.
+      if(group == null) {
+         String vname = vdim.getFullName();
+
+         for(GroupRef g : ainfo.getGroups()) {
+            String gname = g.getName();
+
+            if(gname == null || usedGroups != null && usedGroups.contains(g)) {
+               continue;
+            }
+
+            if(gname.equals(vname) || gname.endsWith("." + vname)) {
+               group = g;
+               break;
+            }
+         }
+      }
+
+      if(group == null) {
+         return true;
+      }
+
+      if(usedGroups != null) {
+         usedGroups.add(group);
+      }
+
+      DataRef aref = cond.getDataRef();
+      aref = AssetUtil.getColumnRefFromAttribute(cols, aref);
+      DataRef aref2 = (aref != null) ? findRef(ainfo, aref) : null;
+
+      if(aref2 == null) {
+         LOG.warn("Ranking column not found: " + aref);
+         return true;
+      }
+
+      cond.setDataRef(aref2);
+      DataRef gref = group.getDataRef();
+      ConditionItem ranking = new ConditionItem(gref, cond, 0);
+
+      if(rconds.getSize() > 0) {
+         JunctionOperator op = new JunctionOperator();
+         rconds.append(op);
+      }
+
+      rconds.append(ranking);
+      rankingFields.add(vdim.getFullName());
+      return true;
+   }
+
+   /**
     * Get the period dimension ref.
     */
    private XDimensionRef getPeriodDimRef(ChartInfo info, String fullName) {
@@ -2051,7 +2290,7 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
     * Shrink number table lens to avoid db covert number to string problem.
     */
    @SuppressWarnings("serial")
-   public class ShrinkNumberTableLens extends DefaultTableFilter {
+   public static class ShrinkNumberTableLens extends DefaultTableFilter {
       /**
        * Constructor.
        */
@@ -2103,7 +2342,7 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
     * Convert date period label to date object.
     */
    @SuppressWarnings("serial")
-   public class PeriodDateTableLens extends DefaultTableFilter {
+   public static class PeriodDateTableLens extends DefaultTableFilter {
       /**
        * Constructor.
        */

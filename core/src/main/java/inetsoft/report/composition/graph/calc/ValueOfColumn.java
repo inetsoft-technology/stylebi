@@ -375,6 +375,47 @@ public class ValueOfColumn extends AbstractColumn {
          Object val = data.getData(ndim, row);
          Object tval = null;
 
+         // Pre-compute ndimIsPartDate before router construction so both the router selection
+         // and the sub-dataset lookup use consistent logic.
+         // A PART_DATE_GROUP inner dim (e.g. MonthOfYear) in a facet chart needs the
+         // root-dataset router to find cross-facet values (e.g. April→March crosses Q2→Q1).
+         // Non-date/non-PART_DATE_GROUP inner dims (e.g. plain string dimensions) must use
+         // the sorted dataset for the router so that previous/next follows chart sort order.
+         // Only apply for PREVIOUS/NEXT: for PREVIOUS_YEAR and similar ctypes, the PART_DATE_GROUP
+         // sibling (e.g. QuarterOfYear) is the correct position discriminator and must remain in
+         // the condition to find the same quarter in the previous year.
+         List<XDimensionRef> ignoreList = dcTempGroups;
+         boolean ndimIsPartDate = false;
+
+         if((ctype == ValueOfCalc.PREVIOUS || ctype == ValueOfCalc.NEXT)
+               && ndim.equals(innerDim) && getDimensions() != null) {
+            String ndimBase = getDateColumnBase(ndim);
+
+            if(ndimBase != null) {
+               ndimIsPartDate = getDimensions().stream()
+                  .filter(d -> ndim.equals(d.getFullName()))
+                  .anyMatch(d -> (d.getDateLevel() & XConstants.PART_DATE_GROUP) != 0);
+
+               if(ndimIsPartDate) {
+                  List<XDimensionRef> partSiblings = getDimensions().stream()
+                     .filter(d -> (d.getDateLevel() & XConstants.PART_DATE_GROUP) != 0)
+                     .filter(d -> !ndim.equals(d.getFullName()))
+                     .filter(d -> ndimBase.equals(getDateColumnBase(d.getFullName())))
+                     .collect(Collectors.toList());
+
+                  if(!partSiblings.isEmpty()) {
+                     ignoreList = new ArrayList<>();
+
+                     if(dcTempGroups != null) {
+                        ignoreList.addAll(dcTempGroups);
+                     }
+
+                     ignoreList.addAll(partSiblings);
+                  }
+               }
+            }
+         }
+
          if(ctype >= ValueOfCalc.PREVIOUS_YEAR) {
             if(ctype != ValueOfCalc.PREVIOUS_RANGE) {
                VSDataSet vsDataSet = getVSDataset(data);
@@ -394,11 +435,14 @@ public class ValueOfColumn extends AbstractColumn {
             }
          }
          else {
-            // When ndim == innerDim and data is a facet sub-dataset, the sub-dataset only
-            // contains the rows for this facet (e.g. Q2 = months 4-6). The previous value
-            // may belong to a different facet (e.g. April → March, which is in Q1). Use the
-            // root dataset so the router can find cross-facet previous/next values.
-            DataSet routerData = (ndim.equals(innerDim) && data instanceof DataSetFilter)
+            // In a facet chart, a PART_DATE_GROUP inner dimension (e.g. MonthOfYear) is backed
+            // by a per-facet DataSetFilter containing only that facet's rows (e.g. months 4-6
+            // for Q2). The router built from this sub-dataset cannot find the previous value
+            // that crosses a facet boundary (April→March is in Q1). Use getRootDataSet() so
+            // the router can traverse values across all facets.
+            // For non-PART_DATE_GROUP inner dimensions (e.g. plain string dimensions), use
+            // data (the sorted dataset) so that previous/next navigation follows chart sort order.
+            DataSet routerData = (ndimIsPartDate && data instanceof DataSetFilter)
                ? ((DataSetFilter) data).getRootDataSet() : data;
             Router router = getRouter(routerData, ndim);
             tval = router.getValue(val, ctype == ValueOfCalc.PREVIOUS ? -1 : 1);
@@ -408,64 +452,69 @@ public class ValueOfColumn extends AbstractColumn {
             return INVALID;
          }
 
-         // the first year in the dataset should not assume the previous year (which is not in
+         // The first year in the dataset should not assume the previous year (which is not in
          // the dataset) to be 0 when calculating change.
          if(tval instanceof Date && getMinDate(data).after((Date) tval)) {
             return INVALID;
          }
 
-         // When ndim is the innermost dimension (no outer-dimension sub-grouping), exclude any
-         // PART_DATE_GROUP sibling dimensions (e.g. QuarterOfYear when looking up previous
-         // MonthOfYear) that share the same base date column. Including them in the lookup
-         // condition causes zero rows when the target value crosses a period boundary (e.g.
-         // April→March crosses Q2→Q1).
-         List<XDimensionRef> ignoreList = dcTempGroups;
-
-         if(ndim.equals(innerDim) && getDimensions() != null) {
-            String ndimBase = getDateColumnBase(ndim);
-
-            if(ndimBase != null) {
-               List<XDimensionRef> partSiblings = getDimensions().stream()
-                  .filter(d -> (d.getDateLevel() & XConstants.PART_DATE_GROUP) != 0)
-                  .filter(d -> !ndim.equals(d.getFullName()))
-                  .filter(d -> ndimBase.equals(getDateColumnBase(d.getFullName())))
-                  .collect(Collectors.toList());
-
-               if(!partSiblings.isEmpty()) {
-                  ignoreList = new ArrayList<>();
-
-                  if(dcTempGroups != null) {
-                     ignoreList.addAll(dcTempGroups);
-                  }
-
-                  ignoreList.addAll(partSiblings);
-               }
-            }
-         }
-
          Map<String, Object> cond = createCond(data, ndim, row, ignoreList, tval);
          cond.put(ndim, tval);
 
-         // Switch to root dataset for the sub-dataset lookup so that cross-facet rows can be
-         // found (e.g. looking up March when the current data is a Q2 sub-dataset).
-         // This covers both the ndim != innerDim case (original behavior) and the
-         // ndim == innerDim case where the target value may be in a different facet.
-         if(data instanceof DataSetFilter) {
-            data = ((DataSetFilter) data).getRootDataSet();
+         // Switch to root dataset for the sub-dataset lookup so cross-facet rows can be found.
+         // For PART_DATE_GROUP inner dimensions (e.g. MonthOfYear): always switch, because a
+         // per-facet sub-dataset (e.g. Q2 = months 4-6) cannot reach March which is in Q1.
+         // For full date group inner dimensions (e.g. Year in a DC chart): keep the sorted
+         // dataset, because the condition already includes the sibling PART_DATE_GROUP dim
+         // (e.g. QuarterOfYear=3) and switching to root causes the sub-dataset index to be
+         // rebuilt unnecessarily and can return wrong rows.
+         // When ndim != innerDim: always switch (original pre-bug behavior).
+         DataSet lookupData = data;
+
+         if(lookupData instanceof DataSetFilter && (ndimIsPartDate || !ndim.equals(innerDim))) {
+            lookupData = getLookupRoot(lookupData);
          }
 
-         data = getSubDataSet(data, cond);
-         int rcnt = ((AbstractDataSet) data).getRowCountUnprojected();
+         DataSet sub = getSubDataSet(lookupData, cond);
+         int rcnt = ((AbstractDataSet) sub).getRowCountUnprojected();
 
-         if(data.getRowCount() <= 0) {
+         if(sub.getRowCount() <= 0) {
             return INVALID;
          }
 
-         return data.getData(field, (ctype == ValueOfCalc.PREVIOUS) ? rcnt - 1 : 0);
+         return sub.getData(field, (ctype == ValueOfCalc.PREVIOUS) ? rcnt - 1 : 0);
       }
    }
 
+   /**
+    * Unwrap the filter chain toward the root so rows belonging to another facet can be found,
+    * but stop at the last dataset that still contains the measure column being looked up.
+    *
+    * In a brushed chart the all-data columns (__all__xxx) are created by BrushDataSet and do
+    * not exist on the datasets below it. Unwrapping all the way to the root would make
+    * sub.getData(field, ...) return null for every row, which silently turns a
+    * change-from-previous value into the raw aggregate value.
+    */
+   private DataSet getLookupRoot(DataSet data) {
+      DataSet lookup = data;
+
+      while(lookup instanceof DataSetFilter) {
+         DataSet base = ((DataSetFilter) lookup).getDataSet();
+
+         if(base == null || base.indexOfHeader(field) < 0) {
+            break;
+         }
+
+         lookup = base;
+      }
+
+      return lookup;
+   }
+
    // Extract the base column name from a date function expression, e.g. "MonthOfYear(Date)" -> "Date".
+   // Assumes the format "Function(ColumnName)" with no nesting — for a nested expression like
+   // "MonthOfYear(Year(Date))" this returns "Year(Date)", not "Date". Nested date functions are
+   // not currently used in dimension full names, so this is sufficient in practice.
    private String getDateColumnBase(String dimName) {
       if(dimName == null) {
          return null;
@@ -572,6 +621,7 @@ public class ValueOfColumn extends AbstractColumn {
    private Date getPreQuarterSameWeek(Date date) {
       long weekIndexOfQuarter = getWeekIndexOfQuarter(date);
       Calendar calendar = jcalendars.get();
+      calendar.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
       calendar.setTime(date);
       calendar.add(Calendar.MONTH, -3);
       Date firstWeekOfQuarter = DateComparisonUtil.getQuarterFirstWeek(calendar.getTime(),
@@ -592,6 +642,7 @@ public class ValueOfColumn extends AbstractColumn {
 
    private Date getPreMonthSameWeek(Date date) {
       Calendar calendar = jcalendars.get();
+      calendar.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
       calendar.setTime(date);
       int weekOfMonth = calendar.get(Calendar.WEEK_OF_MONTH);
       calendar.set(Calendar.DATE, 1);
@@ -627,6 +678,11 @@ public class ValueOfColumn extends AbstractColumn {
          }
 
          Calendar jcalendar = jcalendars.get();
+         // jcalendars is a static ThreadLocal, so a pooled thread's Calendar is
+         // constructed once (with the JVM default locale's first day of week) and
+         // reused for the lifetime of the thread across unrelated requests -- it must
+         // be re-synced to the live week.start setting on every use, not just once.
+         jcalendar.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
          int minimalDaysInFirstWeek = jcalendar.getMinimalDaysInFirstWeek();
          jcalendar.setMinimalDaysInFirstWeek(7);
 
@@ -723,6 +779,7 @@ public class ValueOfColumn extends AbstractColumn {
    public void complete() {
       subs = null;
       subsRoot = null;
+      minDate = null;
    }
 
    @Override

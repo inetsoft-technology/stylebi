@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="modal-header" blockMouse>
   <h3 class="modal-title">{{title}}</h3>
   <button type="button" class="btn-close" (click)="cancel()" aria-label="Close"></button>
@@ -22,16 +22,18 @@
 
 <div class="modal-body">
   <date-time-picker [date]="date" [emitAutoSet]="promptTime"
-                    [promptDate]="promptDate"
-                    [promptTime]="promptTime"
-                    [format]="format"
-                    (valueChanged)="dateTimeChange($event.value, $event.changeType)">
+    [promptDate]="promptDate"
+    [promptTime]="promptTime"
+    [format]="format"
+    (valueChanged)="dateTimeChange($event.value, $event.changeType)">
   </date-time-picker>
 </div>
 <div class="modal-footer" blockMouse>
-  <button type="submit" class="btn btn-primary" *ngIf="promptTime" (click)="ok()">_#(OK)</button>
+  @if (promptTime) {
+    <button type="submit" class="btn btn-primary" (click)="ok()">_#(OK)</button>
+  }
   <button type="button" class="btn btn-default" data-dismiss="modal"
-          (click)="cancel()">_#(Cancel)</button>
+  (click)="cancel()">_#(Cancel)</button>
   <button type="button" class="btn btn-default" data-dismiss="modal"
-          (click)="clear()">_#(Clear)</button>
+  (click)="clear()">_#(Clear)</button>
 </div>

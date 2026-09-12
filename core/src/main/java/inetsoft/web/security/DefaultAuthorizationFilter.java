@@ -17,14 +17,16 @@
  */
 package inetsoft.web.security;
 
-import inetsoft.sree.SreeEnv;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -36,7 +38,10 @@ import java.util.Arrays;
  * restricted page and have not been authenticated.
  */
 public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
-   public DefaultAuthorizationFilter() {
+   public DefaultAuthorizationFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                                     AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
    }
 
    @Override
@@ -54,7 +59,11 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
          principal = (SRPrincipal) SUtil.getPrincipal(httpRequest);
       }
 
-      if(!provider.getAuthenticationProvider().isVirtual() && !isPublicResource(httpRequest) &&
+      // both branches below consult this, so match the request against the public resource
+      // patterns only once
+      boolean publicResource = isPublicResource(httpRequest);
+
+      if(!provider.getAuthenticationProvider().isVirtual() && !publicResource &&
          !isPublicApi(httpRequest) && !isTeamWebsocketEndpoint(httpRequest))
       {
          Cookie[] cookies = ((HttpServletRequest) request).getCookies();
@@ -64,15 +73,17 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
          recordedOrgID = recordedOrgID == null ? SUtil.getLoginOrganization(httpRequest) : recordedOrgID;
          recordedOrgID = recordedOrgID == null ? getCookieRecordedOrgID((HttpServletRequest) request) : recordedOrgID;
 
-         if((principal == null || principal.getName().equals(XPrincipal.ANONYMOUS)) &&
+         if((principal == null || isAnonymousPrincipal(principal)) &&
             // if there is a user explicitly named "anonymous", it is an allowed guest login
             (engine == null || !engine.containsAnonymous(recordedOrgID)))
          {
             unauthorized = true;
          }
       }
-      else if(isEnterpriseManager(httpRequest)) {
-         if(principal == null || principal.getName().equals(XPrincipal.ANONYMOUS) ||
+      // public EM resources (the static assets of the Enterprise Manager web application) are
+      // exempt from the EM access check, just like the public resources of the portal
+      else if(isEnterpriseManager(httpRequest) && !publicResource) {
+         if(principal == null || isAnonymousPrincipal(principal) ||
             !provider.checkPermission(principal, ResourceType.EM, "*", ResourceAction.ACCESS))
          {
             unauthorized = true;
@@ -128,7 +139,46 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
             }
          }
 
-         chain.doFilter(request, response);
+         // Only wrap response for potential anonymous sessions (no authenticated principal yet)
+         // This avoids overhead for authenticated users
+         boolean mayHaveAnonymousSession = principal == null ||
+            (principal.getName() != null && principal.getName().startsWith(ClientInfo.ANONYMOUS));
+
+         if(mayHaveAnonymousSession) {
+            StatusCapturingResponseWrapper responseWrapper =
+               new StatusCapturingResponseWrapper((HttpServletResponse) response);
+
+            chain.doFilter(request, responseWrapper);
+
+            // Handle fresh anonymous sessions based on response status
+            int status = responseWrapper.getStatus();
+
+            if(status >= 400) {
+               // Error response - invalidate fresh anonymous sessions to prevent
+               // bots probing invalid URLs from consuming session resources
+               invalidateFreshAnonymousSession(httpRequest);
+            }
+            else {
+               // Successful or redirect response - clear the fresh flag so session becomes established
+               clearFreshSessionFlag(httpRequest);
+            }
+         }
+         else {
+            // Authenticated user - no need to track response status
+            chain.doFilter(request, response);
+         }
+      }
+   }
+
+   /**
+    * Clears the fresh session flag after a successful response,
+    * marking the session as established.
+    */
+   private void clearFreshSessionFlag(HttpServletRequest request) {
+      HttpSession session = request.getSession(false);
+
+      if(session != null) {
+         session.removeAttribute(FRESH_ANONYMOUS_SESSION_ATTR);
       }
    }
 
@@ -144,6 +194,87 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
       return cookie;
    }
 
-   public static final String LOGIN_PAGE = "login.html";
+   /**
+    * Invalidates a fresh anonymous session after an error response (4xx/5xx).
+    * This prevents bots probing invalid URLs from consuming session resources.
+    * Only sessions marked as "fresh" (just created this request) are invalidated.
+    */
+   private void invalidateFreshAnonymousSession(HttpServletRequest request) {
+      try {
+         HttpSession session = request.getSession(false);
 
+         if(session == null) {
+            return;
+         }
+
+         // Only invalidate sessions marked as fresh anonymous sessions
+         Boolean isFresh = (Boolean) session.getAttribute(FRESH_ANONYMOUS_SESSION_ATTR);
+
+         if(!Boolean.TRUE.equals(isFresh)) {
+            return;
+         }
+
+         SRPrincipal principal = (SRPrincipal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+
+         if(principal != null) {
+            getAuthenticationService().logout(principal, request.getRemoteAddr(), "");
+            session.invalidate();
+
+            LOG.debug("Invalidated fresh anonymous session after error response for: {}",
+                      request.getRequestURI());
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to invalidate fresh anonymous session", e);
+      }
+   }
+
+   public static final String LOGIN_PAGE = "login.html";
+   private static final Logger LOG = LoggerFactory.getLogger(DefaultAuthorizationFilter.class);
+
+   /**
+    * Response wrapper that captures the HTTP status code.
+    */
+   private static class StatusCapturingResponseWrapper extends HttpServletResponseWrapper {
+      StatusCapturingResponseWrapper(HttpServletResponse response) {
+         super(response);
+      }
+
+      @Override
+      public void setStatus(int sc) {
+         this.status = sc;
+         super.setStatus(sc);
+      }
+
+      @Override
+      public void sendError(int sc) throws IOException {
+         this.status = sc;
+         super.sendError(sc);
+      }
+
+      @Override
+      public void sendError(int sc, String msg) throws IOException {
+         this.status = sc;
+         super.sendError(sc, msg);
+      }
+
+      @Override
+      public void sendRedirect(String location) throws IOException {
+         this.status = HttpServletResponse.SC_FOUND;
+         super.sendRedirect(location);
+      }
+
+      @Override
+      public void reset() {
+         this.status = HttpServletResponse.SC_OK;
+         super.reset();
+      }
+
+      @Override
+      public int getStatus() {
+         return status;
+      }
+
+      private int status = HttpServletResponse.SC_OK;
+   }
 }

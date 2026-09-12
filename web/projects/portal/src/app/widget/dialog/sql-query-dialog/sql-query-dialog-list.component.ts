@@ -27,11 +27,13 @@ import {
 import { Tool } from "../../../../../../shared/util/tool";
 import { DragEvent } from "../../../common/data/drag-event";
 import { DragService } from "../../services/drag.service";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "sql-query-dialog-list",
-   templateUrl: "sql-query-dialog-list.component.html",
-   styleUrls: ["sql-query-dialog-list.component.scss"]
+    selector: "sql-query-dialog-list",
+    templateUrl: "sql-query-dialog-list.component.html",
+    styleUrls: ["sql-query-dialog-list.component.scss"],
+    imports: [NgClass]
 })
 export class SQLQueryDialogListComponent {
    @Input() items: any[];

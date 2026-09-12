@@ -20,21 +20,58 @@ package com.inetsoft.connectors.script;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.ScriptUtil;
-import org.mozilla.javascript.ScriptableObject;
+import inetsoft.util.script.graal.ScriptFunction;
+import inetsoft.util.script.graal.ScriptScope;
 import org.rosuda.REngine.Rserve.RConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class RScope extends ScriptableObject {
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+public class RScope implements ScriptScope {
    public RScope(RConnection connection) {
       this.connection = new RConnectionScriptable(connection);
-      super.put("r", this, this.connection);
-      defineFunctionProperties(new String[] { "log", "logTable" }, RScope.class, 0);
+      members.put("r", this.connection);
+      addFunctions();
+   }
+
+   public String getClassName() {
+      return "R";
    }
 
    @Override
-   public String getClassName() {
-      return "R";
+   public Object getMember(String name) {
+      return members.get(name);
+   }
+
+   @Override
+   public boolean hasMember(String name) {
+      return members.containsKey(name);
+   }
+
+   @Override
+   public void putMember(String name, Object value) {
+      members.put(name, value);
+   }
+
+   @Override
+   public boolean removeMember(String name) {
+      return members.remove(name) != null;
+   }
+
+   @Override
+   public Object[] getMemberKeys() {
+      return members.keySet().toArray();
+   }
+
+   @Override
+   public ScriptScope getParentScope() {
+      return parent;
+   }
+
+   public void setParentScope(ScriptScope parent) {
+      this.parent = parent;
    }
 
    @SuppressWarnings("unused")
@@ -52,6 +89,19 @@ public class RScope extends ScriptableObject {
       connection.setScriptExecuted(scriptExecuted);
    }
 
+   private void addFunctions() {
+      // Feature #75423: native functions exposed via ScriptFunction (GraalJS).
+      try {
+         members.put("log", new ScriptFunction(this, getClass(), "log", String.class));
+         members.put("logTable", new ScriptFunction(this, getClass(), "logTable", Object.class));
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to register R scope functions", e);
+      }
+   }
+
    private final RConnectionScriptable connection;
+   private final Map<String, Object> members = new LinkedHashMap<>();
+   private ScriptScope parent;
    private static final Logger LOG = LoggerFactory.getLogger(RScope.class);
 }

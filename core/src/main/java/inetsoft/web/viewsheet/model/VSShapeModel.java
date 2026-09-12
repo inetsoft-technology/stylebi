@@ -18,6 +18,7 @@
 package inetsoft.web.viewsheet.model;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.viewsheet.ShapeShadow;
 import inetsoft.uql.viewsheet.ShapeVSAssembly;
 import inetsoft.uql.viewsheet.internal.ShapeVSAssemblyInfo;
 
@@ -29,6 +30,7 @@ public abstract class VSShapeModel<T extends ShapeVSAssembly> extends VSObjectMo
       locked = assemblyInfo.getLocked();
       lineStyle = assemblyInfo.getLineStyle();
       shadow = assemblyInfo.isShadow();
+      shadowInfo = (ShapeShadow) assemblyInfo.getShadowInfo().clone();
    }
 
    public boolean isLocked() {
@@ -43,7 +45,12 @@ public abstract class VSShapeModel<T extends ShapeVSAssembly> extends VSObjectMo
       return shadow;
    }
 
+   public ShapeShadow getShadowInfo() {
+      return shadowInfo;
+   }
+
    private boolean locked;
    private int lineStyle;
    private boolean shadow;
+   private ShapeShadow shadowInfo;
 }

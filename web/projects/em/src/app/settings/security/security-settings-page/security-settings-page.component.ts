@@ -18,7 +18,7 @@
 import { HttpClient } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
-import { MatSlideToggleChange } from "@angular/material/slide-toggle";
+import { MatSlideToggleChange, MatSlideToggle } from "@angular/material/slide-toggle";
 import { finalize, takeUntil } from "rxjs/operators";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 import { AuthorizationService } from "../../../authorization/authorization.service";
@@ -30,15 +30,23 @@ import { SecurityEnabledEvent } from "./security-enabled-event";
 import { OrganizationDropdownService } from "../../../navbar/organization-dropdown.service";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 import { Subject } from "rxjs";
+import { RouterLinkActive, RouterLink, RouterOutlet } from "@angular/router";
+import { MatTabNav, MatTabLink, MatTabNavPanel } from "@angular/material/tabs";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatHint, MatFormField, MatLabel } from "@angular/material/form-field";
+import { NgIf } from "@angular/common";
+
 
 @Secured({
    route: "/settings/security",
    label: "Security"
 })
 @Component({
-   selector: "em-security-settings-page",
-   templateUrl: "./security-settings-page.component.html",
-   styleUrls: ["./security-settings-page.component.scss"]
+    selector: "em-security-settings-page",
+    templateUrl: "./security-settings-page.component.html",
+    styleUrls: ["./security-settings-page.component.scss"],
+    imports: [NgIf, MatSlideToggle, MatHint, MatFormField, MatLabel, MatSelect, MatOption, MatTabNav, MatTabLink, RouterLinkActive, RouterLink, MatTabNavPanel, RouterOutlet]
 })
 export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
    securityEnabled = false;
@@ -91,7 +99,7 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
             this.appInfoService.setLdapProviderUsed(this.ldapProviderUsed);
             this.passOrgIdAs = event.passOrgIdAs;
             this.cloudPlatform = event.cloudPlatform;
-            this.isOrgAdminOnly = event.warning && event.warning === "isOrgAdmin";
+            this.isOrgAdminOnly = event.warning === "isOrgAdmin";
          });
 
       this.authzService.getPermissions("settings/security").subscribe((p) => {
@@ -110,7 +118,7 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    toggleSecurityEnabled(toggleChange: MatSlideToggleChange) {
@@ -121,58 +129,64 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
          ldapProviderUsed: this.ldapProviderUsed
       };
 
-      this.httpClient.post("../api/em/security/set-enable-security", request)
+      this.httpClient.post<SecurityEnabledEvent>("../api/em/security/set-enable-security", request)
          .pipe(finalize(() => this.securityToggleDisabled = false))
-         .subscribe((event: SecurityEnabledEvent) => {
-            if(event.warning) {
-               this.dialog.open(MessageDialog, {
-                  width: "350px",
-                  data: {
-                     title: "_#(js:Error)",
-                     content: event.warning,
-                     type: MessageDialogType.ERROR
-                  }
-               });
-               this.securityEnabled = event.enable;
-               this.refreshContent();
-            }
-            else {
-               this.securityEnabled = event.enable;
-               this.userService.loadScheduleUsers();
-            }
+         .subscribe({
+            next: (event: SecurityEnabledEvent) => {
+               if(event.warning) {
+                  this.dialog.open(MessageDialog, {
+                     width: "350px",
+                     data: {
+                        title: "_#(js:Error)",
+                        content: event.warning,
+                        type: MessageDialogType.ERROR
+                     }
+                  });
+                  this.securityEnabled = event.enable;
+                  this.refreshContent();
+               }
+               else {
+                  this.securityEnabled = event.enable;
+                  this.userService.loadScheduleUsers();
+               }
+            },
+            error: (err) => console.error("Failed to update security setting:", err)
          });
    }
 
    toggleEnterpriseToggle(toggleChange: MatSlideToggleChange) {
-       this.multiTenancyToggleDisabled = true;
-       const request: SecurityEnabledEvent = {
-          enable: toggleChange.checked,
-          toggleDisabled: this.securityToggleDisabled,
-          ldapProviderUsed: this.ldapProviderUsed
-       };
-       this.httpClient.post<SecurityEnabledEvent>("../api/em/security/set-multi-tenancy", request).pipe(
-          finalize(() => this.multiTenancyToggleDisabled = false)
-       )
-          .subscribe((event: SecurityEnabledEvent) => {
-             if(event.warning != null && event.warning != "") {
-                const content = event.warning;
-                this.dialog.open(MessageDialog, {
-                   width: "350px",
-                   data: {
-                      title: "_#(js:Error)",
-                      content: content,
-                      type: MessageDialogType.ERROR
-                   }
-                });
-                this.multiTenancyEnabled = true;
-                this.refreshContent();
-             }
-             else {
-                this.multiTenancyEnabled = event.enable;
-                this.orgDropdownService.refreshProviders();
-                this.refreshContent();
-             }
-          });
+      this.multiTenancyToggleDisabled = true;
+      const request: SecurityEnabledEvent = {
+         enable: toggleChange.checked,
+         toggleDisabled: this.multiTenancyToggleDisabled,
+         ldapProviderUsed: this.ldapProviderUsed
+      };
+      this.httpClient.post<SecurityEnabledEvent>("../api/em/security/set-multi-tenancy", request).pipe(
+         finalize(() => this.multiTenancyToggleDisabled = false)
+      )
+         .subscribe({
+            next: (event: SecurityEnabledEvent) => {
+               if(event.warning != null && event.warning != "") {
+                  const content = event.warning;
+                  this.dialog.open(MessageDialog, {
+                     width: "350px",
+                     data: {
+                        title: "_#(js:Error)",
+                        content: content,
+                        type: MessageDialogType.ERROR
+                     }
+                  });
+                  this.multiTenancyEnabled = event.enable;
+                  this.refreshContent();
+               }
+               else {
+                  this.multiTenancyEnabled = event.enable;
+                  this.orgDropdownService.refreshProviders();
+                  this.refreshContent();
+               }
+            },
+            error: (err) => console.error("Failed to update security setting:", err)
+         });
    }
 
    //resets child components after updating isMultiTenant
@@ -189,8 +203,11 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
          toggleDisabled: this.securityToggleDisabled,
          ldapProviderUsed: this.ldapProviderUsed
       };
-      this.httpClient.post("../api/em/security/set-enable-self-signup", request)
-         .subscribe((event: SecurityEnabledEvent) => this.selfSignupEnabled = event.enable);
+      this.httpClient.post<SecurityEnabledEvent>("../api/em/security/set-enable-self-signup", request)
+         .subscribe({
+            next: (event: SecurityEnabledEvent) => this.selfSignupEnabled = event.enable,
+            error: (err) => console.error("Failed to update security setting:", err)
+         });
    }
 
    updatePassOption(option: string): void {

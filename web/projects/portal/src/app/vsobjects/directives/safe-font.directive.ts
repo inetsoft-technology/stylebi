@@ -25,7 +25,8 @@ import {
 import { DomSanitizer, SafeStyle } from "@angular/platform-browser";
 
 @Directive({
-   selector: "[safeFont]"
+    selector: "[safeFont]",
+    standalone: true
 })
 export class SafeFontDirective implements OnChanges {
    @Input() safeFont: string;

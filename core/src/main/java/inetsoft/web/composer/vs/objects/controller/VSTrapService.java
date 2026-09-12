@@ -19,19 +19,22 @@ package inetsoft.web.composer.vs.objects.controller;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSModelTrapContext;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.composer.model.vs.VSTableTrapModel;
 import org.springframework.stereotype.Component;
 
 @Component
 public class VSTrapService {
-   public VSTrapService() { }
+   public VSTrapService(DataSourceRegistry dataSourceRegistry) {
+      this.dataSourceRegistry = dataSourceRegistry;
+   }
 
    public VSTableTrapModel checkTrap(RuntimeViewsheet rvs,
                                      VSAssemblyInfo oldInfo,
                                      VSAssemblyInfo newInfo)
    {
-      VSModelTrapContext context = new VSModelTrapContext(rvs);
+      VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry);
 
       boolean containsTrap = context.isCheckTrap() &&
          context.checkTrap(oldInfo, newInfo).showWarning();
@@ -40,4 +43,6 @@ public class VSTrapService {
          .showTrap(containsTrap)
          .build();
    }
+
+   private final DataSourceRegistry dataSourceRegistry;
 }

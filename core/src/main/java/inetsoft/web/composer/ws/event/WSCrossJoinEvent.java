@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.ws.event;
 
-public class WSCrossJoinEvent {
+import java.io.Serializable;
+
+public class WSCrossJoinEvent implements Serializable {
 
    public String[] getTableNames() {
       return tableNames;

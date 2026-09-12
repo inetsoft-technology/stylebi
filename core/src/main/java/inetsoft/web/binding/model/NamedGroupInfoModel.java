@@ -31,10 +31,11 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.condition.ConditionExpression;
 import inetsoft.web.composer.model.condition.ConditionUtil;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class NamedGroupInfoModel {
+public class NamedGroupInfoModel implements Serializable {
    public NamedGroupInfoModel() {
    }
 

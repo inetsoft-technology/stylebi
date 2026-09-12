@@ -17,6 +17,7 @@
  */
 package inetsoft.web.portal.controller.database;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
@@ -45,6 +46,9 @@ import org.springframework.stereotype.Service;
 import java.io.FileNotFoundException;
 import java.security.Principal;
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Stream;
 
@@ -57,7 +61,8 @@ public class DatabaseModelBrowserService {
                                       PhysicalModelManagerService physicalModelManagerService,
                                       LogicalModelService modelService,
                                       SecurityEngine securityEngine,
-                                      DataModelFolderManagerService folderManagerService)
+                                      DataModelFolderManagerService folderManagerService,
+                                      RenameTransformHandler renameTransformHandler)
    {
       this.dataSourceService = dataSourceService;
       this.repository = repository;
@@ -65,6 +70,7 @@ public class DatabaseModelBrowserService {
       this.modelService = modelService;
       this.securityEngine = securityEngine;
       this.folderManagerService = folderManagerService;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    public DatabaseDataModelBrowserModel getDataModelBrowseModel(String database, String folder,
@@ -289,11 +295,48 @@ public class DatabaseModelBrowserService {
             folderModel.setEditable(editable);
             folderModel.setDeletable(deletable);
             folderModel.setDatabaseName(database);
+            setFolderCreatedInfo(folderModel, dataModel, folder);
             result.add(folderModel);
          }
       }
 
       return result;
+   }
+
+   /**
+    * Populate the created-by/created-date fields on a data model folder bean.
+    */
+   private void setFolderCreatedInfo(DataModelFolder folderModel, XDataModel dataModel,
+                                     String folder)
+   {
+      String createdByKey = dataModel.getFolderCreatedBy(folder);
+
+      if(createdByKey != null) {
+         SecurityProvider provider = securityEngine.getSecurityProvider();
+         IdentityID createdUserID = IdentityID.getIdentityIDFromKey(createdByKey);
+         User user = provider.getUser(createdUserID);
+
+         if(user != null) {
+            folderModel.setCreatedBy(user.getAlias() == null ? user.getName() : user.getAlias());
+         }
+         else {
+            folderModel.setCreatedBy(SUtil.getUserAlias(createdUserID));
+         }
+      }
+
+      long createdDate = dataModel.getFolderCreatedDate(folder);
+      String dateLabel = "";
+
+      if(createdDate > 0) {
+         LocalDateTime cdate = new Date(createdDate).toInstant()
+            .atZone(ZoneId.systemDefault()).toLocalDateTime();
+         String fmt = SreeEnv.getProperty("format.date.time");
+         DateTimeFormatter df = DateTimeFormatter.ofPattern(fmt);
+         dateLabel = df.format(cdate);
+      }
+
+      folderModel.setCreatedDate(createdDate > 0 ? createdDate : -1);
+      folderModel.setCreatedDateLabel(dateLabel);
    }
 
    public void moveDataModels(String database, List<AssetItem> items, String folder,
@@ -404,7 +447,7 @@ public class DatabaseModelBrowserService {
 
          DependencyTransformer.createExtendModelDepInfoForFolderChanged(dinfo, logicalModel,
             oldFolder, folder);
-         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+         renameTransformHandler.addTransformTask(dinfo);
       }
       catch(Exception ex) {
          actionRecord.setActionError(ex.getMessage() + ", Target Entry: " + newPath);
@@ -500,7 +543,7 @@ public class DatabaseModelBrowserService {
 
          DependencyTransformer.createExtendViewDepInfoForFolderChanged(
             dinfo, partition, oldPath, newPath, rinfo, oentry.getPath());
-         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+         renameTransformHandler.addTransformTask(dinfo);
 
          partition.setFolder(isRoot ? null : folder);
          dataModel.addPartition(partition);
@@ -753,10 +796,9 @@ public class DatabaseModelBrowserService {
 
          Permission permission = securityEngine.getPermission(
             ResourceType.DATA_MODEL_FOLDER, databasePath + "/" + oldName);
-         dataModel.removeFolder(oldName);
-         dataModel.addFolder(folderName);
+         dataModel.renameFolder(oldName, folderName);
          repository.updateDataModel(dataModel);
-         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+         renameTransformHandler.addTransformTask(dinfo);
 
          if(permission != null) {
             securityEngine.removePermission(
@@ -789,4 +831,5 @@ public class DatabaseModelBrowserService {
    private final LogicalModelService modelService;
    private final SecurityEngine securityEngine;
    private final DataModelFolderManagerService folderManagerService;
+   private final RenameTransformHandler renameTransformHandler;
 }

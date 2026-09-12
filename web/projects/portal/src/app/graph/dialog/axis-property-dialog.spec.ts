@@ -15,8 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { UIContextService } from "../../common/services/ui-context.service";
@@ -31,6 +32,7 @@ import { AliasPane } from "./alias-pane.component";
 import { AxisLabelPane } from "./axis-label-pane.component";
 import { AxisLinePane } from "./axis-line-pane.component";
 import { AxisPropertyDialog } from "./axis-property-dialog.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 let createLabelModel: () => AxisLabelPaneModel = () => {
    return {
@@ -77,22 +79,29 @@ describe("Axis Property Dialog Unit Tests", () => {
    let axisPropertyDialog: AxisPropertyDialog;
    let uiContextService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       uiContextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn()
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn()
       };
 
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, FormsModule, ReactiveFormsModule, DropDownTestModule
+            
+            HttpClientTestingModule,NgbModule,
+            FormsModule,
+            ReactiveFormsModule,
+            DropDownTestModule,
+            AxisPropertyDialog,
+            AxisLinePane,
+            FixedDropdownDirective,
+            AliasPane,
+            AxisLabelPane,
+            EnterSubmitDirective,
          ],
-         declarations: [
-            AxisPropertyDialog, AxisLinePane, FixedDropdownDirective,
-            AliasPane, AxisLabelPane, EnterSubmitDirective
-         ],
+         
          providers: [
             NgbModal, RecentColorService,
             { provide: UIContextService, useValue: uiContextService }

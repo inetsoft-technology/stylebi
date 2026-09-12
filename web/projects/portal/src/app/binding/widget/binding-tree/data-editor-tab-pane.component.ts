@@ -26,7 +26,6 @@ import {
    Output,
    ViewChild
 } from "@angular/core";
-import { VirtualScrollService } from "../../../widget/tree/virtual-scroll.service";
 import { Subscription } from "rxjs";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { map } from "rxjs/operators";
@@ -37,9 +36,10 @@ export enum SidebarTab {
 }
 
 @Component({
-   selector: "data-editor-tab-pane",
-   templateUrl: "data-editor-tab-pane.component.html",
-   styleUrls: ["data-editor-tab-pane.component.scss", "../../../composer/gui/tab-selector/tab-selector-shared.scss"]
+    selector: "data-editor-tab-pane",
+    templateUrl: "data-editor-tab-pane.component.html",
+    styleUrls: ["data-editor-tab-pane.component.scss", "../../../composer/gui/tab-selector/tab-selector-shared.scss"],
+    standalone: true
 })
 export class DataEditorTabPane  {
    SidebarTab = SidebarTab;

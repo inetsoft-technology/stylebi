@@ -18,12 +18,19 @@
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { ComboMode, ValueMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { NumericRangePaneModel } from "../../data/vs/numeric-range-pane-model";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+
 @Component({
-   selector: "numeric-range-pane",
-   templateUrl: "numeric-range-pane.component.html",
+    selector: "numeric-range-pane",
+    templateUrl: "numeric-range-pane.component.html",
+    imports: [
+    FormsModule,
+    ReactiveFormsModule,
+    DynamicComboBox
+]
 })
 export class NumericRangePane {
    @Input() model: NumericRangePaneModel;

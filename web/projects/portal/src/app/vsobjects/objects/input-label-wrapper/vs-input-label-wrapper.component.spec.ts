@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { CommonModule } from "@angular/common";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { SafeFontDirective } from "../../directives/safe-font.directive";
@@ -26,8 +27,7 @@ describe("VSInputLabelWrapper", () => {
 
    beforeEach(async () => {
       await TestBed.configureTestingModule({
-         imports: [CommonModule],
-         declarations: [VSInputLabelWrapper, SafeFontDirective]
+         imports: [CommonModule, VSInputLabelWrapper, SafeFontDirective]
       }).compileComponents();
 
       fixture = TestBed.createComponent(VSInputLabelWrapper);

@@ -5,13 +5,13 @@
         <mat-slide-toggle class="mat-checkbox-field" [checked]="model?.enable" (change)="toggle()">
           _#(Enable)
         </mat-slide-toggle>
-        <ng-container *ngIf="model?.enable">
+        @if (model?.enable) {
           <em-openid-settings-form [googleSignIn]="true"
-                                   [cloudSecrets]="model.cloudSecrets"
-                                   [model]="model.openIdAttributesModel"
-                                   (modelChange)="modelChanged($event)">
+            [cloudSecrets]="model.cloudSecrets"
+            [model]="model.openIdAttributesModel"
+            (modelChange)="modelChanged($event)">
           </em-openid-settings-form>
-        </ng-container>
+        }
       </mat-card-content>
     </mat-card>
   </div>

@@ -19,33 +19,39 @@ package inetsoft.web.admin.properties;
 
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.TableFormat;
-import inetsoft.sree.*;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.log.*;
-import inetsoft.web.MapSessionRepository;
+import inetsoft.util.log.logback.LogbackUtil;
 import inetsoft.web.admin.security.PropertyModel;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.AuditObjectName;
 import inetsoft.web.viewsheet.Audited;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.security.Principal;
 import java.util.List;
 import java.util.Properties;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
+import java.util.Set;
 
 @RestController
 public class PropertiesController {
    @Autowired
-   private AssetRepository assetRepository;
+   public PropertiesController(AssetRepository assetRepository,
+                               LogManager logManager, SecurityEngine securityEngine)
+   {
+      this.assetRepository = assetRepository;
+      this.logManager = logManager;
+      this.securityEngine = securityEngine;
+   }
 
    @Audited(
       actionName = ActionRecord.ACTION_NAME_DELETE,
@@ -103,6 +109,22 @@ public class PropertiesController {
          value = value.trim();
       }
 
+      // log.provider itself is not hidden by removeUnuseProperties -- "file" is a valid community
+      // value -- so this page is the remaining route by which a community build can be pointed at
+      // the enterprise-only forwarder. Left unchecked the setting saves, reads back, and logging
+      // silently continues to the file (see LogbackUtil.isFluentdEnabled).
+      //
+      // Checked against the submitted value, before the blank-value branch below substitutes the
+      // stored one: a blank submission means "keep what is there", so a build already carrying
+      // log.provider=fluentd would otherwise be unable to submit that field at all.
+      if("log.provider".equals(propertyName) &&
+         LogbackUtil.FLUENTD_PROVIDER.equals(value) && !LicenseManager.isEnterprise())
+      {
+         throw new MessageException(
+            Catalog.getCatalog(user).getString("em.common.log.fluentd.enterpriseOnly"),
+            LogLevel.INFO, false);
+      }
+
       if("".equals(value)) {
          value = SreeEnv.getProperty(propertyName);
          value = value == null ? "" : value;
@@ -135,8 +157,8 @@ public class PropertiesController {
    public Properties getProperties() {
       Properties properties = SreeEnv.getProperties();
 
-      if(!LicenseManager.getInstance().isEnterprise()) {
-         removeUnuseProperties(properties);
+      if(!LicenseManager.isEnterprise()) {
+         properties = removeUnuseProperties(properties);
       }
 
       return properties;
@@ -153,25 +175,61 @@ public class PropertiesController {
    public Properties getDefaultProperties() {
       Properties properties = SreeEnv.getDefaultProperties();
 
-      if(!LicenseManager.getInstance().isEnterprise()) {
-         removeUnuseProperties(properties);
+      if(!LicenseManager.isEnterprise()) {
+         properties = removeUnuseProperties(properties);
       }
 
       return properties;
    }
 
-   private void removeUnuseProperties(Properties properties) {
-      properties.remove("log.fluentd.host");
-      properties.remove("log.fluentd.orgadminaccess");
-      properties.remove("log.fluentd.port");
-      properties.remove("log.fluentd.security.userauthenticationenabled");
-      properties.remove("log.fluentd.connecttimeout");
-      properties.remove("log.fluentd.securityenabled");
-      properties.remove("log.fluentd.tlsenabled");
-      properties.remove("log.level.intesoft.storage.aws.com.amazonaws");
-      properties.remove("log.level.inetsoft.storage.aws.org.apache");
-      properties.remove("log.level.inetsoft.web.portal.controller.ControllerErrorHandler");
-      properties.remove("log.level.inetsoft_audit");
+   /**
+    * Returns a copy of the given properties with the settings that have no effect on a community
+    * build omitted.
+    *
+    * The input must not be modified: getProperties() hands back the live internalProperties map
+    * and getDefaultProperties() hands back a JVM-wide cached instance, so removing keys in place
+    * would delete an admin's real configuration from the running server -- and once a removed key
+    * is in PropertiesEngine.changedProps, saveToStorage() would persist that deletion.
+    */
+   private Properties removeUnuseProperties(Properties properties) {
+      Properties filtered = new Properties();
+
+      // stringPropertyNames() is the same view that serializes to the client (DefaultProperties
+      // delegates keySet()/entrySet()/stringPropertyNames() to its main layer alike), so filtering
+      // over it cannot list a key it fails to filter.
+      for(String name : properties.stringPropertyNames()) {
+         if(isEnterpriseOnlyProperty(name)) {
+            continue;
+         }
+
+         String value = properties.getProperty(name);
+
+         if(value != null) {
+            filtered.setProperty(name, value);
+         }
+      }
+
+      return filtered;
+   }
+
+   /**
+    * Determines whether a property has no effect on a community build and should be hidden.
+    */
+   private boolean isEnterpriseOnlyProperty(String name) {
+      // The Fluent Bit/Fluentd forwarder is enterprise-only: the appender and the reset hook are
+      // both loaded reflectively from inetsoft.enterprise.log.fluentd (see LogbackUtil), so none
+      // of the log.fluentd.* settings can take effect here. Match the whole family by prefix
+      // rather than enumerating it -- an enumerated list drifts, and previously only 7 of the 12
+      // keys were listed, leaving the shared key, password, username, CA certificate path and log
+      // view URL visible without the host, port and flags that gate them. A key added to the
+      // family later is now hidden automatically instead of landing on the wrong side.
+      // Property names are stored lower-cased (PropertiesEngine.computePropertyNameCase), but the
+      // comparison is case-insensitive so an un-normalized defaults spelling is caught too.
+      if(name.regionMatches(true, 0, FLUENTD_PREFIX, 0, FLUENTD_PREFIX.length())) {
+         return true;
+      }
+
+      return UNUSED_LOG_LEVELS.contains(name);
    }
 
    private void removeLogLevel(String property) {
@@ -189,14 +247,13 @@ public class PropertiesController {
          return;
       }
 
-      LogManager logManager = LogManager.getInstance();
       List<LogLevelSetting> logLevels = logManager.getContextLevels();
 
       boolean found = logLevels.stream().anyMatch(logLevel -> {
          String name = logLevel.getName();
 
          if(logLevel.getOrgName() != null) {
-            String orgId = SecurityEngine.getSecurity()
+            String orgId = securityEngine
                .getSecurityProvider()
                .getOrgIdFromName(logLevel.getOrgName());
             name = Tool.buildString(name, "^", orgId);
@@ -213,6 +270,17 @@ public class PropertiesController {
       }
    }
 
-   @Autowired
-   private MapSessionRepository mapSessionRepository;
+   private static final String FLUENTD_PREFIX = "log.fluentd.";
+   private static final Set<String> UNUSED_LOG_LEVELS = Set.of(
+      // Both AWS keys name packages shaded into inetsoft.storage.aws.* by the enterprise AWS
+      // integration module, and both are set in PropertiesEngine.initLogging(), so they belong
+      // on the same side of this filter.
+      "log.level.inetsoft.storage.aws.com.amazonaws",
+      "log.level.inetsoft.storage.aws.org.apache",
+      "log.level.inetsoft.web.portal.controller.ControllerErrorHandler",
+      "log.level.inetsoft_audit");
+
+   private final AssetRepository assetRepository;
+   private final LogManager logManager;
+   private final SecurityEngine securityEngine;
 }

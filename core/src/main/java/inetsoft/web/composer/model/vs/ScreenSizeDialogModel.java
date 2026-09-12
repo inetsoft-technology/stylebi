@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class ScreenSizeDialogModel {
+import java.io.Serializable;
+
+public class ScreenSizeDialogModel implements Serializable {
    public String getLabel() {
       return label;
    }

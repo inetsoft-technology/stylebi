@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { VSConditionDialogModel } from "../../common/data/condition/vs-condition-dialog-model";
 import { HighlightDialogModel } from "../../widget/highlight/highlight-dialog-model";
 import { HighlightModel } from "../../widget/highlight/highlight-model";
@@ -59,8 +60,8 @@ describe("Highlight Dialog Test", () => {
    let modalService: any;
 
    beforeEach(() => {
-      modalService = { open: jest.fn() };
-      let trapService: any = { checkTrap: jest.fn() };
+      modalService = { open: vi.fn() };
+      let trapService: any = { checkTrap: vi.fn() };
 
       highlightDialog = new HighlightDialog(modalService, trapService);
       highlightDialog.model = createModel();
@@ -68,7 +69,7 @@ describe("Highlight Dialog Test", () => {
 
    // Bug #10849 make sure highlight dialog pop up warning if highlight is not complete.
    it("should validate highlights before emit", () => {
-      const validateHighlights = jest.spyOn(highlightDialog, "validateHighlights");
+      const validateHighlights = vi.spyOn(highlightDialog, "validateHighlights");
       highlightDialog.ok();
       expect(validateHighlights).toHaveBeenCalled();
    });
@@ -102,7 +103,7 @@ describe("Highlight Dialog Test", () => {
 //      highlightDialog.selectHighlight(highlight1);
 //      highlightDialog.deleteHighlight();
 //
-//      let showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+//      let showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
 //      showConfirmDialog.mockImplementation(() => Promise.resolve("ok"));
 //      highlightDialog.ok();
 //      expect(showConfirmDialog).toHaveBeenCalled();

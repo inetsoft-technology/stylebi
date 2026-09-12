@@ -32,6 +32,14 @@ import { MatSnackBar } from "@angular/material/snack-bar";
 import { HttpClient } from "@angular/common/http";
 import { RepositoryFolderDashboardSettingsModel } from "../repository-dashboard-folder-settings-page/repository-folder-dashboard-settings-model";
 import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../../security/resource-permission/copy-paste-context";
+import { ResourcePermissionComponent } from "../../../../security/resource-permission/resource-permission.component";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { MatTabGroup, MatTab, MatTabContent } from "@angular/material/tabs";
+import { EditorPanelComponent } from "../../../../../common/util/editor-panel/editor-panel.component";
+
 
 export interface DashboardOption {
    name: string;
@@ -39,9 +47,10 @@ export interface DashboardOption {
 }
 
 @Component({
-   selector: "em-repository-folder-dashboard-settings-view",
-   templateUrl: "./repository-folder-dashboard-settings-view.component.html",
-   styleUrls: ["./repository-folder-dashboard-settings-view.component.scss"]
+    selector: "em-repository-folder-dashboard-settings-view",
+    templateUrl: "./repository-folder-dashboard-settings-view.component.html",
+    styleUrls: ["./repository-folder-dashboard-settings-view.component.scss"],
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, ResourcePermissionComponent]
 })
 export class RepositoryFolderDashboardSettingsViewComponent implements OnChanges {
    @Input() model: RepositoryFolderDashboardSettingsModel;

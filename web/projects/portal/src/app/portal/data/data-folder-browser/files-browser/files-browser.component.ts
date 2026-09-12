@@ -18,17 +18,19 @@
 import { Component, OnInit, Input, Output, EventEmitter } from "@angular/core";
 import { DataFolderBrowserModel } from "../../model/data-folder-browser-model";
 import { SortTypes } from "../../../../../../../shared/util/sort/sort-types";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { SortOptions } from "../../../../../../../shared/util/sort/sort-options";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { WorksheetBrowserInfo } from "../../model/worksheet-browser-info";
 
+
 @Component({
-   selector: "files-browser",
-   templateUrl: "files-browser.component.html",
-   styleUrls: ["files-browser.component.scss"]
+    selector: "files-browser",
+    templateUrl: "files-browser.component.html",
+    styleUrls: ["files-browser.component.scss"],
+    imports: [NgbTooltip]
 })
 export class FilesBrowserComponent implements OnInit {
    @Input() browserView: DataFolderBrowserModel;
@@ -47,6 +49,7 @@ export class FilesBrowserComponent implements OnInit {
    @Input() breadcrumbTooltip: string = null;
    @Output() selectionChange = new EventEmitter<WorksheetBrowserInfo[]>();
    bigDataEdition: boolean = false;
+   currentFolderName: string = "..";
 
    constructor(private modalService: NgbModal) {
    }
@@ -69,6 +72,7 @@ export class FilesBrowserComponent implements OnInit {
       this.openFolderRequest(path, assetType, scope).subscribe(
          data => {
             this.browserView = data;
+            this.updateCurrentFolderName();
 
             if(this.browserView.folders == null || this.browserView.folders.length == 0) {
                this.selectedFiles = [];
@@ -198,16 +202,16 @@ export class FilesBrowserComponent implements OnInit {
    }
 
    /**
-    * Gets the name of the lowest level folder in the view
+    * Updates the cached currentFolderName from the current browserView.
     */
-   currentFolderName(): string {
+   private updateCurrentFolderName(): void {
       let name: string = "..";
 
-      if(!!this.browserView.path && this.browserView.path.length > 0) {
+      if(!!this.browserView?.path && this.browserView.path.length > 0) {
          let parentNode = this.browserView.path[this.browserView.path.length - 1];
          name = !!parentNode ? parentNode.name ? parentNode.name : parentNode.description : name;
       }
 
-      return name;
+      this.currentFolderName = name;
    }
 }

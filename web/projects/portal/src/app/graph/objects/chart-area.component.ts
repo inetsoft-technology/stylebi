@@ -21,6 +21,7 @@ import {
    ElementRef,
    EventEmitter,
    Input,
+   NgZone,
    OnChanges,
    OnDestroy, OnInit,
    Output,
@@ -70,11 +71,34 @@ import { ChartPlotArea } from "./chart-plot-area.component";
 import { Plot } from "../model/plot";
 import { PagingControlModel } from "../../vsobjects/model/paging-control-model";
 import { PagingControlService } from "../../common/services/paging-control.service";
+import { ChartNavBar } from "./chart-nav-bar.component";
+import { ChartLegendArea } from "./chart-legend-area.component";
+import { ChartLegendContainer } from "./chart-legend-container.component";
+import { ChartTitleArea } from "./chart-title-area.component";
+import { TooltipDirective } from "../../widget/tooltip/tooltip.directive";
+import { ChartAxisArea } from "./chart-axis-area.component";
+import { ChartFacetArea } from "./chart-facet.component";
+import { MouseEventDirective } from "../../widget/mouse-event/mouse-event.directive";
+import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive";
+import { NgStyle } from "@angular/common";
 
 @Component({
-   selector: "chart-area",
-   templateUrl: "chart-area.component.html",
-   styleUrls: ["chart-area.component.scss"],
+    selector: "chart-area",
+    templateUrl: "chart-area.component.html",
+    styleUrls: ["chart-area.component.scss"],
+    imports: [
+    NgStyle,
+    OutOfZoneDirective,
+    MouseEventDirective,
+    ChartFacetArea,
+    ChartAxisArea,
+    TooltipDirective,
+    ChartPlotArea,
+    ChartTitleArea,
+    ChartLegendContainer,
+    ChartLegendArea,
+    ChartNavBar
+]
 })
 export class ChartArea implements OnInit, OnChanges, OnDestroy {
    @Input() zIndex: number;
@@ -111,20 +135,35 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    _model: ChartModel;
    mobileDevice: boolean = GuiTool.isMobileDevice();
    imageError: boolean = false;
+   private axisImageError: boolean = false;
+   private plotImageError: boolean = false;
    _selected: boolean;
    axisResizeLabel: string;
    private clearCanvasSubscription: Subscription;
    private scrollTopSubscription: Subscription;
    private scrollLeftSubscription: Subscription;
+   private pagingControlTimeout: number = null;
    private flyoverApplied = false;
 
    @Input() set model(model: ChartModel) {
       this._model = model;
       this.imageError = false;
+      this.axisImageError = false;
+      this.plotImageError = false;
 
       if(this.clearCanvasSubscription) {
          this.clearCanvasSubscription.unsubscribe();
          this.clearCanvasSubscription = null;
+      }
+
+      if(this.scrollTopSubscription) {
+         this.scrollTopSubscription.unsubscribe();
+         this.scrollTopSubscription = null;
+      }
+
+      if(this.scrollLeftSubscription) {
+         this.scrollLeftSubscription.unsubscribe();
+         this.scrollLeftSubscription = null;
       }
 
       if(model) {
@@ -190,7 +229,18 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       this._selected = selected;
 
       if(selected) {
-         this.showPagingControl();
+         // this setter runs while the parent view is being checked, and showPagingControl()
+         // writes the model that viewer-app reads for its paging-control bindings. Writing it
+         // synchronously changes an already-checked parent expression (NG0100), so publish it
+         // after the current change detection pass instead. (Bug #76036)
+         clearTimeout(this.pagingControlTimeout);
+         this.pagingControlTimeout = window.setTimeout(() => {
+            this.pagingControlTimeout = null;
+
+            if(this._selected) {
+               this.showPagingControl();
+            }
+         });
       }
    }
 
@@ -302,7 +352,8 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
                private scaleService: ScaleService,
                private changeDetectorRef: ChangeDetectorRef,
                private pagingControlService: PagingControlService,
-               protected renderer: Renderer2)
+               protected renderer: Renderer2,
+               private ngZone: NgZone)
    {
    }
 
@@ -326,10 +377,12 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    }
 
    ngOnInit() {
-      window.addEventListener("resize", this.onResize);
+      this.ngZone.runOutsideAngular(() => {
+         window.addEventListener("resize", this.onResize);
 
-      this.devicePixelRatioMedia = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-      this.devicePixelRatioMedia.addEventListener("change", this.onDevicePixelRatioChange);
+         this.devicePixelRatioMedia = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+         this.devicePixelRatioMedia.addEventListener("change", this.onDevicePixelRatioChange);
+      });
    }
 
    private onResize = (): void => {
@@ -346,7 +399,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
    ngOnDestroy(): void {
       window.removeEventListener("resize", this.onResize);
-      this.devicePixelRatioMedia.removeEventListener("change", this.onDevicePixelRatioChange);
+      this.devicePixelRatioMedia?.removeEventListener("change", this.onDevicePixelRatioChange);
 
       if(this.clearCanvasSubscription) {
          this.clearCanvasSubscription.unsubscribe();
@@ -359,6 +412,11 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
       if(this.scrollLeftSubscription) {
          this.scrollLeftSubscription.unsubscribe();
+      }
+
+      if(this.pagingControlTimeout != null) {
+         clearTimeout(this.pagingControlTimeout);
+         this.pagingControlTimeout = null;
       }
    }
 
@@ -1413,6 +1471,8 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
          // axis that was removed by Angular's *ngFor diffing without firing axisLoaded) are
          // no longer valid. Clear them so the new cycle has a clean baseline. (Bug #74260)
          this._loadingAxesSet.clear();
+         this.axisImageError = false;
+         this.imageError = this.axisImageError || this.plotImageError;
       }
 
       this._loadingAxesSet.add(areaName);
@@ -1421,7 +1481,10 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    }
 
    public axisLoaded(success: boolean, areaName: string) {
-      this.imageError = !success;
+      // OR the failure into axisImageError instead of overwriting it — a later successful
+      // axis tile must not silently erase an earlier failed one within the same cycle. (Bug #75575)
+      this.axisImageError = this.axisImageError || !success;
+      this.imageError = this.axisImageError || this.plotImageError;
 
       if(areaName === "") {
          // Sentinel call from vs-chart when there are no axis tiles to load. Forcibly
@@ -1441,12 +1504,17 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    }
 
    plotLoading(): void {
+      this.plotImageError = false;
+      this.imageError = this.axisImageError || this.plotImageError;
       this._plotLoaded = false;
       this.fireLoading();
    }
 
    plotLoaded(success: boolean): void {
-      this.imageError = !success;
+      // OR the failure into plotImageError instead of overwriting it — a later successful
+      // plot load must not silently erase an earlier axis (or plot) failure. (Bug #75575)
+      this.plotImageError = this.plotImageError || !success;
+      this.imageError = this.axisImageError || this.plotImageError;
       this._plotLoaded = true;
       this.fireLoaded();
    }
@@ -1468,14 +1536,6 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
    trackByFn(index: number, item: any): number {
       return index;
-   }
-
-   legendTrackByFn(index: number, item: any): string {
-      if (!!item?.field) {
-         return item.field;
-      }
-
-      return item.legendIndex;
    }
 
    get chartContainerVisible(): boolean {

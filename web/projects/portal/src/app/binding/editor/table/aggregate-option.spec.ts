@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -40,16 +40,21 @@ describe("Aggregate Option Unit Test", () => {
    let uiContextService: any;
    let bindingService: any;
 
-   beforeEach(async(() => {
-      uiContextService = { isAdhoc: jest.fn() };
+   beforeEach(waitForAsync(() => {
+      uiContextService = { isAdhoc: vi.fn() };
       bindingService = { assemblyName: null };
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            AggregateOption,
+            FormulaOption,
+            DynamicComboBox,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            AggregateOption, FormulaOption, DynamicComboBox, FixedDropdownDirective
-         ],
+         
          providers: [
             { provide: UIContextService, useValue: uiContextService },
             { provide: BindingService, useValue: bindingService }

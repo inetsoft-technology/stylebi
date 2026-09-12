@@ -17,10 +17,13 @@
  */
 import { Component, Input } from "@angular/core";
 import { SliderAdvancedPaneModel } from "../../data/vs/slider-advanced-pane-model";
+import { FormsModule } from "@angular/forms";
+import { SliderLabelPane } from "../../../vsobjects/dialog/slider-label-pane.component";
 
 @Component({
-   selector: "slider-advanced-pane",
-   templateUrl: "slider-advanced-pane.component.html",
+    selector: "slider-advanced-pane",
+    templateUrl: "slider-advanced-pane.component.html",
+    imports: [SliderLabelPane, FormsModule]
 })
 export class SliderAdvancedPane {
    @Input() model: SliderAdvancedPaneModel;

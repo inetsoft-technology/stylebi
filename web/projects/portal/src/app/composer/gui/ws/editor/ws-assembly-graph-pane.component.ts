@@ -15,24 +15,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+import { NgClass } from "@angular/common";
 import {
-   AfterContentInit,
-   AfterViewChecked,
-   Component,
-   ElementRef,
-   EventEmitter,
-   HostListener,
-   Inject,
-   Input,
-   NgZone,
-   OnChanges,
-   OnDestroy,
-   OnInit,
-   Output,
-   Renderer2,
-   SimpleChanges,
-   ViewChild
+  AfterContentInit,
+  AfterViewChecked,
+  Component,
+  ElementRef,
+  EventEmitter,
+  HostListener,
+  Inject,
+  Input,
+  NgZone,
+  OnChanges,
+  OnDestroy,
+  OnInit,
+  Output,
+  Renderer2,
+  SimpleChanges,
+  ViewChild,
+  DOCUMENT
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
@@ -48,7 +49,7 @@ import { ComponentTool } from "../../../../common/util/component-tool";
 import { GuiTool } from "../../../../common/util/gui-tool";
 import { CommandProcessor, ViewsheetClientService } from "../../../../common/viewsheet-client";
 import { AssetTreeService } from "../../../../widget/asset-tree/asset-tree.service";
-import { SelectionBoxEvent } from "../../../../widget/directive/selection-box.directive";
+import { SelectionBoxEvent, SelectionBoxDirective } from "../../../../widget/directive/selection-box.directive";
 import { ActionsContextmenuComponent } from "../../../../widget/fixed-dropdown/actions-contextmenu.component";
 import { DropdownOptions } from "../../../../widget/fixed-dropdown/dropdown-options";
 import { FixedDropdownService } from "../../../../widget/fixed-dropdown/fixed-dropdown.service";
@@ -95,6 +96,11 @@ import { WSRemoveAssembliesEvent } from "../socket/ws-remove-assemblies-event";
 import { WSRenameAssemblyEvent } from "../socket/ws-rename-assembly-event";
 import { AssemblyDragScrollHandler } from "./assembly-drag-scroll-handler";
 import { HttpParams } from "@angular/common/http";
+import { VSSavingDisplay } from "../../../../vsobjects/objects/vs-loading-display/vs-saving-display.component";
+import { GroupingThumbnail } from "./grouping-thumbnail.component";
+import { VariableThumbnail } from "./variable-thumbnail.component";
+import { TableThumbnailComponent } from "./table-thumbnail.component";
+import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
 
 const CONCAT_DIALOG_URI = "/events/composer/worksheet/concatenate-tables";
 const CONCAT_COMPATIBILITY_URI = "/events/composer/worksheet/concat/compatibility";
@@ -120,9 +126,10 @@ const ARROW_KEY_MOVE_FACTOR_FINE = 0.5;
  * the worksheet and provide a gui for table operations.
  */
 @Component({
-   selector: "ws-assembly-graph-pane",
-   templateUrl: "ws-assembly-graph-pane.component.html",
-   styleUrls: ["ws-assembly-graph-pane.component.scss", "../jsplumb/jsplumb-shared.scss"]
+    selector: "ws-assembly-graph-pane",
+    templateUrl: "ws-assembly-graph-pane.component.html",
+    styleUrls: ["ws-assembly-graph-pane.component.scss", "../jsplumb/jsplumb-shared.scss"],
+    imports: [SelectionBoxDirective, OutOfZoneDirective, TableThumbnailComponent, NgClass, VariableThumbnail, GroupingThumbnail, VSSavingDisplay]
 })
 export class WSAssemblyGraphPaneComponent
    extends CommandProcessor

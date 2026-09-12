@@ -28,9 +28,10 @@ import { AssemblyAction } from "../../../common/action/assembly-action";
 import { FocusObjectEventModel } from "../../model/focus-object-event-model";
 
 @Component({
-   selector: "mini-menu",
-   templateUrl: "mini-menu.component.html",
-   styleUrls: ["mini-menu.component.scss"]
+    selector: "mini-menu",
+    templateUrl: "mini-menu.component.html",
+    styleUrls: ["mini-menu.component.scss"],
+    standalone: true
 })
 export class MiniMenu implements OnDestroy {
    @Input() actions: AssemblyActionGroup[];

@@ -23,10 +23,9 @@ import inetsoft.report.internal.Util;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.util.script.ArrayObject;
+import inetsoft.util.script.graal.ScriptArrayScope;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-import org.mozilla.javascript.Context;
-import org.mozilla.javascript.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * This array represents one row in a table.
  */
-public class TableRow extends ScriptableObject implements ArrayObject {
+public class TableRow implements ArrayObject, ScriptArrayScope {
    public TableRow(XTable table, int row) {
       this(table, row, "Object", Object.class);
    }
@@ -274,25 +273,19 @@ public class TableRow extends ScriptableObject implements ArrayObject {
       return pType;
    }
 
-   @Override
    public String getClassName() {
       return "TableRow";
    }
 
    @Override
-   public boolean has(String id, Scriptable start) {
+   public boolean hasMember(String id) {
       Map colmap = getColMap();
       return id.equals("length") || getColFromColMap(id, colmap) != null ||
-         super.has(id, start);
+         members.containsKey(id);
    }
 
    @Override
-   public boolean has(int index, Scriptable start) {
-      return min <= index && index < length;
-   }
-
-   @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       if(id.equals("length")) {
          return length;
       }
@@ -334,7 +327,7 @@ public class TableRow extends ScriptableObject implements ArrayObject {
          notfound.add(id);
       }
 
-      return super.get(id, start);
+      return members.get(id);
    }
 
    /**
@@ -343,7 +336,8 @@ public class TableRow extends ScriptableObject implements ArrayObject {
     * of last row at col1.
     */
    @Override
-   public Object get(int index, Scriptable start) {
+   public Object getArrayElement(long lindex) {
+      int index = (int) lindex;
       // support previous row
       if(index < 0 && min >= 0) {
          // cache, optimization. js is single threaded so no synchronization is necessary
@@ -375,45 +369,52 @@ public class TableRow extends ScriptableObject implements ArrayObject {
          Map colmap = getColMap();
 
          if(colmap.containsKey(hdr)) {
-            return get(hdr, start);
+            return getMember(hdr);
          }
       }
 
-      return Undefined.instance;
+      return null;
+   }
+
+   @Override
+   public long getArraySize() {
+      return length;
+   }
+
+   /**
+    * Set an indexed property in this object. Ported from the Rhino
+    * {@code put(int, Scriptable, Object)}. (#75423)
+    */
+   @Override
+   public void setArrayElement(long index, Object value) {
+      putIndexed((int) index, value);
    }
 
    /**
     * Get a cell value.
     */
    protected Object get(XTable table, Method getMethod, int row, int col) throws Exception {
-      Object result = getMethod.invoke(table, row, col);
-
-      if(getParentScope() == null) {
-         return result;
-      }
-
-      // @by stephenwebster, Related to bug1431461209990
-      // Prevent RHINO USAGE WARNING: ....
-      return Context.javaToJS(result, getParentScope());
+      // the ScopeProxy/HostAccess layer now handles wrapping
+      return getMethod.invoke(table, row, col);
    }
 
    @Override
-   public void put(String id, Scriptable start, Object value) {
-      if(!putLocal(id, start, value)) {
+   public void putMember(String id, Object value) {
+      if(!putLocal(id, value)) {
          // ignore assignments to "length"--it's readonly.
          if(!id.equals("length")) {
-            super.put(id, start, value);
+            members.put(id, value);
          }
       }
    }
 
    // in local scope, don't pass to the current (start) scope
-   boolean putLocal(String id, Scriptable start, Object value) {
+   boolean putLocal(String id, Object value) {
       Map colmap = getColMap();
       Object col = getColFromColMap(id, colmap);
 
       if(col instanceof Integer) {
-         put(((Integer) col).intValue(), start, value);
+         putIndexed(((Integer) col).intValue(), value);
          notfound.remove(id);
          return true;
       }
@@ -442,8 +443,7 @@ public class TableRow extends ScriptableObject implements ArrayObject {
       return false;
    }
 
-   @Override
-   public void put(int index, Scriptable start, Object value) {
+   private void putIndexed(int index, Object value) {
       // @by larryl, for CalcTableLens, the attrtable may contain the original
       // CalcTableLens instead of the expanded RuntimeCalcTableLens because
       // element script is executed before the calc formula. We let the
@@ -462,19 +462,7 @@ public class TableRow extends ScriptableObject implements ArrayObject {
    }
 
    @Override
-   public Object getDefaultValue(Class hint) {
-      if(hint == ScriptRuntime.BooleanClass) {
-         return Boolean.TRUE;
-      }
-      else if(hint == ScriptRuntime.NumberClass) {
-         return ScriptRuntime.NaNobj;
-      }
-
-      return this;
-   }
-
-   @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       Map colmap = getColMap();
       Object[] result = new Object[colmap.size() + 1];
       int i = 0;
@@ -485,27 +473,6 @@ public class TableRow extends ScriptableObject implements ArrayObject {
 
       result[result.length - 1] = "length";
       return result;
-   }
-
-   @Override
-   public boolean hasInstance(Scriptable value) {
-      return false;
-   }
-
-   /**
-    * Get the prototype of the object.
-    */
-   @Override
-   public Scriptable getPrototype() {
-      return prototype;
-   }
-
-   /**
-    * Set the prototype of the object.
-    */
-   @Override
-   public void setPrototype(Scriptable prototype) {
-      this.prototype = prototype;
    }
 
    /**
@@ -612,7 +579,7 @@ public class TableRow extends ScriptableObject implements ArrayObject {
 
    public String toString() {
       Map colmap = getColMap();
-      return super.toString() + colmap.toString();
+      return getClassName() + colmap.toString();
    }
 
    private ColumnIndexMap getColumnIndexMap() {
@@ -683,7 +650,7 @@ public class TableRow extends ScriptableObject implements ArrayObject {
    private static final Object NULL = new Object();
    private static final Map<MethodKey, Object> methodCache = new ConcurrentHashMap<>();
 
-   private Scriptable prototype;
+   private final Map<String, Object> members = new LinkedHashMap<>();
    private XTable table;
    private ColumnIndexMap colIndexMap;
    private Method setMethod = null;

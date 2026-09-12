@@ -26,8 +26,10 @@ import {
    ViewChild,
    ViewContainerRef
 } from "@angular/core";
-import { MatDialog, MatDialogRef } from "@angular/material/dialog";
+import { MatDialog, MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
+import { NavigationError, Router, RouterOutlet } from "@angular/router";
 import { Subscription } from "rxjs";
+import { filter } from "rxjs/operators";
 import { SsoHeartbeatDispatcherService } from "../../../shared/sso/sso-heartbeat-dispatcher.service";
 import { StompClientConnection } from "../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../../../shared/stomp/stomp-client.service";
@@ -40,11 +42,16 @@ import { CurrentUserService } from "../../../shared/util/current-user.service";
 import { OrganizationDropdownService } from "./navbar/organization-dropdown.service";
 import { TopScrollService } from "./top-scroll/top-scroll.service";
 import { SessionExpirationDialog } from "./widget/dialog/session-expiration-dialog/session-expiration-dialog.component";
+import { MatButton } from "@angular/material/button";
+import { DownloadTargetComponent } from "../../../shared/download/download-target.component";
+import { AiAssistantPanelComponent } from "../../../shared/ai-assistant/ai-assistant-panel.component";
+import { NavbarComponent } from "./navbar/navbar.component";
 
 @Component({
-   selector: "em-root",
-   templateUrl: "./app.component.html",
-   styleUrls: ["./app.component.scss"]
+    selector: "em-root",
+    templateUrl: "./app.component.html",
+    styleUrls: ["./app.component.scss"],
+    imports: [NavbarComponent, RouterOutlet, AiAssistantPanelComponent, DownloadTargetComponent, MatDialogContent, MatDialogActions, MatButton, MatDialogClose]
 })
 export class AppComponent implements OnInit, OnDestroy {
    @ViewChild("notificationDialog", { static: true }) notificationDialog: TemplateRef<any>;
@@ -69,14 +76,15 @@ export class AppComponent implements OnInit, OnDestroy {
                public viewContainerRef: ViewContainerRef,
                private logoutService: LogoutService,
                private orgDropdownService: OrganizationDropdownService,
-               private currentUserService: CurrentUserService)
+               private currentUserService: CurrentUserService,
+               private router: Router)
    {
       // viewContainerRef is used by the color picker in the theme page
    }
 
    ngOnInit(): void {
       this.subscription.add(this.currentUserService.getEmCurrentUser().subscribe(userModel => {
-         this.name = userModel.name?.name;
+         this.name = userModel?.name?.name;
       }));
 
       this.subscription.add(this.authzService.getPermissions("").subscribe(p => this.permissions = p));
@@ -101,7 +109,7 @@ export class AppComponent implements OnInit, OnDestroy {
          this.subscription.add(connection.subscribe(
             "/user/create-org-status-changed",
             (message) => this.zone.run(
-               () => this.showEditOrgMessage(JSON.parse(message.frame.body)))));
+               () => this.showEditOrgMessage(message.frame.body))));
 
          this.subscription.add(connection.subscribe(
             "/user/current-org-changed",
@@ -137,7 +145,28 @@ export class AppComponent implements OnInit, OnDestroy {
          }
       });
 
+      // Handle ChunkLoadError during lazy module loading
+      this.subscription.add(
+         this.router.events.pipe(
+            filter((event): event is NavigationError => event instanceof NavigationError)
+         ).subscribe((event: NavigationError) => {
+            if(this.isChunkLoadError(event.error)) {
+               console.error("ChunkLoadError detected, reloading page:", event.error);
+               window.location.reload();
+            }
+         })
+      );
+
       this.ssoHeartbeatDispatcher.dispatch();
+   }
+
+   /**
+    * Check if the error is a ChunkLoadError (webpack dynamic import failure)
+    */
+   private isChunkLoadError(error: any): boolean {
+      return error?.name === "ChunkLoadError" ||
+             error?.message?.includes("Loading chunk") ||
+             error?.message?.includes("ChunkLoadError");
    }
 
    ngOnDestroy(): void {

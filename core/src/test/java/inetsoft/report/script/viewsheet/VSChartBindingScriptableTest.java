@@ -22,13 +22,18 @@ import inetsoft.graph.aesthetic.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.region.ChartConstants;
 import inetsoft.report.internal.binding.BaseField;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.Arrays;
 
@@ -36,7 +41,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
+@Tag("core")
 public class VSChartBindingScriptableTest {
    private ViewsheetSandbox viewsheetSandbox;
 
@@ -95,6 +104,24 @@ public class VSChartBindingScriptableTest {
       vsChartBindingScriptable.setSizeField(ref1, null, ChartConstants.DATE);
       assertEquals("order_date",
                    vsChartBindingScriptable.getSizeField("order_date").getName());
+   }
+
+   // Bug #75573: the 2-arg script form setColorField(field, type) omits the
+   // trailing aggregate argument, which GraalJS delivers as null. The type value
+   // (Chart.STRING == "string") must not be mistaken for the field name.
+   @Test
+   void testSetAestheticFieldByName() {
+      chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_BAR);
+
+      vsChartBindingScriptable.setColorField("state", ChartConstants.STRING, null);
+      AestheticRef colorField = vsChartBindingScriptable.getColorField("state");
+      assertNotNull(colorField);
+      assertEquals("state", colorField.getName());
+
+      vsChartBindingScriptable.setShapeField("region", ChartConstants.STRING, null);
+      AestheticRef shapeField = vsChartBindingScriptable.getShapeField("region");
+      assertNotNull(shapeField);
+      assertEquals("region", shapeField.getName());
    }
 
    @Test
@@ -588,15 +615,15 @@ public class VSChartBindingScriptableTest {
       chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_LINE);
       vsChartBindingScriptable = new VSChartBindingScriptable(chartVSAScriptable);
 
-      assertEquals(52,  vsChartBindingScriptable.getIds().length );
+      assertEquals(52,  vsChartBindingScriptable.getMemberKeys().length );
 
-      assertFalse(vsChartBindingScriptable.has("testPut", null));
-      vsChartBindingScriptable.put("testPut", null, "testValue");
+      assertFalse(vsChartBindingScriptable.hasMember("testPut"));
+      vsChartBindingScriptable.putMember("testPut", "testValue");
 
-      assertEquals("testValue", vsChartBindingScriptable.get("testPut", null));
-      assertTrue(vsChartBindingScriptable.has("testPut", null));
+      assertEquals("testValue", vsChartBindingScriptable.getMember("testPut"));
+      assertTrue(vsChartBindingScriptable.hasMember("testPut"));
 
-      assertNotNull(vsChartBindingScriptable.getType("shapeFrame", null), "The returned type should not be null.");
+      assertNotNull(vsChartBindingScriptable.getType("shapeFrame"), "The returned type should not be null.");
    }
 
    @Test

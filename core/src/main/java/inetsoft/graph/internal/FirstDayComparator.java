@@ -17,6 +17,7 @@
  */
 package inetsoft.graph.internal;
 
+import inetsoft.report.filter.DCMergeDatePartFilter.MergePartCell;
 import inetsoft.report.filter.DefaultComparer;
 import inetsoft.report.filter.SortOrder;
 import inetsoft.util.Tool;
@@ -95,6 +96,19 @@ public class FirstDayComparator extends DefaultComparer
                (d1 > d2) ? -1 : (d1 == d2 ? 0 : 1) :
                (d1 > d2) ? 1 : (d1 == d2 ? 0 : -1);
          }
+      }
+
+      if(v1 instanceof MergePartCell && v2 instanceof MergePartCell) {
+         int result = ((MergePartCell) v1).compareTo(v2);
+
+         if(comp != null) {
+            return comp.isDesc() ? -result : result;
+         }
+         else if(comp2 instanceof DefaultComparer) {
+            return ((DefaultComparer) comp2).isNegate() ? -result : result;
+         }
+
+         return result;
       }
 
       return 0;

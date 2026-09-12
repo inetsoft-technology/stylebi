@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class RangeSliderSizePaneModel {
+import java.io.Serializable;
+
+public class RangeSliderSizePaneModel implements Serializable {
    public int getLength() {
       return length;
    }

@@ -35,13 +35,18 @@ import {
    GettingStartedService
 } from "../../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { DatasourceType } from "../datasource-type";
+import { DatasourceListingPaneComponent } from "./datasource-listing/datasource-listing-pane.component";
+import { DatasourceCategoryPaneComponent } from "./datasource-category-pane/datasource-category-pane.component";
+import { DatasourceSearchComponent } from "./datasource-search/datasource-search.component";
+
 
 @Component({
-   selector: "datasource-selection-view",
-   templateUrl: "datasource-selection-view.component.html",
-   styleUrls: ["datasource-selection-view.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush,
-   providers: [DatasourceSelectionService]
+    selector: "datasource-selection-view",
+    templateUrl: "datasource-selection-view.component.html",
+    styleUrls: ["datasource-selection-view.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    providers: [DatasourceSelectionService],
+    imports: [DatasourceSearchComponent, DatasourceCategoryPaneComponent, DatasourceListingPaneComponent]
 })
 export class DatasourceSelectionViewComponent implements OnInit, OnDestroy, CanComponentDeactivate {
    model: DatasourceSelectionViewModel | null = null;
@@ -51,6 +56,7 @@ export class DatasourceSelectionViewComponent implements OnInit, OnDestroy, CanC
    private parentPath: string = "";
    private openByGettingStarted: boolean;
    private leaveByCancelButton: boolean;
+   private continueTriggered: boolean;
    private subscriptions: Subscription = new Subscription();
 
    constructor(private datasourceService: DatasourceSelectionService,
@@ -80,8 +86,10 @@ export class DatasourceSelectionViewComponent implements OnInit, OnDestroy, CanC
    }
 
    ngOnDestroy(): void {
-      this.subscriptions.unsubscribe();
-      this.subscriptions = null;
+      if(this.subscriptions) {
+         this.subscriptions.unsubscribe();
+         this.subscriptions = null;
+      }
    }
 
    public canDeactivate(component?: CanComponentDeactivate, route?: ActivatedRouteSnapshot,
@@ -89,13 +97,14 @@ export class DatasourceSelectionViewComponent implements OnInit, OnDestroy, CanC
                         nextState?: RouterStateSnapshot): Observable<boolean> | Promise<boolean> | boolean
    {
       if(this.openByGettingStarted && this.gettingStartedService.isConnectTo() &&
-         !this.leaveByCancelButton)
+         !this.leaveByCancelButton && !this.continueTriggered)
       {
          if(!currentState?.url?.startsWith("/portal/tab/data/datasources/listing/") ||
             !nextState?.url?.startsWith("/portal/tab/data/datasources/database/listing") &&
             !nextState?.url?.startsWith("/portal/tab/data/datasources/datasource/listing") &&
             !nextState?.url?.startsWith("/portal/tab/data/datasources/datasource/xmla/new"))
          {
+            this.continueTriggered = true;
             setTimeout(() => this.gettingStartedService.continue(), 100);
          }
       }

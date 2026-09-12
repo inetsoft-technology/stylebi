@@ -20,6 +20,8 @@ import { AssetItem } from "../model/datasources/database/asset-item";
 import { SortOptions } from "../../../../../../shared/util/sort/sort-options";
 import { SortTypes } from "../../../../../../shared/util/sort/sort-types";
 import { MultiObjectSelectList } from "../../../common/util/multi-object-select-list";
+import { RouterLink } from "@angular/router";
+import { NgClass } from "@angular/common";
 
 export interface RouteLinkEntry {
    path: string;
@@ -36,9 +38,10 @@ export interface ListColumn {
 }
 
 @Component({
-   selector: "asset-item-list-view",
-   templateUrl: "./asset-item-list-view.component.html",
-   styleUrls: ["./asset-item-list-view.component.scss"]
+    selector: "asset-item-list-view",
+    templateUrl: "./asset-item-list-view.component.html",
+    styleUrls: ["./asset-item-list-view.component.scss"],
+    imports: [NgClass, RouterLink]
 })
 export class AssetItemListViewComponent {
    @Input() set assets(assets: AssetItem[]) {

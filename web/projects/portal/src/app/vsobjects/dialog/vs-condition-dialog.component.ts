@@ -43,16 +43,21 @@ import { VSConditionItemPaneProvider } from "./vs-condition-item-pane-provider";
 import { ComponentTool } from "../../common/util/component-tool";
 import { ConditionPane } from "../../widget/condition/condition-pane.component";
 import { BaseResizeableDialogComponent } from "./base-resizeable-dialog.component";
+import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.component";
+import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 const CHECK_CONDITION_TRAP_URI = "../api/composer/viewsheet/check-condition-trap/";
 
 @Component({
-   selector: "vs-condition-dialog",
-   templateUrl: "vs-condition-dialog.component.html",
-   providers: [
-      ModelService,
-      ConditionDialogService
-   ]
+    selector: "vs-condition-dialog",
+    templateUrl: "vs-condition-dialog.component.html",
+    providers: [
+        ModelService,
+        ConditionDialogService
+    ],
+    imports: [ModalHeaderComponent, EnterSubmitDirective, ConditionPane, ApplyButtonComponent]
 })
 export class VSConditionDialog extends BaseResizeableDialogComponent implements OnInit, AfterViewInit {
    @Input() highlightModel: VSConditionDialogModel;
@@ -100,7 +105,13 @@ export class VSConditionDialog extends BaseResizeableDialogComponent implements 
 
          // the field in condition may not contain complete information (named group).
          // get the field from the field list which is more accurate. (60408)
+         // conditionList alternates conditions (even index) and junction operators
+         // (odd index), so items without a field (junctions) must be skipped.
          this.model.conditionList.forEach(cond => {
+            if(!cond || !cond.field) {
+               return;
+            }
+
             const field = this.model.fields.find(a => a.view == cond.field.view);
             if(field) {
                cond.field = field;

@@ -915,8 +915,10 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
          throw new RuntimeException("Unsupported order found: " + order);
       }
 
-      if(comparator != null && sortOthersLast && isRankingGroupOthers()) {
-         return new CombinedDataSetComparator(getFullName(), comparator, new OthersComparator());
+      if(sortOthersLast && isRankingGroupOthers()) {
+         return comparator == null
+            ? new OthersComparator()
+            : new CombinedDataSetComparator(getFullName(), comparator, new OthersComparator());
       }
 
       return comparator;
@@ -1829,6 +1831,18 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
    }
 
    /**
+    * Clear the tracked runtime date level. A dimension created for a new date level by a
+    * drill operation is cloned from the dimension of the previous level, so it inherits
+    * the previous level in oldRuntimeDateLevel. If it is not cleared, the next update()
+    * sees the level as changed and flags runtimeDateLevelChange(), which makes the drill
+    * look like a dynamic date level change to the callers of that method.
+    */
+   public void resetOldRuntimeDateLevel() {
+      oldRuntimeDateLevel = null;
+      runtimeDValueChange = false;
+   }
+
+   /**
     * Set runtime id.
     */
    public void setRuntimeID(int rid) {
@@ -1883,6 +1897,19 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
       this.ignoreDcTemp = ignoreDcTemp;
    }
 
+   /**
+    * Whether this is a date-comparison WeekOfYear part that uses the sequential
+    * week-of-year value (datePart 'ww') rather than the month*10+weekOfMonth encoding,
+    * so the same week aligns across comparison periods. (Bug #75351)
+    */
+   public boolean isDcSequentialWeek() {
+      return dcSequentialWeek;
+   }
+
+   public void setDcSequentialWeek(boolean dcSequentialWeek) {
+      this.dcSequentialWeek = dcSequentialWeek;
+   }
+
    public Integer getForceDcToDateWeekOfMonth() {
       return forceDcToDateWeekOfMonth;
    }
@@ -1892,6 +1919,7 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
    }
 
    private boolean ignoreDcTemp;
+   private boolean dcSequentialWeek;
    private static final String PERIOD_PREFIX = "P_";
    private DynamicValue groupValue;
    private DynamicValue rankingOptValue;

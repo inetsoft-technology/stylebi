@@ -18,7 +18,8 @@
 import { Directive, TemplateRef } from "@angular/core";
 
 @Directive({
-   selector: "ng-template[wDialogButtons]"
+    selector: "ng-template[wDialogButtons]",
+    standalone: true
 })
 export class DialogButtonsDirective {
    constructor(public template: TemplateRef<any>) {

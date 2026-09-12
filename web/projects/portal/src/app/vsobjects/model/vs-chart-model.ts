@@ -58,4 +58,7 @@ export interface VSChartModel extends VSObjectModel, ChartModel {
    sendingFlyover?: boolean;
    readonly titleLinkModel?: HyperlinkModel;
    readonly emptyPlotLinkModel?: HyperlinkModel;
+   // transient scroll/pan state updated by the chart component for annotation overlay positioning
+   annotationScrollLeft?: number;
+   annotationScrollTop?: number;
 }

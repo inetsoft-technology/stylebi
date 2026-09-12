@@ -15,29 +15,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButtonModule } from "@angular/material/button";
 import { MatIconModule } from "@angular/material/icon";
 import { MatTreeModule } from "@angular/material/tree";
 import { SecurityTreeViewComponent } from "./security-tree-view.component";
 import { ScrollingModule } from "@angular/cdk/scrolling";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
+import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 
 describe("SecurityTreeViewComponent", () => {
    let component: SecurityTreeViewComponent;
    let fixture: ComponentFixture<SecurityTreeViewComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             MatTreeModule,
             MatButtonModule,
             MatIconModule,
             ScrollingModule,
-            MatProgressBarModule
-         ],
-         declarations: [SecurityTreeViewComponent],
+            MatProgressBarModule,
+            NoopAnimationsModule,
+            SecurityTreeViewComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

@@ -17,11 +17,14 @@
  */
 import { Component, Input } from "@angular/core";
 import { CrosstabBindingModel } from "../../data/table/crosstab-binding-model";
+import { TableDataEditor } from "./table-data-editor.component";
+
 
 @Component({
-   selector: "crosstab-data-pane",
-   templateUrl: "crosstab-data-pane.component.html",
-   styleUrls: ["../data-pane.component.scss"]
+    selector: "crosstab-data-pane",
+    templateUrl: "crosstab-data-pane.component.html",
+    styleUrls: ["../data-pane.component.scss"],
+    imports: [TableDataEditor]
 })
 export class CrosstabDataPane {
    @Input() bindingModel: CrosstabBindingModel;

@@ -17,11 +17,6 @@
  */
 package inetsoft.util;
 
-import inetsoft.util.swap.XSwapUtil;
-import inetsoft.util.swap.XSwapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -41,9 +36,7 @@ public class DataCache<K, V> {
     */
    public DataCache() {
       super();
-      synchronized(CACHES) {
-         CACHES.add(this);
-      }
+      DataCacheSweeper.getInstance().addCache(this);
    }
 
    /**
@@ -235,7 +228,7 @@ public class DataCache<K, V> {
     * Remove timed out entries from the cache.
     * @return true if entries are removed.
     */
-   private boolean checkTimeout() {
+   boolean checkTimeout() {
       boolean changed = false;
       long now = System.currentTimeMillis();
 
@@ -253,7 +246,7 @@ public class DataCache<K, V> {
          }
 
          // remove expired entries
-         while(cachelist.size() > 0) {
+         while(!cachelist.isEmpty()) {
             CacheEntry<K, V> entry = cachelist.first();
 
             if(entry.ts + timeout > now) {
@@ -313,7 +306,7 @@ public class DataCache<K, V> {
     * @param minage minimum age.
     * @return true if entries are removed.
     */
-   private boolean sweep(long minage) {
+   boolean sweep(long minage) {
       if(!isSweepEnabled()) {
          return false;
       }
@@ -374,8 +367,7 @@ public class DataCache<K, V> {
       }
 
       public boolean equals(Object obj) {
-         if(obj instanceof CacheEntry) {
-            CacheEntry<?, ?> entry = (CacheEntry<?, ?>) obj;
+         if(obj instanceof CacheEntry<?, ?> entry) {
             return key.equals(entry.key) && ts == entry.ts;
          }
 
@@ -445,75 +437,7 @@ public class DataCache<K, V> {
       return super.toString() + "[" + cachemap + "]";
    }
 
-   private static class Sweeper extends TimedQueue.TimedRunnable {
-      public Sweeper() {
-         super(10000);
-      }
-
-      @Override
-      public boolean isRecurring() {
-         return true;
-      }
-
-      @Override
-      public void run() {
-         boolean changed = false;
-         long now = System.currentTimeMillis();
-
-         try {
-            DataCache<?, ?>[] caches;
-
-            synchronized(CACHES) {
-               caches = CACHES.toArray(new DataCache<?, ?>[0]);
-            }
-
-            for(DataCache<?, ?> cache : caches) {
-               if(now > cache.lastCheck + 60000) {
-                  changed = cache.checkTimeout() || changed;
-               }
-            }
-         }
-         catch(ConcurrentModificationException exc) {
-            // ignore
-         }
-
-         long minage = 4000;
-
-         while(XSwapper.getMemoryState() <= XSwapper.CRITICAL_MEM) {
-            try {
-               int nremain = 0;
-               DataCache<?, ?>[] caches;
-
-               synchronized(CACHES) {
-                  caches = CACHES.toArray(new DataCache<?, ?>[0]);
-               }
-
-               for(DataCache<?, ?> cache : caches) {
-                  changed = cache.sweep(minage) || changed;
-                  nremain += cache.cachemap.size();
-               }
-
-               if(nremain <= 0 || minage <= 500) {
-                  break;
-               }
-
-               minage -= 500;
-               Thread.sleep(200);
-            }
-            catch(Exception exc) {
-               LOG.warn("Failed to clean up cache", exc);
-            }
-         }
-
-         // call gc() so table lens will be disposed, and the swap files
-         // cleaned up immediately
-         if(doGC && changed) {
-            System.gc();
-         }
-      }
-   }
-
-   private static final class CacheSet implements Set<DataCache<?, ?>> {
+   static final class CacheSet implements Set<DataCache<?, ?>> {
       public CacheSet() {
          map = new WeakHashMap<>();
       }
@@ -593,21 +517,12 @@ public class DataCache<K, V> {
       private static final Object VALUE = new Object() {};
    }
 
-   private final Map<K, CacheEntry<K, V>> cachemap = createCacheMap();
+   final Map<K, CacheEntry<K, V>> cachemap = createCacheMap();
    private final TreeSet<CacheEntry<K, V>> cachelist = new TreeSet<>();
 
    private int limit = 20; // number of entries
    private long timeout = 600000; // expiration period, ms
    private boolean sweepEnabled = true;
-   private transient long lastCheck = 0; // last check timeout
+   transient long lastCheck = 0; // last check timeout
    private transient long lastClean = 0; // last cleanL2Cache
-
-   private static final CacheSet CACHES = new CacheSet();
-   private static boolean doGC = false;
-   private static final Logger LOG = LoggerFactory.getLogger(DataCache.class);
-
-   static {
-      TimedQueue.add(new Sweeper());
-      doGC = XSwapUtil.isParallelGC();
-   }
 }

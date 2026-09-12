@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 
 import { VSWizardGroupItem } from "./wizard-group-item.component";
@@ -30,20 +31,20 @@ describe("VSWizardGroupItem", () => {
   let zone: any;
 
   beforeEach(() => {
-    stompClient = { connect: jest.fn(), subscribe: jest.fn() };
-    zone = { run: jest.fn() };
+    stompClient = { connect: vi.fn(), subscribe: vi.fn() };
+    zone = { run: vi.fn() };
     viewsheetClientService = new ViewsheetClientService(stompClient, zone);
     dialogService = {
-      open: jest.fn(),
-      assemblyDelete: jest.fn(),
-      objectDelete: jest.fn()
+      open: vi.fn(),
+      assemblyDelete: vi.fn(),
+      objectDelete: vi.fn()
     };
     treeService = {
-      getTableName: jest.fn(() => "Table")
+      getTableName: vi.fn(() => "Table")
     };
      modelService = {
-        sendModel: jest.fn(),
-        getModel: jest.fn()
+        sendModel: vi.fn(),
+        getModel: vi.fn()
      };
 
     component = new VSWizardGroupItem(dialogService, viewsheetClientService,

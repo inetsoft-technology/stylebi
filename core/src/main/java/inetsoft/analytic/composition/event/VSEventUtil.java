@@ -17,7 +17,8 @@
  */
 package inetsoft.analytic.composition.event;
 
-import inetsoft.report.*;
+import inetsoft.report.TableDataPath;
+import inetsoft.report.TableLens;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.AssetTreeModel.Node;
 import inetsoft.report.composition.event.AssetEventUtil;
@@ -30,10 +31,12 @@ import inetsoft.report.lens.CalcTableLens;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.AnalyticEngine;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.*;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.*;
+import inetsoft.uql.asset.internal.AssemblyInfo;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
@@ -54,8 +57,8 @@ import java.awt.*;
 import java.awt.geom.Point2D;
 import java.io.*;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 
 /**
  * Utility methods for viewsheet event.
@@ -86,13 +89,13 @@ public final class VSEventUtil {
    public static List fixAssemblySize(RuntimeViewsheet rvs) throws Exception {
       List list = new ArrayList();
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return list;
       }
 
-      fixAssemblySize0(vs, box, list);
+      fixAssemblySize0(vs, box.get(), list);
       return list;
    }
 
@@ -346,6 +349,12 @@ public final class VSEventUtil {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
       info.setScaledPosition(null);
       info.setScaledSize(null);
+
+      // Clear runtime column widths set by applyAssemblyScale so that export
+      // uses design-time column widths consistently (bookmark vs current view).
+      if(info instanceof TableDataVSAssemblyInfo tableDataInfo) {
+         tableDataInfo.resetRColumnWidths();
+      }
 
       if(assembly instanceof Viewsheet) {
          for(Assembly child : ((Viewsheet) assembly).getAssemblies()) {
@@ -1269,9 +1278,35 @@ public final class VSEventUtil {
          throws Exception
    {
       VSAssemblyInfo tabInfo = (VSAssemblyInfo) assembly.getInfo();
+      boolean bottomTabs = ((TabVSAssemblyInfo) tabInfo).isBottomTabs();
+      String[] assemblies = assembly.getAssemblies();
+
+      // Re-anchor the tab for the current bottomTabs value. AbstractLayout.applyTab
+      // baked in the design-time value, so runtime toggles need this on every
+      // refresh/resize. Master-pixel-space semantics: tab moves, children stay.
+      Point tabLayoutPos = tabInfo.getLayoutPosition(false);
+      Dimension tabLayoutSize = tabInfo.getLayoutSize(false);
+
+      if(tabLayoutPos != null && tabLayoutSize != null) {
+         TabVSAssemblyInfo.ChildExtent extent = TabVSAssemblyInfo.scanChildExtent(
+            assemblies, viewsheet,
+            c -> c.getVSAssemblyInfo().getLayoutPosition(false),
+            c -> c.getVSAssemblyInfo().getLayoutSize(false));
+
+         if(extent != null) {
+            int newTabLayoutY = bottomTabs
+               ? extent.maxBottom()
+               : Math.max(0, extent.minTop() - tabLayoutSize.height);
+            int newTabScaledX = (int) Math.floor(tabLayoutPos.x * scaleRatio.x);
+            int newTabScaledY = (int) Math.floor(newTabLayoutY * scaleRatio.y);
+            tabInfo.setScaledPosition(new Point(newTabScaledX, newTabScaledY));
+         }
+      }
+
+      // for bottom tabs, getLayoutPosition() returns the tab bar position
+      // (set by AbstractLayout.applyTab as npos.y + contentHeight)
       Point tabPos = tabInfo.getLayoutPosition();
       Dimension tabSize = tabInfo.getLayoutSize();
-      String[] assemblies = assembly.getAssemblies();
       // when apply tab scale, the tab height is not scale, so it's children
       // scale size is (pixelsize * scaleRadio + repairH).
       double repairH = tabSize.height * scaleRatio.y - tabSize.height;
@@ -1287,12 +1322,20 @@ public final class VSEventUtil {
             Dimension scaleSize = new Dimension();
 
             scaleSize.width = (int) Math.floor(size.width * sizeScale.x);
+            // the tab bar's height is not scaled, so its slack is absorbed by the
+            // children -- but only by children that scale vertically. A fixed-height
+            // child (input, submit, dropdown selection, nested tab) renders at its
+            // natural height, so adding the slack inflates its box and leaves the
+            // content detached from a bottom tab bar (Bug #76022).
+            double childRepairH = sizeScale.y == scaleRatio.y ? repairH : 0;
             scaleSize.height =
-               (int) Math.floor(size.height * sizeScale.y + repairH);
+               (int) Math.floor(size.height * sizeScale.y + childRepairH);
             scaleSize.height = Math.max(0, scaleSize.height);
 
-            info.setScaledPosition(
-               new Point(tabPos.x, tabPos.y + tabSize.height));
+            // top tabs: children below tab bar; bottom tabs: children above tab bar
+            int childY = bottomTabs ?
+               tabPos.y - scaleSize.height : tabPos.y + tabSize.height;
+            info.setScaledPosition(new Point(tabPos.x, childY));
             info.setScaledSize(scaleSize);
 
             if(child instanceof CurrentSelectionVSAssembly) {
@@ -1310,19 +1353,22 @@ public final class VSEventUtil {
                   sheet, viewSize, scaleSize.width, scaleSize.height, mobile
                );
 
-               // temporarily set the origin of the viewsheet so that the scaled
-               // viewsheet contents are positioned relative to the tab bar
+               // temporarily offset the viewsheet origin so scaled contents
+               // are positioned relative to the tab content area
                int vsOffsetX = (int) Math.round(-1 * viewBounds.x * vsScaleRatio.x);
                int vsOffsetY = (int) Math.round(-1 * viewBounds.y * vsScaleRatio.y);
+               int vsChildY = bottomTabs ?
+                  tabPos.y - scaleSize.height + vsOffsetY :
+                  tabPos.y + tabSize.height + vsOffsetY;
                info.setScaledPosition(
-                  new Point(tabPos.x + vsOffsetX, tabPos.y + tabSize.height + vsOffsetY));
+                  new Point(tabPos.x + vsOffsetX, vsChildY));
 
-               // scale the viewsheet contents
                applyScale(sheet, vsScaleRatio, mobile, userAgent, scaleSize.width, box);
 
-               // set the viewsheet position to the tab bar's position so that
-               // the edit button is positioned correctly.
-               info.setScaledPosition(new Point(tabPos.x, tabPos.y + tabSize.height));
+               // reset to final position so the edit button is placed correctly
+               int finalChildY = bottomTabs ?
+                  tabPos.y - scaleSize.height : tabPos.y + tabSize.height;
+               info.setScaledPosition(new Point(tabPos.x, finalChildY));
             }
          }
       }
@@ -1680,12 +1726,14 @@ public final class VSEventUtil {
       throws Exception
    {
       info.setClassName(assembly.getClass().getName());
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
       Viewsheet vs = rvs.getViewsheet();
 
-      if(vs == null || box == null) {
+      if(vs == null || boxOpt.isEmpty()) {
          return;
       }
+
+      ViewsheetSandbox box = boxOpt.get();
 
       if(rvs.getMode() == RuntimeViewsheet.VIEWSHEET_RUNTIME_MODE &&
          ((VSUtil.isTipView(info.getAbsoluteName(), vs) ||
@@ -3964,9 +4012,12 @@ public final class VSEventUtil {
 
       if(sinfo.getType() == SourceInfo.VS_ASSEMBLY) {
          try {
-            CrosstabVSAQuery query = new CrosstabVSAQuery(rvs.getViewsheetSandbox(),
-                                         cass.getAbsoluteName(), false);
-            tbl = query.createAssemblyTable(sinfo.getSource());
+            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+            if(box.isPresent()) {
+               CrosstabVSAQuery query = new CrosstabVSAQuery(box.get(), cass.getAbsoluteName(), false);
+               tbl = query.createAssemblyTable(sinfo.getSource());
+            }
          }
          catch(Exception e) {
          }
@@ -4029,21 +4080,35 @@ public final class VSEventUtil {
    }
 
    /**
-    * Delete auto saved file.
-    * 1 for saved dashboard, keep old logic, delete auto save file when select no.
-    * 2 for untitled dashboard, select no will move auto save file to recycle bin.
+    * Discard the auto saved file of a sheet by moving it to the recycle bin, so that it can
+    * still be recovered from the enterprise manager. This is called when the auto saved content
+    * is thrown away, i.e. when the sheet is closed, when it is opened without restoring the auto
+    * saved content, and when the stored sheet is loaded in place of it
+    * (AbstractAssetEngine.getSheet). When the sheet is saved the auto saved content is superseded
+    * instead of discarded, so the save paths delete the file rather than calling this method.
+    * An entry that already refers to a file in the recycle bin is ignored.
     */
    public static void deleteAutoSavedFile(AssetEntry entry, Principal user) {
-      if(entry.getScope() != AssetRepository.TEMPORARY_SCOPE) {
-         AutoSaveUtils.deleteAutoSaveFile(entry, user);
+      // an entry that carries the name of an existing auto save file, i.e. one created by
+      // AutoSaveUtils.createAssetEntry() for the recycle bin, already refers to a discarded file,
+      // so there is nothing to discard. the name embeds the user and ip address of the session
+      // that created it and can not be recreated from the current user, so moving it again would
+      // only orphan it under a name attributed to the wrong user.
+      if(entry.getProperty("autoFileName") != null) {
          return;
       }
 
-      String savefile = AutoSaveUtils.getAutoSavedFile(entry, user);
+      // called while loading a sheet, so never let a storage failure fail the caller
+      try {
+         String savefile = AutoSaveUtils.getAutoSavedFile(entry, user);
 
-      if(AutoSaveUtils.exists(savefile, user)) {
-         String recyclefile = AutoSaveUtils.getAutoSavedFile(entry, user, true);
-         AutoSaveUtils.renameAutoSaveFile(savefile, recyclefile, user);
+         if(AutoSaveUtils.exists(savefile, user)) {
+            String recyclefile = AutoSaveUtils.getAutoSavedFile(entry, user, true);
+            AutoSaveUtils.renameAutoSaveFile(savefile, recyclefile, user);
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to move the auto save file to the recycle bin: {}", entry, e);
       }
    }
 

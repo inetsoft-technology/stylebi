@@ -31,6 +31,9 @@ import { MonitorLevel, MonitorLevelService } from "../../monitor-level.service";
 import { MonitoringDataService } from "../../monitoring-data.service";
 import { ThreadStackTrace } from "../../thread-stack-trace";
 import { ViewsheetMonitoringTableModel } from "../viewsheet-monitoring-model/viewsheet-monitoring-table-model";
+import { ViewsheetMonitoringViewComponent } from "../viewsheet-monitoring-view/viewsheet-monitoring-view.component";
+
+import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selector.component";
 
 @Secured({
    route: "/monitoring/viewsheets",
@@ -51,11 +54,12 @@ import { ViewsheetMonitoringTableModel } from "../viewsheet-monitoring-model/vie
    link: "EMMonitoringViewsheets"
 })
 @Component({
-   selector: "em-viewsheet-monitoring-page",
-   templateUrl: "./viewsheet-monitoring-page.component.html",
-   styleUrls: ["./viewsheet-monitoring-page.component.scss"],
-   encapsulation: ViewEncapsulation.None,
-   host: { "class": "em-viewsheet-monitoring-page" } // eslint-disable-line @angular-eslint/no-host-metadata-property
+    selector: "em-viewsheet-monitoring-page",
+    templateUrl: "./viewsheet-monitoring-page.component.html",
+    styleUrls: ["./viewsheet-monitoring-page.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    host: { "class": "em-viewsheet-monitoring-page" },
+    imports: [ClusterSelectorComponent, ViewsheetMonitoringViewComponent]
 })
 export class ViewsheetMonitoringPageComponent implements OnInit, OnDestroy {
    executingVisible = false;
@@ -100,7 +104,18 @@ export class ViewsheetMonitoringPageComponent implements OnInit, OnDestroy {
       this.subscriptions.add(
          this.monitoringDataService.getMonitoringData("/viewsheets/executing")
             .subscribe((viewsheets: ViewsheetMonitoringTableModel[]) => {
-               this.executingViewsheets = viewsheets;
+               const seen = new Set<string>();
+               this.executingViewsheets = viewsheets.filter(vs => {
+                  //remove exact duplicates
+                  let id = vs.id + vs.name + vs.user + vs.age + vs.thread + vs.dateAccessed;
+
+                  if(seen.has(id)) {
+                     return false;
+                  }
+
+                  seen.add(id);
+                  return true;
+               });
 
                if(this.executingTableInfo) {
                   this.executingTableInfo.title = this.executingTableTitle;
@@ -112,7 +127,18 @@ export class ViewsheetMonitoringPageComponent implements OnInit, OnDestroy {
       this.subscriptions.add(
          this.monitoringDataService.getMonitoringData("/viewsheets/open")
          .subscribe((viewsheets: ViewsheetMonitoringTableModel[]) => {
-               this.openViewsheets = viewsheets;
+            const seen = new Set<string>();
+            this.openViewsheets = viewsheets.filter(vs => {
+                  //remove exact duplicates
+                  let id = vs.id + vs.name + vs.user + vs.age + vs.thread + vs.dateAccessed;
+
+                  if(seen.has(id)) {
+                     return false;
+                  }
+
+                  seen.add(id);
+                  return true;
+               });
 
                if(this.openTableInfo) {
                   this.openTableInfo.title = this.openTableTitle;

@@ -37,6 +37,10 @@ public interface ServerMetrics extends Serializable {
    long collectionCount();
    long collectionTime();
    long maxHeapSize();
+   @Value.Default
+   default long maxOffHeapSize() {
+      return 0L;
+   }
    List<GcMetrics> gcMetrics();
    ZoneOffset timeZone();
 

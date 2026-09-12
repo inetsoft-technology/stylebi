@@ -19,7 +19,7 @@ package inetsoft.report.script.formula;
 
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.uql.XTable;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 
 import java.awt.*;
 
@@ -44,12 +44,12 @@ public abstract class CellIterator {
     * Get the value of the current cell.
     * @param scope the parent scope for executing expression.
     */
-   public abstract Object getValue(Scriptable scope);
+   public abstract Object getValue(ScriptScope scope);
 
    /**
     * Get the evaluation scope of the current cell.
     */
-   public abstract Scriptable getScope();
+   public abstract ScriptScope getScope();
 
    /**
     * Get the value from a table lens.

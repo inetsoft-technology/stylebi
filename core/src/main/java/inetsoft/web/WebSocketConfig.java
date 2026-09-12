@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.GroupedThread;
 import inetsoft.web.messaging.*;
+import inetsoft.web.session.IgniteSessionRepository;
 import inetsoft.web.viewsheet.service.CommandDispatcherArgumentResolver;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import org.slf4j.Logger;
@@ -42,6 +43,7 @@ import org.springframework.session.web.socket.config.annotation.AbstractSessionW
 import org.springframework.session.web.socket.server.SessionRepositoryMessageInterceptor;
 import org.springframework.web.socket.config.annotation.*;
 import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean;
+import org.springframework.web.socket.server.support.HttpSessionHandshakeInterceptor;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -59,11 +61,12 @@ public class WebSocketConfig<S extends Session> extends
    AbstractSessionWebSocketMessageBrokerConfigurer<S>
 {
    @Autowired
-   public WebSocketConfig(ObjectMapper objectMapper, MapSessionRepository mapSessionRepository,
+   public WebSocketConfig(ObjectMapper objectMapper,
+                          IgniteSessionRepository igniteSessionRepository,
                           SessionConnectionService connectionService)
    {
       this.objectMapper = objectMapper;
-      this.mapSessionRepository = mapSessionRepository;
+      this.igniteSessionRepository = igniteSessionRepository;
       this.connectionService = connectionService;
    }
 
@@ -71,7 +74,7 @@ public class WebSocketConfig<S extends Session> extends
    public void configureStompEndpoints(StompEndpointRegistry registry) {
       registry.addEndpoint("/vs-events")
          .addInterceptors(
-            new ClipboardHandshakeInterceptor(),
+            new HttpSessionHandshakeInterceptor(),
             new RequestAttributeHandshakeInterceptor())
          .setAllowedOriginPatterns("*")
          .withSockJS()
@@ -138,7 +141,8 @@ public class WebSocketConfig<S extends Session> extends
       registration
          .interceptors(new MessageScopeInterceptor(),
                        messageInterceptor,
-                       new SessionAccessInterceptor(mapSessionRepository, objectMapper))
+                       new SessionAccessInterceptor(igniteSessionRepository, objectMapper),
+                       new StompLoggingInterceptor())
          // This is the thread pool used to process asset events. In 12.2 we just spawned a new
          // thread every time that an event was received, so it was basically an unbounded pool.
          .taskExecutor(executor).corePoolSize(executor.getCorePoolSize());
@@ -237,8 +241,8 @@ public class WebSocketConfig<S extends Session> extends
       return Runtime.getRuntime().availableProcessors() * 8;
    }
 
-   private ObjectMapper objectMapper;
-   private MapSessionRepository mapSessionRepository;
-   private SessionConnectionService connectionService;
+   private final ObjectMapper objectMapper;
+   private final IgniteSessionRepository igniteSessionRepository;
+   private final SessionConnectionService connectionService;
    private static final Logger LOG = LoggerFactory.getLogger(WebSocketConfig.class);
 }

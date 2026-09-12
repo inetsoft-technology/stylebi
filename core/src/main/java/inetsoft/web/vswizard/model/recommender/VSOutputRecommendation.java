@@ -18,7 +18,12 @@
 package inetsoft.web.vswizard.model.recommender;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import inetsoft.uql.erm.AbstractDataRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.util.Tool;
+import org.w3c.dom.Element;
+
+import java.io.PrintWriter;
 
 public class VSOutputRecommendation extends VSAbstractObjectRecommendation {
    /**
@@ -33,6 +38,26 @@ public class VSOutputRecommendation extends VSAbstractObjectRecommendation {
     */
    public DataRef getDataRef() {
       return this.dataRef;
+   }
+
+   @Override
+   public void writeContents(PrintWriter writer) {
+      super.writeContents(writer);
+
+       if(dataRef != null) {
+          dataRef.writeXML(writer);
+       }
+   }
+
+   @Override
+   protected void parseContents(Element elem) throws Exception {
+      super.parseContents(elem);
+
+      Element item = Tool.getChildNodeByTagName(elem, "dataRef");
+
+      if(item != null) {
+         dataRef = AbstractDataRef.createDataRef(item);
+      }
    }
 
    @JsonIgnore

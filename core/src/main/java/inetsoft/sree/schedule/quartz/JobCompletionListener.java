@@ -147,7 +147,7 @@ public class JobCompletionListener extends JobListenerSupport {
             contextPrincipal == null)
          {
             if(identity == null) {
-               principal = SUtil.getPrincipal(owner, addr, true);
+               principal = SUtil.getScheduleTaskOwnerPrincipal(owner, addr, true);
             }
             else {
                principal = SUtil.getPrincipal(identity, addr, true);
@@ -217,10 +217,10 @@ public class JobCompletionListener extends JobListenerSupport {
             }
 
             boolean isDependant = false;
+            List<String> deps = Collections.list(task.getDependency());
 
-            for(Enumeration<String> e = task.getDependency(); e.hasMoreElements(); )
-            {
-               if(e.nextElement().equals(taskName)) {
+            for(String dep : deps) {
+               if(dep.equals(taskName)) {
                   isDependant = true;
                   break;
                }

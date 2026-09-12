@@ -1,27 +1,27 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <mat-card appearance="outlined">
   <mat-card-content [formGroup]="form">
     <div appearance="outline" color="accent" class="time-container">
       <div class="time-content">
         <mat-label class="mat-form-field-wrapper time-content-item">_#(Start Time)</mat-label>
         <em-time-picker class="time-content-item" formControlName="startTime"
-                        [meridian]="showMeridian">
+          [meridian]="showMeridian">
         </em-time-picker>
         <mat-hint class="mat-form-field-wrapper time-content-item">HH:mm {{ timeZoneLabel }}</mat-hint>
       </div>
@@ -33,7 +33,7 @@
       <div class="time-content">
         <mat-label class="mat-form-field-wrapper time-content-item">_#(End Time)</mat-label>
         <em-time-picker class="start-time time-content-item" formControlName="endTime"
-                        [meridian]="showMeridian">
+          [meridian]="showMeridian">
         </em-time-picker>
         <mat-hint class="mat-form-field-wrapper time-content-item">HH:mm {{ timeZoneLabel }}</mat-hint>
       </div>
@@ -45,12 +45,12 @@
       </mat-error>
     </div>
     <em-time-zone-select formControlName="timeZone"
-                         [timeZoneOptions]="timeZoneOptions"
-                         (changed)="fireModelChanged()">
+      [timeZoneOptions]="timeZoneOptions"
+      (changed)="fireModelChanged()">
     </em-time-zone-select>
     <mat-form-field appearance="outline" color="accent">
-      <mat-label>_#(Interval)</mat-label>
-      <input matInput type="number" placeholder="_#(Interval)" step="1" formControlName="interval" (input)="fireModelChanged()"/>
+      <mat-label>_#(schedule.interval)</mat-label>
+      <input matInput type="number" placeholder="_#(schedule.interval)" step="1" formControlName="interval" (input)="fireModelChanged()"/>
       <mat-hint>_#(Every) <i>n</i> _#(Hour_s)</mat-hint>
       <mat-error>
         _#(viewer.schedule.condition.hourValid)

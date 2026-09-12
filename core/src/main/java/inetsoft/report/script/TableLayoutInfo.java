@@ -342,14 +342,8 @@ public abstract class TableLayoutInfo extends PropertyScriptable {
       return expansion;
    }
 
-   @Override
    public String getClassName() {
       return "TableLayoutInfo";
-   }
-
-   @Override
-   public Object getDefaultValue(Class aClass) {
-      return "Table Layout Info";
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(TableLayoutInfo.class);

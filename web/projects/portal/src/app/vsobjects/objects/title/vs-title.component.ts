@@ -20,12 +20,19 @@ import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, ViewCh
 import { ContextProvider } from "../../context-provider.service";
 import { VSFormatModel } from "../../model/vs-format-model";
 import { GuiTool } from "../../../common/util/gui-tool";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { FormsModule } from "@angular/forms";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { InteractableDirective } from "../../../widget/interact/interactable.directive";
+import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
+
 
 @Component({
-   selector: "vs-title",
-   templateUrl: "vs-title.component.html",
-   styleUrls: ["vs-title.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "vs-title",
+    templateUrl: "vs-title.component.html",
+    styleUrls: ["vs-title.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [TooltipIfDirective, InteractableDirective, SafeFontDirective, FormsModule, DefaultFocusDirective]
 })
 export class VSTitle implements OnChanges {
    @Input() titleContent: string;

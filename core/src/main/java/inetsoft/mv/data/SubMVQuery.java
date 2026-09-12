@@ -451,7 +451,7 @@ public final class SubMVQuery implements XTransferable, Cloneable {
    XFilterNode cond;
    boolean[] order;
    private boolean detail;
-   private boolean cancelled;
+   private volatile boolean cancelled;
    private int blockIndex = -1;
    private int maxrows = 0;
    private Integer timezoneOffset; // timezone offset of server

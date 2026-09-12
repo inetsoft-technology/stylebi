@@ -18,6 +18,7 @@
 import {
    Component,
    Input,
+   OnDestroy,
    ViewChild,
    TemplateRef,
    ViewEncapsulation,
@@ -29,26 +30,36 @@ import { OperationModel } from "../../../../model/datasources/database/vpm/condi
 import { VPMColumnModel } from "../../../../model/datasources/database/vpm/condition/vpm-column-model";
 import { VPMConditionDialogModel } from "../../../../model/datasources/database/vpm/condition/vpm-condition-dialog-model";
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbModalOptions, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../../../common/util/component-tool";
 import { ConditionTypes } from "../../../../model/datasources/database/vpm/condition/condition-types.enum";
-import { Observable } from "rxjs";
+import { Observable, Subject, takeUntil } from "rxjs";
 import { StringWrapper } from "../../../../model/datasources/database/string-wrapper";
 import { ClauseModel } from "../../../../model/datasources/database/vpm/condition/clause/clause-model";
 import { ClauseValueTypes } from "../../../../model/datasources/database/vpm/condition/clause/clause-value-types";
 import { ConditionItemModel } from "../../../../model/datasources/database/vpm/condition/condition-item-model";
+import { ConjunctionPipe } from "../../../../model/datasources/database/vpm/condition/conjunction/conjunction.pipe";
+import { ClausePipe } from "../../../../model/datasources/database/vpm/condition/clause/clause.pipe";
+import { VPMConditionDialog } from "../../../../../dialog/vpm-condition-dialog/vpm-condition-dialog.component";
+import { ChooseTableDialog } from "../../../../../dialog/choose-table-dialog/choose-table-dialog.component";
+import { DataModelScriptPane } from "../../database-physical-model/data-model-script-pane/data-model-script-pane.component";
+import { ExistsDirective } from "../../../../../../widget/directive/exists-validator.directive";
+import { FormsModule } from "@angular/forms";
+
+import { SplitPane } from "../../../../../../widget/split-pane/split-pane.component";
 
 const TABLE_COLUMNS_URI: string = "../api/data/vpm/columns/";
 const PHYSICAL_MODEL_COLUMNS_URI: string = "../api/data/vpm/physicalModel/tables";
 
 @Component({
-   selector: "vpm-conditions",
-   templateUrl: "vpm-conditions.component.html",
-   styleUrls: ["vpm-conditions.component.scss", "../../database-physical-model/database-model-pane.scss"],
-   encapsulation: ViewEncapsulation.None
+    selector: "vpm-conditions",
+    templateUrl: "vpm-conditions.component.html",
+    styleUrls: ["vpm-conditions.component.scss", "../../database-physical-model/database-model-pane.scss"],
+    encapsulation: ViewEncapsulation.None,
+    imports: [SplitPane, FormsModule, ExistsDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, DataModelScriptPane, NgbNavOutlet, ChooseTableDialog, VPMConditionDialog, ClausePipe, ConjunctionPipe]
 })
-export class VPMConditionsComponent {
+export class VPMConditionsComponent implements OnDestroy {
    _conditions: ConditionModel[];
    @Input() set conditions(conditions: ConditionModel[]) {
       this._conditions = conditions;
@@ -80,6 +91,8 @@ export class VPMConditionsComponent {
    refreshingColumns: boolean = false;
    vpmConditionDialogModel: VPMConditionDialogModel;
    ConditionTypes = ConditionTypes;
+   // Emits once on destroy to cancel any in-flight HTTP subscriptions (see refreshColumns).
+   private readonly destroy$ = new Subject<void>();
    private defaultCondition: ConditionModel = {
       name: "",
       clauses: [],
@@ -89,6 +102,11 @@ export class VPMConditionsComponent {
    };
 
    constructor(private httpClient: HttpClient, private modalService: NgbModal) {
+   }
+
+   ngOnDestroy(): void {
+      this.destroy$.next();
+      this.destroy$.complete();
    }
 
    /**
@@ -301,7 +319,9 @@ export class VPMConditionsComponent {
             { params: params});
       }
 
+      // takeUntil prevents a late HTTP response from writing to state after the component is destroyed.
       request
+         .pipe(takeUntil(this.destroy$))
          .subscribe(
             data => {
                this.currentColumns = data;

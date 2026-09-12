@@ -39,11 +39,18 @@ import { NavigationKeys } from "../navigation-keys";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { DebounceService } from "../../../widget/services/debounce.service";
 import { Tool } from "../../../../../../shared/util/tool";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { FormsModule } from "@angular/forms";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+import { VSInputLabelWrapper } from "../input-label-wrapper/vs-input-label-wrapper.component";
+
 
 @Component({
-   selector: "vs-spinner",
-   templateUrl: "vs-spinner.component.html",
-   styleUrls: ["vs-spinner.component.scss"]
+    selector: "vs-spinner",
+    templateUrl: "vs-spinner.component.html",
+    styleUrls: ["vs-spinner.component.scss"],
+    imports: [VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, FormsModule, SafeFontDirective]
 })
 export class VSSpinner extends NavigationComponent<VSSpinnerModel>
 implements OnInit, OnChanges, OnDestroy
@@ -246,11 +253,7 @@ implements OnInit, OnChanges, OnDestroy
       fontStr = fontStr.split(" ").pop();
       let padding = this.model.objectFormat.height - Number.parseInt(fontStr, 10) - 3;
       return padding <= 0 ? "" : this.model.objectFormat.vAlign == "top" ?
-         "0px 0px " + padding + "px" : padding + "px 0px 0px";
-   }
-
-   getLabelBorder(border: string): string {
-      return border || "solid 1px gray";
+         "0px 4px " + padding + "px 4px" : padding + "px 4px 0px 4px";
    }
 
    selectLabel(event: MouseEvent): void {

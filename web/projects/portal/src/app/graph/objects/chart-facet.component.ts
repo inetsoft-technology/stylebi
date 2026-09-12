@@ -20,12 +20,15 @@ import { ScaleService } from "../../widget/services/scale/scale-service";
 import { Facet } from "../model/facet";
 import { ChartService } from "../services/chart.service";
 import { ChartObjectAreaBase } from "./chart-object-area-base";
+import { ChartImageDirective } from "./chart-image.directive";
+
 
 @Component({
-   selector: "chart-facet-area",
-   templateUrl: "./chart-facet.component.html",
-   styleUrls: ["./chart-facet.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "chart-facet-area",
+    templateUrl: "./chart-facet.component.html",
+    styleUrls: ["./chart-facet.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [ChartImageDirective]
 })
 export class ChartFacetArea extends ChartObjectAreaBase<Facet> {
    @Input() container: Element;

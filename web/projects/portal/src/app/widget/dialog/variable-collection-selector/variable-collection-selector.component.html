@@ -1,63 +1,84 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<ng-container [ngSwitch]="style">
-  <select class="form-control" *ngSwitchCase="StyleType.COMBOBOX"
-          [ngModel]="value" (ngModelChange)="change($event)">
-    <option *ngFor="let _label of labels; let i = index"
-            [value]="values[i]">{{_label}}
-    </option>
-    <option *ngIf="dataTruncated" disabled>(_#(data.truncated))</option>
-  </select>
-
-  <select multiple class="form-control" *ngSwitchCase="StyleType.LIST"
-          [ngModel]="value" (ngModelChange)="change($event)">
-    <option *ngFor="let _label of labels; let i = index"
-            [value]="values[i]">{{_label}}
-    </option>
-    <option *ngIf="dataTruncated" disabled>(_#(data.truncated))</option>
-  </select>
-
-  <div *ngSwitchCase="StyleType.RADIO_BUTTONS" class="container-fluid">
-    <!-- The form tag makes it so that radio button groups across different
-    variable-collection-selector components do not interfere with each other -->
-    <form class="row">
-      <div class="form-check col-auto" *ngFor="let _label of labels; let i = index">
-        <input class="form-check-input" type="radio" name="_" [value]="values[i]"
-               [id]="varIndex + ':item' + i"
-               [ngModel]="value[0]" (ngModelChange)="change($event)">
-        <label class="form-check-label" [for]="varIndex + ':item' + i">
-          {{_label}}
-        </label>
-      </div>
-      <div *ngIf="dataTruncated" class="form-check col-auto">(_#(data.truncated))</div>
-    </form>
-  </div>
-
-  <div *ngSwitchCase="StyleType.CHECKBOXES" class="container-fluid">
-    <div class="row">
-      <div class="form-check col-auto" *ngFor="let _label of labels; let i = index">
-        <input class="form-check-input" type="checkbox" [id]="varIndex + ':item' + i" [ngModel]="value[i]"
-             (ngModelChange)="checkboxChange($event, i)">
-        <label class="form-check-label" [for]="varIndex + ':item' + i">
-          {{_label}}
-        </label>
-      </div>
-      <div *ngIf="dataTruncated" class="form-check col-auto">(_#(data.truncated))</div>
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@switch (style) {
+  @case (StyleType.COMBOBOX) {
+    <select class="form-control"
+      [ngModel]="value" (ngModelChange)="change($event)">
+      @for (_label of labels; track _label; let i = $index) {
+        <option
+          [value]="values[i]">{{_label}}
+        </option>
+      }
+      @if (dataTruncated) {
+        <option disabled>(_#(data.truncated))</option>
+      }
+    </select>
+  }
+  @case (StyleType.LIST) {
+    <select multiple class="form-control"
+      [ngModel]="value" (ngModelChange)="change($event)">
+      @for (_label of labels; track _label; let i = $index) {
+        <option
+          [value]="values[i]">{{_label}}
+        </option>
+      }
+      @if (dataTruncated) {
+        <option disabled>(_#(data.truncated))</option>
+      }
+    </select>
+  }
+  @case (StyleType.RADIO_BUTTONS) {
+    <div class="container-fluid">
+      <!-- The form tag makes it so that radio button groups across different
+      variable-collection-selector components do not interfere with each other -->
+      <form class="row">
+        @for (_label of labels; track _label; let i = $index) {
+          <div class="form-check col-auto">
+            <input class="form-check-input" type="radio" name="_" [value]="values[i]"
+              [id]="varIndex + ':item' + i"
+              [ngModel]="value[0]" (ngModelChange)="change($event)">
+            <label class="form-check-label" [for]="varIndex + ':item' + i">
+              {{_label}}
+            </label>
+          </div>
+        }
+        @if (dataTruncated) {
+          <div class="form-check col-auto">(_#(data.truncated))</div>
+        }
+      </form>
     </div>
-  </div>
-</ng-container>
+  }
+  @case (StyleType.CHECKBOXES) {
+    <div class="container-fluid">
+      <div class="row">
+        @for (_label of labels; track _label; let i = $index) {
+          <div class="form-check col-auto">
+            <input class="form-check-input" type="checkbox" [id]="varIndex + ':item' + i" [ngModel]="value[i]"
+              (ngModelChange)="checkboxChange($event, i)">
+            <label class="form-check-label" [for]="varIndex + ':item' + i">
+              {{_label}}
+            </label>
+          </div>
+        }
+        @if (dataTruncated) {
+          <div class="form-check col-auto">(_#(data.truncated))</div>
+        }
+      </div>
+    </div>
+  }
+}

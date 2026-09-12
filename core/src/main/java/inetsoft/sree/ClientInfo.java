@@ -17,11 +17,11 @@
  */
 package inetsoft.sree;
 
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
+import org.apache.commons.lang3.StringUtils;
 import org.w3c.dom.*;
 
 import java.io.*;
@@ -75,6 +75,10 @@ public class ClientInfo implements Cloneable, Serializable, XMLSerializable {
       this.addr = (address == null) ? "" : address;
       this.session = session == null ? "" : session;
       this.locale = locale;
+   }
+
+   public ClientInfo getCacheKey() {
+      return new ClientInfo(userID, addr, session, locale);
    }
 
    /**
@@ -223,7 +227,10 @@ public class ClientInfo implements Cloneable, Serializable, XMLSerializable {
     */
    @Override
    public Object clone() {
-      return new ClientInfo(userID, addr, session, locale);
+      ClientInfo newClient = new ClientInfo(userID, addr, session, locale);
+      newClient.loginUser = loginUser;
+
+      return newClient;
    }
 
    /**
@@ -246,7 +253,13 @@ public class ClientInfo implements Cloneable, Serializable, XMLSerializable {
 
       if(locale != null) {
          writer.print("<locale>");
-         writer.print("<![CDATA[" + locale.getDisplayName() + "]]>");
+         writer.print("<![CDATA[" + locale.getLanguage());
+
+         if(!StringUtils.isBlank(locale.getCountry())) {
+            writer.print("_" + locale.getCountry());
+         }
+
+         writer.print("]]>");
          writer.print("</locale>");
       }
 

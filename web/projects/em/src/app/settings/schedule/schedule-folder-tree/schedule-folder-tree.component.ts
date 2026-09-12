@@ -21,12 +21,12 @@ import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angu
 import { MatDialog } from "@angular/material/dialog";
 import { MatTreeFlatDataSource, MatTreeFlattener } from "@angular/material/tree";
 import { Observable, Subscription, throwError } from "rxjs";
-import { catchError } from "rxjs/operators";
+import { catchError, debounceTime, filter } from "rxjs/operators";
 import { ScheduleTaskList } from "../../../../../../shared/schedule/model/schedule-task-list";
 import { ScheduleTaskModel } from "../../../../../../shared/schedule/model/schedule-task-model";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { FlatTreeNode, FlatTreeNodeMenuItem } from "../../../common/util/tree/flat-tree-model";
-import { FlatTreeSelectNodeEvent } from "../../../common/util/tree/flat-tree-view.component";
+import { FlatTreeSelectNodeEvent, FlatTreeViewComponent } from "../../../common/util/tree/flat-tree-view.component";
 import {
    RepositoryFlatNode,
    RepositoryTreeNode
@@ -38,6 +38,8 @@ import { TaskListModel } from "../model/task-list-model";
 import { ScheduleTaskDragService } from "../schedule-task-list/schedule-task-drag.service";
 import { StompClientConnection } from "../../../../../../shared/stomp/stomp-client-connection";
 import { EmScheduleChangeService } from "../schedule-task-list/em-schedule-change.service";
+import { MultiSelectTreeNodeDirective } from "../../../common/util/tree/multi-select-tree-node.directive";
+import { TopScrollDirective } from "../../../top-scroll/top-scroll.directive";
 
 const TASKS_CHECK_FOLDER_URI = "../api/em/schedule/check-folder";
 const TASKS_MOVE_FOLDER_URI = "../api/em/schedule/move-folder";
@@ -49,9 +51,10 @@ const REMOVE_FOLDER_URI = "../api/em/schedule/folder/remove";
 const CHECK_ADD_DUPLICATE_URI = "../api/em/schedule/add/checkDuplicate";
 
 @Component({
-  selector: "em-schedule-folder-tree",
-  templateUrl: "./schedule-folder-tree.component.html",
-  styleUrls: ["./schedule-folder-tree.component.scss"]
+    selector: "em-schedule-folder-tree",
+    templateUrl: "./schedule-folder-tree.component.html",
+    styleUrls: ["./schedule-folder-tree.component.scss"],
+    imports: [TopScrollDirective, FlatTreeViewComponent, MultiSelectTreeNodeDirective]
 })
 export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
    @Input() treeControl: FlatTreeControl<RepositoryFlatNode>;
@@ -73,6 +76,7 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
    @Output() tasksMoved = new EventEmitter<any>();
    selectedNodes: FlatTreeNode<RepositoryTreeNode>[] = [];
    private subscriptions: Subscription = new Subscription();
+   private suppressFolderChange = false;
 
    private readonly getIcon = function(expanded: boolean) {
       return expanded ? "folder-open-icon" : "folder-icon";
@@ -86,7 +90,14 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
 
    ngOnInit(): void {
       this.refreshTree(true, this._path);
-      this.subscriptions.add(this.scheduleChangeService.onFolderChange.subscribe(() => this.refreshTree()));
+      this.subscriptions.add(
+         this.scheduleChangeService.onFolderChange.pipe(
+            filter(() => !this.suppressFolderChange),
+            debounceTime(500)
+         ).subscribe(() => {
+            this.refreshTree();
+         })
+      );
    }
 
    ngOnDestroy() {
@@ -94,6 +105,12 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
          this.subscriptions.unsubscribe();
          this.subscriptions = null;
       }
+   }
+
+   private safeRefreshTree(expandRoot = false, selectedPath: string = null, expandPath = false) {
+      this.suppressFolderChange = true;
+      this.refreshTree(expandRoot, selectedPath, expandPath);
+      setTimeout(() => this.suppressFolderChange = false, 100);
    }
 
    /**
@@ -243,7 +260,7 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
                      this.http.post(NEW_TASKS_FOLDER_URI, {parent: node, folderName: res.folderName})
                         .pipe(catchError(error => this.handleError(error)))
                         .subscribe(() => {
-                           this.refreshTree(false, this.selectedNodes[0].data.path, true);
+                           this.safeRefreshTree(false, this.selectedNodes[0].data.path, true);
                         });
                }
             });
@@ -321,7 +338,7 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
                      target.data.path + "/" + moveNodes[0]?.label   : moveNodes[0]?.label;
                }
 
-               this.refreshTree(false, selectedPath);
+               this.safeRefreshTree(false, selectedPath);
 
                if(moveTaskFolderRequest.tasks?.length > 0) {
                   this.tasksMoved.emit();
@@ -394,7 +411,7 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
                if(res) {
                   this.http.post(TASKS_FOLDER_NAME_URI, res).subscribe(() => {
                      let newPath = res.oldPath;
-                     const index = newPath.indexOf("/");
+                     const index = newPath.lastIndexOf("/");
 
                      if(index != -1) {
                         newPath = newPath.substr(0, index + 1) + res.folderName;
@@ -403,7 +420,7 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
                         newPath = res.folderName;
                      }
 
-                     this.refreshTree(false, newPath);
+                     this.safeRefreshTree(false, newPath);
                   });
                }
             });
@@ -448,7 +465,7 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
                         let pathParent = this.selectedNodes[0].data.path;
                         let index = pathParent.indexOf(this.selectedNodes[0].label);
                         pathParent = index > 0 ? pathParent.substr(0, index - 1) : "/";
-                        this.refreshTree(false, pathParent);
+                        this.safeRefreshTree(false, pathParent);
                      },
                      (error) => {
                         const message = error.error != null && error.error.type == "MessageException" ?

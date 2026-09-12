@@ -19,12 +19,14 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link TabPropertyDialogModel} for the
  * tab property dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TabPropertyDialogModel {
+public class TabPropertyDialogModel implements Serializable {
    public TabGeneralPaneModel getTabGeneralPaneModel() {
       if(tabGeneralPaneModel == null) {
          tabGeneralPaneModel = new TabGeneralPaneModel();

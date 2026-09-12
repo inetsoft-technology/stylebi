@@ -15,17 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
 import { MatRadioModule } from "@angular/material/radio";
-import {
-   BrowserAnimationsModule
-} from "@angular/platform-browser/animations";
-import * as jsPlumb from "jsplumb";
+import { BrowserAnimationsModule } from "@angular/platform-browser/animations";
 import { CodemirrorService } from "../../../../../../../shared/util/codemirror/codemirror.service";
 import { CustomSsoFormComponent } from "./custom-sso-form.component";
 
@@ -34,21 +32,21 @@ describe("CustomSsoFormComponent", () => {
    let fixture: ComponentFixture<CustomSsoFormComponent>;
 
    const codemirror = {
-      createTernServer: jest.fn(() => {}),
-      getEcmaScriptDefs: jest.fn(() => [{"Date": {"prototype": {}}}]),
-      createCodeMirrorInstance: jest.fn(() => ({
-         getCursor: jest.fn(),
-         setCursor: jest.fn(),
-         getValue: jest.fn(() => {}),
-         setValue: jest.fn(),
-         refresh: jest.fn(),
-         focus: jest.fn(),
-         on: jest.fn(),
-         toTextArea: jest.fn()
+      createTernServer: vi.fn(() => {}),
+      getEcmaScriptDefs: vi.fn(() => [{"Date": {"prototype": {}}}]),
+      createCodeMirrorInstance: vi.fn(() => ({
+         getCursor: vi.fn(),
+         setCursor: vi.fn(),
+         getValue: vi.fn(() => {}),
+         setValue: vi.fn(),
+         refresh: vi.fn(),
+         focus: vi.fn(),
+         on: vi.fn(),
+         toTextArea: vi.fn()
       }))
    };
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             BrowserAnimationsModule,
@@ -57,9 +55,8 @@ describe("CustomSsoFormComponent", () => {
             MatInputModule,
             MatIconModule,
             MatFormFieldModule,
-            MatRadioModule
-         ],
-         declarations: [ CustomSsoFormComponent ],
+            MatRadioModule,
+            CustomSsoFormComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .overrideComponent(CustomSsoFormComponent, {set: {providers: [{provide: CodemirrorService, useValue: codemirror}]}})

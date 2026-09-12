@@ -17,6 +17,7 @@
  */
 import { Component, Input, NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ListValuesPaneModel } from "../../data/vs/list-values-pane-model";
@@ -58,6 +59,7 @@ let createListModel: () => ListValuesPaneModel = () => {
 };
 
 @Component({
+   standalone: true,
    selector: "combo-box-editor",
    template: "<div></div>"
 })
@@ -74,9 +76,9 @@ describe("list value component unit case: ", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
+         imports: [HttpClientTestingModule, ReactiveFormsModule, FormsModule, NgbModule, ListValuesPane, ComboBoxEditor],
          providers: [],
-         declarations: [ListValuesPane, ComboBoxEditor],
+         
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
 

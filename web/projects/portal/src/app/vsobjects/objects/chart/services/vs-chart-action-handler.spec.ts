@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { AssemblyActionEvent } from "../../../../common/action/assembly-action-event";
 import { TestUtils } from "../../../../common/test/test-utils";
 import { VSChartModel } from "../../../model/vs-chart-model";
@@ -30,22 +31,22 @@ describe("VSChartActionHandler", () => {
 
    beforeEach(() => {
       model = TestUtils.createMockVSChartModel("Chart1");
-      modelService = { getModel: jest.fn() };
-      modalService = { open: jest.fn() };
-      viewsheetClient = { sendEvent: jest.fn() };
-      injector = { get: jest.fn() };
+      modelService = { getModel: vi.fn() };
+      modalService = { open: vi.fn() };
+      viewsheetClient = { sendEvent: vi.fn() };
+      injector = { get: vi.fn() };
       dataTipService = {
-         showDataTip: jest.fn(),
-         isDataTip: jest.fn(),
-         isFrozen: jest.fn(),
-         hideDataTip: jest.fn()
+         showDataTip: vi.fn(),
+         isDataTip: vi.fn(),
+         isFrozen: vi.fn(),
+         hideDataTip: vi.fn()
       };
    });
 
    // Bug #17181
    it("should open group dialog when group event is received", () => {
       const handler = new VSChartActionHandler(modelService, viewsheetClient, modalService, injector, false, dataTipService, null);
-      handler["showGroupDialog"] = jest.fn();
+      handler["showGroupDialog"] = vi.fn();
       handler.handleEvent(new AssemblyActionEvent<VSChartModel>("chart group", model), []);
       expect(handler["showGroupDialog"]).toHaveBeenCalled();
    });
@@ -53,7 +54,7 @@ describe("VSChartActionHandler", () => {
    // Bug #17181
    it("should open rename dialog when rename event is received", () => {
       const handler = new VSChartActionHandler(modelService, viewsheetClient, modalService, injector, false, dataTipService, null);
-      handler["showRenameDialog"] = jest.fn();
+      handler["showRenameDialog"] = vi.fn();
       handler.handleEvent(new AssemblyActionEvent<VSChartModel>("chart rename", model), []);
       expect(handler["showRenameDialog"]).toHaveBeenCalled();
    });
@@ -61,7 +62,7 @@ describe("VSChartActionHandler", () => {
    // Bug #17181
    it("should call ungroup when ungroup event is received", () => {
       const handler = new VSChartActionHandler(modelService, viewsheetClient, modalService, injector, false, dataTipService, null);
-      handler["ungroup"] = jest.fn();
+      handler["ungroup"] = vi.fn();
       handler.handleEvent(new AssemblyActionEvent<VSChartModel>("chart ungroup", model), []);
       expect(handler["ungroup"]).toHaveBeenCalled();
    });

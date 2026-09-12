@@ -17,7 +17,9 @@
  */
 package inetsoft.web.binding.model;
 
-public class BindingPaneData {
+import java.io.Serializable;
+
+public class BindingPaneData implements Serializable {
    public BindingPaneData() {
    }
 

@@ -23,17 +23,17 @@ import {
 import {GuiTool} from "../../../../../../../portal/src/app/common/util/gui-tool";
 import {CodemirrorService} from "../../../../../../../shared/util/codemirror/codemirror.service";
 import {CustomSSOAttributesModel} from "../sso-settings-model";
-import {DefaultCodemirrorService} from "../../../../../../../shared/util/codemirror/default-codemirror.service";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+
+import { FormsModule } from "@angular/forms";
+import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
 
 @Component({
-   selector: "em-custom-sso-form",
-   templateUrl: "./custom-sso-form.component.html",
-   styleUrls: ["./custom-sso-form.component.scss"],
-   providers: [{
-      provide: CodemirrorService,
-      useClass: DefaultCodemirrorService,
-      deps: []
-   }]
+    selector: "em-custom-sso-form",
+    templateUrl: "./custom-sso-form.component.html",
+    styleUrls: ["./custom-sso-form.component.scss"],
+    imports: [MatRadioGroup, FormsModule, MatRadioButton, MatFormField, MatInput, MatLabel]
 })
 export class CustomSsoFormComponent implements OnInit, AfterViewInit, AfterViewChecked, OnDestroy {
    @ViewChild("scriptEditor", { static: true }) scriptEditor: ElementRef;
@@ -172,6 +172,6 @@ class CustomSSOFilter extends AbstractSecurityFilter {
 
    setInlineGroovyClass(value: string) {
       this.codemirrorInstance.setValue(value);
-      setTimeout(() => this.codemirrorInstance.refresh(), 0);
+      setTimeout(() => this.codemirrorInstance?.refresh(), 0);
    }
 }

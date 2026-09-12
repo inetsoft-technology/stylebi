@@ -16,11 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "boolean-value-editor",
-   templateUrl: "boolean-value-editor.component.html",
-   styleUrls: ["boolean-value-editor.component.scss"]
+    selector: "boolean-value-editor",
+    templateUrl: "boolean-value-editor.component.html",
+    styleUrls: ["boolean-value-editor.component.scss"],
+    imports: [FormsModule]
 })
 export class BooleanValueEditor {
    @Input() value: boolean = false;

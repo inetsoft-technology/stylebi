@@ -22,12 +22,17 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.MVInfo;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.report.internal.Util;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
 
@@ -39,12 +44,17 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 // ignite error: CacheInvalidStateException: Failed to execute the cache operation (all partition owners have left the grid, partition data has been lost)
 @Disabled("Ignite causing problems")
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "RankingConditionTest.zip", materialize = RankingConditionTest.ASSET_ID)
+@Tag("core")
+@Tag("integration")
 public class RankingConditionTest {
    @Test
    public void testOneGroupTopN() throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
+      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox().orElseThrow();
       VSTableLens table = sandbox.getVSTableLens("OneGroup_TopN", false);
       table.moreRows(XTable.EOT);
       List<MVInfo> mvInfos = MVQuery.getMVInfos(table);
@@ -63,7 +73,7 @@ public class RankingConditionTest {
    @Test
    public void testTwoGroupsOuterTopN() throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
+      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox().orElseThrow();
       VSTableLens table = sandbox.getVSTableLens("TwoGroups_OuterTopN", false);
       table.moreRows(XTable.EOT);
       List<MVInfo> mvInfos = MVQuery.getMVInfos(table);
@@ -88,7 +98,7 @@ public class RankingConditionTest {
    @Test
    public void testTwoGroupsInnerTopN() throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
+      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox().orElseThrow();
       VSTableLens table = sandbox.getVSTableLens("TwoGroups_InnerTopN", false);
       table.moreRows(XTable.EOT);
       List<MVInfo> mvInfos = MVQuery.getMVInfos(table);
@@ -130,13 +140,8 @@ public class RankingConditionTest {
    }
 
    @RegisterExtension
-   @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
-
-   @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension viewsheetResource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 
    public static final String ASSET_ID = "1^128^__NULL__^TEST_RankingCondition";
 }

@@ -22,7 +22,6 @@ import inetsoft.report.SaveOptions;
 import inetsoft.report.lib.Transaction;
 import inetsoft.report.lib.TransactionType;
 import inetsoft.report.lib.physical.*;
-import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.util.Catalog;
@@ -57,10 +56,11 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public List<String> toSecureList() {
+      ReadWriteLock lock = getLock();
       lock.readLock().lock();
 
       try {
-         return getNameToEntryMap(null).keySet().stream()
+         return getNameToEntryMap().keySet().stream()
             .filter(name -> checkPermission(getResourceType(), name, ResourceAction.READ))
             .collect(Collectors.toList());
       }
@@ -71,12 +71,13 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public Enumeration<String> toSecureEnumeration() {
+      ReadWriteLock lock = getLock();
       lock.readLock().lock();
 
       try {
          return new FilteredEnumeration(
             name -> checkPermission(getResourceType(), name, ResourceAction.READ),
-            getNameToEntryMap(null).keySet());
+            getNameToEntryMap().keySet());
       }
       finally {
          lock.readLock().unlock();
@@ -89,10 +90,11 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    }
 
    protected Map<String, LogicalLibraryEntry<T>> toMap() {
+      ReadWriteLock lock = getLock();
       lock.readLock().lock();
 
       try {
-         return new HashMap<>(getNameToEntryMap(null));
+         return new HashMap<>(getNameToEntryMap());
       }
       finally {
          lock.readLock().unlock();
@@ -102,10 +104,11 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    @Override
    public String caseInsensitiveFindName(String name, boolean secure) {
       final HashSet<String> temp;
+      ReadWriteLock lock = getLock();
       lock.readLock().lock();
 
       try {
-         temp = new HashSet<>(getNameToEntryMap(null).keySet());
+         temp = new HashSet<>(getNameToEntryMap().keySet());
       }
       finally {
          lock.readLock().unlock();
@@ -125,83 +128,84 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public void load(PhysicalLibrary library, LoadOptions options) throws IOException {
-      final Map<String, LogicalLibraryEntry<T>> loadingMap = new HashMap<>();
-      final Map<String, LogicalLibraryEntry<T>> oldEntries = options.init() ?
-         Collections.emptyMap() : toMap();
-
-      final LibraryAssetReader<T> reader = getReader();
-      final String entryPrefix = getAssetPrefix();
-      final Iterator<PhysicalLibraryEntry> entries = library.getEntries();
-
-      while(entries.hasNext()) {
-         final PhysicalLibraryEntry entry = entries.next();
-         final String path = entry.getPath();
-
-         if(path.startsWith(entryPrefix)) {
-            String name = path.substring(entryPrefix.length());
-
-            if(name.length() == 0 || name.endsWith(LibManager.COMMENT_SUFFIX) || isTempFile(name) ||
-               shouldNotLoad(name))
-            {
-               continue;
-            }
-
-            try {
-               final String comment = entry.getComment();
-               Properties properties = entry.getCommentProperties();
-               final T asset = reader.read(name, entry);
-
-               if(asset == null) {
-                  LOG.warn("Failed to load {}: {}", getEntryName(), name);
-               }
-               else {
-                  name = processAssetDuringLoad(name, asset);
-                  final boolean exists = oldEntries.containsKey(name);
-
-                  if(exists && !options.overwrite()) {
-                     continue;
-                  }
-
-                  // @by henryh, avoid to copy components into library
-                  // with different case name. It is not allowed from GUI.
-                  if((exists || caseInsensitiveFindName(oldEntries.keySet(), name, false) == null) &&
-                     properties != null && properties.size() > 0)
-                  {
-                     loadingMap.put(name, LogicalLibraryEntry.<T>builder()
-                        .asset(asset)
-                        .audit(options.audit())
-                        .comment(comment)
-                        .created(properties.get("created") == null ? 0 :
-                           Long.parseLong((String) properties.get("created")))
-                        .modified(properties.get("modified") == null ? 0 :
-                           Long.parseLong((String) properties.get("modified")))
-                        .createdBy((String) properties.get("createdBy"))
-                        .modifiedBy((String) properties.get("modifiedBy"))
-                        .build());
-                  }
-                  else if(exists || caseInsensitiveFindName(oldEntries.keySet(), name, false) == null) {
-                     loadingMap.put(name, LogicalLibraryEntry.<T>builder()
-                        .asset(asset)
-                        .audit(options.audit())
-                        .comment(comment)
-                        .build());
-                  }
-               }
-            }
-            catch(Exception ex) {
-               logFailedLoad(name, ex);
-            }
-         }
-      }
-
+      ReadWriteLock lock = getLock();
       lock.writeLock().lock();
 
       try {
+         final Map<String, LogicalLibraryEntry<T>> loadingMap = new HashMap<>();
+         final Map<String, LogicalLibraryEntry<T>> oldEntries = options.init() ?
+            Collections.emptyMap() : toMap();
+
+         final LibraryAssetReader<T> reader = getReader();
+         final String entryPrefix = getAssetPrefix();
+         final Iterator<PhysicalLibraryEntry> entries = library.getEntries();
+
+         while(entries.hasNext()) {
+            final PhysicalLibraryEntry entry = entries.next();
+            final String path = entry.getPath();
+
+            if(path.startsWith(entryPrefix)) {
+               String name = path.substring(entryPrefix.length());
+
+               if(name.length() == 0 || name.endsWith(LibManager.COMMENT_SUFFIX) || isTempFile(name) ||
+                  shouldNotLoad(name))
+               {
+                  continue;
+               }
+
+               try {
+                  final String comment = entry.getComment();
+                  Properties properties = entry.getCommentProperties();
+                  final T asset = reader.read(name, entry);
+
+                  if(asset == null) {
+                     LOG.warn("Failed to load {}: {}", getEntryName(), name);
+                  }
+                  else {
+                     name = processAssetDuringLoad(name, asset);
+                     final boolean exists = oldEntries.containsKey(name);
+
+                     if(exists && !options.overwrite()) {
+                        continue;
+                     }
+
+                     // @by henryh, avoid to copy components into library
+                     // with different case name. It is not allowed from GUI.
+                     if((exists || caseInsensitiveFindName(oldEntries.keySet(), name, false) == null) &&
+                        properties != null && properties.size() > 0)
+                     {
+                        loadingMap.put(name, LogicalLibraryEntry.<T>builder()
+                           .asset(asset)
+                           .audit(options.audit())
+                           .comment(comment)
+                           .created(properties.get("created") == null ? 0 :
+                                       Long.parseLong((String) properties.get("created")))
+                           .modified(properties.get("modified") == null ? 0 :
+                                        Long.parseLong((String) properties.get("modified")))
+                           .createdBy((String) properties.get("createdBy"))
+                           .modifiedBy((String) properties.get("modifiedBy"))
+                           .build());
+                     }
+                     else if(exists || caseInsensitiveFindName(oldEntries.keySet(), name, false) == null) {
+                        loadingMap.put(name, LogicalLibraryEntry.<T>builder()
+                           .asset(asset)
+                           .audit(options.audit())
+                           .comment(comment)
+                           .build());
+                     }
+                  }
+               }
+               catch(Exception ex) {
+                  logFailedLoad(name, ex);
+               }
+            }
+         }
+
          if(options.init()) {
             clear();
          }
 
-         getNameToEntryMap(null).putAll(loadingMap);
+         getNameToEntryMap().putAll(loadingMap);
       }
       finally {
          lock.writeLock().unlock();
@@ -230,10 +234,11 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    public int put(String name, T asset) {
       final int id;
       final TransactionType transactionType;
+      ReadWriteLock lock = getLock();
       lock.writeLock().lock();
 
       try {
-         final LogicalLibraryEntry<T> oldEntry = getNameToEntryMap(null).get(name);
+         final LogicalLibraryEntry<T> oldEntry = getNameToEntryMap().get(name);
 
          if(oldEntry != null) {
             if(!checkPermission(getResourceType(), name, ResourceAction.WRITE)) {
@@ -280,7 +285,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
                .build();
          }
 
-         getNameToEntryMap(null).put(name, newEntry);
+         getNameToEntryMap().put(name, newEntry);
          recordTransaction(transactionType, name, newEntry);
 
          return id;
@@ -291,17 +296,14 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    }
 
    public LogicalLibraryEntry getLogicalLibraryEntry(String name) {
-      return getLogicalLibraryEntry(name, null);
-   }
-
-   public LogicalLibraryEntry getLogicalLibraryEntry(String name, String orgID) {
+      ReadWriteLock lock = getLock();
       lock.readLock().lock();
 
       try {
          LogicalLibraryEntry entry = null;
 
          if(checkPermission(getResourceType(), name, ResourceAction.READ)) {
-            entry = Optional.ofNullable(getNameToEntryMap(orgID).get(name))
+            entry = Optional.ofNullable(getNameToEntryMap().get(name))
                .orElse(null);
          }
 
@@ -323,16 +325,6 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
       return logicalLibraryEntry.asset();
    }
 
-   public T get(String name, String orgID) {
-      LogicalLibraryEntry<T> logicalLibraryEntry = getLogicalLibraryEntry(name, orgID);
-
-      if(logicalLibraryEntry == null) {
-         return null;
-      }
-
-      return logicalLibraryEntry.asset();
-   }
-
    @Override
    public void remove(String name) {
       if(!checkPermission(getResourceType(), name, ResourceAction.DELETE)) {
@@ -340,10 +332,11 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
             "Permission denied to delete " + getEntryName()));
       }
 
+      ReadWriteLock lock = getLock();
       lock.writeLock().lock();
 
       try {
-         getNameToEntryMap(null).remove(name);
+         getNameToEntryMap().remove(name);
          recordTransaction(TransactionType.DELETE, name);
       }
       finally {
@@ -353,10 +346,11 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public boolean isAudit(String name) {
+      ReadWriteLock lock = getLock();
       lock.readLock().lock();
 
       try {
-         return Optional.ofNullable(getNameToEntryMap(null).get(name))
+         return Optional.ofNullable(getNameToEntryMap().get(name))
             .map(LogicalLibraryEntry::audit)
             .orElse(false);
       }
@@ -367,10 +361,11 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public boolean rename(String oldName, String newName) {
+      ReadWriteLock lock = getLock();
       lock.writeLock().lock();
 
       try {
-         if(!getNameToEntryMap(null).containsKey(oldName)) {
+         if(!getNameToEntryMap().containsKey(oldName)) {
             return false;
          }
 
@@ -384,10 +379,10 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
                "Permission denied to write " + getEntryName()));
          }
 
-         final LogicalLibraryEntry<T> oldEntry = getNameToEntryMap(null).remove(oldName);
+         final LogicalLibraryEntry<T> oldEntry = getNameToEntryMap().remove(oldName);
          final LogicalLibraryEntry<T> newEntry = renameEntry(oldEntry, oldName, newName);
 
-         getNameToEntryMap(null).put(newName, newEntry);
+         getNameToEntryMap().put(newName, newEntry);
 
          recordTransaction(TransactionType.DELETE, oldName);
          recordTransaction(TransactionType.CREATE, newName, oldEntry);
@@ -407,10 +402,11 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public String getComment(String name) {
+      ReadWriteLock lock = getLock();
       lock.readLock().lock();
 
       try {
-         return Optional.ofNullable(getNameToEntryMap(null).get(name))
+         return Optional.ofNullable(getNameToEntryMap().get(name))
             .map(LogicalLibraryEntry::comment)
             .orElse(null);
       }
@@ -437,13 +433,14 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
             "Permission denied to modify " + getEntryName()));
       }
 
+      ReadWriteLock lock = getLock();
       lock.writeLock().lock();
 
       try {
          LogicalLibraryEntry<T> newEntry = null;
 
          if(isImport && importProp != null && importProp.size() > 0) {
-            newEntry = getNameToEntryMap(null).computeIfPresent(
+            newEntry = getNameToEntryMap().computeIfPresent(
                name, (k, entry) -> LogicalLibraryEntry.<T>builder()
                   .from(entry)
                   .comment((String) importProp.get("comment"))
@@ -456,7 +453,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
                   .build());
          }
          else {
-            newEntry = getNameToEntryMap(null).computeIfPresent(
+            newEntry = getNameToEntryMap().computeIfPresent(
                name, (k, entry) -> LogicalLibraryEntry.<T>builder()
                   .from(entry)
                   .modified(System.currentTimeMillis())
@@ -475,28 +472,16 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public int size() {
-      return getNameToEntryMap(null).size();
+      return getNameToEntryMap().size();
    }
 
    @Override
    public void clear() {
+      ReadWriteLock lock = getLock();
       lock.writeLock().lock();
 
       try {
-         getNameToEntryMap(null).clear();
-         transactions.clear();
-      }
-      finally {
-         lock.writeLock().unlock();
-      }
-   }
-
-   @Override
-   public void clear(String orgId) {
-      lock.writeLock().lock();
-
-      try {
-         getNameToEntryMap(orgId).clear();
+         getNameToEntryMap().clear();
          transactions.clear();
       }
       finally {
@@ -506,6 +491,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public List<Transaction<LogicalLibraryEntry<T>>> flushTransactions() {
+      ReadWriteLock lock = getLock();
       lock.readLock().lock();
 
       try {
@@ -557,26 +543,18 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
       security.movePermission(fromType, fromResource, toType, toResource);
    }
 
-   protected Map<String, LogicalLibraryEntry<T>> getNameToEntryMap(String orgID) {
-      if(orgID == null) {
-         orgID = OrganizationManager.getInstance().getCurrentOrgID();
-      }
+   protected Map<String, LogicalLibraryEntry<T>> getNameToEntryMap() {
+      return nameToEntryMap;
+   }
 
-      if(nameToEntryMaps.containsKey(orgID)) {
-         return nameToEntryMaps.get(orgID);
-      }
-      else {
-         Map<String, LogicalLibraryEntry<T>> nameToEntry = new HashMap<>();
-         nameToEntryMaps.put(orgID, nameToEntry);
-         return nameToEntry;
-      }
+   protected ReadWriteLock getLock() {
+      return lock;
    }
 
    private final LibrarySecurity security;
-
-   protected final ReadWriteLock lock = new ReentrantReadWriteLock();
-   private final Map<String, Map<String, LogicalLibraryEntry<T>>> nameToEntryMaps = new HashMap<>();
+   private final Map<String, LogicalLibraryEntry<T>> nameToEntryMap = new HashMap<>();
    protected final Deque<Transaction<LogicalLibraryEntry<T>>> transactions = new ArrayDeque<>();
+   private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 }

@@ -21,7 +21,8 @@ package inetsoft.web.admin.content.dataspace;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.web.adhoc.DecodeParam;
-import inetsoft.web.admin.content.dataspace.model.*;
+import inetsoft.web.admin.content.dataspace.model.DataSpaceTreeModel;
+import inetsoft.web.admin.content.dataspace.model.DataSpaceTreeNodeModel;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,11 +39,19 @@ public class DataSpaceShapeTreeController {
    }
 
    @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/presentation/settings",
-         actions = ResourceAction.ACCESS
-      )
+      value = {
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/presentation/settings",
+            actions = ResourceAction.ACCESS
+         ),
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/presentation/org-settings",
+            actions = ResourceAction.ACCESS
+         )
+      },
+      operator = "OR"
    )
    @GetMapping("/api/em/content/data-space/shapes/tree")
    public DataSpaceTreeModel getDataSpaceTree(

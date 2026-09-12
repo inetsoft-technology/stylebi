@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -29,6 +30,7 @@ import javax.annotation.Nullable;
  * Data transfer object that represents the {@link VSBookmarkInfoModel}
  */
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableVSBookmarkInfoModel.class)
 @JsonDeserialize(as = ImmutableVSBookmarkInfoModel.class)
 public abstract class VSBookmarkInfoModel {

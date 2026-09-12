@@ -23,6 +23,7 @@ import inetsoft.report.lens.DefaultTextLens;
 import inetsoft.report.painter.ImagePainter;
 import inetsoft.report.painter.PresenterPainter;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ScriptException;
@@ -192,6 +193,10 @@ public abstract class ReportSheet extends StyleCore {
     * Flag to indicate the highlight brush action.
     */
    public static final int BRUSH_HIGHLIGHT = BRUSH_VISUAL_FORMAT + 2;
+
+   public ReportSheet(LibManagerProvider libManagerProvider, Cluster cluster) {
+      super(libManagerProvider, cluster);
+   }
 
    /**
     * Get the locale used in this report.

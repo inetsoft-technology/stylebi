@@ -17,10 +17,12 @@
  */
 import { ChangeDetectionStrategy, Component, Input } from "@angular/core";
 
+
 @Component({
-   selector: "concat-relation-connector",
-   templateUrl: "concat-relation-connector.component.html",
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "concat-relation-connector",
+    templateUrl: "concat-relation-connector.component.html",
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: []
 })
 export class ConcatRelationConnectorComponent {
    @Input() first: boolean;

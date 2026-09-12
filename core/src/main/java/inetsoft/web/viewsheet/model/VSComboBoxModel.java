@@ -66,7 +66,16 @@ public class VSComboBoxModel extends ListInputModel<ComboBoxVSAssembly> {
       }
 
       if(calendar && selectedObject instanceof Date) {
-         selectedObject = ((Date) selectedObject).getTime();
+         // a date has no time component. send it as a wall clock date string instead of an
+         // instant, otherwise the browser and java.util.Date may disagree on the time zone
+         // offset (historical offsets that are not a whole number of minutes) and shift the
+         // date by a day.
+         if(XSchema.DATE.equals(dataType)) {
+            selectedObject = new SimpleDateFormat("yyyy-MM-dd").format(selectedObject);
+         }
+         else {
+            selectedObject = ((Date) selectedObject).getTime();
+         }
       }
       // used entered value, don't convert to full date in serializer
       else if(editable && selectedObject instanceof Date) {

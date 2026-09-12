@@ -19,8 +19,6 @@ package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.internal.RadioButtonVSAssemblyInfo;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 
 /**
  * The radio button viewsheet assembly scriptable in viewsheet scope.
@@ -71,23 +69,23 @@ public class RadioButtonVSAScriptable extends InputVSAScriptable
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       if(!(getVSAssemblyInfo() instanceof RadioButtonVSAssemblyInfo)) {
-         return Undefined.instance;
+         return null;
       }
 
       if(cellValue != NULL && name.equals("value")) {
          return cellValue;
       }
 
-      return super.get(name, start);
+      return super.getMember(name);
    }
 
    /**
     * Indicate whether or not a named property is defined in an object.
     */
    @Override
-   public boolean has(String name, Scriptable start) {
+   public boolean hasMember(String name) {
       if(!(getVSAssemblyInfo() instanceof RadioButtonVSAssemblyInfo)) {
          return false;
       }
@@ -96,7 +94,7 @@ public class RadioButtonVSAScriptable extends InputVSAScriptable
          return true;
       }
 
-      return super.has(name, start);
+      return super.hasMember(name);
    }
 
    /**

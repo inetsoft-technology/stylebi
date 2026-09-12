@@ -121,16 +121,20 @@ public class QueryGraphModelController {
    public boolean checkTableAlias(@RequestParam("runtimeId") String runtimeId,
                                   @RequestParam("tableAlias") String tableAlias)
    {
-      JDBCQuery query = queryService.getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = queryService.getRuntimeQuery(runtimeId);
 
-      if(query != null && query.getDataSource() != null) {
-         UniformSQL sql = (UniformSQL) query.getSQLDefinition();
-         SQLHelper provider = SQLHelper.getSQLHelper(query.getDataSource());
-         String quote = provider.getQuote();
-         Object name = sql.getTableName(tableAlias);
+      if(runtimeQuery != null) {
+         JDBCQuery query = runtimeQuery.getQuery();
 
-         if(tableAlias.contains(quote) && (name == null || !name.equals(tableAlias))) {
-            return false;
+         if(query != null && query.getDataSource() != null) {
+            UniformSQL sql = (UniformSQL) query.getSQLDefinition();
+            SQLHelper provider = SQLHelper.getSQLHelper(query.getDataSource());
+            String quote = provider.getQuote();
+            Object name = sql.getTableName(tableAlias);
+
+            if(tableAlias.contains(quote) && (name == null || !name.equals(tableAlias))) {
+               return false;
+            }
          }
       }
 

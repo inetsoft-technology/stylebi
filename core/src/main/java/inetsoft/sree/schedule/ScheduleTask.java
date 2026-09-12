@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.schedule;
 
+import inetsoft.report.internal.Util;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepletRequest;
 import inetsoft.sree.SreeEnv;
@@ -27,6 +28,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
+import inetsoft.web.admin.content.repository.MVSupportService;
 import org.slf4j.*;
 import org.w3c.dom.*;
 
@@ -49,6 +51,39 @@ import java.util.stream.Stream;
  * @author InetSoft Technology Corp
  */
 public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
+   /**
+    * The default schedule task timeout, in milliseconds. Matches the value shipped in
+    * defaults.properties; used when schedule.task.timeout is missing or not a number.
+    */
+   public static final long DEFAULT_TASK_TIMEOUT = 600000L;
+
+   /**
+    * Gets the configured schedule.task.timeout, in milliseconds. A missing or non-numeric
+    * value logs a warning and falls back to DEFAULT_TASK_TIMEOUT.
+    *
+    * <p>The value is returned as configured; no meaning is imposed on zero or a negative
+    * number here, because the call sites do not agree on one. The two that wait on a
+    * future or a latch (doRun below, MVAction.createMV) treat 0 or less as "wait without a
+    * timeout", whereas Scheduler.runTask uses the value only as a staleness window and does
+    * not special-case it. ScheduleTaskCloudJob.execute instead clamps a non-positive value to
+    * DEFAULT_TASK_TIMEOUT and always waits with a bound, since it consumes billed cloud
+    * compute and must never wait unbounded.
+    *
+    * @return the configured task timeout in milliseconds.
+    */
+   public static long getTaskTimeout() {
+      String value = SreeEnv.getProperty("schedule.task.timeout");
+
+      try {
+         return Long.parseLong(value);
+      }
+      catch(NumberFormatException e) {
+         LOG.warn("Invalid schedule.task.timeout value \"{}\", using the default of {} ms",
+                  value, DEFAULT_TASK_TIMEOUT);
+         return DEFAULT_TASK_TIMEOUT;
+      }
+   }
+
    public ScheduleTask() {
    }
 
@@ -528,13 +563,36 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       List<Future> futures = new ArrayList<>();
       boolean waited = false;
       long startTime = System.currentTimeMillis();
+      long timeout = getTaskTimeout();
 
       for(int i = 0; i < acts.size(); i++) {
          final ScheduleAction act = acts.elementAt(i);
 
          if(!waited && act instanceof MVAction && ((MVAction) act).isSequenced()) {
             for(Future future : futures) {
-               future.get();
+               try {
+                  if(timeout > 0) {
+                     long remaining = timeout - (System.currentTimeMillis() - startTime);
+
+                     if(remaining <= 0) {
+                        throw new TimeoutException("Schedule task timeout exceeded waiting for MV actions");
+                     }
+
+                     future.get(remaining, TimeUnit.MILLISECONDS);
+                  }
+                  else {
+                     future.get();
+                  }
+               }
+               catch(TimeoutException ex) {
+                  for(Future f : futures) {
+                     f.cancel(true);
+                  }
+
+                  cancel();
+                  throw new RuntimeException("Schedule Task Timeout exceeded waiting for MV actions: " +
+                                                getName(), ex);
+               }
             }
 
             waited = true;
@@ -594,7 +652,6 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       int threshold = (cycleInfo != null && cycleInfo.isExceedNotify())
          ? cycleInfo.getThreshold() : 0;
       int time = 0;
-      long timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
 
       // only after all the replet actions are over, should the task be over
       synchronized(this) {
@@ -1319,8 +1376,12 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
    public void parseXML(Element elem, boolean isSiteAdminImport) throws Exception {
       name = elem.getAttribute("name");
 
-      //older versions are userName:taskName, breaks unless IdentityID:taskname
-      if(name.indexOf(":") > -1 && name.indexOf(IdentityID.KEY_DELIMITER) == -1) {
+      // older versions are userName:taskName, breaks unless IdentityID:taskname
+      // should not fix mv tasks like "MV Task: UUID"
+      if(name.indexOf(":") > -1 && name.indexOf(IdentityID.KEY_DELIMITER) == -1 &&
+         !name.startsWith(Util.MV_TASK_PREFIX) &&
+         !name.startsWith(Util.MV_TASK_STAGE_PREFIX))
+      {
          IdentityID nameUser = new IdentityID(name.substring(0,name.indexOf(":")), OrganizationManager.getInstance().getCurrentOrgID());
          name = nameUser.convertToKey() + name.substring(name.indexOf(":"));
       }
@@ -1464,12 +1525,22 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
       String path = condition.getTaskName();
 
-      if(path == null || path.indexOf(":") < 0) {
+      if(path == null) {
          return;
       }
 
-      String pathUserID = path.substring(0, path.indexOf(":"));
-      String remaining = path.substring(path.indexOf(":"));
+      // cycle tasks use "<owner>__<name>" rather than "<owner>:<name>", and the task
+      // name itself (e.g. "DataCycle Task: Cycle1") contains a colon, so the cycle
+      // delimiter must be matched first or the owner key gets split in the wrong place
+      int cycleIdx = path.indexOf("__" + DataCycleManager.TASK_PREFIX);
+      int idx = cycleIdx >= 0 ? cycleIdx : path.indexOf(":");
+
+      if(idx < 0) {
+         return;
+      }
+
+      String pathUserID = path.substring(0, idx);
+      String remaining = path.substring(idx);
       IdentityID userID = IdentityID.getIdentityIDFromKey(pathUserID);
 
       if(!Tool.equals(userID.orgID, currOrgID)) {

@@ -23,7 +23,7 @@
   <parent>
     <groupId>com.inetsoft.stylebi.connectors</groupId>
     <artifactId>connectors-parent</artifactId>
-    <version>1.1.0-SNAPSHOT</version>
+    <version>1.2.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>inetsoft-onedrive</artifactId>
@@ -109,11 +109,38 @@
     </dependency>
 
     <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
       <groupId>com.inetsoft.stylebi</groupId>
       <artifactId>inetsoft-core</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
       <classifier>tests</classifier>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi</artifactId>
+      <version>5.4.0</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml</artifactId>
+      <version>5.4.0</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml-full</artifactId>
+      <version>5.4.0</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 
@@ -164,7 +191,7 @@
             <disable.updateAssetDependencies>true</disable.updateAssetDependencies>
             <kryo.unsafe>false</kryo.unsafe>
             <show.license.exception>true</show.license.exception>
-            <inetsoft.sree.internal.cluster.implementation>inetsoft.test.TestCluster</inetsoft.sree.internal.cluster.implementation>
+            <inetsoft.sree.internal.cluster.implementation>inetsoft.sree.internal.cluster.MockCluster</inetsoft.sree.internal.cluster.implementation>
           </systemPropertyVariables>
         </configuration>
       </plugin>

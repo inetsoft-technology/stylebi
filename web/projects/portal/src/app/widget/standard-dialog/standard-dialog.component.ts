@@ -25,12 +25,16 @@ import {
 } from "@angular/core";
 import { DialogButtonsDirective } from "./dialog-buttons.directive";
 import { DialogContentDirective } from "./dialog-content.directive";
+import { NgTemplateOutlet } from "@angular/common";
+import { EnterSubmitDirective } from "../directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 
 @Component({
-   selector: "w-standard-dialog",
-   templateUrl: "./standard-dialog.component.html",
-   styleUrls: ["./standard-dialog.component.scss"],
-   encapsulation: ViewEncapsulation.None
+    selector: "w-standard-dialog",
+    templateUrl: "./standard-dialog.component.html",
+    styleUrls: ["./standard-dialog.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    imports: [ModalHeaderComponent, EnterSubmitDirective, NgTemplateOutlet]
 })
 export class StandardDialogComponent {
    @Input() title: string;

@@ -42,7 +42,7 @@ import inetsoft.util.*;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -312,7 +312,11 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
    }
 
    protected SQLHelper getSQLHelper(UniformSQL sql) {
-      return SQLHelper.getSQLHelper(sql, box.getUser());
+      if(sqlHelperCache == null) {
+         sqlHelperCache = new IdentityHashMap<>(4);
+      }
+
+      return sqlHelperCache.computeIfAbsent(sql, s -> SQLHelper.getSQLHelper(s, box.getUser()));
    }
 
    /**
@@ -671,7 +675,13 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       ColumnSelection columns = getTable().getColumnSelection();
       ConditionListWrapper wrapper = getPostConditionList();
       ConditionList conds = wrapper.getConditionList();
-      AggregateInfo aggregateInfo = getAggregateInfo();
+      // mergeGroupBy() (called before this method in merge()) clears the AggregateInfo
+      // returned by getAggregateInfo() in place once it successfully merges a real GROUP
+      // BY (gmerged == true), so getAggregateInfo() would look empty here even for a
+      // genuinely aggregating level. Use the pre-merge snapshot in that case, matching
+      // the existing gmerged ? ginfo : getAggregateInfo() idiom used elsewhere (see
+      // getAggregate()).
+      AggregateInfo aggregateInfo = gmerged ? ginfo : getAggregateInfo();
 
       // add required columns for post process
       // condition hide by vpm? do not merge it
@@ -703,16 +713,38 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       ConditionListHandler handler = new PostConditionListHandler();
       XUtil.convertDateCondition(conds, vars);
       XFilterNode fnode = createXFilterNode(handler, conds, nsql, vars);
-      XFilterNode oroot = nsql.getHaving();
 
-      if(oroot == null) {
-         nsql.setHaving(fnode);
+      // If this query level doesn't aggregate on its own (e.g. a mirror/pass-through
+      // over an already-aggregated subquery), the referenced columns are plain values
+      // from this level's perspective, so the condition must be a WHERE. A HAVING with
+      // no GROUP BY implicitly treats the whole result as one aggregate group, which
+      // strict dialects (e.g. Derby) reject once the SELECT list has non-aggregate
+      // columns.
+      if(aggregateInfo.isEmpty()) {
+         XFilterNode oroot = nsql.getWhere();
+
+         if(oroot == null) {
+            nsql.setWhere(fnode);
+         }
+         else {
+            XSet nroot = new XSet(XSet.AND);
+            nroot.addChild(oroot);
+            nroot.addChild(fnode);
+            nsql.setWhere(nroot);
+         }
       }
       else {
-         XSet nroot = new XSet(XSet.AND);
-         nroot.addChild(oroot);
-         nroot.addChild(fnode);
-         nsql.setHaving(nroot);
+         XFilterNode oroot = nsql.getHaving();
+
+         if(oroot == null) {
+            nsql.setHaving(fnode);
+         }
+         else {
+            XSet nroot = new XSet(XSet.AND);
+            nroot.addChild(oroot);
+            nroot.addChild(fnode);
+            nsql.setHaving(nroot);
+         }
       }
 
       conds.removeAllItems();
@@ -2868,7 +2900,6 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          return false;
       }
 
-      boolean isSQLite = isSQLite();
       SQLHelper sqlHelper = getSQLHelper(getUniformSQL());
 
       for(int i = 0; i < conds.getSize(); i += 2) {
@@ -3012,9 +3043,19 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          boolean postConditionHasCubeMeasure =
             "true".equals(table.getProperty("Post_Condition_HasCubeMeasure"));
 
+         // An adhoc filter on a chart aggregate (VS_ASSEMBLY source) places the aggregate
+         // filter (e.g. Sum(customer_id) >= N) in the post-runtime (HAVING) slot of the
+         // wrapping mirror table. The mirror itself is not aggregated (its aggregation is in
+         // the inner table) and the composer preview runs in live mode, so without this check
+         // the guard below would discard that HAVING and the chart would not be filtered.
+         // (Bug #75326, follow-on to #75263)
+         ConditionListWrapper postRtWrapper = table.getPostRuntimeConditionList();
+         boolean hasPostRuntimeCondition = postRtWrapper != null &&
+            postRtWrapper.getConditionList() != null && !postRtWrapper.getConditionList().isEmpty();
+
          if(!postConditionHasCubeMeasure && !table.isAggregate()
             && !AssetQuerySandbox.isEmbeddedMode(mode) && !isSubQuery() && ginfo.isEmpty()
-            && !AssetQuerySandbox.isRuntimeMode(mode))
+            && !AssetQuerySandbox.isRuntimeMode(mode) && !hasPostRuntimeCondition)
          {
             postconds = new ConditionList();
          }
@@ -3909,7 +3950,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
    {
       ScriptEnv senv = box.getScriptEnv();
       Object val = null;
-      Scriptable scope = null;
+      ScriptScope scope = null;
 
       try {
          ViewsheetSandbox vbox = box.getViewsheetSandbox();
@@ -4215,7 +4256,16 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             field = new XExpression(col, XExpression.FIELD);
          }
 
-         if(ref instanceof AttributeRef attributeRef && attributeRef.isSqlTypeSet()) {
+         // Some JDBC drivers misreport a logically boolean column's SQL type (e.g. as
+         // VARCHAR instead of BOOLEAN/BIT) in their column metadata. Trusting that over
+         // the worksheet column's own logical type causes fixConditionValue() below to
+         // "fix" an already-correct Boolean condition value into a String, which some
+         // databases (e.g. H2) then refuse to compare against the actual BOOLEAN column.
+         // The worksheet's logical type is authoritative here, so check it first.
+         if(item.getAttribute() != null && XSchema.BOOLEAN.equals(item.getAttribute().getDataType())) {
+            field.setSqlType(java.sql.Types.BOOLEAN);
+         }
+         else if(ref instanceof AttributeRef attributeRef && attributeRef.isSqlTypeSet()) {
             field.setSqlType(((AttributeRef) ref).getSqlType());
          }
          else if(item.getAttribute() instanceof ColumnRef columnRef && columnRef.isSqlTypeSet()) {
@@ -4646,14 +4696,20 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
    }
 
    protected boolean isSQLite() {
+      if(sqlite != null) {
+         return sqlite;
+      }
+
       try {
          if(getQuery() instanceof JDBCQuery) {
-            return  Util.isSQLite(getQuery().getDataSource());
+            sqlite = Util.isSQLite(getQuery().getDataSource());
+            return sqlite;
          }
       }
       catch(Exception ignore) {
       }
 
+      sqlite = false;
       return false;
    }
 
@@ -4698,6 +4754,8 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
    private boolean mergeable; // query mergeable flag
    private boolean merged; // query merged flag
+   private transient IdentityHashMap<UniformSQL, SQLHelper> sqlHelperCache;
+   private transient Boolean sqlite;
    private Map<DataRef, ColumnRef> colmap = new HashMap<>(); // optimization
    private Map<Tuple, Object> exprAttrs = new Object2ObjectOpenHashMap<>();
    private Map<String, List<AttributeRef>> expr2Attrs = new Object2ObjectOpenHashMap<>();

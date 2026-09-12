@@ -15,12 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
 import {
-   Component, Input, Output, EventEmitter, ElementRef, ViewChild,
-   NgZone, OnDestroy, OnInit, Renderer2, AfterViewInit, Inject, OnChanges, AfterViewChecked,
-   SimpleChanges, HostListener
+  Component, Input, Output, EventEmitter, ElementRef, ViewChild,
+  NgZone, OnDestroy, OnInit, Renderer2, AfterViewInit, Inject, OnChanges, AfterViewChecked,
+  SimpleChanges, HostListener,
+  DOCUMENT
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ConnectionMadeEventInfo } from "jsplumb";
@@ -33,7 +34,7 @@ import { AssemblyDragScrollHandler } from "../../../../../../composer/gui/ws/edi
 import {
    DEPENDENCY_TYPE_OVERLAY_ID
 } from "../../../../../../composer/gui/ws/jsplumb/jsplumb-dependency-type-overlays";
-import { SelectionBoxEvent } from "../../../../../../widget/directive/selection-box.directive";
+import { SelectionBoxEvent, SelectionBoxDirective } from "../../../../../../widget/directive/selection-box.directive";
 import { ActionsContextmenuComponent } from "../../../../../../widget/fixed-dropdown/actions-contextmenu.component";
 import { DropdownOptions } from "../../../../../../widget/fixed-dropdown/dropdown-options";
 import { FixedDropdownService } from "../../../../../../widget/fixed-dropdown/fixed-dropdown.service";
@@ -58,6 +59,8 @@ import { Tool } from "../../../../../../../../../shared/util/tool";
 import { MoveGraphEvent } from "../../../../model/datasources/database/events/move-graph-event";
 import { ComponentTool } from "../../../../../../common/util/component-tool";
 import { JSPlumbUtil } from "../../../../../../common/util/jsplumb-util";
+import { JoinNodeGraphComponent } from "../../common-components/join-node-graph/join-node-graph.component";
+import { OutOfZoneDirective } from "../../../../../../widget/directive/out-of-zone.directive";
 
 const OPEN_JOIN_EDIT_PANE_URI = "../api/data/physicalmodel/join-edit/open/";
 const MOVE_GRAPH_NODE_URI = "../api/data/physicalmodel/graph/move";
@@ -67,10 +70,11 @@ const GRAPH_JOIN_URI = "../api/data/physicalmodel/join/";
 const GRAPH_REMOVE_TABLES_URI = "../api/data/physicalmodel/tables/remove";
 
 @Component({
-   selector: "physical-model-network-graph",
-   templateUrl: "physical-model-network-graph.component.html",
-   styleUrls: ["physical-model-network-graph.component.scss",
-      "../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"]
+    selector: "physical-model-network-graph",
+    templateUrl: "physical-model-network-graph.component.html",
+    styleUrls: ["physical-model-network-graph.component.scss",
+        "../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"],
+    imports: [OutOfZoneDirective, SelectionBoxDirective, JoinNodeGraphComponent, NgClass]
 })
 export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, AfterViewChecked,
    AfterViewInit, OnDestroy
@@ -99,6 +103,15 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
    private isDragging: boolean = false; // drag endpoint
    private nodeMoving = false; // drag node
    private dragNodes: GraphModel[] = [];
+   // When a selection originates here (click/rubber-band), the parent echoes it back
+   // via selectedGraphModels after resolving the tree node -- since auto-alias tables
+   // share the same tree path as their source table, that echo can resolve to *every*
+   // alias of that source table, not just the one the user selected. This tracks the ids
+   // of a self-originated selection so that echo can be recognized (by superset match,
+   // since the echo may be delayed by async tree/folder loading or never arrive) and
+   // narrowed back down to just the ids selected here, instead of blindly suppressing
+   // the next selectedGraphModels change regardless of what it actually contains.
+   private pendingSelfSelectionIds: Set<string> | null = null;
    _scale: number = 1.0;
 
    private nodes: {[sourceIds: string]: GraphModel} = {}; // element id --> node model
@@ -262,7 +275,24 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
       }
 
       if(changes["selectedGraphModels"] && this.selectedGraphModels) {
-         this.dragNodes = [...this.selectedGraphModels];
+         const incoming = this.selectedGraphModels;
+         const pending = this.pendingSelfSelectionIds;
+         const isEchoOfOwnSelection = !!pending && pending.size > 0 &&
+            Array.from(pending).every(id => incoming.some(g => g.node.id === id));
+
+         if(isEchoOfOwnSelection) {
+            // narrow the echoed selection back down to just the ids selected here,
+            // instead of taking whatever else it resolved to (e.g. sibling auto-aliases
+            // that share the same tree path as the selected table)
+            this.dragNodes = incoming.filter(g => pending.has(g.node.id));
+         }
+         else {
+            this.dragNodes = [...incoming];
+         }
+
+         // any pending self-selection is now either consumed by its echo above, or
+         // superseded by an unrelated selection change -- either way it's no longer pending
+         this.pendingSelfSelectionIds = null;
       }
    }
 
@@ -614,17 +644,28 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
    }
 
    selectNode(event: MouseEvent, graph: GraphModel) {
-      if(this.dragNodes.some(g => g.node.id === graph.node.id)) {
-         // missing id or already selected
-         return;
-      }
-      else if(event.ctrlKey || event.shiftKey) {
+      const alreadySelected = this.dragNodes.some(g => g.node.id === graph.node.id);
+
+      if(event.ctrlKey || event.shiftKey) {
+         if(alreadySelected) {
+            // already part of the selection, nothing to change
+            return;
+         }
+
          this.dragNodes.push(graph);
       }
+      else if(alreadySelected && this.dragNodes.length === 1) {
+         // already the sole selection, nothing to change
+         return;
+      }
       else {
+         // plain click always narrows the selection to just this node, even if it
+         // was already part of a stale multi-selection (e.g. synced in from the
+         // tree, or left over from a rubber-band/select-all selection)
          this.dragNodes = [graph];
       }
 
+      this.pendingSelfSelectionIds = new Set(this.dragNodes.map(g => g.node.id));
       this.fireSelectedNodesChanged();
       this.refreshDragSelection();
    }
@@ -792,12 +833,14 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          this.physicalModelService.emitModelChange(true);
          this.onRemoveTable.emit(this.dragNodes);
          this.dragNodes = [];
+         this.pendingSelfSelectionIds = null;
          this.fireSelectedNodesChanged();
       });
    }
 
    selectAll(): void {
       this.dragNodes = this.graphViewModel.graphs;
+      this.pendingSelfSelectionIds = new Set(this.dragNodes.map(g => g.node.id));
       this.fireSelectedNodesChanged();
       this.refreshDragSelection();
    }
@@ -809,6 +852,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
             .intersects(event.box);
       });
 
+      this.pendingSelfSelectionIds = new Set(this.dragNodes.map(g => g.node.id));
       this.fireSelectedNodesChanged();
       this.refreshDragSelection();
    }
@@ -816,6 +860,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
    clearSelection(event: MouseEvent): void {
       if(event.target === event.currentTarget && this.dragNodes.length > 0) {
          this.dragNodes = [];
+         this.pendingSelfSelectionIds = null;
          this.fireSelectedNodesChanged();
          this.jsp.setSuspendDrawing(false, true);
       }

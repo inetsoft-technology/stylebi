@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
@@ -31,9 +31,9 @@ describe("DeliveryEmailsComponent", () => {
    let component: DeliveryEmailsComponent;
    let fixture: ComponentFixture<DeliveryEmailsComponent>;
 
-   beforeEach(async(() => {
-      const dialogRef = { afterClosed: jest.fn(() => observableOf(null)) };
-      const dialog = { open: jest.fn(() => dialogRef) };
+   beforeEach(waitForAsync(() => {
+      const dialogRef = { afterClosed: vi.fn(() => observableOf(null)) };
+      const dialog = { open: vi.fn(() => dialogRef) };
 
       TestBed.configureTestingModule({
          imports: [
@@ -43,11 +43,8 @@ describe("DeliveryEmailsComponent", () => {
             MatCardModule,
             MatCheckboxModule,
             MatFormFieldModule,
-            MatInputModule
-         ],
-         declarations: [
-            DeliveryEmailsComponent
-         ],
+            MatInputModule,
+            DeliveryEmailsComponent],
          providers: [
             { provide: MatDialog, useValue: dialog }
          ],
@@ -55,6 +52,7 @@ describe("DeliveryEmailsComponent", () => {
             NO_ERRORS_SCHEMA
          ]
       })
+      .overrideTemplate(DeliveryEmailsComponent, "")
       .compileComponents();
    }));
 

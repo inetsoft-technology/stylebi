@@ -81,7 +81,7 @@ describe("ColorMap Unit Tests", () => {
       }
    });
 
-   it("Saturation is emitted correctly from mouse click", (done) => {
+   it("Saturation is emitted correctly from mouse click", () => new Promise<void>((done) => {
       let counter: number = 0;
       component.saturationChanged.subscribe((value: number) => {
          expect(value).toEqual(colorTable[counter++].hsv[1]);
@@ -95,9 +95,9 @@ describe("ColorMap Unit Tests", () => {
          let x: number = parseInt(color.left.substring(0, color.left.length - 1), 10);
          component.setColorPosition({offsetX: x, offsetY: 0});
       }
-   });
+   }));
 
-   it("Brightness is emitted correctly from mouse click", (done) => {
+   it("Brightness is emitted correctly from mouse click", () => new Promise<void>((done) => {
       let counter: number = 0;
       component.brightnessChanged.subscribe((value: number) => {
          expect(value).toEqual(colorTable[counter++].hsv[2]);
@@ -111,5 +111,5 @@ describe("ColorMap Unit Tests", () => {
          let y: number = parseInt(color.top.substring(0, color.top.length - 1), 10);
          component.setColorPosition({offsetX: 0, offsetY: y});
       }
-   });
+   }));
 });

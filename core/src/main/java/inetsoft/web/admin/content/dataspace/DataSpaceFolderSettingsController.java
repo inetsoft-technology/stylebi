@@ -18,15 +18,11 @@
 package inetsoft.web.admin.content.dataspace;
 
 import inetsoft.sree.internal.SUtil;
-import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.ConfirmException;
-import inetsoft.uql.util.XSessionService;
+import inetsoft.sree.security.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.content.dataspace.model.DataSpaceFolderSettingsModel;
 import inetsoft.web.admin.content.dataspace.model.DataSpaceFolderUploadModel;
@@ -35,6 +31,7 @@ import inetsoft.web.admin.upload.UploadedFile;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import inetsoft.web.security.auth.ResourceExistsException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.compress.archivers.ArchiveEntry;
 import org.apache.commons.io.IOUtils;
@@ -55,11 +52,15 @@ public class DataSpaceFolderSettingsController {
    public DataSpaceFolderSettingsController(
       DataSpaceContentSettingsService dataSpaceContentSettingsService,
       DataSpaceFolderSettingsService dataSpaceFolderSettingsService,
-      UploadService uploadService)
+      UploadService uploadService,
+      DataSpace dataSpace,
+      SecurityEngine securityEngine)
    {
       this.dataSpaceContentSettingsService = dataSpaceContentSettingsService;
       this.dataSpaceFolderSettingsService = dataSpaceFolderSettingsService;
       this.uploadService = uploadService;
+      this.dataSpace = dataSpace;
+      this.securityEngine = securityEngine;
    }
 
    @Secured(
@@ -93,7 +94,7 @@ public class DataSpaceFolderSettingsController {
                                              Principal principal)
       throws Exception
    {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       String newPath = model.path();
       String objectType = ActionRecord.OBJECT_TYPE_FOLDER;
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
@@ -133,6 +134,9 @@ public class DataSpaceFolderSettingsController {
                      "adm.dataspace.rename", model.name(), model.newName()));
                }
             }
+            else {
+               dataSpaceContentSettingsService.onFileRenamed(model.path(), newPath);
+            }
          }
       }
 
@@ -152,18 +156,17 @@ public class DataSpaceFolderSettingsController {
       this.dataSpaceContentSettingsService.deleteDataSpaceNode(path, true);
    }
 
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/content/data-space",
-         actions = ResourceAction.ACCESS
-      )
-   )
    @PostMapping("/api/em/content/data-space/folder/upload")
    public void uploadDataSpaceFiles(@RequestBody DataSpaceFolderUploadModel model,
-                                    Principal principal)
+                                    Principal principal,
+                                    HttpServletRequest request)
       throws Exception
    {
+      if(!checkUploadPermission(principal, model.path(), model.global())) {
+         throw new inetsoft.sree.security.SecurityException(
+            "Unauthorized access to resource \"" + request.getRequestURI() + "\" by user " + principal);
+      }
+
       String dir = model.path();
 
       if("portal/shapes".equals(model.path())) {
@@ -175,7 +178,7 @@ public class DataSpaceFolderSettingsController {
       String uploadId = model.files();
       List<UploadedFile> uploadedFiles = uploadService.get(uploadId)
          .orElseThrow(() -> new IllegalArgumentException("No uploaded files"));
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_CREATE,
          "", ActionRecord.OBJECT_TYPE_FILE);
       StringBuilder files = new StringBuilder();
@@ -252,7 +255,7 @@ public class DataSpaceFolderSettingsController {
          "attachment; filename=\"" + Tool.cleanseCRLF(Tool.byteDecode(name)) + ".zip\"");
       path = Tool.byteDecode(path);
 
-      DataSpace dataSpace = DataSpace.getDataSpace();
+      DataSpace dataSpace = this.dataSpace;
       List<String> pathList = Arrays.asList(dataSpace.list(path));
 
       if(!path.equals("/")) {
@@ -306,7 +309,47 @@ public class DataSpaceFolderSettingsController {
       zip.finish();
    }
 
+   private boolean checkUploadPermission(Principal principal, String path, boolean global)
+      throws inetsoft.sree.security.SecurityException
+   {
+      boolean hasEMAccess = securityEngine.checkPermission(
+         principal, ResourceType.EM, "*", ResourceAction.ACCESS);
+
+      if(!hasEMAccess) {
+         return false;
+      }
+
+      String globalShapesDir = ImageShapes.getGlobalShapesDirectory();
+      String orgShapesDir = ImageShapes.getShapesDirectory();
+
+      if(path.equals(globalShapesDir) || path.startsWith(globalShapesDir + "/")) {
+         // When the frontend sends the sentinel path with global=false, the user is
+         // uploading org-scoped shapes, so org-settings permission is sufficient.
+         if(path.equals(globalShapesDir) && !global && SUtil.isMultiTenant()) {
+            return securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+                  "settings/presentation/settings", ResourceAction.ACCESS) ||
+               securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+                  "settings/presentation/org-settings", ResourceAction.ACCESS);
+         }
+
+         return securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+            "settings/presentation/settings", ResourceAction.ACCESS);
+      }
+
+      if(path.equals(orgShapesDir) || path.startsWith(orgShapesDir + "/")) {
+         return securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+               "settings/presentation/settings", ResourceAction.ACCESS) ||
+            securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+               "settings/presentation/org-settings", ResourceAction.ACCESS);
+      }
+
+      return securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+         "settings/content/data-space", ResourceAction.ACCESS);
+   }
+
    private final DataSpaceContentSettingsService dataSpaceContentSettingsService;
    private final DataSpaceFolderSettingsService dataSpaceFolderSettingsService;
    private final UploadService uploadService;
+   private final DataSpace dataSpace;
+   private final SecurityEngine securityEngine;
 }

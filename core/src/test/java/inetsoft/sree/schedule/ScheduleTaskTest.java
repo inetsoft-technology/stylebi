@@ -18,18 +18,135 @@
 
 package inetsoft.sree.schedule;
 
-import inetsoft.sree.security.IdentityID;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.DataCycleManager;
+import inetsoft.sree.security.*;
+import inetsoft.test.*;
+import inetsoft.uql.XPrincipal;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.MockedStatic;
+import org.slf4j.LoggerFactory;
+import org.junit.jupiter.api.Tag;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Element;
+import org.xml.sax.InputSource;
 
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.StringReader;
+import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
+import java.util.Enumeration;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+/*
+ * Cases deferred - require integration context:
+ *
+ * [ScheduleTask] run(Principal) / doRun(Principal) - parallel action execution with timeout
+ *             -> needs a real thread pool and live ScheduleAction implementations; NOT yet covered
+ * [ScheduleTask] cancel() - runtimeTask delegation path
+ *             -> needs run() executing concurrently in a separate thread; NOT yet covered
+ * [ScheduleTask] writeXML / parseXML - XML round-trip serialization
+ *             -> needs full DOM/Spring context; NOT yet covered
+ * [ScheduleTask] equals(Object) - multi-field comparison across conditions and actions
+ *             -> deferred: requires constructing fully equal tasks with real condition/action equals()
+ * [ScheduleTask] getRetryTime(long) - lastRun > 0 branch uses TimeCondition.getRetryTime(time, lastRun)
+ *             -> needs the shared mock ScheduleStatusDao to return a status with lastScheduledStartTime > 0;
+ *                requires reset(scheduleStatusDao) to avoid polluting testCheckRetryTime; NOT yet covered
+ */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, ScheduleTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class ScheduleTaskTest {
    private ScheduleTask scheduleTask;
+   @Autowired SecurityEngine securityEngine;
+
+   @Test
+   void getTaskTimeoutReturnsConfiguredValue() {
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("schedule.task.timeout")).thenReturn("1500");
+
+         assertEquals(1500L, ScheduleTask.getTaskTimeout(),
+                      "A numeric schedule.task.timeout must be used as-is");
+      }
+   }
+
+   @ParameterizedTest(name = "schedule.task.timeout [{0}] falls back to the default")
+   @NullSource
+   @ValueSource(strings = { "abc", "", " ", "600000ms", "600,000", "1e5" })
+   void getTaskTimeoutFallsBackWhenValueIsNotANumber(String propertyValue) {
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("schedule.task.timeout"))
+            .thenReturn(propertyValue);
+
+         assertEquals(ScheduleTask.DEFAULT_TASK_TIMEOUT, ScheduleTask.getTaskTimeout(),
+                      "A missing or non-numeric schedule.task.timeout must fall back to " +
+                      "DEFAULT_TASK_TIMEOUT instead of throwing");
+      }
+   }
+
+   @Test
+   void getTaskTimeoutWarnsNamingThePropertyAndTheOffendingValue() {
+      // the warning is half the fix: without it the fallback is silent and an admin has no way
+      // to attribute a task running on the default timeout to the value they mistyped
+      Logger logger = (Logger) LoggerFactory.getLogger(ScheduleTask.class);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+
+      try {
+         try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+            sreeEnv.when(() -> SreeEnv.getProperty("schedule.task.timeout")).thenReturn("abc");
+
+            ScheduleTask.getTaskTimeout();
+         }
+
+         assertEquals(1, appender.list.size(),
+                      "the fallback must report itself exactly once");
+
+         ILoggingEvent event = appender.list.get(0);
+         assertEquals(Level.WARN, event.getLevel(), "the fallback must be reported at WARN");
+
+         String message = event.getFormattedMessage();
+         assertTrue(message.contains("schedule.task.timeout"),
+                    "the warning must name the property so the cause is discoverable: " + message);
+         assertTrue(message.contains("abc"),
+                    "the warning must quote the offending value: " + message);
+      }
+      finally {
+         logger.detachAppender(appender);
+      }
+   }
+
+   @Test
+   void getTaskTimeoutDefaultTracksShippedProperty() {
+      // read the shipped default rather than a literal, so that editing defaults.properties
+      // without editing DEFAULT_TASK_TIMEOUT fails here instead of silently changing the
+      // timeout that applies whenever the property is unreadable
+      String shipped = SreeEnv.getDefaultProperties().getProperty("schedule.task.timeout");
+
+      assertNotNull(shipped, "defaults.properties must ship a schedule.task.timeout value");
+      assertEquals(Long.parseLong(shipped), ScheduleTask.DEFAULT_TASK_TIMEOUT,
+                   "DEFAULT_TASK_TIMEOUT must track schedule.task.timeout in " +
+                   "defaults.properties so the fallback does not silently change the timeout");
+   }
 
    @Test
    void testCheckRetryTime() {
@@ -120,6 +237,14 @@ public class ScheduleTaskTest {
 
    @Test
    void testOtherSetGetMethod() {
+      IdentityID testUser = new IdentityID("testUser", "testOrg");
+      FSUser testFSUser = new FSUser(testUser);
+
+      SecurityProvider securityProvider = mock(SecurityProvider.class);
+      when(securityProvider.getUser(eq(testUser))).thenReturn(testFSUser);
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[] { "host-org", "testOrg" });
+      when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
+
       scheduleTask = createBasicScheduleTask("task1");
 
       scheduleTask.setDeleteIfNoMoreRun(true);
@@ -137,7 +262,6 @@ public class ScheduleTaskTest {
       scheduleTask.setLocale("en_US");
       assertEquals("en_US", scheduleTask.getLocale());
 
-      IdentityID testUser = new IdentityID("testUser", "testOrg");
       scheduleTask.setUser(testUser);
       assertEquals(testUser.getName(), scheduleTask.getUser());
 
@@ -148,6 +272,217 @@ public class ScheduleTaskTest {
       scheduleTask.setOwner(testUser);
       assertEquals("testUser:task1", scheduleTask.toView(true));
       assertEquals("testUser:task1", scheduleTask.toView(true, true));
+   }
+
+   // --- getTaskId ---
+
+   @Test
+   void getTaskId_normalTask_noOwner_returnsName() {
+      ScheduleTask task = new ScheduleTask("my-task");
+      assertEquals("my-task", task.getTaskId());
+   }
+
+   @Test
+   void getTaskId_normalTask_withOwner_returnsOwnerKeyColonName() {
+      ScheduleTask task = new ScheduleTask("my-task");
+      IdentityID owner = new IdentityID("alice", "org1");
+      task.setOwner(owner);
+      assertEquals(owner.convertToKey() + ":my-task", task.getTaskId());
+   }
+
+   @Test
+   void getTaskId_cycleTask_returnsOwnerKeyDoubleUnderscoreName() {
+      IdentityID owner = new IdentityID("alice", "org1");
+      ScheduleTask task = new ScheduleTask("my-task", ScheduleTask.Type.CYCLE_TASK);
+      task.setOwner(owner);
+      assertEquals(owner.convertToKey() + "__my-task", task.getTaskId());
+   }
+
+   @Test
+   void getTaskId_internalTask_returnsName() {
+      ScheduleTask task = new ScheduleTask("internal-task", ScheduleTask.Type.INTERNAL_TASK);
+      assertEquals("internal-task", task.getTaskId());
+   }
+
+   @Test
+   void getTaskId_invalidatedBySetName() {
+      IdentityID owner = new IdentityID("alice", "org1");
+      ScheduleTask task = new ScheduleTask("original");
+      task.setOwner(owner);
+      assertEquals(owner.convertToKey() + ":original", task.getTaskId());
+      task.setName("renamed");
+      assertEquals(owner.convertToKey() + ":renamed", task.getTaskId());
+   }
+
+   // --- check ---
+
+   @Test
+   void check_allConditionsFalse_returnsFalse() {
+      ScheduleTask task = new ScheduleTask("task");
+      TimeCondition c1 = mock(TimeCondition.class);
+      TimeCondition c2 = mock(TimeCondition.class);
+      when(c1.check(anyLong())).thenReturn(false);
+      when(c2.check(anyLong())).thenReturn(false);
+      task.addCondition(c1);
+      task.addCondition(c2);
+      assertFalse(task.check(1000L));
+   }
+
+   @Test
+   void check_allConditionsAlwaysEvaluated_evenAfterFirstTrue() {
+      // The loop does not short-circuit so CompletionConditions get their state reset on every check call.
+      ScheduleTask task = new ScheduleTask("task");
+      TimeCondition c1 = mock(TimeCondition.class);
+      TimeCondition c2 = mock(TimeCondition.class);
+      when(c1.check(anyLong())).thenReturn(true);
+      when(c2.check(anyLong())).thenReturn(false);
+      task.addCondition(c1);
+      task.addCondition(c2);
+      assertTrue(task.check(1000L));
+      verify(c1, times(1)).check(anyLong());
+      verify(c2, times(1)).check(anyLong()); // must be called even though c1 already returned true
+   }
+
+   // --- getRetryTime ---
+
+   @Test
+   void getRetryTime_allConditionsReturnNegative_returnsNegative() {
+      ScheduleTask task = new ScheduleTask("task");
+      TimeCondition cond = mock(TimeCondition.class);
+      when(cond.getRetryTime(anyLong())).thenReturn(-1L);
+      task.addCondition(cond);
+      assertEquals(-1L, task.getRetryTime(1000L));
+   }
+
+   // --- setComplete ---
+
+   @Test
+   void setComplete_whenTaskIsRunning_doesNotUpdateCondition() throws Exception {
+      ScheduleTask task = new ScheduleTask("task");
+      CompletionCondition cc = new CompletionCondition("parent-task");
+      task.addCondition(cc);
+
+      // simulate task in-progress without calling run()
+      Field runningField = ScheduleTask.class.getDeclaredField("running");
+      runningField.setAccessible(true);
+      runningField.setBoolean(task, true);
+
+      task.setComplete("parent-task", true);
+
+      // cc.setComplete(true) was not called because of the early return; check() returns default false
+      assertFalse(cc.check(0L));
+   }
+
+   // --- renameDependency ---
+
+   @Test
+   void renameDependency_existingDependency_isUpdated() {
+      ScheduleTask task = new ScheduleTask("task");
+      task.addCondition(new CompletionCondition("old-parent"));
+
+      task.renameDependency("old-parent", "new-parent");
+
+      Enumeration<String> deps = task.getDependency();
+      assertEquals("new-parent", deps.nextElement());
+      assertFalse(deps.hasMoreElements());
+   }
+
+   @Test
+   void renameDependency_nonExistentName_doesNotChangeDependency() {
+      ScheduleTask task = new ScheduleTask("task");
+      task.addCondition(new CompletionCondition("parent"));
+
+      task.renameDependency("no-such-task", "new-name");
+
+      Enumeration<String> deps = task.getDependency();
+      assertEquals("parent", deps.nextElement());
+      assertFalse(deps.hasMoreElements());
+   }
+
+   // --- addCondition / removeCondition dependency tracking ---
+
+   @Test
+   void addAndRemoveCompletionCondition_dependencyTracking() {
+      ScheduleTask task = new ScheduleTask("task");
+      CompletionCondition cc = new CompletionCondition("parent-task");
+      task.addCondition(cc);
+
+      Enumeration<String> depsAfterAdd = task.getDependency();
+      assertTrue(depsAfterAdd.hasMoreElements());
+      assertEquals("parent-task", depsAfterAdd.nextElement());
+
+      task.removeCondition(0);
+      assertFalse(task.getDependency().hasMoreElements());
+   }
+
+   // --- parseXML(elem, isSiteAdminImport) : org-copy rewrite of CompletionCondition ---
+
+   /*
+    * Bug: after copying an organization, a task's "Run After" completion condition pointing
+    * at a Data Cycle task showed up blank. Root cause: updateConditionTaskPath() located the
+    * owner/task-name split with path.indexOf(":"), but cycle-task ids use "<owner>__<name>"
+    * (ScheduleTask.getTaskId(), Type.CYCLE_TASK branch) and the name itself is
+    * "DataCycle Task: Cycle1", which contains its own colon. The first colon found was the one
+    * inside the task name, so the rewrite dropped "__DataCycle Task" entirely, producing a
+    * taskName that could never match a real task in the new org.
+    */
+   @Test
+   void parseXML_siteAdminImport_cycleTaskCompletionCondition_rewritesOwnerOrgPreservingTaskName()
+      throws Exception
+   {
+      String sourceOrg = "source-org";
+      String targetOrg = "target-org";
+      String cycleTaskId = new IdentityID(XPrincipal.SYSTEM, sourceOrg).convertToKey() +
+         "__" + DataCycleManager.TASK_PREFIX + "Cycle1";
+
+      String xml = "<Task name=\"task1\" owner=\"" +
+         Tool.escape(new IdentityID("admin", sourceOrg).convertToKey()) + "\" enabled=\"true\">" +
+         "<Condition type=\"Completion\" task=\"" + Tool.escape(cycleTaskId) + "\"/>" +
+         "</Task>";
+
+      Element elem = parseTaskXml(xml);
+      ScheduleTask task = new ScheduleTask();
+
+      OrganizationManager.runInOrgScope(targetOrg, () -> {
+         task.parseXML(elem, true);
+         return null;
+      });
+
+      CompletionCondition cc = (CompletionCondition) task.getCondition(0);
+      String expected = new IdentityID(XPrincipal.SYSTEM, targetOrg).convertToKey() +
+         "__" + DataCycleManager.TASK_PREFIX + "Cycle1";
+      assertEquals(expected, cc.getTaskName());
+   }
+
+   @Test
+   void parseXML_siteAdminImport_normalTaskCompletionCondition_rewritesOwnerOrg() throws Exception {
+      String sourceOrg = "source-org";
+      String targetOrg = "target-org";
+      String parentTaskId = new IdentityID("admin", sourceOrg).convertToKey() + ":parent task";
+
+      String xml = "<Task name=\"task1\" owner=\"" +
+         Tool.escape(new IdentityID("admin", sourceOrg).convertToKey()) + "\" enabled=\"true\">" +
+         "<Condition type=\"Completion\" task=\"" + Tool.escape(parentTaskId) + "\"/>" +
+         "</Task>";
+
+      Element elem = parseTaskXml(xml);
+      ScheduleTask task = new ScheduleTask();
+
+      OrganizationManager.runInOrgScope(targetOrg, () -> {
+         task.parseXML(elem, true);
+         return null;
+      });
+
+      CompletionCondition cc = (CompletionCondition) task.getCondition(0);
+      String expected = new IdentityID("admin", targetOrg).convertToKey() + ":parent task";
+      assertEquals(expected, cc.getTaskName());
+   }
+
+   private static Element parseTaskXml(String xml) throws Exception {
+      DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+      return factory.newDocumentBuilder()
+         .parse(new InputSource(new StringReader(xml)))
+         .getDocumentElement();
    }
 
    private ScheduleTask createBasicScheduleTask(String taskName) {

@@ -518,10 +518,10 @@ public class TimeScale extends Scale {
          // sanity check (e.g. max could be really huge and month/year doesn't set a default above)
          maxTicks = Math.min(maxTicks, GDefaults.AXIS_LABEL_MAX_COUNT * 2);
 
-         boolean hasDup = isFormattedToHigherInterval();
+         boolean hasDup = isFormattedToHigherInterval() && !getAxisSpec().isAllTicks();
 
          // make sure the number of ticks is not too large (out of memory)
-         if(!hasDup) {
+         if(!hasDup && !getAxisSpec().isAllTicks()) {
             while((max - min) / (incLen * n) > maxTicks) {
                n++;
             }
@@ -610,7 +610,7 @@ public class TimeScale extends Scale {
 
    @Override
    public boolean isUniformInterval() {
-      return !isFormattedToHigherInterval();
+      return !isFormattedToHigherInterval() || getAxisSpec().isAllTicks();
    }
 
    // check if the format turns data into higher level interval (e.g. day -> yyyy-MM).

@@ -20,11 +20,11 @@ package inetsoft.web.portal.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.sree.RepletRepository;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.*;
 import inetsoft.sree.security.*;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.portal.model.LocaleModel;
 import inetsoft.web.portal.model.LoginBannerModel;
@@ -32,6 +32,7 @@ import inetsoft.web.viewsheet.service.LinkUri;
 import jakarta.servlet.http.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Controller;
@@ -47,6 +48,16 @@ import java.util.*;
 
 @Controller
 public class LoginController {
+   @Autowired
+   public LoginController(SecurityEngine securityEngine,
+                          CustomThemesManager customThemesManager,
+                          PortalThemesManager portalThemesManager)
+   {
+      this.securityEngine = securityEngine;
+      this.customThemesManager = customThemesManager;
+      this.portalThemesManager = portalThemesManager;
+   }
+
    /**
     * Shows the login page.
     *
@@ -61,8 +72,7 @@ public class LoginController {
       ModelAndView model = new ModelAndView("login");
       model.addObject("requestedUrl", requestedUrl);
 
-      PortalThemesManager manager = PortalThemesManager.getManager();
-      CustomThemesManager themes = CustomThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
       String recordedOrgID = getRecordedOrgId(request);
       recordedOrgID = recordedOrgID == null ? Organization.getDefaultOrganizationID() : recordedOrgID;
       PortalWelcomePage welcomePage = manager.getWelcomePage();
@@ -81,9 +91,7 @@ public class LoginController {
       // this page, but the subsequent requests will be unauthenticated, so if the current user has
       // a theme assigned, it will end up trying to load theme-variables.css from the "default"
       // theme, which doesn't exist. To avoid this, just check if the global theme is custom.
-      boolean isCustomTheme = !Tool.isEmptyString(themes.getSelectedTheme()) &&
-                              !"default".equals(themes.getSelectedTheme());
-      model.addObject("customTheme", isCustomTheme);
+      model.addObject("customTheme", isCustomTheme(request));
 
       if(welcomePage != null) {
          LoginBannerModel loginBanner = new LoginBannerModel();
@@ -121,21 +129,18 @@ public class LoginController {
 
       }
 
-      SecurityEngine security = SecurityEngine.getSecurity();
       model.addObject("locales", localeModels);
 
       model.addObject("loginAs", "on".equals(SreeEnv.getProperty("login.loginAs")));
       model.addObject("selfSignUpEnabled",
-                      security.isSecurityEnabled() && security.isSelfSignupEnabled() &&
-                      LicenseManager.getInstance().isEnterprise());
+                      securityEngine.isSecurityEnabled() && securityEngine.isSelfSignupEnabled() &&
+                      LicenseManager.isEnterprise());
       model.addObject("isNotTenantServer", isNotTenantServer(request));
 
-      boolean googleSignInEnabled = SreeEnv.getBooleanProperty("security.googleSignIn.enabled");
-
-      if(googleSignInEnabled) {
-         model.addObject("gClientId", getGoogleClientId());
+      if(GoogleSignInSupport.isEnabled()) {
+         model.addObject("gClientId", GoogleSignInSupport.getClientId());
          model.addObject("gLoginUri", linkUri + "login/googleSSO");
-         model.addObject("gScopes", getGoogleScopes());
+         model.addObject("gScopes", GoogleSignInSupport.getScopes());
 
          try {
             String encodedUrl = requestedUrl == null ? null :
@@ -169,9 +174,42 @@ public class LoginController {
 
    private boolean isNotTenantServer(HttpServletRequest request) {
       String recordedOrgID = getRecordedOrgId(request);
-      String recordedOrgName = recordedOrgID == null ? null : SecurityEngine.getSecurity().getSecurityProvider().getOrgNameFromID(recordedOrgID);
+      String recordedOrgName = recordedOrgID == null ? null : securityEngine.getSecurityProvider().getOrgNameFromID(recordedOrgID);
 
       return recordedOrgName == null  || Tool.equals(recordedOrgName, Organization.getDefaultOrganizationName());
+   }
+
+   /**
+    * Checks whether a custom theme applies to the organization this login page is being served
+    * for, which controls whether theme-variables.css is linked. The request is unauthenticated, so
+    * without pinning the organization named by the request the flag would be resolved against the
+    * default organization instead.
+    *
+    * Resolves the <i>organization</i> under the same conditions GlobalStyleController applies when
+    * it serves the style sheet, so both agree on whose theme is being asked for. They can still
+    * pick different themes within that organization: this only consults the selected-theme pointer
+    * chain (see the Bug #53246 note at the call site), while GlobalStyleController prefers
+    * Organization.theme when it names an existing theme. That predates this method and is why
+    * GlobalStyleController falls back to the "default" theme for an unknown id.
+    */
+   private boolean isCustomTheme(HttpServletRequest request) {
+      String orgID = SUtil.isMultiTenant() ? SUtil.getLoginOrganization(request) : null;
+      boolean pinned = orgID != null && ThreadContext.getContextPrincipal() == null &&
+         OrganizationContextHolder.getCurrentOrgId() == null;
+
+      if(pinned) {
+         OrganizationContextHolder.setCurrentOrgId(orgID);
+      }
+
+      try {
+         String theme = customThemesManager.getSelectedTheme();
+         return !Tool.isEmptyString(theme) && !"default".equals(theme);
+      }
+      finally {
+         if(pinned) {
+            OrganizationContextHolder.clear();
+         }
+      }
    }
 
    private String getRecordedOrgId(HttpServletRequest request) {
@@ -187,15 +225,9 @@ public class LoginController {
       return orgId != null ? orgId : SUtil.getLoginOrganization(request);
    }
 
-   private String getGoogleClientId() {
-      return Tool.getClientSecretRealValue(
-         SreeEnv.getProperty("styleBI.google.openid.client.id"), "client_id");
-   }
-
-   private String getGoogleScopes() {
-      return SreeEnv.getProperty("styleBI.google.openid.scopes", "openid email profile");
-   }
-
+   private final SecurityEngine securityEngine;
+   private final CustomThemesManager customThemesManager;
+   private final PortalThemesManager portalThemesManager;
    private static final String ORG_COOKIE = "X-INETSOFT-ORGID";
    public static final String LOGIN_ONLOAD_ERROR = "LOGIN_ONLOAD_ERROR";
    private static final Logger LOG = LoggerFactory.getLogger(LoginController.class);

@@ -37,6 +37,8 @@ import { FirstDayOfWeekService } from "../../../common/services/first-day-of-wee
 import { ContextProvider } from "../../context-provider.service";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { VSUtil } from "../../util/vs-util";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { NgClass } from "@angular/common";
 
 interface DayInfo {
    year: number;
@@ -47,9 +49,10 @@ interface DayInfo {
 }
 
 @Component({
-   selector: "month-calendar",
-   templateUrl: "month-calendar.component.html",
-   styleUrls: ["vs-calendar.component.scss"]
+    selector: "month-calendar",
+    templateUrl: "month-calendar.component.html",
+    styleUrls: ["vs-calendar.component.scss"],
+    imports: [NgClass, SafeFontDirective]
 })
 export class MonthCalendar implements OnChanges, AfterViewInit {
    @Input() model: VSCalendarModel;
@@ -129,6 +132,7 @@ export class MonthCalendar implements OnChanges, AfterViewInit {
    mobile: boolean = GuiTool.isMobileDevice();
    iconColor: string;
    selectedBgColor: string;
+   calendarHeight: number = 0;
 
    constructor(private changeDetectorRef: ChangeDetectorRef,
                private firstDayOfWeekService: FirstDayOfWeekService,
@@ -181,6 +185,7 @@ export class MonthCalendar implements OnChanges, AfterViewInit {
          this.selectedBgColor = GuiTool.getSelectedColor(this.model.monthFormat.background ?
             this.model.monthFormat.background : this.model.objectFormat.background, "#cdf7f6");
          this.titleChanged.emit(this.secondCalendar);
+         this.calendarHeight = this.getCalendarHeight();
       }
    }
 

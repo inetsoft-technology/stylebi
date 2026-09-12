@@ -1,50 +1,56 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <mat-card appearance="outlined" class="em-card">
   <mat-card-title>_#(Materialized View)</mat-card-title>
   <mat-card-content>
-    <form *ngIf="form" [formGroup]="form">
-      <mat-card class="mat-elevation-z0">
-        <mat-card-content>
-          <h3>_#(General)</h3>
-          <div class="flex-col">
-            <mat-slide-toggle class="mat-checkbox-field" formControlName="onDemand">
-              _#(Enable MV On-demand)
-            </mat-slide-toggle>
-            <mat-slide-toggle class="mat-checkbox-field" *ngIf="model.onDemand" formControlName="onDemandDefault">
-              _#(MV On-demand by Default)
-            </mat-slide-toggle>
-            <mat-form-field appearance="outline" color="accent">
-              <mat-label>_#(Default Cycle for New MV)</mat-label>
-              <mat-select formControlName="defaultCycle" placeholder="_#(Default Cycle for New MV)">
-                <mat-option value="">_#(None)</mat-option>
-                <mat-option *ngFor="let cycle of model?.cycles" [value]="cycle">{{cycle}}</mat-option>
-              </mat-select>
-            </mat-form-field>
-            <mat-checkbox class="mat-checkbox-field" formControlName="metadata">
-              _#(mv.metdata.editing)
-            </mat-checkbox>
-            <mat-checkbox class="mat-checkbox-field" formControlName="required">
-              _#(mv.fail.nonExist)
-            </mat-checkbox>
-          </div>
-        </mat-card-content>
-      </mat-card>
-    </form>
+    @if (form) {
+      <form [formGroup]="form">
+        <mat-card class="mat-elevation-z0">
+          <mat-card-content>
+            <h3>_#(General)</h3>
+            <div class="flex-col">
+              <mat-slide-toggle class="mat-checkbox-field" formControlName="onDemand">
+                _#(Enable MV On-demand)
+              </mat-slide-toggle>
+              @if (model.onDemand) {
+                <mat-slide-toggle class="mat-checkbox-field" formControlName="onDemandDefault">
+                  _#(MV On-demand by Default)
+                </mat-slide-toggle>
+              }
+              <mat-form-field appearance="outline" color="accent">
+                <mat-label>_#(Default Cycle for New MV)</mat-label>
+                <mat-select formControlName="defaultCycle" placeholder="_#(Default Cycle for New MV)">
+                  <mat-option value="">_#(None)</mat-option>
+                  @for (cycle of model?.cycles; track cycle) {
+                    <mat-option [value]="cycle">{{cycle}}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <mat-checkbox class="mat-checkbox-field" formControlName="metadata">
+                _#(mv.metdata.editing)
+              </mat-checkbox>
+              <mat-checkbox class="mat-checkbox-field" formControlName="required">
+                _#(mv.fail.nonExist)
+              </mat-checkbox>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </form>
+    }
   </mat-card-content>
 </mat-card>

@@ -19,10 +19,11 @@ package inetsoft.web.composer.model.vs;
 
 import inetsoft.web.composer.model.TreeNodeModel;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class LocalizationPaneModel {
+public class LocalizationPaneModel implements Serializable {
    public TreeNodeModel getComponents() {
       return components;
    }

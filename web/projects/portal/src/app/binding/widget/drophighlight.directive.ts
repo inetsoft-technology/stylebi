@@ -30,7 +30,8 @@ import {
 import { DragEvent } from "../../common/data/drag-event";
 
 @Directive({
-   selector: "[dropHighlight]"
+    selector: "[dropHighlight]",
+    standalone: true
 })
 export class DropHighlightDirective implements AfterViewInit, OnDestroy {
    @Input() disabled: boolean = false;

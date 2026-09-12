@@ -84,7 +84,7 @@ public final class VSDefaultRecommendationFactory implements VSRecommendationFac
          return new VSRecommendationModel();
       }
 
-      ViewsheetSandbox box = getViewsheetSandbox(principal);
+      Optional<ViewsheetSandbox> box = getViewsheetSandbox(principal);
       VSTemporaryInfo temporaryInfo = getTemporaryInfo(principal);
 
       if(temporaryInfo == null) {
@@ -94,11 +94,11 @@ public final class VSDefaultRecommendationFactory implements VSRecommendationFac
       AssetEntry[] selectedEntries = wizardData.getSelectedEntries();
 
       // don't recommend chart/crosstab when > 9 so no need to get cardinality
-      if(selectedEntries.length <= 9 && !box.isCancelled(ts)) {
-         WizardRecommenderUtil.refreshCardinalityAndHierarchy(box, temporaryInfo, selectedEntries);
+      if(selectedEntries.length <= 9 && box.isPresent() && !box.get().isCancelled(ts)) {
+         WizardRecommenderUtil.refreshCardinalityAndHierarchy(box.get(), temporaryInfo, selectedEntries);
       }
 
-      if(box.isCancelled(ts)) {
+      if(box.isEmpty() || box.get().isCancelled(ts)) {
          return null;
       }
 
@@ -234,7 +234,7 @@ public final class VSDefaultRecommendationFactory implements VSRecommendationFac
       }
    }
 
-   private ViewsheetSandbox getViewsheetSandbox(Principal principal) throws Exception {
+   private Optional<ViewsheetSandbox> getViewsheetSandbox(Principal principal) throws Exception {
       String id = runtimeViewsheetRef.getRuntimeId();
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
       return rvs.getViewsheetSandbox();

@@ -19,7 +19,6 @@ package inetsoft.report.pdf;
 
 import inetsoft.report.PDFPrinter;
 import inetsoft.report.internal.Common;
-import inetsoft.sree.SreeEnv;
 import inetsoft.util.Encoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -355,8 +354,10 @@ public class PDF3Printer extends PDFPrinter {
     */
    void emitStream(int id, byte[] buf, String[][] keys, boolean compress) {
       try {
-         boolean ascii =
-            "true".equals(SreeEnv.getProperty("pdf.output.ascii"));
+         // use the inherited flag rather than re-reading the property: PDF3Generator populates
+         // it from pdf.output.ascii, and setAsciiOnly() is part of the PDFDevice contract, so a
+         // caller that sets it directly must not get binary text with ascii-encoded streams.
+         boolean ascii = isAsciiOnly();
 
          byte[] coded = buf;
 

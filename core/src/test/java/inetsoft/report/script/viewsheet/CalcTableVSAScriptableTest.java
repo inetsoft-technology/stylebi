@@ -19,11 +19,17 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 
@@ -32,6 +38,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class CalcTableVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private CalcTableVSAScriptable calcTableVSAScriptable;
@@ -65,9 +76,9 @@ public class CalcTableVSAScriptableTest {
    void testAddProperties() {
       calcTableVSAScriptable.addProperties();
 
-      assert calcTableVSAScriptable.get("layoutInfo") instanceof VSTableLayoutInfo;
-      assert calcTableVSAScriptable.get("fillBlankWithZero") instanceof Boolean;
-      assert calcTableVSAScriptable.get("sortOthersLast") instanceof Boolean;
+      assert calcTableVSAScriptable.getMember("layoutInfo") instanceof VSTableLayoutInfo;
+      assert calcTableVSAScriptable.getMember("fillBlankWithZero") instanceof Boolean;
+      assert calcTableVSAScriptable.getMember("sortOthersLast") instanceof Boolean;
    }
 
    @Test

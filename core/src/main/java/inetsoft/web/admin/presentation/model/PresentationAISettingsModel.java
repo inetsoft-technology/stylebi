@@ -35,6 +35,15 @@ public interface PresentationAISettingsModel {
    @Nullable
    String chatAppInternalUrl();
 
+   @Nullable
+   String chatAppTitle();
+
+   @Nullable
+   String chatAppVendorName();
+
+   @Nullable
+   String chatAppLogoUrl();
+
    static PresentationAISettingsModel.Builder builder() {
       return new PresentationAISettingsModel.Builder();
    }

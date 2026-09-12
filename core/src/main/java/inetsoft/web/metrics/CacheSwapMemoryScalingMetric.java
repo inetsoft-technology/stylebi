@@ -21,12 +21,15 @@ package inetsoft.web.metrics;
 import inetsoft.util.swap.XSwapper;
 
 public class CacheSwapMemoryScalingMetric extends ScalingMetric {
-   public CacheSwapMemoryScalingMetric(boolean movingAverage, int capacity) {
+   public CacheSwapMemoryScalingMetric(boolean movingAverage, int capacity, XSwapper swapper) {
       super(movingAverage, capacity);
+      this.swapper = swapper;
    }
 
    @Override
    protected double calculate() {
-      return Math.clamp((4D - XSwapper.getMemoryState()) / 4D, 0D, 1D);
+      return Math.clamp((4D - swapper.getMemoryState()) / 4D, 0D, 1D);
    }
+
+   private final XSwapper swapper;
 }

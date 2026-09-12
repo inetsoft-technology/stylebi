@@ -18,10 +18,7 @@
 package inetsoft.web.admin.security;
 
 import inetsoft.report.internal.Util;
-import inetsoft.sree.security.AuthorizationChain;
-import inetsoft.sree.security.AuthorizationProvider;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.*;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;

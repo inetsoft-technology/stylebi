@@ -22,10 +22,32 @@ import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-p
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
 import { PropertyDialog } from "./property-dialog.component";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { VSAssemblyScriptPane } from "../../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.component";
+import { OvalPropertyPane } from "./oval-property-pane.component";
+import { ShapeGeneralPane } from "./shape-general-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "oval-property-dialog",
-   templateUrl: "oval-property-dialog.component.html",
+    selector: "oval-property-dialog",
+    templateUrl: "oval-property-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    ShapeGeneralPane,
+    OvalPropertyPane,
+    VSAssemblyScriptPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class OvalPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: OvalPropertyDialogModel;

@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.ws.event;
 
-public class WSJoinTablePairEvent {
+import java.io.Serializable;
+
+public class WSJoinTablePairEvent implements Serializable {
    public String getLeftTable() {
       return leftTable;
    }

@@ -20,7 +20,7 @@ package inetsoft.report.script.formula;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.JavaScriptEngine;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,7 +37,7 @@ public class TableRangeProcessor extends RangeProcessor {
    /**
     * Create a processor for a table.
     */
-   public TableRangeProcessor(XTable table, Scriptable scope) {
+   public TableRangeProcessor(XTable table, ScriptScope scope) {
       super(table, scope);
    }
 

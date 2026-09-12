@@ -26,6 +26,10 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class OpenIDConfig implements OpenIDSSOConfig {
+   public OpenIDConfig(PasswordEncryption passwordEncryption) {
+      this.passwordEncryption = passwordEncryption;
+   }
+
    @PostConstruct
    public void convertLegacyAuth0Properties() {
       if("Auth0".equals(SreeEnv.getProperty("sso.protocol.type"))) {
@@ -97,7 +101,7 @@ public class OpenIDConfig implements OpenIDSSOConfig {
 
    public void setClientSecret(String clientSecret) {
       SreeEnv.setProperty("openid.client.secret",
-                          PasswordEncryption.newInstance().encryptPassword(clientSecret));
+                          this.passwordEncryption.encryptPassword(clientSecret));
    }
 
    public String getScopes() {
@@ -211,4 +215,6 @@ public class OpenIDConfig implements OpenIDSSOConfig {
    public void setOpenIDPostprocessor(String postprocessor) {
       SreeEnv.setProperty("openid.postprocessor", postprocessor);
    }
+
+   private final PasswordEncryption passwordEncryption;
 }

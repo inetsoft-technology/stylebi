@@ -42,7 +42,7 @@ import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -266,6 +266,9 @@ public abstract class VSAQuery {
 
       List<ConditionListWrapper> conds = new ArrayList<>();
       AggregateInfo ainfo = table.getAggregateInfo();
+      // capture before mirror creation — the mirror may have an empty AggregateInfo
+      // even when the underlying table is aggregated, causing isAggregate() to return false
+      boolean originalAggregated = ainfo != null && ainfo.isAggregated();
 
       if(ainfo != null && !ainfo.isEmpty()) {
          ColumnSelection columns = new ColumnSelection();
@@ -311,6 +314,10 @@ public abstract class VSAQuery {
       Worksheet ws = table.getWorksheet();
 
       if(ws != null) {
+         // Register the configured table (which may have chart's AggregateInfo set by
+         // createTableAssembly) so that MirrorTableAssembly.update() finds this version
+         // rather than the original unmodified VS table from the WorksheetWrapper. (75263)
+         ws.addAssembly(table);
          String mname = table.getName() + "_mirror";
          MirrorTableAssembly mirror = new MirrorTableAssembly(ws, mname, table);
          ws.addAssembly(mirror); // need to add to ws for MV transformation. (54096)
@@ -367,7 +374,7 @@ public abstract class VSAQuery {
          }
       }
 
-      if(table.isAggregate() || hasCubeMeasure) {
+      if(table.isAggregate() || originalAggregated || hasCubeMeasure) {
          ConditionListWrapper c = table.getPostRuntimeConditionList();
 
          if(c != null && !c.isEmpty()) {
@@ -1051,9 +1058,7 @@ public abstract class VSAQuery {
       }
 
       try {
-         TableLens lens = AssetDataCache.getData(
-            box.getID(), table, wbox, ignored, mode,
-            limited, box.getTouchTimestamp(), qmgr);
+         TableLens lens = getDataWithoutSandboxLock(table, wbox, ignored, mode, limited, qmgr);
 
          List<Exception> exs = WorksheetService.ASSET_EXCEPTIONS.get();
 
@@ -1061,8 +1066,7 @@ public abstract class VSAQuery {
             tryIgnoring)
          {
             wbox.setIgnoreFiltering(true);
-            lens = AssetDataCache.getData(box.getID(), table, wbox, null, mode,
-                                          true, box.getTouchTimestamp(), qmgr);
+            lens = getDataWithoutSandboxLock(table, wbox, null, mode, true, qmgr);
             exs = WorksheetService.ASSET_EXCEPTIONS.get();
 
             if(exs != null) {
@@ -1092,6 +1096,48 @@ public abstract class VSAQuery {
       }
       finally {
          XUtil.VS_ASSEMBLY.set(null);
+      }
+   }
+
+   /**
+    * Fetch data from the asset data cache without holding a sandbox lock.
+    *
+    * <p>AssetDataCache.getData() blocks until the query has fully executed (it joins the
+    * processor thread) and, while computing the cache key, may fault swapped-out data back
+    * into memory by way of XSwapper.waitForMemory(), which can wait for as long as the
+    * memory state stays critical. Holding a sandbox read lock across that blocks every
+    * thread waiting for the write lock and -- because the sandbox lock is non-fair -- every
+    * reader queued behind those writers, which wedges the entire viewsheet and leaves the
+    * chart loading forever.
+    *
+    * <p>ViewsheetSandbox.doExecuteData() already releases all locks before calling
+    * query.getData() for exactly this reason (74001), but the VSAQuery subclasses re-acquire
+    * a read lock inside the fetch (ChartVSAQuery/TableVSAQuery/CrosstabVSAQuery
+    * getTableLens()), which defeats it. Releasing here restores that invariant regardless of
+    * which path reached the cache. The assembly mutations happen before this call and the
+    * fetch itself does not mutate assembly state, so it is safe to release.
+    *
+    * <p><b>Callers must not hold any object monitor that a sandbox-lock holder can need.</b>
+    * restoreLocks() blocks re-acquiring the sandbox lock, so holding such a monitor across
+    * this call inverts the lock order every write path uses -- the write path takes the
+    * sandbox lock first and the assembly info monitor second -- and deadlocks the whole
+    * viewsheet. That is what AbstractCrosstabVSAQuery.getTableLens0() did with the
+    * VSCrosstabInfo monitor until 76549. The same caution applies to any nested fetch that
+    * reaches ViewsheetSandbox.doExecuteData(), which releases the locks the same way.
+    */
+   private TableLens getDataWithoutSandboxLock(TableAssembly table, AssetQuerySandbox wbox,
+                                               Set ignored, int mode, boolean limited,
+                                               QueryManager qmgr)
+      throws Exception
+   {
+      box.unlockAll();
+
+      try {
+         return AssetDataCache.getCache().getData(
+            box.getID(), table, wbox, ignored, mode, limited, box.getTouchTimestamp(), qmgr);
+      }
+      finally {
+         box.restoreLocks();
       }
    }
 
@@ -1319,7 +1365,7 @@ public abstract class VSAQuery {
       AssetQuerySandbox box = vbox.getAssetQuerySandbox();
       Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
       ScriptEnv senv = box.getScriptEnv();
-      Scriptable scope = null;
+      ScriptScope scope = null;
 
       try {
          val = senv.exec(senv.compile(exp), scope = box.getScope(), null, vs);
@@ -1363,6 +1409,12 @@ public abstract class VSAQuery {
    public static void appendCalcField(TableAssembly table, String tname,
                                       boolean detail, Viewsheet vs)
    {
+      appendCalcFieldWithType(table, tname, detail, false, vs);
+   }
+
+   protected static void appendCalcFieldWithType(TableAssembly table, String tname,
+                                                 boolean detail, boolean rangeOnly, Viewsheet vs)
+   {
       if(table == null) {
          return;
       }
@@ -1381,14 +1433,18 @@ public abstract class VSAQuery {
                continue;
             }
 
-            if(!calcs[i].isBaseOnDetail()) {
-               // clear the mirror table aggregate entity.calc_field,
-               // only keep the calc_field
-               DataRef old = columns.getAttribute(calcs[i].getName());
+            // Only append Range@ calc fields in the cube path to avoid double-appending
+            // detail calc fields that are already merged via SQL (Bug #73963 / Bug #73410).
+            if(rangeOnly && !calcs[i].getName().startsWith("Range@")) {
+               continue;
+            }
 
-               if(old != null) {
-                  columns.removeAttribute(old);
-               }
+            // clear the mirror table entity-prefixed calc_field
+            // to avoid duplicates when adding the bare calc_field
+            DataRef old = columns.getAttribute(calcs[i].getName());
+
+            if(old != null) {
+               columns.removeAttribute(old);
             }
 
             calcs[i].setVisible(true);
@@ -1396,7 +1452,11 @@ public abstract class VSAQuery {
             changed = true;
          }
 
-         changed = VSUtil.addCalcBaseRefs(columns, null, Arrays.asList(calcs)) || changed;
+         List<CalculateRef> calcsToProcess = rangeOnly
+            ? Arrays.stream(calcs).filter(c -> c.getName().startsWith("Range@"))
+               .collect(Collectors.toList())
+            : Arrays.asList(calcs);
+         changed = VSUtil.addCalcBaseRefs(columns, null, calcsToProcess) || changed;
 
          if(changed) {
             table.resetColumnSelection();
@@ -1494,9 +1554,16 @@ public abstract class VSAQuery {
          if(ref instanceof CalculateRef && ((CalculateRef) ref).isBaseOnDetail()) {
             CalculateRef calc = (CalculateRef) ref;
 
-            if(!usedInSelection(pubcols, calc) && !usedInGroup(ainfo, calc) &&
-               !usedInAggregate(ainfo, calc) && !allCols.contains(ref.getName()) &&
-               !usedInSelection(child.getName(), calc))
+            boolean inSelection = usedInSelection(pubcols, calc);
+            boolean inGroup = usedInGroup(ainfo, calc);
+            boolean inAggregate = usedInAggregate(ainfo, calc);
+            boolean inAllCols = allCols.contains(ref.getName());
+            boolean inSelectionAssembly = usedInSelection(child.getName(), calc);
+            // Bug #73729: preserve calc fields for crosstab dimensions
+            boolean inCrosstabDim = usedInCrosstabDimension(calc);
+
+            if(!inSelection && !inGroup && !inAggregate && !inAllCols &&
+               !inSelectionAssembly && !inCrosstabDim)
             {
                pubcols.getAttribute(ref.getName());
                childPriv.removeAttribute(i);
@@ -1570,6 +1637,19 @@ public abstract class VSAQuery {
 
          return false;
       });
+   }
+
+   /**
+    * Bug #73729: Check if calc field should be preserved for crosstab dimension use.
+    *
+    * For crosstab assemblies, keep all detail calc fields in the column selection.
+    * This ensures they are available when used as row/column dimensions. The
+    * pushDownAggregate() method in AbstractCrosstabVSAQuery needs to find these
+    * CalculateRef instances to properly include calc field formulas in the query.
+    */
+   private boolean usedInCrosstabDimension(CalculateRef calc) {
+      VSAssembly assembly = getAssembly();
+      return assembly instanceof CrosstabDataVSAssembly;
    }
 
    /**

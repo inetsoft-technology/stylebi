@@ -16,18 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { of as observableOf } from "rxjs";
+import { InteractService } from "../../../widget/interact/interact.service";
 import { VsWizardObjectComponent } from "./vs-wizard-object.component";
 
 describe("VsWizardObjectComponent", () => {
   let component: VsWizardObjectComponent;
   let fixture: ComponentFixture<VsWizardObjectComponent>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [
+      imports: [
          VsWizardObjectComponent
+      ],
+      providers: [
+        { provide: InteractService, useValue: { addInteractable: vi.fn(), removeInteractable: vi.fn(), notify: vi.fn() } }
       ],
       schemas: [
          NO_ERRORS_SCHEMA
@@ -40,7 +44,7 @@ describe("VsWizardObjectComponent", () => {
     component = fixture.componentInstance;
     component.viewsheet = <any> {
       focusedAssemblies: observableOf([]),
-      isAssemblyFocused: jest.fn(() => false)
+      isAssemblyFocused: vi.fn(() => false)
     };
     component.vsObject = <any> {
       objectType: "",

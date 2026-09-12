@@ -22,8 +22,6 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CurrentSelectionVSAssemblyInfo;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 
 import java.awt.*;
 
@@ -75,12 +73,12 @@ public class SelectionContainerVSAScriptable extends VSAScriptable {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       if(!(getVSAssemblyInfo() instanceof CurrentSelectionVSAssemblyInfo)) {
-         return Undefined.instance;
+         return null;
       }
 
-      return super.get(name, start);
+      return super.getMember(name);
    }
    /**
     * Get the assembly info of CurrentSelection.

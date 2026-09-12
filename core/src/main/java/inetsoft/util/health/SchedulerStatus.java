@@ -71,10 +71,10 @@ public class SchedulerStatus implements Serializable {
    }
 
    public boolean isHealthy() {
-      boolean healthy = started && !shutdown && !standby;
+      boolean healthy = (started || standby) && !shutdown;
 
       if(healthy) {
-         if(lastCheck >= 0 &&
+         if(lastCheck > 0 &&
             Instant.now().isAfter(Instant.ofEpochMilli(lastCheck).plusSeconds(120)))
          {
             // if there are free threads and the health check job has not run, there's a problem

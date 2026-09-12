@@ -69,7 +69,7 @@ public class XQueryWrapper implements XMLSerializable {
       String type = Tool.getAttribute(elem, "type");
       String dxname = Tool.getAttribute(elem, "datasource");
       XDataSource datasource = null;
-      String cls = Config.getQueryClass(type);
+      String cls = Config.getConfig().getQueryClass(type);
 
       if(cls == null) {
          LOG.warn("Query type not defined: " + type + ", " + name + ", " + dxname);
@@ -102,7 +102,7 @@ public class XQueryWrapper implements XMLSerializable {
             queryNode = list2.item(0);
          }
 
-         Class<?> dxClass = Config.getClass(type, cls);
+         Class<?> dxClass = Config.getConfig().getClass(type, cls);
          XQuery dx = (XQuery) dxClass.getConstructor().newInstance();
 
          dx.setName(name);

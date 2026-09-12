@@ -15,11 +15,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { platformBrowserDynamic } from "@angular/platform-browser-dynamic";
-import { AppElementsModule } from "./app/embed/app-elements.module";
-import "./main-base-element.ts";
+import { createApplication } from "@angular/platform-browser";
+import { createCustomElement } from "@angular/elements";
+import { provideRouter } from "@angular/router";
+import { EmbedChartComponent } from "./app/embed/chart/embed-chart.component";
+import { embedElementConfig } from "./app/embed/embed-element.config";
+import { EMBED_CHART_ROUTE_PROVIDERS } from "./app/embed/chart/embed-chart.route-providers";
+import "./main-base-element";
 
-platformBrowserDynamic().bootstrapModule(AppElementsModule);
+createApplication({
+   providers: [
+      ...embedElementConfig.providers,
+      // EmbedChartComponent is instantiated by createCustomElement() below from app.injector, so
+      // no route is ever activated in this bundle and route-level providers (which live in the
+      // EnvironmentInjector that route activation creates) would never exist -- every non-root
+      // service the chart tree injects then fails with NG0201. EMBED_CHART_ROUTE_PROVIDERS must
+      // therefore be registered at the application root here, exactly as main-viewer-element.ts
+      // does for <inetsoft-viewer>. provideRouter([]) is still needed for the Router/ActivatedRoute
+      // that EmbedChartComponent injects.
+      provideRouter([]),
+      ...EMBED_CHART_ROUTE_PROVIDERS
+   ]
+}).then(app => {
+   const embedChart = createCustomElement(EmbedChartComponent, {injector: app.injector});
+   customElements.define("inetsoft-chart", embedChart);
+}).catch(err => console.error(err));
 
 /**
  * Check if inetsoft is connected on app load in case there is no need to log in such as when

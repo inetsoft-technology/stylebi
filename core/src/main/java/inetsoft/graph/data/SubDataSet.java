@@ -394,9 +394,9 @@ public class SubDataSet extends AbstractDataSetFilter {
       return super.toString();
    }
 
-   private transient XIntFragment mapping2; // row -> base row
-   private transient int[] mapping;
-   private transient boolean inited = false;
+   private XIntFragment mapping2; // row -> base row
+   private int[] mapping;
+   private boolean inited = false;
    private Map<String, Object> conds;
    private final AtomicBoolean disposed = new AtomicBoolean();
    private boolean identical;

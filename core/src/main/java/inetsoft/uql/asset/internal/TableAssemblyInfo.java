@@ -93,9 +93,15 @@ public class TableAssemblyInfo extends WSAssemblyInfo {
     * @return the public column selection of the table assembly.
     */
    public ColumnSelection getPublicColumnSelection() {
-      // is a null selection?
+      // The "null" property is set to "false" once a public selection has been generated
+      // (see AbstractTableAssembly.setColumnSelection). nflag is true when that has not
+      // happened yet — e.g. for a crosstab, whose public selection is intentionally left
+      // empty because its output columns are pivoted at runtime.
       boolean nflag = !"false".equals(oselection.getProperty("null"));
 
+      // Fallback: when no public selection was generated, derive one from the visible
+      // private (input) columns so callers (e.g. the subquery condition dialog) get a
+      // usable column list instead of an empty one.
       if(oselection.getAttributeCount() == 0 && nflag) {
          oselection = iselection.clone();
 

@@ -52,7 +52,7 @@ export class SecurityActionService {
       const params = new HttpParams().set("isGrant", isGrant + "");
       return this.http.get<ResourcePermissionModel>(uri, { params }).pipe(
          catchError(error => {
-            const orgInvalid = error.error.type === "InvalidOrgException";
+            const orgInvalid = error.error?.type === "InvalidOrgException";
             const errContent: string = orgInvalid ? error.error.message :
                                        "_#(js:em.security.orgAdmin.identityPermissionDenied)";
 
@@ -77,7 +77,7 @@ export class SecurityActionService {
       return this.http.post<ResourcePermissionModel>(uri, permissions, {params})
          .pipe(
             catchError(error => {
-               const orgInvalid = error.error.type === "InvalidOrgException";
+               const orgInvalid = error.error?.type === "InvalidOrgException";
 
                const errContent: string = orgInvalid ? error.error.message :
                                           "_#(js:em.security.orgAdmin.identityPermissionDenied)";

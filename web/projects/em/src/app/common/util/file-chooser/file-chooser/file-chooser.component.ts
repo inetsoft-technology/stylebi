@@ -32,41 +32,32 @@ import {
    Self,
    ViewChild
 } from "@angular/core";
-import { ControlValueAccessor, FormGroupDirective, NgControl, NgForm } from "@angular/forms";
-import { ErrorStateMatcher, mixinDisabled, mixinDisableRipple, mixinErrorState, mixinTabIndex } from "@angular/material/core";
+import { ControlValueAccessor, FormGroupDirective, NgControl, NgForm, FormsModule } from "@angular/forms";
+import { ErrorStateMatcher, _ErrorStateTracker } from "@angular/material/core";
 import { MatFormFieldControl } from "@angular/material/form-field";
 import { Subject } from "rxjs";
 import { FileData } from "../../../../../../../shared/util/model/file-data";
 import { Tool } from "../../../../../../../shared/util/tool";
+import { MatInput } from "@angular/material/input";
 
-export class FileChooserBase {
-   stateChanges = new Subject<void>();
-
-   constructor(public _elementRef: ElementRef,
-               public _defaultErrorStateMatcher: ErrorStateMatcher,
-               public _parentForm: NgForm,
-               public _parentFormGroup: FormGroupDirective,
-               public ngControl: NgControl) {}
-}
-
-export const _FileChooserMixinBase = mixinDisableRipple(
-   mixinTabIndex(mixinDisabled(mixinErrorState(FileChooserBase))));
 
 @Component({
-   selector: "em-file-chooser",
-   templateUrl: "./file-chooser.component.html",
-   styleUrls: ["./file-chooser.component.scss"],
-   providers: [
-      { provide: MatFormFieldControl, useExisting: FileChooserComponent }
-   ],
+    selector: "em-file-chooser",
+    templateUrl: "./file-chooser.component.html",
+    styleUrls: ["./file-chooser.component.scss"],
+    providers: [
+        { provide: MatFormFieldControl, useExisting: FileChooserComponent }
+    ],
+    imports: [
+    MatInput,
+    FormsModule
+]
 })
 export class FileChooserComponent
-   extends _FileChooserMixinBase
    implements OnInit, OnDestroy, DoCheck, AfterViewInit, MatFormFieldControl<FileData[]>, ControlValueAccessor
 {
    @Input() accept: string;
    @Input() hidden = false;
-   @Input() errorStateMatcher: ErrorStateMatcher;
    @Output() valueChange = new EventEmitter<FileData[]>();
    @HostBinding() id = `em-file-chooser-${FileChooserComponent.nextId++}`;
    @HostBinding("attr.aria-describedby") describedBy = "";
@@ -141,6 +132,22 @@ export class FileChooserComponent
    stateChanges = new Subject<void>();
    focused = false;
    controlType = "em-file-chooser";
+   tabIndex: number = 0;
+   disableRipple: boolean = false;
+   @Input()
+   get errorStateMatcher(): ErrorStateMatcher {
+      return this._errorStateTracker.matcher;
+   }
+   set errorStateMatcher(value: ErrorStateMatcher) {
+      this._errorStateTracker.matcher = value;
+   }
+   get errorState(): boolean {
+      return this._errorStateTracker.errorState;
+   }
+   set errorState(value: boolean) {
+      this._errorStateTracker.errorState = value;
+   }
+   private _errorStateTracker: _ErrorStateTracker;
    private _placeholder: string;
    private _required = false;
    private _disabled = false;
@@ -156,7 +163,8 @@ export class FileChooserComponent
                @Optional() parentForm: NgForm, @Optional() parentFormGroup: FormGroupDirective,
                private renderer: Renderer2)
    {
-      super(element, defaultErrorStateMatcher, parentForm, parentFormGroup, ngControl);
+      this._errorStateTracker = new _ErrorStateTracker(
+         defaultErrorStateMatcher, ngControl, parentFormGroup, parentForm, this.stateChanges);
       focusMonitor.monitor(element.nativeElement, true).subscribe((origin) => {
          const oldFocused = this.focused;
          this.focused = !!origin;
@@ -186,8 +194,12 @@ export class FileChooserComponent
 
    ngDoCheck(): void {
       if(this.ngControl) {
-         this.updateErrorState();
+         this._errorStateTracker.updateErrorState();
       }
+   }
+
+   updateErrorState(): void {
+      this._errorStateTracker.updateErrorState();
    }
 
    writeValue(obj: any): void {

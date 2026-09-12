@@ -20,11 +20,18 @@ package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.lens.DefaultTableLens;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.*;
-
+import inetsoft.test.*;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
 import java.awt.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -32,6 +39,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class CrosstabVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private CrosstabVSAScriptable crosstabVSAScriptable;
@@ -63,28 +75,28 @@ public class CrosstabVSAScriptableTest {
    @Test
    void testSetProperties() throws Exception {
       crosstabVSAScriptable.setProperty("fillBlankWithZero", true);
-      assertEquals(true, crosstabVSAScriptable.get("fillBlankWithZero", null));
+      assertEquals(true, crosstabVSAScriptable.getMember("fillBlankWithZero"));
 
       crosstabVSAScriptable.setProperty("summarySideBySide", false);
-      assertEquals(false, crosstabVSAScriptable.get("summarySideBySide", null));
+      assertEquals(false, crosstabVSAScriptable.getMember("summarySideBySide"));
 
       crosstabVSAScriptable.setProperty("drillEnabled", true);
-      assertEquals(true, crosstabVSAScriptable.get("drillEnabled", null));
+      assertEquals(true, crosstabVSAScriptable.getMember("drillEnabled"));
 
       crosstabVSAScriptable.setProperty("mergeSpan", true);
-      assertEquals(true, crosstabVSAScriptable.get("mergeSpan", null));
+      assertEquals(true, crosstabVSAScriptable.getMember("mergeSpan"));
 
       crosstabVSAScriptable.setProperty("sortOthersLast", true);
-      assertEquals(true, crosstabVSAScriptable.get("sortOthersLast", null));
+      assertEquals(true, crosstabVSAScriptable.getMember("sortOthersLast"));
 
       crosstabVSAScriptable.setProperty("computeTrendAndComparisonForTotals", false);
-      assertEquals(false, crosstabVSAScriptable.get("computeTrendAndComparisonForTotals", null));
+      assertEquals(false, crosstabVSAScriptable.getMember("computeTrendAndComparisonForTotals"));
 
       crosstabVSAScriptable.setProperty("dateComparisonEnabled", true);
-      assertEquals(true, crosstabVSAScriptable.get("dateComparisonEnabled", null));
+      assertEquals(true, crosstabVSAScriptable.getMember("dateComparisonEnabled"));
 
       crosstabVSAScriptable.setQuery("query1");
-      assertEquals("query1", crosstabVSAScriptable.get("query", null));
+      assertEquals("query1", crosstabVSAScriptable.getMember("query"));
 
       crosstabVSAScriptable.addProperties();
    }

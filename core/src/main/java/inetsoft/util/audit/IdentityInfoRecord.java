@@ -281,6 +281,22 @@ public class IdentityInfoRecord implements AuditRecord {
       this.organizationId = organizationId;
    }
 
+   @Override
+   public String toString() {
+      return "IdentityInfoRecord{" +
+         "identityName='" + identityName + '\'' +
+         ", identityOrganization='" + identityOrganization + '\'' +
+         ", identityOrganizationName='" + identityOrganizationName + '\'' +
+         ", identityType='" + identityType + '\'' +
+         ", actionType='" + actionType + '\'' +
+         ", actionTimestamp=" + actionTimestamp +
+         ", actionDesc='" + actionDesc + '\'' +
+         ", identityState='" + identityState + '\'' +
+         ", serverHostName='" + serverHostName + '\'' +
+         ", organizationId='" + organizationId + '\'' +
+         '}';
+   }
+
    private String identityName;
    private String identityOrganization;
    private String identityOrganizationName;

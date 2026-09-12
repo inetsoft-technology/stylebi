@@ -54,7 +54,7 @@ public class LMBoundQuery extends BoundQuery {
       this.table = table;
       Principal user = box.getUser();
       SourceInfo source = table.getSourceInfo();
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       this.model = repository.getDataModel(source.getPrefix());
 
       if(this.model == null) {

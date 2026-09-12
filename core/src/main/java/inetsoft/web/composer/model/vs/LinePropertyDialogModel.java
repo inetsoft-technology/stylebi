@@ -19,12 +19,14 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link LinePropertyDialogModel} for the
  * line property dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class LinePropertyDialogModel {
+public class LinePropertyDialogModel implements Serializable {
    public ShapeGeneralPaneModel getShapeGeneralPaneModel() {
       if(shapeGeneralPaneModel == null) {
          shapeGeneralPaneModel = new ShapeGeneralPaneModel();

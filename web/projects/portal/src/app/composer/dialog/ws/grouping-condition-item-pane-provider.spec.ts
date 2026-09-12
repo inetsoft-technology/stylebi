@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ConditionOperation } from "../../../common/data/condition/condition-operation";
 import { ConditionValueType } from "../../../common/data/condition/condition-value-type";
 import { TestUtils } from "../../../common/test/test-utils";
@@ -25,7 +26,7 @@ describe("grouping condition dialog component unit case", () => {
    let groupConItemProvider: GroupingConditionItemPaneProvider;
 
    beforeEach(() => {
-      modelService = { open: jest.fn() };
+      modelService = { open: vi.fn() };
       groupConItemProvider = new GroupingConditionItemPaneProvider(modelService, "grouping-0");
 
    });

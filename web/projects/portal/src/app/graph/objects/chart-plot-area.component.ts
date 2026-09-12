@@ -36,7 +36,7 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../common/util/component-tool";
 import { GuiTool } from "../../common/util/gui-tool";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
-import { SelectionBoxEvent } from "../../widget/directive/selection-box.directive";
+import { SelectionBoxEvent, SelectionBoxDirective } from "../../widget/directive/selection-box.directive";
 import { DebounceService } from "../../widget/services/debounce.service";
 import { ModelService } from "../../widget/services/model.service";
 import { ScaleService } from "../../widget/services/scale/scale-service";
@@ -51,16 +51,20 @@ import { TooltipInfo } from "../model/tooltip-info";
 import { ChartService } from "../services/chart.service";
 import { ChartObjectAreaBase } from "./chart-object-area-base";
 import { Point } from "../../common/data/point";
+import { ChartImageDirective } from "./chart-image.directive";
+import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive";
+
 
 @Component({
-   selector: "chart-plot-area",
-   templateUrl: "chart-plot-area.component.html",
-   styleUrls: ["chart-plot-area.component.scss"],
-   providers: [{
-      provide: ChartObjectAreaBase,
-      useExisting: ChartPlotArea
-   }],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "chart-plot-area",
+    templateUrl: "chart-plot-area.component.html",
+    styleUrls: ["chart-plot-area.component.scss"],
+    providers: [{
+            provide: ChartObjectAreaBase,
+            useExisting: ChartPlotArea
+        }],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [SelectionBoxDirective, OutOfZoneDirective, ChartImageDirective]
 })
 export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChanges {
    @Input() dataTip: string;
@@ -125,6 +129,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    panX: number = 0;
    panY: number = 0;
    hideTile: boolean = false;
+   destroyed: boolean = false;
 
    private readonly debounceKey: string = "chart_dataTipEvent";
 
@@ -163,7 +168,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    }
 
    protected cleanup(): void {
-      // no-op
+      this.destroyed = true;
    }
 
    private emitFlyover(chartSelection: ChartSelection): void {
@@ -608,18 +613,26 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
             this.fireOnLoad();
          }
 
-         if(!status) {
+         if(!status && !this.destroyed) {
             // if loading image failed, try the url with regular http.get to get the
             // error message. (44119)
             const uri = this.getSrc(this.chartObject.tiles[0], this.container);
             this.http.get(uri + "", { responseType: "text" }).subscribe(
                data => {},
                err => {
+                  if(this.destroyed) {
+                     return;
+                  }
+
                   if(this.contextProvider.embed) {
                      console.error(err);
                   }
                   else {
-                     ComponentTool.showHttpError("_#(js:Error)", err, this.modal);
+                     this.debounceService.debounce("chart-plot-error-" + uri, () => {
+                        if(!this.destroyed) {
+                           ComponentTool.showHttpError("_#(js:Error)", err, this.modal);
+                        }
+                     }, 1000);
                   }
                }
             );

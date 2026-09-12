@@ -16,9 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { Subscription } from "rxjs";
+
+import { EnterSubmitDirective } from "../../../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
 
 export interface TableCellResizeDialogResult {
    width: number;
@@ -26,9 +29,10 @@ export interface TableCellResizeDialogResult {
 }
 
 @Component({
-   selector: "table-cell-resize-dialog",
-   templateUrl: "./table-cell-resize-dialog.component.html",
-   styleUrls: ["./table-cell-resize-dialog.component.scss"]
+    selector: "table-cell-resize-dialog",
+    templateUrl: "./table-cell-resize-dialog.component.html",
+    styleUrls: ["./table-cell-resize-dialog.component.scss"],
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 export class TableCellResizeDialogComponent implements OnInit {
    @Input() width: number;

@@ -88,6 +88,15 @@ public final class RecycleUtils {
                                                        Principal principal, RecycleBin recycleBin)
       throws Exception
    {
+      // A "My Reports" folder entry can arrive with an owner set but a path that is not
+      // prefixed with the My Reports folder. Without the prefix, the scope/registry
+      // resolution below would incorrectly target the global repository and delete a
+      // same-named root folder. Normalize using the authoritative owner so the operation
+      // stays within the owning user's repository.
+      if(path != null && owner != null && !SUtil.isMyReport(path)) {
+         path = Tool.MY_DASHBOARD + "/" + path;
+      }
+
       String newName = UUID.randomUUID().toString().replaceAll("-", "");
       String npath = getRecycleBinPath(newName);
       writeLock.lock();
@@ -240,11 +249,21 @@ public final class RecycleUtils {
       IdentityID user = rEntry.getOriginalUser();
       AssetEntry oldEntry = getSheetEntry(path, isViewsheet, user);
 
+      if(oldEntry == null) {
+         throw new MessageException("Failed to restore sheet, the recycled asset at " +
+            path + " owned by " + user + " could not be found");
+      }
+
       if(SUtil.isMyDashboard(path)) {
          oldEntry = getAssetEntry(oldEntry.getType(), path, user);
       }
       else {
          oldEntry = getAssetEntry(oldEntry.getType(), path);
+      }
+
+      if(oldEntry == null) {
+         throw new MessageException("Failed to restore sheet, the recycled asset at " +
+            path + " owned by " + user + " could not be found");
       }
 
       String originalPath = rEntry.getOriginalPath();
@@ -263,7 +282,7 @@ public final class RecycleUtils {
 
       newEntry.copyMetaData(oldEntry);
 
-      if(oldEntry != null && AssetUtil.isDuplicatedEntry(repository, newEntry)) {
+      if(AssetUtil.isDuplicatedEntry(repository, newEntry)) {
          if(overwrite) {
             repository.removeSheet(newEntry, principal, true);
          }
@@ -697,8 +716,8 @@ public final class RecycleUtils {
       throws Exception
    {
       return SUtil.isMyReport(name) ?
-         RepletRegistry.getRegistry(owner) :
-         RepletRegistry.getRegistry();
+         RepletRegistryManager.getInstance().getRegistry(owner) :
+         RepletRegistryManager.getInstance().getRegistry();
    }
 
    /**

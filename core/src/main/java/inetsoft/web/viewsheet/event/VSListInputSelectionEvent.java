@@ -18,11 +18,13 @@
 package inetsoft.web.viewsheet.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
 
 @Value.Immutable
+@Serial.Structural
 @JsonDeserialize(as = ImmutableVSListInputSelectionEvent.class)
 public interface VSListInputSelectionEvent {
    // the name of the list input assembly

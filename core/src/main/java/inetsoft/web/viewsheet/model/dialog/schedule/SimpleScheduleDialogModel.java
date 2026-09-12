@@ -27,6 +27,7 @@ import inetsoft.web.viewsheet.model.dialog.ImmutableEmailAddrDialogModel;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,7 +37,7 @@ import java.util.List;
 @Value.Immutable
 @JsonSerialize(as = ImmutableSimpleScheduleDialogModel.class)
 @JsonDeserialize(as = ImmutableSimpleScheduleDialogModel.class)
-public abstract class SimpleScheduleDialogModel {
+public abstract class SimpleScheduleDialogModel implements Serializable {
    @Nullable
    public abstract Boolean userDialogEnabled();
 

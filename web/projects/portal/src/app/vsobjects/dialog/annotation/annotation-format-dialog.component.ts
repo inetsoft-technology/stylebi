@@ -17,17 +17,35 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule } from "@angular/forms";
 import { Annotation } from "../../../common/data/annotation";
 import { AnnotationFormatDialogModel } from "./annotation-format-dialog-model";
+import { LineArrowTypeDropdown } from "../../../widget/format/line-arrow-type-dropdown.component";
+import { AlphaDropdown } from "../../../widget/format/alpha-dropdown.component";
+import { RadiusDropdown } from "../../../widget/format/radius-dropdown.component";
+import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
+import { StyleDropdown } from "../../../widget/format/style-dropdown.component";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const INIT_VIEWSHEET_FORMAT_URI = "../annotation/resetViewsheetFormat";
 const INIT_ASSEMBLY_FORMAT_URI = "../annotation/resetAssemblyFormat";
 const INIT_DATA_FORMAT_URI = "../annotation/resetDataFormat";
 
 @Component({
-   selector: "annotation-format-dialog",
-   templateUrl: "annotation-format-dialog.component.html",
+    selector: "annotation-format-dialog",
+    templateUrl: "annotation-format-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    StyleDropdown,
+    ColorEditor,
+    RadiusDropdown,
+    AlphaDropdown,
+    FormsModule,
+    LineArrowTypeDropdown
+]
 })
 export class AnnotationFormatDialog implements OnInit {
    @Input() model: AnnotationFormatDialogModel;

@@ -19,17 +19,29 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.VSBookmarkInfo;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ViewsheetVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class ViewsheetVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox;
 
@@ -57,19 +69,19 @@ public class ViewsheetVSAScriptableTest {
 
    @Test
    void testGetViewsheetSandbox() {
-      assertArrayEquals(new Object[] { "taskName" },  viewsheetVSAScriptable.getIds());
-      assertEquals("mockVSName", viewsheetVSAScriptable.get("viewsheetName", null));
-      assertEquals("path1", viewsheetVSAScriptable.get("viewsheetPath", null));
-      assertEquals("alias1", viewsheetVSAScriptable.get("viewsheetAlias", null));
-      assertEquals("task1", viewsheetVSAScriptable.get("taskName", null));
+      assertArrayEquals(new Object[] { "taskName" },  viewsheetVSAScriptable.getMemberKeys());
+      assertEquals("mockVSName", viewsheetVSAScriptable.getMember("viewsheetName"));
+      assertEquals("path1", viewsheetVSAScriptable.getMember("viewsheetPath"));
+      assertEquals("alias1", viewsheetVSAScriptable.getMember("viewsheetAlias"));
+      assertEquals("task1", viewsheetVSAScriptable.getMember("taskName"));
 
       //check get bookmark
       when(viewsheetSandbox.getOpenedBookmark()).thenReturn(null);
       VSBookmarkInfo mockVSBookmarkInfo = mock(VSBookmarkInfo.class);
       when(viewsheetSandbox.getOpenedBookmark()).thenReturn(mockVSBookmarkInfo);
-      assertEquals("(Home)", viewsheetVSAScriptable.get("currentBookmark", null));
+      assertEquals("(Home)", viewsheetVSAScriptable.getMember("currentBookmark"));
       when(mockVSBookmarkInfo.getName()).thenReturn("bk1");
-      assertEquals("bk1", viewsheetVSAScriptable.get("currentBookmark", null));
+      assertEquals("bk1", viewsheetVSAScriptable.getMember("currentBookmark"));
    }
 
    @Test
@@ -80,7 +92,7 @@ public class ViewsheetVSAScriptableTest {
 
       //check get updateTime
       viewsheetSandbox.setMVDisabled(false);
-      assertNotEquals(null, viewsheetVSAScriptable.get("updateTime", null));
+      assertNotEquals(null, viewsheetVSAScriptable.getMember("updateTime"));
 
       //check thisParameter and visible
       ViewsheetSandbox mockMySandbox = mock(ViewsheetSandbox.class);
@@ -94,8 +106,8 @@ public class ViewsheetVSAScriptableTest {
       viewsheetVSAScriptable.setAssembly("thisViewsheet");
       viewsheetVSAScriptable.addProperties();
 
-      assertFalse(viewsheetVSAScriptable.has("thisParameter", null));
-      assertTrue(viewsheetVSAScriptable.has("visible", null));
+      assertFalse(viewsheetVSAScriptable.hasMember("thisParameter"));
+      assertTrue(viewsheetVSAScriptable.hasMember("visible"));
    }
 
    private AssetEntry createAssetEntry() {

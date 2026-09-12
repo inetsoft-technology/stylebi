@@ -18,74 +18,49 @@
 
 package inetsoft.web.viewsheet.service;
 
-import jakarta.annotation.PreDestroy;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.DistributedMap;
+import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Supplier;
+import java.util.Map;
 
 @Service
-@Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class ComposerClientService {
-   public void removeFromSessionList() {
-      LOCK.lock();
+   @Autowired
+   public ComposerClientService(Cluster cluster) {
+      this.cluster = cluster;
+   }
 
-      try {
-         List<String> simpSessionIdList = COMPOSER_CLIENTS.get(httpSessionId);
+   @PostConstruct
+   public void init() {
+      composerClients = cluster.getReplicatedMap(getClass().getName() + ".sessions");
+   }
 
-         if(simpSessionIdList != null) {
-            simpSessionIdList.remove(simpSessionId);
-         }
-      }
-      finally {
-         LOCK.unlock();
+   public void removeFromSessionList(StompHeaderAccessor headers) {
+      String simpSessionId = headers.getSessionId();
+
+      if(simpSessionId != null) {
+         composerClients.remove(simpSessionId);
       }
    }
 
-   @PreDestroy
-   public void preDestroy() {
-      removeFromSessionList();
+   public String getFirstSimpSessionId(String httpSessionId) {
+      return composerClients.entrySet().stream()
+         .filter(e -> httpSessionId.equals(e.getValue()))
+         .map(Map.Entry::getKey)
+         .findFirst()
+         .orElse(null);
    }
 
-   public static String getFirstSimpSessionId(String httpSessionId) {
-      LOCK.lock();
-
-      try {
-         List<String> simpSessionIdList = COMPOSER_CLIENTS.get(httpSessionId);
-         String simpSessionId = simpSessionIdList != null && simpSessionIdList
-            .size() > 0 ? simpSessionIdList.get(0) : null;
-         return simpSessionId;
-      }
-      finally {
-         LOCK.unlock();
-      }
+   public void setSessionID(String httpSessionId, String simpSessionId) {
+      composerClients.put(simpSessionId, httpSessionId);
    }
-
-   public void setSessionID(Supplier<String[]> sessionIDSupplier) {
-      LOCK.lock();
-
-      try {
-         String[] sessions = sessionIDSupplier.get();
-         httpSessionId = sessions[0];
-         simpSessionId = sessions[1];
-         List<String> simpSessionIdList =
-            COMPOSER_CLIENTS.computeIfAbsent(httpSessionId, k -> new ArrayList<>());
-         simpSessionIdList.add(simpSessionId);
-      }
-      finally {
-         LOCK.unlock();
-      }
-   }
-
-   private String httpSessionId;
-   private String simpSessionId;
 
    public static final String COMMANDS_TOPIC = "/composer-client";
-   // key = http session id, value = list of simpSessionIds
-   private static final Map<String, List<String>> COMPOSER_CLIENTS = new HashMap<>();
-   private static final Lock LOCK = new ReentrantLock();
+   // key = simpSessionId, value = httpSessionId (cluster-wide replicated map)
+   private DistributedMap<String, String> composerClients;
+   private final Cluster cluster;
 }

@@ -20,6 +20,7 @@ import {
    ChangeDetectorRef,
    ElementRef,
    EventEmitter,
+   forwardRef,
    HostListener,
    Input,
    NgZone,
@@ -64,6 +65,12 @@ import { DragService } from "../../../../../widget/services/drag.service";
 import { EditableObjectContainer } from "../../editor/editable-object-container.component";
 import { ComponentTool } from "../../../../../common/util/component-tool";
 import { ComposerVsSearchService } from "../../composer-vs-search.service";
+import { LayoutOptionDialog } from "../../../../dialog/vs/layout-option-dialog.component";
+import { SelectionContainerActionHandlerDirective } from "../../action/selection-container-action-handler.directive";
+import { CurrentSelection } from "../../../../../vsobjects/objects/selection/current-selection.component";
+
+import { OutOfZoneDirective } from "../../../../../widget/directive/out-of-zone.directive";
+import { ActionsContextmenuAnchorDirective } from "../../../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
 
 export enum DragBorderType {
    NONE = 0, // "none"
@@ -76,9 +83,10 @@ const INSERT_CHILD_URI = "/events/composer/viewsheet/selectionContainer/insertCh
 const CHECK_TRAP_URI = "../api/composer/viewsheet/objects/checkSelectionTrap";
 
 @Component({
-   selector: "composer-selection-container-children",
-   templateUrl: "composer-selection-container-children.component.html",
-   styleUrls: ["composer-selection-container-children.component.scss"]
+    selector: "composer-selection-container-children",
+    templateUrl: "composer-selection-container-children.component.html",
+    styleUrls: ["composer-selection-container-children.component.scss"],
+    imports: [ActionsContextmenuAnchorDirective, OutOfZoneDirective, CurrentSelection, SelectionContainerActionHandlerDirective, forwardRef(() => EditableObjectContainer), LayoutOptionDialog]
 })
 export class ComposerSelectionContainerChildren extends VSSelectionContainerChildren implements OnInit, OnDestroy, OnChanges {
    @Input() viewsheet: Viewsheet;
@@ -102,6 +110,12 @@ export class ComposerSelectionContainerChildren extends VSSelectionContainerChil
    scrollbarWidth: number = GuiTool.measureScrollbars();
    private gutterMargin: number = 0.15;
 
+   objectTop: number = 0;
+   bodyHeight: number = 0;
+   bodyWidth: number = 0;
+   innerWidth: number = 0;
+   paddingHeight: number = 0;
+
    private model: VSSelectionContainerModel;
    private subscriptions: Subscription = new Subscription();
    private dragPlaceholderElement: boolean = false;
@@ -124,6 +138,7 @@ export class ComposerSelectionContainerChildren extends VSSelectionContainerChil
          }
 
          this.setChildrenHeight();
+         this.updateCachedDimensions();
       }
    }
 
@@ -157,9 +172,10 @@ export class ComposerSelectionContainerChildren extends VSSelectionContainerChil
             }
          }));
 
-      this.selectionContainerChildrenService.onChildUpdate.subscribe((index) => {
+      this.subscriptions.add(this.selectionContainerChildrenService.onChildUpdate.subscribe((index) => {
          this.setChildrenHeight();
-      });
+         this.updateCachedDimensions();
+      }));
 
       this.subscriptions.add(this.composerVsSearchService.focusChange().subscribe(obj => {
          if(!this.vsObject?.childrenNames ||  this.vsObject?.childrenNames.indexOf(obj) < 0 ||
@@ -191,11 +207,24 @@ export class ComposerSelectionContainerChildren extends VSSelectionContainerChil
    ngOnChanges(changes: SimpleChanges) {
       if(changes["childObjects"]) {
          this.setChildrenHeight();
+         this.updateCachedDimensions();
       }
    }
 
    getObjectTop(): number {
       return this.vsObject.objectFormat.top + this.vsObject.titleFormat.height;
+   }
+
+   private updateCachedDimensions(): void {
+      if(!this.model) {
+         return;
+      }
+
+      this.objectTop = this.getObjectTop();
+      this.bodyHeight = this.getBodyHeight();
+      this.bodyWidth = this.getBodyWidth();
+      this.innerWidth = this.getInnerWidth();
+      this.paddingHeight = this.getPaddingHeight();
    }
 
    setChildrenHeight() {

@@ -29,8 +29,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.xmla.XMLADataSource;
-import inetsoft.util.GroupedThread;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -93,12 +92,18 @@ public abstract class DependencyTransformer {
          // the transform assets number for each thread.
          int count = (int) Math.ceil(entries.length * 1.0 / nthread);
          final int pri = Thread.currentThread().getPriority();
-         ExecutorService executors = Executors.newFixedThreadPool(nthread);
+         ExecutorService executors = Executors.newFixedThreadPool(nthread, r -> {
+            Thread t = new Thread(r, "DependencyTransformer");
+            t.setDaemon(true);
+            return t;
+         });
 
          for(int i = 0; i < nthread; i++) {
             List<AssetObject> list = DependencyTool.getThreadAssets(i, count, entries);
 
-            executors.execute((new GroupedThread("AssetTransformerThread_" + i) {
+            executors.execute((new GroupedThread("AssetTransformerThread_" + i,
+                                                 ThreadContext.getContextPrincipal())
+            {
                {
                   setDaemon(true);
                }
@@ -1221,7 +1226,7 @@ public abstract class DependencyTransformer {
    }
 
    private static XRepository getXRepository() throws RemoteException {
-      return XFactory.getRepository();
+      return XRepository.getRepository();
    }
 
    public static void updateRenameInfos(Object rid, AssetObject assetEntry,
@@ -1354,7 +1359,7 @@ public abstract class DependencyTransformer {
     */
    protected XRepository getRepository() {
       try {
-         return XFactory.getRepository();
+         return XRepository.getRepository();
       }
       catch(Exception ex) {
          LOG.error(ex.getMessage(), ex);

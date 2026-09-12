@@ -32,16 +32,20 @@ import {
 import { debounceTime } from "rxjs/operators";
 import { Subject } from "rxjs";
 import { TopScrollSupport } from "../../../top-scroll/top-scroll-support";
+import { MatButton } from "@angular/material/button";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { NgStyle, NgClass } from "@angular/common";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
 
 @Component({
-   selector: "em-editor-panel",
-   templateUrl: "./editor-panel.component.html",
-   styleUrls: ["./editor-panel.component.scss"],
-   encapsulation: ViewEncapsulation.None,
-   providers: [ TopScrollSupport ],
-   host: { "class": "editor-panel" } // eslint-disable-line @angular-eslint/no-host-metadata-property
+    selector: "em-editor-panel",
+    templateUrl: "./editor-panel.component.html",
+    styleUrls: ["./editor-panel.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    providers: [TopScrollSupport],
+    host: { "class": "editor-panel" },
+    imports: [NgStyle, NgClass, MatCard, MatCardContent, MatButton]
 })
 export class EditorPanelComponent implements OnChanges, AfterViewInit, AfterContentChecked {
    @Input() applyVisible = true;

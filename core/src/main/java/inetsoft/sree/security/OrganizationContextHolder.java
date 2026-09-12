@@ -42,5 +42,5 @@ public class OrganizationContextHolder {
       THREAD_LOCAL.remove();
    }
 
-   private static final InheritableThreadLocal<StringWrapper> THREAD_LOCAL = new InheritableThreadLocal<>();
+   private static final ThreadLocal<StringWrapper> THREAD_LOCAL = new ThreadLocal<>();
 }

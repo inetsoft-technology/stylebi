@@ -17,14 +17,9 @@
  */
 package inetsoft.web.composer.ws.dialog;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.event.AssetEventUtil;
-import inetsoft.uql.asset.*;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.ws.ConcatenationTypeDialogModel;
-import inetsoft.web.composer.model.ws.TableAssemblyOperatorModel;
 import inetsoft.web.composer.ws.WorksheetController;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -32,11 +27,16 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
 import java.security.Principal;
 
 @Controller
 public class ConcatenationTypeDialogController extends WorksheetController {
+
+   public ConcatenationTypeDialogController(ConcatentationTypeDialogServiceProxy dialogServiceProxy)
+   {
+      this.dialogServiceProxy = dialogServiceProxy;
+   }
+
    @RequestMapping(
       value = "/api/composer/ws/concatenation-type-dialog/{runtimeId}",
       method = RequestMethod.GET)
@@ -49,30 +49,8 @@ public class ConcatenationTypeDialogController extends WorksheetController {
       Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
-      Worksheet ws = rws.getWorksheet();
-      ConcatenatedTableAssembly concatenatedTable =
-         (ConcatenatedTableAssembly) ws.getAssembly(concatenatedTableName);
-
-      if(concatenatedTable != null) {
-         TableAssemblyOperator operators = concatenatedTable.getOperator(leftTableName, rightTableName);
-         TableAssemblyOperator.Operator operator = operators.getKeyOperator();
-
-         TableAssemblyOperatorModel operatorModel = new TableAssemblyOperatorModel();
-         operatorModel.setOperation(operator.getOperation());
-         operatorModel.setDistinct(operator.isDistinct());
-         operatorModel.setLtable(operator.getLeftTable());
-         operatorModel.setRtable(operator.getRightTable());
-
-         return ConcatenationTypeDialogModel.builder()
-            .concatenatedTableName(concatenatedTableName)
-            .leftTableName(leftTableName)
-            .rightTableName(rightTableName)
-            .operator(operatorModel)
-            .build();
-      }
-
-      return null;
+      return dialogServiceProxy.getConcatenationType(runtimeId, concatenatedTableName, leftTableName,
+                                               rightTableName, principal);
    }
 
    @Undoable
@@ -82,32 +60,8 @@ public class ConcatenationTypeDialogController extends WorksheetController {
       @Payload ConcatenationTypeDialogModel model, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
-      Worksheet ws = rws.getWorksheet();
-      String tname = model.concatenatedTableName();
-      String lname = model.leftTableName();
-      String rname = model.rightTableName();
-      boolean all = model.all();
-      TableAssemblyOperator.Operator operator = WorksheetEventUtil.convertOperator(ws, model.operator());
-      ConcatenatedTableAssembly table =
-         (ConcatenatedTableAssembly) ws.getAssembly(tname);
-
-      if(table != null) {
-         TableAssembly[] tableAssemblies = table.getTableAssemblies(false);
-
-         for(int i = 0; i < tableAssemblies.length - 1; i++) {
-            if(lname.equals(tableAssemblies[i].getName()) &&
-               rname.equals(tableAssemblies[i + 1].getName()) || all)
-            {
-               TableAssemblyOperator op = new TableAssemblyOperator();
-               op.addOperator(operator);
-               table.setOperator(i, op);
-            }
-         }
-
-         WorksheetEventUtil.loadTableData(rws, tname, true, true);
-         WorksheetEventUtil.refreshAssembly(rws, tname, true, commandDispatcher, principal);
-         AssetEventUtil.refreshTableLastModified(ws, tname, true);
-      }
+      dialogServiceProxy.updateConcatenationType(getRuntimeId(), model, principal, commandDispatcher);
    }
+
+   private ConcatentationTypeDialogServiceProxy dialogServiceProxy;
 }

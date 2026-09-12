@@ -17,60 +17,420 @@
  */
 package inetsoft.web.portal.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import inetsoft.sree.SreeEnv;
+/*
+ * SignupController coverage map — [unit] tier, Mockito stubs UserSignupService (no Spring mail I/O)
+ *
+ * Intentional design notes (NOT bugs)
+ *
+ * [Design 1] signupWithEmail() catch path still writes session attributes after send failure;
+ *            user cannot read the code without mail delivery. Verified by
+ *            signupWithEmail_sendFailure_stillStoresSessionAttributes.
+ *
+ * Known bug — none under test here
+ *
+ * Out of scope — require live SMTP or GreenMail:
+ *
+ * [signupWithEmail] end-to-end send success with real Mailer.send()
+ * [resendEmailCode] end-to-end send success with real Mailer.send()
+ *
+ * Cases deferred — need SreeEnv / OrganizationManager / HttpServletResponse:
+ *
+ * showSignUpPage() / showSignUpDetailPage() ModelAndView and cache headers for the enabled path.
+ * The disabled path is covered by SelfSignupDisabled, which only asserts on the redirect view and
+ * so needs no theme/org stubbing.
+ */
+
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.SecurityEngine;
-import inetsoft.test.SreeHome;
-import inetsoft.web.admin.security.AuthenticationProviderService;
+import inetsoft.sree.portal.CustomThemesManager;
+import inetsoft.sree.portal.PortalThemesManager;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.portal.model.SignupResponseModel;
 import inetsoft.web.portal.service.UserSignupService;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
+import jakarta.mail.MessagingException;
+import jakarta.servlet.http.*;
+import inetsoft.test.*;
 import org.junit.jupiter.api.*;
-import org.mockito.Mock;
-import org.mockito.Mockito;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.servlet.view.RedirectView;
+
+import javax.naming.NamingException;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
+@ExtendWith({ SpringExtension.class, MockitoExtension.class })
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 class SignupControllerTest {
-   static SecurityEngine securityEngine;
-   static SignupController signupController;
 
-   @Mock
-   static SimpMessagingTemplate messagingTemplate;
+   private static final String SIGNUP_EMAIL = "user@example.com";
+   private static final String VALID_CODE = "Ab12Cd";
+   private static final String VALID_PASSWORD = "Password1!";
+   private static final String LINK_URI = "http://localhost:8080/";
 
-   @BeforeAll
-   static void before() throws Exception {
-      securityEngine = SecurityEngine.getSecurity();
-      securityEngine.enableSecurity();
+   @Mock private UserSignupService userSignupService;
+   @Mock private CustomThemesManager customThemesManager;
+   @Mock private PortalThemesManager portalThemesManager;
+   @Mock private SecurityEngine securityEngine;
+   @Mock private HttpServletRequest request;
+   @Mock private HttpSession session;
+   @Mock private HttpServletResponse response;
+
+   private SignupController signupController;
+
+   @BeforeEach
+   void setUp() {
       SUtil.setMultiTenant(true);
-
-      ObjectMapper objectMapper = Mockito.mock(ObjectMapper.class);
-      AuthenticationProviderService authenticationProviderService =
-         new AuthenticationProviderService(securityEngine, objectMapper, messagingTemplate);
-      UserSignupService userSignupService = new UserSignupService(authenticationProviderService);
-      signupController = new SignupController(userSignupService);
+      // every endpoint gates on this; the disabled case is overridden in SelfSignupDisabled
+      lenient().when(securityEngine.isSelfSignupEnabled()).thenReturn(true);
+      signupController = new SignupController(userSignupService, customThemesManager,
+                                             portalThemesManager, securityEngine);
    }
 
-   @AfterAll
-   static void cleanup() throws Exception {
-      SecurityEngine.clear();
-      securityEngine.disableSecurity();
+   // -------------------------------------------------------------------------
+   // signupWithEmail — decision tree (SMTP stubbed on UserSignupService)
+   // -------------------------------------------------------------------------
+
+   @Nested
+   class SignupWithEmail {
+
+      @Test
+      void invalidEmail_returnsFailure() throws Exception {
+         SignupResponseModel result = signupController.signupWithEmail("not-an-email", request);
+
+         assertFalse(result.isSuccess());
+         assertNotNull(result.getErrorMessage());
+         verifyNoInteractions(userSignupService);
+      }
+
+      @Test
+      void noAuthenticationChain_returnsFailure() throws Exception {
+         when(userSignupService.existAuthenticationChain()).thenReturn(false);
+
+         SignupResponseModel result = signupController.signupWithEmail(SIGNUP_EMAIL, request);
+
+         assertFalse(result.isSuccess());
+         assertNotNull(result.getErrorMessage());
+         verify(userSignupService, never()).sendEmailVerifyCode(anyString(), anyString());
+      }
+
+      @Test
+      void emailAlreadyRegistered_returnsFailure() throws Exception {
+         when(userSignupService.existAuthenticationChain()).thenReturn(true);
+         when(userSignupService.emailExist(SIGNUP_EMAIL)).thenReturn(true);
+
+         SignupResponseModel result = signupController.signupWithEmail(SIGNUP_EMAIL, request);
+
+         assertFalse(result.isSuccess());
+         assertNotNull(result.getErrorMessage());
+         verify(userSignupService, never()).sendEmailVerifyCode(anyString(), anyString());
+      }
+
+      @Test
+      void sendFailure_returnsFailure() throws Exception {
+         when(request.getSession(false)).thenReturn(session);
+         when(userSignupService.existAuthenticationChain()).thenReturn(true);
+         when(userSignupService.emailExist(SIGNUP_EMAIL)).thenReturn(false);
+         when(userSignupService.generateVerificationCode()).thenReturn(VALID_CODE);
+         doThrow(new MessagingException("smtp unavailable"))
+            .when(userSignupService).sendEmailVerifyCode(VALID_CODE, SIGNUP_EMAIL);
+
+         SignupResponseModel result = signupController.signupWithEmail(SIGNUP_EMAIL, request);
+
+         assertFalse(result.isSuccess());
+         assertNotNull(result.getErrorMessage());
+      }
+
+      // [Design 1] session is populated even when Mailer.send() fails
+      @Test
+      void signupWithEmail_sendFailure_stillStoresSessionAttributes() throws Exception {
+         when(request.getSession(false)).thenReturn(session);
+         when(userSignupService.existAuthenticationChain()).thenReturn(true);
+         when(userSignupService.emailExist(SIGNUP_EMAIL)).thenReturn(false);
+         when(userSignupService.generateVerificationCode()).thenReturn(VALID_CODE);
+         doThrow(new MessagingException("smtp unavailable"))
+            .when(userSignupService).sendEmailVerifyCode(VALID_CODE, SIGNUP_EMAIL);
+
+         signupController.signupWithEmail(SIGNUP_EMAIL, request);
+
+         verify(session).setAttribute(eq("SIGNUP_USER_EMAIL"), eq(SIGNUP_EMAIL));
+         verify(session).setAttribute(eq("SIGNUP_EMAIL_CODE"), eq(VALID_CODE));
+         verify(session).setAttribute(eq("SIGNUP_EMAIL_CODE_TIME"), anyLong());
+      }
+
+      @Test
+      void sendSuccess_storesSessionAttributes() throws Exception {
+         when(request.getSession(false)).thenReturn(session);
+         when(userSignupService.existAuthenticationChain()).thenReturn(true);
+         when(userSignupService.emailExist(SIGNUP_EMAIL)).thenReturn(false);
+         when(userSignupService.generateVerificationCode()).thenReturn(VALID_CODE);
+         doNothing().when(userSignupService).sendEmailVerifyCode(VALID_CODE, SIGNUP_EMAIL);
+
+         SignupResponseModel result = signupController.signupWithEmail(SIGNUP_EMAIL, request);
+
+         assertTrue(result.isSuccess());
+         verify(session).setAttribute("SIGNUP_USER_EMAIL", SIGNUP_EMAIL);
+         verify(session).setAttribute("SIGNUP_EMAIL_CODE", VALID_CODE);
+         verify(session).setAttribute(eq("SIGNUP_EMAIL_CODE_TIME"), anyLong());
+      }
    }
 
-   @Test
-   @Disabled("Test fails without mail server configured")
-   void checkSignupWithEmail() {
-      HttpServletRequest httpServletRequest = Mockito.mock(HttpServletRequest.class);
-      HttpSession httpSession = Mockito.mock(HttpSession.class);
-      when(httpServletRequest.getSession(false)).thenReturn(httpSession);
+   // -------------------------------------------------------------------------
+   // submitSignupDetail — session + validation branches
+   // -------------------------------------------------------------------------
 
-      SreeEnv.setProperty("mail.smtp.host", "52.205.222.65");
-      SignupResponseModel model = signupController.signupWithEmail("bonnieshi@inetsoft.com", httpServletRequest);
-      assertTrue(model.isSuccess(), () -> "Signup with mail failed: " + model.getErrorMessage());
+   @Nested
+   class SubmitSignupDetail {
+
+      @Test
+      void missingSessionEmail_redirectsToSignupPage() throws Exception {
+         when(request.getSession(false)).thenReturn(session);
+         when(session.getAttribute("SIGNUP_EMAIL_CODE")).thenReturn(null);
+         when(session.getAttribute("SIGNUP_USER_EMAIL")).thenReturn(null);
+
+         SignupResponseModel result = signupController.submitSignupDetail(
+            "First", "Last", VALID_PASSWORD, VALID_CODE, request);
+
+         assertEquals("./signup.html", result.getRedirectUri());
+      }
+
+      @Test
+      void invalidUserName_returnsFailure() throws Exception {
+         stubSessionWithEmail();
+         when(userSignupService.validUserName(SIGNUP_EMAIL)).thenReturn(false);
+
+         SignupResponseModel result = signupController.submitSignupDetail(
+            "First", "Last", VALID_PASSWORD, VALID_CODE, request);
+
+         assertFalse(result.isSuccess());
+         assertNotNull(result.getErrorMessage());
+      }
+
+      @Test
+      void invalidPassword_returnsFailure() throws Exception {
+         stubSessionWithEmail();
+         when(userSignupService.validUserName(SIGNUP_EMAIL)).thenReturn(true);
+         when(userSignupService.validPassword(VALID_PASSWORD)).thenReturn(false);
+
+         SignupResponseModel result = signupController.submitSignupDetail(
+            "First", "Last", VALID_PASSWORD, VALID_CODE, request);
+
+         assertFalse(result.isSuccess());
+         assertNotNull(result.getErrorMessage());
+      }
+
+      @Test
+      void expiredVerificationCode_returnsFailure() throws Exception {
+         stubValidSession();
+         when(userSignupService.validUserName(SIGNUP_EMAIL)).thenReturn(true);
+         when(userSignupService.validPassword(VALID_PASSWORD)).thenReturn(true);
+         when(session.getAttribute("SIGNUP_EMAIL_CODE_TIME"))
+            .thenReturn(System.currentTimeMillis() - 3_600_001L);
+
+         SignupResponseModel result = signupController.submitSignupDetail(
+            "First", "Last", VALID_PASSWORD, VALID_CODE, request);
+
+         assertFalse(result.isSuccess());
+         assertNotNull(result.getErrorMessage());
+      }
+
+      @Test
+      void wrongVerificationCode_returnsFailure() throws Exception {
+         stubValidSession();
+         when(userSignupService.validUserName(SIGNUP_EMAIL)).thenReturn(true);
+         when(userSignupService.validPassword(VALID_PASSWORD)).thenReturn(true);
+         when(userSignupService.isValidEmailCode(VALID_CODE)).thenReturn(true);
+
+         SignupResponseModel result = signupController.submitSignupDetail(
+            "First", "Last", VALID_PASSWORD, "Zz99Yy", request);
+
+         assertFalse(result.isSuccess());
+         assertNotNull(result.getErrorMessage());
+      }
+
+      @Test
+      void userAlreadyExists_returnsFailure() throws Exception {
+         stubValidSession();
+         stubValidSignupFields();
+         when(userSignupService.existAuthenticationChain()).thenReturn(true);
+         when(userSignupService.userExist(any(IdentityID.class))).thenReturn(true);
+
+         SignupResponseModel result = signupController.submitSignupDetail(
+            "First", "Last", VALID_PASSWORD, VALID_CODE, request);
+
+         assertFalse(result.isSuccess());
+         assertNotNull(result.getErrorMessage());
+      }
+
+      @Test
+      void createUserSuccess_clearsSessionAttributes() throws Exception {
+         stubValidSession();
+         stubValidSignupFields();
+         when(userSignupService.existAuthenticationChain()).thenReturn(true);
+         when(userSignupService.userExist(any(IdentityID.class))).thenReturn(false);
+         when(userSignupService.emailExist(SIGNUP_EMAIL)).thenReturn(false);
+         when(userSignupService.createUser(any(IdentityID.class), eq(VALID_PASSWORD),
+            eq(SIGNUP_EMAIL), any(SRPrincipal.class)))
+            .thenReturn(new FSUser(new IdentityID(SIGNUP_EMAIL, Organization.getSelfOrganizationID())));
+
+         SignupResponseModel result = signupController.submitSignupDetail(
+            "First", "Last", VALID_PASSWORD, VALID_CODE, request);
+
+         assertTrue(result.isSuccess());
+         assertEquals(SIGNUP_EMAIL, result.getEmail());
+         verify(session).removeAttribute("SIGNUP_USER_EMAIL");
+         verify(session).removeAttribute("SIGNUP_EMAIL_CODE");
+      }
+
+      private void stubSessionWithEmail() {
+         when(request.getSession(false)).thenReturn(session);
+         when(session.getAttribute("SIGNUP_USER_EMAIL")).thenReturn(SIGNUP_EMAIL);
+         when(session.getAttribute("SIGNUP_EMAIL_CODE")).thenReturn(VALID_CODE);
+      }
+
+      private void stubValidSession() {
+         stubSessionWithEmail();
+         when(session.getAttribute("SIGNUP_EMAIL_CODE_TIME")).thenReturn(System.currentTimeMillis());
+      }
+
+      private void stubValidSignupFields() {
+         when(userSignupService.validUserName(SIGNUP_EMAIL)).thenReturn(true);
+         when(userSignupService.validPassword(VALID_PASSWORD)).thenReturn(true);
+         when(userSignupService.isValidEmailCode(VALID_CODE)).thenReturn(true);
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // resendEmailCode — session guard + rate limit + stubbed send
+   // -------------------------------------------------------------------------
+
+   @Nested
+   class ResendEmailCode {
+
+      @Test
+      void missingSession_returnsFailure() throws Exception {
+         when(request.getSession(false)).thenReturn(null);
+
+         SignupResponseModel result = signupController.resendEmailCode(request);
+
+         assertFalse(result.isSuccess());
+         assertEquals("error request", result.getErrorMessage());
+      }
+
+      @Test
+      void resendTooSoon_returnsFailure() throws Exception {
+         when(request.getSession(false)).thenReturn(session);
+         when(session.getAttribute("SIGNUP_USER_EMAIL")).thenReturn(SIGNUP_EMAIL);
+         when(session.getAttribute("SIGNUP_EMAIL_CODE")).thenReturn(VALID_CODE);
+         when(session.getAttribute("SIGNUP_EMAIL_CODE_TIME")).thenReturn(System.currentTimeMillis());
+
+         SignupResponseModel result = signupController.resendEmailCode(request);
+
+         assertFalse(result.isSuccess());
+         assertNotNull(result.getErrorMessage());
+         verify(userSignupService, never()).sendEmailVerifyCode(anyString(), anyString());
+      }
+
+      @Test
+      void sendFailure_returnsFailure() throws Exception {
+         stubResendEligibleSession();
+         when(userSignupService.generateVerificationCode()).thenReturn("Xy09Zw");
+         doThrow(new NamingException("smtp unavailable"))
+            .when(userSignupService).sendEmailVerifyCode("Xy09Zw", SIGNUP_EMAIL);
+
+         SignupResponseModel result = signupController.resendEmailCode(request);
+
+         assertFalse(result.isSuccess());
+         assertNotNull(result.getErrorMessage());
+      }
+
+      @Test
+      void sendSuccess_updatesSessionCode() throws Exception {
+         stubResendEligibleSession();
+         when(userSignupService.generateVerificationCode()).thenReturn("Xy09Zw");
+         doNothing().when(userSignupService).sendEmailVerifyCode("Xy09Zw", SIGNUP_EMAIL);
+
+         SignupResponseModel result = signupController.resendEmailCode(request);
+
+         assertTrue(result.isSuccess());
+         verify(session).setAttribute("SIGNUP_EMAIL_CODE", "Xy09Zw");
+         verify(session).setAttribute(eq("SIGNUP_EMAIL_CODE_TIME"), anyLong());
+      }
+
+      private void stubResendEligibleSession() {
+         when(request.getSession(false)).thenReturn(session);
+         when(session.getAttribute("SIGNUP_USER_EMAIL")).thenReturn(SIGNUP_EMAIL);
+         when(session.getAttribute("SIGNUP_EMAIL_CODE")).thenReturn(VALID_CODE);
+         when(session.getAttribute("SIGNUP_EMAIL_CODE_TIME"))
+            .thenReturn(System.currentTimeMillis() - 120_000L);
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // self signup disabled — security.selfSignUp.enabled off must close the flow,
+   // not just hide the login-page link
+   // -------------------------------------------------------------------------
+
+   @Nested
+   class SelfSignupDisabled {
+      @BeforeEach
+      void disableSelfSignup() {
+         when(securityEngine.isSelfSignupEnabled()).thenReturn(false);
+      }
+
+      @Test
+      void showSignUpPage_redirectsToLogin() {
+         ModelAndView model = signupController.showSignUpPage(response, LINK_URI);
+
+         assertRedirectsToLogin(model);
+         verifyNoInteractions(userSignupService);
+      }
+
+      @Test
+      void showSignUpDetailPage_redirectsToLogin() {
+         ModelAndView model = signupController.showSignUpDetailPage(request, response, LINK_URI);
+
+         assertRedirectsToLogin(model);
+         verifyNoInteractions(userSignupService, request);
+      }
+
+      @Test
+      void signupWithEmail_isForbidden() {
+         assertThrows(SecurityException.class,
+                      () -> signupController.signupWithEmail(SIGNUP_EMAIL, request));
+         verifyNoInteractions(userSignupService);
+      }
+
+      @Test
+      void submitSignupDetail_isForbidden() {
+         assertThrows(SecurityException.class,
+                      () -> signupController.submitSignupDetail("First", "Last", VALID_PASSWORD,
+                                                                VALID_CODE, request));
+         verifyNoInteractions(userSignupService);
+      }
+
+      @Test
+      void resendEmailCode_isForbidden() {
+         assertThrows(SecurityException.class,
+                      () -> signupController.resendEmailCode(request));
+         verifyNoInteractions(userSignupService);
+      }
+
+      private void assertRedirectsToLogin(ModelAndView model) {
+         assertNotNull(model);
+         assertInstanceOf(RedirectView.class, model.getView());
+         assertEquals("login.html", ((RedirectView) model.getView()).getUrl());
+      }
    }
 }

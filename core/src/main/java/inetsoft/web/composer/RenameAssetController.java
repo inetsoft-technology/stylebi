@@ -19,6 +19,7 @@ package inetsoft.web.composer;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.StyleTreeModel;
@@ -29,6 +30,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -53,12 +55,16 @@ public class RenameAssetController {
    public RenameAssetController(AssetRepository assetRepository,
                                 RepletRepository repletRepository,
                                 ViewsheetService viewsheetService,
-                                SecurityProvider securityProvider)
+                                SecurityProvider securityProvider,
+                                LibManagerProvider libManagerProvider,
+                                DataSourceRegistry dataSourceRegistry)
    {
       this.assetRepository = assetRepository;
       this.repletRepository = repletRepository;
       this.viewsheetService = viewsheetService;
       this.securityProvider = securityProvider;
+      this.libManagerProvider = libManagerProvider;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @PostMapping("api/composer/asset-tree/rename-asset")
@@ -113,7 +119,7 @@ public class RenameAssetController {
       nentry.copyProperties(entry);
       nentry.copyMetaData(entry);
       nentry.addFavoritesUser(entry.getFavoritesUser());
-      LibManager manager = LibManager.getManager();
+      LibManager manager = libManagerProvider.getManager(principal);
 
       if(!reAlias && !nentry.equals(entry) &&
         (viewsheetService.isDuplicatedEntry(assetRepository, nentry) ||
@@ -140,7 +146,7 @@ public class RenameAssetController {
                  AssetUtil.getLibraryAssetType(entry) : ResourceType.ASSET;
          String oldPath = AssetUtil.isLibraryType(entry) ?
                  AssetUtil.getLibraryPermissionPath(entry, resourceType) : entry.getPath();
-         oldPath = ResourcePermissionService.getPermissionResourcePath(oldPath, resourceType, entry.isTableStyleFolder());
+         oldPath = ResourcePermissionService.getPermissionResourcePath(oldPath, resourceType, entry.isTableStyleFolder(), libManagerProvider, dataSourceRegistry);
          Permission oldPermission = securityProvider.getPermission(resourceType, oldPath);
 
          if(reAlias) {
@@ -329,4 +335,6 @@ public class RenameAssetController {
    private final ViewsheetService viewsheetService;
    private final RepletRepository repletRepository;
    private final SecurityProvider securityProvider;
+   private final LibManagerProvider libManagerProvider;
+   private final DataSourceRegistry dataSourceRegistry;
 }

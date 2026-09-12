@@ -23,10 +23,18 @@ import { Tool } from "../../../../../../shared/util/tool";
 import { SelectionTreeColumnsPane } from "./selection-tree-columns-pane.component";
 import { SelectionTreeIdPane } from "./selection-tree-id-pane.component";
 import { GuiTool } from "../../../common/util/gui-tool";
+import { SelectionMeasurePane } from "./selection-measure-pane.component";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "selection-tree-pane",
-   templateUrl: "selection-tree-pane.component.html",
+    selector: "selection-tree-pane",
+    templateUrl: "selection-tree-pane.component.html",
+    imports: [
+        FormsModule,
+        SelectionTreeColumnsPane,
+        SelectionTreeIdPane,
+        SelectionMeasurePane,
+    ]
 })
 export class SelectionTreePane implements OnInit {
    @Input() model: SelectionTreePaneModel;

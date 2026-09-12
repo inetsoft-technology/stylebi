@@ -17,7 +17,9 @@
  */
 package inetsoft.web.adhoc.model.property;
 
-public class MeasureInfo {
+import java.io.Serializable;
+
+public class MeasureInfo implements Serializable {
 
    public MeasureInfo(){
    }

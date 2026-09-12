@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ConditionExpression } from "../../../common/data/condition/condition-expression";
@@ -28,12 +28,9 @@ import { ConditionPane } from "../../../widget/condition/condition-pane.componen
 import { ConditionPipe } from "../../../widget/condition/condition.pipe";
 import { JunctionOperatorPipe } from "../../../widget/condition/junction-operator.pipe";
 import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
-import { OrderModel } from "../../data/table/order-model";
-import { NameInputDialog } from "../name-input-dialog.component";
-import { CalcNamedGroupDialog } from "./calc-named-group-dialog.component";
-import mock = jest.mock;
-import { ExpertNamedGroupDialog } from "./expert-named-group-dialog.component";
 import { NamedGroupInfo } from "../../data/named-group-info";
+import { NameInputDialog } from "../name-input-dialog.component";
+import { ExpertNamedGroupDialog } from "./expert-named-group-dialog.component";
 
 describe("Expert Named Group Dialog Unit Test", () => {
    let createNamedGroupIfno: () => NamedGroupInfo = () => {
@@ -69,21 +66,28 @@ describe("Expert Named Group Dialog Unit Test", () => {
    let expertNamedGroupDialog: ExpertNamedGroupDialog;
    let conditionDialogService: ConditionDialogService;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       http = {};
-      modalService = { open: jest.fn() };
+      modalService = { open: vi.fn() };
       const mockConditionDialogService = {
          dirtyCondition: null,
-         checkDirtyConditions: jest.fn(() => false)
+         checkDirtyConditions: vi.fn(() => false)
       };
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            ExpertNamedGroupDialog,
+            ConditionPane,
+            LargeFormFieldComponent,
+            NameInputDialog,
+            ConditionPipe,
+            JunctionOperatorPipe,
          ],
-         declarations: [
-            ExpertNamedGroupDialog, ConditionPane, LargeFormFieldComponent, NameInputDialog, ConditionPipe, JunctionOperatorPipe
-         ],
+         
          providers: [
             { provide: NgbModal, useValue: modalService },
             { provide: ConditionDialogService, useValue: mockConditionDialogService }
@@ -144,12 +148,12 @@ describe("Expert Named Group Dialog Unit Test", () => {
       info.conditions = [createConditionExpression("g1")];
       expertNamedGroupDialog = new ExpertNamedGroupDialog(http, modalService, conditionDialogService);
       expertNamedGroupDialog.namedGroupInfo = info;
-      let showDialog = jest.spyOn(ComponentTool, "showDialog");
+      let showDialog = vi.spyOn(ComponentTool, "showDialog");
       showDialog.mockImplementation(() => new NameInputDialog());
       expertNamedGroupDialog.ngOnInit();
       // expect(expertNamedGroupDialog.getGroupName()).toContain("g1");
 
-      let getGroupName = jest.spyOn(expertNamedGroupDialog, "getGroupName");
+      let getGroupName = vi.spyOn(expertNamedGroupDialog, "getGroupName");
       expertNamedGroupDialog.addGroup();
       expect(showDialog).toHaveBeenCalled();
       expect(getGroupName).toHaveBeenCalled();
@@ -158,7 +162,7 @@ describe("Expert Named Group Dialog Unit Test", () => {
    //Bug #20289
    it("Rename group name", () => {
       let nameInputDialog = new NameInputDialog();
-      let showDialog = jest.spyOn(ComponentTool, "showDialog");
+      let showDialog = vi.spyOn(ComponentTool, "showDialog");
       showDialog.mockImplementation(() => nameInputDialog);
 
       let condExp1 = {name: "A1", list: []};

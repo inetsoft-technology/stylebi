@@ -72,6 +72,11 @@ import { TimeConditionModel, TimeConditionType } from "../../../../../../shared/
 import {
    ScheduleFolderTreeAction
 } from "../../../../../../em/src/app/settings/schedule/schedule-folder-tree/schedule-folder-tree-action";
+import { SortColumnDirective } from "../../../widget/directive/sort-column.directive";
+import { FormsModule } from "@angular/forms";
+import { ScrollableFlexTableDirective } from "../../../widget/scrollable-table/scrollable-flex-table.directive";
+
+import { SplitPane } from "../../../widget/split-pane/split-pane.component";
 
 const GET_SCHEDULED_TASKS_URI = "../api/portal/scheduledTasks";
 export const NEW_TASKS_URI = "../api/portal/schedule/new";
@@ -94,10 +99,11 @@ const SYSTEM_USER = "INETSOFT_SYSTEM";
 declare const window: any;
 
 @Component({
-   selector: "p-schedule-task-list",
-   templateUrl: "./schedule-task-list.component.html",
-   styleUrls: ["./schedule-task-list.component.scss"],
-   providers: [ScheduleChangeService]
+    selector: "p-schedule-task-list",
+    templateUrl: "./schedule-task-list.component.html",
+    styleUrls: ["./schedule-task-list.component.scss"],
+    providers: [ScheduleChangeService],
+    imports: [SplitPane, TreeComponent, ScrollableFlexTableDirective, FormsModule, SortColumnDirective]
 })
 export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterContentChecked {
    @ViewChild("tree") tree: TreeComponent;
@@ -154,16 +160,13 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
          this.scheduleChangeService.onFolderChange.subscribe(() => this.loadTaskFolderTree())
       );
 
-      this.http.get(CHANGE_SHOW_TYPE_URI).subscribe((showTasksAsList) => {
-         this.showTasksAsList = <boolean> showTasksAsList;
-
-         if(!this.showTasksAsList) {
-            this.INIT_TREE_PANE_SIZE = 20;
-            this.loadTaskFolderTree();
-         }
-         else {
-            this.loadTasks();
-         }
+      this.http.get(CHANGE_SHOW_TYPE_URI).subscribe({
+         next: (showTasksAsList) => {
+            this.showTasksAsList = <boolean> showTasksAsList;
+            this.applyShowType();
+         },
+         // fall back to the default view so that the task list still loads
+         error: () => this.applyShowType()
       });
 
       this.http.get(CHECK_ROOT_PERMISSION_URI).subscribe((rootPermission: boolean) => {
@@ -190,16 +193,17 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
       return this._selectAllChecked && this.selectedItems.length == this.tasks.length;
    }
 
+   private isFullName(id: string, owner: IdentityId): boolean {
+      return owner ? id.includes(convertToKey(owner)) : true;
+   }
+
    private mergeChange(change: ScheduleTaskChange): void {
       const list = this.tasks.slice();
+      let fullChangeName = !this.securityEnabled && !this.isFullName(change.name, change.task?.owner) ?
+         this.convertTaskOwner(change.task?.owner || { name: "anonymous", orgID: "host-org" }) + ":" + change.name : change.name;
+
       const index = list.findIndex(t => {
-         if(this.securityEnabled) {
-            return t.name === change.name;
-         }
-         else {
-            let taskFullName = convertToKey(t.owner) + ":" + t.name;
-            return taskFullName === change.name;
-         }
+         return t.name === fullChangeName;
       });
 
       if(index >= 0) {
@@ -207,6 +211,10 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
             list.splice(index, 1);
          }
          else {
+            if(!this.securityEnabled && change.task) {
+               change.task.name = fullChangeName;
+            }
+
             list[index] = change.task;
          }
       }
@@ -216,6 +224,11 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
             (!change?.task?.path || change?.task?.path == "/") ||
             this.currentFolder.path == change?.task?.path)
          {
+
+            if(!this.securityEnabled && change.task) {
+               change.task.name = fullChangeName;
+            }
+
             list.push(change.task);
          }
       }
@@ -249,15 +262,49 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    }
 
    changeShowType(value: boolean): void {
+      const oldValue = this.showTasksAsList;
       this.showTasksAsList = value;
       this.INIT_TREE_PANE_SIZE = this.showTasksAsList ? 0 : 20;
       let params = new HttpParams().set("showTasksAsList", this.showTasksAsList + "");
-      this.http.put(CHANGE_SHOW_TYPE_URI, null, {params}).subscribe(() => {
-         this.loadTasks();
+      this.http.put(CHANGE_SHOW_TYPE_URI, null, {params}).subscribe({
+         next: () => this.loadTasks(),
+         error: (error) => {
+            // the request never reached the preference, so don't leave the view showing
+            // a state that was not stored. Ignore a stale failure that a later toggle
+            // has already superseded.
+            if(this.showTasksAsList === value) {
+               this.showTasksAsList = oldValue;
+               this.INIT_TREE_PANE_SIZE = this.showTasksAsList ? 0 : 20;
+            }
+
+            ComponentTool.showHttpError(
+               "Failed to change the schedule task view", error, this.modal);
+         }
       });
    }
 
+   /**
+    * Loads the tree and/or the task list for the current view.
+    */
+   private applyShowType(): void {
+      if(!this.showTasksAsList) {
+         this.INIT_TREE_PANE_SIZE = 20;
+         this.loadTaskFolderTree();
+      }
+      else {
+         this.INIT_TREE_PANE_SIZE = 0;
+         this.loadTasks();
+      }
+   }
+
    initTaskList(list: ScheduleTaskList) {
+      if(!this.securityEnabled) {
+         for(let t of list.tasks) {
+            if(!this.isFullName(t.name, t.owner))
+            t.name = this.convertTaskOwner(t.owner) + ":" + t.name;
+         }
+      }
+
       this.tasks = list.tasks;
       this.originalOrder = this.tasks.map(task => task.name);
       this.showOwners = list.showOwners;
@@ -267,6 +314,17 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
          if(!!task.status && !!task.status.lastRunEnd) {
             task.lastRunTime = DateTypeFormatter.format(task.status.lastRunEnd, list.dateTimeFormat, true);
          }
+      }
+   }
+
+   //when security is disabled, tasks require appending owner for consistency
+   private convertTaskOwner(id: IdentityId): string {
+      if(id.name === "admin") {
+         return convertToKey(id);
+      }
+      else {
+         let newid: IdentityId = {name: "anonymous", "orgID": id.orgID};
+         return convertToKey(newid);
       }
    }
 

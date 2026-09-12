@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, ElementRef, EventEmitter, Input, OnChanges, OnInit, Output,
+import { Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output,
          ViewChild, ViewChildren, QueryList, SimpleChanges } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../shared/util/tool";
@@ -26,13 +26,26 @@ import { TreeNodeModel } from "../tree/tree-node-model";
 import { FormulaType } from "../../common/data/formula-type";
 import { ComponentTool } from "../../common/util/component-tool";
 import { FormulaEditorDialogModel } from "../formula-editor/formula-editor-dialog-model";
+import { TreeComponent } from "../tree/tree.component";
+import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
+import { FormsModule } from "@angular/forms";
+import { TooltipIfDirective } from "../tooltip/tooltip-if.directive";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "dynamic-combo-box",
-   templateUrl: "dynamic-combo-box.component.html",
-   styleUrls: ["./dynamic-combo-box.component.scss"],
+    selector: "dynamic-combo-box",
+    templateUrl: "dynamic-combo-box.component.html",
+    styleUrls: ["./dynamic-combo-box.component.scss"],
+    imports: [
+    TooltipIfDirective,
+    NgClass,
+    FixedDropdownDirective,
+    FormsModule,
+    BlockMouseDirective,
+    TreeComponent
+]
 })
-export class DynamicComboBox implements OnInit, OnChanges {
+export class DynamicComboBox implements OnInit, OnChanges, OnDestroy {
    public ComboMode = ComboMode;
    public ValueMode = ValueMode;
    @Input() type: ComboMode = ComboMode.VALUE;
@@ -78,6 +91,7 @@ export class DynamicComboBox implements OnInit, OnChanges {
    @ViewChild("textInput") textInput: ElementRef;
    @ViewChild("numberInput") numberInput: ElementRef;
    @ViewChildren(FixedDropdownDirective) dropdowns: QueryList<FixedDropdownDirective>;
+   private formulaEditorTimer: any;
 
    constructor(private dialogService: NgbModal) {
    }
@@ -259,9 +273,13 @@ export class DynamicComboBox implements OnInit, OnChanges {
          }
 
          if(type == ComboMode.EXPRESSION) {
-            setTimeout(() => this.showFormulaEditor(), 0);
+            this.formulaEditorTimer = setTimeout(() => this.showFormulaEditor(), 0);
          }
       }
+   }
+
+   ngOnDestroy(): void {
+      clearTimeout(this.formulaEditorTimer);
    }
 
    showFormulaEditor(): void {

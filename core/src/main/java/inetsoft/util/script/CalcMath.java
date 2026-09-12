@@ -18,9 +18,7 @@
 package inetsoft.util.script;
 
 import org.apache.commons.math3.linear.*;
-import org.mozilla.javascript.*;
 
-import java.io.StringReader;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -1007,54 +1005,44 @@ public class CalcMath {
       double[] srge = CalcUtil.convertToDoubleArray(sum_range);
 
       String cond = "_value_" + criteria;
-      Script condScript;
-      Scriptable scope = new ScriptableObject() {
-         @Override
-         public String getClassName() {
-            return "sumif";
-         }
-      };
+      org.graalvm.polyglot.Source condSource;
 
-      Object result;
-      Context cx;
-
-      try {
-         cx = TimeoutContext.enter();
-         condScript = cx.compileReader(scope, new StringReader(cond), "<condition>", 1, null);
-      }
-      catch(Exception e) {
-         throw new RuntimeException("Invalid Search Criteria specified !", e);
-      }
-
-      double sum = 0;
-
-      for(int i = 0; i < rge.length; i++) {
+      try(org.graalvm.polyglot.Context cx = org.graalvm.polyglot.Context.create("js")) {
          try {
-            scope.put("_value_", scope, rge[i]);
-            TimeoutContext.startClock(cx);
-            result = condScript.exec(cx, scope);
+            condSource = org.graalvm.polyglot.Source.newBuilder("js", cond, "<condition>")
+               .buildLiteral();
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Invalid Search Criteria specified !", e);
+         }
 
-            if("true".equals(result.toString())) {
-               try {
-                  if(srge.length > 0 && i < srge.length) {
-                     sum += srge[i];
+         double sum = 0;
+
+         for(int i = 0; i < rge.length; i++) {
+            try {
+               cx.getBindings("js").putMember("_value_", rge[i]);
+               org.graalvm.polyglot.Value result = cx.eval(condSource);
+
+               if(result.isBoolean() ? result.asBoolean() : "true".equals(result.toString())) {
+                  try {
+                     if(srge.length > 0 && i < srge.length) {
+                        sum += srge[i];
+                     }
+                     else if(srge.length == 0) {
+                        sum += rge[i];
+                     }
                   }
-                  else if(srge.length == 0) {
+                  catch(Exception e) {
                      sum += rge[i];
                   }
                }
-               catch(Exception e) {
-                  sum += rge[i];
-               }
+            }
+            catch(Exception ignore) {
             }
          }
-         catch(Exception ignore) {
-         }
-      }
 
-      TimeoutContext.stopClock(cx);
-      Context.exit();
-      return sum;
+         return sum;
+      }
    }
 
    /**

@@ -18,8 +18,8 @@
 package inetsoft.util.dep;
 
 import inetsoft.report.LibManager;
-import inetsoft.sree.RepletRegistry;
-import inetsoft.sree.RepositoryEntry;
+import inetsoft.report.LibManagerProvider;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
@@ -47,6 +47,8 @@ import java.util.zip.ZipEntry;
  * @author InetSoft Technology Corp
  */
 public abstract class AbstractSheetAsset extends AbstractXAsset {
+   private boolean snapshot = false;
+
    /**
     * Parse content of the specified asset from input stream.
     */
@@ -145,7 +147,7 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
 
       if(pentry.isRepositoryFolder()) {
          String ppath = entry.getParentPath();
-         RepletRegistry registry = RepletRegistry.getRegistry(getUser());
+         RepletRegistry registry = RepletRegistryManager.getInstance().getRegistry(getUser());
 
          if(getUser() != null && ppath != null && !Tool.equals(ppath, "/") &&
             !ppath.startsWith(Tool.MY_DASHBOARD))
@@ -171,7 +173,14 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
          engine.setSheet(entry, sheet0, null, overwriting);
       }
 
-      parseContent0(root);
+      this.currentConfig = config;
+
+      try {
+         parseContent0(root);
+      }
+      finally {
+         this.currentConfig = null;
+      }
    }
 
    /**
@@ -348,6 +357,15 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
    }
 
    /**
+    * Returns the {@link XAssetConfig} that was passed to the current
+    * {@link #parseContent(java.io.InputStream, XAssetConfig, boolean)} invocation.
+    * Only valid during a {@code parseContent0} call — null at all other times.
+    */
+   protected XAssetConfig getConfig() {
+      return currentConfig;
+   }
+
+   /**
     * Parse content from an xml element.
     */
    protected synchronized void parseContent0(Element elem) throws Exception {
@@ -394,6 +412,20 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
       return -1;
    }
 
+   public boolean isSnapshot() {
+      return snapshot;
+   }
+
+   /**
+    * Sets a flag indicating if this worksheet is being used in a snapshot
+    * export.
+    *
+    * @param snapshot <tt>true</tt> if a snapshot; <tt>false</tt> otherwise.
+    */
+   public void setSnapshot(boolean snapshot) {
+      this.snapshot = snapshot;
+   }
+
    /**
     * Parse sheet.
     */
@@ -419,7 +451,7 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
     */
    private LibManager getLibManager() {
       if(manager == null) {
-         manager = LibManager.getManager();
+         manager = LibManagerProvider.getInstance().getManager();
       }
 
       return manager;
@@ -427,6 +459,7 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
 
    protected AbstractSheet sheet;
    protected AssetEntry entry;
+   private XAssetConfig currentConfig;
    private LibManager manager;
    private static final Logger LOG =
       LoggerFactory.getLogger(AbstractSheetAsset.class);

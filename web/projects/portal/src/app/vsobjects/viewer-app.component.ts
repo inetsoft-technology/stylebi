@@ -15,30 +15,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+import { NgIf, NgFor } from "@angular/common";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
-   AfterContentInit,
-   AfterViewChecked,
-   AfterViewInit,
-   ChangeDetectorRef,
-   Component,
-   ElementRef,
-   EventEmitter,
-   HostListener,
-   Inject,
-   Injector,
-   Input,
-   NgZone,
-   OnDestroy,
-   OnInit,
-   Optional,
-   Output,
-   QueryList,
-   Renderer2,
-   TemplateRef,
-   ViewChild,
-   ViewChildren, ViewContainerRef
+  AfterContentInit,
+  AfterViewChecked,
+  AfterViewInit,
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  EventEmitter,
+  HostListener,
+  Inject,
+  Injector,
+  Input,
+  NgZone,
+  OnDestroy,
+  OnInit,
+  Optional,
+  Output,
+  QueryList,
+  Renderer2,
+  TemplateRef,
+  ViewChild,
+  ViewChildren, ViewContainerRef,
+  DOCUMENT
 } from "@angular/core";
 import { DomSanitizer, SafeStyle, Title } from "@angular/platform-browser";
 import { Router } from "@angular/router";
@@ -146,6 +147,7 @@ import { ViewsheetInfo } from "./data/viewsheet-info";
 import { AnnotationFormatDialogModel } from "./dialog/annotation/annotation-format-dialog-model";
 import { AnnotationFormatDialog } from "./dialog/annotation/annotation-format-dialog.component";
 import { ProfilingDialog } from "./dialog/profiling-dialog.component";
+import { CKEditorRichTextService } from "./dialog/rich-text-dialog/ckeditor-rich-text.service";
 import { RichTextService } from "./dialog/rich-text-dialog/rich-text.service";
 import { AddAnnotationEvent } from "./event/annotation/add-annotation-event";
 import { RemoveAnnotationEvent } from "./event/annotation/remove-annotation-event";
@@ -193,6 +195,8 @@ import { CalcTableActionHandler } from "./objects/table/calc-table-action-handle
 import { CrosstabActionHandler } from "./objects/table/crosstab-action-handler";
 import { TableActionHandler } from "./objects/table/table-action-handler";
 import { ShowHyperlinkService } from "./show-hyperlink.service";
+import { VSTabService } from "./util/vs-tab.service";
+import { FontService } from "../widget/services/font.service";
 import { ToolbarActionsHandler } from "./toolbar-actions-handler";
 import { CheckFormDataService } from "./util/check-form-data.service";
 import { FormInputService } from "./util/form-input.service";
@@ -201,7 +205,30 @@ import { ViewerResizeService } from "./util/viewer-resize.service";
 import { VSUtil } from "./util/vs-util";
 import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
 import { BaseHrefService } from "../common/services/base-href.service";
-import { DashboardTabModel } from "../portal/dashboard/dashboard-tab-model";
+import { HeartbeatWorkerService } from "../common/services/heartbeat-worker.service";
+import { KeepAwakeService } from "../common/services/keep-awake.service";
+import { CurrentUserService } from "../../../../shared/util/current-user.service";
+import { RemoveBookmarksDialog } from "./dialog/remove-bookmarks-dialog.component";
+import { ShareLinkDialog } from "../widget/share/share-link-dialog.component";
+import { ShareSlackDialog } from "../widget/share/share-slack-dialog.component";
+import { ShareGoogleChatDialog } from "../widget/share/share-google-chat-dialog.component";
+import { ShareEmailDialogComponent } from "../widget/share/share-email-dialog.component";
+import { BookmarkPropertyDialog } from "./dialog/bookmark-property-dialog.component";
+import { ScheduleDialog } from "./dialog/schedule-dialog.component";
+import { EmailDialog } from "./dialog/email/email-dialog.component";
+import { ExportDialog } from "./dialog/export-dialog.component";
+import { VSLoadingDisplay } from "./objects/vs-loading-display/vs-loading-display.component";
+import { StatusBar } from "../status-bar/status-bar.component";
+import { VSObjectContainer } from "./objects/vs-object-container.component";
+import { ViewerFormatPane } from "./objects/viewer-format-pane.component";
+import { InteractContainerDirective } from "../widget/interact/interact-container.directive";
+import { VsBookmarkPaneComponent } from "./bookmark/vs-bookmark-pane.component";
+import { ViewerMobileToolbarComponent } from "./objects/viewer-mobile-toolbar/viewer-mobile-toolbar.component";
+import { BlockMouseDirective } from "../widget/mouse-event/block-mouse.directive";
+import { EnterClickDirective } from "../widget/directive/enter-click.directive";
+import { DefaultFocusDirective } from "../widget/directive/default-focus.directive";
+import { OutOfZoneDirective } from "../widget/directive/out-of-zone.directive";
+import { PagingControlComponent } from "../widget/scroll/paging-control.component";
 
 declare const window: any;
 declare var globalPostParams: { [name: string]: string[] } | null;
@@ -251,51 +278,62 @@ export interface ScrollViewportRect {
 }
 
 @Component({
-   selector: "viewer-app",
-   templateUrl: "viewer-app.component.html",
-   styleUrls: ["viewer-app.component.scss"],
-   providers: [
-      ViewsheetClientService,
-      DataTipService,
-      AdhocFilterService,
-      PopComponentService,
-      VSChartService,
-      AssemblyActionFactory,
-      SelectionContainerChildrenService,
-      CheckFormDataService,
-      VSChartService,
-      DebounceService,
-      FullScreenService,
-      ViewerResizeService,
-      FormInputService,
-      GlobalSubmitService,
-      ViewerToolbarMessageService,
-      {
-         provide: DndService,
-         useClass: VSDndService,
-         deps: [ModelService, NgbModal, ViewsheetClientService]
-      },
-      {
-         provide: ScaleService,
-         useClass: VSScaleService
-      },
-      {
-         provide: ContextProvider,
-         useFactory: ViewerContextProviderFactory,
-         deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
-      },
-      {
-         provide: DialogService,
-         useFactory: ViewerDialogServiceFactory,
-         deps: [NgbModal, SlideOutService, Injector, UIContextService]
-      },
-      {
-         provide: ChartService,
-         useExisting: VSChartService
-      },
-      ComposerRecentService,
-      SelectionMobileService
-   ]
+    selector: "viewer-app",
+    templateUrl: "viewer-app.component.html",
+    styleUrls: ["viewer-app.component.scss"],
+    providers: [
+        ViewsheetClientService,
+        KeepAwakeService,
+        DataTipService,
+        AdhocFilterService,
+        PopComponentService,
+        VSChartService,
+        AssemblyActionFactory,
+        SelectionContainerChildrenService,
+        CheckFormDataService,
+        VSChartService,
+        DebounceService,
+        FullScreenService,
+        ViewerResizeService,
+        FormInputService,
+        GlobalSubmitService,
+        ViewerToolbarMessageService,
+        {
+            provide: DndService,
+            useClass: VSDndService,
+            deps: [ModelService, NgbModal, ViewsheetClientService]
+        },
+        {
+            provide: ScaleService,
+            useClass: VSScaleService
+        },
+        {
+            provide: ContextProvider,
+            useFactory: ViewerContextProviderFactory,
+            deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
+        },
+        {
+            provide: DialogService,
+            useFactory: ViewerDialogServiceFactory,
+            deps: [NgbModal, SlideOutService, Injector, UIContextService]
+        },
+        {
+            provide: ChartService,
+            useExisting: VSChartService
+        },
+        ComposerRecentService,
+        SelectionMobileService,
+        MiniToolbarService,
+        {
+            provide: RichTextService,
+            useClass: CKEditorRichTextService,
+            deps: [FontService, NgbModal, HttpClient]
+        },
+        VSTabService,
+        ViewDataService,
+        FirstDayOfWeekService,
+    ],
+    imports: [NgIf, PagingControlComponent, OutOfZoneDirective, VsToolbarButtonDirective, FixedDropdownDirective, DefaultFocusDirective, EnterClickDirective, NgFor, BlockMouseDirective, ViewerMobileToolbarComponent, VsBookmarkPaneComponent, InteractContainerDirective, ViewerFormatPane, VSObjectContainer, StatusBar, VSLoadingDisplay, ExportDialog, EmailDialog, ScheduleDialog, BookmarkPropertyDialog, VariableInputDialog, ShareEmailDialogComponent, ShareGoogleChatDialog, ShareSlackDialog, ShareLinkDialog, RemoveBookmarksDialog, NotificationsComponent]
 })
 export class ViewerAppComponent extends CommandProcessor implements OnInit, AfterViewInit,
    AfterViewChecked, AfterContentInit, OnDestroy
@@ -354,15 +392,6 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Input() globalLoadingIndicator: boolean = false;
    @Input() embedViewer: boolean = false;
    @Input() viewerOffsetFunc: () => { x: number, y: number, width: number, height: number, scrollLeft: number, scrollTop: number };
-   @Input()
-   get dashboardTabModel(): DashboardTabModel | null {
-      return this._dashboardTabModel;
-   }
-
-   set dashboardTabModel(value: DashboardTabModel | null) {
-      this._dashboardTabModel = value;
-      this.updateTabPositions();
-   }
    @Output() onAnnotationChanged = new EventEmitter<boolean>();
    @Output() runtimeIdChange = new EventEmitter<string>();
    @Output() socket = new EventEmitter<ViewsheetClientService>();
@@ -388,7 +417,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    set runtimeId(value: string) {
       this._runtimeId = value;
 
-      if(!this.embed) {
+      if(!this.embed && this.dialogService) {
          this.dialogService.container = `.viewer-container[runtime-id="${value}"]`;
       }
    }
@@ -451,8 +480,9 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    showScroll: boolean = false;
    // store the size the viewsheet is opened/refreshed with
    appSize: Dimension = new Dimension(0, 0);
+   contextMenu: ActionsContextmenuComponent;
    private initing: boolean = true;
-   private serverUpdateIntervalId: any;
+   private serverUpdateSubscription: Subscription | null = null;
    private _active: boolean = true;
    private _vsConnectionInitialized: boolean = false;
    private _destroyed: boolean = false;
@@ -505,7 +535,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    isDefaultOrgAsset: boolean = false;
    private intersectionObserver: IntersectionObserver;
    private _tabsHeight: number = 0;
-   private _dashboardTabModel: DashboardTabModel | null = null;
+   drillTabsTop: boolean = false;
 
    constructor(public viewsheetClient: ViewsheetClientService,
                private stompClientService: StompClientService,
@@ -547,7 +577,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                private miniToolbarService: MiniToolbarService,
                private assetLoadingService: AssetLoadingService,
                private viewContainerRef: ViewContainerRef,
-               private baseHrefService: BaseHrefService)
+               private baseHrefService: BaseHrefService,
+               private currentUserService: CurrentUserService,
+               private heartbeatWorkerService: HeartbeatWorkerService,
+               private keepAwakeService: KeepAwakeService)
    {
       super(viewsheetClient, zone, true);
       tooltipConfig.tooltipClass = "top-tooltip";
@@ -567,7 +600,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       ngbDatepickerConfig.maxDate = {year: 2099, month: 12, day: 31};
       this.embed = this.contextProvider.embed;
 
-      this.http.get<string>("../api/em/navbar/organization").subscribe((org)=>{this.currOrgID = org;});
+      this.subscriptions.add(this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrgID = user?.name?.orgID ?? null));
    }
 
    getAssemblyName(): string {
@@ -615,6 +648,12 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          event.setWallboard(this.wallboard);
          this.viewsheetClient.sendEvent(TOUCH_ASSET_URI, event);
       }));
+
+      this.subscriptions.add(this.pageTabService.getDrillTabsTop().subscribe(
+         value => {
+            this.drillTabsTop = value;
+            this.updateTabPositions();
+         }));
 
       this.subscriptions.add(this.fullScreenService.fullScreenChange.subscribe(
          () => this.onFullScreenChange()));
@@ -772,6 +811,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          this.dashboardName : this.assetId, false);
 
       this.debounceService.cancel(this.runtimeId + "_notify_parent_frame");
+      this.keepAwakeService.release();
 
       if(this.inDashboard && window != window.parent) {
          window.parent.postMessage({"dashboardClosed": this.runtimeId}, "*");
@@ -1319,23 +1359,25 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.clearServerUpdateInterval();
 
       if(this.updateEnabled) {
-         // clear old server update interval
-         let interval: number = this.touchInterval ? this.touchInterval * 1000 : 60000;
-         this.serverUpdateIntervalId = setInterval(() => {
-            let event = new TouchAssetEvent();
-            event.setDesign(false);
-            event.setChanged(false);
-            event.setUpdate(true);
-            event.setWidth(this.viewerRoot.nativeElement.offsetWidth);
-            event.setHeight(this.viewerRoot.nativeElement.offsetHeight);
-            this.viewsheetClient.sendEvent(TOUCH_ASSET_URI, event);
-         }, interval);
+         const interval: number = this.touchInterval ? this.touchInterval * 1000 : 60000;
+         this.serverUpdateSubscription = this.heartbeatWorkerService
+            .createHeartbeat(this.runtimeId + "-viewsheet-update", interval)
+            .subscribe(() => {
+               const event = new TouchAssetEvent();
+               event.setDesign(false);
+               event.setChanged(false);
+               event.setUpdate(true);
+               event.setWidth(this.viewerRoot.nativeElement.offsetWidth);
+               event.setHeight(this.viewerRoot.nativeElement.offsetHeight);
+               this.viewsheetClient.sendEvent(TOUCH_ASSET_URI, event);
+            });
       }
    }
 
    clearServerUpdateInterval(): void {
-      if(this.serverUpdateIntervalId != null && !isNaN(this.serverUpdateIntervalId)) {
-         clearInterval(this.serverUpdateIntervalId);
+      if(this.serverUpdateSubscription) {
+         this.serverUpdateSubscription.unsubscribe();
+         this.serverUpdateSubscription = null;
       }
    }
 
@@ -1942,8 +1984,17 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
       const message = Tool.formatCatalogString("_#(js:viewer.viewsheet.bookmark.deleteSelected)", [bookmark.name])
 
+      // Bug #76453: the Bookmark panel dropdown (.fixed-dropdown, z-index 999900) stays open
+      // until "Yes" is clicked, so the generic Confirm modal (.modal, z-index 10500) rendered
+      // underneath it. Raise this dialog's z-index above the panel's, mirroring the same fix
+      // already applied to the "Remove Bookmarks" batch-delete dialog below.
       ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", message,
-         {"yes": "_#(js:Yes)", "no": "_#(js:No)"})
+         {"yes": "_#(js:Yes)", "no": "_#(js:No)"},
+         <NgbModalOptions> {
+            backdrop: "static",
+            windowClass: "delete-bookmark-confirm-dialog",
+            backdropClass: "delete-bookmark-confirm-dialog-backdrop"
+         })
          .then((buttonClicked) => {
             if(buttonClicked === "yes") {
                this.bookmarkDropdownBtn?.close();
@@ -2219,6 +2270,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
       this.viewsheetClient.runtimeId = command.runtimeId;
       this.runtimeId = command.runtimeId;
+      this.keepAwakeService.keepAwake(command.runtimeId);
       this.runtimeIdChange.emit(command.runtimeId);
       command.permissions = command.permissions || [];
       command.permissions.push("Toolbar");
@@ -2283,14 +2335,26 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             updated = true;
             this.formDataService.replaceObject(Tool.clone(this.vsObjects[i]), command.model);
             this.vsObjects[i] = VSUtil.replaceObject(Tool.clone(this.vsObjects[i]), command.model);
-            this.vsObjectActions[i] = this.actionFactory.createActions(this.vsObjects[i]);
+            this.vsObjectActions = this.vsObjects.map(model => {
+               let actions = this.actionFactory.createActions(model);
 
-            if(this.selectedActions &&
-               this.selectedActions.getModel().absoluteName == command.name)
-            {
-               this.selectedActions = this.vsObjectActions[i];
-               this.addMobileActionSubsciption();
-            }
+               //ensure contextMenu contains updated actions
+               if(this.contextMenu && this.contextMenu?.assemblyName === actions?.getModel()?.absoluteName) {
+                  this.contextMenu.actions = actions.menuActions;
+               }
+
+               return actions;
+            });
+
+            // vsObjectActions is rebuilt in full above, so *every* actions instance is
+            // replaced -- including the one for the currently selected assembly, even when
+            // this command targets a different assembly (e.g. a chart refreshed as a result
+            // of applying a selection). The assembly component re-subscribes to the new
+            // instance through its [actions] input, so a selectedActions still pointing at
+            // the old instance would emit action events that nobody listens to, and the
+            // mobile toolbar buttons would do nothing. Re-point it by name, not by
+            // command.name.
+            this.resyncSelectedActions();
          }
          else if(this.vsObjects[i].objectType != "VSViewsheet"){
             // sheetMaxMode is global so should apply it to all
@@ -2349,17 +2413,40 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             this.formDataService.replaceObject(Tool.clone(this.vsObjects[i]), command.info);
             this.vsObjects[i] = VSUtil.replaceObject(Tool.clone(this.vsObjects[i]), command.info);
             this.vsObjectActions[i] = this.actionFactory.createActions(this.vsObjects[i]);
+
+            //ensure contextMenu contains updated actions
+            if(this.contextMenu && this.contextMenu?.assemblyName === this.vsObjectActions[i]?.getModel()?.absoluteName) {
+               this.contextMenu.actions = this.vsObjectActions[i].menuActions;
+            }
+
             this.calculateAllAssemblyBounds();
 
-            if(this.selectedActions &&
-               this.selectedActions.getModel().absoluteName == this.vsObjects[i].absoluteName)
-            {
-               this.selectedActions = this.vsObjectActions[i];
-               this.addMobileActionSubsciption();
-            }
+            this.resyncSelectedActions();
 
             break;
          }
+      }
+   }
+
+   /**
+    * Re-point selectedActions (the source of the mobile toolbar buttons) at the current
+    * actions instance for the selected assembly. Must be called whenever vsObjectActions
+    * entries are replaced, otherwise selectedActions keeps an orphaned instance whose
+    * onAssemblyActionEvent no longer has any subscriber.
+    */
+   private resyncSelectedActions(): void {
+      if(!this.selectedActions) {
+         return;
+      }
+
+      const name = this.selectedActions.getModel()?.absoluteName;
+      const index = this.vsObjects.findIndex(obj => obj?.absoluteName == name);
+
+      if(index >= 0 && this.vsObjectActions[index] &&
+         this.selectedActions != this.vsObjectActions[index])
+      {
+         this.selectedActions = this.vsObjectActions[index];
+         this.addMobileActionSubsciption();
       }
    }
 
@@ -2731,8 +2818,15 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          if(idx >= 0) {
             this.vsObjects[idx].objectFormat.zIndex = command.zIndexes[i];
             this.vsObjectActions[idx] = this.actionFactory.createActions(this.vsObjects[idx]);
+
+            //ensure contextMenu contains updated actions
+            if(this.contextMenu && this.contextMenu?.assemblyName === this.vsObjectActions[idx]?.getModel()?.absoluteName) {
+               this.contextMenu.actions = this.vsObjectActions[idx].menuActions;
+            }
          }
       }
+
+      this.resyncSelectedActions();
    }
 
    private processExpiredSheetCommand(command: ExpiredSheetCommand) {
@@ -2773,7 +2867,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             actions = payload.actions.menuActions;
          }
 
-         const dropdown: DropdownRef = this.showContextMenu(actions, event);
+         const dropdown: DropdownRef = this.showContextMenu(actions, event, payload.actions?.getModel()?.absoluteName);
          this.miniToolbarService.hiddenFreeze(payload.actions?.getModel()?.absoluteName);
 
          const sub2 = dropdown.closeEvent.subscribe(() => {
@@ -2824,7 +2918,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             }
          ]));
 
-         this.showContextMenu(actions, event);
+         this.showContextMenu(actions, event, null);
       }
    }
 
@@ -2928,10 +3022,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       const event = RemoveAnnotationEvent.create(this.vsObjects, this.selectedAssemblies);
 
       if(event) {
-         if(this.vsObjects && this.selectedAssemblies) {
-            for(let index of this.selectedAssemblies) {
-               let model = this.vsObjects[index];
-               model.selectedAnnotations = [];
+         if(this.vsObjects) {
+            for(let model of this.vsObjects) {
+               if(model && model.selectedAnnotations) {
+                  model.selectedAnnotations = [];
+               }
             }
          }
 
@@ -2945,16 +3040,17 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
     * @param {AssemblyActionGroup[]} actions
     * @param {MouseEvent} event
     */
-   private showContextMenu(actions: AssemblyActionGroup[], event: MouseEvent): DropdownRef {
+   private showContextMenu(actions: AssemblyActionGroup[], event: MouseEvent, assemblyName: string): DropdownRef {
       let options: DropdownOptions = {
          position: {x: event.clientX, y: event.clientY},
          contextmenu: true
       };
 
       let dropdownRef = this.dropdownService.open(ActionsContextmenuComponent, options);
-      let contextmenu: ActionsContextmenuComponent = dropdownRef.componentInstance;
-      contextmenu.sourceEvent = event;
-      contextmenu.actions = actions;
+      this.contextMenu = dropdownRef.componentInstance;
+      this.contextMenu.sourceEvent = event;
+      this.contextMenu.actions = actions;
+      this.contextMenu.assemblyName = assemblyName;
       event.preventDefault();
 
       this.zone.run(() => {
@@ -3170,8 +3266,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    setAppSize(): void {
-      this.appSize = new Dimension(this.viewerRoot.nativeElement.offsetWidth,
-         this.viewerRoot.nativeElement.offsetHeight);
+      if(this.viewerRoot?.nativeElement) {
+         this.appSize = new Dimension(this.viewerRoot.nativeElement.offsetWidth,
+            this.viewerRoot.nativeElement.offsetHeight);
+      }
    }
 
    getScaleSize(): Dimension {
@@ -3419,7 +3517,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             // when drillTabsTop is true the bar is at the top and the viewsheet body's
             // topPx already accounts for it, so do not add it again.
             const pageTabBar = document.querySelector(".page-tab-bar");
-            const pageTabBarHeight = (!!pageTabBar && !this.dashboardTabModel?.drillTabsTop)
+            const pageTabBarHeight = (!!pageTabBar && !this.drillTabsTop)
                ? pageTabBar.getBoundingClientRect().height : 0;
 
             const message = {
@@ -3573,8 +3671,15 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    changeMaxMode($event: {assembly: string, maxMode: boolean}) {
       this.maxMode = $event.maxMode;
 
-      //on change to max mode, toggle off all other object max modes to prevent lingering stale flags
-      this.vsObjects.forEach(obj => (obj as any).maxMode = (obj.absoluteName === $event.assembly) ? $event.maxMode : false);
+      //on change to max mode, toggle off all other object max modes to prevent lingering stale flags.
+      //if the max-mode assembly is nested inside an embedded viewsheet, the containing
+      //VSViewsheet is also flagged so it repositions to (0, 0) instead of leaving the
+      //enlarged descendant (and its mini-toolbar) offset by the embedded viewsheet's own,
+      //un-enlarged position on the dashboard.
+      this.vsObjects.forEach(obj => (obj as any).maxMode = obj.absoluteName === $event.assembly ||
+         $event.maxMode && obj.objectType === "VSViewsheet" &&
+         $event.assembly.startsWith(obj.absoluteName + ".")
+         ? $event.maxMode : false);
    }
 
    toggleDoubleCalendar(isDouble: boolean) {
@@ -3610,6 +3715,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
       this.updateScrollViewport();
       this.showHints();
+      this.dataTipService.notifyScrolled();
    }
 
    private showHints() {
@@ -4285,7 +4391,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    private updateTabPositions(): void {
-      if(this.dashboardTabModel?.drillTabsTop) {
+      if(this.drillTabsTop) {
          if(this.toolbarVisible) {
             const offset = this.mobileDevice
                ? ViewConstants.TOOLBAR_HEIGHT_MOBILE_PX

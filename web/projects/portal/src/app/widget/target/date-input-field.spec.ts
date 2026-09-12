@@ -38,12 +38,19 @@ describe("Date Input Field Unit Case: ", () =>  {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule
+            DropDownTestModule,
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            DateInputField,
+            DynamicComboBox,
+            TargetComboBox,
+            FixedDropdownDirective,
+            TreeComponent,
+            TreeSearchPipe,
+            TreeNodeComponent,
          ],
-         declarations: [
-            DateInputField, DynamicComboBox, TargetComboBox, FixedDropdownDirective, TreeComponent,
-            TreeSearchPipe, TreeNodeComponent
-         ],
+         
          providers: [NgbModal],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
@@ -52,7 +59,7 @@ describe("Date Input Field Unit Case: ", () =>  {
    });
 
    //Bug #18980, Bug #19235, Bug #23005 year value change and reload
-   it("year type value input and reload", (done) => {
+   it("year type value input and reload", () => new Promise<void>((done) => {
       dateInputField = <DateInputField>fixture.componentInstance;
       //year reload
       dateInputField.value = "2015";
@@ -80,10 +87,10 @@ describe("Date Input Field Unit Case: ", () =>  {
 
          done();
       });
-   });
+   }));
 
    //Bug #19238 and  Bug #19458 month value change and reload
-   it("month type input and reload", (done) => {
+   it("month type input and reload", () => new Promise<void>((done) => {
       dateInputField = <DateInputField>fixture.componentInstance;
       //month reload
       dateInputField.value = "2015-10";
@@ -107,10 +114,10 @@ describe("Date Input Field Unit Case: ", () =>  {
 
          done();
       });
-   });
+   }));
 
    //Bug #19549
-   it("day input and reload", (done) => {
+   it("day input and reload", () => new Promise<void>((done) => {
       dateInputField = <DateInputField>fixture.componentInstance;
       //hour reload
       dateInputField.value = "2015-10-17";
@@ -133,7 +140,7 @@ describe("Date Input Field Unit Case: ", () =>  {
 
          done();
       });
-   });
+   }));
 
    //Bug #19549
    // bad test, don't test other components or access dom from outside the test fixture

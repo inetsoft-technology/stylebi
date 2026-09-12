@@ -85,7 +85,8 @@ public class DataModelFolderManagerService {
          throw new FileExistsException(databasePath);
       }
 
-      dataModel.addFolder(folderName);
+      IdentityID createdBy = IdentityID.getIdentityIDFromKey(principal.getName());
+      dataModel.addFolder(folderName, createdBy.convertToKey(), System.currentTimeMillis());
       repository.updateDataModel(dataModel);
    }
 

@@ -17,7 +17,9 @@
  */
 package inetsoft.web.viewsheet.event.table;
 
-public class BaseTableDrillEvent implements BaseTableEvent {
+import java.io.Serializable;
+
+public class BaseTableDrillEvent implements BaseTableEvent, Serializable {
 
    public DrillEvent[] getDrillEvents() {
       return drillEvents;

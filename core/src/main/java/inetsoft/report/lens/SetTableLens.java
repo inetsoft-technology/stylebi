@@ -34,10 +34,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
-import java.io.Serializable;
+import java.io.*;
 import java.text.Format;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -527,28 +527,31 @@ public abstract class SetTableLens
 
       // concurrent process
       final MergedTable merged2 = merged;
-      ThreadPool.addOnDemand(() -> {
-         try {
-            merged2.accept(getVisitor());
-         }
-         catch(InterruptedException ex) {
-            // ignore it
-         }
-         catch(Exception ex) {
-            LOG.error("Failed to merge tables", ex);
-         }
-
-         synchronized(SetTableLens.this) {
-            if(rows != null) {
-               rows.complete();
+      ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+         @Override
+         public void run() {
+            try {
+               merged2.accept(getVisitor());
+            }
+            catch(InterruptedException ex) {
+               // ignore it
+            }
+            catch(Exception ex) {
+               LOG.error("Failed to merge tables", ex);
             }
 
-            if(!merged2.isDisposed()) {
-               merged.dispose();
-               merged = null;
-               completed = true;
-               // notify waiting consumers
-               SetTableLens.this.notifyAll();
+            synchronized(SetTableLens.this) {
+               if(rows != null) {
+                  rows.complete();
+               }
+
+               if(!merged2.isDisposed()) {
+                  merged.dispose();
+                  merged = null;
+                  completed = true;
+                  // notify waiting consumers
+                  SetTableLens.this.notifyAll();
+               }
             }
          }
       });
@@ -1208,6 +1211,12 @@ public abstract class SetTableLens
       return rows.size();
    }
 
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      lastIdx = -1;
+   }
+
    /**
     * Row locates a row in a table.
     */
@@ -1252,7 +1261,7 @@ public abstract class SetTableLens
       NUMERIC_MAP.put(Double.class, Integer.valueOf(6));
    }
 
-   private TableDataDescriptor descriptor;
+   private transient TableDataDescriptor descriptor;
    private Map<TableDataPath, Object> mmap = new HashMap<>();
 
    private XIdentifierContainer identifiers = null;

@@ -22,6 +22,9 @@ import inetsoft.sree.internal.cluster.*;
 import inetsoft.util.config.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -30,12 +33,17 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.time.Duration;
 import java.util.ServiceLoader;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 @Lazy(false)
-public class NodeProtectionService implements MembershipListener {
+public class NodeProtectionService implements MembershipListener, MapChangeListener<String, Boolean> {
+   @Autowired
+   public NodeProtectionService(Cluster cluster) {
+      this.cluster = cluster;
+   }
 
    /**
     * Initializes the service by choosing which NodeProtector implementation to use depending on the config
@@ -54,24 +62,37 @@ public class NodeProtectionService implements MembershipListener {
 
          ClusterConfig clusterConfig = InetsoftConfig.getInstance().getCluster();
 
-         if(clusterConfig != null && !clusterConfig.isClientMode() &&
-            clusterConfig.getMinSingleInstanceUptime() > 0L)
-         {
-            cluster = Cluster.getInstance();
-            minUptime = Duration.ofSeconds(clusterConfig.getMinSingleInstanceUptime());
-            cluster.addMembershipListener(this);
-            updateSingleInstance();
+         if(clusterConfig != null && !clusterConfig.isClientMode()) {
+            cluster.addReplicatedMapListener(NODE_PROTECTION_MAP, this);
+
+            // scheduleAtFixedRate is idempotent across the cluster (deduplicates by class name)
+            cluster.getScheduledExecutor().scheduleAtFixedRate(
+               new NodeProtectionCoordinatorTask(), 20L, 20L, TimeUnit.SECONDS);
+
+            if(clusterConfig.getMinSingleInstanceUptime() > 0L) {
+               minUptime = Duration.ofSeconds(clusterConfig.getMinSingleInstanceUptime());
+               cluster.addMembershipListener(this);
+               updateSingleInstance();
+            }
          }
       }
    }
 
    @PreDestroy
-   public void close() throws Exception {
-      nodeProtector.close();
+   public void close() {
+      try {
+         if(nodeProtector != null) {
+            nodeProtector.close();
+         }
 
-      if(cluster != null) {
-         cluster.removeMembershipListener(this);
-         cluster = null;
+         if(cluster != null) {
+            cluster.removeMembershipListener(this);
+            cluster.removeReplicatedMapListener(NODE_PROTECTION_MAP, this);
+            cluster = null;
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to clean up during shutdown", e);
       }
    }
 
@@ -93,7 +114,8 @@ public class NodeProtectionService implements MembershipListener {
 
    /**
     * Enables or disables protection for the node, so it will not be removed by scale-in operations
-    * @param enabled  whether to enable or disable protection
+    *
+    * @param enabled whether to enable or disable protection
     */
    public void updateNodeProtection(boolean enabled) {
       if(nodeProtector != null) {
@@ -114,7 +136,8 @@ public class NodeProtectionService implements MembershipListener {
 
    /**
     * Get the status of the current node's protection against scale-in operations
-    * @return  true if protection is enabled
+    *
+    * @return true if protection is enabled
     */
    public boolean getNodeProtection() {
       return nodeProtector != null && nodeProtector.getNodeProtection();
@@ -181,10 +204,31 @@ public class NodeProtectionService implements MembershipListener {
       return minUptime != null && getUptime().compareTo(minUptime) >= 0;
    }
 
-   private Cluster cluster = null;
+   @Override
+   public void entryAdded(EntryEvent<String, Boolean> event) {
+      entryUpdated(event);
+   }
+
+   @Override
+   public void entryUpdated(EntryEvent<String, Boolean> event) {
+      if(event.getKey().equals(cluster.getLocalMember())) {
+         if(getNodeProtection() != event.getValue()) {
+            updateNodeProtection(event.getValue());
+         }
+      }
+   }
+
+   @Override
+   public void entryRemoved(EntryEvent<String, Boolean> event) {
+      // no-op
+   }
+
+   private Cluster cluster;
    private Duration minUptime = null;
    private NodeProtector nodeProtector;
    private boolean sessionProtected = false;
    private boolean instanceProtected = false;
    private final Lock lock = new ReentrantLock();
+   public static final String NODE_PROTECTION_MAP = NodeProtectionService.class.getName() + ".nodeProtectionMap";
+   private static final Logger LOG = LoggerFactory.getLogger(NodeProtectionService.class);
 }

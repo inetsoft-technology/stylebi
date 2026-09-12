@@ -36,7 +36,7 @@ import java.util.function.Predicate;
  * @since 12.2
  */
 @SuppressWarnings("deprecation")
-class LegacyConnectionPoolFactory implements ConnectionPoolFactory {
+public class LegacyConnectionPoolFactory implements ConnectionPoolFactory {
    /**
     * Creates a new instance of <tt>LegacyConnectionPoolFactory</tt>.
     *

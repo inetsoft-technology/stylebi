@@ -148,7 +148,7 @@ public abstract class DataSourceListing {
          .replaceAll("\\s+", " ")
          .trim();
       String newName = base;
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       final List<String> names = Arrays.asList(repository.getDataSourceNames());
       int i = 1;
 

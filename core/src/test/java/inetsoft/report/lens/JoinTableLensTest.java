@@ -20,15 +20,17 @@ package inetsoft.report.lens;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.TableLens;
 import inetsoft.report.filter.SortFilter;
-import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
-import inetsoft.test.SreeHome;
-import inetsoft.test.XTableUtil;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import inetsoft.test.*;
+import inetsoft.uql.XTable;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.InputStream;
 import java.sql.Timestamp;
@@ -41,6 +43,11 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class JoinTableLensTest {
    private static String forceHash;
 
@@ -68,6 +75,16 @@ class JoinTableLensTest {
       sortCols = IntStream.range(0, expected.getColCount()).toArray();
       SortFilter sorted = new SortFilter(expected, sortCols, true);
       XTableUtil.assertEquals(sorted, actual);
+   }
+
+   @ParameterizedTest(name = "testSerialize {0}")
+   @MethodSource("joinTestProvider")
+   public void testSerialize(@SuppressWarnings("unused") String name, boolean hash, int type, int[] cols,
+                             TableLens left, TableLens right, TableLens expected) throws Exception
+   {
+      JoinTableLens originalTable = new JoinTableLens(left, right, cols, cols, type, true);
+      XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
+      Assertions.assertEquals(JoinTableLens.class, deserializedTable.getClass());
    }
 
    static Stream<Arguments> joinTestProvider() throws Exception {

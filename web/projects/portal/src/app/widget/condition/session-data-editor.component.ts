@@ -17,10 +17,13 @@
  */
 import { Component, Input, Output, EventEmitter, OnInit } from "@angular/core";
 
+import { FormsModule } from "@angular/forms";
+
 @Component({
-   selector: "session-data-editor",
-   templateUrl: "session-data-editor.component.html",
-   styleUrls: ["session-data-editor.component.scss"]
+    selector: "session-data-editor",
+    templateUrl: "session-data-editor.component.html",
+    styleUrls: ["session-data-editor.component.scss"],
+    imports: [FormsModule]
 })
 export class SessionDataEditor implements OnInit {
    @Input() value: string;

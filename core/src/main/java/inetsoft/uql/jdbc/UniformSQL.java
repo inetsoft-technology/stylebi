@@ -3129,6 +3129,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    public synchronized void setDataSource(JDBCDataSource dataSource) {
       if(!Tool.equals(this.dataSource, dataSource)) {
          clearCachedString();
+         cachedSQLHelper = null;
       }
 
       this.dataSource = dataSource;
@@ -3335,6 +3336,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          obj.hints = new HashMap<>(hints);
+         obj.cachedSQLHelper = null;
          return obj;
       }
       catch(Exception ex) {
@@ -3609,15 +3611,17 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    public SQLHelper getSQLHelper() {
-      if(vpmUser != null) {
-         return SQLHelper.getSQLHelper(this, vpmUser);
+      if(cachedSQLHelper == null) {
+         cachedSQLHelper = vpmUser != null ?
+            SQLHelper.getSQLHelper(this, vpmUser) : SQLHelper.getSQLHelper(this);
       }
 
-      return SQLHelper.getSQLHelper(this);
+      return cachedSQLHelper;
    }
 
    public void setVpmUser(Principal user) {
       this.vpmUser = user;
+      cachedSQLHelper = null;
    }
 
    /**
@@ -3626,6 +3630,21 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     */
    public boolean isLossy() {
       if(parseIt && lossy == null && sqlstring != null) {
+         // For databases with map key access syntax (e.g. ClickHouse m['key']), if the SQL
+         // contains such patterns, the column definitions will not fully capture the subscript
+         // access and the raw SQL cannot be accurately regenerated. Mark as lossy to preserve
+         // the original SQL string. (Bug #72243)
+         if(dataSource != null && (dataSource.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE ||
+            "databricks".equals(SQLHelper.getProductName(dataSource))))
+         {
+            String quoted = JDBCUtil.quoteMapKeyAccessForParsing(sqlstring);
+
+            if(!quoted.equals(sqlstring)) {
+               setLossy(true);
+               return true;
+            }
+         }
+
          SQLLexer lexer = new SQLLexer(new StringReader(getQuotedSqlString(sqlstring)));
          SQLParser parser = new SQLParser(lexer);
          UniformSQL sql = new UniformSQL();
@@ -3701,6 +3720,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private Set<String> aliasflags = new HashSet<>();
    private Collection<XJoin> ojoins; // original joins before being transformed
    private transient Principal vpmUser; // vpm user apply for studio worksheet.
+   private transient volatile SQLHelper cachedSQLHelper;
    private Boolean lossy = null;
 
    private static final Logger LOG = LoggerFactory.getLogger(UniformSQL.class);

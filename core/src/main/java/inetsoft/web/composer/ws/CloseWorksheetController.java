@@ -17,12 +17,6 @@
  */
 package inetsoft.web.composer.ws;
 
-import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.execution.AssetQuerySandbox;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.web.viewsheet.service.RuntimeViewsheetManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.stereotype.Controller;
@@ -32,31 +26,14 @@ import java.security.Principal;
 @Controller
 public class CloseWorksheetController extends WorksheetController {
    @Autowired
-   public CloseWorksheetController(RuntimeViewsheetManager runtimeViewsheetManager) {
-      this.runtimeViewsheetManager = runtimeViewsheetManager;
+   public CloseWorksheetController(CloseWorksheetServiceProxy closeWorksheetService) {
+      this.closeWorksheetService = closeWorksheetService;
    }
 
    @MessageMapping("/ws/close")
    public void closeWorksheet(Principal principal) throws Exception {
-      RuntimeWorksheet rws = getRuntimeWorksheet(principal);
-      AssetQuerySandbox box = rws.getAssetQuerySandbox();
-
-      // @by stephenwebster, For Bug #9865
-      // When the worksheet is closed, eventually the TableLens in
-      // AssetQuerySandbox are disposed, but this doesn't necessarily cancel
-      // underlying table processing.  Implemented a cancel method to stop
-      // processing for this AssetQuerySandbox when the worksheet is closed.
-      if(box != null) {
-         box.cancelTableLens();
-      }
-
-      getWorksheetEngine().closeWorksheet(getRuntimeId(), principal);
-      runtimeViewsheetManager.sheetClosed(getRuntimeId());
-      AssetEntry entry = rws.getEntry();
-      VSEventUtil.deleteAutoSavedFile(entry, principal);
-      AssetRepository rep = AssetUtil.getAssetRepository(false);
-      ((AbstractAssetEngine)rep).fireAutoSaveEvent(entry);
+      closeWorksheetService.closeWorksheet(getRuntimeId(), principal);
    }
 
-   private final RuntimeViewsheetManager runtimeViewsheetManager;
+   private final CloseWorksheetServiceProxy closeWorksheetService;
 }

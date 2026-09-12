@@ -18,11 +18,15 @@
 import {ChangeDetectorRef, Component, EventEmitter, Input, OnInit, Output, ViewChild} from "@angular/core";
 import { DataSourceDefinitionModel } from "../../../../../../../../shared/util/model/data-source-definition-model";
 import { NotificationsComponent } from "../../../../../widget/notifications/notifications.component";
+import { DataNotificationsComponent } from "../../../data-notifications.component";
+import { DatasourcesDatasourceEditorComponent } from "../datasources-datasource-editor/datasources-datasource-editor.component";
+import { ModalHeaderComponent } from "../../../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "datasources-datasource-dialog",
-   templateUrl: "./datasources-datasource-dialog.component.html",
-   styleUrls: ["./datasources-datasource-dialog.component.scss"]
+    selector: "datasources-datasource-dialog",
+    templateUrl: "./datasources-datasource-dialog.component.html",
+    styleUrls: ["./datasources-datasource-dialog.component.scss"],
+    imports: [ModalHeaderComponent, DatasourcesDatasourceEditorComponent, DataNotificationsComponent]
 })
 export class DatasourcesDatasourceDialogComponent implements OnInit {
    @Input() title: string = "_#(js:Additional Connections)";

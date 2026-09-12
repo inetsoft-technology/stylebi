@@ -22,6 +22,7 @@ import {
    HostListener,
    Input,
    NgZone,
+   OnDestroy,
    OnInit,
    Output
 } from "@angular/core";
@@ -39,17 +40,19 @@ import { Dimension } from "../../../common/data/dimension";
 import { RefreshDescriptionCommand } from "../../model/command/refresh-description-command";
 import { VSChartModel } from "../../../vsobjects/model/vs-chart-model";
 import { ConsoleMessage } from "../../../widget/console-dialog/console-message";
+import { WizardPreviewContainer } from "./wizard-preview-container.component";
 
 @Component({
-   selector: "wizard-preview-pane",
-   templateUrl: "./wizard-preview-pane.component.html",
-   styleUrls: ["./wizard-preview-pane.component.scss"],
-   providers: [
-      AssemblyActionFactory
-   ]
+    selector: "wizard-preview-pane",
+    templateUrl: "./wizard-preview-pane.component.html",
+    styleUrls: ["./wizard-preview-pane.component.scss"],
+    providers: [
+        AssemblyActionFactory
+    ],
+    imports: [WizardPreviewContainer]
 })
 export class VSWizardPreviewPane extends CommandProcessor
-   implements OnInit, AfterViewInit
+   implements OnInit, AfterViewInit, OnDestroy
 {
    @Input() vsObject: VSObjectModel;
    @Input() runtimeId: string;
@@ -77,6 +80,10 @@ export class VSWizardPreviewPane extends CommandProcessor
 
    ngAfterViewInit(): void {
       this.setPreviewPaneSize();
+   }
+
+   ngOnDestroy(): void {
+      this.cleanup();
    }
 
    get assemblyName(): string {

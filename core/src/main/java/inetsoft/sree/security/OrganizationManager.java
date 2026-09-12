@@ -20,6 +20,7 @@ package inetsoft.sree.security;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.ThreadContext;
+import inetsoft.util.Tool;
 
 import java.security.Principal;
 import java.util.*;
@@ -68,12 +69,20 @@ public class OrganizationManager {
 
    public String getCurrentOrgID(Principal principal) {
       XPrincipal xPrincipal = (XPrincipal) principal;
-      String orgID;
+      String orgID = null;
 
       if(principal != null) {
          orgID = xPrincipal.getCurrentOrgId();
       }
-      else {
+
+      // Check OrganizationContextHolder before falling back to default.
+      // This is needed for cluster calls where the principal may be null
+      // but OrganizationContextHolder has been set via SwitchOrgAspectTask.
+      if(Tool.isEmptyString(orgID)) {
+         orgID = OrganizationContextHolder.getCurrentOrgId();
+      }
+
+      if(Tool.isEmptyString(orgID)) {
          // If org ID isn't retrieved properly, users will write to the wrong storages.
          // Check if the org id is retrieved properly by throwing this exception
          // throw new RuntimeException("Could not get organization ID from principal");
@@ -218,13 +227,14 @@ public class OrganizationManager {
 
    public static <T> T runInOrgScope(String orgID, Callable<T> supplier) throws Exception {
       T result;
+      String originalOrg = OrganizationContextHolder.getCurrentOrgId();
 
       try {
          OrganizationContextHolder.setCurrentOrgId(orgID);
          result = supplier.call();
       }
       finally {
-         OrganizationContextHolder.clear();
+         OrganizationContextHolder.setCurrentOrgId(originalOrg);
       }
 
       return result;

@@ -119,10 +119,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
       }
 
       for(RenameInfo info : infos) {
-         if(info.isReplet()) {
-            renameRepletAction(doc, info);
-         }
-         else if(info.isViewsheet()) {
+         if(info.isViewsheet()) {
             renameViewsheetAction(doc, info);
          }
 
@@ -565,25 +562,6 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
          }
 
          item.setAttribute("viewsheet", info.getNewName());
-      }
-   }
-
-   private void renameRepletAction(Element doc, RenameInfo info) {
-      NodeList childNodes = getChildNodes(doc,
-         "//Task/Action[@replet='" + info.getOldName() + "']");
-
-      if(childNodes == null) {
-         return;
-      }
-
-      for(int i = 0; i < childNodes.getLength(); i++) {
-         Element item = (Element) childNodes.item(i);
-
-         if(item == null) {
-            continue;
-         }
-
-         item.setAttribute("replet", info.getNewName());
       }
    }
 

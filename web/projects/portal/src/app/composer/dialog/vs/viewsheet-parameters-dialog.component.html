@@ -1,22 +1,22 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Customize Parameters)'" (onCancel)="cancelChanges()"
-              [cshid]="'CustomizeParameters'">
+  [cshid]="'CustomizeParameters'">
 </modal-header>
 
 <div class="modal-body" enterSubmit (onEnter)="saveChanges()">
@@ -26,37 +26,39 @@
         <thead>
         </thead>
         <tbody>
-        <div *ngFor="let _item of model.enabledParameters; let _i = index"
-             class="parameter-item"
-             (click)="select(true, _i, $event)" [class.selected]="isSelected(true, _i)">
-          <span>{{_item}}</span>
-          <button type="button" class="btn btn-light-no-bg icon-hover-bg" (click)="moveParameter(_i, _i - 1)"
-                  [disabled]="!canMoveUp(_i)">
-            <i class="upward-icon" aria-hidden="true"></i>
-          </button>
-          <button type="button" class="btn btn-light-no-bg icon-hover-bg" (click)="moveParameter(_i, _i + 1)"
-                  [disabled]="!canMoveDown(_i)">
-            <i class="downward-icon" aria-hidden="true"></i>
-          </button>
-        </div>
+          @for (_item of model.enabledParameters; track _item; let _i = $index) {
+            <div
+              class="parameter-item"
+              (click)="select(true, _i, $event)" [class.selected]="isSelected(true, _i)">
+              <span>{{_item}}</span>
+              <button type="button" class="btn btn-light-no-bg icon-hover-bg" (click)="moveParameter(_i, _i - 1)"
+                [disabled]="!canMoveUp(_i)">
+                <i class="upward-icon" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="btn btn-light-no-bg icon-hover-bg" (click)="moveParameter(_i, _i + 1)"
+                [disabled]="!canMoveDown(_i)">
+                <i class="downward-icon" aria-hidden="true"></i>
+              </button>
+            </div>
+          }
         </tbody>
       </table>
     </div>
     <ng-container shuffleButtons>
       <button type="button" class="btn btn-default mb-1" (click)="disableParameter()"
-              [disabled]="!model.enabledParameters || selectedEnabledIndexes.length == 0">
+        [disabled]="!model.enabledParameters || selectedEnabledIndexes.length == 0">
         _#(Add)
       </button>
       <button type="button" class="btn btn-default mb-1" (click)="enableParameter()"
-              [disabled]="!model.disabledParameters || selectedDisabledIndexes.length == 0">
+        [disabled]="!model.disabledParameters || selectedDisabledIndexes.length == 0">
         _#(Remove)
       </button>
       <button type="button" class="btn btn-default mb-1" (click)="disableAll()"
-              [disabled]="!model.enabledParameters || model.enabledParameters.length == 0">
+        [disabled]="!model.enabledParameters || model.enabledParameters.length == 0">
         _#(Add All)
       </button>
       <button type="button" class="btn btn-default" (click)="enableAll()"
-              [disabled]="!model.disabledParameters || model.disabledParameters.length == 0">
+        [disabled]="!model.disabledParameters || model.disabledParameters.length == 0">
         _#(Remove All)
       </button>
     </ng-container>
@@ -65,11 +67,13 @@
         <thead>
         </thead>
         <tbody>
-        <div *ngFor="let _item of model.disabledParameters; let _i = index"
-             class="parameter-item"
-             (click)="select(false, _i, $event)" [class.selected]="isSelected(false, _i)">
-          <span>{{_item}}</span>
-        </div>
+          @for (_item of model.disabledParameters; track _item; let _i = $index) {
+            <div
+              class="parameter-item"
+              (click)="select(false, _i, $event)" [class.selected]="isSelected(false, _i)">
+              <span>{{_item}}</span>
+            </div>
+          }
         </tbody>
       </table>
     </div>

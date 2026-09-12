@@ -17,7 +17,7 @@
  */
 package inetsoft.uql.rest.auth;
 
-import inetsoft.uql.XFactory;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.rest.AbstractRestDataSource;
 import inetsoft.uql.tabular.oauth.*;
 import org.apache.http.client.methods.HttpRequestBase;
@@ -47,7 +47,7 @@ public class OAuthAuthenticator<T extends AbstractRestDataSource & OAuthDataSour
 
       if(dataSource.getFullName() != null) {
          try {
-            XFactory.getRepository().updateDataSource(dataSource, dataSource.getFullName());
+            XRepository.getRepository().updateDataSource(dataSource, dataSource.getFullName());
          }
          catch(Exception e) {
             LOG.warn("Failed to save data source after refreshing token", e);

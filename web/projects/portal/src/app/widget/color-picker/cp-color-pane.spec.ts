@@ -23,12 +23,12 @@ describe("Color Picker Unit Test", () => {
    let colorPane: ColorPane;
 
    beforeEach(() => {
-      modalService = { open: jest.fn() };
-      recentColorService = { colorSelected: jest.fn() };
+      modalService = { open: vi.fn() };
+      recentColorService = { colorSelected: vi.fn() };
    });
 
    //for Bug #20049
-   it("recent color is emited correctly", (done) => {
+   it("recent color is emited correctly", () => new Promise<void>((done) => {
       colorPane = new ColorPane(modalService, recentColorService);
       let counter = 0;
       let colors = ["#00ff00", "#ff00ff", "#00ff00"];
@@ -43,10 +43,10 @@ describe("Color Picker Unit Test", () => {
       colorPane.selectColor("#00ff00");
       colorPane.selectColor("#ff00ff");
       colorPane.selectColor("#00ff00");
-   });
+   }));
 
    //Bug #20721
-   it("should support to set color", (done) => {
+   it("should support to set color", () => new Promise<void>((done) => {
       colorPane = new ColorPane(modalService, recentColorService);
       colorPane.colorChanged.subscribe((value: string) => {
          expect(value).toEqual("#111111");
@@ -54,5 +54,5 @@ describe("Color Picker Unit Test", () => {
          done();
       });
       colorPane.setColorValue("111111");
-   });
+   }));
 });

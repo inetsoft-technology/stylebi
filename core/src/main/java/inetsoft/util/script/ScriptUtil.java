@@ -17,41 +17,66 @@
  */
 package inetsoft.util.script;
 
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptValueConverter;
+import org.graalvm.polyglot.Value;
 
 import java.util.Date;
 
 public class ScriptUtil {
+   /**
+    * Unwrap a script value into its host (Java) representation. Under GraalJS,
+    * values handed back to host code are usually already converted; this
+    * method handles any stray polyglot {@link Value}, and preserves the legacy
+    * NaN/Infinity -> null behavior.
+    */
    public static Object unwrap(Object obj) {
-      if(obj instanceof ConsString) {
-         return obj.toString();
+      if(obj instanceof Value) {
+         obj = ScriptValueConverter.toHost((Value) obj);
       }
-      else if(obj instanceof Wrapper) {
-         return ((Wrapper) obj).unwrap();
-      }
+      // A JS Date coerced to an Object target (e.g. an element of the Object[][]
+      // passed to new DefaultDataSet([["Date","Qty"],[new Date(),200]])) arrives
+      // as a foreign polyglot object rather than a Value or a java.util.Date, so
+      // the branch above misses it and the date-ness is lost. Recover it here so
+      // downstream code (e.g. TimeScale.init) sees a real Date. (#75633)
+      else if(obj != null) {
+         Date date = ScriptValueConverter.toHostDate(obj);
 
-      // convert javascript date to java date
-      if(obj instanceof NativeArray) {
-         NativeArray narr = (NativeArray) obj;
-         Object[] arr = new Object[(int) narr.jsGet_length()];
-
-         for(int i = 0; i < arr.length; i++) {
-            arr[i] = unwrap(narr.get(i, narr));
+         if(date != null) {
+            return date;
          }
-
-         obj = arr;
       }
-      else if(obj instanceof ScriptableObject) {
-         ScriptableObject sobj = (ScriptableObject) obj;
 
-         if(sobj.getClassName().equals("Date")) {
-            Number num = (Number) sobj.getDefaultValue(Double.TYPE);
-            long dateNum = num.longValue();
+      // Restore the legacy Rhino Wrapper.unwrap() behavior: an XTableArray
+      // (the scriptable returned by XUtil.runQuery) unwraps to its underlying
+      // XTable so host code can detect/process it as a table. (#75423)
+      if(obj instanceof inetsoft.uql.script.XTableArray) {
+         return ((inetsoft.uql.script.XTableArray) obj).unwrap();
+      }
 
-            // @by stephenwebster, For bug1426196456256
-            // Removed legacy code, expecting correct value from the NativeDate
-            obj = new Date(dateNum);
-         }
+      // Likewise for a TableArray (the calc/report script table wrapper,
+      // e.g. the value returned by a calc cell's data['*@...'] subtable
+      // reference). It was also a Rhino Wrapper; unwrap it to its underlying
+      // XTable so host code (toList/mapList/etc.) can detect and process it as
+      // a table instead of leaving the non-serializable wrapper in a cell
+      // value. (#75576 / #75423)
+      if(obj instanceof inetsoft.report.script.TableArray) {
+         return ((inetsoft.report.script.TableArray) obj).unwrap();
+      }
+
+      // Likewise for a CalcRef (the calc-table $name cell reference). It too was
+      // a Rhino Scriptable/Wrapper whose getDefaultValue() coerced it to its
+      // referenced cell value whenever host code consumed it as data. Under
+      // GraalJS the guest->host boundary (ScriptValueConverter.toHost) preserves
+      // the live CalcRef so indexing/spec access ($name['*'], $name[-1]) still
+      // works, but host utilities that treat a value as plain data (JSObject
+      // .split/convert/splitN, called from CALC aggregates like sum($x)/
+      // nthLargest($x)) go through this unwrap first. Resolve it here to its
+      // referenced value (a scalar or an Object[] of cell values) so those
+      // utilities see real data instead of falling back to Object.toString()
+      // (which produced "...CalcRef@<hash>" for a bare ref and 0 for numeric
+      // aggregates). (#75738)
+      if(obj instanceof inetsoft.report.script.formula.CalcRef) {
+         return ((inetsoft.report.script.formula.CalcRef) obj).unwrap();
       }
 
       // @by larryl, if a calculation generates an invalid result, show null
@@ -66,33 +91,14 @@ public class ScriptUtil {
          }
       }
 
-      return (obj instanceof Undefined) ? null : obj;
+      return obj;
    }
 
    public static Object getScriptValue(Object data) {
-      if(data instanceof ScriptableObject) {
-         TimeoutContext.enter();
-         ScriptableObject sobj = (ScriptableObject) data;
-
-         if(sobj.getClassName().equals("Date")) {
-            Number num = (Number) sobj.getDefaultValue(Double.TYPE);
-            long dateNum = num.longValue();
-
-            // @by stephenwebster, For bug1426196456256
-            // Removed legacy code, expecting correct value from the NativeDate
-            return new Date(dateNum);
-         }
+      if(data instanceof Value) {
+         return ScriptValueConverter.toHost((Value) data);
       }
 
       return data;
-   }
-
-   /**
-    * Wrap an object array as native JS array.
-    */
-   public static NativeArray getNativeArray(Object[] val, Scriptable parentScope) {
-      NativeArray arr = new NativeArray(val);
-      ScriptRuntime.setBuiltinProtoAndParent(arr, parentScope, TopLevel.Builtins.Array);
-      return arr;
    }
 }

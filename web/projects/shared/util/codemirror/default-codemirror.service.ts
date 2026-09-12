@@ -32,29 +32,31 @@ import "codemirror/addon/tern/tern";
 import "codemirror/mode/javascript/javascript";
 import "codemirror/mode/sql/sql";
 import "codemirror/mode/groovy/groovy";
-import * as ECMASCRIPT_DEFS from "tern/defs/ecmascript.json";
+import ECMASCRIPT_DEFS from "tern/defs/ecmascript.json";
 import { Injectable } from "@angular/core";
-import { CodemirrorService } from "./codemirror.service";
-
-type TokenType = "keyword" | "comment" | null;
+import { CodemirrorService, TokenType } from "./codemirror.service";
 
 @Injectable({
    providedIn: "root"
 })
 export class DefaultCodemirrorService extends CodemirrorService {
-   createTernServer(options: any): any {
-      return new CodeMirror.TernServer(options);
+   createTernServer(options: object): object {
+      // esbuild's __toESM() snapshots the CJS exports at import time, so TernServer
+      // (added by the tern side-effect import after the snapshot) is absent from the
+      // namespace wrapper. Access via .default, which is the live CJS exports reference.
+      const CM: any = (CodeMirror as any).default || CodeMirror;
+      return new CM.TernServer(options);
    }
 
-   getEcmaScriptDefs(): any[] {
-      return [ECMASCRIPT_DEFS["default"]];
+   getEcmaScriptDefs(): object[] {
+      return [ECMASCRIPT_DEFS];
    }
 
-   createCodeMirrorInstance(element: any, config: any) {
+   createCodeMirrorInstance(element: HTMLTextAreaElement, config: CodeMirror.EditorConfiguration): CodeMirror.Editor {
       return CodeMirror.fromTextArea(element, config);
    }
 
-   public hasToken(cm: any, tokenType: TokenType, value: string): boolean {
+   public hasToken(cm: CodeMirror.Editor, tokenType: TokenType, value: string): boolean {
       const doc = cm.getDoc();
 
       for(let i = 0; i < doc.lineCount(); i++) {
@@ -66,7 +68,7 @@ export class DefaultCodemirrorService extends CodemirrorService {
       return false;
    }
 
-   private findReturnInLine(cm, line: number, tokenType: TokenType, value: string): boolean {
+   private findReturnInLine(cm: CodeMirror.Editor, line: number, tokenType: TokenType, value: string): boolean {
       let end = 0;
 
       while(true) {

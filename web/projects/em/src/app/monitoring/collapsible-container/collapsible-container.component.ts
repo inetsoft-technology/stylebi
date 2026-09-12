@@ -16,11 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
+import { MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle } from "@angular/material/expansion";
 
 @Component({
-   selector: "em-collapsible-container",
-   templateUrl: "./collapsible-container.component.html",
-   styleUrls: ["./collapsible-container.component.scss"]
+    selector: "em-collapsible-container",
+    templateUrl: "./collapsible-container.component.html",
+    styleUrls: ["./collapsible-container.component.scss"],
+    standalone: true,
+    imports: [MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle]
 })
 export class CollapsibleContainerComponent implements OnInit {
    @Input() title: string;

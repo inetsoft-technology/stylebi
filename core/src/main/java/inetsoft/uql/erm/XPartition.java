@@ -2789,7 +2789,7 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
          try {
             VariableTable vtable = new VariableTable();
             vtable.put(JDBCQuery.HINT_MAX_ROWS, "1");
-            XHandler handler = XFactory.getDataService().getHandler(
+            XHandler handler = XRepository.getRepository().getHandler(
                XSessionManager.getSessionManager().getSession(),
                query.getDataSource(), new VariableTable());
             XNode node = handler.execute(

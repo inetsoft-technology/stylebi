@@ -15,12 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {HttpClient, HttpParams} from "@angular/common/http";
+import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http";
 import {Component, EventEmitter, Input, OnChanges, Output, SimpleChanges} from "@angular/core";
+import { MatSnackBar } from "@angular/material/snack-bar";
+import { Observable, throwError } from "rxjs";
+import { catchError } from "rxjs/operators";
 import {ResourcePermissionModel} from "../../../security/resource-permission/resource-permission-model";
 import {RepositoryEditorModel} from "../../../../../../../shared/util/model/repository-editor-model";
 import {Tool} from "../../../../../../../shared/util/tool";
 import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
+import { MatTabGroup, MatTab } from "@angular/material/tabs";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+
 
 export interface RepositoryPermissionEditorModel extends RepositoryEditorModel {
    label: string;
@@ -28,9 +35,10 @@ export interface RepositoryPermissionEditorModel extends RepositoryEditorModel {
 }
 
 @Component({
-   selector: "em-repository-permission-editor-page",
-   templateUrl: "./repository-permission-editor-page.component.html",
-   styleUrls: ["./repository-permission-editor-page.component.scss"]
+    selector: "em-repository-permission-editor-page",
+    templateUrl: "./repository-permission-editor-page.component.html",
+    styleUrls: ["./repository-permission-editor-page.component.scss"],
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, ResourcePermissionComponent]
 })
 export class RepositoryPermissionEditorPageComponent implements OnChanges {
    @Input() model: RepositoryPermissionEditorModel;
@@ -43,7 +51,7 @@ export class RepositoryPermissionEditorPageComponent implements OnChanges {
    private _oldModel: RepositoryPermissionEditorModel;
    private permissionChanged: boolean = false;
 
-   constructor(private http: HttpClient) {
+   constructor(private http: HttpClient, private snackBar: MatSnackBar) {
    }
 
    ngOnChanges(changes: SimpleChanges): void {
@@ -57,10 +65,20 @@ export class RepositoryPermissionEditorPageComponent implements OnChanges {
 
       this.http.post("../api/em/content/repository/tree/node/permission",
          this.model.permissionModel, {params})
+          .pipe(catchError(error => this.handleApplyError(error)))
           .subscribe(() => {
              this.editorChanged.emit();
              this.permissionChanged = false;
           });
+   }
+
+   private handleApplyError(error: HttpErrorResponse): Observable<never> {
+      console.error("Failed to save permission settings: ", error);
+      const message = error.error && error.error.type === "MessageException" ?
+         error.error.message : "Failed to save permission settings.";
+      this.snackBar.open(message, "_#(js:Close)",
+         { duration: Tool.SNACKBAR_DURATION, panelClass: ["max-width"] });
+      return throwError(error);
    }
 
    reset() {

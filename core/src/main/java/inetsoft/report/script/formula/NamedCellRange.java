@@ -175,8 +175,20 @@ public class NamedCellRange extends CellRange {
    public Collection getCells(XTable table, boolean position) {
       TableDataDescriptor desc = (table instanceof TableLens) ? table.getDescriptor() : null;
 
+      // A worksheet table referenced by name from a script (e.g. table['col'])
+      // should return the column's values as a flat table. Skip the grouped/
+      // crosstab summary routing for such references: a shared source table may
+      // carry a runtime crosstab/aggregate structure (e.g. pushed down by a
+      // crosstab-optimized freehand table) that would otherwise collapse the
+      // reference to summary cells instead of the underlying column values.
+      // Note baseTableRef only suppresses the findSummaryTable walk below; the
+      // instanceof dispatch that follows is unchanged, so a top-level grouped or
+      // crosstab lens (a genuinely aggregated worksheet table) is still routed to
+      // the summary path. Only a lens that merely *reports* a grouped/crosstab
+      // descriptor while nesting the grouped/crosstab table under a non-summary
+      // filter -- the pushdown-pollution case -- is affected. (#75663)
       if(summary ||
-         desc != null && !processCalc &&
+         desc != null && !processCalc && !baseTableRef &&
          (desc.getType() == TableDataDescriptor.GROUPED_TABLE ||
           desc.getType() == TableDataDescriptor.CROSSTAB_TABLE))
       {
@@ -384,6 +396,19 @@ public class NamedCellRange extends CellRange {
          throw new RuntimeException("Expression reference not supported in crosstab: " + range);
       }
 
+      // A bare (unqualified) reference to one of the crosstab's own row/col dimension
+      // names, e.g. data['city'] where city is the crosstab's column dimension, has no
+      // matching data cell -- the crosstab flattens dimension values into column/row
+      // headers, so no cell's path ever literally equals the dimension name itself.
+      // Resolve it directly to the dimension's distinct values instead. (#75423 follow-up)
+      if(!position && groupspecs.isEmpty() && condition == null) {
+         java.util.List<Object> dimValues = getCrosstabDimensionValues(table, colexpr);
+
+         if(dimValues != null) {
+            return dimValues;
+         }
+      }
+
       Vector cells = new Vector();
       Map<String, GroupSpec> specs = getRuntimeGroups();
       RangeSelector selector = CrosstabGroupSelector.getSelector(
@@ -393,6 +418,66 @@ public class NamedCellRange extends CellRange {
       proc.selectCells(cells, selector, condition, position);
 
       return cells;
+   }
+
+   /**
+    * Get the distinct values of a crosstab's own row or column dimension.
+    * @return the ordered, deduplicated values, or null if {@code name} does not
+    * match a row or column dimension of the crosstab (e.g. it is a measure name).
+    */
+   private java.util.List<Object> getCrosstabDimensionValues(CrossFilter table, String name) {
+      int rowDimIdx = -1;
+      int colDimIdx = -1;
+
+      for(int i = 0; i < table.getRowHeaderCount(); i++) {
+         if(Tool.equals(table.getRowHeader(i), name)) {
+            rowDimIdx = i;
+            break;
+         }
+      }
+
+      if(rowDimIdx < 0) {
+         for(int i = 0; i < table.getColHeaderCount(); i++) {
+            if(Tool.equals(table.getColHeader(i), name)) {
+               colDimIdx = i;
+               break;
+            }
+         }
+      }
+
+      if(rowDimIdx < 0 && colDimIdx < 0) {
+         return null;
+      }
+
+      LinkedHashSet<Object> values = new LinkedHashSet<>();
+      table.moreRows(Integer.MAX_VALUE);
+
+      if(rowDimIdx >= 0) {
+         for(int r = table.getHeaderRowCount(); r < table.getRowCount(); r++) {
+            CrossFilter.Tuple tuple = table.getRowTuple(r);
+            Object[] row = tuple == null ? null : tuple.getRow();
+
+            // subtotal/grand-total tuples leave the outer grouping position(s)
+            // unset (null) -- only collect positions populated by real data.
+            if(row != null && rowDimIdx < row.length && row[rowDimIdx] != null) {
+               values.add(row[rowDimIdx]);
+            }
+         }
+      }
+      else {
+         for(int c = table.getHeaderColCount(); c < table.getColCount(); c++) {
+            CrossFilter.Tuple tuple = table.getColTuple(c);
+            Object[] row = tuple == null ? null : tuple.getRow();
+
+            // subtotal/grand-total tuples leave the outer grouping position(s)
+            // unset (null) -- only collect positions populated by real data.
+            if(row != null && colDimIdx < row.length && row[colDimIdx] != null) {
+               values.add(row[colDimIdx]);
+            }
+         }
+      }
+
+      return new ArrayList<>(values);
    }
 
    /**

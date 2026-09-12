@@ -23,8 +23,6 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.util.script.ScriptException;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,12 +53,12 @@ public class OutputVSAScriptable extends VSAScriptable {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       Viewsheet vs = box.getViewsheet();
       VSAssembly vassembly = assembly == null ? null : vs.getAssembly(assembly);
 
       if(!(vassembly instanceof OutputVSAssembly)) {
-         return Undefined.instance;
+         return null;
       }
 
       if("value".equals(name)) {
@@ -78,11 +76,11 @@ public class OutputVSAScriptable extends VSAScriptable {
             }
             catch(ColumnNotFoundException | ScriptException messageException) {
                LOG.warn("Failed to get output property '{}' due to prior exception", name);
-               return Undefined.instance;
+               return null;
             }
             catch(Exception ex) {
                LOG.error("Failed to get output property '{}', could not get data", name, ex);
-               return Undefined.instance;
+               return null;
             }
             finally {
                executed = false;
@@ -95,7 +93,7 @@ public class OutputVSAScriptable extends VSAScriptable {
          return getTipConditions();
       }
 
-      return super.get(name, start);
+      return super.getMember(name);
    }
 
    /**
@@ -234,41 +232,11 @@ public class OutputVSAScriptable extends VSAScriptable {
       return null;
    }
 
-   /**
-    * This function is called if the referenced is used without any indexing,
-    * e.g. name + 2
-    */
-   @Override
-   public Object getDefaultValue(Class hint) {
-      Viewsheet vs = box.getViewsheet();
-      VSAssembly vassembly = assembly == null ? null :
-         (VSAssembly) vs.getAssembly(assembly);
-
-      if(!(vassembly instanceof OutputVSAssembly)) {
-         return Undefined.instance;
-      }
-
-      Object data = null;
-
-      // by calling getData, we have chance to update the output assembly,
-      // including script execution
-      try {
-         data = box.getData(assembly);
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to get output data", ex);
-      }
-
-      // @by larryl, if the value of a output is set through script, calling
-      // getData() may not get it since the value is cached in box. At this
-      // time the query should already be executed so if the value is from
-      // a query, getValue() should return the correct value.
-      if(data == null) {
-         data = ((OutputVSAssembly) vassembly).getValue();
-      }
-
-      return data;
-   }
+   // NOTE (Feature #75423): Rhino getDefaultValue(Class) — which returned the
+   // output's data value when the scriptable was used as a scalar (e.g.
+   // name + 2) — has no direct equivalent in the GraalJS ProxyObject model and
+   // is removed per the migration recipe. The value is still available via the
+   // explicit accessors. Revisit if scalar coercion is required post-cutover.
 
    /**
     * Get the suffix of a property.

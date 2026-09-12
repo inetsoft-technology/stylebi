@@ -15,10 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { HttpResponse } from "@angular/common/http";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf } from "rxjs";
@@ -32,25 +32,31 @@ import { AddRepositoryFolderDialog } from "./add-repository-folder-dialog.compon
 
 describe("Add Repository Folder  Dialog Unit Test", () => {
 
-   let ngbService = { open: jest.fn() };
+   let ngbService = { open: vi.fn() };
    let modelService = {
-      getModel: jest.fn(() => observableOf({})),
-      putModel: jest.fn(() => observableOf(new HttpResponse({body: null}))),
-      sendModel: jest.fn(() => observableOf(new HttpResponse({body: null})))
+      getModel: vi.fn(() => observableOf({})),
+      putModel: vi.fn(() => observableOf(new HttpResponse({body: null}))),
+      sendModel: vi.fn(() => observableOf(new HttpResponse({body: null})))
    };
 
    let fixture: ComponentFixture<AddRepositoryFolderDialog>;
    let addRepoFolderDialog: AddRepositoryFolderDialog;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            HttpClientTestingModule, FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            AddRepositoryFolderDialog,
+            StandardDialogComponent,
+            EnterSubmitDirective,
+            DialogContentDirective,
+            DialogButtonsDirective,
+            ModalHeaderComponent,
          ],
-         declarations: [
-            AddRepositoryFolderDialog, StandardDialogComponent,
-            EnterSubmitDirective, DialogContentDirective, DialogButtonsDirective, ModalHeaderComponent
-         ],
+         
          providers: [
             {
                provide: NgbModal, useValue: ngbService

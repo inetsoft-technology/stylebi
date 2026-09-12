@@ -19,8 +19,10 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class OvalPropertyPaneModel {
+public class OvalPropertyPaneModel implements Serializable {
    public LinePropPaneModel getLinePropPaneModel() {
       if(linePropPaneModel == null) {
          linePropPaneModel = new LinePropPaneModel();
@@ -49,14 +51,30 @@ public class OvalPropertyPaneModel {
       this.fillPropPaneModel = fillPropPaneModel;
    }
 
+   public ShadowPropPaneModel getShadowPropPaneModel() {
+      if(shadowPropPaneModel == null) {
+         shadowPropPaneModel = new ShadowPropPaneModel();
+      }
+
+      return shadowPropPaneModel;
+   }
+
+   public void setShadowPropPaneModel(
+      ShadowPropPaneModel shadowPropPaneModel)
+   {
+      this.shadowPropPaneModel = shadowPropPaneModel;
+   }
+
    @Override
    public String toString() {
       return "OvalPropertyPaneModel{" +
          "linePropPaneModel=" + linePropPaneModel +
          ", fillPropPaneModel=" + fillPropPaneModel +
+         ", shadowPropPaneModel=" + shadowPropPaneModel +
          '}';
    }
 
    private LinePropPaneModel linePropPaneModel;
    private FillPropPaneModel fillPropPaneModel;
+   private ShadowPropPaneModel shadowPropPaneModel;
 }

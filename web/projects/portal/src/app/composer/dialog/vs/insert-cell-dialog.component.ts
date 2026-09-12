@@ -18,10 +18,15 @@
 import { Component, EventEmitter, OnInit, Output } from "@angular/core";
 import { ModelService } from "../../../widget/services/model.service";
 import { InsertCellDialogModel } from "../../data/vs/insert-cell-dialog-model";
+import { FormsModule } from "@angular/forms";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "insert-cell-dialog",
-   templateUrl: "insert-cell-dialog.component.html"
+    selector: "insert-cell-dialog",
+    templateUrl: "insert-cell-dialog.component.html",
+    standalone: true,
+    imports: [NgIf, EnterSubmitDirective, FormsModule]
 })
 
 export class InsertCellDialog implements OnInit {

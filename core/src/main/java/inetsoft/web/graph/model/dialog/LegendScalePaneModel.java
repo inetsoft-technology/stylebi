@@ -17,7 +17,9 @@
  */
 package inetsoft.web.graph.model.dialog;
 
-public class LegendScalePaneModel {
+import java.io.Serializable;
+
+public class LegendScalePaneModel implements Serializable {
    public boolean isReverse() {
       return reverse;
    }

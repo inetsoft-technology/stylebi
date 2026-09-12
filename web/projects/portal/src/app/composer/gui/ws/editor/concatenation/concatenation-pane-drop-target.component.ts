@@ -24,9 +24,10 @@ import { ConcatenationDropEvent } from "./concatenation-drop-event";
 import { CONCAT_REORDER_SUBTABLE_ID } from "./ws-concatenation-editor-pane.component";
 
 @Component({
-   selector: "concatenation-pane-drop-target",
-   templateUrl: "concatenation-pane-drop-target.component.html",
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "concatenation-pane-drop-target",
+    templateUrl: "concatenation-pane-drop-target.component.html",
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true
 })
 export class ConcatenationPaneDropTargetComponent {
    @Input() numTables: number;

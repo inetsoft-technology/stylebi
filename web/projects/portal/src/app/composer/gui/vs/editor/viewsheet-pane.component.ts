@@ -109,7 +109,7 @@ import { ConsoleDialogComponent } from "../../../../widget/console-dialog/consol
 import { ConsoleMessage } from "../../../../widget/console-dialog/console-message";
 import { VariableInputDialogModel } from "../../../../widget/dialog/variable-input-dialog/variable-input-dialog-model";
 import { VariableInputDialog } from "../../../../widget/dialog/variable-input-dialog/variable-input-dialog.component";
-import { SelectionBoxEvent } from "../../../../widget/directive/selection-box.directive";
+import { SelectionBoxEvent, SelectionBoxDirective } from "../../../../widget/directive/selection-box.directive";
 import { DomService } from "../../../../widget/dom-service/dom.service";
 import { InteractContainerDirective } from "../../../../widget/interact/interact-container.directive";
 import { NotificationsComponent } from "../../../../widget/notifications/notifications.component";
@@ -149,42 +149,57 @@ import { VSSelectionContainerModel } from "../../../../vsobjects/model/vs-select
 import { PrintLayoutSection } from "../../../../vsobjects/model/layout/print-layout-section";
 import { VSDependencyChangedCommand } from "../../../../vsobjects/command/vs-dependency-changed-command";
 import { LayoutUtil } from "../../../../vsobjects/util/layout-util";
+import { VSSavingDisplay } from "../../../../vsobjects/objects/vs-loading-display/vs-saving-display.component";
+import { VSLoadingDisplay } from "../../../../vsobjects/objects/vs-loading-display/vs-loading-display.component";
+import { FormsModule } from "@angular/forms";
+import { StatusBar } from "../../../../status-bar/status-bar.component";
+import { PlaceholderDragElement } from "../../../../widget/placeholder-drag-element/placeholder-drag-element.component";
+import { LayoutPane } from "../layouts/layout-pane.component";
+import { ComposerSelectionContainerChildren } from "../objects/selection/composer-selection-container-children.component";
+import { EditableObjectContainer } from "./editable-object-container.component";
+import { ActionsContextmenuAnchorDirective } from "../../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
+import { Rulers } from "../../../../widget/rulers/rulers.component";
+import { MobileToolbarComponent } from "./mobile-toolbar.component";
+import { NgStyle } from "@angular/common";
+import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
 
 const COLLECT_PARAMS_URI = "/events/vs/collectParameters";
 
 @Component({
-   selector: "viewsheet-pane",
-   templateUrl: "viewsheet-pane.component.html",
-   styleUrls: ["viewsheet-pane.component.scss"],
-   providers: [
-      DataTipService,
-      AdhocFilterService,
-      PopComponentService,
-      SelectionContainerChildrenService,
-      ViewsheetClientService,
-      VSChartService,
-      ComposerVsSearchService,
-      DebounceService,
-      {
-         provide: ContextProvider,
-         useFactory: ComposerContextProviderFactory
-      },
-      {
-         provide: DialogService,
-         useFactory: ComposerDialogServiceFactory,
-         deps: [NgbModal, SlideOutService, Injector, UIContextService]
-      },
-      AssemblyActionFactory,
-      {
-         provide: DndService,
-         useClass: VSDndService,
-         deps: [ModelService, NgbModal, ViewsheetClientService]
-      },
-      {
-         provide: ChartService,
-         useExisting: VSChartService
-      }
-   ]
+    selector: "viewsheet-pane",
+    templateUrl: "viewsheet-pane.component.html",
+    styleUrls: ["viewsheet-pane.component.scss"],
+    providers: [
+        DataTipService,
+        AdhocFilterService,
+        PopComponentService,
+        SelectionContainerChildrenService,
+        ViewsheetClientService,
+        VSChartService,
+        ComposerVsSearchService,
+        DebounceService,
+        {
+            provide: ContextProvider,
+            useFactory: ComposerContextProviderFactory
+        },
+        {
+            provide: DialogService,
+            useFactory: ComposerDialogServiceFactory,
+            deps: [NgbModal, SlideOutService, Injector, UIContextService]
+        },
+        AssemblyActionFactory,
+        {
+            provide: DndService,
+            useClass: VSDndService,
+            deps: [ModelService, NgbModal, ViewsheetClientService]
+        },
+        {
+            provide: ChartService,
+            useExisting: VSChartService
+        },
+        ChatService
+    ],
+    imports: [OutOfZoneDirective, MobileToolbarComponent, Rulers, SelectionBoxDirective, ActionsContextmenuAnchorDirective, InteractContainerDirective, NgStyle, EditableObjectContainer, ComposerSelectionContainerChildren, LayoutPane, PlaceholderDragElement, StatusBar, FormsModule, VSLoadingDisplay, VSSavingDisplay, NotificationsComponent, VariableInputDialog, ConsoleDialogComponent]
 })
 export class VSPane extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {
    _vs: Viewsheet;
@@ -290,7 +305,9 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    private draggableRestrictionRects: Map<any, {left: number, top: number, right: number, bottom: number}>;
    draggableSnapGuides: {horizontal: number[], vertical: number[]} = {horizontal: [], vertical: []};
    currentSnapGuides: {x: number, y: number} = null;
-   selectionBorderOffset: number = 2;
+   // the object's selection/highlight ring is drawn with outline (not border), so it
+   // takes up no layout space and no position compensation is needed. see bd-highlight-med-filler.
+   selectionBorderOffset: number = 0;
    snapOffset = 0;
    consoleMessages: ConsoleMessage[] = [];
    newInfoConsoleMessages: boolean = false;
@@ -1270,7 +1287,9 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          return;
       }
 
-      this.treeService.resetTreeModel(command.treeModel, false);
+      if(this.vs?.isFocused) {
+         this.treeService.resetTreeModel(command.treeModel, false);
+      }
    }
 
    /**
@@ -1313,8 +1332,32 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          command.message = Tool.getLimitedMessage(command.message);
          this.notifications.info(command.message);
       }
+      else if(command.type === "CONFIRM") {
+         this.confirm(command.message).then((ok: boolean) => {
+            if(ok) {
+               for(let key in command.events) {
+                  if(command.events.hasOwnProperty(key)) {
+                     let evt: any = command.events[key];
+                     evt.confirmed = true;
+                     this.viewsheetClient.sendEvent(key, evt);
+                  }
+               }
+            }
+            else {
+               this.vs.saving = false;
+
+               for(let key in command.noEvents) {
+                  if(command.noEvents.hasOwnProperty(key)) {
+                     let evt: any = command.noEvents[key];
+                     evt.confirmed = true;
+                     this.viewsheetClient.sendEvent(key, evt);
+                  }
+               }
+            }
+         });
+      }
       else {
-         if(command.type === "ERROR") {
+         if(command.type === "ERROR" || command.type === "WARNING") {
             this.vs.saving = false;
          }
 
@@ -2425,6 +2468,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.onOpenSheet.emit({
          type: "worksheet",
          assetId: this.vs.baseEntry.identifier,
+         vsId: this.vs.runtimeId,
       });
    }
 

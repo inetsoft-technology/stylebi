@@ -25,15 +25,8 @@ import {
    Output,
    SimpleChanges
 } from "@angular/core";
-import {
-   UntypedFormArray,
-   UntypedFormControl,
-   UntypedFormGroup,
-   ValidationErrors,
-   ValidatorFn,
-   Validators
-} from "@angular/forms";
-import { NgbDateStruct, NgbModal, NgbTimeStruct } from "@ng-bootstrap/ng-bootstrap";
+import { UntypedFormArray, UntypedFormControl, UntypedFormGroup, ValidationErrors, ValidatorFn, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { NgbDateStruct, NgbModal, NgbTimeStruct, NgbTimepicker, NgbInputDatepicker } from "@ng-bootstrap/ng-bootstrap";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { CompletionConditionModel } from "../../../../../../../shared/schedule/model/completion-condition-model";
@@ -58,6 +51,9 @@ import {
    storeCondition
 } from "../../../../common/util/schedule-condition.util";
 import { StartTimeData } from "../../../../widget/schedule/start-time-data";
+import { EditableTableComponent } from "../editable-table/editable-table.component";
+import { StartTimeEditor } from "../../../../widget/schedule/start-time-editor.component";
+import { NgIf, NgFor, NgSwitch, NgSwitchCase } from "@angular/common";
 
 const TASK_URI = "../api/portal/schedule/task/condition";
 const TZ_STORAGE_KEY: string = "inetsoft_conditionServerTimeZone";
@@ -65,9 +61,10 @@ const TZ_STORAGE_KEY: string = "inetsoft_conditionServerTimeZone";
 dayjs.extend(utc);
 
 @Component({
-   selector: "task-condition-pane",
-   templateUrl: "./task-condition-pane.component.html",
-   styleUrls: ["./task-condition-pane.component.scss"]
+    selector: "task-condition-pane",
+    templateUrl: "./task-condition-pane.component.html",
+    styleUrls: ["./task-condition-pane.component.scss"],
+    imports: [NgIf, NgFor, NgSwitch, NgSwitchCase, FormsModule, ReactiveFormsModule, StartTimeEditor, NgbTimepicker, NgbInputDatepicker, EditableTableComponent]
 })
 export class TaskConditionPane implements OnInit, OnChanges {
    @Input() oldTaskName: string;
@@ -419,6 +416,8 @@ export class TaskConditionPane implements OnInit, OnChanges {
    private userSetStartTime(time: NgbTimeStruct): void {
       this.setStartTime(time);
       this.model.taskDefaultTime = !!time;
+      this.form?.controls["startTime"]?.setValue(time,
+         {emitEvent: false, emitModelToViewChange: false});
    }
 
    private onStartTimeDataChanged(data: StartTimeData): void {
@@ -663,7 +662,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
       this.model.conditions.push(copy);
       this.conditionIndex = this.model.conditions.length - 1;
       this.selectedConditions = [this.conditionIndex];
-      this.listView = true;
+      this.editCondition();
    }
 
    public deleteCondition(): void {
@@ -754,7 +753,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
       }
 
       if(tz == this.timeZoneOptions[0]) {
-         this.localTimeZoneLabel = new Date().toTimeString().match(/\((.+)\)/)[1];
+         this.localTimeZoneLabel = new Date().toTimeString().match(/\((.+)\)/)?.[1] || null;
       }
       else {
          this.localTimeZoneLabel = tz.label;
@@ -1202,7 +1201,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
       if(!edit || !this.timeCondition?.timeZone || this.serverTimeZone) {
          this.timeZoneName = this.serverTimeZone ? this.timeZone :
-            new Date().toTimeString().match(/\((.+)\)/)[1];
+            new Date().toTimeString().match(/\((.+)\)/)?.[1] ?? "";
       }
    }
 
@@ -1225,8 +1224,44 @@ export class TaskConditionPane implements OnInit, OnChanges {
             this.convertToTimeZone(this.serverTimeZoneOffset, this.localTimeZoneOffset);
          }
 
+         // also convert the other conditions of a multi-condition task so their times are
+         // displayed in the new time zone when edited later (Bug #75325). each condition is
+         // converted using its own time zone offset, which may differ from the current one.
+         this.convertOtherConditions(this.serverTimeZone);
+
          this.updateTimeZone();
          LocalStorage.setItem(TZ_STORAGE_KEY, this.serverTimeZone + "");
+      }
+   }
+
+   /**
+    * Converts the times of the task's other time conditions (not currently being edited)
+    * between their own time zone and the server time zone.
+    */
+   private convertOtherConditions(toServerTimeZone: boolean): void {
+      if(!this.model || !this.model.conditions) {
+         return;
+      }
+
+      for(const cond of this.model.conditions) {
+         if(cond === this.condition || !this.isTimeCondition(cond)) {
+            continue;
+         }
+
+         const timeCondition = <TimeConditionModel> cond;
+         const condTzOffset =
+            this.timeZoneService.calculateTimezoneOffset(timeCondition.timeZone);
+
+         if(condTzOffset == this.serverTimeZoneOffset) {
+            continue;
+         }
+
+         if(toServerTimeZone) {
+            this.convertTimeCondition(timeCondition, condTzOffset, this.serverTimeZoneOffset);
+         }
+         else {
+            this.convertTimeCondition(timeCondition, this.serverTimeZoneOffset, condTzOffset);
+         }
       }
    }
 
@@ -1247,6 +1282,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
       else {
          if(this.isTimeCondition(this.condition)) {
             this.timeCondition.timeZone = this.localTimeZoneId;
+            this.timeCondition.timeZoneLabel = this.localTimeZoneLabel || null;
          }
 
          this.form?.get("timeZone")?.enable();
@@ -1254,7 +1290,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
       this.timeZoneName = this.serverTimeZone ? this.timeZone :
          this.localTimeZoneLabel != null ? this.localTimeZoneLabel :
-            new Date().toTimeString().match(/\((.+)\)/)[1];
+            new Date().toTimeString().match(/\((.+)\)/)?.[1] || null;
       this.localTimeZoneOffset = this.timeZoneService.calculateTimezoneOffset(this.localTimeZoneId);
    }
 

@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.ws.event;
 
-public class WSJoinTablesEvent {
+import java.io.Serializable;
+
+public class WSJoinTablesEvent implements Serializable {
    public String[] getTables() {
       return tables;
    }

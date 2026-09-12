@@ -17,10 +17,11 @@
  */
 package inetsoft.web.portal.model.database;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class QuerySortPaneModel {
+public class QuerySortPaneModel implements Serializable {
    public List<String> getFields() {
       return fields;
    }

@@ -20,6 +20,8 @@ package inetsoft.sree.schedule.quartz;
 import inetsoft.sree.schedule.TimeCondition;
 import org.quartz.ScheduleBuilder;
 
+import java.util.Date;
+
 /**
  * Implementation of <tt>TimeConditionTrigger</tt>.
  *
@@ -32,5 +34,19 @@ public class TimeConditionTriggerImpl
    @Override
    public ScheduleBuilder<TimeConditionTrigger> getScheduleBuilder() {
       return TimeConditionScheduleBuilder.timeConditionSchedule();
+   }
+
+   @Override
+   public Date getFireTimeAfter(Date afterTime) {
+      TimeCondition condition = getCondition();
+
+      if(condition == null || afterTime == null) {
+         return null;
+      }
+
+      // Pass afterTime as lastRun so interval-based scheduling (every N days/weeks)
+      // anchors from the last fire time rather than the current time.
+      long ts = condition.getRetryTime(afterTime.getTime() + 30000, afterTime.getTime());
+      return ts >= 0 ? new Date(ts) : null;
    }
 }

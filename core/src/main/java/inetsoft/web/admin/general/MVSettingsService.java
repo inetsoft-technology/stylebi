@@ -24,13 +24,12 @@ import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.util.audit.ActionRecord;
-import inetsoft.web.admin.content.repository.MVSupportService;
 import inetsoft.web.admin.general.model.MVSettingsModel;
-import inetsoft.web.admin.general.model.MVType;
 import inetsoft.web.viewsheet.AuditUser;
 import inetsoft.web.viewsheet.Audited;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -40,19 +39,22 @@ import static inetsoft.web.admin.schedule.ScheduleCycleService.getCyclePermissio
 
 @Service
 public class MVSettingsService {
-   public MVSettingsService(MVSupportService mvSupport, SecurityEngine securityEngine) {
-      this.mvSupport = mvSupport;
+   @Autowired
+   public MVSettingsService(SecurityEngine securityEngine, MVManager mvManager,
+                            DataCycleManager dataCycleManager)
+   {
       this.securityEngine = securityEngine;
+      this.mvManager = mvManager;
+      this.dataCycleManager = dataCycleManager;
    }
 
    public MVSettingsModel getModel(Principal principal) throws Exception {
-      DataCycleManager dmgr = DataCycleManager.getDataCycleManager();
       Set<String> cycleNames = new TreeSet<>(Comparator.naturalOrder());
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
-      boolean isEnterprise = LicenseManager.getInstance().isEnterprise();
+      boolean isEnterprise = LicenseManager.isEnterprise();
 
       if(!SUtil.isMultiTenant() || !isEnterprise) {
-         for(Enumeration<String> cycles = dmgr.getDataCycles(orgId); cycles.hasMoreElements(); ) {
+         for(Enumeration<String> cycles = dataCycleManager.getDataCycles(orgId); cycles.hasMoreElements(); ) {
             String cycleName = cycles.nextElement();
 
             if(securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
@@ -63,7 +65,7 @@ public class MVSettingsService {
          }
       }
 
-      String cycle = MVManager.getManager().getDefaultCycle();
+      String cycle = mvManager.getDefaultCycle();
       cycle = cycle == null ? "" : cycle;
 
       return MVSettingsModel.builder()
@@ -85,10 +87,9 @@ public class MVSettingsService {
                         @SuppressWarnings("unused") @AuditUser Principal principal)
       throws Exception
    {
-      DataCycleManager dmgr = DataCycleManager.getDataCycleManager();
-      dmgr.setDefaultCycle(model.defaultCycle());
-      dmgr.save();
-      MVManager.getManager().setDefaultCycle(model.defaultCycle());
+      dataCycleManager.setDefaultCycle(model.defaultCycle());
+      dataCycleManager.save();
+      mvManager.setDefaultCycle(model.defaultCycle());
 
       SreeEnv.setProperty("mv.ondemand", model.onDemand() + "");
       SreeEnv.setProperty("mv.enabled.all", model.onDemandDefault() + "");
@@ -97,7 +98,8 @@ public class MVSettingsService {
       SreeEnv.save();
    }
 
-   private final MVSupportService mvSupport;
    private final SecurityEngine securityEngine;
+   private final MVManager mvManager;
+   private final DataCycleManager dataCycleManager;
    private static final Logger LOG = LoggerFactory.getLogger(MVSettingsService.class);
 }

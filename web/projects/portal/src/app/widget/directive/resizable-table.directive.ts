@@ -26,7 +26,8 @@ import {
 const MIN_COL_WIDTH = 40;
 
 @Directive({
-   selector: "[resizableTable]"
+    selector: "[resizableTable]",
+    standalone: true
 })
 export class ResizableTableDirective implements AfterContentInit, OnDestroy {
    private columnWidths: number[] = [];

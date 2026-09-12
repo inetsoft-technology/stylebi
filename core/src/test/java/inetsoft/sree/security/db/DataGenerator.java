@@ -27,7 +27,9 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
+import org.junit.jupiter.api.Tag;
 
+@Tag("core")
 public class DataGenerator {
    private final Faker faker = new Faker();
    private static final String[] GROUPS = {

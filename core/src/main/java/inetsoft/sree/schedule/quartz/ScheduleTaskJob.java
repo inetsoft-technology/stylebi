@@ -22,10 +22,13 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import org.quartz.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
 import java.util.concurrent.locks.Lock;
@@ -56,6 +59,10 @@ public class ScheduleTaskJob implements InterruptableJob {
             executionLock.unlock();
          }
 
+         String previousOrgId = OrganizationContextHolder.getCurrentOrgId();
+         IdentityID owner = task.getOwner();
+         boolean orgChanged = owner != null && !Tool.isEmptyString(owner.getOrgID());
+
          try {
             Identity identity = task.getIdentity();
             String addr = Tool.getIP();
@@ -64,7 +71,7 @@ public class ScheduleTaskJob implements InterruptableJob {
             // Bug #40798, don't audit logins for internal tasks
             if(!ScheduleManager.isInternalTask(taskName)) {
                if(identity == null) {
-                  principal = SUtil.getPrincipal(task.getOwner(), addr, true);
+                  principal = SUtil.getScheduleTaskOwnerPrincipal(task.getOwner(), addr, true);
                }
                else {
                   principal = SUtil.getPrincipal(identity, addr, true);
@@ -73,6 +80,14 @@ public class ScheduleTaskJob implements InterruptableJob {
 
             if(principal != null) {
                ThreadContext.setContextPrincipal(principal);
+            }
+
+            if(orgChanged) {
+               OrganizationContextHolder.setCurrentOrgId(owner.getOrgID());
+            }
+
+            if(principal == null && !ScheduleManager.isInternalTask(taskName)) {
+               LOG.error("User is null", new Exception("User is null"));
             }
 
             SUtil.runTask(principal, task, addr);
@@ -104,10 +119,14 @@ public class ScheduleTaskJob implements InterruptableJob {
             finally {
                executionLock.unlock();
             }
+
+            if(orgChanged) {
+               OrganizationContextHolder.setCurrentOrgId(previousOrgId);
+            }
          }
       }
    }
-   
+
    @Override
    public void interrupt() {
       executionLock.lock();
@@ -128,4 +147,5 @@ public class ScheduleTaskJob implements InterruptableJob {
    private Thread executionThread = null;
    private ScheduleTask executionTask = null;
    private final Lock executionLock = new ReentrantLock();
+   private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskJob.class);
 }

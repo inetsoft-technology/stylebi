@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.io.*;
 import java.lang.reflect.Method;
 import java.text.*;
 import java.util.*;
@@ -2003,6 +2004,12 @@ public class AttributeTableLens extends AbstractTableLens
    public String getReportType() {
       String type = super.getReportType();
       return type != null ? type : table == null ? null : table.getReportType();
+   }
+
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      changeListener = new DefaultTableChangeListener(this);
    }
 
    protected TableLens table; // base table

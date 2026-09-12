@@ -19,12 +19,19 @@ import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { DataSpaceTreeDataSource } from "../data-space-tree-data-source";
 import { DataSpaceTreeNode } from "../data-space-tree-node";
 import { FlatTreeNode, FlatTreeNodeMenuItem } from "../../../../common/util/tree/flat-tree-model";
-import { FlatTreeSelectNodeEvent } from "../../../../common/util/tree/flat-tree-view.component";
+import { FlatTreeSelectNodeEvent, FlatTreeViewComponent } from "../../../../common/util/tree/flat-tree-view.component";
+import { MatTooltip } from "@angular/material/tooltip";
+
+import { TopScrollDirective } from "../../../../top-scroll/top-scroll.directive";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+import { MatToolbar } from "@angular/material/toolbar";
 
 @Component({
-   selector: "em-data-space-tree-view",
-   templateUrl: "./data-space-tree-view.component.html",
-   styleUrls: ["./data-space-tree-view.component.scss"]
+    selector: "em-data-space-tree-view",
+    templateUrl: "./data-space-tree-view.component.html",
+    styleUrls: ["./data-space-tree-view.component.scss"],
+    imports: [MatToolbar, MatIconButton, MatIcon, TopScrollDirective, FlatTreeViewComponent, MatTooltip]
 })
 export class DataSpaceTreeViewComponent implements OnInit {
    @Input() dataSource: DataSpaceTreeDataSource;

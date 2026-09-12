@@ -42,13 +42,14 @@ import { ErrorStateMatcher } from "@angular/material/core";
 import { MatDialog } from "@angular/material/dialog";
 import { MatPaginator } from "@angular/material/paginator";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { MatSort } from "@angular/material/sort";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatSort, MatSortHeader } from "@angular/material/sort";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { MatTreeFlatDataSource, MatTreeFlattener } from "@angular/material/tree";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
-import { ActivatedRoute, ParamMap, Router } from "@angular/router";
+import { ActivatedRoute, ParamMap, Router, RouterLink } from "@angular/router";
 import { Observable, of as observableOf, Subject, throwError, timer } from "rxjs";
 import { catchError, finalize, map, takeUntil, tap } from "rxjs/operators";
+import { AuthorizationService } from "../../../authorization/authorization.service";
 import { GuiTool } from "../../../../../../portal/src/app/common/util/gui-tool";
 import { DownloadService } from "../../../../../../shared/download/download.service";
 import { ScheduleTaskChange } from "../../../../../../shared/schedule/model/schedule-task-change";
@@ -83,6 +84,20 @@ import { ScheduleFolderTreeAction } from "../schedule-folder-tree/schedule-folde
 import { ScheduleFolderTreeComponent } from "../schedule-folder-tree/schedule-folder-tree.component";
 import { EmScheduleChangeService } from "./em-schedule-change.service";
 import { ScheduleTaskDragService } from "./schedule-task-drag.service";
+import { MatProgressSpinner } from "@angular/material/progress-spinner";
+import { ResizedDirective } from "../../../../../../shared/resize-event/resized.directive";
+import { LoadingSpinnerComponent } from "../../../common/util/loading-spinner/loading-spinner.component";
+import { MatList, MatListItem } from "@angular/material/list";
+import { MatCheckbox } from "@angular/material/checkbox";
+
+import { MatDrawerContainer, MatDrawer, MatDrawerContent } from "@angular/material/sidenav";
+import { MatMenu, MatMenuItem, MatMenuTrigger } from "@angular/material/menu";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatIcon } from "@angular/material/icon";
+import { MatTooltip } from "@angular/material/tooltip";
+import { MatIconButton, MatButton } from "@angular/material/button";
+import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular/material/card";
 
 const GET_SCHEDULED_TASKS_URI = "../api/em/schedule/scheduled-tasks";
 const NEW_TASKS_URI = "../api/em/schedule/new";
@@ -109,7 +124,13 @@ export enum DistributionType {
 
 @Secured({
    route: "/settings/schedule/tasks",
-   label: "Tasks"
+   label: "Tasks",
+   children: [
+      {
+         route: "/settings/schedule/distribution",
+         label: "Distribution"
+      }
+   ]
 })
 @Searchable({
    route: "/settings/schedule/tasks",
@@ -121,29 +142,31 @@ export enum DistributionType {
    link: "EMSettingsScheduleTaskList"
 })
 @Component({
-   selector: "em-schedule-task-list",
-   templateUrl: "./schedule-task-list.component.html",
-   styleUrls: ["./schedule-task-list.component.scss"],
-   animations: [
-      trigger("detailExpand", [
-         state("collapsed", style({height: "0px", minHeight: "0"})),
-         state("expanded", style({height: "*"})),
-         transition("expanded <=> collapsed", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)")),
-      ]),
-   ],
-   providers: [
-      EmScheduleChangeService,
-      ScheduleTaskDragService
-   ]
+    selector: "em-schedule-task-list",
+    templateUrl: "./schedule-task-list.component.html",
+    styleUrls: ["./schedule-task-list.component.scss"],
+    animations: [
+        trigger("detailExpand", [
+            state("collapsed", style({ height: "0px", minHeight: "0" })),
+            state("expanded", style({ height: "*" })),
+            transition("expanded <=> collapsed", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)")),
+        ]),
+    ],
+    providers: [
+        EmScheduleChangeService,
+        ScheduleTaskDragService
+    ],
+    imports: [MatCard, MatCardHeader, MatIconButton, MatTooltip, MatIcon, MatFormField, MatLabel, MatInput, MatMenu, MatMenuItem, MatMenuTrigger, MatCardContent, MatDrawerContainer, MatDrawer, ScheduleFolderTreeComponent, MatDrawerContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, RouterLink, MatList, MatListItem, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, LoadingSpinnerComponent, MatCardActions, MatButton, ResizedDirective, MatProgressSpinner]
 })
 export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestroy {
-   @ViewChild("chartDiv", { static: true }) chartDiv: ElementRef;
+   @ViewChild("chartDiv", { static: false }) chartDiv: ElementRef;
    @ViewChild("redistributeParams") redistributeParams: TemplateRef<any>;
    @ViewChild(MatPaginator, { static: true }) paginator: MatPaginator;
    @ViewChild(MatSort, { static: true }) sort: MatSort;
    @ViewChild("folderTree") folderTree: ScheduleFolderTreeComponent;
 
    loading: boolean = true;
+   distributionVisible = false;
    tasks: ScheduleTaskModel[] = [];
    expandedElement: ScheduleTaskModel | null;
    selectedNodes: RepositoryFlatNode[] = [];
@@ -204,7 +227,8 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
                private bottomSheet: MatBottomSheet, fb: UntypedFormBuilder,
                defaultErrorMatcher: ErrorStateMatcher,
                private downloadService: DownloadService,
-               private dragService: ScheduleTaskDragService)
+               private dragService: ScheduleTaskDragService,
+               private authzService: AuthorizationService)
    {
       this.redistributeForm = fb.group(
          {
@@ -234,6 +258,14 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    ngOnInit() {
       this.pageTitle.title = "_#(js:Schedule Tasks)";
 
+      this.authzService.getPermissions("settings/schedule").subscribe(p => {
+         this.distributionVisible = !!p.permissions["distribution"];
+
+         if(this.distributionVisible) {
+            setTimeout(() => this.loadDistributionChart());
+         }
+      });
+
       this.http.get(CHANGE_SHOW_TYPE_URI).subscribe(
          (showTasksAsList) => {
             this.showTasksAsList = <boolean> showTasksAsList;
@@ -241,8 +273,10 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
          },
          (error) => {
             this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
-               "Failed to load tasks: " + error.error ? error.error.message : "",
+               "Failed to load tasks: " + (error.error?.message || ""),
                MessageDialogType.ERROR));
+            // fall back to the default view so that the task list still loads
+            this.loadTasks();
          },
          () => {
             this.loading = false;
@@ -263,12 +297,11 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    ngAfterViewInit(): void {
-      this.loadDistributionChart();
    }
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    loadTasks(refreshTaskAndFolder?: boolean): void {
@@ -312,7 +345,11 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
 
    newTask(): void {
       const localTimeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const params = new HttpParams().set("timeZone", localTimeZoneId);
+      let params = new HttpParams().set("timeZone", localTimeZoneId);
+
+      if(this.pageTitle.currentOrgId) {
+         params = params.set("orgId", this.pageTitle.currentOrgId);
+      }
 
       // http REST requests use URI and a body object with data
       this.http.post(NEW_TASKS_URI, this.currentFolder, {params}).subscribe(
@@ -421,10 +458,11 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
             this.http.post(TASKS_MOVE_URI, moveTaskFolderRequest).subscribe(() => {
                this.loadTasks();
             }, (error) => {
-               if(error.status == 403) {
-                  this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Unauthorized)`,
-                     "_#(js:schedule.folder.moveTargetPermissionError)", MessageDialogType.ERROR));
-               }
+               const message = error.error != null && error.error.type == "MessageException" ?
+                  error.error.message : "Failed to move selected tasks";
+
+               this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
+                  message, MessageDialogType.ERROR));
             });
          }
       });
@@ -792,7 +830,7 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    private mergeChange(change: ScheduleTaskChange): void {
       const list = this.tasks.slice();
       const index = list.findIndex(t => t.name === change.name || change.type == "REMOVED" &&
-         change.name === convertToKey(t.owner) + ":" + t.name);
+         change.name === ScheduleTaskListComponent.getTaskName(t));
 
       if(index >= 0) {
          if(change.type === "REMOVED") {
@@ -874,6 +912,10 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    private loadDistributionChart(): void {
+      if(!this.distributionVisible || !this.chartDiv) {
+         return;
+      }
+
       this.loadingChart = true;
       switch(this.distributionType) {
       case DistributionType.WEEK:
@@ -1031,10 +1073,23 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    showAllTasks(showAll: boolean): void {
+      const oldValue = this.showTasksAsList;
       this.showTasksAsList = showAll;
       let params = new HttpParams().set("showTasksAsList", showAll + "");
-      this.http.put(CHANGE_SHOW_TYPE_URI, null, {params}).subscribe(() => {
-         this.loadTasks();
+      this.http.put(CHANGE_SHOW_TYPE_URI, null, {params}).subscribe({
+         next: () => this.loadTasks(),
+         error: (error) => {
+            // the request never reached the preference, so don't leave the view showing
+            // a state that was not stored. Ignore a stale failure that a later toggle
+            // has already superseded.
+            if(this.showTasksAsList === showAll) {
+               this.showTasksAsList = oldValue;
+            }
+
+            this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
+               "Failed to change the schedule task view: " + (error.error?.message || ""),
+               MessageDialogType.ERROR));
+         }
       });
    }
 

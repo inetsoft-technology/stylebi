@@ -16,13 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { TabGeneralPaneModel } from "../../data/vs/tab-general-pane-model";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { TabListPane } from "./tab-list-pane.component";
+import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.component";
 
 @Component({
-   selector: "tab-general-pane",
-   templateUrl: "tab-general-pane.component.html",
+    selector: "tab-general-pane",
+    templateUrl: "tab-general-pane.component.html",
+    imports: [
+        FormsModule,
+        GeneralPropPane,
+        TabListPane,
+        SizePositionPane,
+    ]
 })
 
 export class TabGeneralPane implements OnInit {

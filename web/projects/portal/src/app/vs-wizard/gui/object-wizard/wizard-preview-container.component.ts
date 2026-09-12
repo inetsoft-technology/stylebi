@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from "@angular/core";
+import { AfterViewChecked, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild } from "@angular/core";
 import { AssemblyActionEvent } from "../../../common/action/assembly-action-event";
 import { VSObjectFormatInfoModel } from "../../../common/data/vs-object-format-info-model";
 import { AbstractActionComponent } from "../../../composer/gui/vs/editor/abstract-action-component";
@@ -31,15 +31,29 @@ import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../../shared/util/tool";
 import { ConsoleDialogComponent } from "../../../widget/console-dialog/console-dialog.component";
 import { ModelService } from "../../../widget/services/model.service";
+import { MiniToolbar } from "../../../vsobjects/objects/mini-toolbar/mini-toolbar.component";
+import { StatusBar } from "../../../status-bar/status-bar.component";
+import { VSText } from "../../../vsobjects/objects/output/text/vs-text.component";
+import { VSTable } from "../../../vsobjects/objects/table/vs-table.component";
+import { VSSelection } from "../../../vsobjects/objects/selection/vs-selection.component";
+import { VSRangeSlider } from "../../../vsobjects/objects/range-slider/vs-range-slider.component";
+import { VSGauge } from "../../../vsobjects/objects/output/gauge/vs-gauge.component";
+import { VSCrosstab } from "../../../vsobjects/objects/table/vs-crosstab.component";
+import { VSChart } from "../../../vsobjects/objects/chart/vs-chart.component";
+import { VSCalendar } from "../../../vsobjects/objects/calendar/vs-calendar.component";
+import { InteractContainerDirective } from "../../../widget/interact/interact-container.directive";
+import { FormsModule } from "@angular/forms";
+
 
 const GET_MESSAGE_LEVELS_URI = "../api/composer/console-dialog/get-message-levels/";
 
 @Component({
-   selector: "wizard-preview-container",
-   templateUrl: "./wizard-preview-container.component.html",
-   styleUrls: ["./wizard-preview-container.component.scss"]
+    selector: "wizard-preview-container",
+    templateUrl: "./wizard-preview-container.component.html",
+    styleUrls: ["./wizard-preview-container.component.scss"],
+    imports: [FormsModule, InteractContainerDirective, VSCalendar, VSChart, VSCrosstab, VSGauge, VSRangeSlider, VSSelection, VSTable, VSText, StatusBar, MiniToolbar, ConsoleDialogComponent]
 })
-export class WizardPreviewContainer extends AbstractActionComponent {
+export class WizardPreviewContainer extends AbstractActionComponent implements AfterViewChecked, OnDestroy {
    vsObject: VSObjectModel;
    @Input() runtimeId: string;
    @Input() linkuri: string;
@@ -61,14 +75,43 @@ export class WizardPreviewContainer extends AbstractActionComponent {
 
    onAssemblyActionEvent = new EventEmitter<AssemblyActionEvent<VSObjectModel>>();
    messageLevels: string[] = [];
+   miniToolbarLeft = 0;
+   private destroyed = false;
 
    constructor(actionFactory: AssemblyActionFactory,
                private scaleService: ScaleService,
                private miniToolbarService: MiniToolbarService,
                protected modalService: NgbModal,
-               private modelService: ModelService)
+               private modelService: ModelService,
+               private changeDetectorRef: ChangeDetectorRef)
    {
       super(actionFactory);
+   }
+
+   ngAfterViewChecked(): void {
+      // miniToolbarLeft depends on element layout, so it must be read after the view
+      // has been checked rather than during a template binding. Reading it in a bound
+      // getter returns different values across dev-mode change detection passes (0 before
+      // layout, the real offset after), which triggers NG0100. Only re-run change
+      // detection when the value actually changes so detection converges. The detectChanges
+      // is deferred to a microtask so it doesn't re-enter the active change detection pass
+      // synchronously from ngAfterViewChecked. (Bug #75354)
+      const left = this.getMiniToolbarLeft();
+
+      if(this.miniToolbarLeft !== left) {
+         this.miniToolbarLeft = left;
+         Promise.resolve().then(() => {
+            if(!this.destroyed) {
+               this.changeDetectorRef.detectChanges();
+            }
+         });
+      }
+   }
+
+   ngOnDestroy(): void {
+      this.destroyed = true;
+      // AbstractActionComponent does not currently implement ngOnDestroy. If it
+      // gains one (e.g. to clean up its `subscription`), call super.ngOnDestroy() here.
    }
 
    @Input()
@@ -135,7 +178,7 @@ export class WizardPreviewContainer extends AbstractActionComponent {
       this.onDescriptionChange.emit(this.description);
    }
 
-   get miniToolbarLeft(): number {
+   private getMiniToolbarLeft(): number {
       let objectOffsetLeft = 0;
 
       if(!!this.assemblyObject && !!this.wizardPreviewContainer) {

@@ -38,6 +38,7 @@ import java.awt.geom.Point2D;
 import java.io.PrintWriter;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * VSAssemblyInfo, the assembly info of a view sheet assembly. It implements
@@ -1502,7 +1503,13 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    /**
-    * Get the default font for viewsheet.
+    * Get the default font for viewsheet. The size is the caller's size adjusted by the
+    * "viewsheet.font.size" property, which may be absolute ("14") or relative ("+2", "-2").
+    *
+    * <p>A value that is not a number, and one that adjusts the size down to zero or below, are
+    * both reported and ignored in favour of a usable size. This accessor is reached from the
+    * default-format construction of every assembly type and every chart descriptor, so throwing
+    * from here failed the layout of any viewsheet at all, far from the property that caused it.
     */
    public static Font getDefaultFont(int style, int size) {
       String DEFAULT_FONT = StyleFont.DEFAULT_FONT_FAMILY;
@@ -1510,18 +1517,87 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       String FONT_SIZE = SreeEnv.getProperty("viewsheet.font.size");
 
       if(FONT_SIZE != null) {
-         if(FONT_SIZE.startsWith("+")) {
-            size += Integer.parseInt(FONT_SIZE.substring(1));
+         try {
+            if(FONT_SIZE.startsWith("+")) {
+               size += Integer.parseInt(FONT_SIZE.substring(1));
+            }
+            else if(FONT_SIZE.startsWith("-")) {
+               size -= Integer.parseInt(FONT_SIZE.substring(1));
+            }
+            else {
+               size = Integer.parseInt(FONT_SIZE);
+            }
+
+            if(size < MIN_FONT_SIZE) {
+               // a relative value large enough to cancel out the caller's size is the same
+               // operator error as an unparseable one, and a non-positive size fails later,
+               // further from the property, if it is allowed through
+               warnFontSize(FONT_SIZE,
+                            "viewsheet.font.size value \"{}\" reduces the font size to {}, " +
+                            "using {}pt", FONT_SIZE, size, MIN_FONT_SIZE);
+               size = MIN_FONT_SIZE;
+            }
+            else {
+               forgetFontSizeWarning();
+            }
          }
-         else if(FONT_SIZE.startsWith("-")) {
-            size -= Integer.parseInt(FONT_SIZE.substring(1));
+         catch(NumberFormatException ex) {
+            warnFontSize(FONT_SIZE,
+                         "Invalid viewsheet.font.size value \"{}\", leaving the requested " +
+                         "size of {}pt unadjusted", FONT_SIZE, size);
          }
-         else {
-            size = Integer.parseInt(FONT_SIZE);
-         }
+      }
+      else {
+         forgetFontSizeWarning();
       }
 
       return new StyleFont(DEFAULT_FONT, style, size);
+   }
+
+   /**
+    * Report a viewsheet.font.size value that is not being used as configured, but only when it
+    * differs from the value most recently reported for the current organization.
+    * getDefaultFont() is called upwards of thirty times per sheet -- once per assembly default
+    * format and once per chart descriptor -- so an unconditional warning would repeat for every
+    * object on every viewsheet opened.
+    *
+    * <p>The suppression is per organization because the property is: SreeEnv resolves it through
+    * an inetsoft.org.&lt;orgid&gt;. override when one exists, and every organization's viewsheets
+    * are laid out in the same server. A single global key would let the first organization to
+    * report a value silence every other organization that happens to have configured the same
+    * one -- the empty string and "12pt" being exactly the values several would share.
+    *
+    * @param fontSize the raw property value, used to suppress a repeat of the same complaint.
+    */
+   private static void warnFontSize(String fontSize, String format, Object... args) {
+      if(!Objects.equals(lastWarnedFontSize.put(warningOrgId(), fontSize), fontSize)) {
+         LOG.warn(format, args);
+      }
+   }
+
+   /**
+    * Drop the current organization's suppression state once the property is honoured again --
+    * including when it is removed altogether -- so that a value which is corrected and later
+    * reintroduced is reported a second time rather than applied in silence. This runs on every
+    * default format built; removing an absent key is a lookup that touches no lock.
+    */
+   private static void forgetFontSizeWarning() {
+      lastWarnedFontSize.remove(warningOrgId());
+   }
+
+   /**
+    * The organization the warning state is keyed on. Only ever a suppression key, so a context
+    * that cannot produce one must not fail the font lookup that asked for it -- the whole point
+    * of routing this property through an accessor is that getDefaultFont() cannot throw.
+    */
+   private static String warningOrgId() {
+      try {
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+         return orgId == null ? "" : orgId;
+      }
+      catch(Exception ex) {
+         return "";
+      }
    }
 
    /**
@@ -1569,5 +1645,13 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    private boolean controlByScript = false; // visible is control by script
    private Insets padding = new Insets(0, 0, 0, 0);
 
+   /**
+    * The smallest font size viewsheet.font.size may produce. A relative adjustment can take
+    * the caller's size to zero or below, which is not a font any renderer can use.
+    */
+   private static final int MIN_FONT_SIZE = 1;
+   // the viewsheet.font.size value most recently complained about, per organization, since the
+   // property itself is organization-scoped; see warnFontSize
+   private static final Map<String, String> lastWarnedFontSize = new ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(VSAssemblyInfo.class);
 }

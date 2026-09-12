@@ -18,6 +18,7 @@
 package inetsoft.util.dep;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 
 import java.util.Enumeration;
 
@@ -34,7 +35,7 @@ public class ScriptEnumeration implements XAssetEnumeration<ScriptAsset> {
     */
    public ScriptEnumeration() {
       super();
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       scripts = manager.getScripts();
    }
 

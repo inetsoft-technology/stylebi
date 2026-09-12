@@ -41,6 +41,7 @@ import { EditLogicalModelEvent } from "../../../../model/datasources/database/ev
 import { AssetEntryHelper } from "../../../../../../common/data/asset-entry-helper";
 import { LogicalModelService } from "./logical-model-service";
 import { UntypedFormGroup } from "@angular/forms";
+import { LogicalModelPropertyPane } from "./logical-model-property-pane.component";
 
 export interface SelectedItem {
    entity: number;
@@ -53,10 +54,11 @@ const LOGICAL_MODEL_EXTENDED_MODEL_URI: string = "../api/data/logicalmodel/exten
 const LOGICAL_MODEL_SETTINGS_URI: string = "../api/data/logicalmodel/settings";
 
 @Component({
-   selector: "logical-model",
-   templateUrl: "logical-model.component.html",
-   styleUrls: ["../database-model-pane.scss", "logical-model.component.scss"],
-   providers: [ LogicalModelService ]
+    selector: "logical-model",
+    templateUrl: "logical-model.component.html",
+    styleUrls: ["../database-model-pane.scss", "logical-model.component.scss"],
+    providers: [LogicalModelService],
+    imports: [LogicalModelPropertyPane, NotificationsComponent]
 })
 export class LogicalModelComponent implements OnInit, DoCheck, OnDestroy {
    @ViewChild("notifications") notifications: NotificationsComponent;
@@ -82,6 +84,7 @@ export class LogicalModelComponent implements OnInit, DoCheck, OnDestroy {
    private dataModelNameChangeSubscription: Subscription;
    form: UntypedFormGroup = new UntypedFormGroup({});
    private subscription: Subscription;
+   private modelSubscription: Subscription;
 
    constructor(private dataModelNameChangeService: DataModelNameChangeService,
                private logicalModelService: LogicalModelService,
@@ -175,6 +178,11 @@ export class LogicalModelComponent implements OnInit, DoCheck, OnDestroy {
          this.subscription.unsubscribe();
          this.subscription = null;
       }
+
+      if(this.modelSubscription) {
+         this.modelSubscription.unsubscribe();
+         this.modelSubscription = null;
+      }
    }
 
    ngDoCheck(): void {
@@ -245,8 +253,12 @@ export class LogicalModelComponent implements OnInit, DoCheck, OnDestroy {
          params = params.set("parent", this.parent);
       }
 
+      if(this.modelSubscription) {
+         this.modelSubscription.unsubscribe();
+      }
+
       this.loading = true;
-      this.httpClient
+      this.modelSubscription = this.httpClient
          .get<LogicalModelDefinition>(LOGICAL_MODEL_URI, { params: params})
          .subscribe(
             data => {
@@ -257,7 +269,9 @@ export class LogicalModelComponent implements OnInit, DoCheck, OnDestroy {
                this.loading = false;
                this.expanded = [];
             },
-            err => {}
+            err => {
+               this.loading = false;
+            }
          );
    }
 

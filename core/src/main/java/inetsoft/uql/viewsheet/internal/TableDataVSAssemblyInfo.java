@@ -1568,7 +1568,7 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       getFormat().getDefaultFormat().setBackgroundValue("#ffffff");
 
       // CSSDictionary.getDictionary() is for viewsheet ONLY
-      if(LibManager.getManager().getTableStyle(DEFAULT_STYLE) != null
+      if(LibManagerProvider.getInstance().getManager().getTableStyle(DEFAULT_STYLE) != null
          && !CSSDictionary.getDictionary().checkPresent("TableStyle"))
       {
          setTableStyleValue(DEFAULT_STYLE);

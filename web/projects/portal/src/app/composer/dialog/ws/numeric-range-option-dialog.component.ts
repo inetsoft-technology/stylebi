@@ -16,17 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, Validators } from "@angular/forms";
+import { UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NumericRangeRef } from "../../../common/data/numeric-range-ref";
-import { NumericRange } from "../../../widget/dialog/value-range-selectable-list/value-range-selectable-list.component";
+import { NumericRange, ValueRangeSelectableList } from "../../../widget/dialog/value-range-selectable-list/value-range-selectable-list.component";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { ValueRangeDialogModel } from "../../data/ws/value-range-dialog-model";
 import { InclusiveType } from "../../../common/data/inclusive-type.enum";
+import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "numeric-range-option-dialog",
-   templateUrl: "numeric-range-option-dialog.component.html",
-   styleUrls: ["numeric-range-option-dialog.component.scss"]
+    selector: "numeric-range-option-dialog",
+    templateUrl: "numeric-range-option-dialog.component.html",
+    styleUrls: ["numeric-range-option-dialog.component.scss"],
+    imports: [ModalHeaderComponent, FormsModule, EnterSubmitDirective, InputTrimDirective, ReactiveFormsModule, ValueRangeSelectableList]
 })
 export class NumericRangeOptionDialog implements OnInit {
    @Input() model: ValueRangeDialogModel;

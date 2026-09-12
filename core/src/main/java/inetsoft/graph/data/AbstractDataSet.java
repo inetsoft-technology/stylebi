@@ -340,11 +340,21 @@ public abstract class AbstractDataSet implements DataSet {
    }
 
    /**
+    * Reset the cached column count so the next call to getColCount() recomputes it.
+    * Subclasses that change the effective column count outside of the standard calc-column
+    * add/remove paths (e.g. IntervalDataSet.initColumns) must call this to keep
+    * getColCount() consistent. (74367)
+    */
+   protected void invalidateCachedColCount() {
+      cachedColCount = -1;
+   }
+
+   /**
     * Return the number of columns in the data set.
     */
    @Override
    @TernMethod
-   public final int getColCount() {
+   public int getColCount() {
       int cached = cachedColCount;
 
       if(cached >= 0) {
@@ -798,15 +808,6 @@ public abstract class AbstractDataSet implements DataSet {
    public synchronized void removeCalcRowValues() {
       rcalcvals = null;
       idxmap = null;
-   }
-
-   /**
-    * Invalidate the cached column count so the next call to getColCount() recomputes it.
-    * Subclasses should call this whenever their getColCount0() result may have changed
-    * without going through addCalcColumn/removeCalcColumns/removeCalcValues.
-    */
-   protected void invalidateCachedColCount() {
-      cachedColCount = -1;
    }
 
    @Override
@@ -1713,7 +1714,7 @@ public abstract class AbstractDataSet implements DataSet {
    private transient Object2IntOpenHashMap<String> idxmap = new Object2IntOpenHashMap<>();
    private boolean disposed = false;
    private transient Boolean projected;
-   private transient long dataHash = Long.MIN_VALUE;
+   private long dataHash = Long.MIN_VALUE;
 
    private static final Logger LOG = LoggerFactory.getLogger(AbstractDataSet.class);
 }

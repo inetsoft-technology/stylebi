@@ -20,6 +20,7 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -45,10 +46,13 @@ public class ViewsheetSettingsService {
       Viewsheet viewsheet = rvs.getViewsheet();
       ViewsheetInfo info = viewsheet.getViewsheetInfo();
       ViewsheetParametersDialogModel vsParametersDialogModel = new ViewsheetParametersDialogModel();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      VSEventUtil.refreshParameters(viewsheetService, rvs.getViewsheetSandbox(),
-                                    rvs.getViewsheet(), false,
-                                    new VariableTable(), vars);
+      if(box.isPresent()) {
+         VSEventUtil.refreshParameters(viewsheetService, box.get(), rvs.getViewsheet(), false,
+                                       new VariableTable(), vars);
+      }
+
       VariableTable parameters = viewsheet.getVariableTable(); //parameter sheet
       @SuppressWarnings("unchecked") Enumeration<String> enumeration = parameters.keys();
 

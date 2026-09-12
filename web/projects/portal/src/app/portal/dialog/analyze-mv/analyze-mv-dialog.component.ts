@@ -55,11 +55,16 @@ import { MVTreeModel } from "../../data/model/mv-tree-model";
 import { AnalyzeMVPane } from "./analyze-mv-view/analyze-mv-pane.component";
 import { CreateMVPane } from "./create-mv-view/create-mv-pane.component";
 import { MVExceptionsPortalDialogComponent } from "./mv-exception-portal-dialog/mv-exceptions-portal-dialog.component";
+import { DialogButtonsDirective } from "../../../widget/standard-dialog/dialog-buttons.directive";
+
+import { DialogContentDirective } from "../../../widget/standard-dialog/dialog-content.directive";
+import { StandardDialogComponent } from "../../../widget/standard-dialog/standard-dialog.component";
 
 @Component({
-   selector: "analyze-mv-dialog",
-   templateUrl: "./analyze-mv-dialog.component.html",
-   styleUrls: ["./analyze-mv-dialog.component.scss"]
+    selector: "analyze-mv-dialog",
+    templateUrl: "./analyze-mv-dialog.component.html",
+    styleUrls: ["./analyze-mv-dialog.component.scss"],
+    imports: [StandardDialogComponent, DialogContentDirective, AnalyzeMVPane, CreateMVPane, DialogButtonsDirective]
 })
 export class AnalyzeMVDialog implements OnInit, OnDestroy {
    @Input() selectedNodes: MVTreeModel[] = [];
@@ -79,6 +84,7 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
    mvCycle = "";
    securityEnabled = false;
    runInBackground: boolean = false;
+   analysisId: string;
    private subscription = new Subscription();
    private destroy$ = new Subject<void>();
 
@@ -155,8 +161,9 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
       }, true);
 
       if(onlyViewsheetsAndWorksheets) {
-         this.http.post("../api/portal/content/repository/mv/analyze", request).subscribe(
-            () => {
+         this.http.post<AnalyzeMVResponse>("../api/portal/content/repository/mv/analyze", request).subscribe(
+            (response) => {
+               this.analysisId = response.analysisId;
             },
             (error) => {
                ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
@@ -189,7 +196,7 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
    }
 
    checkCompleted(retryDelayMillis: number = 500) {
-      this.http.get("../api/em/content/materialized-view/check-analysis")
+      this.http.get("../api/em/content/materialized-view/check-analysis/" + this.analysisId)
          .subscribe((response: AnalyzeMVResponse) => {
             this.processAnalyzeResult(response, retryDelayMillis);
          });
@@ -207,7 +214,7 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
       this.loading = false;
 
       if(response.exception) {
-         this.http.get("../api/em/content/repository/mv/exceptions").subscribe(
+         this.http.get("../api/em/content/repository/mv/exceptions/" + this.analysisId).subscribe(
             (exceptions: MVExceptionResponse) =>
             {
                //navigate to exception page
@@ -251,7 +258,7 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
 
       let params = new HttpParams().set("hideData", String(this.hideData))
          .set("hideExist", String(this.hideExist));
-      this.http.get("../api/em/content/repository/mv/get-model", {params: params})
+      this.http.get("../api/em/content/repository/mv/get-model/" + this.analysisId, {params: params})
          .subscribe((response: AnalyzeMVResponse) => {
             this.models = response.status;
          });
@@ -259,14 +266,19 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
    }
 
    setCycle(request: CreateUpdateMvRequest) {
-      this.http.post("../api/em/content/repository/mv/set-cycle", request)
+      this.http.post("../api/em/content/repository/mv/set-cycle/" + this.analysisId, request)
          .subscribe(() => this.refresh(""));
    }
 
    create(request: CreateUpdateMvRequest) {
       this.loading = true;
       const createId = Tool.generateRandomUUID();
-      const options = { params: new HttpParams().set("createId", createId) };
+      const options =
+         {
+            params: new HttpParams()
+               .set("createId", createId)
+               .set("analysisId", this.analysisId)
+         };
 
       timer(0, 2000)
          .pipe(
@@ -293,7 +305,7 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
    }
 
    showPlan(request: CreateUpdateMvRequest) {
-      this.http.post("../api/em/content/repository/mv/show-plan", request)
+      this.http.post("../api/em/content/repository/mv/show-plan/" + this.analysisId, request)
          .subscribe((plan: string) => {
             const dialog = ComponentTool.showMessageDialog(this.modalService, "_#(js:Optimize Plan)",
                plan);

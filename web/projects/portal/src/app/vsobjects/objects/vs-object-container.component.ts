@@ -21,6 +21,7 @@ import {
    Component,
    ElementRef,
    EventEmitter,
+   forwardRef,
    Input,
    OnChanges,
    OnDestroy,
@@ -43,6 +44,7 @@ import { ViewsheetInfo } from "../data/viewsheet-info";
 import { BaseTableModel } from "../model/base-table-model";
 import { FocusObjectEventModel } from "../model/focus-object-event-model";
 import { GuideBounds } from "../model/layout/guide-bounds";
+import { VSAnnotationModel } from "../model/annotation/vs-annotation-model";
 import { VSChartModel } from "../model/vs-chart-model";
 import { VSObjectModel } from "../model/vs-object-model";
 import { VSSelectionBaseModel } from "../model/vs-selection-base-model";
@@ -55,13 +57,50 @@ import { PopComponentService } from "./data-tip/pop-component.service";
 import { MiniToolbarService } from "./mini-toolbar/mini-toolbar.service";
 import { NavigationKeys } from "./navigation-keys";
 import { SelectionBaseController } from "./selection/selection-base-controller";
+import { PlaceholderDragElement } from "../../widget/placeholder-drag-element/placeholder-drag-element.component";
+import { MiniToolbar } from "./mini-toolbar/mini-toolbar.component";
+import { VSViewsheet } from "./viewsheet/vs-viewsheet.component";
+import { VSThermometer } from "./thermometer/vs-thermometer.component";
+import { VSTextInput } from "./text-input/vs-text-input.component";
+import { VSText } from "./output/text/vs-text.component";
+import { VSTable } from "./table/vs-table.component";
+import { VSTab } from "./tab/vs-tab.component";
+import { VSSubmit } from "./submit/vs-submit.component";
+import { VSSpinner } from "./spinner/vs-spinner.component";
+import { VSSlidingScale } from "./sliding-scale/vs-sliding-scale.component";
+import { VSSlider } from "./slider/vs-slider.component";
+import { VSSelectionContainerChildren } from "./selection/vs-selection-container-children.component";
+import { VSSelectionContainer } from "./selection/vs-selection-container.component";
+import { VSSelection } from "./selection/vs-selection.component";
+import { VSRangeSlider } from "./range-slider/vs-range-slider.component";
+import { VSRectangle } from "./shape/vs-rectangle.component";
+import { VSRadioButton } from "./radio-button/vs-radio-button.component";
+import { VSOval } from "./shape/vs-oval.component";
+import { VSLine } from "./shape/vs-line.component";
+import { VSImage } from "./output/image/vs-image.component";
+import { VSGroupContainer } from "./group/vs-group-container.component";
+import { VSGauge } from "./output/gauge/vs-gauge.component";
+import { VSCylinder } from "./cylinder/vs-cylinder.component";
+import { VSCrosstab } from "./table/vs-crosstab.component";
+import { VSComboBox } from "./combo-box/vs-combo-box.component";
+import { VSCheckBox } from "./check-box/vs-check-box.component";
+import { VSChart } from "./chart/vs-chart.component";
+import { VSCalendar } from "./calendar/vs-calendar.component";
+import { VSCalcTable } from "./table/vs-calctable.component";
+import { VSAnnotation } from "./annotation/vs-annotation.component";
+import { VSPopComponentDirective } from "./data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "./data-tip/vs-data-tip.directive";
+
 
 @Component({
-   selector: "vs-object-container",
-   templateUrl: "vs-object-container.component.html",
-   styleUrls: ["vs-object-container.component.scss"]
+    selector: "vs-object-container",
+    templateUrl: "vs-object-container.component.html",
+    styleUrls: ["vs-object-container.component.scss"],
+    imports: [VSDataTipDirective, VSPopComponentDirective, VSAnnotation, VSCalcTable, VSCalendar, VSChart, VSCheckBox, VSComboBox, VSCrosstab, VSCylinder, VSGauge, VSGroupContainer, VSImage, VSLine, VSOval, VSRadioButton, VSRectangle, VSRangeSlider, VSSelection, VSSelectionContainer, VSSelectionContainerChildren, VSSlider, VSSlidingScale, VSSpinner, VSSubmit, VSTab, VSTable, VSText, VSTextInput, VSThermometer, forwardRef(() => VSViewsheet), MiniToolbar, PlaceholderDragElement]
 })
 export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
+   readonly popUpContentBoostZIndex: number = DateTipHelper.getPopUpContentBoostZIndex();
+
    @Input() public vsInfo: ViewsheetInfo;
    @Input() public vsObjectActions: AbstractVSActions<any>[];
    @Input() public activeName: string;
@@ -155,6 +194,9 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    public containerHasVerticalScrollbar = true;
    private subscriptions = new Subscription();
    public forceShowMiniToolbar: boolean = false;
+   // absoluteName of the embedded viewsheet (VSViewsheet) the pointer is currently inside, if
+   // any -- see getContainerZIndex/isHoveredEmbeddedViewsheet.
+   private hoveredEmbeddedVS: string = null;
    protected maxZIndex: number;
    private _keyNavigation: Observable<FocusObjectEventModel>;
    private focusSub: Subscription;
@@ -225,6 +267,14 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          model.visible && (!!model.container && model.active || !model.container) || !!(<any> model).adhocFilter ||
          this.dataTipService.isDataTipVisible(model.absoluteName) ||
          (!!model.container && this.dataTipService.isDataTipVisible(model.container));
+   }
+
+   isFilterInMaxModeView(model: VSObjectModel): boolean {
+      if(!this.viewer || !(<any> model).adhocFilter) {
+         return false;
+      }
+
+      return !!this.vsInfo?.vsObjects.find(v => v["maxMode"]);
    }
 
    isMiniToolbarVisible(model: VSObjectModel): boolean {
@@ -464,16 +514,153 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       }
    }
 
+   isActivePopComponent(vsObject: VSObjectModel): boolean {
+      const popComponent = this.popService.getPopComponent();
+
+      if(!popComponent) {
+         return false;
+      }
+
+      if(this.popService.isPopComponent(vsObject.absoluteName) &&
+         popComponent === vsObject.absoluteName)
+      {
+         return true;
+      }
+
+      // Also boost the z-index of the children of a group container when the group
+      // container itself is the active pop component -- otherwise the children remain
+      // stacked below the container's own boosted, opaque background image/border and
+      // the pop-up appears blank. Mirrors DataTipService.isCurrentDataTip's
+      // container-match arm (see needsZIndexBoost's dataTip check just below). Walk the
+      // full container ancestor chain (mirrors zIndex()'s loop below) so a grandchild
+      // nested through an intermediate Tab/GroupContainer is still boosted.
+      for(let container = vsObject.container; container; ) {
+         if(this.popService.isPopComponent(container) && popComponent === container) {
+            return true;
+         }
+
+         const containerObj = this.vsInfo.vsObjects.find(v => v.absoluteName === container);
+         container = containerObj ? containerObj.container : null;
+      }
+
+      return false;
+   }
+
+   needsZIndexBoost(vsObject: VSObjectModel): boolean {
+      // Boost the z-index of a max-mode assembly (or an embedded viewsheet containing one)
+      // so its stacking context escapes any ancestor's local z-order and renders above
+      // page-level chrome, mirroring the datatip/pop-component cases below.
+      if((<any> vsObject).maxMode) {
+         return true;
+      }
+
+      if(this.isActiveDataTipBoost(vsObject)) {
+         return true;
+      }
+
+      // Boost the z-index of any embedded viewsheet that contains the active pop component
+      // so it renders above the dim canvas (mirrors the datatip case above).
+      // Guard with hasPopUpComponentShowing() to avoid using stale getPopComponent() state
+      // when no pop component is actually visible (which could incorrectly boost an embedded
+      // VS with a higher natural z-index than the datatip, covering the datatip).
+      if(vsObject.objectType === "VSViewsheet" && this.popService.hasPopUpComponentShowing()) {
+         const popComponent = this.popService.getPopComponent();
+         return !!popComponent && popComponent.startsWith(vsObject.absoluteName + ".");
+      }
+
+      return false;
+   }
+
+   // True when vsObject is boosted specifically because it is the active Data Tip's own
+   // content (or an embedded viewsheet containing it) -- split out from needsZIndexBoost()
+   // so getContainerZIndex() can give this case a strictly higher tier than a merely-max-mode
+   // (or pop-component) boost. Independent of whether vsObject also happens to be max-mode.
+   private isActiveDataTipBoost(vsObject: VSObjectModel): boolean {
+      if(!this.dataTipService.dataTipName) {
+         return false;
+      }
+
+      if(this.dataTipService.isCurrentDataTip(vsObject.absoluteName, vsObject.container)) {
+         return true;
+      }
+
+      // Any embedded viewsheet that contains the active datatip, so the popup and its
+      // overflow content render above the dim canvas.
+      return vsObject.objectType === "VSViewsheet" &&
+         this.dataTipService.dataTipName.startsWith(vsObject.absoluteName + ".");
+   }
+
+   getPopUpContentBoostZIndex(): number {
+      return DateTipHelper.getPopUpContentBoostZIndex();
+   }
+
+   // The actual stacking-context z-index used for vsObject's own ".vs-object-parent-container"
+   // (see the [style.z-index] binding on that element in the template). The mini-toolbar is a
+   // sibling of that element, not a child, so it must be given a z-index derived from this same
+   // value (rather than a fixed CSS constant) to reliably stack above the assembly's own content
+   // -- assembly z-index values are server-assigned and can be arbitrarily large (e.g. for
+   // embedded-viewsheet or max-mode assemblies), easily exceeding any hardcoded CSS z-index.
+   getContainerZIndex(vsObject: VSObjectModel): number {
+      if(!this.isActivePopComponent(vsObject) && !this.needsZIndexBoost(vsObject)) {
+         // The mini-toolbar of an assembly *inside* an embedded viewsheet is painted above that
+         // viewsheet's own box (MiniToolbar.topY subtracts MINI_TOOLBAR_HEIGHT, and the
+         // forceAbove binding forces that even for an assembly at the embedded viewsheet's very
+         // top) while still being ranked inside this element's stacking context. It therefore
+         // cannot escape this context no matter how large getMiniToolbarZIndex() makes it, so an
+         // outer assembly with a higher z-index paints over it (#75916 follow-up). Lift the whole
+         // embedded viewsheet while it is hovered. Only while hovered: outer assemblies are
+         // legitimately authored above an embedded viewsheet, and permanently reordering them
+         // would break those layouts. The boost stays well below popUpContentBoostZIndex so it
+         // never competes with the max-mode/pop-component/data-tip tiers below.
+         return this.isHoveredEmbeddedViewsheet(vsObject)
+            ? this.zIndex(vsObject) + GuiTool.MINI_TOOLBAR_MIN_ZINDEX
+            : this.zIndex(vsObject);
+      }
+
+      const isDataTipBoost = this.isActiveDataTipBoost(vsObject);
+
+      // An active Data Tip (or an embedded viewsheet containing one) must render above a
+      // merely-max-mode (or pop-component) boosted sibling -- otherwise "Show Maximized" on one
+      // assembly can hide a completely different assembly's Data Tip popup behind it (#76461,
+      // #76458). Doubling the boost for this case mirrors the existing extra "+1000 while
+      // popShowing" tier already applied on top of this same constant in
+      // VSDataTipDirective.ngDoCheck(). This wins as long as the two assemblies' own base
+      // zIndex() values differ by less than popUpContentBoostZIndex (99999) -- true for any
+      // realistic nesting depth given this codebase's z-index gaps (Viewsheet.NORMAL_ZINDEX_GAP/
+      // CONTAINER_ZINDEX_GAP/VIEWSHEET_ZINDEX_GAP are 1/50/1000), but not an absolute guarantee:
+      // zIndex() can add +5000 for an assembly with annotations or +getPopUpContentBoostZIndex()
+      // for an adhoc filter, which does eat into that margin.
+      return isDataTipBoost
+         ? this.zIndex(vsObject) + this.popUpContentBoostZIndex * 2
+         : this.zIndex(vsObject) + this.popUpContentBoostZIndex;
+   }
+
+   // The mini-toolbar's z-index (see [zIndex] binding on <mini-toolbar> in the template) is
+   // getContainerZIndex(vsObject) + 1 -- it only needs to outrank its own assembly's stacking
+   // context, not unrelated sibling assemblies elsewhere on the canvas. Clamp it to the same
+   // floor as the toolbar's base CSS z-index so it still beats ordinary siblings with a higher
+   // server-assigned z-index (e.g. #75948), while preserving the larger boosted value for
+   // max-mode/embedded/datatip cases where the server z-index can exceed that floor.
+   getMiniToolbarZIndex(vsObject: VSObjectModel): number {
+      return Math.max(this.getContainerZIndex(vsObject) + 1, GuiTool.MINI_TOOLBAR_MIN_ZINDEX);
+   }
+
    zIndex(vsObject: VSObjectModel): number {
-      if(this.popService.isPopSource(vsObject.absoluteName) ||
-         this.dataTipService.isDataTipSource(vsObject.absoluteName))
+      const adhocFilter = (<any> vsObject).adhocFilter;
+
+      if(!adhocFilter && (this.popService.isPopSource(vsObject.absoluteName) ||
+         this.dataTipService.isDataTipSource(vsObject.absoluteName)))
       {
          return DateTipHelper.getPopUpSourceZIndex();
       }
 
       let zIndex = vsObject.objectFormat.zIndex;
 
-      for(let container = vsObject.container; container; ) {
+      // A max-mode (enlarged) assembly is rendered pulled out of its Group Container/Tab, so
+      // that container's own z-index is no longer meaningful to its stacking and must not be
+      // added on top -- otherwise the container's z-index can push the enlarged assembly above
+      // its own adhoc filter popup, which has no container and so never gets this addition (#75990).
+      for(let container = !(<any> vsObject).maxMode ? vsObject.container : null; container; ) {
          let containerObj = this.vsInfo.vsObjects.find(v => v.absoluteName == container);
 
          if(containerObj) {
@@ -483,6 +670,20 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          else {
             break;
          }
+      }
+
+      // Assemblies with visible assembly annotations must appear above all regular objects.
+      // Without this, another assembly's stacking context (position:relative + z-index) can
+      // trap the annotation inside, making it invisible behind the overlapping assembly.
+      // Data annotations are rendered in the chart-annotation-overlay so they don't need this boost.
+      if(vsObject.assemblyAnnotationModels?.length > 0) {
+         zIndex += 5000;
+      }
+
+      // Adhoc filters are temporary VS objects, not VSPopComponent content, but they
+      // still need to paint above the source table/crosstab while preserving container order.
+      if(adhocFilter) {
+         zIndex += DateTipHelper.getPopUpContentBoostZIndex();
       }
 
       return zIndex;
@@ -496,8 +697,14 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
             top ? obj?.objectFormat?.top : obj?.objectFormat?.left : null;
       }
       else if(obj.objectType === "VSChart") {
-         (<any> obj).maxMode ? 0 : (this.viewer || obj.inEmbeddedViewsheet && !this.context.binding
+         return (<any> obj).maxMode ? 0 : (this.viewer || obj.inEmbeddedViewsheet && !this.context.binding
             ? top ? obj?.objectFormat?.top : obj?.objectFormat?.left : 0);
+      }
+      else if(obj.objectType === "VSViewsheet") {
+         // an embedded viewsheet containing a max-mode descendant is flagged via the same
+         // (obj as any).maxMode marker (see viewer-app/vs-viewsheet onMaxModeChanged) so its
+         // focus overlay lines up with the descendant filling the viewport from (0, 0).
+         return (<any> obj).maxMode ? 0 : (top ? obj?.objectFormat?.top : obj?.objectFormat?.left);
       }
       else if(obj.objectType === "VSRangeSlider") {
          (this.viewer || this.embeddedVS) && obj.containerType !== "VSSelectionContainer" ?
@@ -508,25 +715,28 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
             if((this.viewer || this.embeddedVS) && !(<VSSelectionBaseModel> obj).maxMode
                && obj.containerType !== "VSSelectionContainer")
             {
-               const inBottomTab = VSUtil.isInBottomTabContainer(obj, this.vsInfo?.vsObjects);
+               const bottomTab = VSUtil.getBottomTabContainer(obj, this.vsInfo?.vsObjects);
+               const inBottomTab = !!bottomTab;
+               const selModel = <VSSelectionBaseModel> obj;
 
-               if(this.isAtBottom(i, true) && (<VSSelectionBaseModel> obj).dropdown &&
-                  !SelectionBaseController.isHidden(<VSSelectionBaseModel> obj) &&
+               if(this.isAtBottom(i, true) && selModel.dropdown &&
+                  !SelectionBaseController.isHidden(selModel) &&
                   !inBottomTab)
                {
-                  let bodyHeight = this.getSelectionBodyHeight(<VSSelectionBaseModel> obj);
+                  let bodyHeight = this.getSelectionBodyHeight(selModel);
                   let popDown = this.containerBounds?.height - obj?.objectFormat?.top -
-                     (<VSSelectionBaseModel> obj)?.titleFormat?.height - bodyHeight > 0;
+                     selModel?.titleFormat?.height - bodyHeight > 0;
 
                   return popDown ? obj?.objectFormat?.top : obj?.objectFormat?.top - bodyHeight;
                }
-               else if((<VSSelectionBaseModel> obj).dropdown &&
-                  !SelectionBaseController.isHidden(<VSSelectionBaseModel> obj) &&
-                  inBottomTab)
-               {
-                  let bodyHeight = this.getSelectionBodyHeight(<VSSelectionBaseModel> obj);
-                  let searchBarHeight = (<VSSelectionBaseModel> obj).searchDisplayed ? (<VSSelectionBaseModel> obj).titleFormat.height : 0;
-                  return obj?.objectFormat?.top - bodyHeight - searchBarHeight;
+               else if(selModel.dropdown && inBottomTab) {
+                  // applies whether the dropdown is collapsed or expanded; the collapsed
+                  // case is critical because it's where objectFormat.top would be stale
+                  // when bottomTabs is toggled via script.
+                  const expanded = !SelectionBaseController.isHidden(selModel);
+                  return VSUtil.computeBottomTabSelectionTop(
+                     bottomTab.objectFormat.top, selModel.titleFormat.height,
+                     expanded, this.getSelectionBodyHeight(selModel), selModel.searchDisplayed);
                }
                else {
                   return obj?.objectFormat?.top;
@@ -616,6 +826,12 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    }
 
    showingPopUpOrDataTip(): boolean {
+      // Only the top-level container renders the dim canvas; embedded viewsheet containers
+      // rely on z-index ordering relative to the top-level canvas instead
+      if(this.embeddedVS) {
+         return false;
+      }
+
       let showingPop = this.popService.hasPopUpComponentShowing() || this.dataTipService.hasDataTipShowing();
 
       if(showingPop && !this.popDimDrew) {
@@ -640,13 +856,6 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          context.clearRect(0, 0, this.popUpDim.nativeElement.width, this.popUpDim.nativeElement.height);
          context.fillStyle = DateTipHelper.popDimColor;
          context.fillRect(0, 0, this.getPopDimWidth(), this.getPopDimHeight());
-
-         for(let vsObject of this.vsInfo.vsObjects) {
-            if(vsObject.objectType == "VSViewsheet") {
-               context.clearRect(vsObject.objectFormat.left, vsObject.objectFormat.top,
-                  vsObject.objectFormat.width, vsObject.objectFormat.height);
-            }
-         }
       }
    }
 
@@ -665,7 +874,86 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
 
    onMouseEnter(vsObject: VSObjectModel, event: any): void {
       this.miniToolbarService.handleMouseEnter(vsObject?.absoluteName, event);
+
+      if(vsObject?.objectType === "VSViewsheet") {
+         this.hoveredEmbeddedVS = vsObject.absoluteName;
+      }
    }
+
+   // Paired with onMouseEnter's VSViewsheet arm. The mini-toolbars of the assemblies inside an
+   // embedded viewsheet are DOM descendants of that assembly's ".vs-object-parent-container",
+   // so moving the pointer from the embedded content onto one of those toolbars does not fire
+   // mouseleave here -- the boost survives long enough to click a toolbar button.
+   onMouseLeave(vsObject: VSObjectModel): void {
+      if(vsObject?.objectType === "VSViewsheet" &&
+         this.hoveredEmbeddedVS === vsObject.absoluteName)
+      {
+         this.hoveredEmbeddedVS = null;
+      }
+   }
+
+   // True while the pointer is inside this embedded viewsheet (or one of its assemblies'
+   // mini-toolbars). See getContainerZIndex for why that has to lift the whole subtree.
+   isHoveredEmbeddedViewsheet(vsObject: VSObjectModel): boolean {
+      return !!this.hoveredEmbeddedVS && this.hoveredEmbeddedVS === vsObject.absoluteName;
+   }
+
+   getChartDataAnnotations(vsObject: VSObjectModel): VSAnnotationModel[] {
+      return (vsObject as VSChartModel).dataAnnotationModels || [];
+   }
+
+   annotationMouseSelect(event: [VSAnnotationModel, MouseEvent], vsObject: VSObjectModel): void {
+      const [ann, mouseEvent] = event;
+
+      if((mouseEvent.ctrlKey || mouseEvent.button === 2) && vsObject.selectedAnnotations) {
+         const currentIndex = vsObject.selectedAnnotations.indexOf(ann.absoluteName);
+
+         if(currentIndex === -1) {
+            vsObject.selectedAnnotations.push(ann.absoluteName);
+         }
+      }
+      else {
+         vsObject.selectedAnnotations = [ann.absoluteName];
+      }
+
+      if(mouseEvent.button === 2) {
+         const vsObjectIndex = this.vsInfo.vsObjects.indexOf(vsObject);
+
+         if(vsObjectIndex >= 0 && this.vsObjectActions[vsObjectIndex]) {
+            this.showContextMenu(mouseEvent, this.vsObjectActions[vsObjectIndex]);
+         }
+      }
+   }
+
+   isChartAnnotationSelected(ann: VSAnnotationModel, vsObject: VSObjectModel): boolean {
+      return ann && vsObject.selectedAnnotations &&
+         vsObject.selectedAnnotations.indexOf(ann.absoluteName) > -1;
+   }
+
+   removeAnnotationFromOverlay(ann: VSAnnotationModel, vsObject: VSObjectModel): void {
+      this.removeAnnotations.emit();
+      vsObject.selectedAnnotations = (vsObject.selectedAnnotations || [])
+         .filter(name => name !== ann.absoluteName);
+   }
+
+   getChartAnnotationTetherTo(vsObject: VSObjectModel): Rectangular {
+      const fmt = vsObject.objectFormat;
+      return { x: fmt.left, y: fmt.top, width: fmt.width, height: fmt.height };
+   }
+
+   getChartAnnotationRestrictTo(vsObject: VSObjectModel): Rectangular {
+      const chart = vsObject as VSChartModel;
+      const contentBounds = chart.plot.layoutBounds;
+      const fmt = vsObject.objectFormat;
+      const titleHeight = chart.titleVisible ? chart.titleFormat.height : 0;
+      return {
+         x: fmt.left + contentBounds.x + (chart.paddingLeft || 0),
+         y: fmt.top + contentBounds.y + (chart.paddingTop || 0) + titleHeight,
+         width: contentBounds.width,
+         height: contentBounds.height
+      };
+   }
+
    isObjectRendered(vsObject: VSObjectModel) {
       return !this.virtualScrolling || this.renderedObjects.get(vsObject.absoluteName) === true;
    }

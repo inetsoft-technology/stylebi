@@ -17,7 +17,7 @@
  */
 import { HttpResponse } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, of as observableOf } from "rxjs";
@@ -29,6 +29,7 @@ import { DialogButtonsDirective } from "../../widget/standard-dialog/dialog-butt
 import { DialogContentDirective } from "../../widget/standard-dialog/dialog-content.directive";
 import { StandardDialogComponent } from "../../widget/standard-dialog/standard-dialog.component";
 import { ArrangeDashboardDialog } from "./arrange-dashboard-dialog.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 let createDashModel: (dashName: string) => DashboardModel = (dashName) => {
    return {
@@ -50,23 +51,29 @@ describe("Arrange Dashboard Dialog Unit Test", () => {
    };
 
    let modelService = {
-      getModel: jest.fn(() => createModel()),
-      putModel: jest.fn(() => observableOf(new HttpResponse({body: null}))),
-      sendModel: jest.fn(() => observableOf(new HttpResponse({body: null})))
+      getModel: vi.fn(() => createModel()),
+      putModel: vi.fn(() => observableOf(new HttpResponse({body: null}))),
+      sendModel: vi.fn(() => observableOf(new HttpResponse({body: null})))
    };
 
    let fixture: ComponentFixture<ArrangeDashboardDialog>;
    let arrangeDashboardDialog: ArrangeDashboardDialog;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            ArrangeDashboardDialog,
+            StandardDialogComponent,
+            EnterSubmitDirective,
+            DialogContentDirective,
+            DialogButtonsDirective,
+            ResizableTableDirective,
          ],
-         declarations: [
-            ArrangeDashboardDialog, StandardDialogComponent, EnterSubmitDirective,
-            DialogContentDirective, DialogButtonsDirective, ResizableTableDirective
-         ],
+         
          providers: [
             {
                provide: ModelService, useValue: modelService

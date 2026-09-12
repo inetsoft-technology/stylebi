@@ -114,10 +114,6 @@ export class StompClientChannel {
       this.client.send(destination, headers, body);
    }
 
-   hasConnection(): boolean {
-      return !!this.client;
-   }
-
    private subscribeToTopic(destination: string, topic: StompTopic): Stomp.Subscription {
       return this.client.subscribe(destination, (message: Stomp.Frame) => {
          topic.subject.next({ frame: message });

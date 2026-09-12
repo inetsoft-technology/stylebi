@@ -17,16 +17,9 @@
  */
 package inetsoft.web.composer.ws;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.AssemblyInfo;
-import inetsoft.uql.asset.internal.TableAssemblyInfo;
-import inetsoft.util.Catalog;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSAssemblyEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
-import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -36,6 +29,12 @@ import java.security.Principal;
 
 @Controller
 public class WSPrimaryController extends WorksheetController {
+
+   public WSPrimaryController(WSPrimaryServiceProxy wsPrimaryServiceProxy)
+   {
+      this.wsPrimaryServiceProxy = wsPrimaryServiceProxy;
+   }
+
    @Undoable
    @LoadingMask
    @MessageMapping("/composer/worksheet/set-primary")
@@ -44,43 +43,8 @@ public class WSPrimaryController extends WorksheetController {
       Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
-      Worksheet ws = rws.getWorksheet();
-      String name = event.getAssemblyName();
-      String old = ws.getPrimaryAssemblyName();
-
-      if(name == null) {
-         return;
-      }
-
-      if(!name.equals(old)) {
-         if(!ws.setPrimaryAssembly(name)) {
-            MessageCommand command = new MessageCommand();
-            command.setMessage(Catalog.getCatalog().getString(
-               "common.setPrimaryFailed"));
-            command.setType(MessageCommand.Type.WARNING);
-            command.setAssemblyName(name);
-            commandDispatcher.sendCommand(command);
-         }
-         else {
-            if(old != null) {
-               AssemblyInfo info = ws.getPrimaryAssembly().getInfo();
-
-               if(info instanceof TableAssemblyInfo) {
-                  ((TableAssemblyInfo) info).setVisibleTable(true);
-               }
-
-               WorksheetEventUtil.refreshAssembly(rws, old, false, commandDispatcher, principal);
-            }
-
-            Assembly assembly = ws.getAssembly(name);
-
-            if(assembly instanceof AbstractTableAssembly) {
-               ((AbstractTableAssembly) assembly).setVisibleTable(true);
-            }
-
-            WorksheetEventUtil.refreshAssembly(rws, name, false, commandDispatcher, principal);
-         }
-      }
+      wsPrimaryServiceProxy.setAsPrimary(getRuntimeId(), event, principal, commandDispatcher);
    }
+
+   private WSPrimaryServiceProxy wsPrimaryServiceProxy;
 }

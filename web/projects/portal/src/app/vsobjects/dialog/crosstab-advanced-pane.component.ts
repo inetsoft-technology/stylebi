@@ -18,10 +18,18 @@
 import { Component, Input, ViewChild } from "@angular/core";
 import { CrosstabAdvancedPaneModel } from "../model/crosstab-advanced-pane-model";
 import { NotificationsComponent } from "../../widget/notifications/notifications.component";
+import { TipPane } from "./graph/tip-pane.component";
+
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "crosstab-advanced-pane",
-   templateUrl: "crosstab-advanced-pane.component.html",
+    selector: "crosstab-advanced-pane",
+    templateUrl: "crosstab-advanced-pane.component.html",
+    imports: [
+    FormsModule,
+    TipPane,
+    NotificationsComponent
+]
 })
 export class CrosstabAdvancedPane {
    @Input() model: CrosstabAdvancedPaneModel;

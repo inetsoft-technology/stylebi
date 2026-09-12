@@ -25,6 +25,7 @@ import inetsoft.sree.security.OrganizationManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.*;
 
@@ -67,12 +68,6 @@ public final class ClusterUtil {
       ClusterUtil.refreshFS();
    }
 
-   static void setWorkDir(String node, String dir) {
-      Cluster cluster = Cluster.getInstance();
-      Map<String, String> map = cluster.getMap(WORK_DIR_MAP);
-      map.put(node, dir);
-   }
-
    /**
     * Refreshes the data file system on a cluster node.
     */
@@ -93,6 +88,8 @@ public final class ClusterUtil {
             String file = MVStorage.getFile(mv);
             MVStorage.getInstance().remove(file);
             addRemovedMVFile(file);
+         }
+         catch(FileNotFoundException ignore) {
          }
          catch(Exception e) {
             LOG.error("Failed to delete MV file: {}", mv, e);
@@ -130,7 +127,6 @@ public final class ClusterUtil {
       REMOVED_MV_FILES.set(null);
    }
 
-   private static final String WORK_DIR_MAP = "inetsoft.mv.fs.internal.workDirMap";
    private static final ThreadLocal<List<String>> REMOVED_MV_FILES = new ThreadLocal<>();
    private static final Logger LOG =
       LoggerFactory.getLogger(ClusterUtil.class);

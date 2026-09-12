@@ -150,11 +150,12 @@ public interface MultiMap<K, V> {
    void lock(K key);
 
    /**
-    * Acquires the lock for the specified key for the specified lease time.
+    * Acquires the lock for the specified key, waiting up to the specified timeout.
+    * Throws {@link IllegalStateException} if the lock cannot be acquired within the timeout.
     *
     * @param key       the key to lock
-    * @param leaseTime time to wait before releasing the lock
-    * @param timeUnit  unit of time for the lease time
+    * @param leaseTime maximum time to wait to acquire the lock
+    * @param timeUnit  unit of time for the timeout
     */
    void lock(K key, long leaseTime, TimeUnit timeUnit);
 

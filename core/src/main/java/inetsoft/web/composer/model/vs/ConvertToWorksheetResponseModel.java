@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class ConvertToWorksheetResponseModel {
+import java.io.Serializable;
+
+public class ConvertToWorksheetResponseModel implements Serializable {
    public ConvertToWorksheetResponseModel(SelectDataSourceDialogModel model, boolean hasMvs) {
       this.model = model;
       this.hasMvs = hasMvs;

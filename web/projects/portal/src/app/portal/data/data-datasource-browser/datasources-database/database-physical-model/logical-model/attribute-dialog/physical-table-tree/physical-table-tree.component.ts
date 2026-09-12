@@ -19,11 +19,13 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { TreeNodeModel } from "../../../../../../../../widget/tree/tree-node-model";
 import { Tool } from "../../../../../../../../../../../shared/util/tool";
 import { AttributeModel } from "../../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
+import { PhysicalTableTreeNodeComponent } from "./physical-table-tree-node/physical-table-tree-node.component";
 
 @Component({
-   selector: "physical-table-tree",
-   templateUrl: "physical-table-tree.component.html",
-   styleUrls: ["physical-table-tree.component.scss"]
+    selector: "physical-table-tree",
+    templateUrl: "physical-table-tree.component.html",
+    styleUrls: ["physical-table-tree.component.scss"],
+    imports: [PhysicalTableTreeNodeComponent]
 })
 export class PhysicalTableTreeComponent {
    @Input() root: TreeNodeModel;
@@ -307,7 +309,7 @@ export class PhysicalTableTreeComponent {
          const index: number = this.indexOf(parent, this.selectedNodes);
 
          if(index >= 0) {
-            this.selectedNodes.slice(index, 1);
+            this.selectedNodes.splice(index, 1);
          }
       }
    }

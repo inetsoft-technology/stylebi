@@ -17,8 +17,8 @@
  */
 package inetsoft.storage;
 
-import inetsoft.sree.internal.cluster.MessageEvent;
-import inetsoft.sree.internal.cluster.MessageListener;
+import inetsoft.sree.internal.cluster.*;
+import inetsoft.storage.fs.FilesystemBlobEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,9 +47,9 @@ public final class CachedBlobStorage<T extends Serializable>
     * @param preload  preload the local cache in a background thread on initialization.
     */
    public CachedBlobStorage(String id, Path cacheDir, KeyValueStorage<Blob<T>> storage,
-                            BlobCache cache, boolean preload)
+                            BlobCache cache, Cluster cluster, boolean preload)
    {
-      super(id, storage);
+      super(id, storage, cluster);
       Objects.requireNonNull(id, "The storage identifier cannot be null");
       Objects.requireNonNull(cacheDir, "The cache directory cannot be null");
       Objects.requireNonNull(cache, "The blob storage cache cannot be null");
@@ -87,6 +87,11 @@ public final class CachedBlobStorage<T extends Serializable>
    }
 
    @Override
+   protected void deleteByDigest(String digest) throws IOException {
+      cache.remove(id, digest);
+   }
+
+   @Override
    protected Path copyToTemp(Blob<T> blob) throws IOException {
       Path path = cache.get(id, blob);
       Path tempFile = createTempFile("blob", ".dat");
@@ -100,11 +105,6 @@ public final class CachedBlobStorage<T extends Serializable>
    }
 
    @Override
-   protected boolean isLocal() {
-      return false;
-   }
-
-   @Override
    public void deleteBlobStorage() throws Exception {
       List<String> files = stream()
          .map(Blob::getPath)
@@ -115,6 +115,10 @@ public final class CachedBlobStorage<T extends Serializable>
       }
 
       close();
+
+      if(BlobEngine.getInstance() instanceof FilesystemBlobEngine) {
+         ((FilesystemBlobEngine) BlobEngine.getInstance()).deleteStore(id);
+      }
    }
 
    @Override
@@ -126,7 +130,6 @@ public final class CachedBlobStorage<T extends Serializable>
    @Override
    public void messageReceived(MessageEvent event) {
       if(event.getMessage() instanceof ClearBlobCacheMessage message) {
-
          if(getId().equals(message.getStoreId())) {
             String digest = message.getDigest();
 
@@ -135,6 +138,18 @@ public final class CachedBlobStorage<T extends Serializable>
             }
             catch(IOException e) {
                logger.warn("Failed to delete local cache file {}", digest, e);
+            }
+         }
+      }
+      else if(event.getMessage() instanceof ClearAllBlobCacheMessage message) {
+         if(getId().equals(message.getStoreId())) {
+            for(String digest : message.getDigests()) {
+               try {
+                  cache.remove(id, digest);
+               }
+               catch(IOException e) {
+                  logger.warn("Failed to delete local cache file {}", digest, e);
+               }
             }
          }
       }

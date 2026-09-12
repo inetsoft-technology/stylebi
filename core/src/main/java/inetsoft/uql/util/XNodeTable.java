@@ -20,6 +20,7 @@ package inetsoft.uql.util;
 import inetsoft.report.TableDataDescriptor;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
+import inetsoft.uql.avro.AvroXTable;
 import inetsoft.uql.table.*;
 import inetsoft.util.ExecutionMap;
 import inetsoft.util.ThreadPool;
@@ -27,8 +28,7 @@ import inetsoft.web.admin.monitoring.MonitorLevelService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -448,7 +448,12 @@ public class XNodeTable implements XTable {
             init(table.getColumnCreators());
 
             if(bgproc) {
-               ThreadPool.addOnDemand(() -> load(table));
+               ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+                  @Override
+                  public void run() {
+                     load(table);
+                  }
+               });
             }
             else {
                load(table);
@@ -465,7 +470,12 @@ public class XNodeTable implements XTable {
             // root is a sequence node now
             if(bgproc) {
                final XNode root2 = root;
-               ThreadPool.addOnDemand(() -> load(root2));
+               ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+                  @Override
+                  public void run() {
+                     load(root2);
+                  }
+               });
             }
             else {
                load(root);
@@ -580,20 +590,23 @@ public class XNodeTable implements XTable {
          boolean bgproc = prop.equalsIgnoreCase("true");
 
          if(bgproc) {
-            ThreadPool.addOnDemand(() -> {
-               try {
-                  loadTable0();
-               }
-               catch(ClassCastException ex) {
-                  loadDataException = ex;
-               }
-               catch(Exception ex) {
-                  cancelled = true;
-                  loadDataException = ex;
-                  LOG.debug("Failed to load XTableNode", ex);
-               }
-               finally {
-                  complete();
+            ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+               @Override
+               public void run() {
+                  try {
+                     loadTable0();
+                  }
+                  catch(ClassCastException ex) {
+                     loadDataException = ex;
+                  }
+                  catch(Exception ex) {
+                     cancelled = true;
+                     loadDataException = ex;
+                     LOG.debug("Failed to load XTableNode", ex);
+                  }
+                  finally {
+                     complete();
+                  }
                }
             });
          }
@@ -797,11 +810,7 @@ public class XNodeTable implements XTable {
       private int level; // monitor level
       private boolean querytimeout = false;
       private boolean dataLoaded = false;
-      private XTableNode tableNode;
-   }
-
-   private void writeObject(ObjectOutputStream stream) throws IOException {
-      stream.defaultWriteObject();
+      private transient XTableNode tableNode;
    }
 
    /**
@@ -924,21 +933,32 @@ public class XNodeTable implements XTable {
       }
    }
 
-   private static final transient ExecutionMap emap = new ExecutionMap();
-   public static final transient Map<String, QueryInfo> queryMap = new ConcurrentHashMap<>();
-   private static int executedRows = 0;
+   @Serial
+   private void writeObject(ObjectOutputStream out) throws IOException {
+      out.defaultWriteObject();
+      out.writeObject(new AvroXTable(delegate));
+   }
 
-   private XTable delegate;
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      delegate = (XTable) in.readObject();
+   }
+
+   private transient XTable delegate;
    private boolean cancelled = false;
    private Exception loadDataException = null;
    private boolean disposed = false;
-   private XNode root;
+   private transient XNode root;
    private Class<?>[] types;
    private int refCnt = 0; // reference count
    private XIdentifierContainer identifiers = null;
    private Properties prop = new Properties(); // properties
    private String queryId = null;
    private static final Set<QueryExecutionListener> queryExecutionListeners = new HashSet<>();
+   private static final ExecutionMap emap = new ExecutionMap();
+   public static final Map<String, QueryInfo> queryMap = new ConcurrentHashMap<>();
+   private static int executedRows = 0;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(XNodeTable.class);

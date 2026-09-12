@@ -15,12 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {HttpClient, HttpParams} from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import {AfterViewInit, Component, ElementRef, NgZone, OnDestroy, OnInit, Renderer2, ViewChild} from "@angular/core";
-import {ActivatedRoute, ParamMap, ResolveStart, Router} from "@angular/router";
-import {NgbModal, NgbPopover} from "@ng-bootstrap/ng-bootstrap";
+import { ActivatedRoute, ParamMap, ResolveStart, Router, RouterLink } from "@angular/router";
+import { NgbModal, NgbPopover, NgbTypeahead, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 import {Observable, of, Subscription} from "rxjs";
-import {catchError, debounceTime, distinctUntilChanged, map, switchMap} from "rxjs/operators";
+import {catchError, debounceTime, distinctUntilChanged, finalize, map, switchMap} from "rxjs/operators";
 import {AssetType} from "../../../../../../shared/data/asset-type";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import {FormValidators} from "../../../../../../shared/util/form-validators";
@@ -58,6 +58,8 @@ import {AssetEntry} from "../../../../../../shared/data/asset-entry";
 import {SelectedDataSourcesRequest} from "../commands/selected-datasources-request";
 import {AssetUtil} from "../../../binding/util/asset-util";
 import {MultiObjectSelectList} from "../../../common/util/multi-object-select-list";
+import { FormsModule } from "@angular/forms";
+import { NgClass } from "@angular/common";
 
 const CREATE_QUERY_URI = "/events/composer/ws/query/create";
 const DATASOURCES_URI: string = "../api/data/datasources";
@@ -73,10 +75,11 @@ const DATASOURCES_LIST_URI: string = "../api/data/dataSources/list";
 const DATASOURCE_STATUSES_URI  = DATASOURCES_URI + "/statuses";
 
 @Component({
-   selector: "p-datasource-browser",
-   templateUrl: "data-datasource-browser.component.html",
-   styleUrls: ["data-datasource-browser.component.scss"],
-   providers: [ViewsheetClientService]
+    selector: "p-datasource-browser",
+    templateUrl: "data-datasource-browser.component.html",
+    styleUrls: ["data-datasource-browser.component.scss"],
+    providers: [ViewsheetClientService],
+    imports: [FormsModule, NgbTypeahead, NgClass, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, RouterLink, DataNotificationsComponent]
 })
 export class DataDatasourceBrowserComponent extends CommandProcessor implements AfterViewInit, OnInit, OnDestroy {
    @ViewChild("dataNotifications") dataNotifications: DataNotificationsComponent;
@@ -307,6 +310,13 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
       };
 
       const sub = this.httpClient.post<DataSourceStatus[]>(DATASOURCE_STATUSES_URI, request)
+         .pipe(finalize(() => {
+            if(updateStatus) {
+               this.updatingStatus = false;
+            }
+
+            this.requests.remove(sub);
+         }))
          .subscribe(statuses => {
             for(let i = 0; i < dsCopy.length; i++) {
                if(!!statuses[i]) {
@@ -319,12 +329,6 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
                ds.statusMessage = this.failedConnectionStatus;
                ds.connected = false;
             });
-         }, () => {
-            if(updateStatus) {
-               this.updatingStatus = false;
-            }
-
-            this.requests.remove(sub);
          });
 
       this.requests.add(sub);
@@ -376,8 +380,8 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    }
 
    getParentRouterLinkParams(path: string): any {
-      let arr: string[] = path.split("/");
-      let parentPath = arr.length == 1 ? "/" : arr[arr.length - 2];
+      const idx = path.lastIndexOf("/");
+      const parentPath = idx < 0 ? "/" : path.substring(0, idx);
       return {path: parentPath, scope: 0};
    }
 
@@ -835,16 +839,17 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    }
 
    dropAssets(event: DragEvent, datasource: DataSourceInfo) {
+      event.stopPropagation();
+
       if(datasource && !this.isDataSourceFolder(datasource)) {
          return;
       }
 
-      event.stopPropagation();
       let dragData = this.dragService.getDragData();
 
       if(dragData["dragDataSources"]) {
-         this.moveDataSources0(
-            JSON.parse(dragData["dragDataSources"]), datasource.path);
+         const targetFolder = datasource?.path ?? this.currentFolderPathString;
+         this.moveDataSources0(JSON.parse(dragData["dragDataSources"]), targetFolder);
       }
       else {
          this.dataTreeDragToPane(datasource, dragData);

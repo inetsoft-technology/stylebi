@@ -690,6 +690,14 @@ public class SortOrder implements Comparer, Cloneable, Comparator, XConstants {
       Calendar calendar = cal0.get();
       Calendar c1 = cal1.get();
       Calendar c2 = cal2.get();
+      // cal0/cal1/cal2 are static ThreadLocals constructed with Calendar.getInstance() (the
+      // JVM default locale's first day of week) and never re-synced -- without this, a pooled
+      // thread keeps whichever first day of week was in effect (or the JVM default) the first
+      // time it ever ran this comparator, for its entire lifetime, regardless of week.start.
+      int firstDayOfWeek = Tool.getFirstDayOfWeek();
+      calendar.setFirstDayOfWeek(firstDayOfWeek);
+      c1.setFirstDayOfWeek(firstDayOfWeek);
+      c2.setFirstDayOfWeek(firstDayOfWeek);
       int result = 999;
       int year1, month1, day1, hour1, minute1, second1, millisecond1;
       int weekday1, weeks1;

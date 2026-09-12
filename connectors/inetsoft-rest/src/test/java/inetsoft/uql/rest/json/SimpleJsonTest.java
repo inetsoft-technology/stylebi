@@ -17,10 +17,15 @@
  */
 package inetsoft.uql.rest.json;
 
+import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
 import inetsoft.uql.schema.XSchema;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
 import java.net.URISyntaxException;
@@ -28,6 +33,10 @@ import java.nio.file.Paths;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, CredentialTestConfig.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 class SimpleJsonTest {
    @Test
    void queryFile() throws URISyntaxException {

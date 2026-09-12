@@ -17,7 +17,9 @@
  */
 package inetsoft.web.graph.model.dialog;
 
-public class RotationRadioGroupModel {
+import java.io.Serializable;
+
+public class RotationRadioGroupModel  implements Serializable {
    public String getRotation() {
       return rotation;
    }

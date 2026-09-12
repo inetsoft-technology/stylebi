@@ -18,7 +18,7 @@
 package inetsoft.report.script.formula;
 
 import inetsoft.uql.XTable;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,7 +55,7 @@ public abstract class RangeProcessor {
    /**
     * Create a processor for a table.
     */
-   protected RangeProcessor(XTable table, Scriptable scope) {
+   protected RangeProcessor(XTable table, ScriptScope scope) {
       this.table = table;
       this.scope = scope;
    }
@@ -97,7 +97,7 @@ public abstract class RangeProcessor {
 
          if(cond != null && cond.length() > 0) {
             try {
-               Scriptable tableRow = range.getScope();
+               ScriptScope tableRow = range.getScope();
                Object rc = FormulaEvaluator.exec(cond, scope, "rowValue", tableRow);
 
                if(rc instanceof Boolean && !((Boolean) rc).booleanValue()) {
@@ -130,7 +130,7 @@ public abstract class RangeProcessor {
 
    protected boolean processCalc = false;
    protected XTable table;
-   protected Scriptable scope;
+   protected ScriptScope scope;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(RangeProcessor.class);

@@ -23,11 +23,16 @@ import { TreeNodeModel } from "../tree/tree-node-model";
 import { DynamicValueModel, ValueTypes } from "../../vsobjects/model/dynamic-value-model";
 import { XSchema } from "../../common/data/xschema";
 import { FormulaEditorDialogModel } from "../formula-editor/formula-editor-dialog-model";
+import { DateTimePickerComponent } from "./date-time-picker.component";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
+
+import { DynamicComboBox } from "../dynamic-combo-box/dynamic-combo-box.component";
 
 @Component({
-   selector: "dynamic-value-editor",
-   templateUrl: "./dynamic-value-editor.component.html",
-   styleUrls: ["./dynamic-value-editor.component.scss"]
+    selector: "dynamic-value-editor",
+    templateUrl: "./dynamic-value-editor.component.html",
+    styleUrls: ["./dynamic-value-editor.component.scss"],
+    imports: [DynamicComboBox, FixedDropdownDirective, DateTimePickerComponent]
 })
 export class DynamicValueEditorComponent implements OnInit, OnChanges {
    @Input() type: string = XSchema.DATE;

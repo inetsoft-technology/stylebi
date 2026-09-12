@@ -64,11 +64,15 @@ import java.util.regex.Pattern;
 public class VSExportService {
    @Autowired
    public VSExportService(ViewsheetService viewsheetService, CoreLifecycleService coreLifecycleService,
-                          ParameterService parameterService)
+                          ParameterService parameterService, SecurityEngine securityEngine,
+                          XSessionService sessionService, FileSystemService fileSystemService)
    {
       this.viewsheetService = viewsheetService;
       this.coreLifecycleService = coreLifecycleService;
       this.parameterService = parameterService;
+      this.securityEngine = securityEngine;
+      this.sessionService = sessionService;
+      this.fileSystemService = fileSystemService;
    }
 
    public void exportViewsheet(String path, int format, boolean match, boolean expandSelections,
@@ -77,8 +81,9 @@ public class VSExportService {
                                Map<String, String[]> parameters, String sessionId, String userAgent,
                                Principal principal) throws Exception
    {
-      exportViewsheet(path, format, match, expandSelections, current, previewPrintLayout, print,
-         bookmarks, type, false, response, parameters, sessionId, userAgent, principal);
+      doExport(new ExportRequest(path, format, match, expandSelections, current,
+         previewPrintLayout, print, bookmarks, type, false, null, false,
+         response, parameters, sessionId, userAgent, principal));
    }
 
    public void exportViewsheet(String path, int format, boolean match, boolean expandSelections,
@@ -88,8 +93,9 @@ public class VSExportService {
                                String sessionId, String userAgent,
                                Principal principal) throws Exception
    {
-      exportViewsheet(path, format, match, expandSelections, current, previewPrintLayout,
-         print, bookmarks, type, onlyDataComponents, (CSVConfig) null, response, parameters, sessionId, userAgent, principal);
+      doExport(new ExportRequest(path, format, match, expandSelections, current,
+         previewPrintLayout, print, bookmarks, type, onlyDataComponents, null, false,
+         response, parameters, sessionId, userAgent, principal));
    }
 
    public void exportViewsheet(String path, int format, boolean match, boolean expandSelections,
@@ -99,9 +105,9 @@ public class VSExportService {
                                Map<String, String[]> parameters, String sessionId, String userAgent,
                                Principal principal) throws Exception
    {
-      exportViewsheet(path, format, match, expandSelections, current, previewPrintLayout, print,
-         bookmarks, type, onlyDataComponents, csvConfig, false, response,
-         parameters, sessionId, userAgent, principal);
+      doExport(new ExportRequest(path, format, match, expandSelections, current,
+         previewPrintLayout, print, bookmarks, type, onlyDataComponents, csvConfig, false,
+         response, parameters, sessionId, userAgent, principal));
    }
 
    public void exportViewsheet(String path, int format, boolean match, boolean expandSelections,
@@ -112,23 +118,31 @@ public class VSExportService {
                                String sessionId, String userAgent, Principal principal)
       throws Exception
    {
-      String runtimeId;
-      boolean exportEnabled = SecurityEngine.getSecurity().checkPermission(
-         principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export", ResourceAction.READ);
+      doExport(new ExportRequest(path, format, match, expandSelections, current,
+         previewPrintLayout, print, bookmarks, type, onlyDataComponents, csvConfig,
+         exportAllTabbedTables, response, parameters, sessionId, userAgent, principal));
+   }
 
-      if(!previewPrintLayout && !exportEnabled) {
+   private void doExport(ExportRequest req) throws Exception {
+      int format = req.format;
+      boolean match = req.matchLayout;
+      String runtimeId;
+      boolean exportEnabled = securityEngine.checkPermission(
+         req.principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export", ResourceAction.READ);
+
+      if(!req.previewPrintLayout && !exportEnabled) {
          LOG.error(
             "Failed to export viewsheet since {} have no permission for viewsheet export.",
-            principal.getName());
-         IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
-         String user = identityID != null ? identityID.getName() : principal.getName();
+            req.principal.getName());
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(req.principal.getName());
+         String user = identityID != null ? identityID.getName() : req.principal.getName();
          throw new MessageException(Catalog.getCatalog().getString(
             "viewer.viewsheet.exporting.failed", user), LogLevel.INFO, false);
       }
 
       //if there is an outtype param, its value overrides the format value
-      if(type != null) {
-         format = getFormatNumberFromExtension(type);
+      if(req.type != null) {
+         format = getFormatNumberFromExtension(req.type);
 
          if(format == FileFormatInfo.EXPORT_TYPE_CSV) {
             match = false;
@@ -136,7 +150,7 @@ public class VSExportService {
       }
 
       RuntimeViewsheet rvs;
-      AssetEntry entry = getPathAssetEntry(path, principal);
+      AssetEntry entry = getPathAssetEntry(req.path, req.principal);
       boolean matchesAssetIdFormat = true;
 
       if(SUtil.isDefaultVSGloballyVisible() && entry != null) {
@@ -144,31 +158,28 @@ public class VSExportService {
       }
 
       if(entry != null) {
-         runtimeId = openViewsheet(entry, principal, parameters, sessionId, userAgent);
-         rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         runtimeId = openViewsheet(entry, req.principal, req.parameters, req.sessionId, req.userAgent);
+         rvs = viewsheetService.getViewsheet(runtimeId, req.principal);
          // disable mv on demand for exporting
          rvs.getViewsheet().getViewsheetInfo().setMVOnDemand(false);
 
-         CommandDispatcher.withDummyDispatcher(principal, d -> {
-            ChangedAssemblyList clist = this.coreLifecycleService.createList(false, d, rvs,
-                                                                             null);
-            coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false,
-                                                  true, true, clist);
-
+         CommandDispatcher.withDummyDispatcher(req.principal, d -> {
+            ChangedAssemblyList clist = this.coreLifecycleService.createList(false, d, rvs, null);
+            coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false, true, true, clist);
             return null;
          });
       }
       else {
-         runtimeId = path;
+         runtimeId = req.path;
          matchesAssetIdFormat = false;
-         rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         rvs = viewsheetService.getViewsheet(runtimeId, req.principal);
       }
 
       // Tables need to be reset as they may contain old format.
       // The tables will be reloaded after the css is updated in AbstractVSExporter.
       Viewsheet vs = rvs.getViewsheet();
 
-      if("CSV".equals(type) && vs != null) {
+      if("CSV".equals(req.type) && vs != null) {
          boolean foundTable = VSUtil.getTableDataAssemblies(vs, true)
             .stream()
             .anyMatch(assembly -> CSVUtil.needExport(assembly));
@@ -181,7 +192,8 @@ public class VSExportService {
 
       for(Assembly assembly : vs.getAssemblies()) {
          if(assembly instanceof TableDataVSAssembly) {
-            rvs.getViewsheetSandbox().resetDataMap(assembly.getAbsoluteName());
+            rvs.getViewsheetSandbox().ifPresent(
+               b -> b.resetDataMap(assembly.getAbsoluteName()));
          }
       }
 
@@ -190,8 +202,9 @@ public class VSExportService {
 
       try {
          exportViewsheet(
-            rvs, format, match, expandSelections, current, previewPrintLayout, print, bookmarks,
-            embedded, onlyDataComponents, csvConfig, exportAllTabbedTables, response, principal);
+            rvs, format, match, req.expandSelections, req.current, req.previewPrintLayout,
+            req.print, req.bookmarks, embedded, req.onlyDataComponents, req.csvConfig,
+            req.exportAllTabbedTables, req.response, req.principal);
       }
       catch(Exception ex) {
          LOG.warn("Unable to complete export for {}", runtimeId);
@@ -201,7 +214,7 @@ public class VSExportService {
          if(matchesAssetIdFormat ||
             rvs != null && "true".equals(rvs.getProperty("_CLOSE_AFTER_EXPORT_")))
          {
-            viewsheetService.closeViewsheet(runtimeId, principal);
+            viewsheetService.closeViewsheet(runtimeId, req.principal);
          }
       }
    }
@@ -220,12 +233,15 @@ public class VSExportService {
       stompHeaderAccessor.setSessionId(sessionId);
       VariableTable vt = parameterService.readParameters(paramMap);
       String execSessionId =
-         XSessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
+         sessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
 
-      return CommandDispatcher.withDummyDispatcher(principal, d -> coreLifecycleService.openViewsheet(
-         viewsheetService, openViewsheetEvent, principal, null, null, entry, d, null,
-         null, true, openViewsheetEvent.getDrillFrom(), vt,
-         openViewsheetEvent.getFullScreenId(), execSessionId));
+      return CommandDispatcher.withDummyDispatcher(principal, d -> {
+         CoreLifecycleService.ProcessSheetResult result = coreLifecycleService.openViewsheet(
+            viewsheetService, openViewsheetEvent, principal, null, null, entry, d, null,
+            null, true, openViewsheetEvent.getDrillFrom(), vt,
+            openViewsheetEvent.getFullScreenId(), execSessionId);
+         return result.getId();
+      });
    }
 
    public void exportViewsheet(RuntimeViewsheet rvs, int format, boolean match,
@@ -271,7 +287,7 @@ public class VSExportService {
       rvs.setProperty("__EXPORTING__", "true");
 
       try {
-         boolean expandEnabled = SecurityEngine.getSecurity().checkPermission(
+         boolean expandEnabled = securityEngine.checkPermission(
             principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ExportExpandComponents",
             ResourceAction.READ);
 
@@ -298,19 +314,23 @@ public class VSExportService {
    {
       PrintLayout tempLayout = rvs.getViewsheet().getLayoutInfo().getPrintLayout();
       boolean excelToCSV = false;
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
 
       // update css format before executing the vs
-      rvs.getViewsheet().updateCSSFormat(AbstractVSExporter.getFileType(format), null,
-                                         rvs.getViewsheetSandbox());
+      rvs.getViewsheet().updateCSSFormat(AbstractVSExporter.getFileType(format), null, box.get());
 
       // execute the vs to ensure script variable is available(variable is isolated for threads).
       // see code VSAScriptable#varMap
       CommandDispatcher.withDummyDispatcher(principal, d -> {
          ChangedAssemblyList clist = this.coreLifecycleService.createList(false, d, rvs, null);
          // do not reset the form table.
-         rvs.getViewsheetSandbox().exportRefresh.set(true);
+         ViewsheetSandbox.exportRefresh.set(true);
          coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false, true, true, clist);
-         rvs.getViewsheetSandbox().exportRefresh.set(false);
+         ViewsheetSandbox.exportRefresh.set(false);
          return null;
       });
 
@@ -360,8 +380,8 @@ public class VSExportService {
          }
 
          if(!rvs.isDisposed()) {
-            rvs.getViewsheet().updateCSSFormat(null, null,
-                                               rvs.getViewsheetSandbox());
+            rvs.getViewsheetSandbox().ifPresent(
+               b -> rvs.getViewsheet().updateCSSFormat(null, null, b));
          }
       }
    }
@@ -404,7 +424,7 @@ public class VSExportService {
    /**
     * Attempting to export globally visible viewsheets requires passing underlying assetEntry
     */
-   private AssetEntry handleAttemptExportGloballyVisibleAsset(AssetEntry entry, int format) throws MessageException {
+   public AssetEntry handleAttemptExportGloballyVisibleAsset(AssetEntry entry, int format) throws MessageException {
       String curOrg = OrganizationManager.getInstance().getCurrentOrgID();
       boolean isSnapshot = Tool.equals(format, FileFormatInfo.EXPORT_TYPE_SNAPSHOT);
       boolean snapShotProhibited = false;
@@ -526,7 +546,7 @@ public class VSExportService {
    }
 
 
-   private String getMime(int format) {
+   public static String getMime(int format) {
       String mime = "application/octet-stream";
 
       switch(format) {
@@ -551,7 +571,7 @@ public class VSExportService {
       return mime;
    }
 
-   private String getSuffix(int format) {
+   public static String getSuffix(int format) {
       switch(format) {
       case FileFormatInfo.EXPORT_TYPE_EXCEL:
          return "xlsx";
@@ -572,6 +592,26 @@ public class VSExportService {
       }
    }
 
+   /**
+    * Gets the Content-disposition value for an export. Shared with
+    * ExportControllerService.exportViewsheet() so the viewer and Composer export paths
+    * cannot disagree about whether a PDF opens in the browser or downloads.
+    *
+    * @param format   the export format, one of the FileFormatInfo.EXPORT_TYPE_* constants.
+    * @param preview  <tt>true</tt> if the viewsheet is being previewed.
+    * @param embedded <tt>true</tt> if the "pdf.output.attachment" property is "embed" and the
+    *                 export is not addressed by asset ID.
+    * @param print    <tt>true</tt> if this export feeds the print flow.
+    *
+    * @return "inline" or "attachment".
+    */
+   public static String getContentDisposition(int format, boolean preview, boolean embedded,
+                                              boolean print)
+   {
+      return !preview && FileFormatInfo.EXPORT_TYPE_PDF == format &&
+         embedded || print ? "inline" : "attachment";
+   }
+
    private void writeViewsheetExport(RuntimeViewsheet rvs, ExportResponse response,
                                      Principal principal, int format, boolean previewPrintLayout,
                                      boolean print, boolean match, boolean expandSelections,
@@ -582,9 +622,7 @@ public class VSExportService {
       throws Exception
    {
       String name = getViewsheetFileName(rvs.getEntry());
-      String disposition = !rvs.isPreview() &&
-         FileFormatInfo.EXPORT_TYPE_PDF == format &&
-         embedded || print ? "inline" : "attachment";
+      String disposition = getContentDisposition(format, rvs.isPreview(), embedded, print);
 
       if(!print) {
          setResponseHeader(response, suffix, disposition, name, mime);
@@ -603,7 +641,6 @@ public class VSExportService {
       // When excel data is large, export excel first and add it to csv zip.
       if(excelToCSV) {
          int fmt = FileFormatInfo.EXPORT_TYPE_EXCEL;
-         FileSystemService fileSystemService = FileSystemService.getInstance();
          File tmpDir = this.createTmpDir();
          String excel = rvs.getEntry().getName() + ".xlsx";
          File excelFile = fileSystemService.getFile(tmpDir.getPath(), excel);
@@ -616,7 +653,7 @@ public class VSExportService {
          }
 
          // export to csv. add the excel file to csv zip.
-         try(TempFile tempFile = new TempFile(rvs.getID())) {
+         try(TempFile tempFile = new TempFile(rvs.getID(), fileSystemService)) {
             tempFile.write(out -> {
                writeViewsheetExport(rvs, out, principal, format,  previewPrintLayout, print,
                   false, expandSelections, current, bookmarks, onlyDataComponents, csvConfig,
@@ -630,7 +667,7 @@ public class VSExportService {
          return;
       }
 
-      try(TempFile tempFile = new TempFile(rvs.getID())) {
+      try(TempFile tempFile = new TempFile(rvs.getID(), fileSystemService)) {
          tempFile.write(out -> {
             writeViewsheetExport(
                     rvs, out, principal, format,  previewPrintLayout, print, match,
@@ -644,7 +681,6 @@ public class VSExportService {
    }
 
    private File createTmpDir() throws IOException {
-      FileSystemService fileSystemService = FileSystemService.getInstance();
       String uuid =  UUID.randomUUID().toString();
       String dir = fileSystemService.getCacheDirectory() + File.separator + uuid;
       File tmpDir = fileSystemService.getFile(dir);
@@ -712,15 +748,15 @@ public class VSExportService {
       exporter.setMatchLayout(match);
       exporter.setAssetEntry(rvs.getEntry());
       exporter.setOnlyDataComponents(onlyDataComponents && !match);
-      exporter.setSandbox(rvs.getViewsheetSandbox());
 
-      int vmode = Viewsheet.SHEET_RUNTIME_MODE;
-      ViewsheetSandbox rbox = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> rbox = rvs.getViewsheetSandbox();
 
-      if(rbox == null) {
+      if(rbox.isEmpty()) {
          return;
       }
 
+      exporter.setSandbox(rbox.get());
+      int vmode = Viewsheet.SHEET_RUNTIME_MODE;
       Viewsheet viewsheet = rvs.getViewsheet();
 
       if(viewsheet == null) {
@@ -731,64 +767,72 @@ public class VSExportService {
       exporter.setLogExport(true);
 
       if(current) {
-         Viewsheet cviewsheet = viewsheet.clone();
-         rvs.setViewsheet(cviewsheet);
+         // Bug #76576: the live ViewsheetSandbox is mutated in place below (setViewsheet()
+         // is not synchronized), so overlapping exports of the same runtime viewsheet can
+         // swap each other's cloned viewsheet mid-export, producing null table lenses (NPE
+         // in the exporters) and leaving in-flight queries waiting on stale assembly state
+         // (perceived as a hang). Serialize this swap/export/restore per runtime viewsheet.
+         synchronized(rvs) {
+            Viewsheet originalViewsheet = rvs.getViewsheet();
+            Viewsheet cviewsheet = originalViewsheet.clone();
+            rvs.setViewsheet(cviewsheet);
 
-         try {
-            // don't use the scale-to-screen size for export
-            VSEventUtil.clearScale(cviewsheet);
-            Assembly[] assemblies = cviewsheet.getAssemblies(false);
+            try {
+               // don't use the scale-to-screen size for export
+               VSEventUtil.clearScale(cviewsheet);
+               Assembly[] assemblies = cviewsheet.getAssemblies(false);
 
-            for(int i = 0; rbox != null && i < assemblies.length; i++) {
-               VSAssembly assembly = (VSAssembly) assemblies[i];
-
-               if(assembly instanceof CalcTableVSAssembly) {
-                  continue;
-               }
-
-               AnnotationVSUtil.refreshAllAnnotations(rvs, assembly, null, null);
-            }
-
-            ViewsheetSandbox exportBox = rbox;
-
-            if(previewPrintLayout && rbox.getMode() == AbstractSheet.SHEET_DESIGN_MODE) {
-               exportBox = new ViewsheetSandbox(null, cviewsheet, vmode, rbox.getUser(),
-                  false,rbox.getAssetEntry(), null);
-
-               if(exportBox.getAssetQuerySandbox() != null) {
-                  exportBox.getAssetQuerySandbox().refreshVariableTable(rbox.getVariableTable());
-               }
-
-               exportBox.reset(new ChangedAssemblyList());
-               exportBox.prepareMVCreation();
-               exportBox.getScope().prepareVariables(rbox.getVariableTable());
-
-               for(int i = 0; exportBox != null && i < assemblies.length; i++) {
+               for(int i = 0; rbox != null && i < assemblies.length; i++) {
                   VSAssembly assembly = (VSAssembly) assemblies[i];
-                  exportBox.executeScript(assembly);
+
+                  if(assembly instanceof CalcTableVSAssembly) {
+                     continue;
+                  }
+
+                  AnnotationVSUtil.refreshAllAnnotations(rvs, assembly, null, null);
                }
 
-               final AssetQuerySandbox assetQuerySandbox = exportBox.getAssetQuerySandbox();
+               ViewsheetSandbox exportBox = rbox.get();
 
-               if(assetQuerySandbox != null) {
-                  assetQuerySandbox.refreshVariableTable(rbox.getVariableTable());
+               if(previewPrintLayout && rbox.get().getMode() == AbstractSheet.SHEET_DESIGN_MODE) {
+                  exportBox = new ViewsheetSandbox(null, cviewsheet, vmode, rbox.get().getUser(),
+                     false, rbox.get().getAssetEntry(), null);
+
+                  if(exportBox.getAssetQuerySandbox() != null) {
+                     exportBox.getAssetQuerySandbox().refreshVariableTable(rbox.get().getVariableTable());
+                  }
+
+                  exportBox.reset(new ChangedAssemblyList());
+                  exportBox.prepareMVCreation();
+                  exportBox.getScope().prepareVariables(rbox.get().getVariableTable());
+
+                  for(int i = 0; exportBox != null && i < assemblies.length; i++) {
+                     VSAssembly assembly = (VSAssembly) assemblies[i];
+                     exportBox.executeScript(assembly);
+                  }
+
+                  final AssetQuerySandbox assetQuerySandbox = exportBox.getAssetQuerySandbox();
+
+                  if(assetQuerySandbox != null) {
+                     assetQuerySandbox.refreshVariableTable(rbox.get().getVariableTable());
+                  }
                }
-            }
-            else {
-               exportBox.setViewsheet(cviewsheet, false);
-            }
-            Catalog catalog = Catalog.getCatalog(principal);
-            exporter.setSandbox(exportBox);
+               else {
+                  exportBox.setViewsheet(cviewsheet, false);
+               }
+               Catalog catalog = Catalog.getCatalog(principal);
+               exporter.setSandbox(exportBox);
 
-            if(exporter instanceof AbstractVSExporter) {
-               ((AbstractVSExporter) exporter).setRuntimeViewsheet(rvs);
-            }
+               if(exporter instanceof AbstractVSExporter) {
+                  ((AbstractVSExporter) exporter).setRuntimeViewsheet(rvs);
+               }
 
-            exporter.export(exportBox, catalog.getString("Current View"), new VSPortalHelper());
-         }
-         finally {
-            rbox.setViewsheet(viewsheet, false);
-            rvs.setViewsheet(viewsheet);
+               exporter.export(exportBox, catalog.getString("Current View"), new VSPortalHelper());
+            }
+            finally {
+               rbox.get().setViewsheet(originalViewsheet, false);
+               rvs.setViewsheet(originalViewsheet);
+            }
          }
       }
 
@@ -810,7 +854,7 @@ public class VSExportService {
          AssetQuerySandbox abox = sandbox.getAssetQuerySandbox();
 
          if(abox != null) {
-            abox.refreshVariableTable(rbox.getVariableTable());
+            abox.refreshVariableTable(rbox.get().getVariableTable());
          }
 
          // Clear input assembly variables from the sandbox variable table before reset.
@@ -858,7 +902,11 @@ public class VSExportService {
       }
    }
 
-   private int getFormatNumberFromExtension(String ext) {
+   public static int getFormatNumberFromExtension(String ext) {
+      if(ext == null) {
+         throw new RuntimeException("Unsupported output type: null");
+      }
+
       switch(ext.toLowerCase()) {
       case "xlsx":
       case "xls":
@@ -881,20 +929,45 @@ public class VSExportService {
       }
    }
 
+   // keep cases in sync with getFormatNumberFromExtension
+   public static boolean isSupportedExportType(String ext) {
+      if(ext == null) {
+         return false;
+      }
+
+      switch(ext.toLowerCase()) {
+      case "xlsx":
+      case "xls":
+      case "pptx":
+      case "ppt":
+      case "pdf":
+      case "vso":
+      case "html":
+      case "png":
+      case "csv":
+         return true;
+      default:
+         return false;
+      }
+   }
+
    public static final int EXCEL_MAX_ROW = 50000;
    public static final int EXCEL_LIMIT_ROW = 5000;
    private final ViewsheetService viewsheetService;
    private final CoreLifecycleService coreLifecycleService;
    private final ParameterService parameterService;
+   private final SecurityEngine securityEngine;
+   private final XSessionService sessionService;
+   private final FileSystemService fileSystemService;
 
    private static final Logger LOG = LoggerFactory.getLogger(VSExportService.class);
    private static final Pattern USER_PATH_PATTERN = Pattern.compile("^user/([^/]+)/(.+)$");
    private static final Pattern GLOBAL_PATH_PATTERN = Pattern.compile("^global/(.+)$");
 
    private static final class TempFile implements Closeable {
-      TempFile(String id) {
-         file = FileSystemService.getInstance()
-            .getCacheTempFile(Tool.normalizeFileName(id), "export");
+      TempFile(String id, FileSystemService fileSystemService) {
+         this.fileSystemService = fileSystemService;
+         file = fileSystemService.getCacheTempFile(Tool.normalizeFileName(id), "export");
       }
 
       public void write(IOConsumer fn) throws Exception {
@@ -933,13 +1006,14 @@ public class VSExportService {
       @Override
       public void close() throws IOException {
          try {
-            FileSystemService.getInstance().deleteFile(file.getAbsolutePath());
+            fileSystemService.deleteFile(file.getAbsolutePath());
          }
          catch(NoSuchFileException ex) {
             // ignore
          }
       }
 
+      private final FileSystemService fileSystemService;
       private final File file;
    }
 

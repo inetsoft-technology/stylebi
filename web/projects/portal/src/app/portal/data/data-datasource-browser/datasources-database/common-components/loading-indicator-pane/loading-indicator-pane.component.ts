@@ -18,9 +18,10 @@
 import { Component, Input, OnInit } from "@angular/core";
 
 @Component({
-  selector: "loading-indicator-pane",
-  templateUrl: "./loading-indicator-pane.component.html",
-  styleUrls: ["./loading-indicator-pane.component.scss"]
+    selector: "loading-indicator-pane",
+    templateUrl: "./loading-indicator-pane.component.html",
+    styleUrls: ["./loading-indicator-pane.component.scss"],
+    standalone: true
 })
 export class LoadingIndicatorPaneComponent implements OnInit {
   @Input() show: boolean = false;

@@ -18,31 +18,49 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.util.*;
+import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.deploy.DeployService;
-import inetsoft.web.admin.deploy.ExportJarProperties;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import inetsoft.web.service.BinaryTransferService;
+import inetsoft.web.session.IgniteSessionRepository;
+import jakarta.annotation.PostConstruct;
+import jakarta.servlet.http.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 @RestController
 public class ExportAssetController {
    @Autowired
-   public ExportAssetController(DeployService deployService) {
+   public ExportAssetController(DeployService deployService,
+                                IgniteSessionRepository igniteSessionRepository,
+                                ExportAssetServiceProxy exportAssetServiceProxy,
+                                BinaryTransferService binaryTransferService,
+                                Cluster cluster)
+   {
       this.deployService = deployService;
+      this.igniteSessionRepository = igniteSessionRepository;
+      this.exportAssetServiceProxy = exportAssetServiceProxy;
+      this.binaryTransferService = binaryTransferService;
+      this.cluster = cluster;
+   }
+
+   @PostConstruct
+   public void initializeCache() {
+      cluster.registerSpringProxyPartitionedCache(ExportAssetService.FILE_LOCATION_CACHE_NAME);
+      cluster.getCache(ExportAssetService.FILE_LOCATION_CACHE_NAME);
    }
 
    @Secured(
@@ -57,9 +75,12 @@ public class ExportAssetController {
                                     HttpServletRequest request, Principal principal)
    {
       CompletableFuture<SelectedAssetModelList> future = new CompletableFuture<>();
-      request.getSession(true).setAttribute(PERM_ATTR, future);
+      HttpSession session = request.getSession(true);
+      session.setAttribute(PERM_ATTR, future);
 
       ThreadPool.addOnDemand(() -> {
+         Principal oldPrincipal = ThreadContext.getContextPrincipal();
+
          try {
             ThreadContext.setPrincipal(principal);
             SelectedAssetModelList list = deployService.filterEntities(assets, principal);
@@ -67,6 +88,10 @@ public class ExportAssetController {
          }
          catch(Exception e) {
             future.completeExceptionally(e);
+         }
+         finally {
+            session.setAttribute(PERM_ATTR, future);
+            ThreadContext.setPrincipal(oldPrincipal);
          }
       });
    }
@@ -112,9 +137,12 @@ public class ExportAssetController {
                                   HttpServletRequest request, Principal principal)
    {
       CompletableFuture<RequiredAssetModelList> future = new CompletableFuture<>();
-      request.getSession(true).setAttribute(DEPS_ATTR, future);
+      HttpSession session = request.getSession(true);
+      session.setAttribute(DEPS_ATTR, future);
 
       ThreadPool.addOnDemand(() -> {
+         Principal oldPrincipal = ThreadContext.getPrincipal();
+
          try {
             ThreadContext.setPrincipal(principal);
             RequiredAssetModelList list =
@@ -123,6 +151,10 @@ public class ExportAssetController {
          }
          catch(Exception e) {
             future.completeExceptionally(e);
+         }
+         finally {
+            session.setAttribute(DEPS_ATTR, future);
+            ThreadContext.setPrincipal(oldPrincipal);
          }
       });
    }
@@ -166,26 +198,14 @@ public class ExportAssetController {
       )
    )
    @PostMapping("/api/em/content/repository/export/create")
-   public void createExport(HttpServletRequest req,
-                            @RequestBody() ExportedAssetsModel exportedAssetsModel,
-                            Principal principal)
+   public String createExport(HttpServletRequest req,
+                              @RequestBody() ExportedAssetsModel exportedAssetsModel,
+                              Principal principal)
    {
-      CompletableFuture<ExportJarProperties> future = new CompletableFuture<>();
-      req.getSession(true).setAttribute(PROPS_ATTR, future);
-
-      ThreadPool.addOnDemand(() -> {
-         try {
-            ThreadContext.setPrincipal(principal);
-            ExportJarProperties properties = deployService.createExport(exportedAssetsModel, principal);
-            future.complete(properties);
-         }
-         catch(Exception e) {
-            Catalog catalog = Catalog.getCatalog();
-            future.completeExceptionally(new MessageException(
-               catalog.getString("common.repletAction.exportFailed", exportedAssetsModel.name()) +
-                  " " + catalog.getString("repository.fileDeleted"), e));
-         }
-      });
+      String jobId = UUID.randomUUID().toString();
+      String fileName = exportedAssetsModel.name();
+      exportAssetServiceProxy.createExport(jobId, fileName, exportedAssetsModel, principal);
+      return jobId;
    }
 
    @Secured(
@@ -195,9 +215,10 @@ public class ExportAssetController {
          actions = ResourceAction.ACCESS
       )
    )
-   @GetMapping("/api/em/content/repository/export/create/status")
-   public ResponseEntity<ExportStatusModel> getCreateExportStatus(HttpServletRequest request) {
-      return getStatus(PROPS_ATTR, request);
+   @GetMapping("/api/em/content/repository/export/create/status/{exportID}")
+   public ResponseEntity<ExportStatusModel> getCreateExportStatus(@PathVariable String exportID) {
+      boolean isDone = exportAssetServiceProxy.checkExportStatus(exportID);
+      return ResponseEntity.ok(ExportStatusModel.builder().ready(isDone).build());
    }
 
    @Secured(
@@ -207,24 +228,18 @@ public class ExportAssetController {
          actions = ResourceAction.ACCESS
       )
    )
-   @GetMapping("/em/content/repository/export/download")
-   public void downloadJar(HttpServletRequest req, HttpServletResponse res)
+   @GetMapping("/em/content/repository/export/download/{exportID}")
+   public void downloadJar(@PathVariable String exportID, HttpServletRequest req, HttpServletResponse res)
       throws Exception
    {
-      ExportJarProperties properties = getData(PROPS_ATTR, req, ExportJarProperties.class);
-      String filePath = properties.zipFilePath();
-      File file = FileSystemService.getInstance().getFile(filePath);
-      String filename = file.getName();
+      String filename = exportAssetServiceProxy.getFileNameFromID(exportID) + ".zip";
       String agent = req.getHeader("USER-AGENT");
 
-      // @by stone, fix bug1240661668234, the problem still exist in IE7
-      // need to download a patch named 322389
       if(SUtil.isIE(agent)) {
          filename = Tool.replaceAll(Tool.encodeWebURL(filename), "+", " ");
       }
       else if(SUtil.isMozilla(agent)) {
-         filename =
-            new String(filename.getBytes(StandardCharsets.UTF_8), StandardCharsets.ISO_8859_1);
+         filename = new String(filename.getBytes(StandardCharsets.UTF_8));
       }
 
       res.setHeader("extension", "zip");
@@ -240,18 +255,19 @@ public class ExportAssetController {
          header = "";
       }
 
-      res.setHeader("Content-disposition", header);
-      res.setHeader("Cache-Control", "");
-      res.setHeader("Pragma", "");
+      res.setHeader(HttpHeaders.CONTENT_DISPOSITION, header);
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
 
-      deployService.downloadJar(properties, in -> {
-         try(OutputStream out = res.getOutputStream()) {
-            Tool.copyTo(in, out);
-         }
-         catch(IOException e) {
-            throw new RuntimeException("Failed to copy export JAR to HTTP response", e);
-         }
-      });
+      BinaryTransfer data = exportAssetServiceProxy.getJarFileBytes(exportID);
+
+      if(data == null) {
+         res.setStatus(HttpStatus.NOT_FOUND.value());
+         return;
+      }
+
+      binaryTransferService.writeData(data, res.getOutputStream());
    }
 
    private ResponseEntity<ExportStatusModel> getStatus(String attr, HttpServletRequest request) {
@@ -284,10 +300,14 @@ public class ExportAssetController {
       }
    }
 
+   private final ExportAssetServiceProxy exportAssetServiceProxy;
+   private final BinaryTransferService binaryTransferService;
    private final DeployService deployService;
-   private static final String PERM_ATTR =
+   private final IgniteSessionRepository igniteSessionRepository;
+   private final Cluster cluster;
+   static final String PERM_ATTR =
       ExportAssetController.class.getName() + ".deployPermissions";
-   private static final String DEPS_ATTR =
+   static final String DEPS_ATTR =
       ExportAssetController.class.getName() + ".deployDependencies";
    private static final String PROPS_ATTR =
       ExportAssetController.class.getName() + ".deployJarProperties";

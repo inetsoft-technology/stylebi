@@ -144,26 +144,28 @@ public class LinkUriArgumentResolver implements
       return null;
    }
 
+   /**
+    * The scheme is derived from {@code request.getScheme()}, which reflects the value of
+    * X-Forwarded-Proto only when the connecting peer is a trusted proxy (see Tomcat's
+    * RemoteIpValve, configured via server.forward-headers-strategy=native). This must not read
+    * the forwarded header directly, since that would bypass the trusted-proxy check.
+    */
    private static String getRequestScheme(HttpServletRequest request) {
-      String requestScheme = request.getHeader("X-Forwarded-Proto");
-
-      if(requestScheme == null) {
-         requestScheme = request.getScheme();
-      }
-
-      return requestScheme;
+      return request.getScheme();
    }
 
+   /**
+    * The host is derived from {@code request.getServerName()}, which reflects the value of
+    * X-Forwarded-Host only when the connecting peer is a trusted proxy (see Tomcat's
+    * RemoteIpValve, configured via server.forward-headers-strategy=native). This must not read
+    * the forwarded header directly, since that would bypass the trusted-proxy check.
+    */
    public static String getRequestHost(HttpServletRequest request) {
-      String host = request.getHeader("X-Forwarded-Host");
+      String host = request.getServerName();
+      int port = request.getServerPort();
 
-      if(host == null) {
-         host = request.getServerName();
-         int port = request.getServerPort();
-
-         if(port != 80 && port != 443) {
-            host = host + ":" + port;
-         }
+      if(port != 80 && port != 443) {
+         host = host + ":" + port;
       }
 
       return host;

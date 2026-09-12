@@ -25,12 +25,36 @@ import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-p
 import { ImagePropertyDialogModel } from "../../data/vs/image-property-dialog-model";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
 import { PropertyDialog } from "./property-dialog.component";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { ClickableScriptPane } from "./clickable-script-pane.component";
+import { ImageAdvancedPane } from "./image-advanced-pane.component";
+import { DataOutputPane } from "./data-output-pane.component";
+import { ImageGeneralPane } from "./image-general-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_URI: string = "../api/composer/vs/image-property-dialog-model/checkTrap/";
 
 @Component({
-   selector: "image-property-dialog",
-   templateUrl: "image-property-dialog.component.html",
+    selector: "image-property-dialog",
+    templateUrl: "image-property-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    ImageGeneralPane,
+    DataOutputPane,
+    ImageAdvancedPane,
+    ClickableScriptPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class ImagePropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: ImagePropertyDialogModel;

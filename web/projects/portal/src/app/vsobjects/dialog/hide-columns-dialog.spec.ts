@@ -16,13 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
-import { FormsModule, ReactiveFormsModule} from "@angular/forms";
-import { NgbModule, NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
+import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.component";
 import { HideColumnsDialogModel } from "../model/hide-columns-dialog-model";
 import { HideColumnsDialog } from "./hide-columns-dialog.component";
-import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 let createModel: () => HideColumnsDialogModel = () => {
    return {
@@ -37,11 +38,15 @@ describe("Hide Columns Dialog Unit Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            ApplyButtonComponent,
+            HideColumnsDialog,
+            EnterSubmitDirective,
          ],
-         declarations: [
-            ApplyButtonComponent, HideColumnsDialog, EnterSubmitDirective
-         ],
+         
          providers: [
             NgbModal
          ],

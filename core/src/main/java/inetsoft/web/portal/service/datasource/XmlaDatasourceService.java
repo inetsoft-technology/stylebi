@@ -19,14 +19,16 @@ package inetsoft.web.portal.service.datasource;
 
 import inetsoft.report.TableLens;
 import inetsoft.report.XSessionManager;
+import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.asset.ColumnRef;
-import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.Config;
 import inetsoft.uql.xmla.*;
 import inetsoft.util.*;
 import inetsoft.web.admin.security.ConnectionStatus;
@@ -40,6 +42,7 @@ import inetsoft.web.viewsheet.model.PreviewTableCellModel;
 import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.FileNotFoundException;
@@ -51,10 +54,17 @@ import java.util.stream.Collectors;
 
 @Service
 public class XmlaDatasourceService extends DatasourcesBaseService {
+   @Autowired
    public XmlaDatasourceService(XRepository repository, SecurityEngine securityEngine,
-                                DataSourceStatusService dataSourceStatusService)
+                                DataSourceStatusService dataSourceStatusService,
+                                DataSourceRegistry dataSourceRegistry,
+                                Config uqlConfig,
+                                DependencyHandler dependencyHandler,
+                                XSessionManager xSessionManager)
    {
-      super(repository, securityEngine, dataSourceStatusService);
+      super(repository, securityEngine, dataSourceStatusService, dataSourceRegistry, uqlConfig);
+      this.dependencyHandler = dependencyHandler;
+      this.xSessionManager = xSessionManager;
    }
 
    public DataSourceXmlaDefinition getNewDataSourceModel(String parentPath) throws Exception {
@@ -310,8 +320,8 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
          try {
             XDomain odomain = getRepository().getDomain(ds.getFullName());
             getRepository().updateDomain(domain, !create);
-            DependencyHandler.getInstance().updateCubeDomainDependencies(odomain, false);
-            DependencyHandler.getInstance().updateCubeDomainDependencies(domain, true);
+            dependencyHandler.updateCubeDomainDependencies(odomain, false);
+            dependencyHandler.updateCubeDomainDependencies(domain, true);
          }
          catch(Exception ex) {
             LOG.error(ex.getMessage(), ex);
@@ -400,7 +410,7 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       }
 
       try {
-         Domain domain = (Domain) XFactory.getRepository().getDomain(dataSource.getFullName());
+         Domain domain = (Domain) getRepository().getDomain(dataSource.getFullName());
 
          if(domain == null) {
             domain = new Domain();
@@ -761,10 +771,8 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       TableLens lens;
 
       try {
-         XDataService service = XFactory.getDataService();
-         XSessionManager mgr = XSessionManager.getSessionManager();
          lens = new XNodeTableLens(
-            service.execute(mgr.getSession(), query, null, null));
+            getRepository().execute(xSessionManager.getSession(), query, null, null));
          XMLAUtil.reset();
          int maxRowCount = 1001;
 
@@ -848,9 +856,8 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       Catalog catalog = Catalog.getCatalog();
 
       try {
-         XRepository rep = XFactory.getRepository();
          XDataSource dataSource = createDataSource(model, null);
-         rep.testDataSource(getRepository().bind(System.getProperty("user.name")), dataSource, null);
+         getRepository().testDataSource(getRepository().bind(System.getProperty("user.name")), dataSource, null);
          connectionStatus.setConnected(true);
          connectionStatus.setStatus(catalog.getString("em.security.testlogin.note2"));
       }
@@ -864,5 +871,7 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       return connectionStatus;
    }
 
+   private final DependencyHandler dependencyHandler;
+   private final XSessionManager xSessionManager;
    protected static final Logger LOG = LoggerFactory.getLogger(XmlaDatasourceService.class);
 }

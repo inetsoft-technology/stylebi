@@ -19,15 +19,27 @@
 package inetsoft.report.script;
 
 import inetsoft.report.composition.region.ChartArea;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.graph.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class LegendArrayTest {
    private  LegendArray legendArray;
    private ChartInfo mockChartInfo;
@@ -48,9 +60,9 @@ public class LegendArrayTest {
       mockLegendsDescriptor = mock(LegendsDescriptor.class);
       legendArray = new LegendArray(mockChartInfo, mockLegendsDescriptor, ChartArea.COLOR_LEGEND);
 
-      assertArrayEquals(new Object[] {"id1"}, legendArray.getIds());
-      assertFalse(legendArray.has("name", null));
-      assertTrue(legendArray.has("id1", null));
+      assertArrayEquals(new Object[] {"id1"}, legendArray.getMemberKeys());
+      assertFalse(legendArray.hasMember("name"));
+      assertTrue(legendArray.hasMember("id1"));
       assertEquals("[index]", legendArray.getDisplaySuffix());
       assertEquals("[]", legendArray.getSuffix());
 
@@ -63,6 +75,6 @@ public class LegendArrayTest {
       when(mockLegendsDescriptor.getColorLegendDescriptor()).thenReturn(mockLegendDescriptor);
       when(mockLegendsDescriptor.getShapeLegendDescriptor()).thenReturn(mockLegendDescriptor);
 
-       assertInstanceOf(LegendScriptable.class, legendArray.get("id1", null));
+       assertInstanceOf(LegendScriptable.class, legendArray.getMember("id1"));
    }
 }

@@ -19,7 +19,9 @@ package inetsoft.web.composer.model.vs;
 
 import inetsoft.util.data.CommonKVModel;
 
-public class DateComparisonDialogModel {
+import java.io.Serializable;
+
+public class DateComparisonDialogModel implements Serializable {
    public DateComparisonDialogModel() {
       super();
    }

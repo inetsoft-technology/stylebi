@@ -36,26 +36,36 @@ export class RemoveAnnotationEvent implements ViewsheetEvent {
    public static create(vsObjects: VSObjectModel[],
                         selectedAssemblies: number[]): RemoveAnnotationEvent
    {
-      if(selectedAssemblies) {
-         const names = selectedAssemblies
-            .map(index => vsObjects[index])
-            .reduce((selected, current) => {
-               if(current.objectType === "VSAnnotation") {
-                  return selected.concat(current.absoluteName);
-               }
-               else if(current.selectedAnnotations) {
-                  return selected.concat(current.selectedAnnotations);
-               }
-               else {
-                  return selected;
-               }
-            }, []);
+      const names: string[] = [];
 
-         if(names.length > 0) {
-            return new RemoveAnnotationEvent(names);
+      if(selectedAssemblies) {
+         for(let index of selectedAssemblies) {
+            const current = vsObjects[index];
+
+            if(current && current.objectType === "VSAnnotation" &&
+               names.indexOf(current.absoluteName) === -1)
+            {
+               names.push(current.absoluteName);
+            }
          }
       }
 
-      return null;
+      // chart data point annotations are selected via a separate overlay
+      // (see chart-annotation-overlay in vs-object-container.component.html) that doesn't add
+      // the chart itself to selectedAssemblies, so selectedAnnotations must be checked on every
+      // vsObject rather than only ones already in selectedAssemblies
+      if(vsObjects) {
+         for(let vsObject of vsObjects) {
+            if(vsObject && vsObject.selectedAnnotations) {
+               for(let name of vsObject.selectedAnnotations) {
+                  if(names.indexOf(name) === -1) {
+                     names.push(name);
+                  }
+               }
+            }
+         }
+      }
+
+      return names.length > 0 ? new RemoveAnnotationEvent(names) : null;
    }
 }

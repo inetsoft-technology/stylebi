@@ -17,10 +17,12 @@
  */
 import { EventEmitter, Input, Output, Component } from "@angular/core";
 import { TreeNodeModel } from "../../../../../../widget/tree/tree-node-model";
+import { PhysicalModelTableTreeNodeComponent } from "./physical-model-table-tree-node/physical-model-table-tree-node.component";
 
 @Component({
-   selector: "physical-model-table-tree",
-   templateUrl: "physical-model-table-tree.component.html"
+    selector: "physical-model-table-tree",
+    templateUrl: "physical-model-table-tree.component.html",
+    imports: [PhysicalModelTableTreeNodeComponent]
 })
 export class PhysicalModelTableTreeComponent {
    treeRef: PhysicalModelTableTreeComponent = this;

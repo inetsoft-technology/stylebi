@@ -17,10 +17,13 @@
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 
+import { FormsModule } from "@angular/forms";
+
 @Component({
-   selector: "combo-box",
-   templateUrl: "combo-box.component.html",
-   styleUrls: ["combo-box.component.scss"]
+    selector: "combo-box",
+    templateUrl: "combo-box.component.html",
+    styleUrls: ["combo-box.component.scss"],
+    imports: [FormsModule]
 })
 export class ComboBox {
    @Input() dataModel: string | null;

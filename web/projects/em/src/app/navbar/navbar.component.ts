@@ -20,8 +20,8 @@ import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { NavigationEnd, Router } from "@angular/router";
-import { Observable, Subject, Subscription, throwError } from "rxjs";
+import { NavigationEnd, Router, RouterLink, RouterLinkActive } from "@angular/router";
+import { EMPTY, Observable, Subject, Subscription } from "rxjs";
 import { catchError, concatMap, filter, map, takeUntil, tap } from "rxjs/operators";
 import { AiAssistantService } from "../../../../shared/ai-assistant/ai-assistant.service";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
@@ -37,27 +37,32 @@ import { PageHeaderService } from "../page-header/page-header.service";
 import { EmNavbarModel } from "./em-navbar-model";
 import { OrganizationDropdownService } from "./organization-dropdown.service";
 import { SendNotificationDialogComponent } from "./send-notification-dialog.component";
+import { MatMenuTrigger, MatMenu, MatMenuItem } from "@angular/material/menu";
+import { MatIconAnchor, MatIconButton } from "@angular/material/button";
+import { MatIcon } from "@angular/material/icon";
+import { AsyncPipe } from "@angular/common";
 
 @Component({
-   selector: "em-navbar",
-   templateUrl: "./navbar.component.html",
-   styleUrls: ["./navbar.component.scss"],
-   animations: [
-      trigger("scrollUpDown", [
-         state("scrollDown", style({
-            marginTop: "-110px"
-         })),
-         state("scrollUp", style({
-            marginTop: "0px"
-         })),
-         transition("scrollUp => scrollDown", [
-            animate("0.5s")
-         ]),
-         transition("scrollDown => scrollUp", [
-            animate("0.5s")
-         ])
-      ])
-   ]
+    selector: "em-navbar",
+    templateUrl: "./navbar.component.html",
+    styleUrls: ["./navbar.component.scss"],
+    animations: [
+        trigger("scrollUpDown", [
+            state("scrollDown", style({
+                marginTop: "-110px"
+            })),
+            state("scrollUp", style({
+                marginTop: "0px"
+            })),
+            transition("scrollUp => scrollDown", [
+                animate("0.5s")
+            ]),
+            transition("scrollDown => scrollUp", [
+                animate("0.5s")
+            ])
+        ])
+    ],
+    imports: [MatIcon, MatIconAnchor, RouterLink, RouterLinkActive, MatIconButton, MatMenuTrigger, MatMenu, MatMenuItem, AsyncPipe]
 })
 export class NavbarComponent implements OnInit, OnDestroy {
    @Input()
@@ -200,7 +205,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    onScrollUpDownStart(event: AnimationEvent): void {
@@ -280,9 +285,20 @@ export class NavbarComponent implements OnInit, OnDestroy {
    }
 
    private handleHelpLinkError(error: HttpErrorResponse): Observable<HelpLinks> {
-      this.snackBar.open("_#(js:em.helpLinks.error)", null, { duration: Tool.SNACKBAR_DURATION });
+      // A 401 here means the session expired or was invalidated (e.g. by a cross-tab logout)
+      // while this request was in flight; InvalidSessionInterceptor already redirects to the
+      // login page for that case. A 403 means EM access was revoked, in which case the help
+      // links are the least of the user's concerns. Either way, showing a permission error on
+      // top of it is redundant and misleading.
+      if(error.status !== 401 && error.status !== 403) {
+         this.snackBar.open("_#(js:em.helpLinks.error)", null, { duration: Tool.SNACKBAR_DURATION });
+      }
+
       console.error("Failed to load the context help links: ", error);
-      return throwError(error);
+      // Recover rather than rethrow: the subscriber below has no error callback, so
+      // propagating the error would surface as an unhandled exception on top of the
+      // handling already done above.
+      return EMPTY;
    }
 
    navigateToFavorite(route: string) {

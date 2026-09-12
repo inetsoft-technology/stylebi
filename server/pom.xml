@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.inetsoft.stylebi</groupId>
     <artifactId>inetsoft-stylebi</artifactId>
-    <version>1.1.0-SNAPSHOT</version>
+    <version>1.2.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>inetsoft-server</artifactId>
@@ -401,6 +401,7 @@
             <java.net.preferIPv4Stack>true</java.net.preferIPv4Stack>
             <inetsoftClusterDir>${project.build.directory}/server/cluster</inetsoftClusterDir>
             <spring.aot.enabled>true</spring.aot.enabled>
+            <scheduler.extra.classpath>${basedir}/../schedule-server/target/inetsoft-schedule-server-${project.version}.jar</scheduler.extra.classpath>
           </systemPropertyVariables>
           <jvmArguments>
             -server -Xmx2g -Xmx2g -XX:InitialCodeCacheSize=100M -XX:ReservedCodeCacheSize=200m
@@ -430,6 +431,10 @@
             --add-opens=java.base/java.time=ALL-UNNAMED
             --add-opens=java.base/java.text=ALL-UNNAMED
             --add-opens=java.management/sun.management=ALL-UNNAMED
+            --add-opens=java.desktop/java.awt=ALL-UNNAMED
+            --add-opens=java.desktop/java.awt.geom=ALL-UNNAMED
+            --add-opens=java.desktop/java.awt.font=ALL-UNNAMED
+            --add-opens=java.desktop/java.beans=ALL-UNNAMED
           </jvmArguments>
           <additionalClasspathElements>
             <element>${basedir}/../core/target/classes</element>
@@ -451,7 +456,7 @@
             <disable.updateAssetDependencies>true</disable.updateAssetDependencies>
             <kryo.unsafe>false</kryo.unsafe>
             <show.license.exception>true</show.license.exception>
-            <inetsoft.sree.internal.cluster.implementation>inetsoft.test.TestCluster</inetsoft.sree.internal.cluster.implementation>
+            <inetsoft.sree.internal.cluster.implementation>inetsoft.sree.internal.cluster.MockCluster</inetsoft.sree.internal.cluster.implementation>
           </systemPropertyVariables>
         </configuration>
       </plugin>

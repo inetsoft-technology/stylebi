@@ -30,13 +30,15 @@ import { EntityModel } from "../../../../../model/datasources/database/physical-
 import { Tool } from "../../../../../../../../../../shared/util/tool";
 import { SelectedItem } from "../logical-model.component";
 import { AttributeModel } from "../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
+import { NgClass } from "@angular/common";
 
 export const DRAG_SEPARATOR = "^-^";
 
 @Component({
-   selector: "element-tree-node",
-   templateUrl: "element-tree-node.component.html",
-   styleUrls: ["element-tree-node.component.scss"]
+    selector: "element-tree-node",
+    templateUrl: "element-tree-node.component.html",
+    styleUrls: ["element-tree-node.component.scss"],
+    imports: [NgClass]
 })
 export class ElementTreeNode implements OnChanges {
    @Input() node: ElementModel;
@@ -60,7 +62,7 @@ export class ElementTreeNode implements OnChanges {
    @Output() onShiftSelect: EventEmitter<ElementModel> = new EventEmitter<ElementModel>();
    @Output() onToggleEntity: EventEmitter<{entity: EntityModel, toggle: boolean}> = new EventEmitter<{entity: EntityModel, toggle: boolean}>();
    @Output() nodeDrag = new EventEmitter<any>();
-   @Output() onAttributeOrderChanged: EventEmitter<any> = new EventEmitter<any>();
+   @Output() onAttributeOrderChanged: EventEmitter<{entityIndex: number, oldAttrIndex: number, newAttrIndex: number}> = new EventEmitter();
    focusin: boolean = false;
    expanded: boolean;
    readonly INDENT_SIZE: number = 15;
@@ -271,17 +273,19 @@ export class ElementTreeNode implements OnChanges {
     */
    moveAttributeDown(index: number): void {
       if(index < (<EntityModel>this.node).attributes.length - 1) {
-         let selectedItem = this.getSelectedItem(this.attrIndex);
+         const movedItem = this.selected.find(item =>
+            item.entity == this.entityIndex && item.attribute == index);
+         if(movedItem) { movedItem.attribute++; }
 
-         if(!!selectedItem && selectedItem.entity == this.entityIndex && selectedItem.attribute == index) {
-            selectedItem.attribute++;
-         }
+         const displacedItem = this.selected.find(item =>
+            item.entity == this.entityIndex && item.attribute == index + 1);
+         if(displacedItem) { displacedItem.attribute--; }
 
          const entity: EntityModel = this.node as EntityModel;
-         const temp: any = Tool.clone(entity.attributes[index]);
+         const temp: any = entity.attributes[index];
          entity.attributes[index] = entity.attributes[index + 1];
          entity.attributes[index + 1] = temp;
-         this.onAttributeOrderChanged.emit();
+         this.onAttributeOrderChanged.emit({entityIndex: this.entityIndex, oldAttrIndex: index, newAttrIndex: index + 1});
       }
    }
 
@@ -291,19 +295,19 @@ export class ElementTreeNode implements OnChanges {
     */
    moveAttributeUp(index: number): void {
       if(index > 0) {
-         let selectedItem = this.getSelectedItem(this.attrIndex);
+         const movedItem = this.selected.find(item =>
+            item.entity == this.entityIndex && item.attribute == index);
+         if(movedItem) { movedItem.attribute--; }
 
-         if(!!selectedItem && selectedItem.entity == this.entityIndex
-            && selectedItem.attribute == index)
-         {
-            selectedItem.attribute--;
-         }
+         const displacedItem = this.selected.find(item =>
+            item.entity == this.entityIndex && item.attribute == index - 1);
+         if(displacedItem) { displacedItem.attribute++; }
 
          const entity: EntityModel = this.node as EntityModel;
-         const temp: any = Tool.clone(entity.attributes[index]);
+         const temp: any = entity.attributes[index];
          entity.attributes[index] = entity.attributes[index - 1];
          entity.attributes[index - 1] = temp;
-         this.onAttributeOrderChanged.emit();
+         this.onAttributeOrderChanged.emit({entityIndex: this.entityIndex, oldAttrIndex: index, newAttrIndex: index - 1});
       }
    }
 

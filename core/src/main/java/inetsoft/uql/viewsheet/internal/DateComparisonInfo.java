@@ -352,9 +352,28 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
             calcName = "DayOfYear(" + colName + ")";
          }
          else if(partLowLevel == XConstants.WEEK_DATE_GROUP) {
-            expression.append("datePartForceWeekOfMonth('wy', field['");
-            expression.append(colName);
-            expression.append("'], true, " + toDateWeekOfMonth + ")");
+            // Bug #75351: for Same-Day comparison the month*10+weekOfMonth ('wy') encoding
+            // assigns the same relative week a different value across years at month
+            // boundaries, so the previous year's week lands in the wrong x-bucket (or is
+            // dropped) and drill/labels are off by a week. Group by the sequential
+            // week-of-year ('ww') instead, which aligns the Nth week across periods, and mark
+            // the ref so the label decode and drill use the sequential value too. Other
+            // (week-to-date) configs keep the 'wy' encoding and its week-of-month forcing.
+            if(dcInterval != null && dcInterval.getLevel() == SAME_DAY) {
+               expression.append("datePart('ww', field['");
+               expression.append(colName);
+               expression.append("'], true)");
+
+               if(ref instanceof VSDimensionRef) {
+                  ((VSDimensionRef) ref).setDcSequentialWeek(true);
+               }
+            }
+            else {
+               expression.append("datePartForceWeekOfMonth('wy', field['");
+               expression.append(colName);
+               expression.append("'], true, " + toDateWeekOfMonth + ")");
+            }
+
             calcName = "WeekOfYear(" + colName + ")";
          }
       }
@@ -795,11 +814,11 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          return false;
       }
 
-      return (range.getStart().before(another.getStart()) ||
-         range.getStart().equals(another.getStart())) && (range.getEnd().after(another.getStart()) ||
-         range.getEnd().equals(another.getStart())) || (range.getStart().before(another.getEnd()) ||
-         range.getStart().equals(another.getEnd())) && (range.getEnd().after(another.getEnd()) ||
-         range.getEnd().equals(another.getEnd()));
+      // Two intervals [A,B] and [C,D] intersect iff A <= D && C <= B.
+      // The previous expression missed the case where 'another' completely contains 'range'.
+      boolean startBeforeOrAtEnd = !range.getStart().after(another.getEnd());
+      boolean anotherStartBeforeOrAtEnd = !another.getStart().after(range.getEnd());
+      return startBeforeOrAtEnd && anotherStartBeforeOrAtEnd;
    }
 
    /**
@@ -1526,11 +1545,28 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
    {
       int contextCalendarLevel = getCalendarLevel(contextLevel);
       boolean contextLevelIsQuarter = contextLevel ==  XConstants.QUARTER_DATE_GROUP;
+      Calendar rangeStartYearCal = getCalendar();
 
       while(rangeStartCal.before(rangeEndCal) || rangeStartCal.equals(rangeEndCal)) {
-         ConditionItem item = getConditionItemFromDateRangeAndInterval(ref, contextLevel,
-            dcInterval.getLevel(), dcInterval.getGranularity(), rangeEndCal.getTime(), toDate);
+         int contextYear = rangeEndCal.get(Calendar.YEAR);
+         Date[] range = getIntervalDateRange(contextLevel, dcInterval.getLevel(),
+            dcInterval.getGranularity(), rangeEndCal.getTime(), toDate);
          setToNextIntervalStart(rangeEndCal, contextCalendarLevel, contextLevelIsQuarter, false, alignWeek());
+
+         // Skip conditions whose range start overflows into a later year than the context month.
+         // e.g. "week 5 of December 2020" starts Jan 2021 — that overflow causes spurious labels.
+         if(range == null || range[0] == null) {
+            continue;
+         }
+
+         rangeStartYearCal.setTime(range[0]);
+
+         if(rangeStartYearCal.get(Calendar.YEAR) > contextYear) {
+            continue;
+         }
+
+         ConditionItem item = (range[1] == null || !alignWeek() && range[0].after(range[1]))
+            ? null : createDateRangeCondition(ref, range[0], range[1]);
 
          if(item == null) {
             continue;
@@ -1673,7 +1709,19 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          calendar.add(calendarPeriodLevel, -(quarterCalendar ? 3 : 1));
       }
 
+      // The iteration below walks backwards from this calendar, so it has to start at the
+      // end of the last period. Otherwise the intervals of the last period that fall after
+      // the end day get no condition at all (e.g. Q3/Q4 missing when the end day is in Q2).
       setDateToEndOfPeriod(calendar, periodLevel);
+
+      // ...but never past the end day itself. When the last period is the in-progress one
+      // (inclusive), its period end is in the future and would produce empty intervals. (75152)
+      Date runtimeEndDay = standardPeriods.getRuntimeEndDay();
+
+      if(runtimeEndDay != null && calendar.getTime().after(runtimeEndDay)) {
+         calendar.setTime(runtimeEndDay);
+      }
+
       setDateToLevelStart(calendar, dcInterval.getContextLevel());
       appendRangeToDateConditions(endDateCalendar, calendar, dcInterval.getContextLevel(),
                                   toDate, conditionList, ref);
@@ -1878,7 +1926,7 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          int dayOfWeek = intervalToDateCal.get(Calendar.DAY_OF_WEEK);
          // use same week-of-month and month-of-year instead of week-of-year. this is
          // same as google analytics and is more comprehensible to human. (63990)
-         intervalToDateCal.add(Calendar.DATE, -(intervalToDateCal.get(Calendar.DAY_OF_WEEK) - Tool.getFirstDayOfWeek()));
+         DateComparisonUtil.moveToWeekStart(intervalToDateCal);
 
          int weekOfMonth = intervalToDateCal.get(Calendar.WEEK_OF_MONTH);
 
@@ -2328,7 +2376,7 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
       if(isWeekToDate) {
          Calendar intervalToDateCal = DateComparisonInfo.getCalendar();
          intervalToDateCal.setTime(getRangeToDate());
-         intervalToDateCal.add(Calendar.DATE, -(intervalToDateCal.get(Calendar.DAY_OF_WEEK) - 1));
+         DateComparisonUtil.moveToWeekStart(intervalToDateCal);
 
          return intervalToDateCal.get(Calendar.WEEK_OF_MONTH);
       }

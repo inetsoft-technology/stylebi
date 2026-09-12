@@ -19,12 +19,19 @@ import { Component, Input } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
 import { LinePropPane } from "./line-prop-pane.component";
 import { FillPropPane } from "./fill-prop-pane.component";
+import { ShadowPropPane } from "./shadow-prop-pane.component";
 import { RadiusDropdown } from "../../../widget/format/radius-dropdown.component";
 import { RectanglePropertyPaneModel } from "../../data/vs/rectangle-property-pane-model";
 
 @Component({
-   selector: "rectangle-property-pane",
-   templateUrl: "rectangle-property-pane.component.html",
+    selector: "rectangle-property-pane",
+    templateUrl: "rectangle-property-pane.component.html",
+    imports: [
+        LinePropPane,
+        FillPropPane,
+        ShadowPropPane,
+        RadiusDropdown,
+    ]
 })
 export class RectanglePropertyPane {
    @Input() model: RectanglePropertyPaneModel;

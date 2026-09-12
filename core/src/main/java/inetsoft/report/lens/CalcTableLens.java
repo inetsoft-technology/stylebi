@@ -27,6 +27,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.binding.*;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.script.TableArray;
+import inetsoft.report.script.formula.CalcRef;
 import inetsoft.report.script.formula.CalcTableScope;
 import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
@@ -39,9 +40,9 @@ import inetsoft.util.audit.AuditRecordUtils;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.ScriptScope;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntStack;
-import org.mozilla.javascript.Scriptable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -220,7 +221,6 @@ public class CalcTableLens extends DefaultTableLens {
       super.invalidate();
       tableScope = null;
       formulaCache = null;
-      alignment = new HashMap<>();
    }
 
    public RuntimeCalcTableLens process() {
@@ -1018,7 +1018,7 @@ public class CalcTableLens extends DefaultTableLens {
                   setDataTable(table);
                   TableArray arr = new TableArray(table);
                   arr.setCalcArray(true);
-                  scope.put("data", scope, arr);
+                  scope.putMember("data", arr);
 
                   if(elem instanceof TableElementDef) {
                      TableLens[] tables = ((TableElementDef) elem).getScriptTables();
@@ -1027,7 +1027,7 @@ public class CalcTableLens extends DefaultTableLens {
                         for(int i = 0; i < tables.length; i++) {
                            arr = new TableArray(tables[i]);
                            arr.setCalcArray(true);
-                           scope.put(String.format("data%d", i + 1), scope, arr);
+                           scope.putMember(String.format("data%d", i + 1), arr);
                         }
                      }
                   }
@@ -1036,7 +1036,7 @@ public class CalcTableLens extends DefaultTableLens {
                   // CalcTableScope. Its parent scope is calctable's scope(
                   // TableDataVSAScriptable). The scope levels is this:
                   // (CalcTableScope->TableDataVSAScriptable->ViewsheetScope).
-                  if(senv.get("viewsheet") instanceof Scriptable) {
+                  if(senv.get("viewsheet") instanceof ScriptScope) {
                      String eid = elem.getID();
 
                      if(eid.indexOf('.') >= 0) {
@@ -1078,7 +1078,7 @@ public class CalcTableLens extends DefaultTableLens {
          FormulaContext.pushCellLocation(new Point(col, row));
 
          Object script = scriptCache.get(formula, senv, handler);
-         ofield = tableScope.get("field", tableScope);
+         ofield = tableScope.getMember("field");
 
          if(this instanceof RuntimeCalcTableLens) {
             CalcCellContext context = ((RuntimeCalcTableLens) this).getCellContext(row, col);
@@ -1086,40 +1086,45 @@ public class CalcTableLens extends DefaultTableLens {
             if(context != null) {
                // find the scopes (field from rowList) and chain them into one.
                // this way multiple rowList can be accessed by children.
-               Scriptable field = null;
-               Scriptable lastfield = null;
+               java.util.List<ScriptScope> fields = new java.util.ArrayList<>();
 
                for(CalcCellContext.Group group : context.getGroups()) {
                   Object scope = group.getScope();
 
-                  if(scope != null) {
-                     Scriptable field2 = (Scriptable) scope;
-
-                     if(field == null) {
-                        field = field2;
-                        lastfield = field;
-                        field.setPrototype(null);
-                     }
-                     else {
-                        lastfield.setPrototype(field2);
-                        lastfield = field2;
-                        lastfield.setPrototype(null);
-                     }
+                  if(scope instanceof ScriptScope) {
+                     fields.add((ScriptScope) scope);
                   }
                }
 
-               if(field != null) {
-                  tableScope.put("field", tableScope, field);
+               if(fields.size() == 1) {
+                  tableScope.putMember("field", fields.get(0));
+               }
+               else if(fields.size() > 1) {
+                  // multiple group field scopes: expose a composite that
+                  // resolves members across the chain (replaces the old Rhino
+                  // prototype-chain merge). The enclosing tableScope is passed
+                  // as the parent so names not defined by any field scope still
+                  // resolve up the enclosing scope, as Rhino did via the
+                  // prototype chain. (#75423)
+                  tableScope.putMember("field", new ChainedFieldScope(fields, tableScope));
                }
             }
          }
 
          tableScope.setRow(row);
 
-         return ProfileUtils.addExecutionBreakDownRecord(getReportName(),
+         Object result = ProfileUtils.addExecutionBreakDownRecord(getReportName(),
             ExecutionBreakDownRecord.JAVASCRIPT_PROCESSING_CYCLE, args -> {
                return senv.exec(args[0], args[1], null, null);
             }, script, tableScope);
+
+         // A named-cell reference ($name) in the formula result evaluates to the
+         // live CalcRef proxy under GraalJS; resolve it to the referenced value
+         // so a script host object never leaks into the cached cell data (Rhino
+         // coerced a Scriptable result the same way). Runs while the cell location
+         // is still on the FormulaContext stack (popped in the finally block) so
+         // unwrap() resolves correctly. (#75595)
+         return unwrapCalcRefs(result);
 
          //return senv.exec(script, tableScope);
       }
@@ -1136,13 +1141,38 @@ public class CalcTableLens extends DefaultTableLens {
          // this scope might be reset to null when executing script
          if(tableScope != null) {
             if(ofield == null) {
-               tableScope.delete("field");
+               tableScope.removeMember("field");
             }
             else {
-               tableScope.put("field", tableScope, ofield);
+               tableScope.putMember("field", ofield);
             }
          }
       }
+   }
+
+   /**
+    * Resolve any CalcRef in a formula result to its referenced value, so a live
+    * script host object never leaks into the cached cell data. A bare $name
+    * result is a CalcRef; an array result (e.g. [$a, $b]) can contain CalcRef
+    * elements, since ScriptValueConverter.toHost unwraps each array element back
+    * to its host object. Must be called while the evaluating cell's location is
+    * still on the FormulaContext stack. (#75595)
+    */
+   // package-private for testing
+   static Object unwrapCalcRefs(Object value) {
+      if(value instanceof CalcRef) {
+         return ((CalcRef) value).unwrap();
+      }
+
+      if(value instanceof Object[]) {
+         Object[] arr = (Object[]) value;
+
+         for(int i = 0; i < arr.length; i++) {
+            arr[i] = unwrapCalcRefs(arr[i]);
+         }
+      }
+
+      return value;
    }
 
    /**
@@ -3369,7 +3399,7 @@ public class CalcTableLens extends DefaultTableLens {
 
    private List<CalcAttr> attrs = new ArrayList<>();
    private int editMode = DEFAULT_MODE; // DEFAULT_MODE, NAME_MODE,FORMULA_MODE
-   private TableDataDescriptor cdescriptor;
+   private transient TableDataDescriptor cdescriptor;
    private final byte[] descLock = new byte[0];
    protected FormulaTable elem; //containing element
    private ReportSheet report;
@@ -3379,7 +3409,6 @@ public class CalcTableLens extends DefaultTableLens {
    private final Object spanMapLock = new byte[0];
    private transient SparseMatrix formulaCache = null; // formula result cache
    private transient boolean cancelled = false;
-   private transient Map<Point, Integer> alignment = new HashMap<>();
    private transient TableLens dataTable;
    private boolean fillwithzero = false;
    private int appliedMaxRows = -1;
@@ -3388,4 +3417,75 @@ public class CalcTableLens extends DefaultTableLens {
    private static final ThreadLocal<IntStack> col = new ThreadLocal<>();
    private static final ScriptCache scriptCache = new ScriptCache(100, 60000);
    private static final Logger LOG = LoggerFactory.getLogger(CalcTableLens.class);
+
+   /**
+    * Composite scope that resolves named members across an ordered chain of
+    * group 'field' scopes. Replaces the old Rhino prototype-chain merge of
+    * multiple TableRow scopes: a member is resolved by the first scope in the
+    * chain that defines it.
+    */
+   private static final class ChainedFieldScope implements ScriptScope {
+      private final java.util.List<ScriptScope> chain;
+      private final ScriptScope parentScope;
+
+      ChainedFieldScope(java.util.List<ScriptScope> chain, ScriptScope parentScope) {
+         this.chain = chain;
+         this.parentScope = parentScope;
+      }
+
+      @Override
+      public Object getMember(String name) {
+         for(ScriptScope scope : chain) {
+            if(scope.hasMember(name)) {
+               return scope.getMember(name);
+            }
+         }
+
+         return null;
+      }
+
+      @Override
+      public boolean hasMember(String name) {
+         for(ScriptScope scope : chain) {
+            if(scope.hasMember(name)) {
+               return true;
+            }
+         }
+
+         return false;
+      }
+
+      @Override
+      public void putMember(String name, Object value) {
+         if(!chain.isEmpty()) {
+            chain.get(0).putMember(name, value);
+         }
+      }
+
+      @Override
+      public Object[] getMemberKeys() {
+         java.util.LinkedHashSet<Object> keys = new java.util.LinkedHashSet<>();
+
+         for(ScriptScope scope : chain) {
+            Object[] mk = scope.getMemberKeys();
+
+            if(mk != null) {
+               java.util.Collections.addAll(keys, mk);
+            }
+         }
+
+         return keys.toArray();
+      }
+
+      /**
+       * The enclosing scope (the calc tableScope on which this 'field' member
+       * is installed). Rhino linked this via the prototype chain; without it,
+       * names not defined by any group field scope fail to resolve for
+       * multi-group calc formulas. (#75423)
+       */
+      @Override
+      public ScriptScope getParentScope() {
+         return parentScope;
+      }
+   }
 }

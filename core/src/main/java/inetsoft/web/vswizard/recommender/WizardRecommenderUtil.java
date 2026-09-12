@@ -40,6 +40,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
+import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -404,7 +405,7 @@ public final class WizardRecommenderUtil {
    }
 
    public static void calcCardinalities(ViewsheetSandbox box, VSTemporaryInfo tempInfo,
-                                        AssetEntry[] dimEntries)
+                                        AssetEntry[] dimEntries, Principal principal)
    {
       if(dimEntries == null || dimEntries.length == 0) {
          return;
@@ -415,7 +416,7 @@ public final class WizardRecommenderUtil {
       for(int i = 0; i < dimEntries.length; i++) {
          AssetEntry entry = dimEntries[i];
 
-         new GroupedThread() {
+         new GroupedThread(principal) {
             @Override
             protected void doRun() {
                try {
@@ -766,10 +767,15 @@ public final class WizardRecommenderUtil {
                                             String tname, VSTemporaryInfo tempInfo)
          throws Exception
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
       String refValue = dim.getGroupColumnValue();
       String field = refValue.substring(6); // strip off Range@
-      IntervalData interval = IntervalExecutor.getData(box, tempInfo, dim, tname, XSchema.DOUBLE);
+      IntervalData interval = IntervalExecutor.getData(box.get(), tempInfo, dim, tname, XSchema.DOUBLE);
 
       double min = interval != null ? interval.getMin() : 0;
       double max = interval != null ? interval.getMax() : 100;

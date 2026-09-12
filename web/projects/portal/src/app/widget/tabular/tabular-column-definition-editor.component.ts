@@ -17,11 +17,16 @@
  */
 import { Component, EventEmitter, Input, OnInit, Output, Renderer2 } from "@angular/core";
 import { ColumnDefinition } from "../../common/data/tabular/column-definition";
+import { ExpandStringDirective } from "../expand-string/expand-string.directive";
+import { FormsModule } from "@angular/forms";
+import { TabularTextEditor } from "./tabular-text-editor.component";
+
 
 @Component({
-   selector: "tabular-column-definition-editor",
-   templateUrl: "tabular-column-definition-editor.component.html",
-   styleUrls: ["tabular-column-definition-editor.component.scss"]
+    selector: "tabular-column-definition-editor",
+    templateUrl: "tabular-column-definition-editor.component.html",
+    styleUrls: ["tabular-column-definition-editor.component.scss"],
+    imports: [TabularTextEditor, FormsModule, ExpandStringDirective]
 })
 export class TabularColumnDefinitionEditor {
    @Input() enabled: boolean = true;

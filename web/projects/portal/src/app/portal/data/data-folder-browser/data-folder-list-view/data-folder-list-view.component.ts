@@ -25,11 +25,15 @@ import { AssetEntryHelper } from "../../../../common/data/asset-entry-helper";
 import { WorksheetBrowserInfo } from "../../model/worksheet-browser-info";
 import { DragService } from "../../../../widget/services/drag.service";
 import { MultiObjectSelectList } from "../../../../common/util/multi-object-select-list";
+import { RouterLink } from "@angular/router";
+import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "data-folder-list-view",
-   templateUrl: "data-folder-list-view.component.html",
-   styleUrls: ["data-folder-list-view.component.scss"]
+    selector: "data-folder-list-view",
+    templateUrl: "data-folder-list-view.component.html",
+    styleUrls: ["data-folder-list-view.component.scss"],
+    imports: [NgClass, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, RouterLink]
 })
 export class DataFolderListViewComponent {
    @Input() sortOptions: SortOptions;

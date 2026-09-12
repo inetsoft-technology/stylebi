@@ -89,9 +89,15 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
    public Set<K> keySet() {
       return executeWithRetry(() -> {
          Set<K> set = new HashSet<>();
+         Iterator<javax.cache.Cache.Entry<K, Collection<V>>> iter = cache.iterator();
 
-         for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
-            set.add(entry.getKey());
+         try {
+            while(iter.hasNext()) {
+               set.add(iter.next().getKey());
+            }
+         }
+         finally {
+            Tool.closeIterator(iter);
          }
 
          return set;
@@ -102,13 +108,19 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
    public Collection<V> values() {
       return executeWithRetry(() -> {
          List<V> allValues = new ArrayList<>();
+         Iterator<javax.cache.Cache.Entry<K, Collection<V>>> iter = cache.iterator();
 
-         for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
-            Collection<V> list = entry.getValue();
+         try {
+            while(iter.hasNext()) {
+               Collection<V> list = iter.next().getValue();
 
-            if(list != null) {
-               allValues.addAll(list);
+               if(list != null) {
+                  allValues.addAll(list);
+               }
             }
+         }
+         finally {
+            Tool.closeIterator(iter);
          }
 
          return allValues;
@@ -119,15 +131,22 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
    public Set<Map.Entry<K, V>> entrySet() {
       return executeWithRetry(() -> {
          Set<Map.Entry<K, V>> set = new HashSet<>();
+         Iterator<javax.cache.Cache.Entry<K, Collection<V>>> iter = cache.iterator();
 
-         for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
-            Collection<V> list = entry.getValue();
+         try {
+            while(iter.hasNext()) {
+               javax.cache.Cache.Entry<K, Collection<V>> entry = iter.next();
+               Collection<V> list = entry.getValue();
 
-            if(list != null) {
-               for(V value : list) {
-                  set.add(new AbstractMap.SimpleEntry<>(entry.getKey(), value));
+               if(list != null) {
+                  for(V value : list) {
+                     set.add(new AbstractMap.SimpleEntry<>(entry.getKey(), value));
+                  }
                }
             }
+         }
+         finally {
+            Tool.closeIterator(iter);
          }
 
          return set;
@@ -142,19 +161,26 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
    @Override
    public boolean containsValue(V value) {
       return executeWithRetry(() -> {
-         for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
-            Collection<V> list = entry.getValue();
+         Iterator<javax.cache.Cache.Entry<K, Collection<V>>> iter = cache.iterator();
 
-            if(list != null) {
-               for(V val : list) {
-                  if(Tool.equals(value, val)) {
-                     return true;
+         try {
+            while(iter.hasNext()) {
+               Collection<V> list = iter.next().getValue();
+
+               if(list != null) {
+                  for(V val : list) {
+                     if(Tool.equals(value, val)) {
+                        return true;
+                     }
                   }
                }
             }
-         }
 
-         return false;
+            return false;
+         }
+         finally {
+            Tool.closeIterator(iter);
+         }
       });
    }
 
@@ -175,13 +201,19 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
    public int size() {
       return executeWithRetry(() -> {
          int size = 0;
+         Iterator<javax.cache.Cache.Entry<K, Collection<V>>> iter = cache.iterator();
 
-         for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
-            Collection<V> list = entry.getValue();
+         try {
+            while(iter.hasNext()) {
+               Collection<V> list = iter.next().getValue();
 
-            if(list != null) {
-               size += list.size();
+               if(list != null) {
+                  size += list.size();
+               }
             }
+         }
+         finally {
+            Tool.closeIterator(iter);
          }
 
          return size;
@@ -216,10 +248,28 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
 
    @Override
    public void lock(K key, long leaseTime, TimeUnit timeUnit) {
-      try {
-         getLock(key).tryLock(leaseTime, timeUnit);
-      }
-      catch(InterruptedException e) {
+      long deadlineNs = System.nanoTime() + timeUnit.toNanos(leaseTime);
+      Lock lock = getLock(key);
+
+      // Use tryLock() (zero timeout) in a polling loop instead of tryLock(time, unit).
+      // tryLock(time > 0) creates a GridDhtLockFuture with a LockTimeoutObject whose
+      // onTimeout() has a NullPointerException bug in Ignite 2.17.0 when tx is null
+      // (i.e., no active transaction). The NPE prevents the timeout from being handled
+      // properly, leaving the waiting thread blocked indefinitely.
+      while(!lock.tryLock()) {
+         if(System.nanoTime() >= deadlineNs) {
+            throw new IllegalStateException(
+               "Lock acquisition timed out after " + leaseTime + " " + timeUnit +
+               " for key: " + key);
+         }
+
+         try {
+            Thread.sleep(LOCK_POLL_INTERVAL_MS);
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Lock acquisition interrupted for key: " + key, e);
+         }
       }
    }
 
@@ -230,7 +280,18 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
 
    @Override
    public boolean tryLock(K key, long time, TimeUnit timeunit) throws InterruptedException {
-      return getLock(key).tryLock(time, timeunit);
+      long deadlineNs = System.nanoTime() + timeunit.toNanos(time);
+      Lock lock = getLock(key);
+
+      while(!lock.tryLock()) {
+         if(System.nanoTime() >= deadlineNs) {
+            return false;
+         }
+
+         Thread.sleep(LOCK_POLL_INTERVAL_MS);
+      }
+
+      return true;
    }
 
    @Override
@@ -258,18 +319,18 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
 
    private <T> T executeWithRetry(Supplier<T> operation) {
       int retries = 0;
+      RuntimeException lastException = null;
 
       while(retries < MAX_RETRIES) {
          try {
             return operation.get();
          }
-         catch(CacheException e) {
+         catch(CacheException | IllegalStateException e) {
+            lastException = (e instanceof RuntimeException) ?
+               (RuntimeException) e : new RuntimeException(e);
             retries++;
 
-            if(retries == MAX_RETRIES) {
-               throw e;
-            }
-            else {
+            if(retries < MAX_RETRIES) {
                try {
                   Thread.sleep(200);
                }
@@ -280,10 +341,11 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
          }
       }
 
-      throw new RuntimeException("Operation failed after retries.");
+      throw lastException;
    }
 
    private final IgniteCache<K, Collection<V>> cache;
    private final ThreadLocal<Map<K, Lock>> lockMap = ThreadLocal.withInitial(HashMap::new);
    private static final int MAX_RETRIES = 5;
+   private static final long LOCK_POLL_INTERVAL_MS = 200L;
 }

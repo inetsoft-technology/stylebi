@@ -17,18 +17,15 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, OnDestroy, ViewChild } from "@angular/core";
-import {
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   Validators
-} from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, Validators, FormsModule } from "@angular/forms";
+import { MatDialog } from "@angular/material/dialog";
 import { MatSelect } from "@angular/material/select";
 import { ActivatedRoute } from "@angular/router";
 import { Subscription } from "rxjs";
 import { map } from "rxjs/operators";
 import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tuple";
 import { ContextHelp } from "../../../../context-help";
+import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
 import { PageHeaderService } from "../../../../page-header/page-header.service";
 import { Searchable } from "../../../../searchable";
 import { Secured } from "../../../../secured";
@@ -39,6 +36,18 @@ import {
    SSOFormModel,
    SSOSettingsModel
 } from "../sso-settings-model";
+import { CustomSsoFormComponent } from "../custom-sso-form/custom-sso-form.component";
+import { OpenidSettingsFormComponent } from "../openid-settings-form/openid-settings-form.component";
+import { SSOSettingsFormComponent } from "../sso-settings-form/sso-settings-form.component";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatInput } from "@angular/material/input";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+
+import { MatOption } from "@angular/material/core";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
 
 /**
  * Matches enum from backend
@@ -65,9 +74,10 @@ export enum SSOType {
    link: "EMSettingsSecuritySSO"
 })
 @Component({
-   selector: "em-sso-settings-page",
-   templateUrl: "./sso-settings-page.component.html",
-   styleUrls: ["./sso-settings-page.component.scss"]
+    selector: "em-sso-settings-page",
+    templateUrl: "./sso-settings-page.component.html",
+    styleUrls: ["./sso-settings-page.component.scss"],
+    imports: [EditorPanelComponent, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatIconButton, MatIcon, MatInput, FormsModule, MatCheckbox, SSOSettingsFormComponent, OpenidSettingsFormComponent, CustomSsoFormComponent]
 })
 export class SsoSettingsPageComponent implements OnDestroy {
    @ViewChild("roleSelection") roleSelectionRef: MatSelect;
@@ -111,9 +121,17 @@ export class SsoSettingsPageComponent implements OnDestroy {
       "idpPublicKey"
    ];
 
+   // authorizationEndpoint/tokenEndpoint are always required; clientId (or secretId, in
+   // cloud-secrets mode) is checked separately by isOpenIdValid() -- mirrors the backend's
+   // SSOSettingsService.validateOpenIdAttributes()
+   readonly requiredOpenIdFields: (keyof OpenIdAttributesModel)[] = [
+      "authorizationEndpoint",
+      "tokenEndpoint"
+   ];
+
    constructor(private httpClient: HttpClient, activatedRoute: ActivatedRoute,
                private scrollService: TopScrollService, private formBuilder: UntypedFormBuilder,
-               pageHeader: PageHeaderService)
+               private dialog: MatDialog, pageHeader: PageHeaderService)
    {
       pageHeader.title = "_#(js:Security Settings: SSO)";
       this.subscription = activatedRoute.data.pipe(
@@ -189,8 +207,56 @@ export class SsoSettingsPageComponent implements OnDestroy {
       model.logoutUrl = this.logoutUrl;
       model.logoutPath = this.logoutPath;
       model.fallbackLogin = this.fallbackLogin;
-      this.httpClient.post("../api/sso/settings", model).subscribe();
+      this.httpClient.post<boolean>("../api/sso/settings", model).subscribe({
+         next: (applied) => {
+            if(applied === false) {
+               this.showMessage("_#(js:Error)", "_#(js:em.security.sso.invalidConfiguration)",
+                  MessageDialogType.ERROR);
+            }
+            else {
+               this.showMessage("_#(js:Success)", "_#(js:em.security.sso.saveSuccess)",
+                  MessageDialogType.INFO);
+            }
+         },
+         error: () => this.showMessage(
+            "_#(js:Error)", "_#(js:em.security.sso.saveFailed)", MessageDialogType.ERROR)
+      });
       this.changed = false;
+   }
+
+   private showMessage(title: string, content: string, type: MessageDialogType): void {
+      this.dialog.open(MessageDialog, {
+         width: "350px",
+         data: { title, content, type }
+      });
+   }
+
+   public isOpenIdValid(): boolean {
+      if(!this.openIdModel) {
+         return false;
+      }
+
+      const hasCredential = this.cloudSecrets ?
+         !!this.openIdModel.secretId : !!this.openIdModel.clientId;
+
+      return hasCredential &&
+         this.requiredOpenIdFields.every(field => !!this.openIdModel[field]);
+   }
+
+   public isCustomValid(): boolean {
+      if(!this.customModel) {
+         return false;
+      }
+
+      if(this.customModel.useJavaClass) {
+         return !!this.customModel.javaClassName;
+      }
+
+      if(this.customModel.useInlineGroovy) {
+         return !!this.customModel.inlineGroovyClass;
+      }
+
+      return false;
    }
 
    reset(): void {

@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component, DebugElement, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -73,7 +73,6 @@ function setTargetTreeValues(dataOutputPaneModel, treeNodeModel): DataOutputPane
    return dataOutputPaneModel;
 }
 
-
 function setMockTreeValues(dataOutputPaneModel): DataOutputPaneModel {
    dataOutputPaneModel.table = "mockData";
    dataOutputPaneModel.targetTree = {
@@ -91,7 +90,9 @@ function setMockTreeValues(dataOutputPaneModel): DataOutputPaneModel {
 }
 
 @Component({
+   standalone: true,
    selector: "test-app",
+   imports: [DataOutputPane],
    template: `<data-output-pane [model]="mockModel">
                  </data-output-pane>`
 })
@@ -112,10 +113,10 @@ describe("Data Output Pane Test", () => {
    let de: DebugElement;
    let el: HTMLElement;
 
-   beforeEach(async(() => {
-      httpService = { get: jest.fn() };
-      dragService = { reset: jest.fn(), put: jest.fn() };
-      treeService = { validateTreeNode: jest.fn() };
+   beforeEach(waitForAsync(() => {
+      httpService = { get: vi.fn() };
+      dragService = { reset: vi.fn(), put: vi.fn() };
+      treeService = { validateTreeNode: vi.fn() };
 
       dataOutputPane = new DataOutputPane(httpService);
       dataOutputPane.model = dataOutputPaneModel;
@@ -124,15 +125,24 @@ describe("Data Output Pane Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule,
-            HttpClientTestingModule
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            DropDownTestModule,
+            HttpClientTestingModule,
+            TestApp,
+            DataOutputPane,
+            TreeDropdownComponent,
+            TreeComponent,
+            TreeNodeComponent,
+            FormulaEditorDialog,
+            ScriptPane,
+            NewAggrDialog,
+            MessageDialog,
+            TreeSearchPipe,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            TestApp, DataOutputPane, TreeDropdownComponent,
-            TreeComponent, TreeNodeComponent,
-            FormulaEditorDialog, ScriptPane, NewAggrDialog, MessageDialog,
-            TreeSearchPipe, FixedDropdownDirective
-         ],
+         
          providers: [
             {provide: DragService, useValue: dragService},
             {provide: DataTreeValidatorService, useValue: treeService}
@@ -191,7 +201,7 @@ describe("Data Output Pane Test", () => {
       expect(httpService.get.mock.calls[0][1]).toBeTruthy();
    });
 
-   it("should display the node label and not the node data", async(() => {
+   it("should display the node label and not the node data", waitForAsync(() => {
       fixture.detectChanges();
 
       de = fixture.debugElement.query(By.css("tree-dropdown"));
@@ -249,7 +259,7 @@ describe("Data Output Pane Test", () => {
    });
 
    //Bug #20032, Bug #20035, Bug #20102, Bug #20101
-   xit("should return rightly status when change value type", () => {
+   it.skip("should return rightly status when change value type", () => {
       let dataOutputModel = createModel();
       dataOutputModel.aggregate = "Count";
       dataOutputModel.column = "${var1}";

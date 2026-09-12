@@ -20,11 +20,13 @@ package inetsoft.web.composer.model.ws;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.sree.security.IdentityID;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
 
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableVPMPrincipalDialogModel.class)
 @JsonDeserialize(builder = VPMPrincipalDialogModel.Builder.class)
 public abstract class VPMPrincipalDialogModel {

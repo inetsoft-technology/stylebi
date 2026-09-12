@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {HttpClient} from "@angular/common/http";
+import { HttpClient } from "@angular/common/http";
 import {Component, EventEmitter, Input, Output} from "@angular/core";
 import {RepositoryEditorModel} from "../../../../../../../../shared/util/model/repository-editor-model";
 import {ErrorHandlerService} from "../../../../../common/util/error/error-handler.service";
@@ -23,6 +23,8 @@ import {MatDialog} from "@angular/material/dialog";
 import {MatSnackBar} from "@angular/material/snack-bar";
 import {RepositoryFolderDashboardSettingsModel} from "./repository-folder-dashboard-settings-model";
 import {Tool} from "../../../../../../../../shared/util/tool";
+import { RepositoryFolderDashboardSettingsViewComponent } from "../repository-dashboard-folder-settings-view/repository-folder-dashboard-settings-view.component";
+
 
 export interface RepositoryFolderDashboardEditorModel extends RepositoryEditorModel {
    dashboardFolderSettings: RepositoryFolderDashboardSettingsModel;
@@ -30,9 +32,10 @@ export interface RepositoryFolderDashboardEditorModel extends RepositoryEditorMo
 }
 
 @Component({
-   selector: "em-repository-folder-dashboard-settings-page",
-   templateUrl: "./repository-folder-dashboard-settings-page.component.html",
-   styleUrls: ["./repository-folder-dashboard-settings-page.component.scss"]
+    selector: "em-repository-folder-dashboard-settings-page",
+    templateUrl: "./repository-folder-dashboard-settings-page.component.html",
+    styleUrls: ["./repository-folder-dashboard-settings-page.component.scss"],
+    imports: [RepositoryFolderDashboardSettingsViewComponent]
 })
 export class RepositoryFolderDashboardSettingsPageComponent {
    @Input() model: RepositoryFolderDashboardEditorModel;

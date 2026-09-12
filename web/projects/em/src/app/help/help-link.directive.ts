@@ -20,7 +20,8 @@ import { HelpService } from "./help.service";
 import { HelpLink } from "./help-link";
 
 @Directive({
-   selector: "[emHelpLink]"
+    selector: "[emHelpLink]",
+    standalone: true
 })
 export class HelpLinkDirective implements AfterViewInit {
    @Input() emHelpLink: string;

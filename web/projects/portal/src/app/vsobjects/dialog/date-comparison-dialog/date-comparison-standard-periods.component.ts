@@ -33,11 +33,16 @@ import { StandardPeriodPaneModel } from "../../model/standard-period-pane-model"
 import { ValueTypes } from "../../model/dynamic-value-model";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import { DateComparisonUtil } from "./date-comparison-utill";
+import { DynamicValueEditorComponent } from "../../../widget/date-type-editor/dynamic-value-editor.component";
+import { FormsModule } from "@angular/forms";
+
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 
 @Component({
-   selector: "date-comparison-standard-periods",
-   templateUrl: "./date-comparison-standard-periods.component.html",
-   styleUrls: ["./date-comparison-standard-periods.component.scss"]
+    selector: "date-comparison-standard-periods",
+    templateUrl: "./date-comparison-standard-periods.component.html",
+    styleUrls: ["./date-comparison-standard-periods.component.scss"],
+    imports: [DynamicComboBox, FormsModule, DynamicValueEditorComponent]
 })
 export class DateComparisonStandardPeriodsComponent implements OnChanges {
    @Input() standardPeriodPaneModel: StandardPeriodPaneModel;
@@ -107,6 +112,13 @@ export class DateComparisonStandardPeriodsComponent implements OnChanges {
    }
 
    get toDateLabel(): string {
+      // Bug #75653 (fixed): toDateVisible guards a null dateLevel with `!!dateLevel` before
+      // falling back to `!!this.toDateLabel`, implying a null dateLevel is an anticipated
+      // state here too - but this getter previously dereferenced dateLevel.type unconditionally.
+      if(!this.standardPeriodPaneModel?.dateLevel) {
+         return null;
+      }
+
       if(this.standardPeriodPaneModel.dateLevel.type == ValueTypes.EXPRESSION ||
          this.standardPeriodPaneModel.dateLevel.type == ValueTypes.VARIABLE)
       {

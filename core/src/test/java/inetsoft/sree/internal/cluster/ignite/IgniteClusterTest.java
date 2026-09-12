@@ -18,6 +18,7 @@
 package inetsoft.sree.internal.cluster.ignite;
 
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.test.*;
 import inetsoft.util.FileSystemService;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.ignite.Ignite;
@@ -25,7 +26,11 @@ import org.apache.ignite.resources.IgniteInstanceResource;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
 import java.io.Serializable;
@@ -37,6 +42,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Disabled
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class IgniteClusterTest {
    @TempDir
    static Path clusterDir;

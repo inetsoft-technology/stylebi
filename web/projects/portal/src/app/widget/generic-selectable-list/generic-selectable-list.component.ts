@@ -17,10 +17,12 @@
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 
+
 @Component({
-   selector: "generic-selectable-list",
-   templateUrl: "generic-selectable-list.component.html",
-   styleUrls: ["./generic-selectable-list.component.scss"]
+    selector: "generic-selectable-list",
+    templateUrl: "generic-selectable-list.component.html",
+    styleUrls: ["./generic-selectable-list.component.scss"],
+    imports: []
 })
 export class GenericSelectableList {
    @Input() elementToString: (x: any) => string;

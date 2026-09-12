@@ -23,7 +23,7 @@ import inetsoft.uql.asset.AssetEntry;
 
 import java.util.*;
 
-class LocalMVInfoClient implements MVInfoClient {
+public class LocalMVInfoClient implements MVInfoClient {
    @Override
    public Date getDataRefreshedTime(AssetEntry entry) {
       if(entry != null && entry.getType() == AssetEntry.Type.WORKSHEET) {

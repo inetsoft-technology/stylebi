@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ComponentFixture, TestBed, async } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { DebugElement } from "@angular/core";
 import { FormsModule, ReactiveFormsModule, FormGroup } from "@angular/forms";
@@ -45,10 +45,9 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
    let de: DebugElement;
    let el: HTMLSelectElement;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [RangeSliderSizePane]
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, RangeSliderSizePane]
       });
       TestBed.compileComponents();
 
@@ -61,7 +60,7 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
       fixture.detectChanges();
    }));
 
-   it("should instantiate RangeSliderSizePane comboBox with string Month", async(() => {
+   it("should instantiate RangeSliderSizePane comboBox with string Month", waitForAsync(() => {
       fixture.whenStable().then(() => {
          de = fixture.debugElement.query(By.css("select.form-control"));
          el = de.nativeElement;
@@ -77,14 +76,14 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
    }));
 
    //bug #18465, #18469, slider size input check
-   it("slider size input check", async(() => { // broken test
+   it("slider size input check", waitForAsync(() => { // broken test
       let sliderSize = fixture.debugElement.query(By.css("input#length")).nativeElement;
       sliderSize.value = "0.75";
       sliderSize.dispatchEvent(new Event("input"));
       fixture.detectChanges();
       let warning1 = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
       expect(warning1.textContent).toContain(
-         "_#(viewer.viewsheet.timeSlider.sliderSizeWarning) ");
+         "_#(viewer.viewsheet.timeSlider.sliderSizeWarning)");
 
       sliderSize.value = "5";
       sliderSize.dispatchEvent(new Event("input"));
@@ -97,11 +96,11 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
       fixture.detectChanges();
       let warning3 = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
       expect(warning3.textContent).toContain(
-         "_#(viewer.viewsheet.timeSlider.sliderSizeWarning) ");
+         "_#(viewer.viewsheet.timeSlider.sliderSizeWarning)");
    }));
 
    //Bug #19076 Bug #19079
-   it("check max/min range size status", (done) => {
+   it("check max/min range size status", () => new Promise<void>((done) => {
       //Bug #19079
       fixture.componentInstance.model.rangeType = 3;
       let minRangeSize = fixture.debugElement.query(By.css("#rangeSize")).nativeElement;
@@ -121,5 +120,5 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
          expect(maxRangeSize.disabled).toBeTruthy();
          done();
       });
-   });
+   }));
 });

@@ -44,7 +44,8 @@ const HIGHLIGHT_URI: string = "composer/vs/highlight-dialog-model";
 const HYPERLINK_URI: string = "composer/vs/hyperlink-dialog-model";
 
 @Directive({
-   selector: "[cChartActionHandler]"
+    selector: "[cChartActionHandler]",
+    standalone: true
 })
 export class ChartActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSChartModel;

@@ -17,7 +17,7 @@
  */
 import { CommonModule } from "@angular/common";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { UIContextService } from "../../common/services/ui-context.service";
@@ -62,12 +62,12 @@ let createModel: () => LegendFormatGeneralPaneModel = () => {
 describe("LegendFormatGeneralPane Unit Tests", () => {
    let uiContextService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       uiContextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn()
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn()
       };
       uiContextService.isAdhoc.mockImplementation(() => false);
       TestBed.configureTestingModule({
@@ -77,8 +77,6 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
             FormsModule,
             ReactiveFormsModule,
             DropDownTestModule,
-         ],
-         declarations: [
             LegendFormatGeneralPane,
             ColorEditor,
             AlphaDropdown,
@@ -96,8 +94,9 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
             NewAggrDialog,
             MessageDialog,
             ScriptPane,
-            FixedDropdownDirective
+            FixedDropdownDirective,
          ],
+         
          providers: [
             NgbModal,
             RecentColorService,
@@ -111,7 +110,7 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
    }));
 
    // Bug #10107 Should have Ingore Null checkbox
-   it("should have Ignore Null checkbox", (done) => {
+   it("should have Ignore Null checkbox", () => new Promise<void>((done) => {
       let fixture: ComponentFixture<LegendFormatGeneralPane> = TestBed.createComponent(LegendFormatGeneralPane);
       let model: LegendFormatGeneralPaneModel = createModel();
       model.notShowNullVisible = true;
@@ -126,5 +125,5 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
          expect(ignoreNullLabel).toBeTruthy();
          done();
       });
-   });
+   }));
 });

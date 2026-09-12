@@ -25,8 +25,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
-import inetsoft.storage.KeyValueStorage;
-import inetsoft.uql.XFactory;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.DependencyTool;
@@ -36,7 +35,8 @@ import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
-import inetsoft.web.admin.favorites.FavoriteList;
+import inetsoft.web.RecycleBin;
+import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.web.admin.general.LocalizationSettingsService;
 import inetsoft.web.admin.general.model.LocalizationModel;
 import inetsoft.web.admin.security.*;
@@ -60,7 +60,17 @@ public class UserTreeService {
                           LocalizationSettingsService localizationSettingsService,
                           SecurityEngine securityEngine,
                           IdentityThemeService themeService,
-                          SimpMessagingTemplate messagingTemplate)
+                          SimpMessagingTemplate messagingTemplate,
+                          FavoritesService favoritesService,
+                          DataCycleManager dataCycleManager,
+                          LicenseManager licenseManager,
+                          MVManager mvManager,
+                          IndexedStorage indexedStorage,
+                          CustomThemesManager customThemesManager,
+                          DashboardRegistryManager dashboardRegistryManager,
+                          XRepository xRepository,
+                          DependencyStorageService dependencyStorageService,
+                          RecycleBin recycleBin)
    {
       this.authenticationProviderService = authenticationProviderService;
       this.systemAdminService = systemAdminService;
@@ -69,7 +79,17 @@ public class UserTreeService {
       this.securityEngine = securityEngine;
       this.themeService = themeService;
       this.messagingTemplate = messagingTemplate;
-      this.editOrganizationListener = new EditOrganizationListener(messagingTemplate);
+      this.customThemesManager = customThemesManager;
+      this.dashboardRegistryManager = dashboardRegistryManager;
+      this.editOrganizationListener = new EditOrganizationListener(messagingTemplate, securityEngine);
+      this.favoritesService = favoritesService;
+      this.dataCycleManager = dataCycleManager;
+      this.licenseManager = licenseManager;
+      this.mvManager = mvManager;
+      this.indexedStorage = indexedStorage;
+      this.xRepository = xRepository;
+      this.dependencyStorageService = dependencyStorageService;
+      this.recycleBin = recycleBin;
    }
 
    public List<String> getOrganizationTree(String providerName, Principal principal) {
@@ -429,7 +449,7 @@ public class UserTreeService {
     */
    EditGroupPaneModel createGroup(String selectedProvider, String parentGroup, Principal principal)
    {
-      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider securityProvider = securityEngine.getSecurityProvider();
       String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP,
@@ -539,6 +559,11 @@ public class UserTreeService {
 
       final Group group = currentProvider.getGroup(groupID);
 
+      if(group == null) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.security.groupNotFound", groupID.getName()));
+      }
+
       if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
          if(Arrays.stream(group.getRoles()).anyMatch(currentProvider::isSystemAdministratorRole)) {
             throw new MessageException(Catalog.getCatalog().getString("em.security.orgAdmin.identityPermissionDenied"));
@@ -548,7 +573,7 @@ public class UserTreeService {
       IdentityInfo info = identityService
          .getIdentityInfo(groupID, Identity.GROUP, currentProvider);
 
-      String org = group == null ? null : group.getOrganizationID();
+      String org = group.getOrganizationID();
       if(org == null || "".equals(org)) {
          org = Organization.getDefaultOrganizationID();
       }
@@ -618,7 +643,7 @@ public class UserTreeService {
 
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -659,8 +684,8 @@ public class UserTreeService {
       identityService.setIdentity(oldGroup, model, provider, principal);
       identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
                                              principal, permittedIdentities, "");
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
-      DataCycleManager cycleManager = DataCycleManager.getDataCycleManager();
+      IndexedStorage storage = indexedStorage;
+      DataCycleManager cycleManager = dataCycleManager;
       storage.migrateStorageData(oldID.getName(), newID.getName());
       cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), false);
    }
@@ -669,7 +694,7 @@ public class UserTreeService {
     * Create a new user
     */
    EditUserPaneModel createUser(String providerName, String parentGroup, Principal principal) {
-      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider securityProvider = securityEngine.getSecurityProvider();
       String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
@@ -688,7 +713,7 @@ public class UserTreeService {
       ThreadContext.setContextPrincipal(principal);
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -778,7 +803,7 @@ public class UserTreeService {
       String rootUser = "Users";
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(orgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(orgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -875,7 +900,7 @@ public class UserTreeService {
          }
 
          EditableAuthenticationProvider editProvider = (EditableAuthenticationProvider) provider;
-         SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider securityProvider = securityEngine.getSecurityProvider();
          FSOrganization identity;
          IdentityID newOrgKey = new IdentityID(orgName, orgID);
 
@@ -930,7 +955,7 @@ public class UserTreeService {
                   catalog.getString("em.namedUsers.exceeded", userCount, namedUserCount));
             }
 
-            editProvider.copyOrganization(fromOrg, newOrgKey.orgID, identityService, themeService, principal, false, defaultPassword);
+            editProvider.copyOrganization(fromOrg, newOrgKey.orgID, identityService, themeService, dashboardRegistryManager, dataCycleManager, principal, false, defaultPassword);
             identity = (FSOrganization) editProvider.getOrganization(newOrgKey.orgID);
          }
          else {
@@ -943,8 +968,14 @@ public class UserTreeService {
          IdentityID[] identityNames = provider.getGroups();
          String state = IdentityInfoRecord.STATE_NONE;
          actionRecord.setObjectName(identity.getId());
+         String creatorOrgId = pId.getOrgID();
+
+         if(creatorOrgId == null) {
+            creatorOrgId = Organization.getDefaultOrganizationID();
+         }
+
          identityInfoRecord = SUtil.getIdentityInfoRecord(new IdentityID(identity.getIdentityID().name,
-                                                                         pId.getOrgID()),
+                                                                         creatorOrgId),
                                                           identity.getType(),
                                                           IdentityInfoRecord.ACTION_TYPE_CREATE,
                                                           null, state);
@@ -986,7 +1017,7 @@ public class UserTreeService {
    }
 
    private int getNamedUserCount() {
-      LicenseManager manager = LicenseManager.getInstance();
+      LicenseManager manager = licenseManager;
       return manager.getNamedUserCount() + manager.getNamedUserViewerSessionCount();
    }
 
@@ -1047,7 +1078,7 @@ public class UserTreeService {
       }
 
       List<IdentityModel> members = getOrganizationMembers(info.getMembers(), principal);
-      Set<CustomTheme> themes = CustomThemesManager.getManager().getCustomThemes();
+      Set<CustomTheme> themes = customThemesManager.getCustomThemes();
       String themeID = null;
 
       if(setTheme) {
@@ -1224,26 +1255,30 @@ public class UserTreeService {
          checkDuplicateOrgIDs(model, oldOrg);
       }
 
-      boolean saveProperties = false;
+      OrganizationManager.runInOrgScope(oldOrg.getId(), () -> {
+         boolean saveProperties = false;
 
-      for(PropertyModel property: model.properties()) {
-         SreeEnv.setProperty(property.name(), property.value(), true);
-         saveProperties = true;
-      }
-
-      String[] propertyNames = {"max.row.count", "max.col.count", "max.cell.size", "max.user.count"};
-      List<String> properties = model.properties().stream().map(p -> p.name()).toList();
-
-      for(String key : propertyNames) {
-         if(SreeEnv.getProperty(key, false, true) != null && !properties.contains(key)) {
-            SreeEnv.setProperty(key, null, true);
+         for(PropertyModel property: model.properties()) {
+            SreeEnv.setProperty(property.name(), property.value(), true);
             saveProperties = true;
          }
-      }
 
-      if(saveProperties) {
-         SreeEnv.save();
-      }
+         String[] propertyNames = {"max.row.count", "max.col.count", "max.cell.size", "max.user.count"};
+         List<String> properties = model.properties().stream().map(p -> p.name()).toList();
+
+         for(String key : propertyNames) {
+            if(SreeEnv.getProperty(key, false, true) != null && !properties.contains(key)) {
+               SreeEnv.setProperty(key, null, true);
+               saveProperties = true;
+            }
+         }
+
+         if(saveProperties) {
+            SreeEnv.save();
+         }
+
+         return null;
+      });
 
       if(provider instanceof EditableAuthenticationProvider) {
          identityService.setIdentity(oldOrg, model, provider, principal);
@@ -1265,7 +1300,7 @@ public class UserTreeService {
    }
 
    private void checkDuplicateOrgIDs(EditOrganizationPaneModel model, Organization oldOrg) throws MessageException {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       String[] organizations = provider.getOrganizationIDs();
       String[] orgNames = provider.getOrganizationNames();
 
@@ -1744,12 +1779,11 @@ public class UserTreeService {
    }
 
    private void renameVPMRole(String oldName, String newName) throws RemoteException {
-      XRepository repository = XFactory.getRepository();
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
-      String[] dataSources = repository.getDataSourceFullNames(new IdentityID(orgID, orgID));
+      String[] dataSources = xRepository.getDataSourceFullNames(new IdentityID(orgID, orgID));
 
       for(String dataSource : dataSources) {
-         XDataModel dataModel = repository.getDataModel(dataSource);
+         XDataModel dataModel = xRepository.getDataModel(dataSource);
 
          if(dataModel == null) {
             continue;
@@ -1787,25 +1821,21 @@ public class UserTreeService {
          return;
       }
 
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
-      MVManager mvManager = MVManager.getManager();
-      DataCycleManager cycleManager = DataCycleManager.getDataCycleManager();
-      KeyValueStorage<FavoriteList> favorites =
-         SingletonManager.getInstance(KeyValueStorage.class, "emFavorites");
+      IndexedStorage storage = indexedStorage;
+      MVManager mvManager = this.mvManager;
+      DataCycleManager cycleManager = this.dataCycleManager;
 
-      if(favorites != null && oldID != null && newID != null &&
-         favorites.contains(oldID.convertToKey()))
-      {
-         FavoriteList favoriteList = favorites.remove(oldID.convertToKey())
-            .get(10L, TimeUnit.SECONDS);
-         favorites.put(newID.convertToKey(), favoriteList).get(10L, TimeUnit.SECONDS);
+      if(oldID != null && newID != null) {
+         // Move em favorites to the renamed user
+         favoritesService.moveFavorites(oldID.convertToKey(), newID.convertToKey());
       }
 
       storage.migrateStorageData(oldID.getName(), newID.getName());
       mvManager.migrateUserAssetsMV(oldID, newID);
       mvManager.updateMVUser(oldID, newID);
       cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
-      DependencyStorageService.getInstance().migrateStorageData(oldID, newID);
+      this.dependencyStorageService.migrateStorageData(oldID, newID);
+      recycleBin.renameUser(oldID, newID);
    }
 
    private SecurityProvider getSecurityProvider() {
@@ -1822,7 +1852,11 @@ public class UserTreeService {
       }
 
       ExecutorService executor =
-         Executors.newFixedThreadPool(DependencyTool.getThreadNumber(members.size()));
+         Executors.newFixedThreadPool(DependencyTool.getThreadNumber(members.size()), r -> {
+            Thread t = new Thread(r, "UserTreeServiceFilter");
+            t.setDaemon(true);
+            return t;
+         });
 
       List<CompletableFuture<IdentityModel>> futures = members.stream()
          .map(identityModel -> CompletableFuture.supplyAsync(() -> {
@@ -1895,5 +1929,15 @@ public class UserTreeService {
    private final IdentityThemeService themeService;
    private final SimpMessagingTemplate messagingTemplate;
    private final EditOrganizationListener editOrganizationListener;
+   private final FavoritesService favoritesService;
+   private final DataCycleManager dataCycleManager;
+   private final LicenseManager licenseManager;
+   private final MVManager mvManager;
+   private final IndexedStorage indexedStorage;
+   private final CustomThemesManager customThemesManager;
+   private final DashboardRegistryManager dashboardRegistryManager;
+   private final XRepository xRepository;
+   private final DependencyStorageService dependencyStorageService;
+   private final RecycleBin recycleBin;
    private final Set<String> propertyNames = Set.of("max.row.count", "max.col.count", "max.cell.size", "max.user.count");
 }

@@ -49,6 +49,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.hssf.util.HSSFColor;
 import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.openxml4j.opc.PackageRelationshipTypes;
+import org.apache.poi.sl.usermodel.ShapeType;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.RichTextString;
 import org.apache.poi.ss.usermodel.*;
@@ -163,6 +164,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       PoiExcelVSUtil.processOverlap(vsheet);
 
       super.prepareSheet(vsheet, sheetName, box);
+      alignBottomTabsTables();
       setUpSheet(sheetName);
 
       if(sheet == null) {
@@ -207,6 +209,51 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
          Row row = sheet.createRow(i);
          row.setHeight((short) ((rows[i + 1] - rows[i])
                                * ExcelVSUtil.EXCEL_PIXEL_HEIGHT_FACTOR));
+      }
+   }
+
+   /**
+    * Align the top of tables in a bottom-tabs container to the sheet's row grid.
+    *
+    * <p>A table's cells are snapped to the next grid line ({@link PoiExcelVSUtil#ceilY})
+    * and each table row consumes a whole grid row, so a table whose top is not on a
+    * grid line is drawn up to one row lower than its pixel position. The tab strip,
+    * on the other hand, is written as a picture at its exact pixel position and, in
+    * bottom-tabs mode, is pinned to the child's pixel bottom. That leaves no slack to
+    * absorb the rounding and the last row ends up underneath the strip (Bug #75778).
+    * Snapping the table down to the grid line makes {@code ceilY} a no-op so the drawn
+    * bottom stays above the strip.</p>
+    */
+   // package-private for testing
+   void alignBottomTabsTables() {
+      if(viewsheet == null) {
+         return;
+      }
+
+      for(Assembly assembly : viewsheet.getAssemblies(true)) {
+         if(!(assembly instanceof TableDataVSAssembly table) || !needExport(table) ||
+            !TabVSAssemblyInfo.isInBottomTabs(table))
+         {
+            continue;
+         }
+
+         VSAssemblyInfo info = table.getVSAssemblyInfo();
+         Point offset = info.getPixelOffset();
+
+         if(offset == null) {
+            continue;
+         }
+
+         int y = PoiExcelVSUtil.floorY(offset.y);
+
+         if(y != offset.y) {
+            info.setPixelOffset(new Point(offset.x, y));
+            Point layout = info.getLayoutPosition();
+
+            if(layout != null) {
+               info.setLayoutPosition(new Point(layout.x, layout.y - (offset.y - y)));
+            }
+         }
       }
    }
 
@@ -445,10 +492,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       int rowCount = Math.min(table.getRowCount(), getMaxRow(ypos));
 
       if(info instanceof TitledVSAssemblyInfo) {
-         titleRow = ((TitledVSAssemblyInfo) info).isTitleVisible() ? 0 :
-            (int)Math.round((double) ((TitledVSAssemblyInfo) info).getTitleHeight() /
-            AssetUtil.defh);
-         titleRow = Math.max(1, titleRow);
+         titleRow = ((TitledVSAssemblyInfo) info).isTitleVisible() ? 1 : 0;
       }
 
       int rows = titleRow;
@@ -708,7 +752,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       }
 
       try {
-         Rectangle2D[] split = splitInputPixelBounds(info, viewsheet);
+         Rectangle2D[] split = splitInputBoundsForExcel(info);
 
          if(split == null) {
             writePicture(getImage(assembly), getAnchorPosition(info));
@@ -736,22 +780,133 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
    }
 
    /**
+    * Split an input assembly into [labelBounds, widgetBounds], pushing the widget over
+    * by the amount Excel draws a LEFT label wider than the shared geometry reserved.
+    *
+    * <p>The shared split measures the label in pixels, matching the browser, but
+    * translateFontStyle() writes the font to the workbook in points
+    * (VSFontHelper.getFontSize(), a ~0.85 px-to-pt rate) and Excel lays those points out
+    * at 96 dpi, so a 24px label is written as 20pt and drawn at ~26.7px. With word wrap
+    * off that surplus overflows to the right of the text box, which for a LEFT label runs
+    * into the widget when the label gap is small. RIGHT/TOP/BOTTOM labels overflow away
+    * from the widget, so they are left where the shared geometry placed them.
+    */
+   private Rectangle2D[] splitInputBoundsForExcel(VSAssemblyInfo info) {
+      Rectangle2D[] split = splitInputPixelBounds(info, viewsheet);
+
+      if(split == null) {
+         return null;
+      }
+
+      LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
+
+      if(!LabelInfo.LEFT.equals(labelInfo.getLabelPosition())) {
+         return split;
+      }
+
+      double extra = getExcelLabelWidthSlack(labelInfo);
+
+      if(extra <= 0) {
+         return split;
+      }
+
+      Rectangle2D label = split[0];
+      Rectangle2D widget = split[1];
+
+      return new Rectangle2D[] {
+         new Rectangle2D.Double(label.getX(), label.getY(),
+                                label.getWidth() + extra, label.getHeight()),
+         new Rectangle2D.Double(widget.getX() + extra, widget.getY(),
+                                Math.max(0, widget.getWidth() - extra), widget.getHeight())
+      };
+   }
+
+   /**
+    * Get how much wider Excel draws the label than the pixel-based measurement used by
+    * the shared split, i.e. the width the label needs beyond what was reserved for it.
+    */
+   static double getExcelLabelWidthSlack(LabelInfo labelInfo) {
+      java.awt.Font font = getLabelFont(labelInfo);
+      double scale = getExcelFontScale(font);
+
+      if(scale <= 1) {
+         return 0;
+      }
+
+      // scale the measured width rather than re-measuring with a derived font: deriveFont()
+      // would drop the StyleFont subclass that Common.stringWidth() applies adjustments for.
+      return Math.ceil(Common.stringWidth(labelInfo.getLabelText(), font) * (scale - 1));
+   }
+
+   /**
+    * Get how much larger Excel draws the given font than its pixel size, i.e. the factor the
+    * pixel-based measurements the shared geometry uses are off by.
+    *
+    * <p>The workbook carries point sizes: applyFormat() gets the font from
+    * getPOIFont(.., isAdjust = true), so translateFontStyle() converts the pixel size at
+    * VSFontHelper's px-to-pt rate and then raises anything under 9pt to 9pt. Excel lays the
+    * result out at 96 dpi. Missing the 9pt floor would leave small fonts -- which Excel draws
+    * up to half again as wide -- with no compensation at all.
+    *
+    * @return the ratio of drawn size to pixel size, or 1 when Excel draws it no larger.
+    */
+   static double getExcelFontScale(java.awt.Font font) {
+      if(font == null || font.getSize() <= 0) {
+         return 1;
+      }
+
+      int points = Math.max(MIN_ADJUSTED_FONT_POINTS, VSFontHelper.getFontSize(font));
+      return Math.max(1, (points / POINTS_PER_PIXEL) / font.getSize());
+   }
+
+   /**
     * Write label text as an Excel text box at the given pixel bounds.
     */
    private void writeLabelTextBox(LabelInfo labelInfo, Rectangle2D pixelBounds) {
-      // Add extra width so Excel's font metrics (Calibri) don't cause the text to wrap.
-      // getLabelDimensions uses Java AWT string width which is narrower than Excel's rendering.
-      Rectangle2D padded = new Rectangle2D.Double(
-         pixelBounds.getX(), pixelBounds.getY(),
-         pixelBounds.getWidth() + 30, pixelBounds.getHeight());
-      XSSFClientAnchor anchor = (XSSFClientAnchor) getAnchorFromPixelRect(padded);
+      XSSFClientAnchor anchor = (XSSFClientAnchor) getAnchorFromPixelRect(pixelBounds);
       XSSFTextBox tb = patriarch.createTextbox(anchor);
+      // The browser renders the label with white-space:nowrap, so a label that is a few
+      // pixels wider in Excel's font metrics than in the AWT metrics used to size the box
+      // must overflow rather than break mid-word.
+      tb.setWordWrap(false);
+      // The browser label has no padding, but an Excel text box defaults to a 0.1in
+      // (~9.6px) inset that would shift the text off the position the split computed.
+      clearInsets(tb);
       // Default to vertical center to match browser flex-layout; applyFormat overrides if set.
       tb.setVerticalAlignment(VerticalAlignment.CENTER);
       XSSFRichTextString rts = (XSSFRichTextString)
          PoiExcelVSUtil.createRichTextString(book, labelInfo.getLabelText());
       tb.setText(rts);
-      applyFormat(tb, rts, getLabelFormat(labelInfo), false);
+      applyFormat(tb, rts, getLabelFormat(labelInfo), false, roundCornerBounds(labelInfo, pixelBounds));
+   }
+
+   /**
+    * Get the bounds to derive a round-corner radius from. splitInputBoundsForExcel() widens
+    * a LEFT label box by the font slack, and applyRoundCorner() scales the radius off the
+    * shorter side, so the slack has to come back out before the two sides are compared.
+    */
+   private static Rectangle2D roundCornerBounds(LabelInfo labelInfo, Rectangle2D pixelBounds) {
+      double slack = LabelInfo.LEFT.equals(labelInfo.getLabelPosition())
+         ? getExcelLabelWidthSlack(labelInfo) : 0;
+
+      if(slack <= 0) {
+         return pixelBounds;
+      }
+
+      return new Rectangle2D.Double(pixelBounds.getX(), pixelBounds.getY(),
+                                    Math.max(1, pixelBounds.getWidth() - slack),
+                                    pixelBounds.getHeight());
+   }
+
+   /**
+    * Remove the default 0.1in internal margins of an Excel text box so the text is laid
+    * out from the box origin, the way the zero-padding label and input do in the browser.
+    */
+   private static void clearInsets(XSSFTextBox tb) {
+      tb.setLeftInset(0);
+      tb.setRightInset(0);
+      tb.setTopInset(0);
+      tb.setBottomInset(0);
    }
 
    /**
@@ -821,7 +976,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       TextInputVSAssemblyInfo info = (TextInputVSAssemblyInfo) assembly.getVSAssemblyInfo();
       Object value = assembly.getSelectedObject();
       String txt = value == null ? "" : Tool.getDataString(value, assembly.getDataType());
-      Rectangle2D[] split = splitInputPixelBounds(info, viewsheet);
+      Rectangle2D[] split = splitInputBoundsForExcel(info);
 
       if(split == null) {
          writeText(assembly, txt);
@@ -832,10 +987,13 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
          writeLabelTextBox(((InputVSAssemblyInfo) info).getLabelInfo(), split[0]);
          XSSFClientAnchor anchor = (XSSFClientAnchor) getAnchorFromPixelRect(split[1]);
          XSSFTextBox tb = patriarch.createTextbox(anchor);
+         // single-line <input> in the browser, so don't let Excel break the value
+         tb.setWordWrap(false);
+         clearInsets(tb);
          XSSFRichTextString rts = (XSSFRichTextString)
             PoiExcelVSUtil.createRichTextString(book, txt);
          tb.setText(rts);
-         applyFormat(tb, rts, getTextFormat(info), false);
+         applyFormat(tb, rts, getTextFormat(info), false, split[1]);
       }
       catch(SheetMaxRowsException e) {
          throw e;
@@ -942,7 +1100,8 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
                tb.setBottomInset(padding.bottom);
             }
 
-            applyFormat(tb, rts, format, shadowed);
+            applyFormat(tb, rts, format, shadowed,
+                        new Rectangle2D.Double(0, 0, size.width, size.height));
          }
       }
       catch(SheetMaxRowsException e) {
@@ -958,9 +1117,13 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
 
    /**
     * Apply the format setting.
+    * @param pixelBounds the pixel bounds of the shape, used to translate the round corner
+    *                     radius (in pixels) into an OOXML preset geometry adjustment. May be
+    *                     null, in which case round corners are not applied.
     */
    private void applyFormat(XSSFTextBox tb, RichTextString rts,
-                            VSCompositeFormat format, boolean shadowed)
+                            VSCompositeFormat format, boolean shadowed,
+                            Rectangle2D pixelBounds)
    {
       if(format == null) {
          return;
@@ -972,6 +1135,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       BorderColors bcolors = format.getBorderColors();
       java.awt.Font font = format.getFont();
       int alpha = format.getAlpha();
+      int roundCorner = format.getRoundCorner();
 
       if(font != null) {
          rts.applyFont(PoiExcelVSUtil.getPOIFont(format, book, true));
@@ -982,6 +1146,10 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
 
       if(bg != null) {
          tb.setFillColor(bg.getRed(), bg.getGreen(), bg.getBlue());
+      }
+
+      if(roundCorner > 0 && pixelBounds != null) {
+         applyRoundCorner(tb, roundCorner, pixelBounds);
       }
 
       if(borders != null) {
@@ -1018,6 +1186,124 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
                PoiExportUtil.drowTextShadow(run);
             }
          }
+      }
+   }
+
+   /**
+    * Switch the shape's preset geometry to a rounded rectangle and set the corner
+    * adjustment ("adj" guide) so the rendered radius matches the given pixel radius.
+    */
+   private void applyRoundCorner(XSSFSimpleShape tb, int roundCorner, Rectangle2D pixelBounds) {
+      double minSide = Math.min(pixelBounds.getWidth(), pixelBounds.getHeight());
+
+      if(minSide <= 0) {
+         return;
+      }
+
+      tb.setShapeType(ShapeType.ROUND_RECT.ooxmlId);
+      // OOXML roundRect "adj" guide is a percentage (0-50000, i.e. 0%-50%) of the
+      // shorter side that the corner radius should occupy.
+      int adj = (int) Math.round(Math.min(1d, roundCorner / (minSide / 2)) * 50000);
+      CTPresetGeometry2D prstGeom = tb.getCTShape().getSpPr().getPrstGeom();
+      CTGeomGuideList avLst = prstGeom.isSetAvLst() ? prstGeom.getAvLst() : prstGeom.addNewAvLst();
+      CTGeomGuide gd = avLst.sizeOfGdArray() > 0 ? avLst.getGdArray(0) : avLst.addNewGd();
+      gd.setName("adj");
+      gd.setFmla("val " + adj);
+   }
+
+   /**
+    * Largest corner radius (in pixels) used when rounding a table/crosstab's outer
+    * border. Table cell content fills the grid all the way to its edges (unlike
+    * TextInput/Text, which draw as a single shape) and Excel has no way to clip cell
+    * rendering to a rounded shape, so a large radius would visibly cut into cell text
+    * near the corners. Capping keeps the curve small enough to stay within the blank
+    * margin most cells have around their text, while still visibly rounding the corner.
+    */
+   private static final int MAX_TABLE_ROUND_RADIUS = 8;
+   /** points per pixel at 96 dpi, for converting the workbook's point sizes back to pixels */
+   private static final float POINTS_PER_PIXEL = 0.75f;
+   /** minimum point size translateFontStyle() writes when isAdjust is set */
+   private static final int MIN_ADJUSTED_FONT_POINTS = 9;
+
+   /**
+    * Draw a rounded-rectangle outline around a table/crosstab's outer bounds when the
+    * object format has a round corner set. Tables write their cells directly to the sheet
+    * grid (not as a shape), so there is no shape for the border-drawing code in
+    * {@link #applyFormat} to round; this draws a standalone border-only overlay shape
+    * instead, matching the outer-frame rounding already done for Table/Crosstab in
+    * PDF/SVG (ExportUtil) and PowerPoint (PPTValueHelper) export.
+    */
+   public void drawTableRoundedBorder(Rectangle2D pixelBounds, VSCompositeFormat format) {
+      if(format == null || format.getRoundCorner() <= 0) {
+         return;
+      }
+
+      double minSide = Math.min(pixelBounds.getWidth(), pixelBounds.getHeight());
+
+      if(minSide <= 0) {
+         return;
+      }
+
+      int radius = (int) Math.min(
+         Math.min(format.getRoundCorner(), MAX_TABLE_ROUND_RADIUS), minSide / 2);
+
+      if(radius <= 0) {
+         return;
+      }
+
+      // A single roundRect shape can only stroke a uniform outline around all four sides
+      // - unlike the per-side PDF/SVG/PPT border drawing (see ExportUtil.drawBorders), it
+      // can't selectively skip a side. Approximate by using whichever side has a border
+      // configured first (top, then left/right/bottom) for the whole outline's style and
+      // color; a table with only a partial border will get a full box outline as a result,
+      // an accepted tradeoff for a uniformly-rounded look in the common case.
+      Insets borders = format.getBorders();
+      int type;
+      java.awt.Color color;
+      BorderColors bcolors = format.getBorderColors();
+
+      if(borders != null && borders.top != 0) {
+         type = borders.top;
+         color = bcolors == null ? null : bcolors.topColor;
+      }
+      else if(borders != null && borders.left != 0) {
+         type = borders.left;
+         color = bcolors == null ? null : bcolors.leftColor;
+      }
+      else if(borders != null && borders.right != 0) {
+         type = borders.right;
+         color = bcolors == null ? null : bcolors.rightColor;
+      }
+      else if(borders != null && borders.bottom != 0) {
+         type = borders.bottom;
+         color = bcolors == null ? null : bcolors.bottomColor;
+      }
+      else {
+         // No border configured at all: the rounded outline shape is the only thing drawn
+         // here, so there is nothing to round.
+         return;
+      }
+
+      int lineStyle = PoiExcelVSUtil.getLineStyle(type);
+
+      if(lineStyle == ExcelVSUtil.EXCEL_NO_BORDER) {
+         return;
+      }
+
+      XSSFSimpleShape shape = patriarch.createSimpleShape(
+         (XSSFClientAnchor) getAnchorFromPixelRect(pixelBounds));
+      shape.setNoFill(true);
+      applyRoundCorner(shape, radius, pixelBounds);
+
+      if(lineStyle != ExcelVSUtil.EXCEL_SOLID_BORDER) {
+         shape.setLineStyle(lineStyle);
+      }
+
+      if(color != null) {
+         shape.setLineStyleColor(color.getRed(), color.getGreen(), color.getBlue());
+      }
+      else {
+         shape.setLineStyleColor(0, 0, 0);
       }
    }
 
@@ -1817,6 +2103,21 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
          Object[] newInfo = VSUtil.refreshLineInfo(vs, (LineVSAssemblyInfo) info);
          position = (Point) newInfo[0];
          size = (Dimension) newInfo[1];
+      }
+
+      // a shape's shadow can fall outside the assembly's own bounds. this runs
+      // after the line branch above, which replaces position/size outright.
+      // excel anchors to the cell grid, so the offset lands on the nearest
+      // column or row boundary rather than exactly.
+      if(ShapeShadowUtil.isShapeShadow(info)) {
+         Insets insets = ShapeShadowUtil.getShadowInsets(info);
+         // clamp at the sheet edge without stretching the anchor: whatever the
+         // shift cannot take off the position comes off the size instead
+         int left = Math.min(insets.left, Math.max(0, position.x));
+         int top0 = Math.min(insets.top, Math.max(0, position.y));
+         position = new Point(position.x - left, position.y - top0);
+         size = new Dimension(size.width + left + insets.right,
+                              size.height + top0 + insets.bottom);
       }
 
       Point top = new Point();

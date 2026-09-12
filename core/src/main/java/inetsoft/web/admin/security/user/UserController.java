@@ -24,7 +24,8 @@ import inetsoft.util.InvalidOrgException;
 import inetsoft.web.admin.security.IdentityService;
 import inetsoft.web.factory.DecodePathVariable;
 import inetsoft.web.security.*;
-import inetsoft.web.viewsheet.*;
+import inetsoft.web.viewsheet.AuditObjectName;
+import inetsoft.web.viewsheet.AuditUser;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
@@ -38,10 +39,12 @@ import java.security.Principal;
 public class UserController {
    @Autowired
    public UserController(UserTreeService userTreeService,
-                         IdentityService identityService)
+                         IdentityService identityService,
+                         SecurityEngine securityEngine)
    {
       this.userTreeService = userTreeService;
       this.identityService = identityService;
+      this.securityEngine = securityEngine;
    }
 
    @Secured(
@@ -99,7 +102,7 @@ public class UserController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -115,5 +118,6 @@ public class UserController {
 
    private final UserTreeService userTreeService;
    private final IdentityService identityService;
+   private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(UserController.class);
 }

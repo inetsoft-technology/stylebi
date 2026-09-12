@@ -17,8 +17,10 @@
  */
 import { LinePropPaneModel } from "./line-prop-pane-model";
 import { FillPropPaneModel } from "./fill-prop-pane-model";
+import { ShadowPropPaneModel } from "./shadow-prop-pane-model";
 
 export interface OvalPropertyPaneModel {
    linePropPaneModel: LinePropPaneModel;
    fillPropPaneModel: FillPropPaneModel;
+   shadowPropPaneModel: ShadowPropPaneModel;
 }

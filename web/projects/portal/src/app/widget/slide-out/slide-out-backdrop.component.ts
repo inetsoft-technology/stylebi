@@ -15,16 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input } from "@angular/core";
+import { Component, HostBinding, Input } from "@angular/core";
 
 @Component({
-   selector: "w-slide-out-backdrop",
-   template: "",
-   host: { // eslint-disable-line @angular-eslint/no-host-metadata-property
-      "[class]": '"modal-backdrop fade show" + (backdropClass ? " " + backdropClass : "")',
-      "style": "z-index: 1050"
-   }
+    selector: "w-slide-out-backdrop",
+    template: "",
+    standalone: true
 })
 export class SlideOutBackdropComponent {
    @Input() backdropClass: string;
+
+   @HostBinding("class") get hostClass(): string {
+      return "modal-backdrop fade show" + (this.backdropClass ? " " + this.backdropClass : "");
+   }
+
+   @HostBinding("style.z-index") hostZIndex = "1050";
 }

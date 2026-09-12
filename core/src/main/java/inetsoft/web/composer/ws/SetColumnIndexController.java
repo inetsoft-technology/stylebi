@@ -17,10 +17,6 @@
  */
 package inetsoft.web.composer.ws;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.event.AssetEventUtil;
-import inetsoft.uql.asset.Worksheet;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSSetColumnIndexEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -28,28 +24,24 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
-
 import java.security.Principal;
 
 @Controller
 public class SetColumnIndexController extends WorksheetController {
+
+   public SetColumnIndexController(SetColumnIndexServiceProxy serviceProxy)
+   {
+      this.serviceProxy = serviceProxy;
+   }
+
    @Undoable
    @LoadingMask
    @MessageMapping("/composer/worksheet/set-column-index")
    public void setColumnIndex(@Payload WSSetColumnIndexEvent event, Principal principal,
                               CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
-      Worksheet ws = rws.getWorksheet();
-      String tname = event.name();
-      int index = event.newIndex();
-      int[] columnIndices = event.oldIndices();
-
-      setColumnIndex0(tname, index, rws, columnIndices, false);
-
-      WorksheetEventUtil.loadTableData(rws, tname, true, true);
-      WorksheetEventUtil.refreshAssembly(rws, tname, true, commandDispatcher, principal);
-      WorksheetEventUtil.layout(rws, commandDispatcher);
-      AssetEventUtil.refreshTableLastModified(ws, tname, true);
+      serviceProxy.setColumnIndex(getRuntimeId(), event, principal, commandDispatcher);
    }
+
+   private SetColumnIndexServiceProxy serviceProxy;
 }

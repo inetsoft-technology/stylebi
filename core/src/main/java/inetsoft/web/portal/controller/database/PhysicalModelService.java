@@ -57,12 +57,14 @@ public class PhysicalModelService {
    public PhysicalModelService(RuntimePartitionService runtimePartitionService,
                                XRepository repository,
                                AssetRepository assetRepository,
-                               DataSourceService dataSourceService)
+                               DataSourceService dataSourceService,
+                               XSessionManager xSessionManager)
    {
       this.runtimePartitionService = runtimePartitionService;
       this.repository = repository;
       this.assetRepository = assetRepository;
       this.dataSourceService = dataSourceService;
+      this.xSessionManager = xSessionManager;
    }
 
    private void addColumnInfo(PhysicalTableModel table, DefaultMetaDataProvider metaData,
@@ -881,7 +883,10 @@ public class PhysicalModelService {
                }
             }
 
-            rPartition.setBounds(
+            // set directly on the live partition (not rPartition, which is a
+            // separate cached copy fetched by ID) so the width/height actually
+            // persist instead of being silently discarded
+            partition.setBounds(
                tableName,
                new Rectangle(DEFAULT_GRAPH_LEFT_GAP, DEFAULT_GRAPH_TOP_GAP, width, height));
          }
@@ -929,8 +934,8 @@ public class PhysicalModelService {
       VariableTable parameters = new VariableTable();
       parameters.put(JDBCQuery.HINT_MAX_ROWS, "1");
 
-      XHandler handler = XFactory.getDataService().getHandler(
-         XSessionManager.getSessionManager().getSession(), dataSource,
+      XHandler handler = repository.getHandler(
+         xSessionManager.getSession(), dataSource,
          new VariableTable());
 
       return handler.execute(query, parameters, null, null);
@@ -1050,6 +1055,7 @@ public class PhysicalModelService {
    private final XRepository repository;
    private final AssetRepository assetRepository;
    private final DataSourceService dataSourceService;
+   private final XSessionManager xSessionManager;
 
    private static final Logger LOG = LoggerFactory.getLogger(PhysicalModelService.class);
 }

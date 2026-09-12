@@ -20,7 +20,9 @@ package inetsoft.web.composer.model.ws;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.uql.asset.Worksheet;
 
-public class WorksheetOptionPaneModel {
+import java.io.Serializable;
+
+public class WorksheetOptionPaneModel implements Serializable {
 
    public WorksheetOptionPaneModel() {}
 

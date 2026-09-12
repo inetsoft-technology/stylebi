@@ -1,23 +1,38 @@
 package inetsoft.report.script.formula;
 
+import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.AppenderBase;
-import ch.qos.logback.classic.Logger;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.DefaultTable;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.ScriptUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mozilla.javascript.Scriptable;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
 import org.slf4j.LoggerFactory;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import inetsoft.report.TableLens;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class TableAssemblyScriptableTest {
    private TableAssemblyScriptable tableAssemblyScriptable;
    private AssetQuerySandbox mockSandbox;
@@ -25,14 +40,11 @@ class TableAssemblyScriptableTest {
    private EmbeddedTableAssembly mockEmbeddedTableAssembly;
    private TestLogAppender logAppender;
 
-   private Scriptable scriptable;
-
    @BeforeEach
    void setUp() {
       mockSandbox = mock(AssetQuerySandbox.class);
       mockWorksheet = mock(Worksheet.class);
       mockEmbeddedTableAssembly = mock(EmbeddedTableAssembly.class);
-      scriptable = mock(Scriptable.class);
 
       when(mockSandbox.getWorksheet()).thenReturn(mockWorksheet);
       tableAssemblyScriptable = new TableAssemblyScriptable("testTable", mockSandbox, AssetQuerySandbox.LIVE_MODE);
@@ -53,8 +65,8 @@ class TableAssemblyScriptableTest {
 
       XEmbeddedTable mockData = mock(XEmbeddedTable.class);
       Object value = ScriptUtil.unwrap(mockData);
-      tableAssemblyScriptable.put("table", scriptable, value);
-      assertNull(tableAssemblyScriptable.get("table"));
+      tableAssemblyScriptable.putMember("table", value);
+      assertNull(tableAssemblyScriptable.getMember("table"));
       assertTrue(logAppender.contains("Table 'testTable' does not exist", "ERROR"));
    }
 
@@ -67,9 +79,9 @@ class TableAssemblyScriptableTest {
       when(mockWorksheet.getAssembly("testTable")).thenReturn(mockMirrorTableAssembly);
       when(mockMirrorTableAssembly.getTableAssembly()).thenReturn(mock(TableAssembly.class));
 
-      tableAssemblyScriptable.put("table", scriptable, new Object());
+      tableAssemblyScriptable.putMember("table", new Object());
 
-      assertNull(tableAssemblyScriptable.get("table"));
+      assertNull(tableAssemblyScriptable.getMember("table"));
       assertTrue(logAppender.contains("Table data can only be set on embedded tables", "ERROR"));
    }
 
@@ -82,12 +94,12 @@ class TableAssemblyScriptableTest {
       when(mockWorksheet.getAssembly("testTable")).thenReturn(mockEmbeddedTableAssembly);
 
       //check data value is null
-      tableAssemblyScriptable.put("table", scriptable, null);
+      tableAssemblyScriptable.putMember("table", null);
       assertTrue(logAppender.contains("Cannot set data of table 'testTable' to null", "ERROR"));
 
       //check data value is string
       when(mockWorksheet.getAssembly("testTable")).thenReturn(mockEmbeddedTableAssembly);
-      tableAssemblyScriptable.put("table", scriptable, "aaa");
+      tableAssemblyScriptable.putMember("table", "aaa");
       assertTrue(logAppender.contains("Invalid type for data of table", "ERROR"));
    }
 
@@ -100,12 +112,34 @@ class TableAssemblyScriptableTest {
 
       //test put a xtable
       DefaultTable defaultTable = new DefaultTable(objData);
-      tableAssemblyScriptable.put("table", scriptable, defaultTable);
-      assertNull(tableAssemblyScriptable.get("table"));
+      tableAssemblyScriptable.putMember("table", defaultTable);
+      assertNull(tableAssemblyScriptable.getMember("table"));
 
       //test put object
-      tableAssemblyScriptable.put("table", scriptable, objData);
+      tableAssemblyScriptable.putMember("table", objData);
       assertNull(tableAssemblyScriptable.getElementTable());
+   }
+
+   /**
+    * #75663: a worksheet table referenced by name from a script reads its column
+    * values as a flat table, so its bare-column access must bypass the grouped/
+    * crosstab summary-cell routing (a shared source table can carry a spurious
+    * runtime crosstab descriptor pushed down by a crosstab-optimized freehand).
+    */
+   @Test
+   void isBaseTableReferenceTrueForWorksheetTable() {
+      assertTrue(tableAssemblyScriptable.isBaseTableReference());
+   }
+
+   /**
+    * #75663: a cube/OLAP table is genuinely pivot-shaped, so its by-name reference
+    * must retain the crosstab summary-cell routing (must NOT read flat).
+    */
+   @Test
+   void isBaseTableReferenceFalseForCubeTable() {
+      CubeTableAssemblyScriptable cube = new CubeTableAssemblyScriptable(
+         "testTable", mockSandbox, AssetQuerySandbox.LIVE_MODE, mock(TableLens.class));
+      assertFalse(cube.isBaseTableReference());
    }
 
    // Custom log appender for testing

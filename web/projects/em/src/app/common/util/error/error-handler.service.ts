@@ -23,7 +23,9 @@ import { Observable, throwError } from "rxjs";
 import { Tool } from "../../../../../../shared/util/tool";
 import { MessageDialog, MessageDialogType } from "../message-dialog";
 
-@Injectable()
+@Injectable({
+   providedIn: "root"
+})
 export class ErrorHandlerService {
    constructor(private snackBar: MatSnackBar, private dialog: MatDialog) {
    }

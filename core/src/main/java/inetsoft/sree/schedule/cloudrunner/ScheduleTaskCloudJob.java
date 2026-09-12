@@ -17,11 +17,9 @@
  */
 package inetsoft.sree.schedule.cloudrunner;
 
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.schedule.ScheduleTask;
-import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Tool;
 import inetsoft.util.config.*;
 import org.apache.commons.io.IOUtils;
@@ -44,12 +42,14 @@ import java.util.concurrent.locks.Lock;
 public class ScheduleTaskCloudJob implements InterruptableJob {
    public ScheduleTaskCloudJob() {
       cluster = Cluster.getInstance();
-      timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
    }
 
    @Override
    public void execute(JobExecutionContext context) throws JobExecutionException
    {
+      long configuredTimeout = ScheduleTask.getTaskTimeout();
+      // a cloud runner task must never wait unbounded, since it consumes billed compute
+      timeout = configuredTimeout > 0 ? configuredTimeout : ScheduleTask.DEFAULT_TASK_TIMEOUT;
       createCloudRunnerConfig();
       taskName = context.getJobDetail().getKey().getName();
 
@@ -91,12 +91,11 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
                job = factory.createCloudJob(
                   UriUtils.encode(taskName, StandardCharsets.UTF_8), cycle, orgID);
                job.start();
-               LOG.debug("Started cloud job: " + job.getClass().getName());
+               LOG.debug("Started cloud job: {}", job.getClass().getName());
                break;
             }
          }
 
-         // timeout value might need to be configurable
          if(!latch.await(timeout, TimeUnit.MILLISECONDS)) {
             if(job != null) {
                job.stop();
@@ -122,6 +121,8 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
             "Scheduled task '" + SUtil.getTaskNameWithoutOrg(taskName) + "' failed to complete", e);
       }
       finally {
+         cluster.removeMessageListener(listener);
+
          if(interrupted) {
             context.getJobDetail().getJobDataMap().put("inetsoft.cancelled", true);
          }
@@ -223,6 +224,7 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
       clusterConfig.setMulticastEnabled(false);
       clusterConfig.setTcpMembers(cluster.getClusterAddresses().toArray(new String[0]));
       clusterConfig.setClientMode(true);
+      clusterConfig.setMinNodes(config.getCluster().getMinNodes());
       copyRootCA(config.getCluster(), clusterConfig);
    }
 
@@ -268,6 +270,6 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
    private boolean interrupted = false;
    private CloudJobResult result;
    private final CountDownLatch latch = new CountDownLatch(1);
-   private final long timeout;
+   private long timeout;
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskCloudJob.class);
 }

@@ -620,7 +620,9 @@ public class PDF3Generator extends inetsoft.report.io.AbstractGenerator {
             (LinkedShapePainterPaintable) pt;
          Enumeration areas = pt2.getHyperlinkAreas();
          Rectangle base = pt2.getBounds();
-         Map<Hyperlink.Ref, Rectangle> maps = new HashMap<>();
+         // LinkedHashMap preserves paintable insertion order for /Annots emission.
+         // Replaces bug1300957927646 sort which was dead code (sorted unused array).
+         Map<Hyperlink.Ref, Rectangle> maps = new LinkedHashMap<>();
 
          while(areas.hasMoreElements()) {
             Shape shape = (Shape) areas.nextElement();
@@ -636,28 +638,6 @@ public class PDF3Generator extends inetsoft.report.io.AbstractGenerator {
                maps.put(hlink, box);
             }
          }
-
-         // fix bug1300957927646 sort the hyperlink area
-         Object[] values = maps.values().toArray();
-
-         Arrays.sort(values, new Comparator<Object>() {
-            @Override
-            public int compare(Object obj1, Object obj2) {
-               Rectangle r1 = (Rectangle) obj1;
-               Rectangle r2 = (Rectangle) obj2;
-
-               if(r1.intersects(r2)) {
-                  return r1.height > r2.height ? 1 : 0;
-               }
-
-               return r2.contains(r1) ? 1 : 0;
-            }
-
-            @Override
-            public boolean equals(Object obj) {
-               return true;
-            }
-         });
 
          for(Hyperlink.Ref hlink : maps.keySet()) {
             Integer linkId = getPrinter().addLink(

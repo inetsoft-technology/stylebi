@@ -47,10 +47,11 @@ public final class XIntFragment extends XSwappable {
 
    private XIntFragment() {
       super();
-      XSwapper.cur = System.currentTimeMillis();
-      this.iaccessed = XSwapper.cur;
+      XSwapper s = getSwapper();
+      s.cur = System.currentTimeMillis();
+      this.iaccessed = s.cur;
       this.valid = true;
-      this.monitor = XSwapper.getMonitor();
+      this.monitor = s.getMonitor();
 
       if(monitor != null) {
          isCountHM = monitor.isLevelQualified(XSwappableMonitor.HITS);
@@ -73,7 +74,7 @@ public final class XIntFragment extends XSwappable {
     * Access the int fragment.
     */
    public final void access() {
-      iaccessed = XSwapper.cur;
+      iaccessed = getSwapper().cur;
 
       if(isCountHM) {
          if(valid && !lastValid) {
@@ -98,7 +99,7 @@ public final class XIntFragment extends XSwappable {
          return 0;
       }
 
-      return getAgePriority(XSwapper.cur - iaccessed, alive);
+      return getAgePriority(getSwapper().cur - iaccessed, alive);
    }
 
    /**
@@ -276,7 +277,7 @@ public final class XIntFragment extends XSwappable {
          if(!file.exists()) {
             fout = new RandomAccessFile(file, "rw");
             channel = fout.getChannel();
-            XSwapper.getSwapper().waitForMemory();
+            getSwapper().waitForMemory();
             buf = ByteBuffer.allocate((int) len);
          }
 

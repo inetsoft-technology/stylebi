@@ -66,6 +66,7 @@ import { VSViewsheetModel } from "../../../../vsobjects/model/vs-viewsheet-model
 import { AbstractVSObject } from "../../../../vsobjects/objects/abstract-vsobject.component";
 import { AdhocFilterService } from "../../../../vsobjects/objects/data-tip/adhoc-filter.service";
 import { DataTipService } from "../../../../vsobjects/objects/data-tip/data-tip.service";
+import { VSDataTipDirective } from "../../../../vsobjects/objects/data-tip/vs-data-tip.directive";
 import { MiniToolbarService } from "../../../../vsobjects/objects/mini-toolbar/mini-toolbar.service";
 import { SelectableObject } from "../../../../vsobjects/objects/selectable-object";
 import { SelectionBaseController } from "../../../../vsobjects/objects/selection/selection-base-controller";
@@ -90,12 +91,70 @@ import { ScaleService } from "../../../../widget/services/scale/scale-service";
 import { ComposerVsSearchService } from "../composer-vs-search.service";
 import { VSTabModel } from "../../../../vsobjects/model/vs-tab-model";
 import { AssemblyAction } from "../../../../common/action/assembly-action";
+import { LayoutOptionDialog } from "../../../dialog/vs/layout-option-dialog.component";
+import { LineActionHandlerDirective } from "../action/line-action-handler.directive";
+import { VSLine } from "../../../../vsobjects/objects/shape/vs-line.component";
+import { MiniToolbar } from "../../../../vsobjects/objects/mini-toolbar/mini-toolbar.component";
+import { VSThermometer } from "../../../../vsobjects/objects/thermometer/vs-thermometer.component";
+import { VSSlidingScale } from "../../../../vsobjects/objects/sliding-scale/vs-sliding-scale.component";
+import { VSCylinder } from "../../../../vsobjects/objects/cylinder/vs-cylinder.component";
+import { ViewsheetActionHandlerDirective } from "../action/viewsheet-action-handler.directive";
+import { VSViewsheet } from "../../../../vsobjects/objects/viewsheet/vs-viewsheet.component";
+import { TextInputActionHandlerDirective } from "../action/text-input-action-handler.directive";
+import { VSTextInput } from "../../../../vsobjects/objects/text-input/vs-text-input.component";
+import { TextActionHandlerDirective } from "../action/text-action-handler.directive";
+import { VSText } from "../../../../vsobjects/objects/output/text/vs-text.component";
+import { TableActionHandlerDirective } from "../action/table-action-handler.directive";
+import { VSTable } from "../../../../vsobjects/objects/table/vs-table.component";
+import { TabActionHandlerDirective } from "../action/tab-action-handler.directive";
+import { VSTab } from "../../../../vsobjects/objects/tab/vs-tab.component";
+import { SubmitActionHandlerDirective } from "../action/submit-action-handler.directive";
+import { VSSubmit } from "../../../../vsobjects/objects/submit/vs-submit.component";
+import { SpinnerActionHandlerDirective } from "../action/spinner-action-handler.directive";
+import { VSSpinner } from "../../../../vsobjects/objects/spinner/vs-spinner.component";
+import { SliderActionHandlerDirective } from "../action/slider-action-handler.directive";
+import { VSSlider } from "../../../../vsobjects/objects/slider/vs-slider.component";
+import { SelectionContainerActionHandlerDirective } from "../action/selection-container-action-handler.directive";
+import { SelectionTreeActionHandlerDirective } from "../action/selection-tree-action-handler.directive";
+import { SelectionListActionHandlerDirective } from "../action/selection-list-action-handler.directive";
+import { RangeSliderActionHandlerDirective } from "../action/range-slider-action-handler.directive";
+import { VSRangeSlider } from "../../../../vsobjects/objects/range-slider/vs-range-slider.component";
+import { RectangleActionHandlerDirective } from "../action/rectangle-action-handler.directive";
+import { VSRectangle } from "../../../../vsobjects/objects/shape/vs-rectangle.component";
+import { RadioButtonActionHandlerDirective } from "../action/radio-button-action-handler.directive";
+import { VSRadioButton } from "../../../../vsobjects/objects/radio-button/vs-radio-button.component";
+import { OvalActionHandlerDirective } from "../action/oval-action-handler.directive";
+import { VSOval } from "../../../../vsobjects/objects/shape/vs-oval.component";
+import { ImageActionHandlerDirective } from "../action/image-action-handler.directive";
+import { VSImage } from "../../../../vsobjects/objects/output/image/vs-image.component";
+import { GroupContainerActionHandlerDirective } from "../action/group-container-action-handler.directive";
+import { VSGroupContainer } from "../../../../vsobjects/objects/group/vs-group-container.component";
+import { GaugeActionHandlerDirective } from "../action/gauge-action-handler.directive";
+import { VSGauge } from "../../../../vsobjects/objects/output/gauge/vs-gauge.component";
+import { CrosstabActionHandlerDirective } from "../action/crosstab-action-handler.directive";
+import { VSCrosstab } from "../../../../vsobjects/objects/table/vs-crosstab.component";
+import { ComboBoxActionHandlerDirective } from "../action/combo-box-action-handler.directive";
+import { VSComboBox } from "../../../../vsobjects/objects/combo-box/vs-combo-box.component";
+import { CheckBoxActionHandlerDirective } from "../action/check-box-action-handler.directive";
+import { VSCheckBox } from "../../../../vsobjects/objects/check-box/vs-check-box.component";
+import { ChartActionHandlerDirective } from "../action/chart-action-handler.directive";
+import { VSChart } from "../../../../vsobjects/objects/chart/vs-chart.component";
+import { CalcTableActionHandlerDirective } from "../action/calc-table-action-handler.directive";
+import { VSCalcTable } from "../../../../vsobjects/objects/table/vs-calctable.component";
+import { CalendarActionHandlerDirective } from "../action/calendar-action-handler.directive";
+import { VSCalendar } from "../../../../vsobjects/objects/calendar/vs-calendar.component";
+import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
+import { InteractableDirective } from "../../../../widget/interact/interactable.directive";
+import { ActionsContextmenuAnchorDirective } from "../../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
+import { NgIf, NgSwitch, NgSwitchCase } from "@angular/common";
 
 @Component({
-   selector: "editable-object-container",
-   templateUrl: "editable-object-container.component.html",
-   styleUrls: ["editable-object-container.component.scss"]
-   //changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "editable-object-container",
+    templateUrl: "editable-object-container.component.html",
+    styleUrls: ["editable-object-container.component.scss"]
+    //changeDetection: ChangeDetectionStrategy.OnPush
+    ,
+    imports: [NgIf, ActionsContextmenuAnchorDirective, InteractableDirective, OutOfZoneDirective, NgSwitch, NgSwitchCase, VSCalendar, CalendarActionHandlerDirective, VSCalcTable, CalcTableActionHandlerDirective, VSChart, ChartActionHandlerDirective, VSCheckBox, CheckBoxActionHandlerDirective, VSComboBox, ComboBoxActionHandlerDirective, VSCrosstab, CrosstabActionHandlerDirective, VSGauge, GaugeActionHandlerDirective, VSGroupContainer, GroupContainerActionHandlerDirective, VSImage, ImageActionHandlerDirective, VSOval, OvalActionHandlerDirective, VSRadioButton, RadioButtonActionHandlerDirective, VSRectangle, RectangleActionHandlerDirective, VSRangeSlider, RangeSliderActionHandlerDirective, VSSelection, SelectionListActionHandlerDirective, SelectionTreeActionHandlerDirective, VSSelectionContainer, SelectionContainerActionHandlerDirective, VSSlider, SliderActionHandlerDirective, VSSpinner, SpinnerActionHandlerDirective, VSSubmit, SubmitActionHandlerDirective, VSTab, TabActionHandlerDirective, VSTable, TableActionHandlerDirective, VSText, TextActionHandlerDirective, VSTextInput, TextInputActionHandlerDirective, VSViewsheet, ViewsheetActionHandlerDirective, VSCylinder, VSSlidingScale, VSThermometer, MiniToolbar, VSDataTipDirective, VSLine, LineActionHandlerDirective, LayoutOptionDialog]
 })
 export class EditableObjectContainer extends AbstractActionComponent
    implements OnChanges, OnInit, OnDestroy, AfterViewInit
@@ -271,7 +330,7 @@ export class EditableObjectContainer extends AbstractActionComponent
       if((<any> vsObject).dropdown && !SelectionBaseController.isHidden(<any> vsObject) ||
          (<any> vsObject).dropdownCalendar && (<any> vsObject).calendarsShown)
       {
-         zIndex += 9999;
+         zIndex += 100000;
       }
 
       return zIndex;
@@ -1050,19 +1109,20 @@ export class EditableObjectContainer extends AbstractActionComponent
             object = this.viewsheet.getAssembly(this.vsObject.container) || this.vsObject;
          }
 
-         this.layoutOptionDialogModel = {
-            selectedValue: 0,
-            object: name,
-            target: object.absoluteName,
-            showSelectionContainerOption: false,
-            vsEntry: null
-         };
+         const selectionContainerTarget = targetType === "VSSelectionContainer" && selectionObject;
+         const targetName = selectionContainerTarget ? this.vsObject.absoluteName : object.absoluteName;
 
-         if(targetType === "VSSelectionContainer" && selectionObject) {
-            this.layoutOptionDialogModel.showSelectionContainerOption = true;
-            this.layoutOptionDialogModel.selectedValue = 1;
-            this.layoutOptionDialogModel.target = this.vsObject.absoluteName;
-         }
+         this.layoutOptionDialogModel = {
+            selectedValue: selectionContainerTarget ? 1 : 0,
+            object: name,
+            target: targetName,
+            showSelectionContainerOption: selectionContainerTarget,
+            vsEntry: null,
+            // Bug #76403: only the assembly under the pointer drives the interact.js drop
+            // gesture, so gather the rest of a multi-selection to be grouped along with it.
+            additionalObjects: this.getAdditionalDragSelectionNames(
+               name, targetName, selectionContainerTarget)
+         };
 
          this.openLayoutOptionDialog().then(
             () => {
@@ -1073,6 +1133,26 @@ export class EditableObjectContainer extends AbstractActionComponent
             }
          );
       }
+   }
+
+   // Bug #76403: when several assemblies are multi-selected and dragged together, the
+   // interact.js drop event only identifies the assembly under the pointer (dragSource).
+   // Collect the rest of the current selection so they can be grouped into the same
+   // target instead of being silently left out.
+   private getAdditionalDragSelectionNames(primaryName: string, targetName: string,
+                                           selectionContainerTarget: boolean): string[]
+   {
+      return this.viewsheet.currentFocusedAssemblies
+         .filter((assembly: VSObjectModel) => assembly.absoluteName !== primaryName &&
+            assembly.absoluteName !== targetName &&
+            assembly.objectType !== "VSOval" &&
+            assembly.objectType !== "VSRectangle" &&
+            assembly.objectType !== "VSLine" &&
+            (!selectionContainerTarget ||
+               assembly.objectType === "VSSelectionList" ||
+               assembly.objectType === "VSRangeSlider" ||
+               assembly.objectType === "VSSelectionContainer"))
+         .map((assembly: VSObjectModel) => assembly.absoluteName);
    }
 
    //if the line handle is being dragged close enough to the object, its handles should appear

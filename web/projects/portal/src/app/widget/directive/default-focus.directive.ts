@@ -18,7 +18,8 @@
 import { Directive, ElementRef, Input, OnInit } from "@angular/core";
 
 @Directive({
-   selector: "[defaultFocus]"
+    selector: "[defaultFocus]",
+    standalone: true
 })
 export class DefaultFocusDirective implements OnInit {
    @Input() autoSelect: boolean = true;

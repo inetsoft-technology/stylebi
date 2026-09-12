@@ -49,15 +49,8 @@ public class SreeAssistant {
    /**
     * Create an analytic assistant.
     */
-   protected SreeAssistant() {
-      try {
-         engine = SUtil.getRepletRepository();
-      }
-      catch(Throwable e) {
-         LOG.error("REpository initialization error, using local engine", e);
-         engine = new AnalyticEngine();
-         ((AnalyticEngine) engine).init();
-      }
+   protected SreeAssistant(AnalyticRepository engine) {
+      this.engine = engine;
    }
 
    /**

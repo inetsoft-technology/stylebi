@@ -17,19 +17,18 @@
  */
 package inetsoft.uql.table;
 
+import com.esotericsoftware.kryo.kryo5.Kryo;
+import com.esotericsoftware.kryo.kryo5.io.Input;
+import com.esotericsoftware.kryo.kryo5.io.Output;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.graphics.ImageWrapper;
 import inetsoft.util.swap.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.io.*;
 import java.nio.ByteBuffer;
-
-import com.esotericsoftware.kryo.kryo5.Kryo;
-import com.esotericsoftware.kryo.kryo5.io.Input;
-import com.esotericsoftware.kryo.kryo5.io.Output;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * XObjectColumn, maintains the meta information and data of one object column.
@@ -514,6 +513,9 @@ public final class XObjectColumn extends AbstractTableColumn {
             this.arr = new Object[pos];
          }
       }
+      finally {
+         XSwapUtil.releaseKryo(kryo);
+      }
    }
 
    @Override
@@ -542,6 +544,9 @@ public final class XObjectColumn extends AbstractTableColumn {
       }
       catch(Exception ex) {
          LOG.error("Failed to write data", ex);
+      }
+      finally {
+         XSwapUtil.releaseKryo(kryo);
       }
 
       return null;

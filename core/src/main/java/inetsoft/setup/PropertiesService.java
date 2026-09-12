@@ -18,6 +18,7 @@
 package inetsoft.setup;
 
 import inetsoft.storage.KeyValueEngine;
+import inetsoft.util.config.InetsoftConfig;
 
 /**
  * {@code PropertiesService} handles setting properties in a configured storage. The
@@ -27,6 +28,11 @@ public class PropertiesService extends AbstractStorageService {
    public PropertiesService(String directory) {
       super(directory);
       keyValueEngine = createKeyValueEngine();
+   }
+
+   public PropertiesService(InetsoftConfig config, KeyValueEngine keyValueEngine) {
+      super(config);
+      this.keyValueEngine = keyValueEngine;
    }
 
    /**

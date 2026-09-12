@@ -19,17 +19,19 @@ package inetsoft.report.script.formula;
 
 import inetsoft.report.internal.table.CalcCellContext;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Vector;
 
 /**
  * This array represents a cell in a calc. It is used to execute a formula
  * in the calc scope (for condition evaluation).
  */
-public class CalcCellScope extends ScriptableObject {
+public class CalcCellScope implements ScriptScope {
    /**
     */
    public CalcCellScope(RuntimeCalcTableLens table, int row, int col) {
@@ -46,23 +48,18 @@ public class CalcCellScope extends ScriptableObject {
       this.col = col;
    }
 
-   @Override
    public String getClassName() {
       return "CalcCell";
    }
 
    @Override
-   public boolean has(String id, Scriptable start) {
-      return false;
+   public boolean hasMember(String id) {
+      CalcCellContext context = table.getCellContext(row, col);
+      return context != null && context.getGroup(id) != null;
    }
 
    @Override
-   public boolean has(int index, Scriptable start) {
-      return false;
-   }
-
-   @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       CalcCellContext context = table.getCellContext(row, col);
       CalcCellContext.Group group = context.getGroup(id);
 
@@ -70,39 +67,17 @@ public class CalcCellScope extends ScriptableObject {
          return group.getValue(context);
       }
 
-      return super.get(id, start);
+      return members.get(id);
    }
 
    @Override
-   public Object get(int index, Scriptable start) {
-      return Undefined.instance;
-   }
-
-   @Override
-   public void put(String id, Scriptable start, Object value) {
+   public void putMember(String id, Object value) {
       // values can't be set in a crosstab cell formula scope
       LOG.error("Property can not be modified: " + id);
    }
 
    @Override
-   public void put(int index, Scriptable start, Object value) {
-      LOG.error("Property can not be modified: " + index);
-   }
-
-   @Override
-   public Object getDefaultValue(Class hint) {
-      if(hint == ScriptRuntime.BooleanClass) {
-         return Boolean.TRUE;
-      }
-      else if(hint == ScriptRuntime.NumberClass) {
-         return ScriptRuntime.NaNobj;
-      }
-
-      return this;
-   }
-
-   @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       CalcCellContext context = table.getCellContext(row, col);
       Vector ids = new Vector();
 
@@ -115,13 +90,9 @@ public class CalcCellScope extends ScriptableObject {
       return ids.toArray(new String[ids.size()]);
    }
 
-   @Override
-   public boolean hasInstance(Scriptable value) {
-      return false;
-   }
-
    private RuntimeCalcTableLens table;
    private int row, col;
+   private final Map<String, Object> members = new LinkedHashMap<>();
 
    private static final Logger LOG =
       LoggerFactory.getLogger(CalcCellScope.class);

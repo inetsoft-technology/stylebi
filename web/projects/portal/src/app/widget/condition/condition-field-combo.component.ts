@@ -36,14 +36,19 @@ import { ConditionFieldComboModel } from "./condition-field-combo-model";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { ColumnRef } from "../../binding/data/column-ref";
 import { AggregateRef } from "../../common/data/aggregate-ref";
-import {VirtualScrollService} from "../tree/virtual-scroll.service";
 import { TreeTool } from "../../common/util/tree-tool";
 import { VirtualScrollTreeDatasource } from "../tree/virtual-scroll-tree-datasource";
+import { SearchDataRefPipe } from "../pipe/search-data-ref.pipe";
+import { TreeComponent } from "../tree/tree.component";
+import { ConditionFieldComboListComponent } from "./condition-field-combo-list.component";
+import { FormsModule } from "@angular/forms";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "condition-field-combo",
-   templateUrl: "condition-field-combo.component.html",
-   styleUrls: ["condition-field-combo.component.scss"]
+    selector: "condition-field-combo",
+    templateUrl: "condition-field-combo.component.html",
+    styleUrls: ["condition-field-combo.component.scss"],
+    imports: [NgClass, FixedDropdownDirective, FormsModule, ConditionFieldComboListComponent, TreeComponent, SearchDataRefPipe]
 })
 export class ConditionFieldComboComponent implements OnChanges, OnInit {
    @Input() field: DataRef;
@@ -54,6 +59,7 @@ export class ConditionFieldComboComponent implements OnChanges, OnInit {
    @Output() onSelectField: EventEmitter<any> = new EventEmitter<any>();
    @ViewChild(FixedDropdownDirective) fieldsDropdown: FixedDropdownDirective;
    noneItem: DataRef = {name: "None", view: "_#(js:None)", fakeNone: true};
+   defaultValue: string = "_#(js:None)";
    defaultFocus: boolean = false;
    treeModel: TreeNodeModel = {};
    listModel: DataRef[] = [];
@@ -89,6 +95,10 @@ export class ConditionFieldComboComponent implements OnChanges, OnInit {
    }
 
    ngOnChanges(changes: SimpleChanges) {
+      if(changes.hasOwnProperty("addNoneItem")) {
+         this.defaultValue = this.addNoneItem ? "_#(js:None)" : "";
+      }
+
       if(changes.hasOwnProperty("fieldsModel")) {
          this.listModel = this.createListModel();
          this.treeModel = this.createTreeModel();

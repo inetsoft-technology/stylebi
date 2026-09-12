@@ -191,7 +191,7 @@ public class AuthorizationClient {
       {
          license = SreeEnv.getProperty("license.key");
 
-         if(!LicenseManager.getInstance().isEnterprise() && (license == null || license.isEmpty())) {
+         if(!LicenseManager.isEnterprise() && (license == null || license.isEmpty())) {
             throw new MessageException(Catalog.getCatalog().getString("em.license.communityAPIKeyMissing"));
          }
       }

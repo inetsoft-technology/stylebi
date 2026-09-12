@@ -33,7 +33,7 @@ describe("ChartActions", () => {
       return TestUtils.createMockVSChartModel("Chart1");
    };
 
-   const popService: any = { getPopComponent: jest.fn() };
+   const popService: any = { getPopComponent: vi.fn() };
    const composerContext = ComposerContextProviderFactory();
    const bindingContext = BindingContextProviderFactory(false);
    const viewerContext = ViewerContextProviderFactory(false);
@@ -250,6 +250,34 @@ describe("ChartActions", () => {
       const menuActions = actions.menuActions;
       expect(menuActions[1].actions[1].visible()).toBeFalsy();
       // expect(menuActions[1].actions[2].visible()).toBeFalsy();
+   });
+
+   // Bug #76577, target line labels are non-interactive decorations and should not
+   // offer the Highlight menu item since configuring it has no rendering effect.
+   it("should not show highlight action when a target line label is selected", () => {
+      const model: VSChartModel = createModel();
+      model.chartType = GraphTypes.CHART_BAR;
+      model.chartSelection = {
+         chartObject: <Plot> {
+            areaName: "plot_area",
+            bounds: null,
+            layoutBounds: null,
+            tiles: null,
+            regions: [],
+            secondary: false,
+            xboundaries: [],
+            yboundaries: [],
+            showReferenceLine: false,
+            showPlotResizers: false,
+         },
+         regions: [ createRegion() ]
+      };
+      model.regionMetaDictionary = [{areaType: "label", hasMeasure: false}];
+      const actions = new ChartActions(model, popService, composerContext);
+      const menuActions = actions.menuActions;
+      const action = menuActions[1].actions[3];
+      expect(action.id()).toBe("chart highlight");
+      expect(action.visible()).toBeFalsy();
    });
 
    // Bug #17179
@@ -773,6 +801,10 @@ describe("ChartActions", () => {
       model.adhocFilterEnabled = true;
       model.chartType = GraphTypes.CHART_BAR;
       selectMeasureBar(model);
+      expect(menuActions2[2].actions[1].visible()).toBe(true);
+
+      //Bug #71598, should display filter when in max mode
+      model.maxMode = true;
       expect(menuActions2[2].actions[1].visible()).toBe(true);
    });
 
@@ -1567,7 +1599,7 @@ describe("ChartActions", () => {
          ]
       ];
 
-      const dataTipService: any = { isDataTip: jest.fn() };
+      const dataTipService: any = { isDataTip: vi.fn() };
       dataTipService.isDataTip.mockImplementation(() => true);
       const model = createModel();
       selectMeasureBar(model);
@@ -1584,7 +1616,7 @@ describe("ChartActions", () => {
    //Bug #20611 should not display Reset Size for pie chart
    //Bug #20271
    it("check Reset Size menu action", () => {
-      const dataTipService: any = { isDataTip: jest.fn() };
+      const dataTipService: any = { isDataTip: vi.fn() };
       dataTipService.isDataTip.mockImplementation(() => false);
       const model: VSChartModel = Object.assign({
          notAuto: false,
@@ -1594,6 +1626,7 @@ describe("ChartActions", () => {
          zoomed: false,
          hasFlyovers: false,
          flyOnClick: false,
+         dataTipOnClick: false,
          axes: [],
          facets: [],
          legends: [],
@@ -1641,8 +1674,7 @@ describe("ChartActions", () => {
          dateComparisonEnabled: false,
          dateComparisonDefined: false,
          appliedDateComparison: false,
-         dateComparisonDescription: "",
-         dataTipOnClick: false
+         dateComparisonDescription: ""
       }, TestUtils.createMockVSObjectModel("VSChart", "chart1"));
 
       const actions = new ChartActions(model, popService, composerContext, false, null, dataTipService);

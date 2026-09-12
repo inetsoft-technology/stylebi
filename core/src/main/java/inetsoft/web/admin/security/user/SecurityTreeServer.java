@@ -65,6 +65,16 @@ public class SecurityTreeServer {
       final AuthenticationProvider provider = providerName == null ?
          securityProvider.getAuthenticationProvider() :
          authenticationProviderService.getProviderByName(providerName);
+
+      // getProviderByName() returns null when the name is not in this node's authentication
+      // chain -- e.g. a client that is still holding a provider name that has since been
+      // renamed or removed, or a cluster node that has not yet reloaded authc-chain.json.
+      // Report that plainly instead of NPEing on the first provider dereference below.
+      if(provider == null) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("em.security.provider.notFound", providerName));
+      }
+
       boolean editable = providerName == null || provider instanceof EditableAuthenticationProvider;
 
       try {
@@ -87,6 +97,12 @@ public class SecurityTreeServer {
          currOrgID = currOrgID == null ? Organization.getDefaultOrganizationID() : currOrgID;
          String[] orgIds = provider.getOrganizationIDs();
 
+         if(isMultiTenant && orgIds.length == 0 && provider instanceof DatabaseAuthenticationProvider dbProvider &&
+            dbProvider.isCacheEnabled() && !dbProvider.isCacheInitialized())
+         {
+            orgIds = waitForOrganizationCache(dbProvider);
+         }
+
          if(isMultiTenant && orgIds.length == 0) {
             throw new MessageException(Catalog.getCatalog().getString("em.security.provider.db.noOrg"));
          }
@@ -96,7 +112,7 @@ public class SecurityTreeServer {
          }
 
          String currOrgName = orgIds.length > 0 ? provider.getOrgNameFromID(currOrgID) : Organization.getDefaultOrganizationName();
-         boolean isEnterprise = LicenseManager.getInstance().isEnterprise();
+         boolean isEnterprise = LicenseManager.isEnterprise();
          isMultiTenant = isEnterprise && isMultiTenant;
 
          if(!isMultiTenant) {
@@ -133,6 +149,30 @@ public class SecurityTreeServer {
       }
    }
 
+   /**
+    * The provider's organization cache is loaded asynchronously, so a request that arrives
+    * right after a provider switch/edit can observe an empty organization list even though
+    * the underlying database has organizations. Poll briefly for the cache to finish its
+    * initial load before treating the provider as having no organizations.
+    */
+   private String[] waitForOrganizationCache(DatabaseAuthenticationProvider provider) {
+      long deadline = System.currentTimeMillis() + CACHE_WAIT_TIMEOUT;
+
+      while(!provider.isCacheInitialized() && System.currentTimeMillis() < deadline) {
+         try {
+            Thread.sleep(CACHE_POLL_INTERVAL);
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            break;
+         }
+      }
+
+      return provider.getOrganizationIDs();
+   }
+
+   private static final long CACHE_WAIT_TIMEOUT = 5000L;
+   private static final long CACHE_POLL_INTERVAL = 100L;
    private final boolean namedUsers;
    private final UserTreeService userTreeService;
    private final SecurityEngine securityEngine;

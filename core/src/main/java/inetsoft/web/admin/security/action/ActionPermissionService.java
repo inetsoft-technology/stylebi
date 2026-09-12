@@ -28,6 +28,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.util.log.logback.LogbackUtil;
 import inetsoft.web.admin.authz.ComponentAuthorizationService;
 import inetsoft.web.admin.authz.ViewComponent;
 
@@ -40,8 +41,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class ActionPermissionService {
    @Autowired
-   public ActionPermissionService(ComponentAuthorizationService componentService) {
+   public ActionPermissionService(ComponentAuthorizationService componentService,
+                                  SecurityEngine securityEngine,
+                                  PortalThemesManager portalThemesManager)
+   {
       this.componentService = componentService;
+      this.securityEngine = securityEngine;
+      this.portalThemesManager = portalThemesManager;
    }
 
    public ActionTreeNode getActionTree(Principal principal) {
@@ -49,7 +55,7 @@ public class ActionPermissionService {
 
       if(SUtil.isMultiTenant()) {
          if(principal != null) {
-            SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+            SecurityProvider provider = securityEngine.getSecurityProvider();
             List<IdentityID> roles = new ArrayList<>(Arrays.stream(provider.getRoles(IdentityID.getIdentityIDFromKey(principal.getName()))).toList());
             roles.addAll(Arrays.stream(((XPrincipal)principal).getRoles()).toList());
             isOrgAdmin = Arrays
@@ -173,7 +179,7 @@ public class ActionPermissionService {
 
       if(principal != null) {
          if(OrganizationManager.getInstance().isSiteAdmin(principal) ||
-            !LicenseManager.getInstance().isEnterprise() || !SUtil.isMultiTenant())
+            !LicenseManager.isEnterprise() || !SUtil.isMultiTenant())
          {
             root.addFilteredChildren(ActionTreeNode.builder()
                                         .label(catalog.getString("Upload Drivers"))
@@ -356,7 +362,7 @@ public class ActionPermissionService {
          .label(catalog.getString("Portal Tabs"))
          .folder(true)
          .actions(EnumSet.noneOf(ResourceAction.class));
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
 
       for(int i = 0; i < manager.getPortalTabsCount(); i++) {
          PortalTab tab = manager.getPortalTab(i);
@@ -543,7 +549,7 @@ public class ActionPermissionService {
                                           ViewComponent component, String path, boolean isOrgAdmin,
                                           Principal principal)
    {
-      boolean enterprise = LicenseManager.getInstance().isEnterprise();
+      boolean enterprise = LicenseManager.isEnterprise();
       boolean isSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
       component.children().values().stream()
          .filter(ViewComponent::available)
@@ -559,7 +565,7 @@ public class ActionPermissionService {
    }
 
    private boolean isEMActionVisible(ViewComponent c, String path, boolean isSiteAdmin) {
-      if(!LicenseManager.getInstance().isEnterprise() && Tool.equals("auditing", c.name()) ||
+      if(!LicenseManager.isEnterprise() && Tool.equals("auditing", c.name()) ||
          !SUtil.isMultiTenant() && Tool.equals("org-settings", c.name()))
       {
          return false;
@@ -772,7 +778,10 @@ public class ActionPermissionService {
    }
 
    public static boolean isOrgAdminAction(ResourceType type, String resource) {
-      boolean isFluentDLogging = "fluentd".equals(SreeEnv.getProperty("log.provider"));
+      // isFluentdEnabled(), not a bare comparison, for consistency with the other readers of
+      // log.provider. Organizations are enterprise-only, so this branch is unreachable on a
+      // community build either way.
+      boolean isFluentDLogging = LogbackUtil.isFluentdEnabled();
       boolean canOrgAdminAccess = Boolean.parseBoolean(SreeEnv.getProperty("log.fluentd.orgAdminAccess"));
 
       if(isFluentDLogging && canOrgAdminAccess) {
@@ -817,4 +826,6 @@ public class ActionPermissionService {
       );
 
    private final ComponentAuthorizationService componentService;
+   private final SecurityEngine securityEngine;
+   private final PortalThemesManager portalThemesManager;
 }

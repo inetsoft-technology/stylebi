@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { ChangeDetectorRef, Component, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -36,7 +36,9 @@ import { SelectionTreePaneModel } from "../../data/vs/selection-tree-pane-model"
 import { SelectionTreeIdPane } from "./selection-tree-id-pane.component";
 
 @Component({
+   standalone: true,
    selector: "test-app",
+   imports: [SelectionTreeIdPane],
    template: `<selection-tree-id-pane [model]="model" [targetIdTree]="targetIdTree"
               [localRefs]="localRefs" [variableValues]="variableValues">
                  </selection-tree-id-pane>`
@@ -104,19 +106,29 @@ describe("Selection Tree Id Pane Test", () => {
    let fixture: ComponentFixture<TestApp>;
    let idPane: SelectionTreeIdPane;
 
-   beforeEach(async(() => {
-      changeDetectorRef = { detectChanges: jest.fn() };
-      dragService = { reset: jest.fn(), put: jest.fn() };
+   beforeEach(waitForAsync(() => {
+      changeDetectorRef = { detectChanges: vi.fn() };
+      dragService = { reset: vi.fn(), put: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, ReactiveFormsModule, FormsModule, DropDownTestModule
+            NgbModule,
+            ReactiveFormsModule,
+            FormsModule,
+            DropDownTestModule,
+            TestApp,
+            SelectionTreeIdPane,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
+            FormulaEditorDialog,
+            ScriptPane,
+            NewAggrDialog,
+            MessageDialog,
+            FixedDropdownDirective,
+            DynamicComboBox,
          ],
-         declarations: [
-            TestApp, SelectionTreeIdPane, TreeComponent, TreeNodeComponent,
-            TreeSearchPipe, FormulaEditorDialog, ScriptPane,
-            NewAggrDialog, MessageDialog, FixedDropdownDirective, DynamicComboBox
-         ],
+         
          providers: [
             {provide: ChangeDetectorRef, useValue: changeDetectorRef},
             {provide: DragService, useValue: dragService}
@@ -145,7 +157,7 @@ describe("Selection Tree Id Pane Test", () => {
 
    //Bug #19081 should keep the selected variable
    //Bug #19702 and Bug #19932
-   xit("should keep selected variable on parent/child id", () => {
+   it.skip("should keep selected variable on parent/child id", () => {
       fixture.componentInstance.model.parentId = "${var1}";
       fixture.componentInstance.model.id = "${var2}";
       fixture.componentInstance.model.label = "${var3}";

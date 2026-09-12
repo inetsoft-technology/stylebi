@@ -113,6 +113,24 @@ public abstract class CellRange implements Serializable, Cloneable {
       this.processCalc = calc;
    }
 
+   /**
+    * Set whether this range is resolved against a worksheet table referenced by
+    * name from a script (e.g. {@code table['col']} via TableAssemblyScriptable).
+    * When true, a bare column reference reads the table's column values as a flat
+    * table rather than being routed to grouped/crosstab summary cells. (#75663)
+    */
+   public void setBaseTableReference(boolean baseTableRef) {
+      this.baseTableRef = baseTableRef;
+   }
+
+   /**
+    * Check if this range is a by-name worksheet table reference. (#75663)
+    */
+   public boolean isBaseTableReference() {
+      return baseTableRef;
+   }
+
    protected boolean processCalc = false;
+   protected boolean baseTableRef = false;
    private static final Logger LOG = LoggerFactory.getLogger(CellRange.class);
 }

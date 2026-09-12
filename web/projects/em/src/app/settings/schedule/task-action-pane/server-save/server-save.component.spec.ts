@@ -15,9 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
@@ -32,7 +33,7 @@ describe("ServerSaveComponent", () => {
    let component: ServerSaveComponent;
    let fixture: ComponentFixture<ServerSaveComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             FormsModule,
@@ -44,11 +45,8 @@ describe("ServerSaveComponent", () => {
             MatSelectModule,
             MatTableModule,
             ReactiveFormsModule,
-            HttpClientTestingModule
-         ],
-         declarations: [
-            ServerSaveComponent
-         ],
+            HttpClientTestingModule,
+            ServerSaveComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

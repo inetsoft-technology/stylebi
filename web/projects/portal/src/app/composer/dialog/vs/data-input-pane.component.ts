@@ -24,16 +24,21 @@ import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { DataInputPaneModel } from "../../data/vs/data-input-pane-model";
 import { DatePipe } from "@angular/common";
 import { XSchema } from "../../../common/data/xschema";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { FormsModule } from "@angular/forms";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { TreeDropdownComponent } from "../../../widget/tree/tree-dropdown.component";
 
 const ROW_URI: string = "../vs/dataInput/rows/";
 const COLUMN_URI: string = "../vs/dataInput/columns/";
 const POPUP_TABLE_URI: string = "../vs/dataInput/popupTable/";
 
 @Component({
-   selector: "data-input-pane",
-   templateUrl: "data-input-pane.component.html",
-   styleUrls: ["data-input-pane.component.scss"],
-   providers: [DatePipe]
+    selector: "data-input-pane",
+    templateUrl: "data-input-pane.component.html",
+    styleUrls: ["data-input-pane.component.scss"],
+    providers: [DatePipe],
+    imports: [TreeDropdownComponent, FixedDropdownDirective, DynamicComboBox, FormsModule, OutOfZoneDirective]
 })
 export class DataInputPane implements OnInit, OnChanges {
    @Input() model: DataInputPaneModel;
@@ -48,6 +53,7 @@ export class DataInputPane implements OnInit, OnChanges {
    selectedRow: string = "";
    rowType: ComboMode = ComboMode.VALUE;
    popupTable: PopupEmbeddedTable;
+   pageLabel: string = "";
    dateFormatInvalid: boolean = false;
    @Output() dateFormatInvalidChange = new EventEmitter<boolean>();
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
@@ -251,6 +257,7 @@ export class DataInputPane implements OnInit, OnChanges {
          this.popupTable.page = 1;
       }
 
+      this.updatePageLabel();
       this.initPopupTableData();
    }
 
@@ -340,7 +347,7 @@ export class DataInputPane implements OnInit, OnChanges {
       return -1;
    }
 
-   updateSelectedRow(val: string): void {
+   updateSelectedRow(val: string | null): void {
       this.selectedRow = val;
 
       if(val != null) {
@@ -352,8 +359,8 @@ export class DataInputPane implements OnInit, OnChanges {
       }
    }
 
-   getPageLabel(): string {
-      return Tool.formatCatalogString("_#(js:nOfTotal)", ["", this.popupTable.numPages]);
+   private updatePageLabel(): void {
+      this.pageLabel = Tool.formatCatalogString("_#(js:nOfTotal)", ["", this.popupTable.numPages]);
    }
 
    get isDateType(): boolean {

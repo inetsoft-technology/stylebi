@@ -28,11 +28,13 @@ import { XSchema } from "../../common/data/xschema";
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { ConditionFieldComboModel } from "./condition-field-combo-model";
 import { SourceInfo } from "../../binding/data/source-info";
+import { ConditionEditor } from "./condition-editor.component";
 
 @Component({
-   selector: "binary-condition-editor",
-   templateUrl: "binary-condition-editor.component.html",
-   styleUrls: ["./binary-condition-editor.component.scss"]
+    selector: "binary-condition-editor",
+    templateUrl: "binary-condition-editor.component.html",
+    styleUrls: ["./binary-condition-editor.component.scss"],
+    imports: [ConditionEditor]
 })
 export class BinaryConditionEditor {
    public XSchema = XSchema;

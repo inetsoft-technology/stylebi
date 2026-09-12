@@ -16,17 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { DateRangeRef } from "../../../common/data/date-range-ref";
 import { ExpressionRef } from "../../../common/data/expression-ref";
 import { DateRangeRef as DateEnum } from "../../../common/util/date-range-ref";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { ValueRangeDialogModel } from "../../data/ws/value-range-dialog-model";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
+import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "date-range-option-dialog",
-   templateUrl: "date-range-option-dialog.component.html"
+    selector: "date-range-option-dialog",
+    templateUrl: "date-range-option-dialog.component.html",
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective]
 })
 export class DateRangeOptionDialog implements OnInit {
    @Input() model: ValueRangeDialogModel;

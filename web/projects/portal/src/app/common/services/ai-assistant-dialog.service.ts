@@ -32,7 +32,7 @@ export class AiAssistantDialogService {
    }
 
    get aiAssistantVisible(): boolean {
-      return this.aiAssistantService.aiAssistantVisible;
+      return this.aiAssistantService.aiAssistantVisible && !!this.aiAssistantService.chatAppServerUrl;
    }
 
    openAiAssistantDialog(): void {

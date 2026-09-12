@@ -38,10 +38,12 @@ import inetsoft.report.internal.binding.BindingAttr;
 import inetsoft.report.internal.binding.ChartOption;
 import inetsoft.report.internal.table.PresenterRef;
 import inetsoft.report.internal.table.TableHighlightAttr.HighlightTableLens;
+import inetsoft.report.io.viewsheet.VSTableDataHelper;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.lens.DefaultTextLens;
 import inetsoft.report.painter.ImagePainter;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.Assembly;
@@ -63,8 +65,8 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.lang.reflect.Field;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -74,8 +76,13 @@ import java.util.stream.Collectors;
  * @author InetSoft Technology Corp
  */
 public class VsToReportConverter {
-   public VsToReportConverter(ViewsheetSandbox box) {
+   public VsToReportConverter(ViewsheetSandbox box, LibManagerProvider libManagerProvider, Cluster cluster, FileSystemService fileSystemService, DataSpace dataSpace) {
       this.box = box;
+      this.libManagerProvider = libManagerProvider;
+      this.cluster = cluster;
+      this.fileSystemService = fileSystemService;
+      this.dataSpace = dataSpace;
+      this.report = new TabularSheet(libManagerProvider, cluster);
    }
 
    /**
@@ -87,7 +94,7 @@ public class VsToReportConverter {
       playout = layoutinfo.getPrintLayout();
 
       if(playout == null) {
-         return new TabularSheet();
+         return new TabularSheet(libManagerProvider, cluster);
       }
 
       TableDataPath dataPath = new TableDataPath(-1, TableDataPath.OBJECT);
@@ -165,6 +172,7 @@ public class VsToReportConverter {
          }
       }
 
+      applyShrunkBottomTabsShift(allAssemblies);
       VSAssembly[] sorted = sortByPosition(allAssemblies.toArray(new Assembly[0]));
       createReportSections(sorted, sectionMap);
 
@@ -271,7 +279,7 @@ public class VsToReportConverter {
     */
    private TabularSheet createReportSheet(PrintLayout playout) {
       PrintInfo pinfo = playout.getPrintInfo();
-      TabularSheet report = new TabularSheet();
+      TabularSheet report = new TabularSheet(libManagerProvider, cluster);
       report.setPageSize(getInchSize(pinfo, playout.isHorizontalScreen()));
       Margin margin = pinfo.getMargin();
       report.setMargin(margin);
@@ -799,6 +807,7 @@ public class VsToReportConverter {
             SectionElementDef filler = createReportSection();
             getSectionContent(filler).setHeight(y / 72f);
             addSection(filler, new Rectangle(0, 0, pwidth, y));
+            fillerSectionIds.add(filler.getID());
             bounds = new Rectangle(0, 0, pwidth, y + height);
          }
 
@@ -838,6 +847,7 @@ public class VsToReportConverter {
                int fillh = y - bounds.y - bounds.height;
                getSectionContent(filler).setHeight(fillh / 72f);
                addSection(filler, new Rectangle(0, bounds.y + bounds.height, pwidth, fillh));
+               fillerSectionIds.add(filler.getID());
             }
 
             innersection = createReportSection();
@@ -956,6 +966,99 @@ public class VsToReportConverter {
    }
 
    /**
+    * Keep shrunk tables in a bottom-tabs container flush with the tab strip.
+    * Uses an unpadded height calc because the print-layout cell renderer
+    * doesn't add the padding {@code lens.getRowHeightWithPadding} adds.
+    */
+   private void applyShrunkBottomTabsShift(List<Assembly> assemblies) {
+      if(assemblies == null) {
+         return;
+      }
+
+      for(Assembly assembly : assemblies) {
+         if(!(assembly instanceof TableDataVSAssembly tableAssembly)) {
+            continue;
+         }
+
+         String name = tableAssembly.getAbsoluteName();
+         Viewsheet vs = tableAssembly.getViewsheet();
+
+         // skip assemblies the print layout won't render (matches the
+         // tip/pop check in convertVSAssembly).
+         if(VSUtil.isTipView(name, vs) || VSUtil.isPopComponent(name, vs)) {
+            continue;
+         }
+
+         try {
+            VSTableLens lens = box.getVSTableLens(name, false, scalefont);
+
+            if(lens == null) {
+               continue;
+            }
+
+            TableDataVSAssemblyInfo info =
+               (TableDataVSAssemblyInfo) tableAssembly.getVSAssemblyInfo();
+            lens.initTableGrid(info);
+
+            int actualHeight = computePrintLayoutTableHeight(info, lens);
+            // print layout sizes the table from layoutSize, not pixelSize.
+            int designHeight = info.getLayoutSize() != null ?
+               info.getLayoutSize().height : info.getPixelSize().height;
+
+            VSTableDataHelper.applyShrunkBottomTabsShift(
+               tableAssembly, designHeight, actualHeight);
+
+            // Tighten layoutSize so addTable's bounds end at the tab top;
+            // otherwise the renderer top-aligns inside the full design box.
+            // Gated on the same conditions the helper uses so layoutSize and
+            // pixelOffset stay consistent.
+            if(info.isShrink() && info.getMaxSize() == null &&
+               actualHeight < designHeight &&
+               info.getLayoutSize() != null &&
+               TabVSAssemblyInfo.isInBottomTabs(tableAssembly))
+            {
+               Dimension oldSize = info.getLayoutSize();
+               info.setLayoutSize(new Dimension(oldSize.width, actualHeight));
+            }
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to apply bottom-tabs shrink shift for {}", name, ex);
+         }
+      }
+   }
+
+   /**
+    * Title + sum of cell heights the print layout will render, matching
+    * {@link #calculateRowHeights}. Wrap-marker {@code -1} rows fall back to
+    * the default row height so we don't undercount.
+    */
+   private int computePrintLayoutTableHeight(TableDataVSAssemblyInfo info, VSTableLens lens) {
+      int height = info.isTitleVisible() ? Math.round(info.getTitleHeight() * scalefont) : 0;
+      int[] rowHeights = calculateRowHeights(info, lens);
+
+      for(int h : rowHeights) {
+         height += h > 0 ? h : Math.round(AssetUtil.defh * scalefont);
+      }
+
+      return height;
+   }
+
+   /**
+    * Replace wrap-marker {@code -1} entries with the same default used in
+    * {@link #computePrintLayoutTableHeight} so the rendered height equals the
+    * predicted height after layoutSize is tightened.
+    */
+   private void forceFixedHeightsForShrunkTable(int[] rowHs) {
+      int defaultRowH = Math.round(AssetUtil.defh * scalefont);
+
+      for(int i = 0; i < rowHs.length; i++) {
+         if(rowHs[i] < 0) {
+            rowHs[i] = defaultRowH;
+         }
+      }
+   }
+
+   /**
     * Add reportelement to fixed position of the report section.
     */
    private void addElement(VSAssembly assembly, BaseElement elem, String sectionName) {
@@ -1045,7 +1148,14 @@ public class VsToReportConverter {
       // setted the fixed widths to report table, the column widths may not
       // be exactly same as the vs column width, and i think it's reasonable.
       tableelem.setFixedWidths(columnPixelW);
-      tableelem.setFixedHeights(calculateRowHeights(info, lens));
+
+      int[] rowHs = calculateRowHeights(info, lens);
+
+      if(info.isShrink() && TabVSAssemblyInfo.isInBottomTabs(assembly)) {
+         forceFixedHeightsForShrunkTable(rowHs);
+      }
+
+      tableelem.setFixedHeights(rowHs);
 
       tableelem.setZIndex(assembly.getZIndex());
       FormatInfo finfo = info.getFormatInfo();
@@ -1455,7 +1565,7 @@ public class VsToReportConverter {
       Hyperlink emptyPlotLink = cinfo.getEmptyPlotLinkValue();
 
       if(emptyPlotLink != null) {
-         chartelem.setPlotAreaHyperlink(emptyPlotLink);
+         chartelem.setEmptyPlotHyperlink(emptyPlotLink);
       }
    }
 
@@ -1753,7 +1863,6 @@ public class VsToReportConverter {
       }
 
       String position = labelInfo.getLabelPosition();
-      int labelH = Math.round(AssetUtil.defh * scalefont);
 
       DefaultTextLens textlens = new DefaultTextLens(labelText);
       TextBoxElementDef textbox = new TextBoxElementDef(report, textlens);
@@ -1771,6 +1880,13 @@ public class VsToReportConverter {
       }
 
       int labelW = (int) Common.stringWidth(labelText, fn) + 6;
+      // Derive the label height from the label font (not a fixed grid row height) so the
+      // space reserved for the label tracks the font size, matching the browser preview and
+      // AbstractVSExporter.getLabelDimensions(). Not scaled by scalefont: applyScaleFont()
+      // only reaches formats in FormatInfo, and LabelInfo carries its own standalone format,
+      // so fn is the unscaled font the label is actually drawn with -- the same font labelW
+      // above is measured with.
+      int labelH = (int) Math.ceil(Common.getHeight(fn));
 
       Rectangle labelBounds;
       Rectangle contentBounds;
@@ -1786,13 +1902,19 @@ public class VsToReportConverter {
             contentBounds = new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height - labelH);
             break;
          case LabelInfo.RIGHT:
+            // Center the label vertically within the widget bounds, matching
+            // the Angular preview (CSS align-items: center). Bug #74544 applied
+            // the same fix in AbstractVSExporter.splitInputBounds.
             labelBounds = new Rectangle(bounds.x + bounds.width - labelW,
-                                        bounds.y, labelW, bounds.height);
+                                        bounds.y + Math.max(0, (bounds.height - labelH) / 2),
+                                        labelW, labelH);
             contentBounds = new Rectangle(bounds.x, bounds.y, bounds.width - labelW, bounds.height);
             break;
          case LabelInfo.LEFT:
          default:
-            labelBounds = new Rectangle(bounds.x, bounds.y, labelW, bounds.height);
+            labelBounds = new Rectangle(bounds.x,
+                                        bounds.y + Math.max(0, (bounds.height - labelH) / 2),
+                                        labelW, labelH);
             contentBounds = new Rectangle(bounds.x + labelW, bounds.y, bounds.width - labelW, bounds.height);
             break;
       }
@@ -1802,8 +1924,25 @@ public class VsToReportConverter {
       if(contentBounds.height <= 0) {
          switch(position) {
             case LabelInfo.TOP:
-               // Cannot grow the section upward; overlap label at the widget's top edge
-               // instead of trying to place it above the allocated band.
+               // For a TOP label, try to place the label in the section that covers the space
+               // immediately above the widget (bounds.y - labelH .. bounds.y). This is typically
+               // the filler section created to preserve vertical spacing before the first assembly.
+               // Returning early skips the addElement0 call below so the label is not double-added.
+               if(bounds.y >= labelH) {
+                  String aboveSection = findSectionContaining(bounds.y - 1);
+
+                  if(aboveSection != null) {
+                     Rectangle topLabelBounds =
+                        new Rectangle(bounds.x, bounds.y - labelH, bounds.width, labelH);
+                     expandSectionForLabel(aboveSection, topLabelBounds);
+                     addElement0(topLabelBounds, textbox, aboveSection);
+                     return new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+                  }
+               }
+
+               // No filler section found above to absorb the label; fall back to overlapping
+               // the label with the widget at the same bounds. The label will likely be covered
+               // by the opaque widget image (the original bug), but there is no safe alternative.
                labelBounds = new Rectangle(bounds.x, bounds.y, bounds.width, labelH);
                break;
             case LabelInfo.BOTTOM:
@@ -1818,15 +1957,17 @@ public class VsToReportConverter {
       }
 
       if(contentBounds.width <= 0) {
+         int labelY = bounds.y + Math.max(0, (bounds.height - labelH) / 2);
+
          switch(position) {
             case LabelInfo.LEFT:
                // Places label to the left of the widget. If bounds.x is near 0 the label
                // will have a negative x-coordinate and be clipped; this is an inherent
                // limitation of a component sized too narrow to contain its own label.
-               labelBounds = new Rectangle(bounds.x - labelW, bounds.y, labelW, bounds.height);
+               labelBounds = new Rectangle(bounds.x - labelW, labelY, labelW, labelH);
                break;
             case LabelInfo.RIGHT:
-               labelBounds = new Rectangle(bounds.x + bounds.width, bounds.y, labelW, bounds.height);
+               labelBounds = new Rectangle(bounds.x + bounds.width, labelY, labelW, labelH);
                break;
             default:
                break;
@@ -2215,7 +2356,6 @@ public class VsToReportConverter {
       VSImage obj = new VSImage(vs);
       ImageVSAssemblyInfo imgInfo = (ImageVSAssemblyInfo) assembly.getInfo();
 
-
       if(imgInfo.getImage() != null) {
          obj.setAssemblyInfo(imgInfo);
          String path = imgInfo.getImage();
@@ -2247,12 +2387,9 @@ public class VsToReportConverter {
                   final String dir = SreeEnv.getProperty("html.image.directory");
 
                   if(!Tool.isEmptyString(dir)) {
-                     final String imagePath =
-                        FileSystemService.getInstance().getPath(dir, name).toString();
+                     final String imagePath = fileSystemService.getPath(dir, name).toString();
 
-                     try(final InputStream stream =
-                            DataSpace.getDataSpace().getInputStream(null, imagePath))
-                     {
+                     try(final InputStream stream = dataSpace.getInputStream(null, imagePath)) {
                         svg = new byte[stream.available()];
                         stream.read(svg);
                      }
@@ -2261,6 +2398,65 @@ public class VsToReportConverter {
 
                Document doc = SVGSupport.getInstance().createSVGDocument(new ByteArrayInputStream(svg));
                Element root = doc.getDocumentElement();
+               Color svgBg = obj.getBackground();
+
+               // Center the SVG content within the layout element bounds.
+               //
+               // The SVG may be smaller than the element area (e.g. a 256x139 chart
+               // inside a 328x240 element).  We expand the SVG viewport to the layout
+               // dimensions and shift the viewBox origin so the original content sits
+               // centered, leaving transparent margins around it.  The element's
+               // configured background color (from paintBg()) then shows through those
+               // margins.  We also insert an explicit background rect that covers the
+               // full viewport so the background color is visible even inside the SVG
+               // rendering when no other fill is present.
+               String svgWStr = root.getAttribute("width");
+               String svgHStr = root.getAttribute("height");
+
+               if(!svgWStr.isEmpty() && !svgHStr.isEmpty() && root.getAttribute("viewBox").isEmpty()) {
+                  try {
+                     int svgW = Integer.parseInt(svgWStr);
+                     int svgH = Integer.parseInt(svgHStr);
+                     Dimension layoutDim = imgInfo.getLayoutSize();
+                     int lw = layoutDim != null ? layoutDim.width  : svgW;
+                     int lh = layoutDim != null ? layoutDim.height : svgH;
+
+                     // Centering offsets (may be negative if SVG is larger than layout)
+                     int ox = Math.round((lw - svgW) / 2.0f);
+                     int oy = Math.round((lh - svgH) / 2.0f);
+
+                     // viewBox origin is the negative of the offset: the SVG content
+                     // starts at (ox,oy) in the rendered output.
+                     root.setAttribute("viewBox", (-ox) + " " + (-oy) + " " + lw + " " + lh);
+                     root.setAttribute("width",  String.valueOf(lw));
+                     root.setAttribute("height", String.valueOf(lh));
+                     // "none" = no additional scaling/centering; we have done it via viewBox
+                     root.setAttribute("preserveAspectRatio", "none");
+
+                     // Background rect covering the full new viewport so the element
+                     // background color is visible in the margins around the chart.
+                     if(svgBg != null) {
+                        Element bgRect = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+                        bgRect.setAttribute("x",      String.valueOf(-ox));
+                        bgRect.setAttribute("y",      String.valueOf(-oy));
+                        bgRect.setAttribute("width",  String.valueOf(lw));
+                        bgRect.setAttribute("height", String.valueOf(lh));
+                        bgRect.setAttribute("fill", "rgb(" + svgBg.getRed() + "," +
+                                            svgBg.getGreen() + "," + svgBg.getBlue() + ")");
+
+                        if(svgBg.getAlpha() < 255) {
+                           bgRect.setAttribute("fill-opacity",
+                                               String.valueOf(svgBg.getAlpha() / 255.0));
+                        }
+
+                        root.insertBefore(bgRect, root.getFirstChild());
+                     }
+                  }
+                  catch(NumberFormatException ignored) {
+                     // Non-integer SVG dimensions — leave SVG as-is
+                  }
+               }
+
                String alphaStr = imgInfo.getImageAlpha();
 
                if(alphaStr != null && !alphaStr.equals("100")) {
@@ -2288,7 +2484,7 @@ public class VsToReportConverter {
                   LOG.warn("Failed to write modified SVG to temp file", e);
                }
 
-               FileSystemService.getInstance().remove(tempFile, 10 * 60000);
+               fileSystemService.remove(tempFile, 10 * 60000);
             }
             catch(Exception ex) {
                LOG.debug("Failed to create temp file: " + ex, ex);
@@ -2500,6 +2696,11 @@ public class VsToReportConverter {
 
       rect.setStyle(info.getLineStyle());
       rect.setZIndex(assembly.getZIndex());
+
+      if(info.isShadow()) {
+         rect.setShadow(info.getShadowInfo());
+      }
+
       addShape(rect, sectionName);
    }
 
@@ -2538,6 +2739,11 @@ public class VsToReportConverter {
       oval.setColor(info.getFormat().getForeground());
       oval.setStyle(info.getLineStyle());
       oval.setZIndex(assembly.getZIndex());
+
+      if(info.isShadow()) {
+         oval.setShadow(info.getShadowInfo());
+      }
+
       addShape(oval, sectionName);
    }
 
@@ -2885,6 +3091,33 @@ public class VsToReportConverter {
    }
 
    /**
+    * Find the ID of the filler section (one of the empty spacing sections created by
+    * {@link #createReportSections} to preserve vertical gaps between assemblies) whose
+    * absolute-pixel bounds contain the given y-coordinate.
+    * Returns {@code null} if no filler section covers that position.
+    * Content sections (those holding assembly elements) are intentionally excluded to
+    * prevent a label from being placed inside another assembly's section.
+    */
+   private String findSectionContaining(int absoluteY) {
+      for(LayoutSection layout : contentSections) {
+         if(!fillerSectionIds.contains(layout.section.getID())) {
+            continue;
+         }
+
+         int sectionTop = layout.bounds.y;
+         int sectionBottom = layout.bounds.y + layout.bounds.height;
+
+         // Sections are abutted with a half-open interval [sectionTop, sectionBottom).
+         // Use (absoluteY < sectionBottom) rather than (<=) to match this convention.
+         if(absoluteY >= sectionTop && absoluteY < sectionBottom) {
+            return layout.section.getID();
+         }
+      }
+
+      return null;
+   }
+
+   /**
     * Expand the section height if the given label bounds extend below the section's
     * current allocated area. Called when a label must be placed outside the component's
     * own layout bounds.
@@ -2988,13 +3221,20 @@ public class VsToReportConverter {
 
       return psize;
    }
+
+   private final LibManagerProvider libManagerProvider;
+   private final Cluster cluster;
+   private final FileSystemService fileSystemService;
+   private final DataSpace dataSpace;
    private int zindex = 0;
    private float scalefont = 1;
    private PrintLayout playout = null;
    private ViewsheetSandbox box = null;
-   private TabularSheet report = new TabularSheet();
+   private TabularSheet report;
    // sections used to hold content elements
    private List<LayoutSection> contentSections = new ArrayList<>();
+   // IDs of filler sections (empty spacing sections, not bound to any assembly)
+   private Set<String> fillerSectionIds = new HashSet<>();
    private SectionElementDef headerSection = null; // section of header.
    private SectionElementDef footerSection = null; // section of footer.
    private static HashMap<String, PrintLayout> tempLayouts = new HashMap<>();

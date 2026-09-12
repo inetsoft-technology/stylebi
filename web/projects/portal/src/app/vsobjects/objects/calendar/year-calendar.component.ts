@@ -28,11 +28,17 @@ import { TableDataPath } from "../../../common/data/table-data-path";
 import { DataPathConstants } from "../../../common/util/data-path-constants";
 import { ContextProvider } from "../../context-provider.service";
 import { VSUtil } from "../../util/vs-util";
+import { NgClass } from "@angular/common";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
 
 @Component({
-   selector: "year-calendar",
-   templateUrl: "year-calendar.component.html",
-   styleUrls: ["vs-calendar.component.scss"],
+    selector: "year-calendar",
+    templateUrl: "year-calendar.component.html",
+    styleUrls: ["vs-calendar.component.scss"],
+    imports: [
+    SafeFontDirective,
+    NgClass
+]
 })
 export class YearCalendar implements OnChanges, AfterViewInit {
    @Input() model: VSCalendarModel;
@@ -76,6 +82,7 @@ export class YearCalendar implements OnChanges, AfterViewInit {
 
    iconColor: string;
    selectedBgColor: string;
+   calendarHeight: number = 0;
 
    constructor(private changeDetectorRef: ChangeDetectorRef,
                private contextProvider: ContextProvider) {}
@@ -116,6 +123,7 @@ export class YearCalendar implements OnChanges, AfterViewInit {
          this.changed = true;
          this.updateSelected();
          this.iconColor = VSCalendar.getIconColor(this.model);
+         this.calendarHeight = this.getCalendarHeight();
 
          // if background is set then use a shade of the background color for the selection
          // otherwise use our default selection color

@@ -19,12 +19,14 @@ package inetsoft.web.composer.model.ws;
 
 import inetsoft.uql.asset.WorksheetInfo;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link WorksheetInfo} for the
  * worksheet property dialog.
  */
 
-public class WorksheetPropertyDialogModel {
+public class WorksheetPropertyDialogModel implements Serializable {
 
    public WorksheetOptionPaneModel getWorksheetOptionPaneModel() {
       if(worksheetOptionPaneModel == null) {

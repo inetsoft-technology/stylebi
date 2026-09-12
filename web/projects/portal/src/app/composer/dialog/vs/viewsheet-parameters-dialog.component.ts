@@ -18,10 +18,16 @@
 import { Component, Input, Output, EventEmitter, OnInit } from "@angular/core";
 import { ViewsheetParametersDialogModel } from "../../data/vs/viewsheet-parameters-dialog-model";
 
+import { ScrollableTableDirective } from "../../../widget/scrollable-table/scrollable-table.directive";
+import { ShuffleListComponent } from "../../../widget/shuffle-list/shuffle-list.component";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
+
 @Component({
-   selector: "viewsheet-parameters-dialog",
-   templateUrl: "viewsheet-parameters-dialog.component.html",
-   styleUrls: ["viewsheet-parameters-dialog.component.scss"]
+    selector: "viewsheet-parameters-dialog",
+    templateUrl: "viewsheet-parameters-dialog.component.html",
+    styleUrls: ["viewsheet-parameters-dialog.component.scss"],
+    imports: [ModalHeaderComponent, EnterSubmitDirective, ShuffleListComponent, ScrollableTableDirective]
 })
 export class ViewsheetParametersDialog implements OnInit{
    @Input() model: ViewsheetParametersDialogModel;

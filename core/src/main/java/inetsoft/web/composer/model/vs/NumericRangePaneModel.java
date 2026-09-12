@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class NumericRangePaneModel {
+import java.io.Serializable;
+
+public class NumericRangePaneModel implements Serializable {
    public String getMaximum() {
       return maximum;
    }

@@ -21,10 +21,13 @@ import {
 } from "../../../../../../model/datasources/database/physical-model/logical-model/entity-model";
 import { SelectedItem } from "../../logical-model.component";
 import { Tool } from "../../../../../../../../../../../shared/util/tool";
+import { ElementTreeNode } from "../../element-tree-node/element-tree-node.component";
+
 
 @Component({
-   selector: "select-attribute-pane",
-   templateUrl: "select-attribute-pane.component.html"
+    selector: "select-attribute-pane",
+    templateUrl: "select-attribute-pane.component.html",
+    imports: [ElementTreeNode]
 })
 export class SelectAttributePaneComponent implements OnInit{
    @Input() entities: EntityModel[];

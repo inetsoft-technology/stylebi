@@ -67,7 +67,6 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 import com.zaxxer.hikari.HikariConfig;
-import org.mozilla.javascript.Undefined;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Node;
@@ -337,11 +336,11 @@ public final class XUtil {
       String partitionName = (partition.getBasePartition() != null ?
          partition.getBasePartition().getName() + "^^" + partition.getName() :
          partition.getName());
-      XPartition tempPartition = partitionDataCache.get(partitionName);
+      XPartition tempPartition = partitionDataCache().get(partitionName);
 
       if(tempPartition == null ) {
          tempPartition = partition.applyAutoAliases();
-         partitionDataCache.put(partitionName, tempPartition);
+         partitionDataCache().put(partitionName, tempPartition);
       }
 
       partition = tempPartition;
@@ -1816,7 +1815,7 @@ public final class XUtil {
     * @return the logical models.
     */
    public static String[] getLogicalModels(String source) throws Exception {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       XDataModel model = repository.getDataModel(source);
       List list = new ArrayList();
 
@@ -1845,7 +1844,7 @@ public final class XUtil {
    public static String[] getEntities(String source, String lname,
                                       Principal user, boolean hideAttributes)
                                       throws Exception {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       XDataModel model = repository.getDataModel(source);
       XLogicalModel lmodel = model == null ?
          null : model.getLogicalModel(lname, user, hideAttributes);
@@ -1901,7 +1900,7 @@ public final class XUtil {
                                             boolean vpm, VariableTable vars)
       throws Exception
    {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       XDataModel model = repository.getDataModel(source);
 
       if(model == null) {
@@ -3302,11 +3301,7 @@ public final class XUtil {
          return;
       }
 
-      Enumeration pnames = user.getPropertyNames();
-
-      while(pnames.hasMoreElements()) {
-         String pname = (String) pnames.nextElement();
-
+      for(String pname : user.getPropertyNames()) {
          if(pname.startsWith("_Db_")) {
             vtable.put(pname, user.getProperty(pname));
          }
@@ -3431,11 +3426,11 @@ public final class XUtil {
       String partitionName = partition.getBasePartition() != null ?
          partition.getBasePartition().getName() + "^^" + partition.getName() :
          partition.getName();
-      XPartition tempPartition = partitionDataCache.get(partitionName);
+      XPartition tempPartition = partitionDataCache().get(partitionName);
 
       if(tempPartition == null) {
          tempPartition = partition.applyAutoAliases();
-         partitionDataCache.put(partitionName, tempPartition);
+         partitionDataCache().put(partitionName, tempPartition);
       }
 
       partition = tempPartition;
@@ -3752,7 +3747,7 @@ public final class XUtil {
 
          String userSessionID = user instanceof XPrincipal
             ? ((XPrincipal) user).getSessionID()
-            : XSessionService.createSessionID(XSessionService.USER, null);
+            : XSessionService.getService().createSessionID(XSessionService.USER, null);
          String execType = QueryRecord.EXEC_TYPE_START;
          Timestamp execTimestamp = new Timestamp(System.currentTimeMillis());
          queryRecord = new QueryRecord(
@@ -3794,7 +3789,7 @@ public final class XUtil {
                   catch(Exception ex) {
                      LOG.error(
                         "Failed to check asset permission: " + entry, ex);
-                     return Undefined.instance;
+                     return null;
                   }
 
                   if(message != null) {
@@ -3804,7 +3799,7 @@ public final class XUtil {
             }
 
             if(queryRecord != null) {
-               String execSessionID = XSessionService.createSessionID(
+               String execSessionID = XSessionService.getService().createSessionID(
                   XSessionService.WORKSHEET, entry.getPath());
                queryRecord.setExecSessionID(execSessionID);
                queryRecord.setObjectName(entry.getPath());
@@ -3823,7 +3818,7 @@ public final class XUtil {
             }
          }
          else {
-            return Undefined.instance;
+            return null;
          }
 
          return new XTableArray(table);
@@ -3855,7 +3850,7 @@ public final class XUtil {
          }
       }
 
-      return Undefined.instance;
+      return null;
    }
 
    /**
@@ -4389,7 +4384,7 @@ public final class XUtil {
          return;
       }
 
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       XDataModel dataModel = repository.getDataModel(sinfo.getPrefix());
 
       if(dataModel != null) {
@@ -4539,7 +4534,7 @@ public final class XUtil {
    public static String getLogicalModelDescription(String source, String lname)
       throws Exception
    {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       XDataModel model = repository.getDataModel(source);
 
       return model == null ? "" : model.getLogicalModel(lname).getDescription();
@@ -4883,7 +4878,14 @@ public final class XUtil {
    // @by stephenwebster, For bug1416867569612, add short term cache for getting
    // the applyAutoAliases result. This saves significant time when in a tight
    // loop, such as repeated calls to getAttributes
-   private static DataCache<String, XPartition> partitionDataCache = new DataCache<>(5, 1000);
+   // Created lazily (holder idiom) so loading XUtil does not require a live Spring context.
+   private static DataCache<String, XPartition> partitionDataCache() {
+      return PartitionCacheHolder.CACHE;
+   }
+
+   private static final class PartitionCacheHolder {
+      static final DataCache<String, XPartition> CACHE = new DataCache<>(5, 1000);
+   }
 
    @FunctionalInterface
    public interface PermissionUpdater {

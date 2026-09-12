@@ -19,11 +19,15 @@ import { Component, Input, OnChanges, OnInit, Output, EventEmitter } from "@angu
 import { SizeFrameModel } from "../../../../common/data/visual-frame-model";
 import { RangeSliderOptions } from "../../../widget/range-slider-options";
 import { SliderOptions } from "../../../widget/slider-options";
+import { Slider } from "../../../widget/slider.component";
+import { RangeSlider } from "../../../widget/range-slider.component";
+
 
 @Component({
-   selector: "binding-size-pane",
-   templateUrl: "binding-size-pane.component.html",
-   styleUrls: ["binding-size-pane.component.scss"]
+    selector: "binding-size-pane",
+    templateUrl: "binding-size-pane.component.html",
+    styleUrls: ["binding-size-pane.component.scss"],
+    imports: [RangeSlider, Slider]
 })
 export class BindingSizePane implements OnChanges, OnInit {
    @Input() frameModel: SizeFrameModel;
@@ -46,9 +50,11 @@ export class BindingSizePane implements OnChanges, OnInit {
    }
 
    private initOptionsValue() {
-      this.sliderOptions.selectStart = this.frameModel.smallest;
-      this.sliderOptions.selectEnd = this.frameModel.largest;
-      this.slider2Options.value = this.frameModel.largest;
+      this.sliderOptions = Object.assign(new RangeSliderOptions(), this.sliderOptions, {
+         selectStart: this.frameModel.smallest,
+         selectEnd: this.frameModel.largest
+      });
+      this.slider2Options = Object.assign(new SliderOptions(), this.slider2Options, { value: this.frameModel.largest });
    }
 
    sliderChanged(values: Array<number>) {

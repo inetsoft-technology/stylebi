@@ -27,22 +27,21 @@ import {
    Output,
    SimpleChanges
 } from "@angular/core";
-import {
-   ControlValueAccessor,
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   NG_VALUE_ACCESSOR,
-   ValidationErrors,
-   ValidatorFn,
-   Validators
-} from "@angular/forms";
-import { MatTreeFlatDataSource, MatTreeFlattener } from "@angular/material/tree";
+import { ControlValueAccessor, UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, NG_VALUE_ACCESSOR, ValidationErrors, ValidatorFn, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MatTreeFlatDataSource, MatTreeFlattener, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding } from "@angular/material/tree";
 import { Observable, of as observableOf } from "rxjs";
 import { ExpandStringDirective } from "../../../../../../../portal/src/app/widget/expand-string/expand-string.directive";
 import { ScheduleTaskModel } from "../../../../../../../shared/schedule/model/schedule-task-model";
 import { removeOrganization } from "../../../security/users/identity-id";
 import { ScheduleTaskListComponent } from "../../schedule-task-list/schedule-task-list.component";
+import { MatIcon } from "@angular/material/icon";
+
+import { MatIconButton } from "@angular/material/button";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 export const SCHEDULE_TASK_SELECT_VALUE_ACCESSOR: any = {
    provide: NG_VALUE_ACCESSOR,
@@ -65,10 +64,11 @@ export class ScheduleTaskFlatNode {
 }
 
 @Component({
-   selector: "em-schedule-task-select",
-   templateUrl: "./schedule-task-select.component.html",
-   styleUrls: ["./schedule-task-select.component.scss"],
-   providers: [SCHEDULE_TASK_SELECT_VALUE_ACCESSOR]
+    selector: "em-schedule-task-select",
+    templateUrl: "./schedule-task-select.component.html",
+    styleUrls: ["./schedule-task-select.component.scss"],
+    providers: [SCHEDULE_TASK_SELECT_VALUE_ACCESSOR],
+    imports: [NgIf, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, MatIcon, MatError]
 })
 export class ScheduleTaskSelectComponent implements OnInit, OnChanges, ControlValueAccessor {
    @Input() tasks: ScheduleTaskModel[];
@@ -86,6 +86,10 @@ export class ScheduleTaskSelectComponent implements OnInit, OnChanges, ControlVa
    }
 
    set selectedTaskName(val: string) {
+      if(this._selectedTaskName === val) {
+         return;
+      }
+
       this._selectedTaskName = val;
       this.updateScheduleTaskTree();
    }
@@ -106,7 +110,14 @@ export class ScheduleTaskSelectComponent implements OnInit, OnChanges, ControlVa
 
    ngOnChanges(changes: SimpleChanges): void {
       this.init();
-      this.updateScheduleTaskTree();
+
+      // a change to selectedTaskName is already handled by its setter, which
+      // rebuilds the tree only when the value actually changed. Rebuilding here
+      // as well would throw the tree away again right after the user picked a
+      // node from it.
+      if(changes.tasks) {
+         this.updateScheduleTaskTree();
+      }
    }
 
    init(): void {
@@ -132,8 +143,12 @@ export class ScheduleTaskSelectComponent implements OnInit, OnChanges, ControlVa
    }
 
    onChange: (value: any) => void = (value: any) => {
-      this.selectedTaskName = value;
-      this.selectedChange.emit(this.selectedTaskName);
+      // the node was picked from the tree, so it is already rendered and its
+      // parents are already expanded. Rebuilding the tree here would destroy
+      // the DOM node that is being clicked, which defeats the check that keeps
+      // mat-select from re-opening its panel when a click bubbles out of it.
+      this._selectedTaskName = value;
+      this.selectedChange.emit(this._selectedTaskName);
    };
 
    onTouched = () => {

@@ -36,7 +36,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const LINE_PROPERTY_URI: string = "composer/vs/line-property-dialog-model/";
 
 @Directive({
-   selector: "[cLineActionHandler]"
+    selector: "[cLineActionHandler]",
+    standalone: true
 })
 export class LineActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSLineModel;

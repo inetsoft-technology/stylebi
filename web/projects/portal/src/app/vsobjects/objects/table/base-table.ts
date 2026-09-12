@@ -68,6 +68,7 @@ import { VSAnnotationModel } from "../../model/annotation/vs-annotation-model";
 import { BaseTableCellModel } from "../../model/base-table-cell-model";
 import { BaseTableModel } from "../../model/base-table-model";
 import { GuideBounds } from "../../model/layout/guide-bounds";
+import { VSTabModel } from "../../model/vs-tab-model";
 import { ShowHyperlinkService } from "../../show-hyperlink.service";
 import { CheckFormDataService } from "../../util/check-form-data.service";
 import { ViewerResizeService } from "../../util/viewer-resize.service";
@@ -260,6 +261,8 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
    protected subscriptions = Subscription.EMPTY;
    protected scrollTopSubscription = Subscription.EMPTY;
    protected scrollLeftSubscription = Subscription.EMPTY;
+   private destroyed = false;
+   private pendingHeightUpdate = false;
    private _selected: boolean;
    preserveSelection: boolean = false;
    private resizingRowHeight: number;
@@ -389,6 +392,7 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       this.subscriptions.unsubscribe();
       this.scrollTopSubscription.unsubscribe();
       this.scrollLeftSubscription.unsubscribe();
+      this.destroyed = true;
    }
 
    /**
@@ -1641,7 +1645,27 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
             // add data row height
             this.model.scrollHeight;
 
-         return this.model.objectHeight = height;
+         // vsObject.objectHeight is read directly by the ancestor vs-object-container
+         // template, whose own bindings are checked before this component's template is
+         // refreshed. Mutating this.model.objectHeight synchronously here means the
+         // ancestor's checkNoChanges pass sees a different value than it just recorded,
+         // triggering ExpressionChangedAfterItHasBeenCheckedError (e.g. when wrap text
+         // changes the table's shrink-to-fit height). Defer the write so it lands in a
+         // later change detection cycle instead of the one currently in progress.
+         if(this.model.objectHeight !== height && !this.pendingHeightUpdate) {
+            this.pendingHeightUpdate = true;
+
+            Promise.resolve().then(() => {
+               this.pendingHeightUpdate = false;
+
+               if(!this.destroyed) {
+                  this.model.objectHeight = height;
+                  this.changeDetectorRef.markForCheck();
+               }
+            });
+         }
+
+         return height;
       }
       else {
          return this.model.objectFormat.height;
@@ -1659,6 +1683,29 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       else {
          return this.model.objectFormat.width;
       }
+   }
+
+   /**
+    * Calculates the object top with the shrink to fit option in mind, shifting
+    * a shrunk table down so its bottom stays flush with a bottom-tabs tab strip.
+    */
+   public getObjectTop(): number {
+      const top = this.model.objectFormat.top;
+
+      if(!this.viewer || !this.model.shrink || this.model.maxMode) {
+         return top;
+      }
+
+      if(this.model.containerType === "VSTab" && this.vsInfo) {
+         const parent = this.vsInfo.vsObjects
+            .find(o => o.absoluteName === this.model.container) as VSTabModel;
+
+         if(parent && parent.bottomTabs) {
+            return top + this.model.objectFormat.height - this.getObjectHeight();
+         }
+      }
+
+      return top;
    }
 
    /**
@@ -2297,7 +2344,7 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
             }
          }
 
-         if(!this.mobileDevice && this.model.dataTip && this.model.isTipOnClick) {
+         if(tip.length != 0 && !this.mobileDevice && this.model.dataTip && this.model.isTipOnClick) {
             tip += "_#(js:composer.graph.ctrlSelect)";
          }
 

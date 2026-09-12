@@ -82,7 +82,7 @@ body {
 }
 
 .bd-highlight-med {
-  border: 2px solid var(--inet-drag-drop-highlight-color) !important;
+  outline: 2px solid var(--inet-drag-drop-highlight-color) !important;
 }
 
 .bd-primary {
@@ -118,7 +118,7 @@ body {
 }
 
 .bd-highlight-med-filler {
-  border: 2px solid transparent;
+  outline: 2px solid transparent;
 }
 
 .bt-highlight-filler {

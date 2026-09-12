@@ -18,7 +18,8 @@
 import { Directive, EventEmitter, HostListener, Output } from "@angular/core";
 
 @Directive({
-   selector: "[mouseEvent]"
+    selector: "[mouseEvent]",
+    standalone: true
 })
 export class MouseEventDirective {
    @Output() leftMouseDown = new EventEmitter<MouseEvent>();

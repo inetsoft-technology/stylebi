@@ -18,25 +18,39 @@
 
 package inetsoft.web.composer.vs.objects.controller;
 
-import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
 import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.composer.model.vs.ScreenSizeDialogModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.sql.Timestamp;
-import java.util.UUID;
 
 @RestController
 public class DeviceController {
+   public DeviceController(DeviceRegistry deviceRegistry, DependencyHandler dependencyHandler) {
+      this.deviceRegistry = deviceRegistry;
+      this.dependencyHandler = dependencyHandler;
+   }
+
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.DEVICE,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/composer/device/new")
    @ResponseBody
    public void newDevice(@RequestBody ScreenSizeDialogModel device, Principal principal) {
+      checkOrgAllowedToEditDevices(principal);
       String userName = SUtil.getUserName(principal);
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
       ActionRecord actionRecord = new ActionRecord(userName, ActionRecord.ACTION_NAME_CREATE,
@@ -44,7 +58,6 @@ public class DeviceController {
                                                    actionTimestamp, ActionRecord.ACTION_STATUS_SUCCESS,
                                                    null);
 
-      DeviceRegistry registry = DeviceRegistry.getRegistry();
       DeviceInfo deviceInfo = new DeviceInfo();
       deviceInfo.setId(device.getId());
       deviceInfo.setName(device.getLabel());
@@ -53,13 +66,19 @@ public class DeviceController {
       deviceInfo.setMaxWidth(device.getMaxWidth());
       deviceInfo.setLastModified(System.currentTimeMillis());
       deviceInfo.setLastModifiedBy(principal.getName());
-      registry.setDevice(deviceInfo);
+      deviceRegistry.setDevice(deviceInfo);
       Audit.getInstance().auditAction(actionRecord, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.DEVICE,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/composer/device/edit")
    @ResponseBody
    public void editDevice(@RequestBody ScreenSizeDialogModel device, Principal principal) {
+      checkOrgAllowedToEditDevices(principal);
       String userName = SUtil.getUserName(principal);
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
       ActionRecord actionRecord = new ActionRecord(userName, ActionRecord.ACTION_NAME_EDIT,
@@ -67,8 +86,7 @@ public class DeviceController {
                                                    actionTimestamp, ActionRecord.ACTION_STATUS_SUCCESS,
                                                    null);
 
-      DeviceRegistry registry = DeviceRegistry.getRegistry();
-      DeviceInfo deviceInfo = registry.getDevice(device.getId());
+      DeviceInfo deviceInfo = deviceRegistry.getDevice(device.getId());
       deviceInfo.setId(deviceInfo.getId());
       deviceInfo.setName(device.getLabel());
       deviceInfo.setDescription(device.getDescription());
@@ -76,13 +94,19 @@ public class DeviceController {
       deviceInfo.setMaxWidth(device.getMaxWidth());
       deviceInfo.setLastModified(System.currentTimeMillis());
       deviceInfo.setLastModifiedBy(principal.getName());
-      registry.setDevice(deviceInfo);
+      deviceRegistry.setDevice(deviceInfo);
       Audit.getInstance().auditAction(actionRecord, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.DEVICE,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/composer/device/delete")
    @ResponseBody
    public void deleteDevice(@RequestBody ScreenSizeDialogModel device, Principal principal) {
+      checkOrgAllowedToEditDevices(principal);
       String userName = SUtil.getUserName(principal);
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
       ActionRecord actionRecord = new ActionRecord(userName, ActionRecord.ACTION_NAME_DELETE,
@@ -90,11 +114,27 @@ public class DeviceController {
                                                    actionTimestamp, ActionRecord.ACTION_STATUS_SUCCESS,
                                                    null);
 
-      DeviceRegistry registry = DeviceRegistry.getRegistry();
-      registry.deleteDevice(device.getId());
+      deviceRegistry.deleteDevice(device.getId());
       AssetEntry entry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
                                         AssetEntry.Type.DEVICE, device.getId(), null);
-      DependencyHandler.getInstance().deleteDependenciesKey(entry);
+      dependencyHandler.deleteDependenciesKey(entry);
       Audit.getInstance().auditAction(actionRecord, principal);
    }
+
+   /**
+    * Device profiles are stored globally rather than per-organization, so in multi-org
+    * enterprise deployments the DEVICE:*:ACCESS permission alone is not sufficient -- an org
+    * admin granted that permission within their own org's security config could otherwise
+    * modify device profiles used by every other organization. This mirrors the additional
+    * gate applied to the UI control in ViewsheetPropertyDialogService.
+    */
+   private void checkOrgAllowedToEditDevices(Principal principal) {
+      if(!DeviceRegistry.isOrgAllowedToEditDevices(principal)) {
+         throw new SecurityException(
+            "Unauthorized access to device profile management by user " + principal.getName());
+      }
+   }
+
+   private final DeviceRegistry deviceRegistry;
+   private final DependencyHandler dependencyHandler;
 }

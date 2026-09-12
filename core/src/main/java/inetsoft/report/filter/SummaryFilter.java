@@ -2345,6 +2345,14 @@ public class SummaryFilter extends AbstractGroupedTable
       this.cube = cube;
    }
 
+   private XSwapper getSwapper() {
+      if(swapper == null) {
+         swapper = XSwapper.getSwapper();
+      }
+
+      return swapper;
+   }
+
    // base class for MergedGroupNode and UnionGroupNode
    private class CombinedGroupNode extends GroupNode {
       @Override
@@ -2380,7 +2388,9 @@ public class SummaryFilter extends AbstractGroupedTable
          this.row = first.row;
 
          includedRows = new SparseBitSet();
-         Map<String, List<GroupNode>> subgroups = new HashMap<>();
+         // linked so the gathered order is at least deterministic; sortMergedNodes()
+         // below puts the children back into their own group level's order
+         Map<String, List<GroupNode>> subgroups = new LinkedHashMap<>();
 
          for(GroupNode node : list) {
             // copy named group values. (51822)
@@ -2404,6 +2414,44 @@ public class SummaryFilter extends AbstractGroupedTable
                   nodes.add(subgroup.get(0));
                }
             }
+
+            sortMergedNodes();
+         }
+      }
+
+      /**
+       * Restore the group ordering of the merged children.
+       *
+       * The children are gathered from several parent groups, so the order they end up
+       * in here is the order the sub-groups happened to be collected in, not the order
+       * defined for their own group level. Every other group at this level is ordered,
+       * and the order-dependent calculations (running total, moving, change/previous)
+       * read the resulting row order, so the "Others" bucket has to be ordered the same
+       * way. (74910)
+       */
+      private void sortMergedNodes() {
+         if(nodes == null || nodes.size() < 2) {
+            return;
+         }
+
+         int lvl = nodes.get(0).level;
+
+         // only a uniform level has a single group order to sort by. a hierarchy merge
+         // mixes levels, so it is left in the order it was gathered in
+         for(GroupNode child : nodes) {
+            if(child.level != lvl) {
+               return;
+            }
+         }
+
+         if(lvl < 0 || lvl >= cols.length) {
+            return;
+         }
+
+         SortOrder order = getGroupOrder(cols[lvl]);
+
+         if(order != null && order.getOrder() != StyleConstants.SORT_NONE) {
+            nodes.sort(new GroupNodeComparer2(order));
          }
       }
 
@@ -2558,7 +2606,7 @@ public class SummaryFilter extends AbstractGroupedTable
             // GroupNode (vals and sum) can be relatively heavy. when the number explodes
             // in deeply nested grouping, it can create a large surge in memory demand.
             if(row % 500 == 0) {
-               XSwapper.getSwapper().waitForMemory();
+               getSwapper().waitForMemory();
             }
 
             node = new GroupNode();
@@ -3361,7 +3409,7 @@ public class SummaryFilter extends AbstractGroupedTable
    private int topNAggregateCol = -1;
    private int topNAggregateN = 0;
 
-   private TableDataDescriptor sdescriptor = null;
+   private transient TableDataDescriptor sdescriptor = null;
    private Hashtable<TableDataPath, Object> mmap = new Hashtable<>(); // xmeta info
    // percent by group level, default value 0 means the inner most group
    private int pglvl = 0;
@@ -3389,6 +3437,7 @@ public class SummaryFilter extends AbstractGroupedTable
    private List<OrderInfo> orderInfo = new ArrayList<>();
    UserMessage userMsg = null;
    private transient DefaultComparator defaultComparator = new DefaultComparator(true);
+   private transient XSwapper swapper;
 
    private static final Logger LOG = LoggerFactory.getLogger(SummaryFilter.class);
 }

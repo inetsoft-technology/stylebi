@@ -15,20 +15,23 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
-import { MatTabChangeEvent } from "@angular/material/tabs";
+import { MatTabChangeEvent, MatTabGroup, MatTab } from "@angular/material/tabs";
 import { Tool } from "../../../../../../../shared/util/tool";
-import { AuthenticationProviderModel } from "../../../security/security-provider/security-provider-model/authentication-provider-model";
 import { CustomThemeModel } from "../custom-theme-model";
 import { ThemeCssEditorModel } from "../theme-css-view/theme-css-editor-model";
 import { ThemeCssViewComponent } from "../theme-css-view/theme-css-view.component";
 import { ThemePropertiesModel } from "../theme-properties-view/theme-properties-model";
+import { MatButton } from "@angular/material/button";
+import { ThemePropertiesViewComponent } from "../theme-properties-view/theme-properties-view.component";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+
 
 @Component({
-   selector: "em-theme-editor-view",
-   templateUrl: "./theme-editor-view.component.html",
-   styleUrls: ["./theme-editor-view.component.scss"]
+    selector: "em-theme-editor-view",
+    templateUrl: "./theme-editor-view.component.html",
+    styleUrls: ["./theme-editor-view.component.scss"],
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, ThemePropertiesViewComponent, ThemeCssViewComponent, MatButton]
 })
 export class ThemeEditorViewComponent implements OnInit {
    @Input() get theme(): CustomThemeModel {
@@ -42,6 +45,7 @@ export class ThemeEditorViewComponent implements OnInit {
    @Input() themeNames: string[] = [];
    @Input() smallDevice: boolean = false;
    @Input() isSiteAdmin: boolean = false;
+   @Input() isMultiTenant: boolean = false;
    @Input() orgId: string;
 
    @Input() get themeModified(): boolean {
@@ -65,7 +69,6 @@ export class ThemeEditorViewComponent implements OnInit {
 
    selectedTab = 0;
    selectedTabLabel: string;
-   isMultiTenant: boolean;
 
    private propertiesValid = true;
    private cssValid = true;
@@ -76,14 +79,10 @@ export class ThemeEditorViewComponent implements OnInit {
       return this.themeModified && this.propertiesValid && this.cssValid;
    }
 
-   constructor(private http: HttpClient) {
+   constructor() {
    }
 
    ngOnInit(): void {
-      this.http.get<boolean>("../api/em/navbar/isMultiTenant")
-         .subscribe(isMultiTenant => {
-            this.isMultiTenant = isMultiTenant;
-         });
    }
 
    onSelectedTabChanged(event: MatTabChangeEvent): void {

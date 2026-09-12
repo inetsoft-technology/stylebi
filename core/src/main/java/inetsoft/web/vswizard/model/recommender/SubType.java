@@ -19,6 +19,12 @@ package inetsoft.web.vswizard.model.recommender;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import inetsoft.util.Tool;
+import inetsoft.util.XMLSerializable;
+import org.w3c.dom.Element;
+
+import java.io.PrintWriter;
+import java.io.Serializable;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME,
               include = JsonTypeInfo.As.PROPERTY,
@@ -27,7 +33,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
    @JsonSubTypes.Type(value = VSSubType.class, name = "VSSubType"),
    @JsonSubTypes.Type(value = ChartSubType.class, name = "ChartSubType"),
 })
-public interface SubType {
+public interface SubType extends Serializable, XMLSerializable {
    /**
     * Setter for type.
     */
@@ -47,4 +53,57 @@ public interface SubType {
     * Getter for selected.
     */
    boolean isSelected();
+
+   @Override
+   default void writeXML(PrintWriter writer) {
+      writer.print("<SubType class=\"" + getClass().getName() + "\"");
+      writeAttributes(writer);
+      writer.println(">");
+      writeContents(writer);
+      writer.print("</SubType>");
+   }
+
+   default void writeAttributes(PrintWriter writer) {
+      if(getType() != null) {
+         writer.print(" type=\"" + getType() + "\"");
+      }
+
+      writer.print(" selected=\"" + isSelected() + "\"");
+   }
+
+   default void writeContents(PrintWriter writer) {
+      // do nothing
+   }
+
+   @Override
+   default void parseXML(Element elem) throws Exception {
+      parseAttributes(elem);
+      parseContents(elem);
+   }
+
+   default void parseAttributes(Element elem) {
+      setType(Tool.getAttribute(elem, "type"));
+      setSelected("true".equalsIgnoreCase(Tool.getAttribute(elem, "selected")));
+   }
+
+   default void parseContents(Element elem) throws Exception {
+      // do nothing
+   }
+
+   public static SubType createSubType(Element elem)
+      throws Exception
+   {
+      String cls = Tool.getAttribute(elem, "class");
+      SubType subType = null;
+
+      try {
+         subType = (SubType) Class.forName(cls).newInstance();
+         subType.parseXML(elem);
+      }
+      catch(InstantiationException ex) {
+         throw new RuntimeException("Failed to create subtype for class " + cls, ex);
+      }
+
+      return subType;
+   }
 }

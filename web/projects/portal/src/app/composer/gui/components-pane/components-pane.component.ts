@@ -40,11 +40,15 @@ import { VSLayoutModel } from "../../data/vs/vs-layout-model";
 import { VSLayoutObjectModel } from "../../data/vs/vs-layout-object-model";
 import { AssemblyType } from "../vs/assembly-type";
 import { ComponentTool } from "../../../common/util/component-tool";
+import { TreeComponent } from "../../../widget/tree/tree.component";
+import { ComponentTree } from "./tree/component-tree.component";
+
 
 @Component({
-   selector: "components-pane",
-   templateUrl: "components-pane.component.html",
-   styleUrls: ["components-pane.component.scss"]
+    selector: "components-pane",
+    templateUrl: "components-pane.component.html",
+    styleUrls: ["components-pane.component.scss"],
+    imports: [ComponentTree, TreeComponent]
 })
 export class ComponentsPane implements OnChanges, OnInit{
    @HostBinding("hidden")

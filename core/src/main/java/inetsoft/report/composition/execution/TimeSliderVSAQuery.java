@@ -337,6 +337,12 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       // name should start with V_, otherwise PreAssetQuery.getAggregateInfo
       // will return empty
       table.setProperty("Component_Binding_Table", "true");
+      // Register the bindable table (with chart's AggregateInfo) so that the slider
+      // mirror's update() finds this version rather than the original unmodified VS
+      // table from the WorksheetWrapper. (75263)
+      if(ws != null) {
+         ws.addAssembly(table);
+      }
       String mname = Assembly.TABLE_VS + slider.getName() + "_" + table.getName();
       MirrorTableAssembly mirror = new MirrorTableAssembly(ws, mname, table);
       ColumnSelection columns = mirror.getColumnSelection();
@@ -350,6 +356,19 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          DataRef ref = dataRef;
          String alias = ref.getAttribute();
          ref = columns.getAttribute(ref.getAttribute());
+
+         // If the attribute is an aggregate expression like "Count(Order:Num)",
+         // the mirror's column selection only contains the base column "Order:Num".
+         // Extract the column name from inside the parentheses and retry.
+         if(ref == null) {
+            int idx1 = alias.indexOf('(');
+            int idx2 = alias.indexOf(')');
+
+            if(idx1 > 0 && idx2 > idx1) {
+               String baseAttr = alias.substring(idx1 + 1, idx2);
+               ref = columns.getAttribute(baseAttr);
+            }
+         }
 
          if(ref == null) {
             throw new RuntimeException("column \"" + alias +
@@ -1498,6 +1517,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       Object mobj = assembly.getSelectedMin();
       ColumnIndexMap columnIndexMap = new ColumnIndexMap(data, true);
 
+      rows:
       for(int i = 1; data.moreRows(i); i++) {
          StringBuilder label = new StringBuilder();
          StringBuilder vstr = new StringBuilder();
@@ -1522,6 +1542,15 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
             Object obj = data instanceof MemberObjectTableLens ?
                ((MemberObjectTableLens) data).getMemberObject(i, j) :
                data.getObject(i, j);
+
+            // a null value (e.g. a member with no aggregate/measure data) can't be a
+            // meaningful min/max anchor for a single-value slider, so skip the row
+            // instead of showing a blank label. only applies to SingleTimeInfo, which
+            // is the binding that used to exclude nulls in the query; a composite
+            // slider (which may also have a single ref) still shows null members.
+            if(tinfo instanceof SingleTimeInfo && obj == null) {
+               continue rows;
+            }
 
             if(data instanceof DataTableLens) {
                cellData = ((DataTableLens) data).getData(i, j);

@@ -20,8 +20,10 @@ package inetsoft.web.composer.model.ws;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.web.binding.drm.ColumnRefModel;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TableAssemblyOperatorModel {
+public class TableAssemblyOperatorModel implements Serializable {
    public int getOperation() {
       return operation;
    }

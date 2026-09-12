@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { LayoutOptionDialogModel } from "../../data/vs/layout-option-dialog-model";
 import { LayoutOptionDialog } from "./layout-option-dialog.component";
 
@@ -33,7 +34,7 @@ describe("Layout Option Dialog Test", () => {
    let socket: any;
 
    beforeEach(() => {
-      socket = { sendEvent: jest.fn() };
+      socket = { sendEvent: vi.fn() };
 
       layoutOptionDialog = new LayoutOptionDialog(socket);
       layoutOptionDialog.model = createModel();

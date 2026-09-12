@@ -239,5 +239,5 @@ public abstract class AbstractJob implements XJob {
    private final Properties props = new Properties();
    private final String id;
    private String file;
-   private boolean cancelled;
+   private volatile boolean cancelled;
 }

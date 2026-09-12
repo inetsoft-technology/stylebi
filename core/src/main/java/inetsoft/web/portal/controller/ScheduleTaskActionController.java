@@ -17,13 +17,20 @@
  */
 package inetsoft.web.portal.controller;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.Tool;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.schedule.ScheduleTaskActionService;
+import inetsoft.web.admin.schedule.ScheduleTaskActionServiceProxy;
 import inetsoft.web.admin.schedule.model.ScheduleActionModel;
 import inetsoft.web.admin.schedule.model.ScheduleAlertModel;
 import inetsoft.web.portal.model.database.StringWrapper;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
 import inetsoft.web.viewsheet.service.LinkUri;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,77 +50,13 @@ public class ScheduleTaskActionController {
     * Creates a new instance of <tt>ScheduleController</tt>.
     */
    @Autowired
-   public ScheduleTaskActionController(ScheduleTaskActionService scheduleTaskActionService)
+   public ScheduleTaskActionController(ScheduleTaskActionService scheduleTaskActionService,
+                                       ScheduleTaskActionServiceProxy scheduleTaskActionServiceProxy,
+                                       ViewsheetService viewsheetService)
    {
       this.scheduleTaskActionService = scheduleTaskActionService;
-   }
-
-   /**
-    * Gets a table of scheduled tasks.
-    *
-    * @param taskName  the name of the task
-    * @param index     the index of the action
-    * @param principal the user
-    *
-    * @return the action model
-    *
-    * @throws Exception if could not get task or action
-    */
-   @GetMapping("/api/portal/schedule/task/action")
-   public ScheduleActionModel getTaskAction(@RequestParam("name") String taskName,
-                                            @RequestParam("index") int index,
-                                            Principal principal)
-      throws Exception
-   {
-      return scheduleTaskActionService.getTaskAction(taskName, index, principal, false);
-   }
-
-   /**
-    * Removes an action from the task.
-    *
-    * @param taskName  the name of the task
-    * @param items     the indexes of the actions to remove (in reverse sort)
-    * @param principal the user
-    *
-    * @throws Exception if could not get task or actions
-    */
-   @PostMapping("/api/portal/schedule/task/action/delete")
-   public void deleteTaskActions(@RequestParam("name") String taskName,
-                                 @RequestParam("owner") String taskOwner,
-                                 @RequestBody int[] items,
-                                 Principal principal)
-      throws Exception
-   {
-      try{
-         scheduleTaskActionService.deleteTaskActions(taskName, taskOwner, items, principal);
-      }
-      catch(ArrayIndexOutOfBoundsException e) {
-         //delete action that is unsaved, ignore.
-      }
-   }
-
-   /**
-    * Saves the specified schedule task action
-    *
-    * @param taskName  the name of the task
-    * @param index     the index of the action
-    * @param principal the user
-    *
-    * @throws Exception if could not get task or action
-    */
-   @PostMapping("/api/portal/schedule/task/action")
-   public ScheduleActionModel[] saveTaskAction(@RequestParam("name") String taskName,
-                                  @RequestParam("oldTaskName") String oldTaskName,
-                                  @RequestParam("index") int index,
-                                  @RequestParam("owner") String owner,
-                                  @RequestBody ScheduleActionModel model,
-                                  @LinkUri String linkURI,
-                                  Principal principal)
-      throws Exception
-   {
-      IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
-      return scheduleTaskActionService.saveTaskAction(taskName, oldTaskName, ownerID, index, model,
-                                                      Tool.replaceLocalhost(linkURI), principal, false);
+      this.scheduleTaskActionServiceProxy = scheduleTaskActionServiceProxy;
+      this.viewsheetService = viewsheetService;
    }
 
    /**
@@ -124,6 +67,14 @@ public class ScheduleTaskActionController {
     *
     * @return the list of bookmarks.
     */
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(
       value = "/api/portal/schedule/task/action/bookmarks",
       method = RequestMethod.GET
@@ -144,6 +95,14 @@ public class ScheduleTaskActionController {
     *
     * @return the alias of replet.
     */
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(
       value = "/api/portal/schedule/task/action/sheetAlias",
       method = RequestMethod.GET
@@ -156,6 +115,14 @@ public class ScheduleTaskActionController {
       return result;
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(
       value = "/api/portal/schedule/task/action/hasPrintLayout",
       method = RequestMethod.GET
@@ -164,7 +131,12 @@ public class ScheduleTaskActionController {
    public Boolean hasPrintLayout(@DecodeParam("id") String id, Principal principal)
       throws Exception
    {
-      return scheduleTaskActionService.hasPrintLayout(id, principal);
+      AssetEntry entry = AssetEntry.createAssetEntry(id);
+      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
+      boolean hasPrintLayout = scheduleTaskActionServiceProxy.hasPrintLayout(runtimeId, principal);
+      scheduleTaskActionServiceProxy.closeViewsheet(id, principal);
+
+      return hasPrintLayout;
    }
 
    /**
@@ -177,6 +149,14 @@ public class ScheduleTaskActionController {
     *
     * @throws Exception if could not get report or dashboard
     */
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(
       value = "/api/portal/schedule/task/action/viewsheet/highlights",
       method = RequestMethod.GET
@@ -185,7 +165,11 @@ public class ScheduleTaskActionController {
    public List<ScheduleAlertModel> getViewsheetHighlights(@DecodeParam("id") String identifier,
                                                           Principal principal) throws Exception
    {
-      return scheduleTaskActionService.getViewsheetHighlights(identifier, principal);
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
+      List<ScheduleAlertModel> highlights = scheduleTaskActionServiceProxy.getViewsheetHighlights(runtimeId, principal);
+      scheduleTaskActionServiceProxy.closeViewsheet(identifier, principal);
+      return highlights;
    }
 
    /**
@@ -198,6 +182,14 @@ public class ScheduleTaskActionController {
     *
     * @throws Exception if could not get report or dashboard
     */
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(
       value = "/api/portal/schedule/task/action/viewsheet/parameters",
       method = RequestMethod.GET
@@ -207,7 +199,11 @@ public class ScheduleTaskActionController {
                                               Principal principal)
       throws Exception
    {
-      return scheduleTaskActionService.getViewsheetParameters(identifier, principal);
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
+      List<String> params = scheduleTaskActionServiceProxy.getViewsheetParameters(runtimeId, principal);
+      scheduleTaskActionServiceProxy.closeViewsheet(identifier, null);
+      return params;
    }
 
    /**
@@ -220,13 +216,27 @@ public class ScheduleTaskActionController {
     *
     * @throws Exception if could not get report or dashboard
     */
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/portal/schedule/task/action/viewsheet/tableDataAssemblies")
    public List<String> getViewsheetTableDataAssemblies(
       @DecodeParam("id") String identifier,
       Principal principal) throws Exception
    {
-      return scheduleTaskActionService.getViewsheetTableDataAssemblies(identifier, principal);
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
+      List<String> assemblies = scheduleTaskActionServiceProxy.getViewsheetTableDataAssemblies(runtimeId, principal);
+      scheduleTaskActionServiceProxy.closeViewsheet(identifier, null);
+      return assemblies;
    }
 
    private final ScheduleTaskActionService scheduleTaskActionService;
+   private final ScheduleTaskActionServiceProxy scheduleTaskActionServiceProxy;
+   private final ViewsheetService viewsheetService;
 }

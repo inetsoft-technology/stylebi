@@ -1,38 +1,48 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="detailPane">
-   <button class="sort-icon" *ngIf="order == 0 && !embedded"
+  @if (order == 0 && !embedded) {
+    <button class="sort-icon"
       (click)="changeOrder(1, $event)" title="_#(Sort None)">
-   </button>
-   <button class="sort-ascending-icon" *ngIf="order == 1 && !embedded"
+    </button>
+  }
+  @if (order == 1 && !embedded) {
+    <button class="sort-ascending-icon"
       (click)="changeOrder(2, $event)"
       title="_#(Sort Ascending)">
-   </button>
-   <button class="sort-descending-icon" *ngIf="order == 2 && !embedded"
+    </button>
+  }
+  @if (order == 2 && !embedded) {
+    <button class="sort-descending-icon"
       (click)="changeOrder(0, $event)"
       title="_#(Sort Descending)">
-   </button>
-   <button class="eye-icon" *ngIf="visible"
+    </button>
+  }
+  @if (visible) {
+    <button class="eye-icon"
       (click)="changeVisible(false)"
       title="_#(Show/Hide)">
-   </button>
-   <button class="eye-off-icon" *ngIf="!visible"
+    </button>
+  }
+  @if (!visible) {
+    <button class="eye-off-icon"
       (click)="changeVisible(true)"
       title="_#(Show/Hide)">
-   </button>
+    </button>
+  }
 </div>

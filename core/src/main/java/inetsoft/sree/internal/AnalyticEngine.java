@@ -17,23 +17,21 @@
  */
 package inetsoft.sree.internal;
 
-import inetsoft.report.composition.WorksheetEngine;
-import inetsoft.report.internal.*;
+import inetsoft.report.LibManagerProvider;
+import inetsoft.report.internal.DesignSession;
 import inetsoft.sree.*;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
-import inetsoft.uql.*;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XLogicalModel;
-import inetsoft.util.*;
+import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Serializable;
-import java.rmi.RemoteException;
 import java.security.Principal;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * This is the implementation of the AnalyticRepository to provide analytic
@@ -46,25 +44,12 @@ public class AnalyticEngine extends RepletEngine implements AnalyticRepository {
    /**
     * Create a default local analytic engine.
     */
-   public AnalyticEngine() {
-      super();
-   }
-
-   /**
-    * Create a local analytic engine.
-    * @param id the unique engine ID.
-    */
-   public AnalyticEngine(String id) {
-      super(id);
-   }
-
-   /**
-    * Create a local analytic engine and evaluate against a given license key.
-    * @param id the unique engine id.
-    * @param licenseKey the license key for the slave.
-    */
-   public AnalyticEngine(String id, String licenseKey) {
-      super(id, licenseKey);
+   public AnalyticEngine(DeployManagerService deployManagerService, DesignSession designSession,
+                         LibManagerProvider libManagerProvider, DataCycleManager dataCycleManager,
+                         Cluster cluster, RepletRegistryManager repletRegistryManager)
+   {
+      super(deployManagerService, libManagerProvider, dataCycleManager, cluster, repletRegistryManager);
+      this.designSession = designSession;
    }
 
    /**
@@ -149,7 +134,7 @@ public class AnalyticEngine extends RepletEngine implements AnalyticRepository {
 
          String lmname = arr[0];
          String dsname = arr[1];
-         XRepository repository = (XRepository) DesignSession.getDesignSession().getDataService();
+         XRepository repository = (XRepository) designSession.getDataService();
          SecurityEngine security = SecurityEngine.getSecurity();
          XDataModel model = repository.getDataModel(dsname);
 
@@ -171,8 +156,8 @@ public class AnalyticEngine extends RepletEngine implements AnalyticRepository {
       return null;
    }
 
-   private Map<String, AnalyticRegistry> registryMap = new HashMap<>();
+   private final DesignSession designSession;
+   private final Map<String, AnalyticRegistry> registryMap = new HashMap<>();
 
-   private static final Logger LOG =
-      LoggerFactory.getLogger(AnalyticEngine.class);
+   private static final Logger LOG = LoggerFactory.getLogger(AnalyticEngine.class);
 }

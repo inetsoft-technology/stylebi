@@ -24,11 +24,13 @@ import { ScriptPane } from "../../../widget/dialog/script-pane/script-pane.compo
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
 import { Tool } from "../../../../../../shared/util/tool";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "clickable-script-pane",
-   templateUrl: "clickable-script-pane.component.html",
-   styleUrls: ["clickable-script-pane.component.scss"]
+    selector: "clickable-script-pane",
+    templateUrl: "clickable-script-pane.component.html",
+    styleUrls: ["clickable-script-pane.component.scss"],
+    imports: [FormsModule, ScriptPane]
 })
 export class ClickableScriptPane implements OnInit{
    columnTree: TreeNodeModel;

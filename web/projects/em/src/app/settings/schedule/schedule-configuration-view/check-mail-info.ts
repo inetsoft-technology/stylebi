@@ -23,9 +23,4 @@ export class CheckMailInfo {
 
    toAddresses: string;
    resultMessage: string;
-
-   // For burst action
-   sourceInfo: string;
-   userColumn: string;
-   emailColumn: string;
 }

@@ -27,14 +27,25 @@ import { ChartAggregateRef } from "../../../data/chart/chart-aggregate-ref";
 import { ChartEditorService } from "../../../services/chart/chart-editor.service";
 import { GraphUtil } from "../../../util/graph-util";
 import { AestheticFieldMc } from "./aesthetic-field-mc";
+import { CombinedSizePane } from "./combined-size-pane.component";
+import { BindingSizePane } from "./binding-size-pane.component";
+import { StaticSizePane } from "./static-size-pane.component";
+import { ChartAestheticMc } from "./chart-aesthetic-mc.component";
+import { SizeCell } from "./size-cell.component";
+
+import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
+import { DropHighlightDirective } from "../../../widget/drophighlight.directive";
 
 @Component({
-   selector: "size-field-mc",
-   templateUrl: "size-field-mc.component.html",
-   styleUrls: ["aesthetic-field-mc.scss"]
+    selector: "size-field-mc",
+    templateUrl: "size-field-mc.component.html",
+    styleUrls: ["aesthetic-field-mc.scss"],
+    imports: [DropHighlightDirective, OutOfZoneDirective, FixedDropdownDirective, SizeCell, ChartAestheticMc, StaticSizePane, BindingSizePane, CombinedSizePane]
 })
 export class SizeFieldMc extends AestheticFieldMc implements OnChanges {
    chartRefs: ChartRef[];
+   isTreemapLayout: boolean = false;
 
    constructor(editorService: ChartEditorService, dservice: DndService,
                protected uiContextService: UIContextService)
@@ -46,6 +57,7 @@ export class SizeFieldMc extends AestheticFieldMc implements OnChanges {
    ngOnChanges(changes: SimpleChanges) {
       super.ngOnChanges(changes);
       this.chartRefs = GraphUtil.getModelRefs(this.editorService.bindingModel);
+      this.isTreemapLayout = this.isTreemap();
    }
 
    protected getField(): AestheticInfo {

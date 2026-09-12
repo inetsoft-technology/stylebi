@@ -21,7 +21,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.ValueList;
 import inetsoft.report.script.TableRow;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 
 /**
  * Value list for cell expansion.
@@ -31,7 +31,7 @@ public class TableValueList extends ValueList {
     * Create a value list from a table column.
     */
    public TableValueList(TableLens table, String colexpr, boolean expression, 
-                         int[] idxs, Scriptable scope) {
+                         int[] idxs, ScriptScope scope) {
       this.table = table;
       this.idxs = idxs;
       this.colexpr = colexpr;
@@ -66,7 +66,7 @@ public class TableValueList extends ValueList {
       
       if(expression) {
          return FormulaEvaluator.exec(colexpr, scope, "rowValue", 
-                                      (Scriptable) getScope(i));
+                                      (ScriptScope) getScope(i));
       }
       
       return table == null ? null : table.getObject(idxs[i], col);
@@ -127,5 +127,5 @@ public class TableValueList extends ValueList {
    private int col;
    private boolean expression;
    private TableRow tableRow;
-   private transient Scriptable scope;
+   private transient ScriptScope scope;
 }

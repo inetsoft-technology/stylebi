@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet;
 
 import inetsoft.graph.internal.GTool;
 import inetsoft.uql.*;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.internal.*;
@@ -1053,6 +1054,15 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
       int unit = ((SingleTimeInfo) getTimeInfo()).getRangeType();
 
       if(unit == TimeInfo.MEMBER) {
+         return getCompositeSelectedValue(val);
+      }
+
+      // For OLAP cube tables, values in the state selection list are member captions (strings).
+      // Parsing them as Date/Number would cause a type mismatch when matching against the
+      // caption strings in refreshDimensionsValue, so return the raw string value instead.
+      String tableName = getTableName();
+
+      if(tableName != null && tableName.startsWith(Assembly.CUBE_VS)) {
          return getCompositeSelectedValue(val);
       }
 

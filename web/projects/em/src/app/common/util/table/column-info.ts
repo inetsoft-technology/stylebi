@@ -22,4 +22,6 @@ export interface ColumnInfo {
    field: string;
    // Monitoring level at or above which the column is visible
    level?: number;
+   // Optional function to transform the cell value for display
+   render?: (value: any) => string;
 }

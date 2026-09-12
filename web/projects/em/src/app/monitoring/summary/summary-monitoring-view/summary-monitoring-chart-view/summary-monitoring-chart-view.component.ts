@@ -32,11 +32,15 @@ import {SummaryChartInfo} from "./summary-chart-info";
 import {SummaryChartLegend} from "./summary-chart-legend";
 import {Tool} from "../../../../../../../shared/util/tool";
 
+import { ResizedDirective } from "../../../../../../../shared/resize-event/resized.directive";
+import { MatCard, MatCardHeader } from "@angular/material/card";
+
 @Component({
-   selector: "em-summary-monitoring-chart-view",
-   templateUrl: "./summary-monitoring-chart-view.component.html",
-   styleUrls: ["./summary-monitoring-chart-view.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "em-summary-monitoring-chart-view",
+    templateUrl: "./summary-monitoring-chart-view.component.html",
+    styleUrls: ["./summary-monitoring-chart-view.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [MatCard, MatCardHeader, ResizedDirective]
 })
 export class SummaryMonitoringChartViewComponent implements OnChanges {
    @ViewChild("chartContainer", { static: true }) chart: ElementRef;
@@ -54,8 +58,9 @@ export class SummaryMonitoringChartViewComponent implements OnChanges {
 
    @Input()
    set selectedClusterNode(value: string) {
-      if(this._selectedClusterNode != value) {
+      if(this._selectedClusterNode !== value) {
          this.imageError = false;
+         this.showLegends = true;
       }
 
       this._selectedClusterNode = value;
@@ -87,7 +92,8 @@ export class SummaryMonitoringChartViewComponent implements OnChanges {
       let bounds = this.chart.nativeElement.getBoundingClientRect();
 
       let url = "../em/getSummaryImage/" + this.info.name + "/" + bounds.width + "/" +
-         bounds.height + "?timestamp=" + this.timestamp;
+         bounds.height + "?timestamp=" + this.timestamp +
+         "&timezoneOffset=" + new Date().getTimezoneOffset();
 
       if(this.clusterEnabled && this.selectedClusterNode) {
          url += "&clusterNode=" + encodeURIComponent(this.selectedClusterNode);

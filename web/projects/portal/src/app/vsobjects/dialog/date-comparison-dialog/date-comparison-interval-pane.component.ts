@@ -25,11 +25,16 @@ import { DateTypeFormatter } from "../../../../../../shared/util/date-type-forma
 import { DateComparisonUtil } from "./date-comparison-utill";
 import { Tool } from "../../../../../../shared/util/tool";
 import { FirstDayOfWeekService } from "../../../common/services/first-day-of-week.service";
+import { DynamicValueEditorComponent } from "../../../widget/date-type-editor/dynamic-value-editor.component";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "date-comparison-interval-pane",
-   templateUrl: "./date-comparison-interval-pane.component.html",
-   styleUrls: ["./date-comparison-interval-pane.component.scss"]
+    selector: "date-comparison-interval-pane",
+    templateUrl: "./date-comparison-interval-pane.component.html",
+    styleUrls: ["./date-comparison-interval-pane.component.scss"],
+    imports: [FormsModule, DynamicComboBox, DynamicValueEditorComponent]
 })
 export class DateComparisonIntervalPaneComponent implements OnInit{
    @Input() intervalPaneModel: IntervalPaneModel;
@@ -180,7 +185,11 @@ export class DateComparisonIntervalPaneComponent implements OnInit{
       if(intervalContextLevel?.type == ValueTypes.VALUE) {
          const contextLevel = levels
             .find(level => parseInt(level.value, 10) === parseInt(intervalContextLevel.value, 10));
-         const value = !!contextLevel ? contextLevel.value : levels[0].value;
+         // Bug #75653 (fixed): getContextLevels() can return an empty array (e.g.
+         // standardPeriodLevel=DAY_DATE_GROUP, which has no matching entry in contextLevels),
+         // so levels[0] must be guarded instead of dereferenced unconditionally.
+         const value = !!contextLevel ? contextLevel.value :
+            (levels.length ? levels[0].value : intervalContextLevel.value);
          intervalContextLevel.value = value;
 
          return value;
@@ -191,7 +200,7 @@ export class DateComparisonIntervalPaneComponent implements OnInit{
          return intervalContextLevel.value;
       }
 
-      return levels[0].value;
+      return levels.length ? levels[0].value : null;
    }
 
    getIntervalLevels(): Array<any> {

@@ -18,11 +18,13 @@
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { TableInfo } from "../../../common/util/table/table-info";
 import { ViewsheetMonitoringTableModel } from "../viewsheet-monitoring-model/viewsheet-monitoring-table-model";
+import { TableView } from "../../../common/util/table/table-view.component";
 
 @Component({
-   selector: "em-viewsheet-monitoring-view",
-   templateUrl: "./viewsheet-monitoring-view.component.html",
-   styleUrls: ["./viewsheet-monitoring-view.component.scss"]
+    selector: "em-viewsheet-monitoring-view",
+    templateUrl: "./viewsheet-monitoring-view.component.html",
+    styleUrls: ["./viewsheet-monitoring-view.component.scss"],
+    imports: [TableView]
 })
 export class ViewsheetMonitoringViewComponent {
    @Input() dataSource: ViewsheetMonitoringTableModel[];

@@ -20,10 +20,11 @@ package inetsoft.web.composer.model.vs;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.awt.*;
+import java.io.Serializable;
 import java.util.Objects;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class SizePositionPaneModel {
+public class SizePositionPaneModel implements Serializable {
    public int getTop() {
       return top;
    }

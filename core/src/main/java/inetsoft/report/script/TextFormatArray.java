@@ -22,16 +22,17 @@ import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.util.script.ArrayObject;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
+import inetsoft.util.script.graal.ScriptArrayScope;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This array provides access to individual legend descriptors.
  */
-public class TextFormatArray extends ScriptableObject implements ArrayObject {
+public class TextFormatArray implements ArrayObject, ScriptArrayScope {
    /**
     * @param type aesthetic type defined in ChartArea.
     */
@@ -66,13 +67,13 @@ public class TextFormatArray extends ScriptableObject implements ArrayObject {
    }
 
    @Override
-   public boolean has(String id, Scriptable start) {
+   public boolean hasMember(String id) {
       init();
       return ids.contains(id);
    }
 
    @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       VSDataRef ref = info.getRTFieldByFullName(id);
       CompositeTextFormat fmt = null;
 
@@ -83,16 +84,31 @@ public class TextFormatArray extends ScriptableObject implements ArrayObject {
          ChartAggregateRef aggr = (ChartAggregateRef) ref;
          fmt = GraphFormatUtil.getTextFormat(aggr, aggr, plot);
       }
-      
+
       if(fmt != null) {
          return new TextFormatScriptable(fmt);
       }
-      
-      return super.get(id, start);
+
+      return members.get(id);
    }
-   
+
    @Override
-   public Object[] getIds() {
+   public void putMember(String id, Object value) {
+      members.put(id, value);
+   }
+
+   @Override
+   public Object getArrayElement(long index) {
+      return null;
+   }
+
+   @Override
+   public long getArraySize() {
+      return 0;
+   }
+
+   @Override
+   public Object[] getMemberKeys() {
       init();
       return ids.toArray();
    }
@@ -113,7 +129,6 @@ public class TextFormatArray extends ScriptableObject implements ArrayObject {
       return "[]";
    }
 
-   @Override
    public String getClassName() {
       return "TextFormat";
    }
@@ -121,5 +136,6 @@ public class TextFormatArray extends ScriptableObject implements ArrayObject {
    private ChartInfo info;
    private PlotDescriptor plot;
    private List ids;
+   private final Map<String, Object> members = new LinkedHashMap<>();
 }
 

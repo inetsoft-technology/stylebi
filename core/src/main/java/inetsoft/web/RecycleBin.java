@@ -23,10 +23,14 @@ import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.*;
 import inetsoft.storage.KeyValuePair;
 import inetsoft.storage.KeyValueStorage;
+import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
@@ -39,11 +43,14 @@ import java.util.stream.Collectors;
 /**
  * Class that encapsulates a recycle bin.
  */
+@Service
+@Lazy
 public class RecycleBin implements XMLSerializable, AutoCloseable {
    /**
     * Creates a new instance of <tt>RecycleBin</tt>.
     */
-   public RecycleBin() {
+   public RecycleBin(KeyValueStorageManager keyValueStorageManager) {
+      this.keyValueStorageManager = keyValueStorageManager;
       getStorage();
    }
 
@@ -53,16 +60,22 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
     * @return the recycle bin.
     */
    public static RecycleBin getRecycleBin() {
-      return SingletonManager.getInstance(RecycleBin.class);
+      return ConfigurationContext.getContext().getSpringBean(RecycleBin.class);
    }
 
    /**
     * Get all paths in recycle bin.
     */
    public Collection<Entry> getEntries() {
-      return getStorage().stream()
-         .map(KeyValuePair::getValue)
-         .collect(Collectors.toList());
+      try {
+         return getStorage().stream()
+            .map(KeyValuePair::getValue)
+            .collect(Collectors.toList());
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get recycle bin entries, storage may be unavailable", e);
+         return Collections.emptyList();
+      }
    }
 
    /**
@@ -118,6 +131,34 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
             }
             catch(Exception ex) {
                LOG.error("Failed to rename folder {} to {}", oldPath, newPath, ex);
+            }
+         }
+      }
+   }
+
+   /**
+    * Updates the owner recorded on recycle bin entries (in the user's org) after a user is
+    * renamed, so that entries deleted by the old username can still be located and restored.
+    * Resolves storage from {@code oldUser}'s org rather than the calling thread's ambient
+    * current org, so this is correct even when a site admin renames a user in a non-current org.
+    */
+   public synchronized void renameUser(IdentityID oldUser, IdentityID newUser) {
+      Map<String, Entry> map = new HashMap<>();
+      KeyValueStorage<Entry> storage = getStorage(oldUser.getOrgID());
+      storage.stream().forEach(p -> map.put(p.getKey(), p.getValue()));
+
+      for(Map.Entry<String, Entry> e : map.entrySet()) {
+         Entry entry = e.getValue();
+
+         if(Tool.equals(entry.getOriginalUser(), oldUser)) {
+            entry.setOriginalUser(newUser);
+
+            try {
+               storage.put(e.getKey(), entry).get(10L, TimeUnit.SECONDS);
+            }
+            catch(Exception ex) {
+               LOG.error("Failed to rename recycle bin entry owner from {} to {}",
+                         oldUser, newUser, ex);
             }
          }
       }
@@ -304,6 +345,37 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
       }
    }
 
+   /**
+    * Copies the recycle bin entries from one organization to another and re-scopes each
+    * entry to the target organization. Unlike {@link #copyStorageData(String, String)} (a raw
+    * bucket copy), this rewrites every entry's {@code originalUser} (and permission grants) from
+    * the source org to the target org and persists the result, so a cloned/renamed org's recycle
+    * bin references the new org's identities rather than the source org's. Used when an
+    * organization is created by clone or renamed. (Bug #75759)
+    */
+   public void migrateStorageData(Organization oorg, Organization norg) {
+      copyStorageData(oorg.getId(), norg.getId());
+
+      KeyValueStorage<Entry> nStorage = getStorage(norg.getId());
+      SortedMap<String, Entry> data = new TreeMap<>();
+      nStorage.stream().forEach(pair -> data.put(pair.getKey(), pair.getValue()));
+
+      try {
+         // re-scope originalUser/permission on the copied entries, then persist them.
+         // Run in the source org's context because migrateEntries()'s permission-grant lookup
+         // filters grants by the current org.
+         OrganizationManager.runInOrgScope(oorg.getId(), () -> {
+            migrateEntries(data, oorg, norg);
+            return null;
+         });
+
+         nStorage.putAll(data).get(2L, TimeUnit.MINUTES);
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
+      }
+   }
+
    @Override
    public void parseXML(Element tag) throws Exception {
       NodeList nodes = Tool.getChildNodesByTagName(tag, "entry");
@@ -322,6 +394,7 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
       writer.println("</recycleBin>");
    }
 
+   @PreDestroy
    @Override
    public void close() throws Exception {
       getStorage().close();
@@ -339,9 +412,10 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
          orgID = orgID;
       }
       String storeID = orgID.toLowerCase() + "__" + "recyclebin";
-      return SingletonManager.getInstance(KeyValueStorage.class, storeID);
+      return keyValueStorageManager.getStorage(storeID);
    }
 
+   private final KeyValueStorageManager keyValueStorageManager;
    private static final Logger LOG = LoggerFactory.getLogger(RecycleBin.class);
 
    public static final class Entry implements XMLSerializable, Serializable {
@@ -583,6 +657,14 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
          if((element = Tool.getChildNodeByTagName(tag, "originalUser")) != null) {
             setOriginalUser(IdentityID.getIdentityIDFromKey(Tool.getValue(element)));
          }
+      }
+
+      @Override()
+      public String toString() {
+         return "ReycleBin.Entry{" +
+            "originalUser='" + originalUser + '\'' +
+            ", originalPath='" + originalPath + '\'' +
+            '}';
       }
 
       private String path;

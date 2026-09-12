@@ -30,11 +30,16 @@ import { CrosstabOptionInfo } from "../../data/table/crosstab-option-info";
 import { CrosstabBindingModel } from "../../data/table/crosstab-binding-model";
 import { PercentCalcInfo } from "../../data/chart/calculate-info";
 import {ChartAggregateRef} from "../../data/chart/chart-aggregate-ref";
+import { CalculatePane } from "../chart/field/calculate-pane.component";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { FormulaOption } from "../formula-option.component";
+
 
 @Component({
-   selector: "aggregate-option",
-   templateUrl: "aggregate-option.component.html",
-   styleUrls: ["aggregate-option.component.scss"]
+    selector: "aggregate-option",
+    templateUrl: "aggregate-option.component.html",
+    styleUrls: ["aggregate-option.component.scss"],
+    imports: [FormulaOption, DynamicComboBox, CalculatePane]
 })
 export class AggregateOption implements OnInit {
    @Input() groupNum: number;

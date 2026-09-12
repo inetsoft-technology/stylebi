@@ -42,8 +42,8 @@ describe("input parameter dialog component unit case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
-         declarations: [InputParameterDialog, EnterSubmitDirective, ModalHeaderComponent],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, InputParameterDialog, EnterSubmitDirective, ModalHeaderComponent],
+         
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
 

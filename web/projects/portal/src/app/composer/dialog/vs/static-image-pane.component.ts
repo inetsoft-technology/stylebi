@@ -20,8 +20,9 @@ import { ImagePreviewPane } from "../../../widget/image-editor/image-preview-pan
 import { StaticImagePaneModel } from "../../data/vs/static-image-pane-model";
 
 @Component({
-   selector: "static-image-pane",
-   templateUrl: "static-image-pane.component.html",
+    selector: "static-image-pane",
+    templateUrl: "static-image-pane.component.html",
+    imports: [ImagePreviewPane]
 })
 export class StaticImagePane {
    @Input() model: StaticImagePaneModel;

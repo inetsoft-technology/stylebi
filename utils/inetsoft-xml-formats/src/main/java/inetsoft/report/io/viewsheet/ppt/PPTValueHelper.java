@@ -201,6 +201,14 @@ public class PPTValueHelper {
 
       if(!format.isWrapping()) {
          inBounds.width -= 2; // must consider margin for ppt!
+
+         // bug #75992, ppt may still auto-wrap text that just barely
+         // fits, even with word-wrap disabled on the textbox, because ppt's
+         // own font metrics differ slightly from the server's. Use the same
+         // safety margin as the wrapping table cell case below.
+         if(isTableCell) {
+            inBounds.width -= WRAP_GAP;
+         }
       }
       else {
          // bug1166609586046, although the text can showed whole on textbox
@@ -232,7 +240,7 @@ public class PPTValueHelper {
          // if wrap is set to false, the lines will not be
          // chop off at the right bound, so we need to it explicitly
          if(!format.isWrapping()) {
-            int idx = Util.breakLine(txt, bounds.getWidth() - 1, txtFont, false);
+            int idx = Util.breakLine(txt, inBounds.width, txtFont, false);
             txt = (idx < 0) ? txt : txt.substring(0, idx);
          }
 
@@ -266,6 +274,10 @@ public class PPTValueHelper {
             format.getBackground()));
       }
 
+      if(format.getRoundCorner() > 0 && bounds != null) {
+         PPTVSUtil.applyRoundCorner(textbox, format.getRoundCorner(), bounds);
+      }
+
       if(format.getForeground() != null) {
          rtr.setFontColor(format.getForeground());
       }
@@ -282,8 +294,15 @@ public class PPTValueHelper {
          PPTVSUtil.getHorizontalAlign(format.getAlignment()));
 
       if(txtFont != null) {
-         if(txtFont.getFontName() != null) {
-            rtr.setFontFamily(txtFont.getFontName());
+         // bug #75992, write the font family, not the face name. getFontName()
+         // returns the face (e.g. "Roboto Bold"), which ppt cannot resolve as a
+         // typeface even when the family is installed, so it substitutes a font
+         // with different metrics and re-wraps the text. Bold/italic are written
+         // separately below. This matches writeRichTextContent and the excel export.
+         String family = VSFontHelper.getExportFontFamily(txtFont);
+
+         if(family != null) {
+            rtr.setFontFamily(family);
          }
 
          rtr.setFontSize((double) txtFont.getSize());
@@ -358,7 +377,7 @@ public class PPTValueHelper {
             rtr.setStrikethrough(((RichTextFont) rt.getFont()).isStrikethrough());
             rtr.setUnderlined(((RichTextFont) rt.getFont()).isUnderline());
             rtr.setFontColor(rt.getFgColor());
-            rtr.setFontFamily(rt.getFont().getFamily());
+            rtr.setFontFamily(VSFontHelper.getExportFontFamily(rt.getFont()));
             rtr.setFontSize((double) rt.getFont().getSize());
             rtr.setText(rt.getContent().replaceAll("%3Cbr%3E", ""));
             rtr.setCharacterSpacing(0);
@@ -412,6 +431,51 @@ public class PPTValueHelper {
          VSAssemblyInfo.DEFAULT_BORDER_COLOR,
          VSAssemblyInfo.DEFAULT_BORDER_COLOR,
          VSAssemblyInfo.DEFAULT_BORDER_COLOR);
+
+      // Four independent straight-line shapes can't form a rounded corner, so draw a
+      // single rounded-rectangle outline instead when the round corner is set, using
+      // whichever side has a border configured first (top, then left/right/bottom) for
+      // the whole outline's style/color - a partial border gets a full box outline as a
+      // tradeoff for a uniformly-rounded look. Skip this for table/crosstab/tree cells
+      // (cellType != 0): those rely on the per-side CELL_TAIL/CELL_CONTENT skips below to
+      // avoid doubling up borders shared with adjacent cells, which a single all-sides
+      // shape can't replicate.
+      if(borders != null && format.getRoundCorner() > 0 && cellType == 0) {
+         int type = 0;
+         Color color = null;
+
+         if(borders.top != 0) {
+            type = borders.top;
+            color = colors == null || colors.topColor == null ?
+               defbcolors.topColor : colors.topColor;
+         }
+         else if(borders.left != 0) {
+            type = borders.left;
+            color = colors == null || colors.leftColor == null ?
+               defbcolors.leftColor : colors.leftColor;
+         }
+         else if(borders.right != 0) {
+            type = borders.right;
+            color = colors == null || colors.rightColor == null ?
+               defbcolors.rightColor : colors.rightColor;
+         }
+         else if(borders.bottom != 0) {
+            type = borders.bottom;
+            color = colors == null || colors.bottomColor == null ?
+               defbcolors.bottomColor : colors.bottomColor;
+         }
+
+         if(type != 0 && PPTVSUtil.getBorderWidth(type) != 0) {
+            XSLFAutoShape roundBorder = slide.createAutoShape();
+            roundBorder.setAnchor(new Rectangle(x, y, width, height));
+            PPTVSUtil.applyRoundCorner(roundBorder, format.getRoundCorner(), bounds);
+            roundBorder.setFillColor(null);
+            PPTVSUtil.applyLineStyle(roundBorder, type);
+            roundBorder.setLineColor(color);
+         }
+
+         return;
+      }
 
       if(borders != null) {
          if(PPTVSUtil.getBorderWidth(borders.left) != 0) {

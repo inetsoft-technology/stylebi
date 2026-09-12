@@ -18,7 +18,8 @@
 import { AfterViewInit, Directive, ElementRef, Input } from "@angular/core";
 
 @Directive({
-   selector: "[wExpandString]"
+    selector: "[wExpandString]",
+    standalone: true
 })
 export class ExpandStringDirective implements AfterViewInit {
    @Input()

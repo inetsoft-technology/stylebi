@@ -35,7 +35,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const COMBOBOX_PROPERTY_URI: string = "composer/vs/combobox-property-dialog-model/";
 
 @Directive({
-   selector: "[cComboBoxActionHandler]"
+    selector: "[cComboBoxActionHandler]",
+    standalone: true
 })
 export class ComboBoxActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSComboBoxModel;

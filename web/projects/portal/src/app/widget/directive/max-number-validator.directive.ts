@@ -25,8 +25,9 @@ import {
 } from "@angular/forms";
 
 @Directive({
-   selector: "[maxNumber]",
-   providers: [{provide: NG_VALIDATORS, useExisting: MaxNumberDirective, multi: true}]
+    selector: "[maxNumber]",
+    providers: [{ provide: NG_VALIDATORS, useExisting: MaxNumberDirective, multi: true }],
+    standalone: true
 })
 export class MaxNumberDirective implements Validator, AfterViewInit {
    @Input() maxNumber: number;

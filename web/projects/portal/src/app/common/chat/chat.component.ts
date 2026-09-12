@@ -24,9 +24,10 @@ import { Subscription } from "rxjs";
  * !!! Duplicated in agile/sr12_3 !!!
  */
 @Component({
-   selector: "chat-widget",
-   templateUrl: "./chat.component.html",
-   styleUrls: ["./chat.component.scss"]
+    selector: "chat-widget",
+    templateUrl: "./chat.component.html",
+    styleUrls: ["./chat.component.scss"],
+    standalone: true
 })
 export class ChatComponent implements OnChanges, OnDestroy {
    @Input() name: string;

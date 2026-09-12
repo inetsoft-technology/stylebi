@@ -17,10 +17,15 @@
  */
 import {Component, Input} from "@angular/core";
 import {AutoSaveRecycleBinModel} from "./auto-save-recycle-bin";
+import { FormsModule } from "@angular/forms";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 @Component({
-   selector: "em-auto-save-recycle-bin",
-   templateUrl: "./auto-save-recycle-bin.component.html"
+    selector: "em-auto-save-recycle-bin",
+    templateUrl: "./auto-save-recycle-bin.component.html",
+    imports: [MatCard, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule]
 })
 export class AutoSaveRecycleBinComponent {
    @Input() model: AutoSaveRecycleBinModel;

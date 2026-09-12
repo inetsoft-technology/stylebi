@@ -18,9 +18,11 @@
 package inetsoft.web.composer.ws.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 @Value.Immutable
+@Serial.Structural
 @JsonDeserialize(as = ImmutableWSRenameAssemblyEvent.class)
 public interface WSRenameAssemblyEvent {
    String oldName();

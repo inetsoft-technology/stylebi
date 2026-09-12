@@ -17,10 +17,13 @@
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 
+import { ScrollableTableDirective } from "../../../../widget/scrollable-table/scrollable-table.directive";
+
 @Component({
-   selector: "editable-table",
-   templateUrl: "editable-table.component.html",
-   styleUrls: ["editable-table.component.scss"]
+    selector: "editable-table",
+    templateUrl: "editable-table.component.html",
+    styleUrls: ["editable-table.component.scss"],
+    imports: [ScrollableTableDirective]
 })
 export class EditableTableComponent {
    @Input() items: any[];

@@ -601,9 +601,10 @@ public final class MVBuilder {
                int lookahead = nextb;
                String maxStr = SreeEnv.getProperty("mv.max.block");
                int maxBlock = maxStr != null ? Integer.parseInt(maxStr) : preferred * 10;
+               int maxRow = getMaxBreakRow(r, size, maxBlock);
                boolean found = false;
 
-               for(; lens.moreRows(nextb) && nextb <= maxBlock; nextb++) {
+               for(; lens.moreRows(nextb) && nextb <= maxRow; nextb++) {
                   // optimization, look at 100 rows and if eq, skip to the next row.
                   // this is based on the assumption the breakcol is sorted.
                   if(lookahead == nextb) {
@@ -628,10 +629,12 @@ public final class MVBuilder {
 
                size = nextb - r;
 
-               if(!found) {
-                  LOG.warn("Distinct count defined on " + lens.getObject(0, breakcol) +
+               // only warn if the block was actually cut short by the size cap.
+               // running out of rows is the normal end of the last block.
+               if(!found && lens.moreRows(nextb)) {
+                  LOG.warn("Distinct count defined on " + XUtil.getHeader(lens, breakcol) +
                      " caused MV block to exceed maximum size (" + maxBlock +
-                              "). As a result, the disinct count may not be accurate. " +
+                              "). As a result, the distinct count may not be accurate. " +
                      "Modify the dashboard to remove the distinct count, or increase " +
                      "maximum block size by defining mv.max.block property.");
                }
@@ -710,24 +713,27 @@ public final class MVBuilder {
                futures.add(future);
                final int finalCol = col;
 
-               ThreadPool.addOnDemand(() -> {
-                  try {
-                     for(int row = start; row < endRow; row++) {
-                        Object obj = lens.getObject(row, dimensions[finalCol]);
-                        int idx = convertDimValue(finalCol, row + lastRows[finalCol], obj);
+               ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+                  @Override
+                  public void run() {
+                     try {
+                        for(int row = start; row < endRow; row++) {
+                           Object obj = lens.getObject(row, dimensions[finalCol]);
+                           int idx = convertDimValue(finalCol, row + lastRows[finalCol], obj);
 
-                        if(dims[finalCol] != null) {
-                           dims[finalCol].addKey(idx, row - start);
+                           if(dims[finalCol] != null) {
+                              dims[finalCol].addKey(idx, row - start);
+                           }
+
+                           int blockIdx = row - start;
+                           block.addDimension(blockIdx, finalCol, idx);
                         }
 
-                        int blockIdx = row - start;
-                        block.addDimension(blockIdx, finalCol, idx);
+                        future.complete(null);
                      }
-
-                     future.complete(null);
-                  }
-                  catch(Exception ex) {
-                     future.completeExceptionally(ex);
+                     catch(Exception ex) {
+                        future.completeExceptionally(ex);
+                     }
                   }
                });
             }
@@ -744,20 +750,23 @@ public final class MVBuilder {
                futures.add(future);
                final int finalCol = col;
 
-               ThreadPool.addOnDemand( () -> {
-                  try {
-                     for(int row = start; row < endRow; row++) {
-                        Object obj = lens.getObject(row, measures[finalCol]);
-                        double measure = MVCreatorUtil.convertMeasureValue(obj, row + lastRows[dcnt + finalCol],
-                                                                           dicts2[finalCol + dcnt], numbers[finalCol]);
-                        int blockIdx = row - start;
-                        block.addMeasure(blockIdx, finalCol, measure);
-                     }
+               ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+                  @Override
+                  public void run() {
+                     try {
+                        for(int row = start; row < endRow; row++) {
+                           Object obj = lens.getObject(row, measures[finalCol]);
+                           double measure = MVCreatorUtil.convertMeasureValue(obj, row + lastRows[dcnt + finalCol],
+                                                                              dicts2[finalCol + dcnt], numbers[finalCol]);
+                           int blockIdx = row - start;
+                           block.addMeasure(blockIdx, finalCol, measure);
+                        }
 
-                     future.complete(null);
-                  }
-                  catch(Exception ex) {
-                     future.completeExceptionally(ex);
+                        future.complete(null);
+                     }
+                     catch(Exception ex) {
+                        future.completeExceptionally(ex);
+                     }
                   }
                });
             }
@@ -868,6 +877,25 @@ public final class MVBuilder {
    private boolean isDesktop() {
       boolean desktop = FSService.getConfig().isDesktop();
       return desktop;
+   }
+
+   /**
+    * Get the last source row a block may extend to while looking for a break
+    * boundary. mv.max.block is a block *length*, so the bound is relative to the
+    * start of the block (r) -- comparing an absolute row index against it would
+    * shrink the allowance as the build advances, and disable the distinct-count
+    * protection entirely once r passed the limit. The bound can never be less
+    * than the block already accumulated.
+    *
+    * @param r        the source row this block starts at.
+    * @param size     the rows already accumulated for this block.
+    * @param maxBlock the mv.max.block limit, as a row count.
+    */
+   static int getMaxBreakRow(int r, int size, int maxBlock) {
+      // saturate instead of overflowing: a wrapped negative bound would silently
+      // switch the protection back off, which is the bug this guards against.
+      long maxRow = (long) r + Math.max(maxBlock, size);
+      return maxRow > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) maxRow;
    }
 
    /**

@@ -20,21 +20,33 @@ package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.painter.QRCodePresenter;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
-
 import inetsoft.uql.viewsheet.internal.PopVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class TextVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private TextVSAScriptable textVSAScriptable;
@@ -72,7 +84,7 @@ public class TextVSAScriptableTest {
    @ValueSource(strings = {"wrapping", "autoSize", "scaleVertical", "embedAsURL", "shadow", "tooltipVisible"})
    void testAddProperties(String propertyName) {
       textVSAScriptable.addProperties();
-      assert textVSAScriptable.get(propertyName, textVSAScriptable) instanceof Boolean;
+      assert textVSAScriptable.getMember(propertyName) instanceof Boolean;
    }
 
    @ParameterizedTest
@@ -86,7 +98,7 @@ public class TextVSAScriptableTest {
    })
    void testSetProperty(String propertyName, Object propertyValue, Object expectedValue) {
       textVSAScriptable.setProperty(propertyName, propertyValue);
-      assertEquals(expectedValue, textVSAScriptable.get(propertyName, textVSAScriptable));
+      assertEquals(expectedValue, textVSAScriptable.getMember(propertyName));
    }
 
    @Test

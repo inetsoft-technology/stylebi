@@ -16,15 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter, OnInit } from "@angular/core";
-import { UntypedFormGroup, Validators, UntypedFormControl } from "@angular/forms";
+import { UntypedFormGroup, Validators, UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { VariableTableListDialogModel } from "../../data/ws/variable-table-list-dialog-model";
 import { AbstractTableAssembly, getHeader } from "../../data/ws/abstract-table-assembly";
 import { ColumnRef } from "../../../binding/data/column-ref";
 
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
+
 @Component({
-   selector: "variable-table-list-dialog",
-   templateUrl: "variable-table-list-dialog.component.html",
-   styleUrls: ["variable-table-list-dialog.component.scss"]
+    selector: "variable-table-list-dialog",
+    templateUrl: "variable-table-list-dialog.component.html",
+    styleUrls: ["variable-table-list-dialog.component.scss"],
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 
 export class VariableTableListDialog implements OnInit {

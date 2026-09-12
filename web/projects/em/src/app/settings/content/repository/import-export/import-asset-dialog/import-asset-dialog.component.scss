@@ -60,5 +60,71 @@
         visibility: visible;
       }
     }
+
+    .bookmark-conflicts-container {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: 5px;
+
+      .conflict-description {
+        flex: 0 0 auto;
+        margin-bottom: 8px;
+        font-size: 0.875rem;
+      }
+
+      .conflict-bulk-actions {
+        flex: 0 0 auto;
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .conflict-table-wrapper {
+        flex: 1 1 auto;
+        overflow: auto;
+        min-height: 0;
+      }
+
+      .bookmark-conflict-table {
+        width: 100%;
+
+        .mat-mdc-cell,
+        .mat-mdc-header-cell {
+          padding: 4px 8px;
+        }
+
+        .mat-column-user {
+          max-width: 160px;
+          word-break: break-word;
+          white-space: normal;
+        }
+
+        .group-header-cell {
+          font-weight: 500;
+          font-style: italic;
+        }
+
+        .viewsheet-header-row {
+          background-color: var(--inet-em-primary-50);
+        }
+
+        .mat-mdc-cell.time-newer {
+          background-color: rgba(76, 175, 80, 0.15);
+        }
+
+        .mat-mdc-cell.time-older {
+          background-color: rgba(244, 67, 54, 0.15);
+        }
+
+        .conflict-radio-group {
+          display: flex;
+          gap: 12px;
+          white-space: nowrap;
+        }
+      }
+    }
   }
 }

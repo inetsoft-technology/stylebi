@@ -34,10 +34,12 @@ import { GroupRef } from "../../common/data/group-ref";
 import { Range } from "../../common/data/range";
 import { AggregateRef } from "../../common/data/aggregate-ref";
 
+
 @Component({
-   selector: "condition-field-combo-list",
-   templateUrl: "condition-field-combo-list.component.html",
-   styleUrls: ["condition-field-combo-list.component.scss"]
+    selector: "condition-field-combo-list",
+    templateUrl: "condition-field-combo-list.component.html",
+    styleUrls: ["condition-field-combo-list.component.scss"],
+    imports: []
 })
 export class ConditionFieldComboListComponent implements OnInit, OnChanges, AfterContentInit {
    @Input() field: DataRef;

@@ -20,10 +20,12 @@ import {ScriptTreePaneModel} from "../../../data/script/script-tree-pane-model";
 import {TreeNodeModel} from "../../../../widget/tree/tree-node-model";
 import {ScriptService} from "../script.service";
 import {Tool} from "../../../../../../../shared/util/tool";
+import { TreeComponent } from "../../../../widget/tree/tree.component";
 
 @Component({
-   selector: "script-tree-pane",
-   templateUrl: "script-tree-pane.component.html",
+    selector: "script-tree-pane",
+    templateUrl: "script-tree-pane.component.html",
+    imports: [TreeComponent]
 })
 export class ScriptTreePane implements OnChanges {
    @HostBinding("hidden")

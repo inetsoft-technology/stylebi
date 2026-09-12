@@ -19,6 +19,7 @@ package inetsoft.web.binding.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -27,6 +28,7 @@ import java.util.List;
 @Value.Immutable
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonSerialize(as = ImmutableValueLabelListModel.class)
+@Serial.Structural
 public interface ValueLabelListModel {
    @Nullable
    List<ValueLabelModel> list();

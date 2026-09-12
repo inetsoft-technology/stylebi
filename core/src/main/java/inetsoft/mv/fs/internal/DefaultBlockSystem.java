@@ -54,7 +54,7 @@ public final class DefaultBlockSystem implements XBlockSystem, XMLSerializable {
       Cluster cluster = Cluster.getInstance();
       String id =  getClass().getName() + (orgId == null ? "" : "." + orgId.toLowerCase());
       String mapId = id + ".blocks";
-      blocks = new LocalClusterMap<>(mapId, cluster, cluster.getMap(mapId));
+      blocks = cluster.getReplicatedMap(mapId);
       lock = cluster.getLock(id + ".lock");
       lastLoad = cluster.getLong(id + ".lastLoad");
 
@@ -565,18 +565,12 @@ public final class DefaultBlockSystem implements XBlockSystem, XMLSerializable {
     */
    @Override
    public void dispose() {
-      try {
-         blocks.close();
-         lastLoad.set(0L);
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to close distributed map", e);
-      }
+      lastLoad.set(0L);
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(DefaultBlockSystem.class);
    private final Lock lock;
-   private final LocalClusterMap<String, NBlock> blocks;
+   private final DistributedMap<String, NBlock> blocks;
    private final DistributedLong lastLoad;
    private final FSConfig config;
    private final String orgId;

@@ -18,15 +18,16 @@
 import { Component, EventEmitter, Input } from "@angular/core";
 import { Output } from "@angular/core";
 import { TableInfo } from "../../../common/util/table/table-info";
-import { TableAction } from "../../../common/util/table/table-view.component";
+import { TableAction, TableView } from "../../../common/util/table/table-view.component";
 import { MatDialog } from "@angular/material/dialog";
 import { LogLevelDTO } from "../LogLevelDTO";
 import { AddLoggingLevelDialogComponent } from "../add-logging-level-dialog/add-logging-level-dialog.component";
 
 @Component({
-   selector: "em-logging-level-table",
-   templateUrl: "./logging-level-table.component.html",
-   styleUrls: ["./logging-level-table.component.scss"]
+    selector: "em-logging-level-table",
+    templateUrl: "./logging-level-table.component.html",
+    styleUrls: ["./logging-level-table.component.scss"],
+    imports: [TableView]
 })
 export class LoggingLevelTableComponent {
    @Input() loggingLevels: LogLevelDTO[] = [];
@@ -43,21 +44,69 @@ export class LoggingLevelTableComponent {
          actions: [TableAction.EDIT, TableAction.ADD, TableAction.DELETE]
       };
    }
+
+   /**
+    * `name` alone is not a unique row identity: in multi-tenant setups two rows can share the
+    * same context+name but differ in orgName/level (see LogLevelSetting.equals() server-side).
+    * TableView's trackByProp only supports a single flat field, so each row is stamped with a
+    * non-enumerable composite key (kept off the object's enumerable properties so it is not
+    * picked up by JSON.stringify when the row is later POSTed back to the server) and
+    * trackByProp points at that key instead of "name".
+    */
+   get keyedLoggingLevels(): LogLevelDTO[] {
+      for(const level of this.loggingLevels) {
+         if(level != null && !Object.prototype.hasOwnProperty.call(level, "rowKey")) {
+            Object.defineProperty(level, "rowKey", {
+               value: `${level.context}_${level.name}_${level.orgName}`,
+               enumerable: false,
+               configurable: true
+            });
+         }
+      }
+
+      return this.loggingLevels;
+   }
    private getTableColumns() {
       if(!this.enterprise || !this.isMultiTenant) {
          return [
-            {header: "_#(js:Type)", field: "context"},
+            {header: "_#(js:Type)", field: "context", render: (v: string) => this.getContextLabel(v)},
             {header: "_#(js:Name)", field: "name"},
-            {header: "_#(js:Level)", field: "level"}
+            {header: "_#(js:Level)", field: "level", render: (v: string) => this.getLevelLabel(v)}
          ];
       }
       else {
          return [
-            {header: "_#(js:Type)", field: "context"},
+            {header: "_#(js:Type)", field: "context", render: (v: string) => this.getContextLabel(v)},
             {header: "_#(js:Name)", field: "name"},
             {header: "_#(js:Organization)", field: "orgName"},
-            {header: "_#(js:Level)", field: "level"}
+            {header: "_#(js:Level)", field: "level", render: (v: string) => this.getLevelLabel(v)}
          ];
+      }
+   }
+
+   getContextLabel(value: string): string {
+      switch(value) {
+         case "DASHBOARD": return "_#(js:Viewsheet)";
+         case "QUERY": return "_#(js:Query)";
+         case "MODEL": return "_#(js:Model)";
+         case "WORKSHEET": return "_#(js:Worksheet)";
+         case "USER": return "_#(js:User)";
+         case "GROUP": return "_#(js:Group)";
+         case "ROLE": return "_#(js:Role)";
+         case "SCHEDULE_TASK": return "_#(js:Schedule Task)";
+         case "CATEGORY": return "_#(js:Log Category)";
+         case "ORGANIZATION": return "_#(js:Organization)";
+         default: return value;
+      }
+   }
+
+   getLevelLabel(value: string): string {
+      switch(value) {
+         case "debug": return "_#(js:Debug)";
+         case "info": return "_#(js:Info)";
+         case "warn": return "_#(js:Warning)";
+         case "error": return "_#(js:Error)";
+         default: return value;
       }
    }
    constructor(private dialog: MatDialog) {
@@ -106,7 +155,8 @@ export class LoggingLevelTableComponent {
       this.loggingLevels = this.loggingLevels.filter(
          (loggingLevel) => !loggingLevels.some((level) =>
             level.name === loggingLevel.name &&
-            level.context === loggingLevel.context));
+            level.context === loggingLevel.context &&
+            level.orgName === loggingLevel.orgName));
       this.loggingLevelsChange.emit(this.loggingLevels);
    }
 }

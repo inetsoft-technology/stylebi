@@ -28,6 +28,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
@@ -41,22 +43,29 @@ import java.util.concurrent.ConcurrentMap;
 public class DataTreeChangeController {
    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
    public DataTreeChangeController(AssetRepository assetRepository,
-                                   SimpMessagingTemplate messagingTemplate)
+                                   SimpMessagingTemplate messagingTemplate,
+                                   DataSourceRegistry dataSourceRegistry)
    {
       this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @PostConstruct
    public void addListeners() {
       assetRepository.addAssetChangeListener(this.assetListener);
-      DataSourceRegistry.getRegistry().addRefreshedListener(this.dataSourceListener);
+      dataSourceRegistry.addRefreshedListener(this.dataSourceListener);
    }
 
    @PreDestroy
    public void removeListeners() {
-      assetRepository.removeAssetChangeListener(this.assetListener);
-      DataSourceRegistry.getRegistry().removeRefreshedListener(this.dataSourceListener);
+      try {
+         assetRepository.removeAssetChangeListener(this.assetListener);
+         dataSourceRegistry.removeRefreshedListener(this.dataSourceListener);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listeners during shutdown", e);
+      }
    }
 
    @SubscribeMapping(CHANGE_TOPIC)
@@ -69,7 +78,7 @@ public class DataTreeChangeController {
       }
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void onSessionDisconnect(SessionDisconnectEvent event) {
       subscriptions.remove(event.getSessionId());
    }
@@ -113,10 +122,12 @@ public class DataTreeChangeController {
 
    private final AssetRepository assetRepository;
    private final SimpMessagingTemplate messagingTemplate;
+   private final DataSourceRegistry dataSourceRegistry;
    private final ConcurrentMap<String, IdentityID> subscriptions = new ConcurrentHashMap<>();
 
    private final AssetChangeListener assetListener = this::assetChanged;
    private final PropertyChangeListener dataSourceListener = this::dataSourceChanged;
 
    private static final String CHANGE_TOPIC = "/data-changed";
+   private static final Logger LOG = LoggerFactory.getLogger(DataTreeChangeController.class);
 }

@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.geom.Rectangle2D;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.OutputStream;
 import java.util.HashMap;
@@ -216,6 +217,37 @@ public class PDFCoordinateHelper extends CoordinateHelper {
    }
 
    /**
+    * Clip subsequent drawing to a rounded-corner rectangle, so square cell
+    * backgrounds/text don't stick out past the rounded border drawn on top afterward.
+    * @param roundCorner the round corner radius; a value &lt;= 0 leaves the clip unchanged.
+    */
+   public void beginRoundCornerClip(Rectangle2D bounds, int roundCorner) {
+      if(roundCorner <= 0) {
+         return;
+      }
+
+      // getClip() legitimately returns null when no clip is currently set - don't use
+      // savedClip's null-ness to decide whether to restore, or a null prior clip (the
+      // common case) will look like "nothing to restore" and leave this clip stuck.
+      savedClip = printer.getClip();
+      roundCornerClipped = true;
+      double r = roundCorner * 2d;
+      printer.setClip(new RoundRectangle2D.Double(bounds.getX(), bounds.getY(),
+                                                   bounds.getWidth(), bounds.getHeight(), r, r));
+   }
+
+   /**
+    * Restore the clip pushed by {@link #beginRoundCornerClip}, if any.
+    */
+   public void endRoundCornerClip() {
+      if(roundCornerClipped) {
+         printer.setClip(savedClip);
+         savedClip = null;
+         roundCornerClipped = false;
+      }
+   }
+
+   /**
     * Get the page count.
     */
    int getPage() {
@@ -383,6 +415,8 @@ public class PDFCoordinateHelper extends CoordinateHelper {
 
    private HashMap<Integer, LinkedHashMap<Object, Hyperlink.Ref>> linksMap = new HashMap<>();
    private PDFPrinter printer;
+   private Shape savedClip;
+   private boolean roundCornerClipped;
    private int page = -1;
    private static final Logger LOG =
       LoggerFactory.getLogger(PDFCoordinateHelper.class);

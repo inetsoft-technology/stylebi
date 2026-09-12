@@ -19,7 +19,6 @@ package inetsoft.mv.mr.internal;
 
 import inetsoft.mv.fs.*;
 import inetsoft.mv.mr.*;
-import inetsoft.sree.security.IdentityID;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.ThreadPool;
 import org.slf4j.Logger;
@@ -57,11 +56,13 @@ public final class XMapTaskPool {
          }
       }
 
-      pool.add0(task);
-
+      // register before submitting, otherwise a cancel() landing in between iterates a
+      // map that does not hold this task yet and it runs to completion
       synchronized(maptasks) {
          maptasks.put(task, "OK");
       }
+
+      pool.add0(task);
    }
 
    /**
@@ -141,6 +142,12 @@ public final class XMapTaskPool {
 
       @Override
       public void run() {
+         // cancelled while queued? the job it belongs to is already done, so its
+         // result would be discarded
+         if(task.isCancelled()) {
+            return;
+         }
+
          try {
             XMapResult result = task.run(sys);
             XJobPool.addResult(result, task.getOrgID());
@@ -178,15 +185,19 @@ public final class XMapTaskPool {
 
          try {
             ThreadContext.setContextPrincipal(user);
-            String orgID = IdentityID.getIdentityIDFromKey(user.getName()).orgID;
 
             while(!tasks.isEmpty()) {
                XMapTask task = tasks.remove();
                streamlock.unlock();
 
+               if(task.isCancelled()) {
+                  streamlock.lock();
+                  continue;
+               }
+
                try {
                   XMapResult result = task.run(sys);
-                  boolean fulfilled = XJobPool.addResult(result, orgID);
+                  boolean fulfilled = XJobPool.addResult(result, task.getOrgID());
 
                   // check if subsequence tasks need to be executed
                   if(fulfilled) {
@@ -197,7 +208,7 @@ public final class XMapTaskPool {
                   LOG.error("Failed to add result to stream", ex);
                   XMapFailure failure = XMapFailure.create(task);
                   failure.setReason(ex.toString());
-                  XJobPool.addFailure(failure, orgID);
+                  XJobPool.addFailure(failure, task.getOrgID());
                }
                finally {
                   streamlock.lock();

@@ -19,8 +19,6 @@ package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.*;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 
 /**
  * The cube (crosstab and map) viewsheet assembly scriptable in viewsheet scope.
@@ -49,23 +47,23 @@ public class CubeVSAScriptable extends VSAScriptable {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       Viewsheet vs = box.getViewsheet();
       VSAssembly vassembly = assembly == null ? null :
          (VSAssembly) vs.getAssembly(assembly);
 
       if(!(vassembly instanceof CubeVSAssembly)) {
-         return Undefined.instance;
+         return null;
       }
 
-      return super.get(name, start);
+      return super.getMember(name);
    }
 
    /**
     * Get an array of property ids.
     */
    @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       return new String[0];
    }
 }

@@ -17,12 +17,7 @@
  */
 package inetsoft.web.composer.vs.dialog;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.ViewsheetVSAssemblyInfo;
 import inetsoft.web.composer.model.vs.*;
-import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -32,8 +27,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
-import java.awt.*;
 import java.security.Principal;
 
 /**
@@ -45,19 +38,14 @@ import java.security.Principal;
 public class ViewsheetObjectPropertyDialogController {
    /**
     * Creates a new instance of <tt>ViewsheetObjectPropertyDialogController</tt>.
-    * @param vsObjectPropertyService VSObjectPropertyService instance
     * @param runtimeViewsheetRef     RuntimeViewsheetRef instance
     */
    @Autowired
-   public ViewsheetObjectPropertyDialogController(ViewsheetService viewsheetService,
-                                                  VSObjectPropertyService vsObjectPropertyService,
-                                                  RuntimeViewsheetRef runtimeViewsheetRef,
-                                                  VSDialogService dialogService)
+   public ViewsheetObjectPropertyDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
+                                                  ViewsheetObjectPropertyDialogServiceProxy viewsheetObjectPropertyDialogServiceProxy)
    {
-      this.viewsheetService = viewsheetService;
-      this.vsObjectPropertyService = vsObjectPropertyService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.dialogService = dialogService;
+      this.viewsheetObjectPropertyDialogServiceProxy = viewsheetObjectPropertyDialogServiceProxy;
    }
 
    /**
@@ -77,45 +65,7 @@ public class ViewsheetObjectPropertyDialogController {
                                                                        Principal principal)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      Viewsheet vs = rvs.getViewsheet();
-      Viewsheet embeddedVs = (Viewsheet) vs.getAssembly(objectId);
-      ViewsheetVSAssemblyInfo info = (ViewsheetVSAssemblyInfo) embeddedVs.getVSAssemblyInfo();
-
-      ViewsheetObjectPropertyDialogModel.Builder model =
-         ViewsheetObjectPropertyDialogModel.builder();
-
-      GeneralPropPaneModel generalPropPaneModel = new GeneralPropPaneModel();
-      SizePositionPaneModel sizePositionPaneModel = new SizePositionPaneModel();
-
-      generalPropPaneModel.setShowEnabledGroup(false);
-      generalPropPaneModel.setShowSubmitCheckbox(false);
-
-      BasicGeneralPaneModel basicGeneralPaneModel = new BasicGeneralPaneModel();
-      basicGeneralPaneModel.setName(info.getAbsoluteName());
-      basicGeneralPaneModel.setPrimary(info.isPrimary());
-      basicGeneralPaneModel.setVisible(info.getVisibleValue());
-      basicGeneralPaneModel.setObjectNames(this.vsObjectPropertyService.getObjectNames(
-         vs, info.getAbsoluteName()));
-
-      generalPropPaneModel.setBasicGeneralPaneModel(basicGeneralPaneModel);
-      model.generalPropPaneModel(generalPropPaneModel);
-
-      VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel =
-         VSAssemblyScriptPaneModel.builder();
-
-      vsAssemblyScriptPaneModel.scriptEnabled(info.isScriptEnabled());
-      vsAssemblyScriptPaneModel.expression(info.getScript() == null ? "" : info.getScript());
-      model.vsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
-
-      Point pos = dialogService.getAssemblyPosition(info, vs);
-      Dimension size = dialogService.getAssemblySize(info, vs);
-
-      sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setContainer(embeddedVs.getContainer() != null);
-      model.sizePositionPaneModel(sizePositionPaneModel);
-
-      return model.build();
+      return viewsheetObjectPropertyDialogServiceProxy.getViewsheetPropertyModel(runtimeId, objectId, principal);
    }
 
    /**
@@ -134,33 +84,10 @@ public class ViewsheetObjectPropertyDialogController {
                                           CommandDispatcher commandDispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService
-         .getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      Viewsheet vs = rvs.getViewsheet();
-      Viewsheet embeddedVs = (Viewsheet) vs.getAssembly(objectId);
-      ViewsheetVSAssemblyInfo info = (ViewsheetVSAssemblyInfo) embeddedVs.getVSAssemblyInfo();
-
-      GeneralPropPaneModel generalPropPaneModel = model.generalPropPaneModel();
-      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
-      SizePositionPaneModel sizePositionPaneModel = model.sizePositionPaneModel();
-
-      info.setVisibleValue(basicGeneralPaneModel.getVisible());
-      info.setPrimary(basicGeneralPaneModel.isPrimary());
-
-      VSAssemblyScriptPaneModel script = model.vsAssemblyScriptPaneModel();
-      info.setScriptEnabled(script.scriptEnabled());
-      info.setScript(script.expression());
-
-      dialogService.setAssemblySize(info, sizePositionPaneModel);
-      dialogService.setAssemblyPosition(info, sizePositionPaneModel);
-
-      this.vsObjectPropertyService.editObjectProperty(
-         rvs, info, objectId, basicGeneralPaneModel.getName(), linkUri, principal,
-         commandDispatcher);
+      viewsheetObjectPropertyDialogServiceProxy.setViewsheetPropertyModel(runtimeViewsheetRef.getRuntimeId(),
+                                                                          objectId, model, linkUri, principal, commandDispatcher);
    }
 
-   private final ViewsheetService viewsheetService;
-   private final VSObjectPropertyService vsObjectPropertyService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final VSDialogService dialogService;
+   private final ViewsheetObjectPropertyDialogServiceProxy viewsheetObjectPropertyDialogServiceProxy;
 }

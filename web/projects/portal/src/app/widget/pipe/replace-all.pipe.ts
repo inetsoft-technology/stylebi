@@ -18,7 +18,8 @@
 import { PipeTransform, Pipe } from "@angular/core";
 
 @Pipe({
-   name: "replaceAll"
+    name: "replaceAll",
+    standalone: true
 })
 export class ReplaceAllPipe implements PipeTransform {
    transform(value: string, regex: string, input: string): string {

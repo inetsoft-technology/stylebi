@@ -147,6 +147,15 @@ public abstract class InputVSAssembly extends AbstractVSAssembly implements Bind
    }
 
    /**
+    * Get the runtime target column name, resolving a variable or expression binding.
+    * @return the runtime target column name, or <tt>null</tt> if a dynamic value has
+    * not been executed yet.
+    */
+   public String getRuntimeColumnValue() {
+      return getInputVSAssemblyInfo().getRuntimeColumnValue();
+   }
+
+   /**
     * Get the target data type.
     * @return the target data type of this assembly info.
     */

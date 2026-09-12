@@ -17,8 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller.table;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.web.viewsheet.ExecutionMonitoring;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.event.table.LoadTableDataEvent;
@@ -32,29 +30,29 @@ import org.springframework.stereotype.Controller;
 import java.security.Principal;
 
 @Controller
-public class BaseTableLoadDataController extends BaseTableController<LoadTableDataEvent> {
+public class BaseTableLoadDataController {
    @Autowired
    public BaseTableLoadDataController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                      CoreLifecycleService coreLifecycleService,
-                                      ViewsheetService viewsheetService)
+                                     BaseTableLoadDataServiceProxy baseTableLoadDataService)
    {
-      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.baseTableLoadDataService = baseTableLoadDataService;
    }
 
-   @Override
-   @LoadingMask
+   // Same rationale as VSRefreshController.refreshViewsheet: this endpoint's sole purpose is
+   // to call getVSTableLens() and force a fresh runtime query, which the product's
+   // query.runtime.timeout=0 default already treats as legitimately unbounded.
+   @LoadingMask(watchdogTimeout = 0)
    @ExecutionMonitoring
    @MessageMapping("/table/reload-table-data")
    public void eventHandler(@Payload LoadTableDataEvent event, Principal principal,
                             CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(
-         runtimeViewsheetRef.getRuntimeId(), principal);
-      String assemblyName = event.getAssemblyName();
-      int start = event.getStart();
-      int rowCount = event.getRowCount();
-      int mode = 0;
-      loadTableData(rvs, assemblyName, mode, start, rowCount, linkUri, dispatcher);
+      baseTableLoadDataService.eventHandler(runtimeViewsheetRef.getRuntimeId(), event,
+                                            principal, dispatcher, linkUri);
    }
+
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final BaseTableLoadDataServiceProxy baseTableLoadDataService;
 }

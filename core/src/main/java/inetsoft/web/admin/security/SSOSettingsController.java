@@ -19,12 +19,12 @@ package inetsoft.web.admin.security;
 
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
-import inetsoft.web.security.*;
-
-import java.security.Principal;
-
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.security.Principal;
 
 @RestController
 public class SSOSettingsController {
@@ -66,8 +66,8 @@ public class SSOSettingsController {
       )
    )
    @PostMapping("/api/sso/settings")
-   public void updateSSOSettings(@RequestBody SSOSettingsModel model) {
-      service.updateSSOSettings(model);
+   public boolean updateSSOSettings(@RequestBody SSOSettingsModel model) {
+      return service.updateSSOSettings(model);
    }
 
    private final SSOSettingsService service;

@@ -929,7 +929,7 @@ public class HeaderRowTableLens extends AttributeTableLens {
    private int[] colmap = null;
    private int[] rowmap = null; // header row map
    private boolean crosstab;
-   private TableDataDescriptor hdescriptor;
+   private transient TableDataDescriptor hdescriptor;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(HeaderRowTableLens.class);

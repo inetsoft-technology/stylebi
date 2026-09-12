@@ -19,10 +19,18 @@ import { Component, Input, OnInit } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { SubmitGeneralPaneModel } from "../../data/vs/submit-general-pane-model";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { LabelPropPane } from "./label-prop-pane.component";
+import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.component";
 
 @Component({
-   selector: "submit-general-pane",
-   templateUrl: "submit-general-pane.component.html",
+    selector: "submit-general-pane",
+    templateUrl: "submit-general-pane.component.html",
+    imports: [
+        GeneralPropPane,
+        LabelPropPane,
+        SizePositionPane,
+    ]
 })
 export class SubmitGeneralPane implements OnInit {
    @Input() model: SubmitGeneralPaneModel;

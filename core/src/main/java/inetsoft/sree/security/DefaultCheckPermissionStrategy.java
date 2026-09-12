@@ -140,6 +140,17 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
 
          if(role != null && role.getOrganizationID() != null) {
             orgRoleRootPer = provider.getPermission(type, rootOrgRole);
+
+            // "Organization Roles" is only exposed as a grantable node in the EM tree when
+            // multi-tenant mode is on (see UserTreeService/SecurityTreeServer); when nobody
+            // has ever configured a grant on it (no Permission object at all -- not merely
+            // "doesn't grant this action"), fall back to the "Roles" root, the only node an
+            // admin has ever had the option to grant on. Once "Organization Roles" is
+            // actually in use, its grants take precedence and the roots stay independent
+            // (Bug #75574).
+            if(orgRoleRootPer == null) {
+               orgRoleRootPer = provider.getPermission(type, rootRole);
+            }
          }
          else {
             orgRoleRootPer = provider.getPermission(type, rootRole);
@@ -232,14 +243,14 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          //if admin permissions to this resource, return true
          boolean hasResourcePermission = provider.getPermission(type, resource, orgID) != null &&
             provider.getPermission(type, resource, orgID)
-               .getOrgScopedUserGrants(ResourceAction.ASSIGN, OrganizationManager.getInstance().getCurrentOrgID())
+               .getOrgScopedUserGrants(ResourceAction.ADMIN, OrganizationManager.getInstance().getCurrentOrgID())
                .contains(pId);
 
          if(hasResourcePermission) {
             return true;
          }
 
-         if(checkOrgAdminPermission(type, resource, organization, xPrincipal)) {
+         if(checkOrgAdminPermission(type, resource, organization, xPrincipal, action)) {
             return true;
          }
       }
@@ -329,10 +340,29 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
 
       if(type == ResourceType.SECURITY_ROLE) {
-         Permission rolePerm = provider.getPermission(type, new IdentityID("Organization Roles", organization), orgID);
+         // "Organization Roles" admin delegation only covers roles actually scoped to this
+         // org — never org-less/global roles like Administrator or Organization Administrator
+         Role orgRolesTarget = provider.getRole(IdentityID.getIdentityIDFromKey(resource));
+         boolean targetInOrgRoleScope = orgRolesTarget != null &&
+            Tool.equals(orgRolesTarget.getOrganizationID(), organization) &&
+            Arrays.stream(provider.getAllRoles(new IdentityID[]{ orgRolesTarget.getIdentityID() }))
+               .noneMatch(provider::isSystemAdministratorRole);
 
-         if(rolePerm != null && checker.checkPermission(identity, rolePerm, action, true)) {
-            return true;
+         if(targetInOrgRoleScope) {
+            Permission rolePerm = provider.getPermission(type, new IdentityID("Organization Roles", organization), orgID);
+
+            // "Organization Roles" is only exposed as a grantable node in the EM tree when
+            // multi-tenant mode is on; when nobody has ever configured a grant on it (no
+            // Permission object at all), fall back to the "Roles" root -- the only node an
+            // admin has ever had the option to grant on in non-multi-tenant mode. Mirrors the
+            // fallback at the dedicated root-check block above (Bug #75795).
+            if(rolePerm == null) {
+               rolePerm = provider.getPermission(type, new IdentityID("Roles", organization), orgID);
+            }
+
+            if(rolePerm != null && checker.checkPermission(identity, rolePerm, action, true)) {
+               return true;
+            }
          }
       }
 
@@ -380,10 +410,30 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             type == ResourceType.SECURITY_ROLE)
          {
             if((perm == null) || !perm.hasOrgEditedGrantAll(orgID) || type == ResourceType.SECURITY_ROLE) {
-               Permission orgPerm = provider.getPermission(ResourceType.SECURITY_ORGANIZATION, new IdentityID(organization, organization), orgID);
+               // org admin permission never extends to global (org-less) roles — e.g. the
+               // built-in Administrator and Organization Administrator roles — only to
+               // roles actually owned by this org
+               boolean roleOutOfOrgAdminScope = false;
 
-               if(orgPerm != null && checker.checkPermission(identity, orgPerm, ResourceAction.ADMIN, true)) {
-                  return true;
+               if(type == ResourceType.SECURITY_ROLE) {
+                  Role targetRole = provider.getRole(IdentityID.getIdentityIDFromKey(resource));
+
+                  if(targetRole == null || !Tool.equals(targetRole.getOrganizationID(), organization)) {
+                     roleOutOfOrgAdminScope = true;
+                  }
+                  else {
+                     roleOutOfOrgAdminScope = Arrays.stream(
+                        provider.getAllRoles(new IdentityID[]{ targetRole.getIdentityID() }))
+                        .anyMatch(provider::isSystemAdministratorRole);
+                  }
+               }
+
+               if(!roleOutOfOrgAdminScope) {
+                  Permission orgPerm = provider.getPermission(ResourceType.SECURITY_ORGANIZATION, new IdentityID(organization, organization), orgID);
+
+                  if(orgPerm != null && checker.checkPermission(identity, orgPerm, ResourceAction.ADMIN, true)) {
+                     return true;
+                  }
                }
             }
          }
@@ -500,7 +550,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
    }
 
    private boolean checkOrgAdminPermission(ResourceType type, String resource, String orgID,
-                                           XPrincipal principal)
+                                           XPrincipal principal, ResourceAction action)
    {
       AuthenticationProvider currProvider =
          !(principal instanceof SRPrincipal) || SUtil.isInternalUser(principal) ?
@@ -570,16 +620,27 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
 
          Role role = currProvider.getRole(resourceID);
 
+         // role doesn't exist, so just equals org name (see Bug #66393 for SECURITY_USER).
          if(role == null) {
-            return false;
+            return Objects.equals(resourceID.getOrgID(), orgID);
          }
 
          IdentityID[] roles = new IdentityID[]{role.getIdentityID()};
          isSiteAdmin = Arrays.stream(currProvider.getAllRoles(roles))
             .anyMatch(currProvider::isSystemAdministratorRole);
 
-         return !isSiteAdmin && (currProvider.getRole(resourceID).getOrganizationID() == null ||
-                 orgID.equals(currProvider.getRole(resourceID).getOrganizationID()));
+         // org admin permission never extends to global (org-less) roles — e.g. the built-in
+         // Administrator role — only to roles owned by this org. The single exception is
+         // read-only visibility of the built-in, org-less "Organization Administrator" role
+         // itself: every org admin may see it (it's the role that grants their own privilege),
+         // but may never gain WRITE/DELETE/ADMIN over it — that stays reserved for site admins.
+         // The org-less check (not just the isOrgAdministratorRole name-based flag) also keeps
+         // this from matching a differently-scoped, same-named custom role in another org.
+         boolean isGlobalOrgAdminRole = role.getOrganizationID() == null &&
+            currProvider.isOrgAdministratorRole(role.getIdentityID());
+
+         return !isSiteAdmin && (Tool.equals(orgID, role.getOrganizationID()) ||
+            (isGlobalOrgAdminRole && action == ResourceAction.READ));
       case SECURITY_ORGANIZATION:
          if(resource.equals("*")) {
             return false;
@@ -728,17 +789,30 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             }
          }
          else if(currentType == ResourceType.SECURITY_ROLE) {
+            // "Organization Roles" and "Roles" (global) are independent permission roots —
+            // only merge the one that actually owns the checked role (mirrors the guard at
+            // the dedicated root-check block above, lines ~135-154)
+            Role currentRole = provider.getRole(IdentityID.getIdentityIDFromKey(currentResource));
 
-            perm = provider.getPermission(currentType, new IdentityID("Organization Roles", OrganizationManager.getInstance().getCurrentOrgID()));
+            if(currentRole != null && currentRole.getOrganizationID() != null &&
+               Tool.equals(currentRole.getOrganizationID(), OrganizationManager.getInstance().getCurrentOrgID()))
+            {
+               perm = provider.getPermission(currentType, new IdentityID("Organization Roles", OrganizationManager.getInstance().getCurrentOrgID()));
 
-            if(perm != null) {
-               users.addAll(perm.getOrgScopedUserGrants(action, orgId));
-               roles.addAll(perm.getOrgScopedRoleGrants(action, orgId));
-               groups.addAll(perm.getOrgScopedGroupGrants(action, orgId));
-               organizations.addAll(perm.getOrgScopedOrganizationGrants(action, orgId));
+               // "Organization Roles" is only exposed as a grantable node when multi-tenant
+               // mode is on; when nobody has ever configured a grant on it, fall back to the
+               // "Roles" root -- the only node an admin has ever had the option to grant on
+               // in non-multi-tenant mode (Bug #75795).
+               if(perm == null) {
+                  perm = provider.getPermission(currentType, new IdentityID("Roles", OrganizationManager.getInstance().getCurrentOrgID()));
+               }
             }
-
-            perm = provider.getPermission(currentType, new IdentityID("Roles", OrganizationManager.getInstance().getCurrentOrgID()));
+            else if(currentRole == null || currentRole.getOrganizationID() == null) {
+               perm = provider.getPermission(currentType, new IdentityID("Roles", OrganizationManager.getInstance().getCurrentOrgID()));
+            }
+            else {
+               perm = null; // role belongs to a different org — no cumulative admin merge applies
+            }
 
             if(perm != null) {
                users.addAll(perm.getOrgScopedUserGrants(action, orgId));

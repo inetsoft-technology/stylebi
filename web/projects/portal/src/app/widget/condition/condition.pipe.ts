@@ -28,7 +28,8 @@ import { ConditionValuePipe } from "./condition-value.pipe";
  *
  */
 @Pipe({
-   name: "conditionToString"
+    name: "conditionToString",
+    standalone: true
 })
 export class ConditionPipe implements PipeTransform {
    transform(condition: Condition): string {

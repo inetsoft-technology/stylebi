@@ -22,6 +22,7 @@ import inetsoft.util.UserMessage;
 import inetsoft.web.composer.ws.event.AssetEvent;
 
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.HashMap;
 
 /**
@@ -29,7 +30,7 @@ import java.util.HashMap;
  *
  * @since 12.3
  */
-public class MessageCommand implements ViewsheetCommand {
+public class MessageCommand implements ViewsheetCommand, Serializable {
    public MessageCommand() {
    }
 

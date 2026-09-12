@@ -17,19 +17,24 @@
  */
 import {Component, EventEmitter, Input, Output} from "@angular/core";
 import {AutoSaveRecycleBinModel} from "./auto-save-recycle-bin";
-import {HttpClient, HttpErrorResponse} from "@angular/common/http";
+import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import {MatSnackBar} from "@angular/material/snack-bar";
 import {catchError} from "rxjs/operators";
 import {throwError} from "rxjs";
 import {RestoreAssetDialogComponent} from "./restore-asset-dialog.component";
 import {MatDialog} from "@angular/material/dialog";
 import {RepositoryEntryType} from "../../../../../../../shared/data/repository-entry-type.enum";
+import { AutoSaveRecycleBinComponent } from "./auto-save-recycle-bin.component";
+import { MatTabGroup, MatTab } from "@angular/material/tabs";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+
 
 const GET_AUTO_SAVE_TIME: string = "../api/em/content/repository/autosave/gettime";
 
 @Component({
-   selector: "em-auto-save-recycle-bin-page",
-   templateUrl: "./auto-save-recycle-bin-page.component.html"
+    selector: "em-auto-save-recycle-bin-page",
+    templateUrl: "./auto-save-recycle-bin-page.component.html",
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, AutoSaveRecycleBinComponent]
 })
 export class AutoSaveRecycleBinPageComponent {
    @Input() nodeType: string;

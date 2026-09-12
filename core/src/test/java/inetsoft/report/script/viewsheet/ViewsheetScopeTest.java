@@ -18,21 +18,27 @@
 
 package inetsoft.report.script.viewsheet;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.FormTableRow;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.lens.DefaultTableLens;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.SRPrincipal;
+import inetsoft.report.script.TableArray;
+import inetsoft.report.script.formula.AssetQueryScope;
 import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XEmbeddedTable;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.util.Tool;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -40,7 +46,8 @@ import java.net.URL;
 import java.security.Principal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -49,33 +56,25 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "ViewsheetScopeTest.vso")
+@Tag("core")
+@Tag("integration")
 public class ViewsheetScopeTest {
    @RegisterExtension
-   @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
-
-   @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension viewsheetResource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 
    private ViewsheetScope viewsheetScope;
    private ViewsheetSandbox sandbox;
-   ViewsheetService viewsheetService = mock(ViewsheetService.class);
 
    @BeforeEach
    void setUp() throws Exception {
       openMocks(this);
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      sandbox = rvs.getViewsheetSandbox();
-      SRPrincipal org_admin = new SRPrincipal(new IdentityID("admin", "host-org"),
-                                              new IdentityID[] { new IdentityID("Organization Administrator", null)},
-                                              new String[0], "host-org",
-                                              Tool.getSecureRandom().nextLong());
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), org_admin))
-         .thenReturn(viewsheetResource.getRuntimeViewsheet());
-
+      sandbox = rvs.getViewsheetSandbox().orElseThrow();
       viewsheetScope = new ViewsheetScope(sandbox, false);
    }
 
@@ -298,10 +297,10 @@ public class ViewsheetScopeTest {
       assertInstanceOf(TableVSAScriptable.class, viewsheetScope.getVSAScriptable("TableView1"));
 
       // test prepareVariables and getvariableScriptable
-      Principal principal = (Principal)viewsheetScope.getVariableScriptable().get("__principal__", null);
+      Principal principal = (Principal)viewsheetScope.getVariableScriptable().getMember("__principal__");
       assertEquals("INETSOFT_SYSTEM~;~host-org", principal.getName());
       viewsheetScope.prepareVariables(null);
-      Object[] paras = (Object[])viewsheetScope.getVariableScriptable().get("parameterNames", null);
+      Object[] paras = (Object[])viewsheetScope.getVariableScriptable().getMember("parameterNames");
       assertArrayEquals(new Object[] {"__principal__", "_GROUPS_", "_USER_", "_ROLES_"},  paras);
 
       //test execute with a scriptable
@@ -310,16 +309,48 @@ public class ViewsheetScopeTest {
 
    @Test
    void testSomeGet() {
-      assertNull(viewsheetScope.get("event", null));
-      assertEquals(FormTableRow.OLD, viewsheetScope.get("OLD", null));
-      assertEquals(FormTableRow.CHANGED, viewsheetScope.get("CHANGED", null));
-      assertEquals(FormTableRow.ADDED, viewsheetScope.get("ADDED", null));
-      assertEquals(FormTableRow.DELETED, viewsheetScope.get("DELETED", null));
+      assertNull(viewsheetScope.getMember("event"));
+      assertEquals(FormTableRow.OLD, viewsheetScope.getMember("OLD"));
+      assertEquals(FormTableRow.CHANGED, viewsheetScope.getMember("CHANGED"));
+      assertEquals(FormTableRow.ADDED, viewsheetScope.getMember("ADDED"));
+      assertEquals(FormTableRow.DELETED, viewsheetScope.getMember("DELETED"));
 
-      assertEquals(19, viewsheetScope.getIds().length);
+      assertEquals(19, viewsheetScope.getMemberKeys().length);
 
       ViewsheetScope viewsheetScope1 = (ViewsheetScope)viewsheetScope.clone();
       assertEquals("ViewsheetScope", viewsheetScope1.getClassName());
+   }
+
+   /**
+    * Bug #75807, a qualified read of a base-worksheet table name -- e.g.
+    * viewsheet['Query1'] -- is dispatched straight at the viewsheet scope, so it
+    * has to resolve through the chain that addToPrototype() links to the
+    * worksheet's AssetQueryScope.
+    */
+   @Test
+   void testWorksheetTableResolvedThroughChain() {
+      AssetQuerySandbox wbox = sandbox.getAssetQuerySandbox();
+      String tname = Arrays.stream(wbox.getWorksheet().getAssemblies())
+         .filter(a -> a instanceof TableAssembly)
+         .map(Assembly::getName)
+         .filter(name -> !viewsheetScope.hasMember(name))
+         .findFirst()
+         .orElseThrow();
+
+      // not resolvable until the worksheet scope is chained onto this scope
+      assertFalse(viewsheetScope.hasMember(tname));
+      assertNull(viewsheetScope.getMember(tname));
+
+      AssetQueryScope wscope = new AssetQueryScope(wbox);
+      wscope.setMode(viewsheetScope.getMode());
+      JavaScriptEngine.addToPrototype(viewsheetScope, wscope);
+
+      assertTrue(viewsheetScope.hasMember(tname));
+      assertInstanceOf(TableArray.class, viewsheetScope.getMember(tname));
+
+      // a name owned by neither scope stays absent
+      assertFalse(viewsheetScope.hasMember("NoSuchTable75807"));
+      assertNull(viewsheetScope.getMember("NoSuchTable75807"));
    }
 
    private static OpenViewsheetEvent createOpenViewsheetEvent() {

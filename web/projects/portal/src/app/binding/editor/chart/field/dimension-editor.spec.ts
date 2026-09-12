@@ -17,7 +17,7 @@
  */
 import { HttpParams, HttpResponse } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf } from "rxjs";
@@ -46,25 +46,30 @@ describe("Dimension Editor Unit Test", () => {
       return dimRef;
    };
 
-   let bindingService = { getURLParams: jest.fn(() => new HttpParams()) };
+   let bindingService = { getURLParams: vi.fn(() => new HttpParams()) };
    let modelService = {
-      getModel: jest.fn(() => observableOf([])),
-      putModel: jest.fn(() => observableOf(new HttpResponse({body: null})))
+      getModel: vi.fn(() => observableOf([])),
+      putModel: vi.fn(() => observableOf(new HttpResponse({body: null})))
    };
-   let uiContextService = { isAdhoc: jest.fn() };
-   let examplesService = { loadDateLevelExamples: jest.fn(() => observableOf())};
+   let uiContextService = { isAdhoc: vi.fn() };
+   let examplesService = { loadDateLevelExamples: vi.fn(() => observableOf())};
 
    let fixture: ComponentFixture<DimensionEditor>;
    let dimensionEditor: DimensionEditor;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            DimensionEditor,
+            SortOption,
+            DynamicComboBox,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            DimensionEditor, SortOption, DynamicComboBox, FixedDropdownDirective
-         ],
+         
          providers: [
             { provide: ModelService, useValue: modelService },
             { provide: BindingService, useValue: bindingService },

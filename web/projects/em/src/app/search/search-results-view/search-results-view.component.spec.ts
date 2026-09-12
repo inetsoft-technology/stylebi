@@ -15,13 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
-import { MatPaginatorModule } from "@angular/material/paginator";
-import { MatTableModule } from "@angular/material/table";
-import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { ActivatedRoute } from "@angular/router";
 import { ActivatedRouteStub } from "../../../../../shared/testing/activated-route-stub";
+import { MaterialTestingModule } from "../../testing/material-testing.module";
 import { SearchResultsComponent } from "../search-results/search-results.component";
 import { SearchResultsViewComponent } from "./search-results-view.component";
 
@@ -29,15 +28,12 @@ describe("SearchResultsViewComponent", () => {
    let component: SearchResultsViewComponent;
    let fixture: ComponentFixture<SearchResultsViewComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const route = new ActivatedRouteStub({}, {}, {});
       TestBed.configureTestingModule({
          imports: [
-            NoopAnimationsModule,
-            MatPaginatorModule,
-            MatTableModule
-         ],
-         declarations: [SearchResultsComponent, SearchResultsViewComponent],
+            MaterialTestingModule,
+            SearchResultsComponent, SearchResultsViewComponent],
          providers: [
             { provide: ActivatedRoute, useValue: route }
          ],

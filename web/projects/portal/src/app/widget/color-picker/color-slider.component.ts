@@ -18,9 +18,10 @@
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 
 @Component({
-   selector: "cp-color-slider",
-   templateUrl: "color-slider.component.html",
-   styleUrls: ["color-slider.component.scss"]
+    selector: "cp-color-slider",
+    templateUrl: "color-slider.component.html",
+    styleUrls: ["color-slider.component.scss"],
+    standalone: true
 })
 export class ColorSlider {
    @Input() height: number;

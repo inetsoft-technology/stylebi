@@ -16,12 +16,21 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, HostListener, Inject, OnInit } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, ValidationErrors, Validators } from "@angular/forms";
-import { MatCheckboxChange } from "@angular/material/checkbox";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { UntypedFormBuilder, UntypedFormGroup, ValidationErrors, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MatCheckboxChange, MatCheckbox } from "@angular/material/checkbox";
+import { ErrorStateMatcher } from "@angular/material/core";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { ServerPathInfoModel } from "../../../../../../../portal/src/app/vsobjects/model/server-path-info-model";
 import { ServerLocation } from "../../../../../../../shared/schedule/model/server-location";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
+import { EmErrorStateMatcher } from "../../../../common/util/error/em-error-state-matcher";
+import { MatButton } from "@angular/material/button";
+
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 export interface ServerLocationData {
    location: ServerLocation;
@@ -30,9 +39,11 @@ export interface ServerLocationData {
 }
 
 @Component({
-   selector: "em-server-location-editor",
-   templateUrl: "./server-location-editor.component.html",
-   styleUrls: ["./server-location-editor.component.scss"]
+    selector: "em-server-location-editor",
+    templateUrl: "./server-location-editor.component.html",
+    styleUrls: ["./server-location-editor.component.scss"],
+    providers: [{ provide: ErrorStateMatcher, useClass: EmErrorStateMatcher }],
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, MatDialogActions, MatButton]
 })
 export class ServerLocationEditorComponent implements OnInit {
    form: UntypedFormGroup;

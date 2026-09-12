@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { FormBuilder, FormGroup } from "@angular/forms";
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute } from "@angular/router";
 import { of, Subscription } from "rxjs";
 import { catchError, tap } from "rxjs/operators";
@@ -29,6 +29,10 @@ import { Secured } from "../../secured";
 import { IdentityId } from "../../settings/security/users/identity-id";
 import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.component";
 import { IdentityInfo, IdentityInfoList, IdentityInfoParameters } from "./identity-info";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+
 
 @Secured({
    route: "/auditing/identity-info",
@@ -44,9 +48,10 @@ import { IdentityInfo, IdentityInfoList, IdentityInfoParameters } from "./identi
    link: "EMViewAudit"
 })
 @Component({
-   selector: "em-audit-identity-info",
-   templateUrl: "./audit-identity-info.component.html",
-   styleUrls: ["./audit-identity-info.component.scss"]
+    selector: "em-audit-identity-info",
+    templateUrl: "./audit-identity-info.component.html",
+    styleUrls: ["./audit-identity-info.component.scss"],
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption]
 })
 export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
    types = [ "u", "g", "r", "o" ];
@@ -60,6 +65,7 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
    form: FormGroup;
    systemAdministrator = false;
    organizationFilter = false;
+   displayTypes: string[] = [];
    private subscriptions = new Subscription();
    private _displayedColumns = [
       "name", "type", "actionType", "actionTime", "actionDescription", "state", "server"
@@ -87,6 +93,10 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
       return this.noOrgTypes;
    }
 
+   private updateTypes(): void {
+      this.displayTypes = this.getTypes();
+   }
+
    constructor(private http: HttpClient, private activatedRoute: ActivatedRoute,
                private pageTitle: PageHeaderService, private errorService: ErrorHandlerService,
                fb: FormBuilder)
@@ -102,6 +112,7 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
 
    ngOnInit(): void {
       this.pageTitle.title = "_#(js:Identity Information)";
+      this.updateTypes();
       this.http.get<string[]>("../api/em/security/users/get-all-organization-names/").subscribe(
           (orgList => this.orgNames = orgList)
        );
@@ -133,6 +144,7 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
                this.organizations = params.organizations;
                this.organizationFilter = params.organizationFilter;
                this.hosts = params.hosts;
+               this.updateTypes();
             }));
    };
 

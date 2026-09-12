@@ -22,6 +22,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.*;
 import inetsoft.sree.security.*;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,6 +31,7 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.core.io.Resource;
@@ -50,6 +52,12 @@ import java.util.concurrent.TimeUnit;
 @SuppressWarnings("deprecation")
 @Controller
 public class GlobalStyleController implements ApplicationContextAware {
+   @Autowired
+   public GlobalStyleController(SecurityEngine securityEngine, CustomThemesManager customThemesManager) {
+      this.securityEngine = securityEngine;
+      this.customThemesManager = customThemesManager;
+   }
+
    @GetMapping({ "/app/global.css", "/em/theme.css", "/app/assets/**", "/em/assets/**",
                  "/app/theme-variables.css", "/em/theme-variables.css",
                  "/em/theme-dark.css"})
@@ -66,7 +74,7 @@ public class GlobalStyleController implements ApplicationContextAware {
          }
       }
 
-      StyleResource resource = getResource(path, user);
+      StyleResource resource = getResource(path, user, getRequestOrgID(request));
 
       // use max-age caching for static resources to minimize the number of requests to load the
       // application
@@ -94,21 +102,60 @@ public class GlobalStyleController implements ApplicationContextAware {
       this.context = applicationContext;
    }
 
+   /**
+    * Resolves the organization that an unauthenticated request belongs to. The login page and the
+    * style sheets it pulls in are served without a principal, so OrganizationManager falls back to
+    * the default organization and a tenant's login page ends up styled with the host organization's
+    * theme. The organization the browser actually asked for is encoded in the request (sub-domain
+    * or path, depending on security.login.orgLocation), which is how the login flow reads it too.
+    *
+    * @return the organization to resolve the theme against, or {@code null} to leave the current
+    *         organization alone (authenticated request, single tenant, or unknown organization).
+    */
+   private String getRequestOrgID(HttpServletRequest request) {
+      if(!SUtil.isMultiTenant() || ThreadContext.getContextPrincipal() != null ||
+         OrganizationContextHolder.getCurrentOrgId() != null)
+      {
+         return null;
+      }
+
+      // returns null unless the host/path names an existing organization
+      return SUtil.getLoginOrganization(request);
+   }
+
+   private StyleResource getResource(String path, Principal user, String requestOrgID)
+      throws IOException
+   {
+      if(requestOrgID == null) {
+         return getResource(path, user);
+      }
+
+      // make the organization named by the request current for the duration of the lookup so that
+      // the theme, the organization record and the resource cache all agree on it
+      OrganizationContextHolder.setCurrentOrgId(requestOrgID);
+
+      try {
+         return getResource(path, user);
+      }
+      finally {
+         OrganizationContextHolder.clear();
+      }
+   }
+
    private synchronized StyleResource getResource(String path, Principal user) throws IOException {
       String themeId = null;
       boolean hasTheme = false;
 
       if(SUtil.isMultiTenant()) {
          String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
 
          if(currOrgID != null && provider.getOrganization(currOrgID) != null &&
             provider.getOrganization(currOrgID).getTheme() != null)
          {
             themeId = provider.getOrganization(currOrgID).getTheme();
-            CustomThemesManager themes = CustomThemesManager.getManager();
 
-            for(CustomTheme theme : themes.getCustomThemes()) {
+            for(CustomTheme theme : customThemesManager.getCustomThemes()) {
                if(theme.getId().equals(themeId)) {
                   hasTheme = true;
                   break;
@@ -118,7 +165,7 @@ public class GlobalStyleController implements ApplicationContextAware {
       }
 
       if(Tool.isEmptyString(themeId) || !hasTheme) {
-         themeId = CustomThemesManager.getManager().getSelectedTheme(user);
+         themeId = customThemesManager.getSelectedTheme(user);
       }
 
       ResourceKey key = new ResourceKey(themeId, path);
@@ -131,11 +178,13 @@ public class GlobalStyleController implements ApplicationContextAware {
                           Caffeine.newBuilder()
                              .maximumSize(1000)
                              .expireAfterAccess(10, TimeUnit.MINUTES)
-                             .build(new CacheLoader<ResourceKey, StyleResource>() {
-                                @Override
-                                public StyleResource load(ResourceKey resourceKey) throws Exception {
-                                   return new StyleResource(resourceKey.path, resourceKey.themeId, context);
-                                }}));
+                             .build(resourceKey -> {
+                                boolean themeExists = resourceKey.themeId != null &&
+                                   customThemesManager.getCustomThemes().stream()
+                                      .anyMatch(t -> t.getId().equals(resourceKey.themeId));
+                                String themeId1 = resourceKey.themeId == null || !themeExists ? "default" : resourceKey.themeId;
+                                return new StyleResource(resourceKey.path, themeId1, context);
+                             }));
          }
 
          StyleResource resource = resources.get(orgID).get(key);
@@ -187,6 +236,8 @@ public class GlobalStyleController implements ApplicationContextAware {
    }
 
    private ApplicationContext context;
+   private final SecurityEngine securityEngine;
+   private final CustomThemesManager customThemesManager;
    private final Map<String, LoadingCache<ResourceKey, StyleResource>> resources = new HashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(GlobalStyleController.class);
@@ -236,20 +287,8 @@ public class GlobalStyleController implements ApplicationContextAware {
       StyleResource(String path, String themeId, ResourcePatternResolver resolver)
          throws IOException
       {
-         StringBuilder location = new StringBuilder("theme:");
-         boolean themeExists = themeId != null &&
-            CustomThemesManager.getManager().getCustomThemes().stream()
-               .anyMatch(t -> t.getId().equals(themeId));
-
-         if(themeId == null || !themeExists) {
-            location.append("default");
-         }
-         else {
-            location.append(themeId);
-         }
-
-         location.append("/inetsoft/web/resources").append(path);
-         resource = resolver.getResource(location.toString());
+         String location = "theme:" + themeId + "/inetsoft/web/resources" + path;
+         resource = resolver.getResource(location);
          modified = resource.lastModified();
          MediaType mediaType = contentTypes.getMediaTypeForResource(resource);
 

@@ -15,10 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, Renderer2,
-         ChangeDetectorRef } from "@angular/core";
+import { Component, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output,
+         Renderer2, ChangeDetectorRef, SimpleChanges } from "@angular/core";
 import { SliderOptions } from "./slider-options";
 import { GuiTool } from "../../common/util/gui-tool";
+
 
 interface SliderTick {
    left: string;
@@ -26,11 +27,12 @@ interface SliderTick {
 }
 
 @Component({
-   selector: "slider", // eslint-disable-line @angular-eslint/component-selector
-   templateUrl: "slider.component.html",
-   styleUrls: ["slider.component.scss"]
+    selector: "slider",
+    templateUrl: "slider.component.html",
+    styleUrls: ["slider.component.scss"],
+    imports: []
 })
-export class Slider implements OnInit, OnDestroy {
+export class Slider implements OnChanges, OnInit, OnDestroy {
    @Input() model: SliderOptions;
    @Input() enabled: boolean = true;
    @Output() sliderChanged = new EventEmitter();
@@ -42,12 +44,29 @@ export class Slider implements OnInit, OnDestroy {
    private cancelMouseMove: Function | null = null;
    private cancelMouseUp: Function | null = null;
 
+   // Cached computed values — updated at every mutation site for mouseDownX/mouseDelta/model.value
+   sliderLabel: string = "";
+   labelLeft: string = "0px";
+   trackWidth: string = "0px";
+
    constructor(private renderer: Renderer2,
                private changeRef: ChangeDetectorRef) {
    }
 
+   public ngOnChanges(changes: SimpleChanges): void {
+      if(changes["model"]) {
+         this.ticks = this.getTicks();
+         this.sliderLabel = this.getLabel();
+         this.labelLeft = this.getLabelLeft();
+         this.trackWidth = this.getValueLeft();
+      }
+   }
+
    public ngOnInit(): void {
       this.ticks = this.getTicks();
+      this.sliderLabel = this.getLabel();
+      this.labelLeft = this.getLabelLeft();
+      this.trackWidth = this.getValueLeft();
    }
 
    public ngOnDestroy(): void {
@@ -220,6 +239,9 @@ export class Slider implements OnInit, OnDestroy {
    moveHandleHere(event: MouseEvent): void {
       const x = Math.max(0, Math.min(event.offsetX, this.getLineWidth()));
       this.model.value = this.model.min + (x / this.getLineWidth()) * (this.model.max - this.model.min);
+      this.sliderLabel = this.getLabel();
+      this.labelLeft = this.getLabelLeft();
+      this.trackWidth = this.getValueLeft();
       this.sliderChanged.emit(parseFloat(this.toLabel(this.model.value)));
       this.changeCompleted.emit(true);
       this.changeRef.detectChanges();
@@ -239,7 +261,10 @@ export class Slider implements OnInit, OnDestroy {
       this.cancelMouseMove =
          this.renderer.listen("document", "mousemove", (e: MouseEvent) => {
             this.mouseDelta = e.pageX - this.mouseDownX;
-            this.sliderChanged.emit(parseFloat(this.getLabel()));
+            this.sliderLabel = this.getLabel();
+            this.labelLeft = this.getLabelLeft();
+            this.trackWidth = this.getValueLeft();
+            this.sliderChanged.emit(parseFloat(this.sliderLabel));
             this.changeRef.detectChanges();
          });
 
@@ -247,6 +272,10 @@ export class Slider implements OnInit, OnDestroy {
          this.renderer.listen("document", "mouseup", () => {
             this.model.value = parseFloat(this.getLabel());
             this.mouseDownX = NaN;
+            this.mouseDelta = 0;
+            this.sliderLabel = this.getLabel();
+            this.labelLeft = this.getLabelLeft();
+            this.trackWidth = this.getValueLeft();
             this.cancelMouseMove?.();
             this.cancelMouseUp?.();
             this.cancelMouseMove = null;

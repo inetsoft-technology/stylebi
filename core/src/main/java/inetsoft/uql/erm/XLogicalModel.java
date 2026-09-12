@@ -19,7 +19,7 @@ package inetsoft.uql.erm;
 
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XDataSource;
-import inetsoft.uql.XFactory;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
@@ -482,7 +482,7 @@ public class XLogicalModel
    public Enumeration<String> getDefinedVariables() {
       try {
          return getDefinedVariables(
-            XFactory.getRepository().getDataModel(getDataSource()));
+            XRepository.getRepository().getDataModel(getDataSource()));
       }
       catch(Exception exc) {
          LOG.error("Failed to get defined variables, unable to " +
@@ -505,7 +505,7 @@ public class XLogicalModel
    public Enumeration<String> getVariableNames() {
       try {
          return getVariableNames(
-            XFactory.getRepository().getDataModel(getDataSource()));
+            XRepository.getRepository().getDataModel(getDataSource()));
       }
       catch(Exception exc) {
          LOG.error("Failed to get variable names, unable to " +

@@ -46,10 +46,12 @@ import java.util.Enumeration;
 public class TableStyleService {
    @Autowired
    public TableStyleService(SheetLibraryService sheetLibraryService,
-                            AssetRepository assetRepository)
+                            AssetRepository assetRepository,
+                            LibManagerProvider libManagerProvider)
    {
       this.sheetLibraryService = sheetLibraryService;
       this.assetRepository = assetRepository;
+      this.libManagerProvider = libManagerProvider;
    }
 
    public void checkTableStylePermission(AssetEntry entry, String name,
@@ -77,7 +79,7 @@ public class TableStyleService {
    public void checkDuplicateTableStyle(String folder, String name,
                                         SaveLibraryDialogModelValidator validator)
    {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = libManagerProvider.getManager();
       Catalog catalog = Catalog.getCatalog();
       String containsFolder = getTableStyleLabel(folder, name);
 
@@ -216,7 +218,7 @@ public class TableStyleService {
     * @return <tt>true</tt> if contains, <tt>false</tt> otherwise.
     */
    public boolean containsTableStyle(String name) {
-      return getTableStyleID(name) != null;
+      return getTableStyleID(name, libManagerProvider) != null;
    }
 
    public void initTableStyle(XTableStyle style) {
@@ -232,12 +234,12 @@ public class TableStyleService {
     * @param name the full name of the specified table style.
     * @return table style id if any.
     */
-   private static String getTableStyleID(String name) {
-      LibManager mgr = LibManager.getManager();
+   private static String getTableStyleID(String name, LibManagerProvider libManagerProvider) {
+      LibManager mgr = libManagerProvider.getManager();
       Enumeration<String> styles = mgr.getTableStyles();
 
       while(styles.hasMoreElements()) {
-         XTableStyle tstyle = (XTableStyle) get(styles.nextElement());
+         XTableStyle tstyle = (XTableStyle) get(styles.nextElement(), libManagerProvider);
 
          if(name.equals(tstyle.getName())) {
             return tstyle.getID();
@@ -254,12 +256,12 @@ public class TableStyleService {
     * @param name name of the style.
     * @return table style.
     */
-   private static TableStyle get(String name) {
-      return LibManager.getManager().getTableStyle(name);
+   private static TableStyle get(String name, LibManagerProvider libManagerProvider) {
+      return libManagerProvider.getManager().getTableStyle(name);
    }
 
    public boolean contains(String folder, String name) {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = libManagerProvider.getManager();
       XTableStyle[] tableStyles = manager.getTableStyles(folder);
 
       return Arrays.stream(tableStyles)
@@ -312,4 +314,5 @@ public class TableStyleService {
 
    private final SheetLibraryService sheetLibraryService;
    private final AssetRepository assetRepository;
+   private final LibManagerProvider libManagerProvider;
 }

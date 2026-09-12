@@ -19,7 +19,7 @@
 import { Component, Input, Output, OnInit, EventEmitter, ViewChild } from "@angular/core";
 import { TargetInfo, MeasureInfo } from "./target-info";
 import { Tool } from "../../../../../shared/util/tool";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { LinePanel } from "./line-panel.component";
 import { BandPanel } from "./band-panel.component";
 import { StatPanel } from "./stat-panel.component";
@@ -27,9 +27,23 @@ import { UIContextService } from "../../common/services/ui-context.service";
 import { ComponentTool } from "../../common/util/component-tool";
 import { GraphTypes } from "../../common/graph-types";
 
+import { ModalHeaderComponent } from "../modal-header/modal-header.component";
+
 @Component({
-   selector: "chart-target-dialog",
-   templateUrl: "chart-target-dialog.component.html",
+    selector: "chart-target-dialog",
+    templateUrl: "chart-target-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    LinePanel,
+    BandPanel,
+    StatPanel,
+    NgbNavOutlet
+]
 })
 export class ChartTargetDialog implements OnInit {
    @Input() chartTarget: TargetInfo;

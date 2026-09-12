@@ -31,8 +31,8 @@ import inetsoft.uql.util.XTableTableNode;
 import inetsoft.uql.util.filereader.CSVLoader;
 import inetsoft.util.FileSystemService;
 import inetsoft.util.Tool;
-import inetsoft.util.script.JavaScriptEnv;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import org.apache.commons.io.IOUtils;
 import org.rosuda.REngine.REXP;
 import org.rosuda.REngine.REXPMismatchException;
@@ -69,14 +69,14 @@ public class RRuntime extends TabularRuntime {
             if(box != null) {
                scriptEnv = box.getScriptEnv();
                AssetQueryScope parentScope = box.getScope();
-               scope.setPrototype(parentScope);
+               scope.setParentScope(parentScope);
             }
             else if(query.getProperty("enclosingReport") != null) {
                ReportSheet report = (ReportSheet) query.getProperty("enclosingReport");
                scriptEnv = report.getScriptEnv();
             }
             else {
-               scriptEnv = new JavaScriptEnv();
+               scriptEnv = new GraalJavaScriptEnv();
                scriptEnv.init();
             }
          }

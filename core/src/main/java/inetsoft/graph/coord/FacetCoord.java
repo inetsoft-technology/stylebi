@@ -1184,7 +1184,7 @@ public class FacetCoord extends Coordinate {
    /**
     * Check if the facet grid is drawn.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=PlotFacetGrid")
    public boolean isFacetGrid() {
       return facetGrid;
    }
@@ -1194,7 +1194,8 @@ public class FacetCoord extends Coordinate {
     * @param grid true to draw the facet axis lines (if enabled) and
     * the outer border lines.
     */
-   @TernMethod
+   // cshid is PlotFacetGrid (not FacetCoordSetFacetGrid) — confirmed against the published doc page
+   @TernMethod(url = "#cshid=PlotFacetGrid")
    public void setFacetGrid(boolean grid) {
       this.facetGrid = grid;
    }

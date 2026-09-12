@@ -19,7 +19,7 @@ import { CommonModule } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
 import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Router } from "@angular/router";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -38,8 +38,7 @@ import { DragService } from "../../../widget/services/drag.service";
 import { ModelService } from "../../../widget/services/model.service";
 import { DefaultScaleService } from "../../../widget/services/scale/default-scale-service";
 import { ScaleService } from "../../../widget/services/scale/scale-service";
-import { TableActions } from "../../action/table-actions";
-import { ContextProvider, ViewerContextProviderFactory } from "../../context-provider.service";
+import { ContextProvider } from "../../context-provider.service";
 import { ViewsheetInfo } from "../../data/viewsheet-info";
 import { RichTextService } from "../../dialog/rich-text-dialog/rich-text.service";
 import { BaseTableCellModel } from "../../model/base-table-cell-model";
@@ -50,6 +49,7 @@ import { CheckFormDataService } from "../../util/check-form-data.service";
 import { AdhocFilterService } from "../data-tip/adhoc-filter.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { VSTableCell } from "./vs-table-cell.component";
 import { VSTable } from "./vs-table.component";
 import { VSTabService } from "../../util/vs-tab.service";
@@ -199,31 +199,37 @@ describe("VSTable Unit Tests", () => {
    let router: any;
    let richTextService: any;
    let vsTabService: any;
+   let timerService: any;
 
-   beforeEach(async(() => {
-      viewsheetClientService = { sendEvent: jest.fn() };
+   beforeEach(waitForAsync(() => {
+      viewsheetClientService = { sendEvent: vi.fn() };
       viewsheetClientService.commands = observableOf([]);
       viewsheetClientService.runtimeId = "vs1_111";
       dndService = {};
       viewDataService = {};
-      dataTipService = { isDataTip: jest.fn(), isDataTipSource: jest.fn() };
+      dataTipService = { isDataTip: vi.fn(), isDataTipSource: vi.fn(), scrolled: new Subject<void>() };
       dataTipService.isDataTip.mockImplementation(() => false);
-      downloadService = { download: jest.fn() };
-      debounceService = { debounce: jest.fn() };
-      modelService = { sendModel: jest.fn() };
+      downloadService = { download: vi.fn() };
+      debounceService = { debounce: vi.fn() };
+      modelService = { sendModel: vi.fn() };
       contextProvider = { viewer: true };
-      adhocFilterService = { showFilter: jest.fn(), adhocFilterShowing: false };
+      adhocFilterService = { showFilter: vi.fn(), adhocFilterShowing: false };
       router = {
-         navigate: jest.fn(),
+         navigate: vi.fn(),
          events: new Subject<any>()
       };
       richTextService = {
-         showAnnotationDialog: jest.fn()
+         showAnnotationDialog: vi.fn()
       };
       vsTabService = { };
       vsTabService.tabDeselected = observableOf(null);
 
-      verticalScrollTooltip = { isOpen: jest.fn() };
+      verticalScrollTooltip = { isOpen: vi.fn() };
+      timerService = {
+         defer: vi.fn((fn) => {
+            fn();
+         })
+      };
 
       TestBed.configureTestingModule({
          imports: [
@@ -232,11 +238,11 @@ describe("VSTable Unit Tests", () => {
             ReactiveFormsModule,
             NgbModule,
             DropDownTestModule,
-            HttpClientTestingModule
+            HttpClientTestingModule,
+            VSTable,
+            VSTableCell,
          ],
-         declarations: [
-            VSTable, VSTableCell
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             Renderer2,
@@ -258,7 +264,8 @@ describe("VSTable Unit Tests", () => {
             {provide: DragService, useValue: null},
             {provide: RichTextService, useValue: richTextService},
             {provide: VSTabService, useValue: vsTabService},
-            AppInfoService
+            AppInfoService,
+            {provide: TimerService, useValue: timerService},
          ]
       });
       TestBed.compileComponents();
@@ -267,41 +274,17 @@ describe("VSTable Unit Tests", () => {
       httpTestingController = TestBed.inject(HttpTestingController);
    }));
 
-   it("should expand the last column", () => {
-      let fixture1: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
-      // 300 - (30 + 30 + 90) = 150
-      fixture1.componentInstance.model = createModel(300, [30, 30, 90, 40], 4);
-      fixture1.detectChanges();
-      expect(fixture1.componentInstance.displayColWidths[3]).toBe(150);
-
-      let fixture2: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
-      fixture2.componentInstance.model = createModel(160, [60, 60, 20, 140], 4);
-      fixture2.detectChanges();
-      expect(fixture2.componentInstance.displayColWidths[0]).toBe(60);
-      expect(fixture2.componentInstance.displayColWidths[1]).toBe(60);
-      expect(fixture2.componentInstance.displayColWidths[2]).toBe(20);
-      expect(fixture2.componentInstance.displayColWidths[3]).toBe(140);
-   });
-
-   // Bug #9839 ensure row and col selection instantiated to -1, to signal nothing selected.
-   it("should instantiate firstSelectedRow and firstSelectedColumn to -1", () => {
-      let fixture1: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
-      fixture1.componentInstance.model = createModel(300, [30, 30, 30], 4);
-      fixture1.detectChanges();
-
-      fixture1.componentInstance.ngOnInit();
-      expect(fixture1.componentInstance.model.firstSelectedColumn).toEqual(-1);
-      expect(fixture1.componentInstance.model.firstSelectedRow).toEqual(-1);
-   });
-
-   // Bug #9913 ensure resizing works with drag/drop.
-   it("should be draggable if not resizing", () => {
-      let fixture1: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
-      fixture1.componentInstance.model = createModel(300, [30, 30, 30], 4);
-      fixture1.detectChanges();
-
-      expect(fixture1.componentInstance.isDraggable(true)).toBeTruthy();
-   });
+   /*
+    * Migrated to ATL + MSW TL specs (direct-instantiation, no TestBed overhead):
+    *   displayColWidths expand-last-col
+    *     → vs-table.component.display.tl.spec.ts  Group 11
+    *   getObjectTop shrunk + bottomTabs
+    *     → vs-table.component.display.tl.spec.ts  Group 12
+    *   firstSelectedRow / firstSelectedColumn init (Bug #9839)
+    *     → vs-table.component.interaction.tl.spec.ts  Group 1
+    *   isDraggable (Bug #9913)
+    *     → vs-table.component.interaction.tl.spec.ts  Group 11
+    */
 
    // Bug #10465 table should be hidden when visible is false
    it("should be hidden if not visible", () => {
@@ -315,7 +298,7 @@ describe("VSTable Unit Tests", () => {
    });
 
    // Bug #10474 apply underline and strikethrough decoration on table cells
-   it("should have underline and line-through text-decoration", (done) => {
+   it("should have underline and line-through text-decoration", () => new Promise<void>((done) => {
       let fixture1: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
       fixture1.componentInstance.model = createModel(300, [30, 30, 30], 4);
       fixture1.componentInstance.model.visible = true;
@@ -340,43 +323,16 @@ describe("VSTable Unit Tests", () => {
 
          done();
       });
-   });
+   }));
 
-   //Bug #18422, highlight dialog can not open
-   it("should fire event when highlight action is triggered", (done) => {
-      const model = createModel(300, [30, 30, 30], 4);
-      const tableActions = new TableActions(model, ViewerContextProviderFactory(false));
-      let fixture: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
-      fixture.componentInstance.model = model;
-      fixture.componentInstance.actions = tableActions;
-      fixture.detectChanges();
-
-      fixture.componentInstance.onOpenHighlightDialog.subscribe((event) => {
-         expect(event).toBe(model);
-         done();
-      });
-
-      tableActions.menuActions[1].actions[1].action(null);
-   });
-
-   //Bug #20169
-   it("should clear flyover when unselect cell", () => {
-      let model = createModel(300, [30, 30, 30], 4);
-      model.selectedData = new Map<number, number[]>();
-      model.selectedData.set(1, [1]);
-      model.hasFlyover = true;
-      model.isFlyOnClick = true;
-      let fixture: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
-      fixture.componentInstance.model = model;
-      fixture.componentInstance.vsInfo = new ViewsheetInfo([], "");
-      fixture.componentInstance.flyoverCellSelected = false;
-      fixture.componentInstance.clearFlyover(true);
-
-      expect(fixture.componentInstance.model.selectedData).toBeNull();
-   });
+   // Migrated to ATL + MSW TL specs:
+   //   onOpenHighlightDialog "table highlight" action (Bug #18422)
+   //     → vs-table.component.interaction.tl.spec.ts  Group 13
+   //   clearFlyover force=true / selectedData=null (Bug #20169)
+   //     → vs-table.component.interaction.tl.spec.ts  Group 12
 
    //Bug #21413, Bug #21414
-   xit("should reload model on cancel action", () => { // broken test
+   it.skip("should reload model on cancel action", () => { // broken test
       let model = createModel(300, [30, 30, 30], 4);
       model.selectedData = new Map<number, number[]>();
       model.selectedData.set(1, [1]);
@@ -393,7 +349,7 @@ describe("VSTable Unit Tests", () => {
       formService.addObject(formTable);
       fixture.detectChanges();
 
-      let showMessageDialog = jest.spyOn(ComponentTool, "showMessageDialog");
+      let showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog");
       showMessageDialog.mockImplementation(() => Promise.resolve("no"));
 
       fixture.componentInstance.changeCellText("aa", cellModel);

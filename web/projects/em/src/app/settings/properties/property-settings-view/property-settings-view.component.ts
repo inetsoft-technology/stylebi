@@ -15,21 +15,29 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import { AfterViewInit, Component, OnInit, ViewChild } from "@angular/core";
+import { UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatInput } from "@angular/material/input";
 import { MatPaginator } from "@angular/material/paginator";
-import { MatSort } from "@angular/material/sort";
-import { data } from "jquery";
+import { MatSort, MatSortHeader } from "@angular/material/sort";
 import { merge as mergeObservables, Observable } from "rxjs";
-import { map, tap } from "rxjs/operators";
+import { delay, map, tap } from "rxjs/operators";
 import { ContextHelp } from "../../../context-help";
+import { ErrorHandlerService } from "../../../common/util/error/error-handler.service";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Searchable } from "../../../searchable";
 import { Secured } from "../../../secured";
 import { PropertySettingsDatasourceService } from "../property-settings-services/property-settings-datasource.service";
-import { HttpClient } from "@angular/common/http";
-import { UntypedFormControl } from "@angular/forms";
 import { PropertiesTool } from "./properties-tool";
+import { MatOption } from "@angular/material/core";
+import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
+import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
+import { TopScrollDirective } from "../../../top-scroll/top-scroll.directive";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatMiniFabButton } from "@angular/material/button";
+import { AsyncPipe, NgIf } from "@angular/common";
+import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field";
 
 export interface PropertySetting {
    propertyName: string;
@@ -59,9 +67,10 @@ const DEFAULT_PROPERTY: PropertySetting = {
    link: "EMSettingsProperties"
 })
 @Component({
-   selector: "em-property-settings-view",
-   templateUrl: "./property-settings-view.component.html",
-   styleUrls: ["./property-settings-view.component.scss"]
+    selector: "em-property-settings-view",
+    templateUrl: "./property-settings-view.component.html",
+    styleUrls: ["./property-settings-view.component.scss"],
+    imports: [NgIf, MatFormField, MatLabel, MatInput, MatIconButton, MatSuffix, MatIcon, MatMiniFabButton, TopScrollDirective, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatSortHeader, MatCellDef, MatCell, FormsModule, MatAutocompleteTrigger, ReactiveFormsModule, MatAutocomplete, MatOption, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, AsyncPipe]
 })
 export class PropertySettingsViewComponent implements OnInit, AfterViewInit {
 
@@ -83,7 +92,8 @@ export class PropertySettingsViewComponent implements OnInit, AfterViewInit {
 
    constructor(private pageTitle: PageHeaderService,
                private dataService: PropertySettingsDatasourceService,
-               private http: HttpClient)
+               private http: HttpClient,
+               private errorService: ErrorHandlerService)
    {
    }
 
@@ -198,7 +208,13 @@ export class PropertySettingsViewComponent implements OnInit, AfterViewInit {
       const name = this.editingRow.propertyName;
       const value = this.editingRow.propertyValue;
       this.dataService.changeRow(this.editingRow)
-         .subscribe(() => this.insertOrReplace(name, value));
+         .subscribe({
+            next: () => this.insertOrReplace(name, value),
+            // the server rejects some values outright -- log.provider=fluentd on a build that
+            // cannot forward, for one (see PropertiesController.editProperty). Without this the
+            // rejection is swallowed, the row silently reverts, and the edit looks like a no-op
+            error: (error) => this.errorService.showDialog(error)
+         });
       this.nameInputControl.setValue("");
       this.editingRow = Object.assign({}, DEFAULT_PROPERTY);
       this.dataService.cancelRow();
@@ -230,6 +246,14 @@ export class PropertySettingsViewComponent implements OnInit, AfterViewInit {
 
    deleteRow(row: PropertySetting) {
       this.dataService.deleteRow(row)
+         .pipe(
+            tap(() => {
+               this.dataSource = this.dataSource.filter(p => p.propertyName != row.propertyName);
+            }),
+            // SreeEnv debounces change notifications, so if the fetchData call goes to a different
+            // instance it is likely that its local capy doesn't have the row removed yet.
+            delay(1000)
+         )
          .subscribe(() => this.fetchData());
    }
 

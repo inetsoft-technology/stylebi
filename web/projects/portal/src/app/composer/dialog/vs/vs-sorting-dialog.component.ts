@@ -17,10 +17,17 @@
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { VSSortingDialogModel } from "../../data/vs/vs-sorting-dialog-model";
+import { VSSortingPane } from "./vs-sorting-pane.component";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "vs-sorting-dialog",
-   templateUrl: "vs-sorting-dialog.component.html",
+    selector: "vs-sorting-dialog",
+    templateUrl: "vs-sorting-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    VSSortingPane
+]
 })
 export class VSSortingDialog {
    @Input() model: VSSortingDialogModel;

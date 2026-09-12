@@ -25,7 +25,7 @@ import {
    TemplateRef,
    ViewChild
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { ScreenSizeDialogModel } from "../../data/vs/screen-size-dialog-model";
@@ -33,15 +33,28 @@ import { ViewsheetDeviceLayoutDialogModel } from "../../data/vs/viewsheet-device
 import { Tool } from "../../../../../../shared/util/tool";
 import { Point } from "../../../common/data/point";
 import { ComponentTool } from "../../../common/util/component-tool";
+import { ScreenSizeDialog } from "./screen-size-dialog.component";
+import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const URI_NEW_DEViCE = "../api/composer/device/new";
 const URI_EDIT_DEViCE = "../api/composer/device/edit";
 const URI_GET_DELETE_DEViCE = "../api/composer/device/delete";
 
 @Component({
-   selector: "viewsheet-device-layout-dialog",
-   templateUrl: "viewsheet-device-layout-dialog.component.html",
-   styleUrls: ["viewsheet-device-layout-dialog.component.scss"],
+    selector: "viewsheet-device-layout-dialog",
+    templateUrl: "viewsheet-device-layout-dialog.component.html",
+    styleUrls: ["viewsheet-device-layout-dialog.component.scss"],
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    FormsModule,
+    ReactiveFormsModule,
+    InputTrimDirective,
+    ScreenSizeDialog
+]
 })
 export class ViewsheetDeviceLayoutDialog implements OnInit {
    @Input() index: number = -1;

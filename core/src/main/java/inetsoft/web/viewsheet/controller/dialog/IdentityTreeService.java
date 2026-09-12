@@ -17,7 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller.dialog;
 
-import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.*;
 import inetsoft.util.Catalog;
@@ -223,7 +222,6 @@ public class IdentityTreeService {
             .label(n.getIdentityID().name)
             .alias(getUserAlias(provider, n.getIdentityID()))
             .organization(n.getIdentityID().orgID)
-            .data(getUserEmails(n.getIdentityID()))
             .type(n.getType() + "")
             .leaf(n.getType() == Identity.USER)
             .build())
@@ -242,16 +240,6 @@ public class IdentityTreeService {
       }
 
       return treeNodeModels;
-   }
-
-   private String[] getUserEmails(IdentityID user) {
-      try {
-         return SUtil.getEmails(user);
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to get emails for user: {}", user, e);
-         return new String[0];
-      }
    }
 
    private String getUserAlias(SecurityProvider provider, IdentityID name) {

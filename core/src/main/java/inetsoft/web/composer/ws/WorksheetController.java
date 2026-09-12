@@ -26,6 +26,7 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XUtil;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSInsertColumnsEvent;
@@ -40,11 +41,6 @@ import java.util.Arrays;
 
 @Controller
 public class WorksheetController {
-   protected RuntimeWorksheet getRuntimeWorksheet(Principal principal) throws Exception {
-      WorksheetService engine = getWorksheetEngine();
-      return engine.getWorksheet(getRuntimeId(), principal);
-   }
-
    protected WorksheetService getWorksheetEngine() {
       return wsEngine;
    }
@@ -67,37 +63,9 @@ public class WorksheetController {
       this.wsEngine = viewsheetService;
    }
 
-   /**
-    * Check if allows deletion.
-    */
-   protected boolean allowsDeletion(Worksheet ws, TableAssembly assembly, ColumnRef ref) {
-      AssemblyRef[] arr = ws.getDependings(assembly.getAssemblyEntry());
-
-      for(AssemblyRef assemblyRef : arr) {
-         String assemblyName = assemblyRef.getEntry().getName();
-         Assembly tmp = ws.getAssembly(assemblyName);
-
-         if(tmp instanceof CompositeTableAssembly) {
-            CompositeTableAssembly table = (CompositeTableAssembly) tmp;
-
-            if(table.isColumnUsed(assembly, ref)) {
-               return false;
-            }
-         }
-
-         if(tmp instanceof TableAssembly) {
-            TableAssembly table = (TableAssembly) tmp;
-            DataRef dataRef = AssetUtil.getOuterAttribute(assemblyName, ref);
-            ColumnRef ref2 =
-               AssetUtil.getColumnRefFromAttribute(table.getColumnSelection(), dataRef);
-
-            if(ref2 != null && !allowsDeletion(ws, table, ref2)) {
-               return false;
-            }
-         }
-      }
-
-      return true;
+   @Autowired
+   public void setDataSourceRegistry(DataSourceRegistry dataSourceRegistry) {
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    protected boolean isBeDepend(ColumnSelection columns, DataRef target) {
@@ -216,7 +184,7 @@ public class WorksheetController {
          if(otable != null) {
             assembly.setColumnSelection(columns);
             WSModelTrapContext context =
-               new WSModelTrapContext(boundTable, principal);
+               new WSModelTrapContext(boundTable, principal, dataSourceRegistry);
 
             if(context.isCheckTrap() &&
                context.checkTrap(otable, boundTable).showWarning())
@@ -464,8 +432,7 @@ public class WorksheetController {
 
    private RuntimeViewsheetRef runtimeViewsheetRef;
    private WorksheetService wsEngine;
+   private DataSourceRegistry dataSourceRegistry;
 
-   protected static final int ROW_LIMIT = 10000;
-   protected static final int COL_LIMIT = 1000;
    protected static final int BLOCK = 100; // Table row counts per loading process
 }

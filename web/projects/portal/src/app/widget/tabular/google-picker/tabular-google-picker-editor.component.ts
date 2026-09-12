@@ -24,14 +24,16 @@ import {
    Output,
    SimpleChanges
 } from "@angular/core";
-import { UntypedFormControl, Validators } from "@angular/forms";
+import { UntypedFormControl, Validators, FormsModule } from "@angular/forms";
 import { GooglePicker } from "../../../common/data/tabular/google-picker";
 import { GooglePickerService } from "./google-picker.service";
 
+
 @Component({
-   selector: "tabular-google-picker-editor",
-   templateUrl: "tabular-google-picker-editor.component.html",
-   styleUrls: ["tabular-google-picker-editor.component.scss"]
+    selector: "tabular-google-picker-editor",
+    templateUrl: "tabular-google-picker-editor.component.html",
+    styleUrls: ["tabular-google-picker-editor.component.scss"],
+    imports: [FormsModule]
 })
 export class TabularGooglePickerEditor implements OnInit, OnChanges {
    @Input() value: GooglePicker;

@@ -19,10 +19,15 @@ package inetsoft.web.json;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.security.ResourceType;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.web.WebConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
@@ -31,7 +36,11 @@ import java.util.EnumSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
+@Tag("core")
 class JsonSerializerTest {
    @BeforeEach
    void setup() {

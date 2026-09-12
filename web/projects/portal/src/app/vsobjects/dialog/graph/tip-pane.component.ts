@@ -33,11 +33,18 @@ import { TipCustomizeDialogModel } from "../../../widget/dialog/tip-customize-di
 import { TipPaneModel } from "../../model/tip-pane-model";
 import { DataTipDependencyCheckResult } from "./data-tip-dependency-check-result";
 import { ComponentTool } from "../../../common/util/component-tool";
+import { TipCustomizeDialog } from "../../../widget/dialog/tip-customize-dialog/tip-customize-dialog.component";
+import { NotificationsComponent } from "../../../widget/notifications/notifications.component";
+import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
+import { AlphaDropdown } from "../../../widget/format/alpha-dropdown.component";
+import { FormsModule } from "@angular/forms";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "tip-pane",
-   templateUrl: "tip-pane.component.html",
-   styleUrls: ["tip-pane.component.scss"]
+    selector: "tip-pane",
+    templateUrl: "tip-pane.component.html",
+    styleUrls: ["tip-pane.component.scss"],
+    imports: [NgIf, FormsModule, NgFor, AlphaDropdown, LargeFormFieldComponent, NotificationsComponent, TipCustomizeDialog]
 })
 export class TipPane implements OnDestroy {
    @Input() model: TipPaneModel;

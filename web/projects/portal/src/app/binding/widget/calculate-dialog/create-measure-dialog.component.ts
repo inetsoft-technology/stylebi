@@ -16,14 +16,29 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter, OnInit } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { CreateMeasureDialogModel } from "./create-measure-dialog-model";
 import { XSchema } from "../../../common/data/xschema";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
+import { VSAssemblyScriptPane } from "../../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.component";
+import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
+import { NgIf, NgSwitch, NgSwitchCase, NgFor, NgSwitchDefault } from "@angular/common";
 
 @Component({
-   selector: "create-measure-dialog",
-   templateUrl: "create-measure-dialog.component.html",
+    selector: "create-measure-dialog",
+    templateUrl: "create-measure-dialog.component.html",
+    standalone: true,
+    imports: [
+        NgIf,
+        NgSwitch,
+        NgSwitchCase,
+        FormsModule,
+        ReactiveFormsModule,
+        InputTrimDirective,
+        NgFor,
+        NgSwitchDefault,
+        VSAssemblyScriptPane,
+    ],
 })
 
 export class CreateMeasureDialog implements OnInit {

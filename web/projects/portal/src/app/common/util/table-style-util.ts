@@ -123,7 +123,7 @@ export class TableStyleUtil {
       if(!TableStyleUtil.isDefaultRegion(selectedRegion)) {
          let id = parseInt(selectedRegion, 10);
 
-         if(id > 0 || id < styleModel.styleFormat.specList.length) {
+         if(id >= 0 && id < styleModel.styleFormat.specList.length) {
             styleModel.selectedRegionLabel = styleModel.styleFormat.specList[id].label;
          }
       }
@@ -147,6 +147,11 @@ export class TableStyleUtil {
    public static isGroupTotal(selectedRegion: string,specList: SpecificationModel[]): boolean {
       if(!TableStyleUtil.isDefaultRegion(selectedRegion)) {
          let spec: SpecificationModel = specList[parseInt(selectedRegion, 10)];
+
+         // specList may not contain an entry for this index (e.g. out-of-range region id)
+         if(!spec) {
+            return false;
+         }
 
          return spec.customType == TableStyleUtil.ROW_GROUP_TOTAL ||
             spec.customType == TableStyleUtil.COLUMN_GROUP_TOTAL;

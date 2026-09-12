@@ -15,36 +15,49 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { Component, OnDestroy, OnInit } from "@angular/core";
+import { ActivatedRoute, RouterOutlet } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { Subscription } from "rxjs";
+import { AiAssistantPanelComponent } from "../../../../shared/ai-assistant/ai-assistant-panel.component";
+import { DownloadTargetComponent } from "../../../../shared/download/download-target.component";
 import { StompClientConnection } from "../../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../common/viewsheet-client";
 import { ComponentTool } from "../common/util/component-tool";
 
 @Component({
-   selector: "v-viewer-root",
-   templateUrl: "viewer-root.component.html",
-   styleUrls: ["viewer-root.component.scss"]
+    imports: [RouterOutlet, DownloadTargetComponent, AiAssistantPanelComponent],
+    selector: "v-viewer-root",
+    templateUrl: "viewer-root.component.html",
+    styleUrls: ["viewer-root.component.scss"]
 })
 export class ViewerRootComponent implements OnInit, OnDestroy {
+   inPortal: boolean = false;
    private connection: StompClientConnection;
+   private connectSubscription: Subscription;
 
-   constructor(private socket: StompClientService, private modalService: NgbModal) {
+   constructor(private socket: StompClientService, private modalService: NgbModal,
+               private route: ActivatedRoute) {
    }
 
    ngOnInit(): void {
+      this.inPortal = !!this.route.snapshot.data["inPortal"];
+
       if(document.body.className.indexOf("app-loaded") == -1) {
          document.body.className += " app-loaded";
          const splash = document.querySelector<HTMLElement>(".loading-splash");
          splash?.addEventListener("transitionend", () => splash.style.display = "none", { once: true });
       }
 
-      this.socket.connect("../vs-events").subscribe((connection) => {
+      this.connectSubscription = this.socket.connect("../vs-events").subscribe((connection) => {
          this.connection = connection;
       });
    }
 
    ngOnDestroy(): void {
+      this.connectSubscription?.unsubscribe();
+
       if(this.connection) {
          this.connection.disconnect();
       }

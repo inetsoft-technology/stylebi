@@ -20,6 +20,7 @@ export class OpenWorksheetEvent {
    private openAutoSavedFile: boolean = false;
    private gettingStartedWs: boolean = false;
    private createQuery: boolean = false;
+   private vsId: string = null;
 
    public setId(id: string) {
       this.id = id;
@@ -35,5 +36,9 @@ export class OpenWorksheetEvent {
 
    public setCreateQuery(createQuery: boolean) {
       this.createQuery = createQuery;
+   }
+
+   public setVsId(vsId: string) {
+      this.vsId = vsId;
    }
 }

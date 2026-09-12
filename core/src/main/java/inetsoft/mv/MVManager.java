@@ -58,7 +58,6 @@ import java.util.stream.Stream;
  * @author InetSoft Technology
  * @version 10.2
  */
-@SingletonManager.Singleton
 public final class MVManager implements MessageListener {
    /**
     * Change event, per-transaction event, which should be fired after the
@@ -71,14 +70,15 @@ public final class MVManager implements MessageListener {
     * Get the mv manager.
     */
    public static MVManager getManager() {
-      return SingletonManager.getInstance(MVManager.class);
+      return ConfigurationContext.getContext().getSpringBean(MVManager.class);
    }
 
    /**
     * Create an instance of MVManager.
     */
-   public MVManager() {
-      Cluster.getInstance().addMessageListener(this);
+   public MVManager(Cluster cluster) {
+      this.cluster = cluster;
+      cluster.addMessageListener(this);
    }
 
    @Override
@@ -252,7 +252,7 @@ public final class MVManager implements MessageListener {
 
                String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-               (new GroupedThread() {
+               (new GroupedThread(ThreadContext.getContextPrincipal()) {
                   @Override
                   protected void doRun() {
                      try {
@@ -1190,7 +1190,25 @@ public final class MVManager implements MessageListener {
          updateMVDef(newMVDef, oorg, norg);
 
          if(newMVDef != null) {
-            OrganizationManager.runInOrgScope(norgId, () -> mvs.put(newKey, newMVDef, norgId));
+            int attempts = 0;
+
+            //storage might be initializing, check and retry should prevent race condition with future moves
+            while(attempts <= 3) {
+               try {
+                  OrganizationManager.runInOrgScope(norgId, () -> mvs.put(newKey, newMVDef, norgId));
+                  break;
+               }
+               catch(IOException ex) {
+                  attempts ++;
+
+                  if(attempts >= 3) {
+                     throw ex;
+                  }
+                  else {
+                     Thread.sleep(500);
+                  }
+               }
+            }
          }
       }
 
@@ -1214,7 +1232,7 @@ public final class MVManager implements MessageListener {
 
       for(String file : listFiles) {
          String defName = null;
-         Cluster.getInstance().lockKey("mv.fs.update");
+         cluster.lockKey("mv.fs.update");
 
          try {
             MV mv = (MV) mvStorage.get(file, oorgId).clone(oorgId);
@@ -1232,7 +1250,7 @@ public final class MVManager implements MessageListener {
             throw new RuntimeException(e);
          }
          finally {
-            Cluster.getInstance().unlockKey("mv.fs.update");
+            cluster.unlockKey("mv.fs.update");
          }
       }
 
@@ -1390,7 +1408,7 @@ public final class MVManager implements MessageListener {
    public void fireEvent(String src, String name, Object oval, Object nval) {
       try {
          String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-         Cluster.getInstance().sendMessage(
+         cluster.sendMessage(
             new MVChangedMessage(Util.getOrgEventSourceID(src, orgId), name, oval, nval));
       }
       catch(Exception e) {
@@ -1649,6 +1667,7 @@ public final class MVManager implements MessageListener {
 
    private static final Logger LOG = LoggerFactory.getLogger(MVManager.class);
 
+   private final Cluster cluster;
    private final MVDefMap mvs = new MVDefMap();
    private final Map<Object, MVCreator> pending = new ConcurrentHashMap<>();
    private final Vector<WeakReference<PropertyChangeListener>> listeners = new Vector<>();

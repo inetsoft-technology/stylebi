@@ -42,10 +42,13 @@ import { CalculatorConstants } from "./calculator-constants";
 import { StyleConstants } from "../../../../common/util/style-constants";
 import { CrosstabBindingModel } from "../../../data/table/crosstab-binding-model";
 
+import { FormsModule } from "@angular/forms";
+
 @Component({
-   selector: "calculate-pane",
-   templateUrl: "calculate-pane.component.html",
-   styleUrls: ["./calculate-pane.component.scss"]
+    selector: "calculate-pane",
+    templateUrl: "calculate-pane.component.html",
+    styleUrls: ["./calculate-pane.component.scss"],
+    imports: [FormsModule]
 })
 export class CalculatePane {
    @Input() enabled: boolean = true;

@@ -50,8 +50,8 @@ export class TopScrollService implements OnDestroy {
    }
 
    ngOnDestroy(): void {
-      this.scrolled.unsubscribe();
-      this.destroy$.unsubscribe();
+      this.scrolled.complete();
+      this.destroy$.complete();
    }
 
    get onScroll(): Observable<"up" | "down"> {

@@ -1,77 +1,85 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="identity-tables-container">
-  <em-security-table-view *ngIf="!root"
-                          [name]="name"
-                          [globalRole]="globalRole"
-                          [type]="type"
-                          [label]="userTableLabel"
-                          [dialogData]="type == 0 ? groupsType : type == 1 || type == 2 ? membersType : allMembersType"
-                          [dataSource]="members"
-                          [editable]="editable"
-                          [showCopyPaste]="true"
-                          [copyPasteContext]="copyPasteContextMembers"
-                          [pasteTypeFilter]="membersPasteTypeFilter"
-                          [pasteExcludeIdentities]="selfIdentity"
-                          (dropOnTable)="addMembers([$event])"
-                          (addIdentities)="addMembers($event)"
-                          (removeSelection)="removeMembers($event)"
-                          (pasteReplaceIdentities)="pasteMembers($event)">
-  </em-security-table-view>
-  <em-security-table-view *ngIf="!root && type != IdentityType.ORGANIZATION"
-                          [name]="name"
-                          [globalRole]="globalRole"
-                          [type]="type"
-                          [label]="roleTableLabel"
-                          [dialogData]="rolesType"
-                          [dataSource]="roles"
-                          [editable]="editable"
-                          [showCopyPaste]="true"
-                          [copyPasteContext]="copyPasteContextRoles"
-                          [pasteContexts]="rolesPasteContexts"
-                          [pasteTypeFilter]="rolesPasteTypeFilter"
-                          [pasteExcludeIdentities]="selfIdentity"
-                          (dropOnTable)="addRoles([$event])"
-                          (addIdentities)="addRoles($event)"
-                          (removeSelection)="removeRoles($event)"
-                          (pasteReplaceIdentities)="pasteRoles($event)">
-  </em-security-table-view>
-  <em-security-table-view *ngIf="root || type != IdentityType.ROLE" [name]="name"
-                          [globalRole]="globalRole"
-                          [type]="type"
-                          [label]="permissionTableLabel"
-                          [dialogData]="permissionsType"
-                          [dataSource]="permittedIdentities"
-                          [editable]="editable"
-                          [showCopyPaste]="true"
-                          [copyPasteContext]="copyPasteContextPermissions"
-                          (dropOnTable)="addPermittedIdentities([$event])"
-                          (addIdentities)="addPermittedIdentities($event)"
-                          (removeSelection)="removePermittedIdentities($event)"
-                          (pasteReplaceIdentities)="pastePermittedIdentities($event)">
-  </em-security-table-view>
-  <em-property-table-view *ngIf="!root && type==IdentityType.ORGANIZATION"
-                          [name]="name"
-                          [type]="type"
-                          [editable]="true"
-                          [label]="propertyLabel"
-                          [dataSource]="properties"
-                          (addProperties)="addProperties($event)"
-                          (removeProperties)="removeProperties($event)">
-  </em-property-table-view>
+  @if (!root) {
+    <em-security-table-view
+      [name]="name"
+      [globalRole]="globalRole"
+      [type]="type"
+      [label]="userTableLabel"
+      [dialogData]="type == 0 ? groupsType : type == 1 || type == 2 ? membersType : allMembersType"
+      [dataSource]="members"
+      [editable]="editable"
+      [showCopyPaste]="true"
+      [copyPasteContext]="copyPasteContextMembers"
+      [pasteTypeFilter]="membersPasteTypeFilter"
+      [pasteExcludeIdentities]="selfIdentity"
+      (dropOnTable)="addMembers([$event])"
+      (addIdentities)="addMembers($event)"
+      (removeSelection)="removeMembers($event)"
+      (pasteReplaceIdentities)="pasteMembers($event)">
+    </em-security-table-view>
+  }
+  @if (!root && type != IdentityType.ORGANIZATION) {
+    <em-security-table-view
+      [name]="name"
+      [globalRole]="globalRole"
+      [type]="type"
+      [label]="roleTableLabel"
+      [dialogData]="rolesType"
+      [dataSource]="roles"
+      [editable]="editable"
+      [showCopyPaste]="true"
+      [copyPasteContext]="copyPasteContextRoles"
+      [pasteContexts]="rolesPasteContexts"
+      [pasteTypeFilter]="rolesPasteTypeFilter"
+      [pasteExcludeIdentities]="selfIdentity"
+      (dropOnTable)="addRoles([$event])"
+      (addIdentities)="addRoles($event)"
+      (removeSelection)="removeRoles($event)"
+      (pasteReplaceIdentities)="pasteRoles($event)">
+    </em-security-table-view>
+  }
+  @if (root || type != IdentityType.ROLE) {
+    <em-security-table-view [name]="name"
+      [globalRole]="globalRole"
+      [type]="type"
+      [label]="permissionTableLabel"
+      [dialogData]="permissionsType"
+      [dataSource]="permittedIdentities"
+      [editable]="editable"
+      [showCopyPaste]="true"
+      [copyPasteContext]="copyPasteContextPermissions"
+      (dropOnTable)="addPermittedIdentities([$event])"
+      (addIdentities)="addPermittedIdentities($event)"
+      (removeSelection)="removePermittedIdentities($event)"
+      (pasteReplaceIdentities)="pastePermittedIdentities($event)">
+    </em-security-table-view>
+  }
+  @if (!root && type==IdentityType.ORGANIZATION) {
+    <em-property-table-view
+      [name]="name"
+      [type]="type"
+      [editable]="true"
+      [label]="propertyLabel"
+      [dataSource]="properties"
+      (addProperties)="addProperties($event)"
+      (removeProperties)="removeProperties($event)">
+    </em-property-table-view>
+  }
 </div>

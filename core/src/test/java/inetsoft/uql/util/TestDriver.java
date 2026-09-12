@@ -20,7 +20,9 @@ package inetsoft.uql.util;
 import java.sql.*;
 import java.util.Properties;
 import java.util.logging.Logger;
+import org.junit.jupiter.api.Tag;
 
+@Tag("core")
 public class TestDriver implements Driver {
    @Override
    public Connection connect(String url, Properties info) throws SQLException {

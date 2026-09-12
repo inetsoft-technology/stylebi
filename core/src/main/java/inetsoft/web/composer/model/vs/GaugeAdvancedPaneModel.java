@@ -19,12 +19,14 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link GaugePropertyDialogModel} for the
  * gauge property dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class GaugeAdvancedPaneModel {
+public class GaugeAdvancedPaneModel implements Serializable {
    public RangePaneModel getRangePaneModel() {
       if(rangePaneModel == null) {
          rangePaneModel = new RangePaneModel();

@@ -18,16 +18,20 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.sree.portal.CustomThemesManager;
-import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.factory.RemainingPath;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.servlet.ModelAndView;
 
 @Controller
 public class SessionErrorController {
+   public SessionErrorController(CustomThemesManager customThemesManager) {
+      this.customThemesManager = customThemesManager;
+   }
+
    /**
     * Shows the login page.
     * @return the error page model and view.
@@ -74,11 +78,13 @@ public class SessionErrorController {
       final String errorMsg = String.format("%s %s", error, contactAdmin);
       model.addObject("errorMsg", errorMsg);
       model.addObject("errorTitle", title);
-      boolean isCustomTheme = !Tool.isEmptyString(CustomThemesManager.getManager().getSelectedTheme()) &&
-                              !"default".equals(CustomThemesManager.getManager().getSelectedTheme());
+      boolean isCustomTheme = !Tool.isEmptyString(customThemesManager.getSelectedTheme()) &&
+                              !"default".equals(customThemesManager.getSelectedTheme());
       model.addObject("customTheme", isCustomTheme);
       return model;
    }
+
+   private final CustomThemesManager customThemesManager;
 
    public static final String NO_COMPOSER_LICENSE = "no-composer-license";
    public static final String NO_COMPOSER_PERMISSION = "no-composer-permission";

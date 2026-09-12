@@ -75,6 +75,15 @@ import { GuideBounds } from "../../vsobjects/model/layout/guide-bounds";
 import { VSObjectModel } from "../../vsobjects/model/vs-object-model";
 import { VSTabModel } from "../../vsobjects/model/vs-tab-model";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
+import { VSTabService } from "../../vsobjects/util/vs-tab.service";
+import { FormInputService } from "../../vsobjects/util/form-input.service";
+import { GlobalSubmitService } from "../../vsobjects/util/global-submit.service";
+import { CheckFormDataService } from "../../vsobjects/util/check-form-data.service";
+import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.service";
+import { SelectionMobileService } from "../../vsobjects/objects/selection/services/selection-mobile.service";
+import { CKEditorRichTextService } from "../../vsobjects/dialog/rich-text-dialog/ckeditor-rich-text.service";
+import { RichTextService } from "../../vsobjects/dialog/rich-text-dialog/rich-text.service";
+import { FullScreenService } from "../../common/services/full-screen.service";
 import { VSUtil } from "../../vsobjects/util/vs-util";
 import { AssetTreeService } from "../../widget/asset-tree/asset-tree.service";
 import {
@@ -132,10 +141,30 @@ import { ScriptService } from "./script/script.service";
 import { StylePaneComponent } from "./tablestyle/editor/style-pane.component";
 import { ComposerToolbarComponent } from "./toolbar/composer-toolbar.component";
 import { ComposerObjectService } from "./vs/composer-object.service";
+import { EventQueueService } from "./vs/event-queue.service";
+import { LineAnchorService } from "../services/line-anchor.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
+import { LayoutUndoRedoEvent } from "./vs/event/layout-undo-redo-event";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
-import { DashboardTabModel } from "../../portal/dashboard/dashboard-tab-model";
-import { DashboardTabService } from "../../portal/services/dashboard-tab.service";
+import { ViewsheetPropertyDialog } from "../dialog/vs/viewsheet-property-dialog.component";
+import { EditCustomPatternsDialog } from "./tablestyle/editor/edit-custom-patterns-dialog.component";
+import { SaveScriptDialog } from "../dialog/script/save-script-dialog.component";
+import { SaveWorksheetDialog } from "../dialog/ws/save-worksheet-dialog.component";
+import { SaveTableStyleDialog } from "./tablestyle/editor/save-table-style-dialog.component";
+import { SaveViewsheetDialog } from "../dialog/vs/save-viewsheet-dialog.component";
+import { VsWizardComponent } from "../../vs-wizard/gui/vs-wizard.component";
+import { VSBindingPane } from "../../vsview/edit/vs-binding-pane.component";
+import { SheetTabSelectorComponent } from "./tab-selector/sheet-tab-selector.component";
+import { ComposerEmptyEditor } from "./empty-editor/composer-empty-editor.component";
+import { ViewerAppComponent } from "../../vsobjects/viewer-app.component";
+import { VSPane } from "./vs/editor/viewsheet-pane.component";
+import { WSPaneComponent } from "./ws/editor/ws-pane.component";
+import { WSCompositeTableSidebarPane } from "./ws/editor/ws-composite-table-sidebar-pane.component";
+import { StyleTreePane } from "./tablestyle/style-tree/style-tree-pane.component";
+import { ScriptTreePane } from "./script/tree/script-tree-pane.component";
+import { ToolboxPane } from "./toolbox/toolbox-pane.component";
+import { AssetTreePane } from "./asset-pane/asset-tree-pane.component";
+import { NgStyle, NgIf, NgFor, AsyncPipe } from "@angular/common";
 
 export enum SidebarTab {
    ASSET_TREE,
@@ -202,16 +231,35 @@ const CONFIRM_MESSAGE = {
  * Its purpose is to control the layout of its children panes.
  */
 @Component({
-   selector: "composer-main",
-   templateUrl: "composer-main.component.html",
-   styleUrls: ["composer-main.component.scss", "tab-selector/tab-selector-shared.scss"],
-   providers: [
-      ComposerClientService,
-      {
-         provide: ScaleService,
-         useClass: VSScaleService
-      }
-   ]
+    selector: "composer-main",
+    templateUrl: "composer-main.component.html",
+    styleUrls: ["composer-main.component.scss", "tab-selector/tab-selector-shared.scss"],
+    providers: [
+        ComposerClientService,
+        {
+            provide: ScaleService,
+            useClass: VSScaleService
+        },
+        ComposerObjectService,
+        EventQueueService,
+        LineAnchorService,
+        ClipboardService,
+        ScriptService,
+        ShowHyperlinkService,
+        MiniToolbarService,
+        VSTabService,
+        SelectionMobileService,
+        FormInputService,
+        GlobalSubmitService,
+        CheckFormDataService,
+        FullScreenService,
+        {
+            provide: RichTextService,
+            useClass: CKEditorRichTextService,
+            deps: [FontService, NgbModal, HttpClient]
+        }
+    ],
+    imports: [NgStyle, ComposerToolbarComponent, SplitPane, AssetTreePane, ToolboxPane, NgIf, ScriptTreePane, ComponentsPane, StyleTreePane, VSFormatsPane, WSCompositeTableSidebarPane, NgFor, WSPaneComponent, VSPane, ViewerAppComponent, ScriptEditPaneComponent, StylePaneComponent, ComposerEmptyEditor, SheetTabSelectorComponent, VSBindingPane, VsWizardComponent, NotificationsComponent, SaveViewsheetDialog, SaveTableStyleDialog, SaveWorksheetDialog, SaveScriptDialog, ScriptPropertyDialogComponent, EditCustomPatternsDialog, ViewsheetPropertyDialog, AsyncPipe]
 })
 export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    @Input() initialSheet: string;
@@ -307,7 +355,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    openedTabs: ComposerTabModel[] = [];
    private _focusedTab: ComposerTabModel;
    private propertyDialogModal: NgbModalRef;
-   dashboardTabModel: DashboardTabModel | null = null;
 
    constructor(private composerObjectService: ComposerObjectService,
       private resizeHandlerService: ResizeHandlerService,
@@ -328,8 +375,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       private scriptService: ScriptService,
       private fontService: FontService,
       private aiAssistantService: AiAssistantService,
-      private aiAssistantDialogService: AiAssistantDialogService,
-      private dashboardTabService: DashboardTabService)
+      private aiAssistantDialogService: AiAssistantDialogService)
    {
       this.aiAssistantService.loadCurrentUser();
       GuiTool.isTouchDevice().then((value: boolean) => {
@@ -447,11 +493,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          }
       });
 
-      this.subscriptions.add(this.dashboardTabService.getDashboardTabModel()
-         .subscribe({
-            next: data => { this.dashboardTabModel = data; },
-            error: err => console.error("Failed to load dashboard tab model", err)
-         }));
    }
 
    // open wizard if requested from portal
@@ -1686,6 +1727,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                ws.localId = sheetCounter++;
                ws.newSheet = newSheet;
                ws.gettingStarted = gettingStarted;
+               ws.vsId = event.vsId;
 
                index = this.sheets.push(ws) - 1;
                this.openedTabs.push(new ComposerTabModel(ws.type, ws));
@@ -2012,7 +2054,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             if(close) {
                this.closeLibTab(script);
             }
-         });
+         }).catch(() => {});
 
    }
 
@@ -2640,8 +2682,9 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                this.zone.run(() => this.updateTableStylePreview());
             }
             else if(this.layoutShowing) {
-               const uri: string = `/events/composer/vs/layouts/undo/${this.layoutRuntimeId}`;
-               this.focusedSheet.socketConnection.sendEvent(uri);
+               const event = new LayoutUndoRedoEvent(this.layoutRuntimeId);
+               const uri: string = "/events/composer/vs/layouts/undo";
+               this.focusedSheet.socketConnection.sendEvent(uri, event);
             }
             else {
                this.focusedSheet.socketConnection.sendEvent("/events/undo");
@@ -2657,8 +2700,9 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                this.zone.run(() => this.updateTableStylePreview());
             }
             else if(this.layoutShowing) {
-               const uri: string = `/events/composer/vs/layouts/redo/${this.layoutRuntimeId}`;
-               this.focusedSheet.socketConnection.sendEvent(uri);
+               const event = new LayoutUndoRedoEvent(this.layoutRuntimeId);
+               const uri: string = "/events/composer/vs/layouts/redo";
+               this.focusedSheet.socketConnection.sendEvent(uri, event);
             }
             else {
                this.focusedSheet.socketConnection.sendEvent("/events/redo");
@@ -2679,7 +2723,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       }
    }
 
-   private get layoutShowing(): boolean {
+   get layoutShowing(): boolean {
       return this.focusedViewsheet && this.focusedViewsheet.type === "viewsheet" && this.focusedViewsheet.currentLayout != null;
    }
 

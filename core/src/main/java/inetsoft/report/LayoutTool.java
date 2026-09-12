@@ -629,7 +629,7 @@ public class LayoutTool {
       return aref;
    }
 
-   protected static void fillCalcTableLens(FormulaTable table,
+   protected static void fillCalcTableLens(FormulaTable table, TableLens base,
                                            VariableTable vars,
                                            boolean crossTabSupported)
    {
@@ -729,7 +729,7 @@ public class LayoutTool {
                      }
                   }
 
-                  String exp = createCalcBindingExpression(table, n2c, layout,
+                  String exp = createCalcBindingExpression(table, base, n2c, layout,
                      bind, c2p, new Point(r, j), crossTabSupported, sortOthersLast);
                   clens.setFormula(r, j, exp);
                }
@@ -2271,7 +2271,7 @@ public class LayoutTool {
    /**
     * Create the expression script for a calc cell column binding.
     */
-   private static String createCalcBindingExpression(FormulaTable table,
+   private static String createCalcBindingExpression(FormulaTable table, TableLens base,
       Map<String, CellHolder> n2c, TableLayout layout,
       TableCellBinding cell, Map<String, Point> c2p, Point point,
       boolean crossTabSupported, boolean sortOthersLast)
@@ -2328,7 +2328,7 @@ public class LayoutTool {
       String exp = null;
 
       if(crossTabSupported) {
-         exp = createCrosstabCalcExpression(list, groups, gnames, cell, var,
+         exp = createCrosstabCalcExpression(base, list, groups, gnames, cell, var,
             cell.getBType() == TableCellBinding.GROUP, sortOthersLast);
       }
       else if(cell.getBType() == TableCellBinding.DETAIL) {
@@ -2362,7 +2362,7 @@ public class LayoutTool {
    private static String escapeColName(String name) {
       return name.chars().mapToObj(cc -> {
             if(isSpecialMarker((char) cc)) {
-               return "\\\\" + (char) cc;
+               return "\\" + (char) cc;
             }
             else if(cc == '\'') {
                return "\\" + (char) cc;
@@ -2382,9 +2382,39 @@ public class LayoutTool {
    }
 
    /**
+    * Get the physical column name backing a crosstab-supported group cell's data
+    * lookup key. In the common case the cell's own binding value is already the
+    * physical column name backing the regenerated crosstab's data, and must be
+    * used as-is (e.g. a date-grouped dimension whose worksheet column is itself
+    * literally named with its display form, such as "Year(Date)"). Only when the
+    * raw value does NOT correspond to an actual column of the regenerated
+    * crosstab's own result table (e.g. a date-grouped dimension nested under
+    * another group, whose binding value is the dimension's display full name
+    * "None(Month(ndate))" while the regenerated crosstab's actual column is the
+    * unwrapped "Month(ndate)") do we fall back to the unwrapped column name.
+    * `base`, when available, is that regenerated crosstab's own result table --
+    * checking directly against it (rather than re-deriving the worksheet's column
+    * selection) guarantees this always agrees with what the data actually
+    * contains.
+    */
+   private static String getGroupColumnName(TableLens base, TableCellBinding cell) {
+      String value = cell.getValue();
+
+      if(base == null || Util.findColumn(base, value) >= 0) {
+         return value;
+      }
+
+      String original = getOriginalColumn(value);
+
+      return !Tool.equals(original, value) && Util.findColumn(base, original) >= 0 ?
+         original : value;
+   }
+
+   /**
     * Create calc for crosstab supported expression.
     */
-   private static String createCrosstabCalcExpression(List<TableCellBinding> list,
+   private static String createCrosstabCalcExpression(TableLens base,
+                                                      List<TableCellBinding> list,
                                                       CalcGroup[] groups,
                                                       String[] gnames,
                                                       TableCellBinding bind,
@@ -2401,7 +2431,9 @@ public class LayoutTool {
          exp += "none(";
       }
 
-      exp += var + "['" + escapeColName(bind.getValue());
+      CalcGroup group = groups.length > 0 ? groups[groups.length - 1] : null;
+
+      exp += var + "['" + escapeColName(isGroup ? getGroupColumnName(base, bind) : bind.getValue());
 
       int len = isGroup ? list.size() - 1 : list.size();
 
@@ -2409,14 +2441,12 @@ public class LayoutTool {
          exp += "@";
       }
 
-      CalcGroup group = groups.length > 0 ? groups[groups.length - 1] : null;
-
       for(int i = 0; i < len; i++) {
          if(i > 0) {
             exp += ";";
          }
 
-         String value = escapeColName(list.get(i).getValue());
+         String value = escapeColName(getGroupColumnName(base, list.get(i)));
          value = Tool.replaceAll(value, ":", LayoutTool.SCRIPT_ESCAPED_COLON);
          exp += value + ":$" + escapeColName(Tool.escapeJavascript(gnames[i]));
       }

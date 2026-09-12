@@ -55,7 +55,7 @@ public class VSLayoutTool extends LayoutTool {
                                      TableLens base, VariableTable vars,
                                      boolean crossTabSupported)
    {
-      createCalcLayout(assembly, vars, crossTabSupported);
+      createCalcLayout(assembly, base, vars, crossTabSupported);
       createDataPathMapping(assembly.getTableLayout(), assembly.getBaseTable());
    }
 
@@ -242,11 +242,11 @@ public class VSLayoutTool extends LayoutTool {
    /**
     * Create a calc table layout by TableLayout.
     */
-   private static void createCalcLayout(CalcTableVSAssembly assembly,
+   private static void createCalcLayout(CalcTableVSAssembly assembly, TableLens base,
                                         VariableTable vars,
                                         boolean crossTabSupported)
    {
-      fillCalcTableLens(assembly, vars, crossTabSupported);
+      fillCalcTableLens(assembly, base, vars, crossTabSupported);
    }
 
    /**
@@ -754,6 +754,15 @@ public class VSLayoutTool extends LayoutTool {
 
       if(Tool.equals(original, aggrColName)) {
          return original;
+      }
+
+      // aggrColName is itself a formula wrapping col unchanged (e.g. aggregating an
+      // upstream pre-aggregated worksheet column such as "Min(ftime)" produces the
+      // doubly-wrapped name "Min(Min(ftime))"). col is already the correct physical
+      // column name in that case, so stripping it down to the bare inner field
+      // ("ftime") would produce a lookup key that doesn't exist in the result table.
+      if(Tool.equals(col, getOriginalColumn(aggrColName))) {
+         return col;
       }
 
       original = Tool.replaceAll(original, "[", "");

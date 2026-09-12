@@ -17,9 +17,11 @@
  */
 import { LinePropPaneModel } from "./line-prop-pane-model";
 import { FillPropPaneModel } from "./fill-prop-pane-model";
+import { ShadowPropPaneModel } from "./shadow-prop-pane-model";
 
 export interface RectanglePropertyPaneModel {
    linePropPaneModel: LinePropPaneModel;
    fillPropPaneModel: FillPropPaneModel;
+   shadowPropPaneModel: ShadowPropPaneModel;
    radius: number;
 }

@@ -17,10 +17,12 @@
  */
 package inetsoft.web.portal.model.database;
 
+import java.io.Serializable;
+
 /**
  * Wrapper for sending strings in requests.
  */
-public class StringWrapper {
+public class StringWrapper implements Serializable {
    public StringWrapper() {
       super();
    }

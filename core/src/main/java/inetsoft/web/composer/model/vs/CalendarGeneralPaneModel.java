@@ -19,8 +19,10 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class CalendarGeneralPaneModel {
+public class CalendarGeneralPaneModel implements Serializable {
    public GeneralPropPaneModel getGeneralPropPaneModel() {
       if(generalPropPaneModel == null) {
          generalPropPaneModel = new GeneralPropPaneModel();

@@ -17,16 +17,25 @@
  */
 package inetsoft.web.graph.model.dialog;
 
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.graph.AxisDescriptor;
 import inetsoft.uql.viewsheet.graph.CompositeTextFormat;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
+@Tag("core")
 class AxisPropertyDialogModelTest {
    @BeforeEach
    void setup() {

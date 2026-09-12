@@ -20,19 +20,30 @@ package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.StyleConstants;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.LineVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.LineVSAssemblyInfo;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class LineVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private LineVSAScriptable lineVSAScriptable;
@@ -69,10 +80,10 @@ public class LineVSAScriptableTest {
    @Test
    void testAddProperties() {
       lineVSAScriptable.addProperties();
-      assertEquals(StyleConstants.NO_BORDER, lineVSAScriptable.get("beginArrowStyle", null));
+      assertEquals(StyleConstants.NO_BORDER, lineVSAScriptable.getMember("beginArrowStyle"));
 
       lineVSAScriptable.setProperty("lineStyle", StyleConstants.THICK_LINE);
-      assertEquals(StyleConstants.THICK_LINE, lineVSAScriptable.get("lineStyle", null));
+      assertEquals(StyleConstants.THICK_LINE, lineVSAScriptable.getMember("lineStyle"));
    }
 
    @Test

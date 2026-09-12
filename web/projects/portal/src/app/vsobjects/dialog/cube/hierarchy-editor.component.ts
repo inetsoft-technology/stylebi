@@ -22,11 +22,13 @@ import { OutputColumnRefModel } from "../../model/output-column-ref-model";
 import { XSchema } from "../../../common/data/xschema";
 import { DateRangeRef } from "../../../common/util/date-range-ref";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "hierarchy-editor",
-   templateUrl: "hierarchy-editor.component.html",
-   styleUrls: ["./hierarchy-editor.component.scss"]
+    selector: "hierarchy-editor",
+    templateUrl: "hierarchy-editor.component.html",
+    styleUrls: ["./hierarchy-editor.component.scss"],
+    imports: [FormsModule]
 })
 export class HierarchyEditor implements OnInit {
    @Input() model: HierarchyEditorModel;

@@ -1,32 +1,37 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<div *ngIf="queryResult?.length <=0; else showLabel">
-  <h2>_#(em.security.ldap.queryResultNotFound)</h2>
-</div>
-
-<ng-template #showLabel>
-  <div *ngIf="!!label">
-    <h4>{{label}}</h4>
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (queryResult?.length <=0) {
+  <div>
+    <h2>_#(em.security.ldap.queryResultNotFound)</h2>
   </div>
-</ng-template>
+} @else {
+  @if (!!label) {
+    <div>
+      <h4>{{label}}</h4>
+    </div>
+  }
+}
+
 
 <mat-nav-list [disableRipple]="!selectable">
-  <mat-list-item *ngFor="let item of queryResult" (click)="ok($event, item)">
-    {{item}}
-  </mat-list-item>
+  @for (item of queryResult; track item) {
+    <mat-list-item (click)="ok($event, item)">
+      {{item}}
+    </mat-list-item>
+  }
 </mat-nav-list>

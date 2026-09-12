@@ -16,9 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, OnInit, Input, Output, EventEmitter } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { LayoutOptionDialogModel } from "../../data/vs/layout-option-dialog-model";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
 
 /**
  * Grouping Options
@@ -30,8 +32,9 @@ export enum Placement {
 }
 
 @Component({
-   selector: "layout-option-dialog",
-   templateUrl: "layout-option-dialog.component.html"
+    selector: "layout-option-dialog",
+    templateUrl: "layout-option-dialog.component.html",
+    imports: [EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 export class LayoutOptionDialog implements OnInit {
    @Input() model: LayoutOptionDialogModel;

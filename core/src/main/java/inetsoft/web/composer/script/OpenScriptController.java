@@ -18,9 +18,9 @@
 package inetsoft.web.composer.script;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.util.Catalog;
@@ -31,7 +31,8 @@ import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptEnvRepository;
 import inetsoft.web.composer.model.script.*;
 import inetsoft.web.composer.script.service.ScriptService;
-import org.mozilla.javascript.EvaluatorException;
+import org.graalvm.polyglot.PolyglotException;
+import org.graalvm.polyglot.SourceSection;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -42,9 +43,12 @@ import java.util.*;
 public class OpenScriptController {
    @Autowired
    public OpenScriptController(AssetRepository assetRepository,
-                               ScriptService scriptService) {
+                               ScriptService scriptService,
+                               LibManagerProvider libManagerProvider)
+   {
       this.assetRepository = assetRepository;
       this.scriptService = scriptService;
+      this.libManagerProvider = libManagerProvider;
    }
 
    @PostMapping(value = "/api/composer/save/script")
@@ -54,8 +58,8 @@ public class OpenScriptController {
          "Script Function/" + name, ActionRecord.OBJECT_TYPE_SCRIPT);
 
       try {
-         LibManager lib = LibManager.getManager();
-         String function = lib.getScript(name);
+         LibManager lib = libManagerProvider.getManager(principal);
+         String function = lib.getScript(name) == null ? "" : lib.getScript(name);
          String comment = scriptModel.getComment();
          boolean change = false;
          Catalog catalog = Catalog.getCatalog();
@@ -63,7 +67,7 @@ public class OpenScriptController {
          AssetEntry entry = AssetEntry.createAssetEntry(scriptModel.getId());
          this.scriptService.updateScriptDependencies(scriptModel.getText(), function, entry);
 
-         if(!function.equals(scriptModel.getText())) {
+         if(!Tool.equals(function, scriptModel.getText())) {
             change = true;
          }
 
@@ -121,7 +125,7 @@ public class OpenScriptController {
          "Script Function/" + name, ActionRecord.OBJECT_TYPE_SCRIPT);
 
       try {
-         LibManager lib = LibManager.getManager();
+         LibManager lib = libManagerProvider.getManager(principal);
          String scriptText = scriptModel.getText();
          scriptText = scriptText == null ? "" : scriptText;
          lib.setScript(saveModel.getName(), scriptText);
@@ -153,12 +157,28 @@ public class OpenScriptController {
       ScriptEnv env = ScriptEnvRepository.getScriptEnv();
 
       try {
-         env.compile(script);
+         env.checkFunction("script", script);
       }
       catch(Exception e) {
-         return "row:" + ((EvaluatorException) e).lineNumber() +
-            ",col:" + ((EvaluatorException) e).columnNumber() +
-            ",error:" + e.getMessage();
+         int line = 0;
+         int column = 0;
+         Throwable cause = e;
+
+         // unwrap to the GraalJS PolyglotException to recover source location
+         while(cause != null && !(cause instanceof PolyglotException)) {
+            cause = cause.getCause();
+         }
+
+         if(cause instanceof PolyglotException) {
+            SourceSection loc = ((PolyglotException) cause).getSourceLocation();
+
+            if(loc != null) {
+               line = loc.getStartLine();
+               column = loc.getStartColumn();
+            }
+         }
+
+         return "row:" + line + ",col:" + column + ",error:" + e.getMessage();
       }
 
       return null;
@@ -166,7 +186,7 @@ public class OpenScriptController {
 
    @RequestMapping(value = "/api/composer/script/save-script-dialog/", method=RequestMethod.POST)
    public SaveScriptDialogValidator validateSaveScript(@RequestBody SaveScriptDialogModel model, Principal principal) {
-      LibManager lib = LibManager.getManager();
+      LibManager lib = libManagerProvider.getManager(principal);
       Enumeration<String> e = lib.getScripts();
       List<String> list = new ArrayList<>();
       Catalog catalog = Catalog.getCatalog();
@@ -220,4 +240,5 @@ public class OpenScriptController {
 
    private final AssetRepository assetRepository;
    private final ScriptService scriptService;
+   private final LibManagerProvider libManagerProvider;
 }

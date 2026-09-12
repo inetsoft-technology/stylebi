@@ -781,9 +781,9 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
 
       fixCalendarSize();
 
-      if(pixelsize != null) {
-         writer.print(" rtpixelWidth=\"" + pixelsize.width + "\"");
-         writer.print(" rtpixelHeight=\"" + pixelsize.height + "\"");
+      if(runtimePixelSize != null) {
+         writer.print(" rtpixelWidth=\"" + runtimePixelSize.width + "\"");
+         writer.print(" rtpixelHeight=\"" + runtimePixelSize.height + "\"");
       }
    }
 
@@ -1092,8 +1092,8 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
          result = true;
       }
 
-      if(!Tool.equals(pixelsize, sinfo.pixelsize)) {
-         pixelsize = sinfo.pixelsize;
+      if(!Tool.equals(runtimePixelSize, sinfo.runtimePixelSize)) {
+         runtimePixelSize = sinfo.runtimePixelSize;
          result = true;
       }
 
@@ -1355,41 +1355,41 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
          return;
       }
 
-      Dimension pixel = pixelsize == null ? getPixelSize() : pixelsize;
-      pixelsize = pixel = pixel == null ?
+      Dimension pixel = runtimePixelSize == null ? getPixelSize() : runtimePixelSize;
+      runtimePixelSize = pixel = pixel == null ?
          new Dimension(3 * 70, DEFAULT_CALENDAR_HEIGHT) : pixel;
 
       if(modeSValid && !(getViewMode() + "").equals(modeValue.getDValue())) {
          if(getViewMode() == DOUBLE_CALENDAR_MODE  &&
             getShowType() == DROPDOWN_SHOW_TYPE)
          {
-            pixelsize = new Dimension(pixel.width, DEFAULT_CALENDAR_ROW_HEIGHT);
+            runtimePixelSize = new Dimension(pixel.width, DEFAULT_CALENDAR_ROW_HEIGHT);
          }
          else if(getViewMode() == DOUBLE_CALENDAR_MODE  &&
             getShowType() == CALENDAR_SHOW_TYPE)
          {
-            pixelsize = new Dimension(pixel.width * 2, pixel.height);
+            runtimePixelSize = new Dimension(pixel.width * 2, pixel.height);
          }
          else if(getViewMode() == SINGLE_CALENDAR_MODE &&
             getShowType() == DROPDOWN_SHOW_TYPE)
          {
-            pixelsize = new Dimension(pixel.width / 2, DEFAULT_CALENDAR_ROW_HEIGHT);
+            runtimePixelSize = new Dimension(pixel.width / 2, DEFAULT_CALENDAR_ROW_HEIGHT);
          }
          else if(getViewMode() == SINGLE_CALENDAR_MODE &&
             getShowType() == CALENDAR_SHOW_TYPE)
          {
-            pixelsize = new Dimension(pixel.width / 2, pixel.height);
+            runtimePixelSize = new Dimension(pixel.width / 2, pixel.height);
          }
       }
 
       if(getShowType() == DROPDOWN_SHOW_TYPE) {
-         pixelsize = new Dimension(pixelsize.width, DEFAULT_CALENDAR_ROW_HEIGHT);
+         runtimePixelSize = new Dimension(runtimePixelSize.width, DEFAULT_CALENDAR_ROW_HEIGHT);
       }
       else if(getShowType() == CALENDAR_SHOW_TYPE) {
-         pixelsize = new Dimension(pixelsize.width, DEFAULT_CALENDAR_HEIGHT);
+         runtimePixelSize = new Dimension(runtimePixelSize.width, DEFAULT_CALENDAR_HEIGHT);
       }
 
-      setPixelSize(pixelsize);
+      setPixelSize(runtimePixelSize);
    }
 
    private static FormatInfo normalDefault = new FormatInfo();
@@ -1620,7 +1620,7 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
    private DynamicValue userDefinedMax = new DynamicValue();
    private boolean modeSValid = false; // to check whether mode script is valid
    private boolean typeSValid = false;
-   private Dimension pixelsize; // runtime size
+   private Dimension runtimePixelSize; // runtime size
    private boolean scriptValue;
 
    private static final Logger LOG =

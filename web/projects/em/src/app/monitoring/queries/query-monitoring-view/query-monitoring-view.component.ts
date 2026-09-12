@@ -18,11 +18,13 @@
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { QueryMonitoringTableModel } from "../query-monitoring-table-model";
 import { ExpandableRowTableInfo } from "../../../common/util/table/expandable-row-table/expandable-row-table-info";
+import { TableView } from "../../../common/util/table/table-view.component";
 
 @Component({
-   selector: "em-query-monitoring-view",
-   templateUrl: "./query-monitoring-view.component.html",
-   styleUrls: ["./query-monitoring-view.component.scss"]
+    selector: "em-query-monitoring-view",
+    templateUrl: "./query-monitoring-view.component.html",
+    styleUrls: ["./query-monitoring-view.component.scss"],
+    imports: [TableView]
 })
 export class QueryMonitoringViewComponent {
    @Input() dataSource: QueryMonitoringTableModel[];

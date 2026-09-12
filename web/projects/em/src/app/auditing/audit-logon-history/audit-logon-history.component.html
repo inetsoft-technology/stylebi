@@ -1,38 +1,44 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <em-audit-table-view [displayedColumns]="displayedColumns" [columnRenderers]="columnRenderers" [parameterForm]="form" [fetchParameters]="fetchParameters" [fetchData]="fetchData">
   <section class="flex-row" [formGroup]="form">
     <mat-form-field appearance="outline" color="accent" class="flex">
       <mat-label>_#(Users)</mat-label>
       <mat-select formControlName="selectedUsers" multiple>
-        <mat-option *ngFor="let user of users" [value]="user">{{user}}</mat-option>
+        @for (user of users; track user) {
+          <mat-option [value]="user">{{user}}</mat-option>
+        }
       </mat-select>
     </mat-form-field>
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Groups)</mat-label>
       <mat-select formControlName="selectedGroups" multiple>
-        <mat-option *ngFor="let group of groups" [value]="group">{{group}}</mat-option>
+        @for (group of groups; track group) {
+          <mat-option [value]="group">{{group}}</mat-option>
+        }
       </mat-select>
     </mat-form-field>
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Roles)</mat-label>
       <mat-select formControlName="selectedRoles" multiple>
-        <mat-option *ngFor="let role of roles" [value]="role">{{getRoleLabel(role)}}</mat-option>
+        @for (role of roles; track role) {
+          <mat-option [value]="role">{{getRoleLabel(role)}}</mat-option>
+        }
       </mat-select>
     </mat-form-field>
   </section>

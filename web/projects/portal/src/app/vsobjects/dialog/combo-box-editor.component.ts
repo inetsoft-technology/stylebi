@@ -32,11 +32,19 @@ import { SelectionListDialogModel } from "../model/selection-list-dialog-model";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { ComboboxGeneralPaneModel } from "../../composer/data/vs/combobox-general-pane-model";
 import { ComboBoxDefaultValueListModel } from "../model/combo-box-queryList-model";
+import { CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf } from "@angular/cdk/scrolling";
+import { VariableListDialog } from "../../widget/dialog/variable-list-dialog/variable-list-dialog.component";
+import { SelectionListDialog } from "./selection-list-dialog.component";
+import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { FormsModule } from "@angular/forms";
+
 
 @Component({
-   selector: "combo-box-editor",
-   templateUrl: "combo-box-editor.component.html",
-   styleUrls: ["combo-box-editor.component.scss"]
+    selector: "combo-box-editor",
+    templateUrl: "combo-box-editor.component.html",
+    styleUrls: ["combo-box-editor.component.scss"],
+    imports: [FormsModule, DynamicComboBox, FixedDropdownDirective, SelectionListDialog, VariableListDialog, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf]
 })
 export class ComboBoxEditor implements OnInit, OnChanges {
    @ViewChild("selectionListDialog") selectionListDialog: TemplateRef<any>;
@@ -54,7 +62,10 @@ export class ComboBoxEditor implements OnInit, OnChanges {
    @Output() isInputValid: EventEmitter<boolean> = new EventEmitter<boolean>();
    readonly dataTypeList = XSchema.standardDataTypeList;
    readonly DATE_PATTERN = /^([0-9]{4})-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/;
-   readonly DATETIME_PATTERN = /^([0-9]{4})-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])(\s+)([01]?[0-9]|2[0-3]):[0-5]?[0-9]:[0-5]?[0-9]$/;
+   // Bug #75651: minutes/seconds must be captured (not just matched) so validateDateRange()
+   // can actually compare them - previously only year/month/day/hour were captured, so a
+   // minute/second-level range violation within the same hour went undetected.
+   readonly DATETIME_PATTERN = /^([0-9]{4})-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])(\s+)([01]?[0-9]|2[0-3]):([0-5]?[0-9]):([0-5]?[0-9])$/;
    readonly TIME_PATTERN = /^([01]?[0-9]|2[0-3]):[0-5]?[0-9]:[0-5]?[0-9]$/;
    valueList: ComboBoxDefaultValueListModel[];
    get datePrompt(): string {
@@ -287,17 +298,29 @@ export class ComboBoxEditor implements OnInit, OnChanges {
          const pattern = this.currentPattern;
          const minValues = minDate.match(pattern);
          const maxValues = maxDate.match(pattern);
-         const maxSize = this.isDate ? 4 : 6;
+         const maxSize = this.isDate ? 4 : 8;
 
          if(minValues.length == maxSize && maxValues.length == maxSize) {
             let i = 1;
 
             //Compare year, month, and day
             while (i < maxSize + 1) {
-               if(minValues[i] > maxValues[i]) {
+               // Bug #75651 follow-up: compare numerically, not lexicographically - captured
+               // fields like hour/minute/second aren't zero-padded (e.g. `[01]?[0-9]` also
+               // matches a single digit), so a raw string compare like "5" > "12" incorrectly
+               // evaluates to true. Non-numeric captures (e.g. the DATETIME whitespace
+               // separator) fall back to a direct string comparison, since parseInt on them
+               // yields NaN on both sides.
+               const minNum = parseInt(minValues[i], 10);
+               const maxNum = parseInt(maxValues[i], 10);
+               const useNumeric = !isNaN(minNum) && !isNaN(maxNum);
+               const minCompare: string | number = useNumeric ? minNum : minValues[i];
+               const maxCompare: string | number = useNumeric ? maxNum : maxValues[i];
+
+               if(minCompare > maxCompare) {
                   return false;
                }
-               else if(minValues[i] == maxValues[i]) {
+               else if(minCompare == maxCompare) {
                   i ++;
                }
                else {

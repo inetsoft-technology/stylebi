@@ -22,8 +22,10 @@ import { FormatPane } from "../../../widget/format/format-pane.component";
 import { PresenterPane } from "./presenter-pane.component";
 
 @Component({
-   selector: "text-format-pane",
-   templateUrl: "text-format-pane.component.html",
+    selector: "text-format-pane",
+    templateUrl: "text-format-pane.component.html",
+    standalone: true,
+    imports: [FormatPane, PresenterPane],
 })
 export class TextFormatPane implements OnInit {
    @Input() model: TextFormatPaneModel;

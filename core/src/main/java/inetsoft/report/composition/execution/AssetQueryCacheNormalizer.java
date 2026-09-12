@@ -318,7 +318,7 @@ public class AssetQueryCacheNormalizer {
          }
       }
 
-      Pattern pattern = Pattern.compile(table.getName() + "\\[[\"|']" + alias + "(@.*)?]");
+      Pattern pattern = Pattern.compile(Pattern.quote(table.getName()) + "\\[[\"']\\*?" + Pattern.quote(alias) + "(\\*(@[^\"']+)?)?[\"']");
 
       // check if the alias is referenced in other assemblies
       for(Assembly assembly : box.getWorksheet().getAssemblies()) {
@@ -369,7 +369,7 @@ public class AssetQueryCacheNormalizer {
          AssetQuery query = AssetQuery.createAssetQuery(
             cacheNormalizer.table, mode, box, false, -1L, true, false);
          DataKey key = AssetDataCache.getCacheKey(query.getTable(), box, null, mode, true);
-         AssetDataCache.removeCachedData(key);
+         AssetDataCache.getCache().removeCachedData(key);
       }
    }
 

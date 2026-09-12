@@ -261,17 +261,17 @@ public class Catalog {
     * @param locstr the specified locale string representation.
     */
    public static Locale parseLocale(String locstr) {
-      if(locstr == null || locstr.length() == 0 || SUtil.MY_LOCALE.equals(locstr)) {
+      if(locstr == null || locstr.isEmpty() || SUtil.MY_LOCALE.equals(locstr)) {
          return null;
       }
 
       // only language?
       if(locstr.length() == 2) {
-         return new Locale(locstr, "");
+         return Locale.of(locstr, "");
       }
       // language and country?
       else if(locstr.indexOf('_') == 2) {
-         return new Locale(locstr.substring(0, 2), locstr.substring(3));
+         return Locale.of(locstr.substring(0, 2), locstr.substring(3));
       }
       else {
          // @by davidd, removed appending of locstr because of XSS.

@@ -19,31 +19,29 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.schedule.RestartSchedulerMessage;
-import inetsoft.util.config.InetsoftConfig;
-import inetsoft.web.admin.schedule.model.CheckMailInfo;
-import inetsoft.web.admin.schedule.model.ScheduleConfigurationModel;
-import inetsoft.web.admin.schedule.model.ScheduleStatusModel;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.util.config.InetsoftConfig;
+import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
-
-import java.security.Principal;
-
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
+
 @RestController
-@EnableAspectJAutoProxy(proxyTargetClass = true)
 public class SchedulerConfigurationController implements MessageListener {
    @Autowired
-   public SchedulerConfigurationController(SchedulerConfigurationService configService) {
+   public SchedulerConfigurationController(SchedulerConfigurationService configService,
+                                           Cluster cluster)
+   {
       this.configService = configService;
+      this.cluster = cluster;
    }
 
    @Secured(
@@ -75,7 +73,7 @@ public class SchedulerConfigurationController implements MessageListener {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule/settings",
+         resource = "settings/schedule/status",
          actions = ResourceAction.ACCESS
       )
    )
@@ -87,7 +85,7 @@ public class SchedulerConfigurationController implements MessageListener {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule/settings",
+         resource = "settings/schedule/status",
          actions = ResourceAction.ACCESS
       )
    )
@@ -116,12 +114,17 @@ public class SchedulerConfigurationController implements MessageListener {
 
    @PostConstruct
    public void addListeners() throws Exception {
-      Cluster.getInstance().addMessageListener(this);
+      cluster.addMessageListener(this);
    }
 
    @PreDestroy
-   public void removeListeners() throws Exception {
-      Cluster.getInstance().removeMessageListener(this);
+   public void removeListeners() {
+      try {
+         cluster.removeMessageListener(this);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listeners during shutdown", e);
+      }
    }
 
    @Override
@@ -137,6 +140,7 @@ public class SchedulerConfigurationController implements MessageListener {
    }
 
    private final SchedulerConfigurationService configService;
+   private final Cluster cluster;
 
    private static final Logger LOG = LoggerFactory.getLogger(SchedulerConfigurationController.class);
 }

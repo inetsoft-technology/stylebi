@@ -44,11 +44,16 @@ import { MODE } from "./selection-tree-controller";
 import { VSSelection } from "./vs-selection.component";
 import {ComponentTool} from "../../../common/util/component-tool";
 import { ContextProvider } from "../../context-provider.service";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
+import { InteractableDirective } from "../../../widget/interact/interactable.directive";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "selection-list-cell",
-   templateUrl: "selection-list-cell.component.html",
-   styleUrls: ["selection-list-cell.component.scss"]
+    selector: "selection-list-cell",
+    templateUrl: "selection-list-cell.component.html",
+    styleUrls: ["selection-list-cell.component.scss"],
+    imports: [InteractableDirective, TooltipIfDirective, NgClass, SafeFontDirective]
 })
 export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
    static INDENT_SIZE = 8;
@@ -169,7 +174,7 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
       this.isParentIDTree = model.objectType === "VSSelectionTree" && (<VSSelectionTreeModel> model).mode == MODE.ID;
       this.quickSwitchAllowed = model.quickSwitchAllowed &&
          (model.objectType === "VSSelectionList" || model.objectType === "VSSelectionTree")
-         && (this.contextProvider.viewer || this.contextProvider.preview) && !this.mobile;
+         && (this.contextProvider.viewer || this.contextProvider.preview);
 
       switch(this.measureTextFormat.vAlign) {
       case "top":

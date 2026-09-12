@@ -19,6 +19,10 @@ package inetsoft.web.vswizard.model.recommender;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
+import inetsoft.util.Tool;
+import org.w3c.dom.Element;
+
+import java.io.PrintWriter;
 
 public class VSCrosstabRecommendation extends VSAbstractObjectRecommendation {
    public VSCrosstabRecommendation() {
@@ -37,6 +41,27 @@ public class VSCrosstabRecommendation extends VSAbstractObjectRecommendation {
     */
    public VSCrosstabInfo getCrosstabInfo() {
       return this.crosstabInfo;
+   }
+
+   @Override
+   public void writeContents(PrintWriter writer) {
+      super.writeContents(writer);
+
+      if(crosstabInfo != null) {
+         crosstabInfo.writeXML(writer);
+      }
+   }
+
+   @Override
+   protected void parseContents(Element elem) throws Exception {
+      super.parseContents(elem);
+
+      Element enode = Tool.getChildNodeByTagName(elem, "VSCrosstabInfo");
+
+      if(enode != null) {
+         crosstabInfo = new VSCrosstabInfo();
+         crosstabInfo.parseXML(enode);
+      }
    }
 
    @JsonIgnore

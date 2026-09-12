@@ -18,108 +18,119 @@
 package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.*;
-import inetsoft.util.*;
+import inetsoft.util.Debouncer;
+import inetsoft.util.DefaultDebouncer;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Controller
-@Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class ScheduleTaskFolderChangeController {
-   @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
    @Autowired
    public ScheduleTaskFolderChangeController(AssetRepository assetRepository,
-                                             SimpMessagingTemplate messagingTemplate)
+                                             SimpMessagingTemplate messagingTemplate,
+                                             SecurityEngine securityEngine)
    {
       this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
+      this.securityEngine = securityEngine;
       this.debouncer = new DefaultDebouncer<>();
    }
 
    @PostConstruct
-   public void initCluster() {
-      cluster = Cluster.getInstance();
+   public void addListener() {
+      assetRepository.addAssetChangeListener(assetListener);
    }
 
    @PreDestroy
    public synchronized void removeListener() {
-      if(listener != null) {
-         cluster.removeMessageListener(listener);
-         listener = null;
-      }
-
-      if(assetListener != null) {
+      try {
          assetRepository.removeAssetChangeListener(this.assetListener);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listener during shutdown", e);
       }
    }
 
    @SubscribeMapping(FOLDER_TOPIC)
-   public synchronized void subscribeFolderChange(Principal principal) {
-      if(assetListener == null) {
-         assetListener = this::portalFolderChanged;
-         subscriber = principal;
-         assetRepository.addAssetChangeListener(assetListener);
-      }
+   public synchronized void subscribeFolderChange(StompHeaderAccessor header, Principal principal) {
+      final MessageHeaders messageHeaders = header.getMessageHeaders();
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      folderSubscriptions.put(sessionId, principal);
    }
 
    @SubscribeMapping(EM_FOLDER_TOPIC)
-   public synchronized void subscribeEmFolderChange(Principal principal) throws SecurityException {
-      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+   public synchronized void subscribeEmFolderChange(StompHeaderAccessor header, Principal principal) throws SecurityException {
+      if(!securityEngine.getSecurityProvider().checkPermission(
          principal, ResourceType.EM_COMPONENT, "settings/schedule/tasks", ResourceAction.ACCESS))
       {
          throw new SecurityException("Unauthorized access to schedule by user " + principal.getName());
       }
 
-      if(assetListener == null) {
-         assetListener = this::emFolderChanged;
-         subscriber = principal;
-         assetRepository.addAssetChangeListener(assetListener);
-      }
+      final MessageHeaders messageHeaders = header.getMessageHeaders();
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      emFolderSubscriptions.put(sessionId, principal);
    }
 
-   private void portalFolderChanged(AssetChangeEvent event) {
-      folderChanged(event, true);
-   }
-
-   private void emFolderChanged(AssetChangeEvent event) {
-      folderChanged(event, false);
-   }
-
-   private void folderChanged(AssetChangeEvent event, boolean portal) {
-      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(subscriber);
-
+   private void folderChanged(AssetChangeEvent event) {
       if(event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED &&
-         event.getAssetEntry() != null && event.getAssetEntry().isScheduleTaskFolder() &&
-         Tool.equals(currentOrgID, event.getAssetEntry().getOrgID()))
+         event.getAssetEntry() != null && event.getAssetEntry().isScheduleTaskFolder())
       {
-         debouncer.debounce("task_folder_change", 1L, TimeUnit.SECONDS,
-            ()-> messagingTemplate.convertAndSendToUser(SUtil.getUserDestination(subscriber),
-               portal ? FOLDER_TOPIC : EM_FOLDER_TOPIC, ""));
+         String orgId = event.getAssetEntry().getOrgID();
+         debouncer.debounce(
+            "task_folder_change", 1L, TimeUnit.SECONDS, () -> sendFolderChanged(true, orgId));
+         debouncer.debounce(
+            "em_task_folder_change", 1L, TimeUnit.SECONDS, () -> sendFolderChanged(false, orgId));
       }
    }
 
-   private Cluster cluster;
-   private MessageListener listener;
-   private Principal subscriber;
-   private AssetChangeListener assetListener;
+   private void sendFolderChanged(boolean portal, String orgId) {
+      Collection<Principal> subscribers;
+      String topic;
+
+      if(portal) {
+         subscribers = folderSubscriptions.values();
+         topic = FOLDER_TOPIC;
+      }
+      else {
+         subscribers = emFolderSubscriptions.values();
+         topic = EM_FOLDER_TOPIC;
+      }
+
+      for(Principal subscriber : subscribers) {
+         if(Objects.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(subscriber))) {
+            messagingTemplate.convertAndSendToUser(SUtil.getUserDestination(subscriber), topic, "");
+         }
+      }
+   }
+
+   private final Map<String, Principal> folderSubscriptions = new ConcurrentHashMap<>();
+   private final Map<String, Principal> emFolderSubscriptions = new ConcurrentHashMap<>();
+   private final AssetChangeListener assetListener = this::folderChanged;
    private final AssetRepository assetRepository;
    private final SimpMessagingTemplate messagingTemplate;
+   private final SecurityEngine securityEngine;
    private final Debouncer<String> debouncer;
 
    private static final String EM_FOLDER_TOPIC = "/em-schedule-folder-changed";
    private static final String FOLDER_TOPIC = "/schedule-folder-changed";
+   private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskFolderChangeController.class);
 }

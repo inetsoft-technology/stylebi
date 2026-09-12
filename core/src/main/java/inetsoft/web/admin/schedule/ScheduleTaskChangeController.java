@@ -22,88 +22,103 @@ import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.schedule.*;
-import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
-import inetsoft.uql.asset.*;
-import inetsoft.util.*;
-import inetsoft.util.audit.ActionRecord;
-import inetsoft.util.audit.Audit;
+import inetsoft.sree.security.SecurityException;
+import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import inetsoft.web.admin.schedule.model.ScheduleTaskChange;
 import inetsoft.web.admin.schedule.model.ScheduleTaskModel;
-
-import java.rmi.RemoteException;
-import java.security.Principal;
-
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.messaging.AbstractSubProtocolEvent;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
+
+import java.rmi.RemoteException;
+import java.security.Principal;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Controller
-@Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class ScheduleTaskChangeController {
-   @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
    @Autowired
    public ScheduleTaskChangeController(AnalyticRepository repository,
                                        ScheduleService scheduleService,
                                        ScheduleManager scheduleManager,
-                                       AssetRepository assetRepository, SimpMessagingTemplate messagingTemplate)
+                                       SimpMessagingTemplate messagingTemplate,
+                                       Cluster cluster,
+                                       SecurityEngine securityEngine)
    {
       this.repository = repository;
       this.scheduleService = scheduleService;
       this.scheduleManager = scheduleManager;
-      this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
-      this.debouncer = new DefaultDebouncer<>();
+      this.cluster = cluster;
+      this.securityEngine = securityEngine;
    }
 
    @PostConstruct
    public void initCluster() {
-      cluster = Cluster.getInstance();
+      cluster.addMessageListener(listener);
    }
 
    @PreDestroy
-   public synchronized void removeListener() {
-      if(listener != null) {
+   public synchronized void removeListeners() {
+      try {
          cluster.removeMessageListener(listener);
-         listener = null;
-         portalSubscribed = false;
-         adminSubscribed = false;
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listeners during shutdown", e);
       }
    }
 
    @SubscribeMapping(PORTAL_TOPIC)
-   public synchronized void subscribePortal(Principal principal) {
-      if(listener == null) {
-         listener = this::messageReceived;
-         subscriber = principal;
-         cluster.addMessageListener(listener);
-      }
-
-      portalSubscribed = true;
+   public synchronized void subscribePortal(StompHeaderAccessor header, Principal principal) {
+      final MessageHeaders messageHeaders = header.getMessageHeaders();
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      portalSubscribers.put(sessionId, principal);
    }
 
    @SubscribeMapping(ADMIN_TOPIC)
-   public synchronized void subscribeAdmin(Principal principal) throws SecurityException {
-      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+   public synchronized void subscribeAdmin(StompHeaderAccessor header, Principal principal) throws SecurityException {
+      if(!securityEngine.getSecurityProvider().checkPermission(
          principal, ResourceType.EM_COMPONENT, "settings/schedule/tasks", ResourceAction.ACCESS))
       {
          throw new SecurityException("Unauthorized access to schedule by user " + principal.getName());
       }
 
-      if(listener == null) {
-         listener = this::messageReceived;
-         subscriber = principal;
-         cluster.addMessageListener(listener);
-      }
+      final MessageHeaders messageHeaders = header.getMessageHeaders();
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      adminSubscribers.put(sessionId, principal);
+   }
 
-      adminSubscribed = true;
+   @EventListener(SessionDisconnectEvent.class)
+   public void handleDisconnect(SessionDisconnectEvent event) {
+      removeSubscription(event);
+   }
+
+   private void removeSubscription(AbstractSubProtocolEvent event) {
+      final Message<byte[]> message = event.getMessage();
+      final MessageHeaders headers = message.getHeaders();
+      final String sessionId =
+         (String) headers.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+
+      if(sessionId != null) {
+         adminSubscribers.remove(sessionId);
+         portalSubscribers.remove(sessionId);
+      }
    }
 
    private void messageReceived(MessageEvent event) {
@@ -119,149 +134,69 @@ public class ScheduleTaskChangeController {
 
    private void dispatchPortalTaskActivity(TaskActivityMessage message) {
       String name = message.getTaskName();
-      ScheduleTask task = scheduleManager.getScheduleTask(name, getSubscriberOrgID());
 
-      if(!shouldHandleReceivedMessage(name, task)) {
+      if(name == null) {
          return;
       }
 
-      if(portalSubscribed && !ScheduleManager.isInternalTask(name) && checkPortalPermission(name)) {
-         ScheduleTaskModel taskModel = createModel(task, message);
-         ScheduleTaskChange model = ScheduleTaskChange.builder()
-            .name(taskModel == null ? message.getTaskName() : taskModel.name())
-            .type(ScheduleTaskChange.Type.ACTIVITY)
-            .task(taskModel)
-            .build();
-         messagingTemplate.convertAndSendToUser(
-            SUtil.getUserDestination(subscriber), PORTAL_TOPIC, model);
+      for(Principal subscriber : portalSubscribers.values()) {
+         if(!ScheduleManager.isInternalTask(name) && checkPortalPermission(subscriber, name) && shouldHandleReceivedMessage(name, subscriber)) {
+            ScheduleTask task = scheduleManager.getScheduleTask(name, getSubscriberOrgId(subscriber));
+            ScheduleTaskModel taskModel = createModel(subscriber, task, message);
+            ScheduleTaskChange model = ScheduleTaskChange.builder()
+               .name(taskModel == null ? message.getTaskName() : taskModel.name())
+               .type(ScheduleTaskChange.Type.ACTIVITY)
+               .task(taskModel)
+               .build();
+            messagingTemplate.convertAndSendToUser(
+               SUtil.getUserDestination(subscriber), PORTAL_TOPIC, model);
+         }
       }
    }
 
-   private boolean shouldHandleReceivedMessage(String taskID, ScheduleTask task) {
-      if(taskID == null) {
-         return false;
+   private boolean shouldHandleReceivedMessage(String taskId, Principal subscriber) {
+      IdentityID owner = SUtil.getTaskOwner(taskId);
+
+      if(owner == null) {
+         ScheduleTask task = scheduleManager.getScheduleTask(
+            taskId, OrganizationManager.getInstance().getCurrentOrgID(subscriber));
+
+         if(task != null) {
+            owner = task.getOwner();
+         }
       }
 
-      IdentityID owner = SUtil.getTaskOwner(taskID);
+      String taskOrgId = owner == null ?
+         OrganizationManager.getInstance().getCurrentOrgID(subscriber) : owner.getOrgID();
 
-      if(owner == null && task != null) {
-         owner = task.getOwner();
-      }
-
-      String taskOrgID = owner == null ?
-         OrganizationManager.getInstance().getCurrentOrgID() : owner.getOrgID();
-
-      return Tool.equals(taskOrgID, getSubscriberOrgID());
+      return Tool.equals(taskOrgId, getSubscriberOrgId(subscriber));
    }
 
-   private String getSubscriberOrgID() {
+   private String getSubscriberOrgId(Principal subscriber) {
       return OrganizationManager.getInstance().getCurrentOrgID(subscriber);
    }
 
    private void dispatchPortalScheduleTask(ScheduleTaskMessage message) {
       ScheduleTask task = message.getTask();
-      String taskId = task == null ? null : task.getTaskId();
+      String taskId = task == null ? message.getTaskName() : task.getTaskId();
 
-      if(!shouldHandleReceivedMessage(taskId, task)) {
+      if(taskId == null) {
          return;
       }
 
-      if(!portalSubscribed || ScheduleManager.isInternalTask(taskId) ||
-         taskId != null && !checkPortalPermission(taskId))
-      {
-         return;
-      }
-
-      ScheduleTaskChange.Type type;
-
-      switch(message.getAction()) {
-      case ADDED:
-         type = ScheduleTaskChange.Type.ADDED;
-         break;
-      case REMOVED:
-         type = ScheduleTaskChange.Type.REMOVED;
-         break;
-      case MODIFIED:
-      default:
-         type = ScheduleTaskChange.Type.MODIFIED;
-      }
-
-      TaskActivity activity = scheduleService.getActivity(message.getTaskName(), false);
-      ScheduleTaskModel taskModel = task == null ? null : ScheduleTaskModel.builder()
-         .fromTask(
-            task, activity, Catalog.getCatalog(subscriber), scheduleService.isSecurityEnabled())
-         .canDelete(scheduleService.canDeleteTask(task, subscriber))
-         .build();
-      ScheduleTaskChange model = ScheduleTaskChange.builder()
-         .name(taskModel == null ? message.getTaskName() : taskModel.name())
-         .type(type)
-         .task(taskModel)
-         .build();
-
-      messagingTemplate.convertAndSendToUser(
-         SUtil.getUserDestination(subscriber), PORTAL_TOPIC, model);
-   }
-
-   private void dispatchAdminTaskActivity(TaskActivityMessage message) {
-      String name = message.getTaskName();
-      ScheduleTask task = scheduleManager.getScheduleTask(name, getSubscriberOrgID());
-
-      if(!shouldHandleReceivedMessage(name, task)) {
-         return;
-      }
-
-      // not current org task, ignore it.
-      if(task == null) {
-         return;
-      }
-
-      try {
-         task = scheduleService.handleInternalTaskConfiguration(task, subscriber);
-      }
-      catch(SecurityException e) {
-         LOG.warn("Failed to check schedule task permission", e);
-      }
-
-      if(adminSubscribed && checkAdminPermission(task)) {
-         ScheduleTaskChange model = ScheduleTaskChange.builder()
-            .name(getTaskName(message.getTaskName()))
-            .type(ScheduleTaskChange.Type.ACTIVITY)
-            .task(createModel(task, message))
-            .build();
-         messagingTemplate.convertAndSendToUser(
-            SUtil.getUserDestination(subscriber), ADMIN_TOPIC, model);
-      }
-   }
-
-   private void dispatchAdminScheduleTask(ScheduleTaskMessage message) {
-      ScheduleTask task = message.getTask();
-      String taskID = task == null ? null : task.getTaskId();
-
-      if(taskID == null) {
-         taskID = message.getTaskName();
-      }
-
-      if(!shouldHandleReceivedMessage(taskID, task)) {
-         return;
-      }
-
-      if(task != null) {
-         try {
-            task = scheduleService.handleInternalTaskConfiguration(task, subscriber);
+      for(Principal subscriber : portalSubscribers.values()) {
+         if(ScheduleManager.isInternalTask(taskId) ||
+            !shouldHandleReceivedMessage(taskId, subscriber))
+         {
+            continue;
          }
-         catch(SecurityException e) {
-            LOG.warn("Failed to check schedule task permission", e);
-         }
-      }
 
-      if(adminSubscribed && checkAdminPermission(task)) {
-         if(message.getAction() != ScheduleTaskMessage.Action.REMOVED) {
-            ScheduleTask scheduleTask = ScheduleManager.getScheduleManager()
-               .getScheduleTask(task.getTaskId(), getSubscriberOrgID());
-
-            if(scheduleTask == null) {
-               return;
-            }
+         // For REMOVED action, the task no longer exists in storage so permission cannot be
+         // re-checked; the subscriber already had permission when they first loaded the task.
+         if(message.getAction() != ScheduleTaskMessage.Action.REMOVED &&
+            !checkPortalPermission(subscriber, taskId))
+         {
+            continue;
          }
 
          ScheduleTaskChange.Type type;
@@ -290,11 +225,111 @@ public class ScheduleTaskChangeController {
             .task(taskModel)
             .build();
          messagingTemplate.convertAndSendToUser(
-            SUtil.getUserDestination(subscriber), ADMIN_TOPIC, model);
+            SUtil.getUserDestination(subscriber), PORTAL_TOPIC, model);
       }
    }
 
-   private boolean checkPortalPermission(String task) {
+   private void dispatchAdminTaskActivity(TaskActivityMessage message) {
+      String name = message.getTaskName();
+
+      if(name == null) {
+         return;
+      }
+
+      ScheduleTask task = scheduleManager.getScheduleTask(name);
+
+      for(Principal subscriber : adminSubscribers.values()) {
+         if(!shouldHandleReceivedMessage(name, subscriber)) {
+            return;
+         }
+
+         if(task == null) {
+            task = scheduleManager.getScheduleTask(name, OrganizationManager.getInstance().getCurrentOrgID(subscriber));
+         }
+
+         // not current org task, ignore it.
+         if(task == null) {
+            return;
+         }
+
+         try {
+            task = scheduleService.handleInternalTaskConfiguration(task, subscriber);
+         }
+         catch(SecurityException e) {
+            LOG.warn("Failed to check schedule task permission", e);
+         }
+
+         if(checkAdminPermission(subscriber, task)) {
+            ScheduleTaskChange model = ScheduleTaskChange.builder()
+               .name(getTaskName(message.getTaskName()))
+               .type(ScheduleTaskChange.Type.ACTIVITY)
+               .task(createModel(subscriber, task, message))
+               .build();
+            messagingTemplate.convertAndSendToUser(
+               SUtil.getUserDestination(subscriber), ADMIN_TOPIC, model);
+         }
+      }
+   }
+
+   private void dispatchAdminScheduleTask(ScheduleTaskMessage message) {
+      ScheduleTask task = message.getTask();
+      String taskID = task == null ? null : task.getTaskId();
+
+      if(taskID == null) {
+         taskID = message.getTaskName();
+      }
+
+      if(taskID == null) {
+         return;
+      }
+
+      for(Principal subscriber : adminSubscribers.values()) {
+         if(!shouldHandleReceivedMessage(taskID, subscriber)) {
+            continue;
+         }
+
+         if(task != null) {
+            try {
+               task = scheduleService.handleInternalTaskConfiguration(task, subscriber);
+            }
+            catch(SecurityException e) {
+               LOG.warn("Failed to check schedule task permission", e);
+            }
+         }
+
+         if(checkAdminPermission(subscriber, task)) {
+            ScheduleTaskChange.Type type;
+
+            switch(message.getAction()) {
+            case ADDED:
+               type = ScheduleTaskChange.Type.ADDED;
+               break;
+            case REMOVED:
+               type = ScheduleTaskChange.Type.REMOVED;
+               break;
+            case MODIFIED:
+            default:
+               type = ScheduleTaskChange.Type.MODIFIED;
+            }
+
+            TaskActivity activity = scheduleService.getActivity(message.getTaskName(), false);
+            ScheduleTaskModel taskModel = task == null ? null : ScheduleTaskModel.builder()
+               .fromTask(
+                  task, activity, Catalog.getCatalog(subscriber), scheduleService.isSecurityEnabled())
+               .canDelete(scheduleService.canDeleteTask(task, subscriber))
+               .build();
+            ScheduleTaskChange model = ScheduleTaskChange.builder()
+               .name(taskModel == null ? message.getTaskName() : taskModel.name())
+               .type(type)
+               .task(taskModel)
+               .build();
+            messagingTemplate.convertAndSendToUser(
+               SUtil.getUserDestination(subscriber), ADMIN_TOPIC, model);
+         }
+      }
+   }
+
+   private boolean checkPortalPermission(Principal subscriber, String task) {
       try {
          if(repository.checkPermission(
             subscriber, ResourceType.SCHEDULE_TASK, task, ResourceAction.READ))
@@ -302,7 +337,7 @@ public class ScheduleTaskChangeController {
             return true;
          }
 
-         ScheduleTask scheduleTask = scheduleManager.getScheduleTask(task, getSubscriberOrgID());
+         ScheduleTask scheduleTask = scheduleManager.getScheduleTask(task, getSubscriberOrgId(subscriber));
 
          if(scheduleTask == null) {
             return false;
@@ -317,11 +352,13 @@ public class ScheduleTaskChangeController {
       return false;
    }
 
-   private boolean checkAdminPermission(ScheduleTask task) {
+   private boolean checkAdminPermission(Principal subscriber, ScheduleTask task) {
       return task == null || SUtil.getRepletEngine(repository).hasTaskPermission(task, subscriber);
    }
 
-   private ScheduleTaskModel createModel(ScheduleTask task, TaskActivityMessage message) {
+   private ScheduleTaskModel createModel(Principal subscriber, ScheduleTask task,
+                                         TaskActivityMessage message)
+   {
       try {
          return scheduleService.createTaskModel(
             task, message.getActivity(), subscriber, Catalog.getCatalog(subscriber));
@@ -341,17 +378,16 @@ public class ScheduleTaskChangeController {
       return name;
    }
 
-   private Cluster cluster;
-   private MessageListener listener;
-   private Principal subscriber;
-   private boolean portalSubscribed = false;
-   private boolean adminSubscribed = false;
+   private final Cluster cluster;
+   private final MessageListener listener = this::messageReceived;
+   private final Map<String, Principal> adminSubscribers = new ConcurrentHashMap<>();
+   private final Map<String, Principal> portalSubscribers = new ConcurrentHashMap<>();
+
    private final AnalyticRepository repository;
    private final ScheduleService scheduleService;
    private final ScheduleManager scheduleManager;
-   private final AssetRepository assetRepository;
    private final SimpMessagingTemplate messagingTemplate;
-   private final Debouncer<String> debouncer;
+   private final SecurityEngine securityEngine;
 
    private static final String PORTAL_TOPIC = "/schedule-changed";
    private static final String ADMIN_TOPIC = "/em-schedule-changed";

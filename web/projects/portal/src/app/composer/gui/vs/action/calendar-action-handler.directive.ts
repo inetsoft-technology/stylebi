@@ -35,7 +35,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const SERVICE_URI: string = "composer/vs/calendar-property-dialog-model/";
 
 @Directive({
-   selector: "[cCalendarActionHandler]"
+    selector: "[cCalendarActionHandler]",
+    standalone: true
 })
 export class CalendarActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSCalendarModel;

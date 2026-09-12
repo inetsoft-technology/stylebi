@@ -70,6 +70,11 @@ public class RelationEdgeGeometry extends ElementGeometry {
       return edge.getId();
    }
 
+   @Override
+   public String getOverlayId(ElementVO vo, DataSet data, boolean polar) {
+      return getOverlayId(vo, data);
+   }
+
    /**
     * Set row index.
     */

@@ -1,0 +1,210 @@
+# /viewer route candidates — 2026-06-08
+# Generated from viewer.routes.ts → viewer-root / viewer-view / viewer-edit + 1-2 layer expansion
+
+# ── Top-level route components ─────────────────────────────────────────────────
+projects/portal/src/app/viewer/viewer-root.component.ts
+projects/portal/src/app/viewer/viewer-view/viewer-view.component.ts
+projects/portal/src/app/viewer/viewer-edit/viewer-edit.component.ts
+
+# ── Layer 1: direct imports ────────────────────────────────────────────────────
+projects/shared/ai-assistant/ai-assistant-panel.component.ts
+projects/shared/download/download-target.component.ts
+projects/portal/src/app/viewer/viewer-view/page-tab.component.ts
+projects/portal/src/app/vsobjects/viewer-app.component.ts
+projects/portal/src/app/vsview/edit/vs-binding-pane.component.ts
+projects/portal/src/app/vs-wizard/gui/vs-wizard.component.ts
+
+# ── Layer 2: sub-imports from ViewerAppComponent ───────────────────────────────
+projects/portal/src/app/widget/scroll/paging-control.component.ts
+projects/portal/src/app/vsobjects/objects/viewer-mobile-toolbar/viewer-mobile-toolbar.component.ts
+projects/portal/src/app/vsobjects/bookmark/vs-bookmark-pane.component.ts
+projects/portal/src/app/vsobjects/dialog/export-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/email/email-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/schedule-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/bookmark-property-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/profiling-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/remove-bookmarks-dialog.component.ts
+projects/portal/src/app/vsobjects/format/vs-formats-pane.component.ts
+projects/portal/src/app/widget/share/share-email-dialog.component.ts
+projects/portal/src/app/widget/share/share-google-chat-dialog.component.ts
+projects/portal/src/app/widget/share/share-slack-dialog.component.ts
+projects/portal/src/app/widget/notifications/notifications.component.ts
+
+# ── Layer 2: sub-imports from VSBindingPane / VsWizardComponent ────────────────
+projects/portal/src/app/vs-wizard/gui/wizard-pane/vs-wizard-pane.component.ts
+projects/portal/src/app/vs-wizard/gui/object-wizard/object-wizard-pane.component.ts
+projects/portal/src/app/widget/fixed-dropdown/actions-contextmenu.component.ts
+projects/portal/src/app/widget/dialog/variable-input-dialog/variable-input-dialog.component.ts
+projects/portal/src/app/binding/widget/binding-tree/edit-geographic-dialog.component.ts
+
+# ── Layer 2: sub-imports from ViewerAppComponent (missed in original scan) ─────
+projects/portal/src/app/vsobjects/objects/vs-object-container.component.ts
+projects/portal/src/app/widget/share/share-link-dialog.component.ts
+
+# ── Layer 2: sub-imports from VSBindingPane ───────────────────────────────────
+projects/portal/src/app/binding/editor/binding-editor.component.ts
+projects/portal/src/app/vsview/view/vs-object-view.component.ts
+
+# ── Layer 2: sub-imports from VsWizardPane ────────────────────────────────────
+projects/portal/src/app/vs-wizard/gui/wizard-tool-bar/wizard-tool-bar.component.ts
+projects/portal/src/app/vs-wizard/gui/objects/vs-wizard-object.component.ts
+projects/portal/src/app/vs-wizard/gui/objects/wizard-new-object.component.ts
+
+# ── Layer 2: sub-imports from ObjectWizardPane ────────────────────────────────
+projects/portal/src/app/vs-wizard/gui/object-wizard-tool-bar.component.ts
+projects/portal/src/app/vs-wizard/gui/object-wizard/wizard-binding-tree.component.ts
+projects/portal/src/app/vs-wizard/gui/object-wizard/wizard-aggregate-pane.component.ts
+projects/portal/src/app/vs-wizard/gui/object-wizard/wizard-preview-pane.component.ts
+
+# ── 2026-06-24 补充扫描：vsobjects/objects Layer-3 组件及相关 ─────────────────
+# 路由 2 层规则遗漏的 VSObjectContainer 子组件、图表渲染 UI、vsObject 弹窗、
+# 数据绑定编辑器。共 103 个。
+
+# selection（选择/筛选控件）
+projects/portal/src/app/vsobjects/objects/selection/vs-selection.component.ts
+projects/portal/src/app/vsobjects/objects/selection/vs-selection-container.component.ts
+projects/portal/src/app/vsobjects/objects/selection/vs-selection-container-children.component.ts
+projects/portal/src/app/vsobjects/objects/selection/selection-list-cell.component.ts
+projects/portal/src/app/vsobjects/objects/selection/current-selection.component.ts
+projects/portal/src/app/vsobjects/objects/selection/collapse-toggle-button.component.ts
+
+# table（表格、交叉表、计算表）
+projects/portal/src/app/vsobjects/objects/table/vs-crosstab.component.ts
+projects/portal/src/app/vsobjects/objects/table/vs-table.component.ts
+projects/portal/src/app/vsobjects/objects/table/preview-table.component.ts
+projects/portal/src/app/vsobjects/objects/table/vs-calctable.component.ts
+projects/portal/src/app/vsobjects/objects/table/vs-table-cell.component.ts
+projects/portal/src/app/vsobjects/objects/table/vs-preview-table.component.ts
+projects/portal/src/app/vsobjects/objects/table/vs-simple-cell.component.ts
+projects/portal/src/app/vsobjects/objects/table/table-cell-resize-dialog/table-cell-resize-dialog.component.ts
+
+# calendar（日历控件）
+projects/portal/src/app/vsobjects/objects/calendar/vs-calendar.component.ts
+projects/portal/src/app/vsobjects/objects/calendar/month-calendar.component.ts
+projects/portal/src/app/vsobjects/objects/calendar/year-calendar.component.ts
+
+# range-slider / slider
+projects/portal/src/app/vsobjects/objects/range-slider/vs-range-slider.component.ts
+projects/portal/src/app/vsobjects/objects/slider/vs-slider.component.ts
+
+# output（输出组件）
+projects/portal/src/app/vsobjects/objects/output/text/vs-text.component.ts
+projects/portal/src/app/vsobjects/objects/output/image/vs-image.component.ts
+projects/portal/src/app/vsobjects/objects/output/gauge/vs-gauge.component.ts
+
+# input controls
+projects/portal/src/app/vsobjects/objects/combo-box/vs-combo-box.component.ts
+projects/portal/src/app/vsobjects/objects/check-box/vs-check-box.component.ts
+projects/portal/src/app/vsobjects/objects/radio-button/vs-radio-button.component.ts
+projects/portal/src/app/vsobjects/objects/text-input/vs-text-input.component.ts
+projects/portal/src/app/vsobjects/objects/submit/vs-submit.component.ts
+
+# tab / viewsheet / annotation / group
+projects/portal/src/app/vsobjects/objects/tab/vs-tab.component.ts
+projects/portal/src/app/vsobjects/objects/viewsheet/vs-viewsheet.component.ts
+projects/portal/src/app/vsobjects/objects/annotation/vs-annotation.component.ts
+projects/portal/src/app/vsobjects/objects/annotation/vs-hidden-annotation.component.ts
+projects/portal/src/app/vsobjects/objects/group/vs-group-container.component.ts
+
+# spinner / thermometer / cylinder / sliding-scale
+projects/portal/src/app/vsobjects/objects/spinner/vs-spinner.component.ts
+projects/portal/src/app/vsobjects/objects/thermometer/vs-thermometer.component.ts
+projects/portal/src/app/vsobjects/objects/cylinder/vs-cylinder.component.ts
+projects/portal/src/app/vsobjects/objects/sliding-scale/vs-sliding-scale.component.ts
+
+# shape（形状）
+projects/portal/src/app/vsobjects/objects/shape/vs-line.component.ts
+projects/portal/src/app/vsobjects/objects/shape/vs-oval.component.ts
+projects/portal/src/app/vsobjects/objects/shape/vs-rectangle.component.ts
+
+# mini-toolbar / title / input-label-wrapper
+projects/portal/src/app/vsobjects/objects/mini-toolbar/mini-menu.component.ts
+projects/portal/src/app/vsobjects/objects/title/vs-title.component.ts
+projects/portal/src/app/vsobjects/objects/title-cell/title-cell.component.ts
+projects/portal/src/app/vsobjects/objects/input-label-wrapper/vs-input-label-wrapper.component.ts
+
+# graph/objects — 图表渲染 UI
+projects/portal/src/app/graph/objects/chart-area.component.ts
+projects/portal/src/app/graph/objects/chart-axis-area.component.ts
+projects/portal/src/app/graph/objects/chart-plot-area.component.ts
+projects/portal/src/app/graph/objects/chart-legend-container.component.ts
+projects/portal/src/app/graph/objects/chart-legend-area.component.ts
+projects/portal/src/app/graph/objects/chart-title-area.component.ts
+
+# graph/dialog
+projects/portal/src/app/graph/dialog/chart-target-lines-pane.component.ts
+projects/portal/src/app/graph/dialog/chart-plot-options-pane.component.ts
+projects/portal/src/app/graph/dialog/axis-property-dialog.component.ts
+projects/portal/src/app/graph/dialog/legend-format-general-pane.component.ts
+
+# vsobjects/dialog — date-comparison
+projects/portal/src/app/vsobjects/dialog/date-comparison-dialog/date-comparison-interval-pane.component.ts
+projects/portal/src/app/vsobjects/dialog/date-comparison-dialog/date-comparison-pane.component.ts
+projects/portal/src/app/vsobjects/dialog/date-comparison-dialog/date-comparison-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/date-comparison-dialog/date-comparison-standard-periods.component.ts
+
+# vsobjects/dialog — cube (OLAP)
+projects/portal/src/app/vsobjects/dialog/cube/hierarchy-property-pane.component.ts
+projects/portal/src/app/vsobjects/dialog/cube/hierarchy-editor.component.ts
+
+# vsobjects/dialog — chart
+projects/portal/src/app/vsobjects/dialog/graph/hyperlink-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/graph/chart-property-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/graph/tip-pane.component.ts
+
+# vsobjects/dialog — range-slider
+projects/portal/src/app/vsobjects/dialog/range-slider-data-pane.component.ts
+projects/portal/src/app/vsobjects/dialog/range-slider-edit-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/range-slider-size-pane.component.ts
+
+# vsobjects/dialog — 其他
+projects/portal/src/app/vsobjects/dialog/input-parameter-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/combo-box-editor.component.ts
+projects/portal/src/app/vsobjects/dialog/vs-condition-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/hide-columns-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/file-format-pane.component.ts
+projects/portal/src/app/vsobjects/dialog/highlight-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/rich-text-dialog/rich-text-dialog.component.ts
+
+# vsview — viewer 路由扫描遗漏的 vsview 组件
+projects/portal/src/app/vsview/view/vs-calc-table-layout.component.ts
+projects/portal/src/app/vsview/view/calc-table-cell.component.ts
+
+# binding/editor/table — 数据绑定编辑器（table 部分）
+projects/portal/src/app/binding/editor/sort-option.component.ts
+projects/portal/src/app/binding/editor/table/table-fieldmc.component.ts
+projects/portal/src/app/binding/editor/table/calc-data-pane.component.ts
+projects/portal/src/app/binding/editor/table/calc-aggregate-option.component.ts
+projects/portal/src/app/binding/editor/table/calc-group-option.component.ts
+projects/portal/src/app/binding/editor/table/table-data-editor.component.ts
+projects/portal/src/app/binding/editor/table/group-option.component.ts
+projects/portal/src/app/binding/editor/table/expert-named-group-dialog.component.ts
+
+# binding/editor/chart — 图表绑定
+projects/portal/src/app/binding/editor/chart/field/calculate-pane-dialog.component.ts
+projects/portal/src/app/binding/editor/chart/field/calculate-pane.component.ts
+projects/portal/src/app/binding/editor/chart/field/chart-fieldmc.component.ts
+projects/portal/src/app/binding/editor/chart/field/geo-mapping-dialog.component.ts
+projects/portal/src/app/binding/editor/chart/field/dimension-editor.component.ts
+projects/portal/src/app/binding/editor/chart/field/geo-option-pane.component.ts
+projects/portal/src/app/binding/editor/chart/chart-data-editor.component.ts
+projects/portal/src/app/binding/editor/chart/color-mapping-dialog.component.ts
+
+# binding/editor/chart/aesthetic — 美化样式
+projects/portal/src/app/binding/editor/chart/aesthetic/shape-field-mc.component.ts
+projects/portal/src/app/binding/editor/chart/aesthetic/categorical-color-pane.component.ts
+projects/portal/src/app/binding/editor/chart/aesthetic/color-field-mc.component.ts
+projects/portal/src/app/binding/editor/chart/aesthetic/text-field-mc.component.ts
+projects/portal/src/app/binding/editor/chart/aesthetic/linear-color-pane.component.ts
+
+# binding — 其他
+projects/portal/src/app/binding/editor/named-group-pane.component.ts
+projects/portal/src/app/binding/editor/formula-option.component.ts
+projects/portal/src/app/binding/widget/chart-type-button.component.ts
+projects/portal/src/app/binding/widget/chart-style-pane.component.ts
+projects/portal/src/app/binding/widget/slider.component.ts
+projects/portal/src/app/binding/widget/range-slider.component.ts
+projects/portal/src/app/binding/widget/binding-tree/binding-tree.component.ts
+
+# shared
+projects/shared/ckeditor-wrapper/ckeditor-wrapper.component.ts

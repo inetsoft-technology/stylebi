@@ -15,17 +15,39 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges } from "@angular/core";
+import { MatSnackBar } from "@angular/material/snack-bar";
+import { finalize } from "rxjs/operators";
+import { Tool } from "../../../../../../../shared/util/tool";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
 import { RepositoryEditorModel } from "../../../../../../../shared/util/model/repository-editor-model";
 import { ContentRepositoryService } from "../content-repository-page/content-repository.service";
 import { RepositoryTreeNode } from "../repository-tree-node";
+import { RepositoryScheduleTaskFolderSettingsPageComponent } from "../repository-schedule-task-folder-settings-page/repository-schedule-task-folder-settings-page.component";
+import { RepositoryRecycleBinPageComponent } from "../repository-recycle-bin-page/repository-recycle-bin-page.component";
+import { RepositoryPermissionEditorPageComponent } from "../repository-permission-editor-page/repository-permission-editor-page.component";
+import { RepositoryDataSourceFolderSettingsPageComponent } from "../repository-data-source-folder-settings-page/repository-data-source-folder-settings-page.component";
+import { RepositoryFolderSettingsPageComponent } from "../repository-folder-settings-page/repository-folder-settings-page.component";
+import { RepositoryFolderDashboardSettingsPageComponent } from "../dashboard/repository-dashboard-folder-settings-page/repository-folder-dashboard-settings-page.component";
+import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner/loading-spinner.component";
+import { MatButton } from "@angular/material/button";
+import { RepositoryScriptSettingsPageComponent } from "../repository-script-settings-page/repository-script-settings-page.component";
+import { RepositoryFolderRecycleBinPageComponent } from "../repository-folder-recycle-bin-page/repository-folder-recycle-bin-page.component";
+import { RepositoryFolderTrashcanSettingsPageComponent } from "../repository-folder-trashcan-settings-page/repository-folder-trashcan-settings-page.component";
+import { RepositoryDataSourceSettingsPageComponent } from "../repository-data-source-settings-page/repository-data-source-settings-page.component";
+import { RepositoryDashboardSettingsPageComponent } from "../dashboard/repository-dashboard-settings-page/repository-dashboard-settings-page.component";
+import { RepositoryWorksheetSettingsPageComponent } from "../repository-worksheet-settings-page/repository-worksheet-settings-page.component";
+import { RepositoryViewsheetSettingsPageComponent } from "../repository-viewsheet-settings-page/repository-viewsheet-settings-page.component";
+import { AutoSaveFolderPageComponent } from "../auto-save-recycle-bin/auto-save-folder-page.component";
+import { AutoSaveRecycleBinPageComponent } from "../auto-save-recycle-bin/auto-save-recycle-bin-page.component";
+
 
 @Component({
-   selector: "em-repository-editor-page",
-   templateUrl: "./repository-editor-page.component.html",
-   styleUrls: ["./repository-editor-page.component.scss"]
+    selector: "em-repository-editor-page",
+    templateUrl: "./repository-editor-page.component.html",
+    styleUrls: ["./repository-editor-page.component.scss"],
+    imports: [AutoSaveRecycleBinPageComponent, AutoSaveFolderPageComponent, RepositoryViewsheetSettingsPageComponent, RepositoryWorksheetSettingsPageComponent, RepositoryDashboardSettingsPageComponent, RepositoryDataSourceSettingsPageComponent, RepositoryFolderTrashcanSettingsPageComponent, RepositoryFolderRecycleBinPageComponent, RepositoryScriptSettingsPageComponent, MatButton, LoadingSpinnerComponent, RepositoryFolderDashboardSettingsPageComponent, RepositoryFolderSettingsPageComponent, RepositoryDataSourceFolderSettingsPageComponent, RepositoryPermissionEditorPageComponent, RepositoryRecycleBinPageComponent, RepositoryScheduleTaskFolderSettingsPageComponent]
 })
 export class RepositoryEditorPageComponent implements OnChanges, OnInit {
    previousEditorPath: string;
@@ -128,6 +150,7 @@ export class RepositoryEditorPageComponent implements OnChanges, OnInit {
          type === RepositoryEntryType.CUBE ||
          type === RepositoryEntryType.DATA_SOURCE_FOLDER && path === "/" ||
          type === RepositoryEntryType.SCHEDULE_TASK_FOLDER && path === "/" ||
+         type === RepositoryEntryType.SCHEDULE_TASK ||
          this.repositoryService.isDataModelFolderEntry(type)) {
          return "permission";
       }
@@ -143,7 +166,9 @@ export class RepositoryEditorPageComponent implements OnChanges, OnInit {
       return this.repositoryService.selectedNode?.type;
    }
 
-   constructor(public repositoryService: ContentRepositoryService, private httpClient: HttpClient) {
+   constructor(public repositoryService: ContentRepositoryService, private httpClient: HttpClient,
+               private snackBar: MatSnackBar)
+   {
    }
 
    ngOnInit(): void {
@@ -193,9 +218,15 @@ export class RepositoryEditorPageComponent implements OnChanges, OnInit {
       let timeout = setTimeout(() => this.loading = true, 1000);
 
       this.httpClient.delete("../api/em/repository/recycle-bin/entries")
-         .subscribe(() => {
+         .pipe(finalize(() => {
             clearTimeout(timeout);
             this.loading = false;
+         }))
+         .subscribe({
+            error: (error: HttpErrorResponse) => {
+               this.snackBar.open(error.error?.message || error.message,
+                  "_#(js:Close)", {duration: Tool.SNACKBAR_DURATION});
+            }
          });
    }
 }

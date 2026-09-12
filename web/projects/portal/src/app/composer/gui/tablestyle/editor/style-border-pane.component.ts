@@ -19,16 +19,22 @@ import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChange
 import { TableStyleUtil } from "../../../../common/util/table-style-util";
 import {StyleConstants} from "../../../../common/util/style-constants";
 
+import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
+
 @Component({
-   selector: "style-border-pane",
-   templateUrl: "style-border-pane.component.html",
-   styleUrls: ["table-style-format-pane.component.scss"],
+    selector: "style-border-pane",
+    templateUrl: "style-border-pane.component.html",
+    styleUrls: ["table-style-format-pane.component.scss"],
+    imports: [
+    FixedDropdownDirective
+]
 })
 export class StyleBorderPaneComponent implements OnInit, OnChanges {
    @Input() borderStyle: number = StyleConstants.THIN_LINE;
    @Output() borderChange: EventEmitter<number> = new EventEmitter<number>();
    styles: Array<{ label: string, value: number, cssClass: string }> = [];
    cssClass: string;
+   styleLabel: string = "";
 
    ngOnInit() {
       this.styles = TableStyleUtil.STYLE_BORDER_STYLES;
@@ -43,6 +49,7 @@ export class StyleBorderPaneComponent implements OnInit, OnChanges {
 
    updateParameters(): void {
       this.cssClass = this.getStyleCssClass();
+      this.styleLabel = this.getStyleLabel();
    }
 
    getStyleLabel(): string {
@@ -73,6 +80,7 @@ export class StyleBorderPaneComponent implements OnInit, OnChanges {
       this.borderStyle = style;
       this.borderChange.emit(style);
       this.cssClass = cssClass;
+      this.styleLabel = this.getStyleLabel();
    }
 }
 

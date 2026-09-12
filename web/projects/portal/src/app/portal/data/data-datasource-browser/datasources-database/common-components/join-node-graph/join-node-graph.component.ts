@@ -18,7 +18,7 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
    AfterViewInit, Component, ElementRef, EventEmitter, HostBinding, HostListener, Input,
-   Output, ViewChild,
+   OnChanges, Optional, Output, SimpleChanges, ViewChild,
 } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { AssemblyActionGroup } from "../../../../../../common/action/assembly-action-group";
@@ -41,6 +41,7 @@ import {
    QueryTablePropertiesDialogComponent
 } from "../../database-query/query-main/query-link-pane/query-table-properties-dialog/query-table-properties-dialog.component";
 import { DataType } from "../join-thumbnail.service";
+import { NgClass } from "@angular/common";
 
 const CREATE_ALIAS_TABLE = "../api/data/physicalmodel/graph/alias";
 const CHECK_ALIAS_HAS_DUPLICATE = "../api/data/physicalmodel/graph/alias/status";
@@ -49,12 +50,13 @@ const UPDATE_NODE_WIDTH = "../api/data/physicalmodel/graph/node/width/";
 const EDIT_QUERY_TABLE_PROPERTIES = "../api/data/datasource/query/table/properties";
 
 @Component({
-   selector: "join-node-graph",
-   templateUrl: "join-node-graph.component.html",
-   styleUrls: ["join-node-graph.component.scss",
-      "../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"]
+    selector: "join-node-graph",
+    templateUrl: "join-node-graph.component.html",
+    styleUrls: ["join-node-graph.component.scss",
+        "../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"],
+    imports: [NgClass]
 })
-export class JoinNodeGraphComponent implements AfterViewInit {
+export class JoinNodeGraphComponent implements AfterViewInit, OnChanges {
    @Input() runtimeId: string;
    @Input() graph: GraphModel;
    @Input() graphEndpoints: any[];
@@ -78,9 +80,26 @@ export class JoinNodeGraphComponent implements AfterViewInit {
    constructor(private nodeGraph: ElementRef,
                private modalService: NgbModal,
                private http: HttpClient,
-               private physicalModelService: DataPhysicalModelService,
+               @Optional() private physicalModelService: DataPhysicalModelService,
                private readonly fixedDropdownService: FixedDropdownService)
    {
+   }
+
+   // When the parent's ngOnChanges resets this.nodes/{} and deletes all jsPlumb endpoints,
+   // reused @for-tracked instances skip ngAfterViewInit. Re-register here so every node
+   // is back in the parent's lookup map and its endpoints are restored.
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["graph"] && !changes["graph"].isFirstChange() && this.nodeGraph) {
+         // The style.top/left host bindings haven't been flushed to the DOM yet at this
+         // point in the CD cycle, so jsPlumb would anchor connections to the element's
+         // stale (pre-layout) position. Apply the new position eagerly so registration/
+         // connection below sees the correct coordinates (e.g. after auto layout moves
+         // every table at once).
+         this.nodeGraph.nativeElement.style.top = this.graph.bounds.y + "px";
+         this.nodeGraph.nativeElement.style.left = this.graph.bounds.x + "px";
+         this.endPointsInit();
+         this.onRegisterNode.emit([this.graph, this.nodeGraph.nativeElement]);
+      }
    }
 
    ngAfterViewInit(): void {
@@ -338,6 +357,10 @@ export class JoinNodeGraphComponent implements AfterViewInit {
    }
 
    private showAliasDialog(oldAlias?: string): void {
+      if(!this.physicalModelService) {
+         return;
+      }
+
       const dialog = ComponentTool.showDialog(this.modalService, InputNameDialog, (alias) => {
          let params = new HttpParams()
             .set("runtimeId", this.runtimeId)

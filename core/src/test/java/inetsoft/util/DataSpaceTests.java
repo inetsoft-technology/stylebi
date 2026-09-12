@@ -17,16 +17,25 @@
  */
 package inetsoft.util;
 
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 class DataSpaceTests {
    @ParameterizedTest(name = "should get correct path [{index}] with dir ''{0}'' and file ''{1}''")
    @MethodSource
@@ -78,7 +87,18 @@ class DataSpaceTests {
          Arguments.of("file.txt", "", "file.txt"),
          Arguments.of("file.txt", "/", "file.txt"),
          Arguments.of(home, "file.txt", "file.txt"),
-         Arguments.of(null, home + "/templates//report.srt", "templates/report.srt")
+         Arguments.of(null, home + "/templates//report.srt", "templates/report.srt"),
+         // Bug #75321: the unresolved "$(sree.home)" placeholder (from fs.files /
+         // fs.bs.files defaults) must be normalized like the resolved home so it
+         // doesn't create a literal "$(sree.home)" node in the data space.
+         Arguments.of(null, "$(sree.home)/fs.xml", "fs.xml"),
+         Arguments.of(null, "$(sree.home)/organization0/fs.xml", "organization0/fs.xml"),
+         Arguments.of("$(sree.home)", "bs.xml", "bs.xml"),
+         Arguments.of("$(sree.home)/organization0", "bs.xml", "organization0/bs.xml"),
+         // placeholder-only directory with no file strips to an empty path
+         Arguments.of("$(sree.home)", null, ""),
+         // placeholder immediately followed by the file name (no separator slash)
+         Arguments.of(null, "$(sree.home)fs.xml", "fs.xml")
       );
    }
 }

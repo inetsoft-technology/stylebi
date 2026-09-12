@@ -18,8 +18,12 @@
 package inetsoft.web.admin.server;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
 import inetsoft.web.admin.monitoring.StatusMetricsType;
 import inetsoft.web.cluster.ServerClusterClient;
+import org.apache.ignite.DataRegionMetrics;
+import org.apache.ignite.Ignite;
 
 import java.lang.management.*;
 import java.time.OffsetDateTime;
@@ -42,6 +46,7 @@ public class ServerMetricsCalculator {
       updateCpuMetrics(oldMetrics, timestamp, maxHistory, builder, address);
       updateMemoryMetrics(timestamp, maxHistory, builder, address);
       updateGcMetrics(oldMetrics, timestamp, maxHistory, builder, address);
+      updateOffHeapMetrics(timestamp, maxHistory, builder, address);
       builder.timeZone(OffsetDateTime.now().getOffset());
 
       return builder.build();
@@ -192,10 +197,48 @@ public class ServerMetricsCalculator {
       builder.gcMetrics(newMetrics);
    }
 
+   private void updateOffHeapMetrics(long now, int maxHistory, ServerMetrics.Builder builder,
+                                     String address)
+   {
+      Queue<OffHeapHistory> offHeapHistories =
+         client.getStatusHistory(type, address, HistoryType.OFF_HEAP);
+
+      long totalOffHeapUsed = 0;
+      long totalOffHeapSize = 0;
+
+      try {
+         Cluster cluster = Cluster.getInstance();
+
+         if(cluster instanceof IgniteCluster igniteCluster) {
+            Ignite ignite = igniteCluster.getIgniteInstance();
+
+            for(DataRegionMetrics metrics : ignite.dataRegionMetrics()) {
+               totalOffHeapUsed += metrics.getTotalAllocatedSize();
+               totalOffHeapSize += metrics.getOffHeapSize();
+            }
+         }
+      }
+      catch(Exception e) {
+         // Cluster may not be initialized yet, use 0
+      }
+
+      offHeapHistories.add(OffHeapHistory.builder()
+         .timestamp(now)
+         .usedOffHeap(totalOffHeapUsed)
+         .build());
+
+      while(offHeapHistories.size() > maxHistory) {
+         offHeapHistories.poll();
+      }
+
+      builder.maxOffHeapSize(totalOffHeapSize);
+   }
+
    public enum HistoryType {
       CPU,
       MEMORY,
-      GC
+      GC,
+      OFF_HEAP
    }
 
    private final StatusMetricsType type;

@@ -70,6 +70,18 @@ public class ImageShapes {
    }
 
    /**
+    * Clear the cached shapes of all organizations. Should be used when the global shapes
+    * directory changes, since every organization falls back to it.
+    */
+   public static void clearAllShapes() {
+      synchronized(ImageShapes.class) {
+         singleton.cache.clear();
+         singleton.lastByOrg.clear();
+         SVGShape.clearCache();
+      }
+   }
+
+   /**
     * Get the named shape.
     */
    public static GShape getShape(String name) {

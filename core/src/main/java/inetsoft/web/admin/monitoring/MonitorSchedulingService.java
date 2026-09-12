@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.monitoring;
 
+import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.sree.internal.cluster.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -38,38 +39,29 @@ import java.util.concurrent.TimeUnit;
 public class MonitorSchedulingService implements MessageListener {
    @Autowired
    public MonitorSchedulingService(List<StatusUpdater> updaters,
-                                   MonitoringDataService monitoringDataService)
+                                   MonitoringDataService monitoringDataService,
+                                   Cluster cluster)
    {
       this.updaters = updaters;
       this.monitoringDataService = monitoringDataService;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void startScheduling() {
-      cluster = Cluster.getInstance();
       cluster.addMessageListener(this);
 
-      if(cluster.getLong(COUNTER_NAME).getAndIncrement() == 0) {
-         LocalDateTime now = LocalDateTime.now();
-         int delay = (90 - now.getSecond()) % 30;
+      LocalDateTime now = LocalDateTime.now();
+      int delay = (90 - now.getSecond()) % 30;
 
-         // first instance, start task
-         cluster.getScheduledExecutor().scheduleAtFixedRate(
-            new MonitorSchedulingTask(), delay, 30L, TimeUnit.SECONDS);
-      }
+      // scheduleAtFixedRate is idempotent across the cluster (deduplicates by class name)
+      cluster.getScheduledExecutor().scheduleAtFixedRate(
+         new MonitorSchedulingTask(), delay, 30L, TimeUnit.SECONDS);
    }
 
    @PreDestroy
    public void stopScheduling() {
-      if(cluster != null) {
-         cluster.removeMessageListener(this);
-
-         if(cluster.getLong(COUNTER_NAME).decrementAndGet() == 0) {
-            // last instance, stop task
-            cluster.getScheduledExecutor().shutdown();
-            cluster.destroyScheduledExecutor();
-         }
-      }
+      cluster.removeMessageListener(this);
    }
 
    @Override
@@ -82,6 +74,9 @@ public class MonitorSchedulingService implements MessageListener {
             try {
                updater.updateStatus(timestamp);
             }
+            catch(ExpiredSheetException ese) {
+               //
+            }
             catch(Exception e) {
                LOG.warn("Failed to update status", e);
             }
@@ -93,11 +88,7 @@ public class MonitorSchedulingService implements MessageListener {
 
    private final List<StatusUpdater> updaters;
    private final MonitoringDataService monitoringDataService;
-   private Cluster cluster;
-
-   private static final String COUNTER_NAME = MonitorSchedulingService.class.getName() + ".counter";
-   private static final String EXECUTOR_NAME =
-      MonitorSchedulingService.class.getName() + ".executor";
+   private final Cluster cluster;
 
    private static final Logger LOG = LoggerFactory.getLogger(MonitorSchedulingService.class);
 }

@@ -17,6 +17,11 @@
  */
 package inetsoft.web.vswizard.command;
 
+import inetsoft.util.Tool;
+import org.w3c.dom.Element;
+
+import java.io.PrintWriter;
+
 public class RefreshNewObjectPositionCommand implements TimeSensitiveCommand {
    public int getTop() {
       return top;
@@ -40,6 +45,18 @@ public class RefreshNewObjectPositionCommand implements TimeSensitiveCommand {
 
    public int getHeight() {
       return 240;
+   }
+
+   @Override
+   public void writeAttributes(PrintWriter writer) {
+      writer.print(" top=\"" + top + "\"");
+      writer.print(" left=\"" + left + "\"");
+   }
+
+   @Override
+   public void parseAttributes(Element tag) throws Exception {
+      top = Integer.parseInt(Tool.getAttribute(tag, "top"));
+      left = Integer.parseInt(Tool.getAttribute(tag, "left"));
    }
 
    private int top;

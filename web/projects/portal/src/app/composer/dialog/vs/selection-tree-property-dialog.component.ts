@@ -20,7 +20,7 @@ import { SelectionTreePropertyDialogModel } from "../../data/vs/selection-tree-p
 import { UntypedFormGroup } from "@angular/forms";
 import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-pane-tree-model";
 import { Tool } from "../../../../../../shared/util/tool";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { XSchema } from "../../../common/data/xschema";
 import { VSTrapService } from "../../../vsobjects/util/vs-trap.service";
 import { TrapInfo } from "../../../common/data/trap-info";
@@ -32,13 +32,34 @@ import { PropertyDialog } from "./property-dialog.component";
 import { VSTableTrapModel } from "../../../vsobjects/model/vs-table-trap-model";
 import { ModelService } from "../../../widget/services/model.service";
 import { DataRef } from "../../../common/data/data-ref";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { VSAssemblyScriptPane } from "../../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.component";
+import { SelectionTreePane } from "./selection-tree-pane.component";
+import { SelectionGeneralPane } from "./selection-general-pane.component";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_URI: string = "../api/composer/vs/selection-tree-property-dialog-model/checkTrap/";
 const GET_GRAYED_OUT_FIELDS_URI: string = "../api/composer/vs/selection-tree-property-dialog-model/getGrayedOutFields/";
 
 @Component({
-   selector: "selection-tree-property-dialog",
-   templateUrl: "selection-tree-property-dialog.component.html",
+    selector: "selection-tree-property-dialog",
+    templateUrl: "selection-tree-property-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    SelectionGeneralPane,
+    SelectionTreePane,
+    VSAssemblyScriptPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class SelectionTreePropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: SelectionTreePropertyDialogModel;

@@ -118,12 +118,13 @@ public abstract class MonitorLevelService {
       return true;
    }
 
-   protected <T> T getScheduleMetrics(String address, ServerClusterClient clusterClient,
+   protected <T> T getScheduleMetrics(String address, ScheduleClient scheduleClient,
+                                      ServerClusterClient clusterClient,
                                       Function<String, T> scheduleGetter,
                                       Function<ScheduleMetrics, T> metricsGetter)
    {
       if(address != null) {
-         String[] scheduleServers = ScheduleClient.getScheduleClient().getScheduleServers();
+         String[] scheduleServers = scheduleClient.getScheduleServers();
 
          if(scheduleServers == null) {
             return null;

@@ -20,9 +20,7 @@ package inetsoft.util.script;
 import inetsoft.report.filter.*;
 import inetsoft.util.Tool;
 import org.apache.commons.math3.stat.descriptive.rank.Percentile;
-import org.mozilla.javascript.*;
 
-import java.io.StringReader;
 import java.util.*;
 
 /**
@@ -243,15 +241,14 @@ public class CalcStat {
       double[] nos = CalcUtil.convertToDoubleArray(array, false);
 
       // ChrisS bug1403899061216 2014-6-27
-      // Compensate for any "empty" parameters in the list
-      int notFoundCount = 0;
-      for (int i=0; i<array.length; i++) {
-         if(array[i] == org.mozilla.javascript.UniqueTag.NOT_FOUND) {
-            notFoundCount++;
-         }
-      }
-
-      return nos.length - notFoundCount;
+      // Under Rhino, sparse-array holes/empty parameters arrived as the
+      // sentinel UniqueTag.NOT_FOUND, which convertToDoubleArray converted to
+      // 0.0 (and thus inflated nos.length); those slots were compensated for
+      // here. Under GraalJS such holes simply arrive as null, which
+      // convertToDoubleArray already skips, so no compensation is needed.
+      // Subtracting null elements here would incorrectly drop genuine null
+      // values that were never added to nos. (#75423)
+      return nos.length;
    }
 
    /**
@@ -285,48 +282,34 @@ public class CalcStat {
       Object[] range = JavaScriptEngine.split(rangeObj);
 
       String cond = "_value_" + criteria;
-      Script condScript = null;
-      Scriptable scope = new ScriptableObject() {
-         @Override
-         public String getClassName() {
-            return "countif";
+      org.graalvm.polyglot.Source condSource;
+
+      try(org.graalvm.polyglot.Context cx = org.graalvm.polyglot.Context.create("js")) {
+         try {
+            condSource = org.graalvm.polyglot.Source.newBuilder("js", cond, "<condition>")
+               .buildLiteral();
          }
-         };
+         catch(Exception e) {
+            throw new RuntimeException("Invalid Search Criteria specified !");
+         }
 
-      Object result = null;
-      Context cx = null;
+         int count = 0;
 
-      try {
-         cx = TimeoutContext.enter();
-         condScript = cx.compileReader(scope, new StringReader(cond),
-                                             "<condition>", 1, null);
-      }
-      catch(Exception e) {
-         throw new RuntimeException("Invalid Search Criteria specified !");
-      }
-
-      int count = 0;
-
-      for(int i = 0; i < range.length; i++) {
-         if(cond != null) {
+         for(int i = 0; i < range.length; i++) {
             try {
-               scope.put("_value_", scope, range[i].toString());
-               TimeoutContext.startClock(cx);
-               result = condScript.exec(cx, scope);
+               cx.getBindings("js").putMember("_value_", range[i].toString());
+               org.graalvm.polyglot.Value result = cx.eval(condSource);
 
-               if("true".equals(result.toString())) {
+               if(result.isBoolean() ? result.asBoolean() : "true".equals(result.toString())) {
                   count++;
                }
             }
             catch(Exception ex) {
             }
          }
+
+         return count;
       }
-
-      TimeoutContext.stopClock(cx);
-      Context.exit();
-
-      return count;
    }
 
    /**

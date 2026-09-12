@@ -17,7 +17,7 @@
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../shared/util/tool";
 import { TrapInfo } from "../../common/data/trap-info";
 import { UIContextService } from "../../common/services/ui-context.service";
@@ -27,12 +27,35 @@ import { RangeSliderPropertyDialogModel } from "../model/range-slider-property-d
 import { VSTrapService } from "../util/vs-trap.service";
 import { PropertyDialogService } from "../util/property-dialog.service";
 import { PropertyDialog } from "../../composer/dialog/vs/property-dialog.component";
+import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.component";
+import { VSAssemblyScriptPane } from "../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.component";
+import { RangeSliderAdvancedPane } from "./range-slider-advanced-pane.component";
+import { RangeSliderDataPane } from "./range-slider-data-pane.component";
+import { RangeSliderGeneralPane } from "./range-slider-general-pane.component";
+import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_URI: string = "../api/composer/vs/range-slider-property-dialog-model/checkTrap/";
 
 @Component({
-   selector: "range-slider-property-dialog",
-   templateUrl: "range-slider-property-dialog.component.html",
+    selector: "range-slider-property-dialog",
+    templateUrl: "range-slider-property-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    RangeSliderGeneralPane,
+    RangeSliderDataPane,
+    RangeSliderAdvancedPane,
+    VSAssemblyScriptPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class RangeSliderPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: RangeSliderPropertyDialogModel;

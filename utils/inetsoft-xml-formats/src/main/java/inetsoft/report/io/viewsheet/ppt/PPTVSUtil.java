@@ -88,6 +88,34 @@ public class PPTVSUtil {
       }
    }
 
+   /**
+    * Switch the shape's preset geometry to a rounded rectangle and set the corner
+    * adjustment ("adj" guide) so the rendered radius matches the given pixel radius.
+    * @param shape the shape to round.
+    * @param roundCorner the corner radius in pixels.
+    * @param bounds the shape's bounds, in the same point units as the shape's anchor.
+    */
+   public static void applyRoundCorner(XSLFAutoShape shape, int roundCorner, Rectangle2D bounds) {
+      double minSide = Math.min(bounds.getWidth(), bounds.getHeight());
+
+      if(minSide <= 0) {
+         return;
+      }
+
+      shape.setShapeType(ShapeType.ROUND_RECT);
+      double radius = roundCorner * PIXEL_TO_POINT;
+      // OOXML roundRect "adj" guide is a percentage (0-50000, i.e. 0%-50%) of the
+      // shorter side that the corner radius should occupy.
+      int adj = (int) Math.round(Math.min(1d, radius / (minSide / 2)) * 50000);
+      CTShape ctShape = (CTShape) shape.getXmlObject();
+      CTShapeProperties sppr = ctShape.getSpPr();
+      CTPresetGeometry2D prstGeom = sppr.getPrstGeom();
+      CTGeomGuideList avLst = prstGeom.isSetAvLst() ? prstGeom.getAvLst() : prstGeom.addNewAvLst();
+      CTGeomGuide gd = avLst.sizeOfGdArray() > 0 ? avLst.getGdArray(0) : avLst.addNewGd();
+      gd.setName("adj");
+      gd.setFmla("val " + adj);
+   }
+
    private static void setDoubleLineStyle(XSLFAutoShape line) {
       CTShape shape = (CTShape) line.getXmlObject();
       CTShapeProperties sppr = shape.getSpPr();

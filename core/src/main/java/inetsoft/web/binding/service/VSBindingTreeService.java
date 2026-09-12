@@ -30,6 +30,7 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 public class VSBindingTreeService {
@@ -53,14 +54,18 @@ public class VSBindingTreeService {
 
       ViewsheetService engine = viewsheetService;
       RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
 
       Viewsheet viewsheet = rvs.getViewsheet();
       VSAssembly assembly = viewsheet.getAssembly(name);
       VSAssemblyInfo info = assembly != null ? assembly.getVSAssemblyInfo() : null;
       AssetTreeModel assetTreeModel = null;
 
-      box.lockRead();
+      box.get().lockRead();
 
       try {
          if(info == null) {
@@ -77,7 +82,7 @@ public class VSBindingTreeService {
                assetTreeModel = treeHandler.getChartTreeModel(
                   engine.getAssetRepository(), rvs, (ChartVSAssemblyInfo) info, false, principal);
 
-               if(appendComponentTree) {
+               if(assetTreeModel != null && appendComponentTree) {
                   treeHandler.appendVSAssemblyTree(rvs, assetTreeModel, principal, assembly);
                }
             }
@@ -85,14 +90,14 @@ public class VSBindingTreeService {
                assetTreeModel = treeHandler.getTableTreeModel(
                   engine.getAssetRepository(), rvs, (TableDataVSAssemblyInfo) info, principal);
 
-               if(appendComponentTree) {
+               if(assetTreeModel != null && appendComponentTree) {
                   treeHandler.appendVSAssemblyTree(rvs, assetTreeModel, principal, assembly);
                }
             }
          }
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
 
       if(assetTreeModel != null) {

@@ -20,18 +20,27 @@ package inetsoft.report.script;
 
 import inetsoft.report.TableFilter;
 import inetsoft.report.internal.table.TableHighlightAttr;
+import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mozilla.javascript.Scriptable;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class TableHighlightedArrayTest {
    private TableHighlightedArray tableHighlightedArray;
    private TableHighlightAttr.HighlightTableLens mockHighlightLens;
@@ -48,7 +57,7 @@ public class TableHighlightedArrayTest {
       // test init with null table
       XTable mockTable = mock(XTable.class);
       tableHighlightedArray = new TableHighlightedArray(mockTable);
-      Object[] ids = tableHighlightedArray.getIds();
+      Object[] ids = tableHighlightedArray.getMemberKeys();
 
       assertNotNull(ids);
       assertEquals(0, ids.length);
@@ -58,16 +67,17 @@ public class TableHighlightedArrayTest {
       when(mockTableFilter.getTable()).thenReturn(mockHighlightLens);
 
       tableHighlightedArray = new TableHighlightedArray(mockTableFilter);
-      assertArrayEquals(new Object[] {"highlight1", "highlight2"}, tableHighlightedArray.getIds());
+      assertArrayEquals(new Object[] {"highlight1", "highlight2"},
+                        tableHighlightedArray.getMemberKeys());
    }
 
    @Test
    void testOtherGets() {
       tableHighlightedArray = new TableHighlightedArray(mockHighlightLens);
 
-      assertTrue(tableHighlightedArray.has("highlight2", null));
-      assertTrue((boolean)tableHighlightedArray.get("highlight1", null));
-      assertEquals(Scriptable.NOT_FOUND, tableHighlightedArray.get("highlight0", null));
+      assertTrue(tableHighlightedArray.hasMember("highlight2"));
+      assertTrue((boolean) tableHighlightedArray.getMember("highlight1"));
+      assertNull(tableHighlightedArray.getMember("highlight0"));
 
       assertEquals("[highlightname]", tableHighlightedArray.getDisplaySuffix());
       assertEquals("[]", tableHighlightedArray.getSuffix());

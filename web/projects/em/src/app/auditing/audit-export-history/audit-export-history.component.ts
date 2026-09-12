@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { FormBuilder, FormGroup } from "@angular/forms";
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { catchError, tap } from "rxjs/operators";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
@@ -29,6 +29,10 @@ import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.co
 import { ExportHistory, ExportHistoryList, ExportHistoryParameters } from "./export-history";
 import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
+import { MatOption } from "@angular/material/core";
+
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
 
 @Secured({
    route: "/auditing/export-history",
@@ -44,9 +48,10 @@ import { ActivatedRoute } from "@angular/router";
    link: "EMViewAudit"
 })
 @Component({
-   selector: "em-audit-export-history",
-   templateUrl: "./audit-export-history.component.html",
-   styleUrls: ["./audit-export-history.component.scss"]
+    selector: "em-audit-export-history",
+    templateUrl: "./audit-export-history.component.html",
+    styleUrls: ["./audit-export-history.component.scss"],
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption]
 })
 export class AuditExportHistoryComponent implements OnInit, OnDestroy {
    objectTypes: string[] = [];

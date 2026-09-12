@@ -15,8 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
@@ -30,7 +31,7 @@ describe("StartTimeEditorComponent", () => {
    let component: StartTimeEditorComponent;
    let fixture: ComponentFixture<StartTimeEditorComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             FormsModule,
@@ -39,12 +40,8 @@ describe("StartTimeEditorComponent", () => {
             MatFormFieldModule,
             MatInputModule,
             MatRadioModule,
-            MatSelectModule
-         ],
-         declarations: [
-            StartTimeEditorComponent,
-            TimePickerComponent
-         ],
+            MatSelectModule,
+            StartTimeEditorComponent, TimePickerComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

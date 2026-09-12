@@ -17,15 +17,19 @@
  */
 
 import { Component, Input, Output, EventEmitter, OnInit } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { PropertyInfo } from "./datasources-database.component";
+import { EnterSubmitDirective } from "../../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "edit-property-dialog",
-   templateUrl: "edit-property-dialog.component.html",
-   styleUrls: ["edit-property-dialog.component.scss"]
+    selector: "edit-property-dialog",
+    templateUrl: "edit-property-dialog.component.html",
+    styleUrls: ["edit-property-dialog.component.scss"],
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 export class EditPropertyDialogComponent implements OnInit {
    @Input() info: any = {

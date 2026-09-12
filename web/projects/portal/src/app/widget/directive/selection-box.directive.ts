@@ -34,7 +34,8 @@ import { DomService } from "../dom-service/dom.service";
 export type SelectionBoxEvent = (MouseEvent|TouchEvent) & {box: Rectangle, clientRect: ClientRect};
 
 @Directive({
-   selector: "[selectionBox]"
+    selector: "[selectionBox]",
+    standalone: true
 })
 export class SelectionBoxDirective implements OnInit, OnDestroy {
    @Input() selectionBoxClass: string = "selection-box";

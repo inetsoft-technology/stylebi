@@ -35,11 +35,13 @@ public class RepositoryDashboardController {
    @Autowired
    public RepositoryDashboardController(RepositoryDashboardService repositoryDashboardService,
                                         ContentRepositoryTreeService treeService,
-                                        ScheduleTaskActionService taskActionService)
+                                        ScheduleTaskActionService taskActionService,
+                                        SecurityEngine securityEngine)
    {
       this.repositoryDashboardService = repositoryDashboardService;
       this.treeService = treeService;
       this.taskActionService = taskActionService;
+      this.securityEngine = securityEngine;
    }
 
    @Secured(
@@ -57,12 +59,22 @@ public class RepositoryDashboardController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       path = treeService.getUnscopedPath(path);
+      IdentityID principalID = IdentityID.getIdentityIDFromKey(principal.getName());
+
+      if((ownerID == null || !ownerID.equals(principalID)) &&
+         !SecurityEngine.getSecurity().checkPermission(principal, ResourceType.DASHBOARD, path,
+                                                       ResourceAction.ADMIN))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+
       return repositoryDashboardService.getSettings(path, ownerID, principal);
    }
 
@@ -143,6 +155,7 @@ public class RepositoryDashboardController {
    }
 
    private final RepositoryDashboardService repositoryDashboardService;
+   private final SecurityEngine securityEngine;
    private final ContentRepositoryTreeService treeService;
    private final ScheduleTaskActionService taskActionService;
 }

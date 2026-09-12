@@ -17,17 +17,16 @@
  */
 package inetsoft.util.audit;
 
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+@Service
+@Lazy
 public final class ExecutionRecordDispatcher {
-
-   public static ExecutionRecordDispatcher getInstance() {
-      return SingletonManager.getInstance(ExecutionRecordDispatcher.class);
-   }
-
    public void dispatchRecord(ExecutionRecord record) {
       ExecutionRecordEvent event = null;
 

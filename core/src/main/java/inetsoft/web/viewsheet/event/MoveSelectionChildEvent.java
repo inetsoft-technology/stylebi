@@ -18,45 +18,24 @@
 package inetsoft.web.viewsheet.event;
 
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.immutables.value.Value;
+import org.immutables.serial.Serial;
+
 /**
  * Class that encapsulates the parameters for moving a selection child.
  *
  * @since 12.3
  */
-public class MoveSelectionChildEvent {
-   public int getFromIndex() {
-      return fromIndex;
-   }
-
-   public void setFromIndex(int fromIndex) {
-      this.fromIndex = fromIndex;
-   }
-
-   public int getToIndex() {
-      return toIndex;
-   }
-
-   public void setToIndex(int toIndex) {
-      this.toIndex = toIndex;
-   }
-
-   public boolean isCurrentSelection() {
-      return currentSelection;
-   }
-
-   public void setCurrentSelection(boolean currentSelection) {
-      this.currentSelection = currentSelection;
-   }
-
-   @Override
-   public String toString() {
-      return "{fromIndex: " + fromIndex +
-         ", toIndex: " + toIndex +
-         ", currentSelection: " + currentSelection +
-         "}";
-   }
-
-   private int fromIndex;
-   private int toIndex;
-   private boolean currentSelection;
+@Value.Immutable
+@Serial.Structural
+@JsonDeserialize(as = ImmutableMoveSelectionChildEvent.class)
+public interface MoveSelectionChildEvent {
+   int getFromIndex();
+   int getToIndex();
+   // Immutables does not strip the "is" prefix, so the property must be named explicitly
+   // to match the payload sent by the client.
+   @JsonProperty("currentSelection")
+   boolean isCurrentSelection();
 }

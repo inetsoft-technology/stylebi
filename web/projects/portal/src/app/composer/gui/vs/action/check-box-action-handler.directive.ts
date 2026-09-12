@@ -35,7 +35,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const CHECKBOX_PROPERTY_URI: string = "composer/vs/checkbox-property-dialog-model/";
 
 @Directive({
-   selector: "[cCheckBoxActionHandler]"
+    selector: "[cCheckBoxActionHandler]",
+    standalone: true
 })
 export class CheckBoxActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSCheckBoxModel;

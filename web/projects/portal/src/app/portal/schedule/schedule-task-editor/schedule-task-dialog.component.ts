@@ -17,15 +17,23 @@
  */
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
 import { ScheduleTaskDialogModel } from "../../../../../../shared/schedule/model/schedule-task-dialog-model";
-import { UntypedFormControl, UntypedFormGroup, ValidationErrors, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, ValidationErrors, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NotificationsComponent } from "../../../widget/notifications/notifications.component";
+import { TaskOptionsPane } from "./options/task-options-pane.component";
+import { TaskActionPane } from "./actions/task-action-pane.component";
+import { TaskConditionPane } from "./conditions/task-condition-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf } from "@angular/common";
 
 const SAVE_TASK_MESSAGE = "_#(js:em.schedule.task.saveSuccess)";
 
 @Component({
-   selector: "schedule-task-dialog",
-   templateUrl: "schedule-task-dialog.component.html",
-   styleUrls: ["./schedule-task-dialog.component.scss"]
+    selector: "schedule-task-dialog",
+    templateUrl: "schedule-task-dialog.component.html",
+    styleUrls: ["./schedule-task-dialog.component.scss"],
+    standalone: true,
+    imports: [NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, TaskConditionPane, TaskActionPane, TaskOptionsPane, NgbNavOutlet, NotificationsComponent]
 })
 export class ScheduleTaskDialog implements OnInit {
    @Input() model: ScheduleTaskDialogModel;

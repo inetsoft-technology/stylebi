@@ -200,7 +200,7 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
     * Validate the cross join lens.
     */
    private synchronized void validate() {
-      if(lthread != null) {
+      if(lthread != null || isCompleted()) {
          return;
       }
 
@@ -886,7 +886,7 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
     */
    private class WaitingThread extends GroupedThread {
       public WaitingThread(boolean left) {
-         super();
+         super(ThreadContext.getContextPrincipal());
 
          this.left = left;
       }

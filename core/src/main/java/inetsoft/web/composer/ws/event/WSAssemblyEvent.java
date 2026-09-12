@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.ws.event;
 
-public class WSAssemblyEvent {
+import java.io.Serializable;
+
+public class WSAssemblyEvent implements Serializable {
    public String getAssemblyName() {
       return assemblyName;
    }

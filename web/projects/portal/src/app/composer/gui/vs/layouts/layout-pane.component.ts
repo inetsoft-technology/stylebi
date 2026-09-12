@@ -48,7 +48,7 @@ import { GuideBounds } from "../../../../vsobjects/model/layout/guide-bounds";
 import { PrintLayoutSection } from "../../../../vsobjects/model/layout/print-layout-section";
 import { VSViewsheetModel } from "../../../../vsobjects/model/vs-viewsheet-model";
 import { VSUtil } from "../../../../vsobjects/util/vs-util";
-import { SelectionBoxEvent } from "../../../../widget/directive/selection-box.directive";
+import { SelectionBoxEvent, SelectionBoxDirective } from "../../../../widget/directive/selection-box.directive";
 import { DebounceService } from "../../../../widget/services/debounce.service";
 import { Viewsheet } from "../../../data/vs/viewsheet";
 import { PrintLayoutMeasures, VSLayoutModel } from "../../../data/vs/vs-layout-model";
@@ -64,12 +64,18 @@ import { RemoveVSLayoutObjectEvent } from "../event/remove-vs-layout-object-even
 import { RefreshLayoutObjectsCommand } from "../command/refresh-layout-objects-comman";
 import { InteractContainerDirective } from "../../../../widget/interact/interact-container.directive";
 import { ResizeHandlerService } from "../../resize-handler.service";
+import { LayoutObject } from "./layout-object.component";
+import { ResizedDirective } from "../../../../../../../shared/resize-event/resized.directive";
+import { NgStyle } from "@angular/common";
+import { ActionsContextmenuAnchorDirective } from "../../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
+import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
 
 @Component({
-   selector: "layout-pane",
-   templateUrl: "layout-pane.component.html",
-   styleUrls: ["layout-pane.component.scss"],
-   providers: [ViewsheetClientService]
+    selector: "layout-pane",
+    templateUrl: "layout-pane.component.html",
+    styleUrls: ["layout-pane.component.scss"],
+    providers: [ViewsheetClientService],
+    imports: [OutOfZoneDirective, InteractContainerDirective, SelectionBoxDirective, ActionsContextmenuAnchorDirective, NgStyle, ResizedDirective, LayoutObject]
 })
 export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, OnDestroy {
    @Input() layoutChange: Observable<any>;
@@ -87,6 +93,7 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
    @ViewChild("layoutPane", {static: true}) layoutPane: ElementRef;
    @ViewChild(InteractContainerDirective) interactContainer: InteractContainerDirective;
    vsLayout: VSLayoutModel;
+   layoutObjects: VSLayoutObjectModel[] = [];
    _guideSize: Dimension = new Dimension(0, 0);
    _layoutRegion: string = "CONTENT";
    pages: number[];
@@ -178,6 +185,8 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
          this.vsLayout = value;
       }
 
+      this.updateLayoutObjects();
+
       if(this.vsLayout.printLayout) {
          this.focusedObjectSubscription && this.focusedObjectSubscription.unsubscribe();
          this.focusedObjectSubscription = this.vsLayout.focused.subscribe(
@@ -225,6 +234,10 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
       super(viewsheetClientService, zone, true);
    }
 
+   private updateLayoutObjects(): void {
+      this.layoutObjects = this.getLayoutObjects();
+   }
+
    ngOnInit() {
       this.viewsheetClientService.connect();
       this.viewsheetClientService.runtimeId = this.vsLayout.runtimeID;
@@ -232,6 +245,7 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
       this.refreshViewsheet();
       this.inited = true;
       this.vsLayout.socketConnection = this.viewsheetClientService;
+      this.updateLayoutObjects();
 
       // Subscribe to heartbeat and touch asset to prevent expiration
       this.subscriptions.add(this.viewsheetClientService.onHeartbeat.subscribe(() => {
@@ -244,6 +258,7 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
 
       this.subscriptions.add(this.layoutChange.subscribe((isGuideChanged) => {
          this.getLayoutSize(isGuideChanged);
+         this.updateLayoutObjects();
       }));
 
       this.subscriptions.add(this.resizeHandlerService.anyResizeSubject
@@ -255,6 +270,8 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
          this._layoutRegion = this.vsLayout.getLayoutSection();
          this.refreshViewsheet();
       }
+
+      this.updateLayoutObjects();
    }
 
    ngOnDestroy() {
@@ -579,6 +596,7 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
       }
 
       this.vsLayout.updateFocusedObjects(command.object);
+      this.updateLayoutObjects();
       this.onLayoutObjectChange.emit(null);
    }
 
@@ -755,6 +773,7 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
          }
       });
 
+      this.updateLayoutObjects();
       this.onLayoutObjectChange.emit(null);
    }
 

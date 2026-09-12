@@ -21,7 +21,6 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
-import inetsoft.uql.XFactory;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
@@ -50,7 +49,7 @@ public class VSBindingHelper {
       {
          Principal user = rvs.getUser();
          String dataSourceName = baseEntry.getParentPath();
-         XRepository repository = XFactory.getRepository();
+         XRepository repository = XRepository.getRepository();
          String orgId = entry.getOrgID();
 
          if(orgId == null) {

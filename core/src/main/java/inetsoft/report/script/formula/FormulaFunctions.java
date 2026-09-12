@@ -34,12 +34,13 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.script.*;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
 import java.awt.*;
+import java.io.Serializable;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.sql.Time;
@@ -1369,7 +1370,7 @@ public class FormulaFunctions {
       }
 
       TableLens table = (TableLens) obj;
-      Scriptable scope = FormulaContext.getScope();
+      ScriptScope scope = FormulaContext.getScope();
       TableRangeProcessor proc = new TableRangeProcessor(table, scope);
       Vector locs = new Vector();
       NamedCellRange range = new NamedCellRange(spec);
@@ -1832,8 +1833,15 @@ public class FormulaFunctions {
    /**
     * Parse and store the option string.
     */
-   private static class Options {
+   private static class Options implements Serializable {
       public Options(String str) {
+         // a script may omit the trailing options argument (e.g. toList(arr)),
+         // which reaches here as null under GraalJS; treat it as no options.
+         // (Rhino coerced the missing arg to the string "undefined".) (#75609)
+         if(str == null) {
+            str = "";
+         }
+
          // options name=value
          List<String> opts = new ArrayList<>();
          int start = 0;

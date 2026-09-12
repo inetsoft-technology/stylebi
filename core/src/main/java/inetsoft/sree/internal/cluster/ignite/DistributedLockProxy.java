@@ -22,35 +22,45 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.*;
 
 public class DistributedLockProxy implements Lock {
-   public DistributedLockProxy(String lockName) {
+   public DistributedLockProxy(String lockName, Lock realLock) {
       this.lockName = lockName;
-   }
-
-   public void setRealLock(Lock lock) {
-      this.realLock = lock;
+      this.realLock = realLock;
    }
 
    @Override
    public void lock() {
       Exception exception = null;
+      int attempts = 0;
 
-      for(int i = 0; i < MAX_TRY_COUNT; i++) {
+      while(true) {
          try {
-            realLock.lock();
-            return;
+            if(realLock.tryLock(LOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+               return;
+            }
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Lock acquisition interrupted for: " + lockName, e);
          }
          catch(Exception ex) {
             exception = ex;
-            LOG.debug("Failed to acquire {} lock for {} attempts: ", lockName, i, ex);
-         }
+            LOG.debug("Failed to acquire {} lock for {} attempts: ", lockName, attempts++, ex);
 
-         try {
-            Thread.sleep(3_000);
-         }
-         catch(InterruptedException ignore) {
+            if(attempts >= MAX_TRY_COUNT) {
+               break;
+            }
+
+            try {
+               Thread.sleep(RETRY_DELAY_MS);
+            }
+            catch(InterruptedException e) {
+               Thread.currentThread().interrupt();
+               throw new RuntimeException("Lock acquisition interrupted for: " + lockName, e);
+            }
          }
       }
 
@@ -68,7 +78,7 @@ public class DistributedLockProxy implements Lock {
    }
 
    @Override
-   public boolean tryLock(long time, @NotNull java.util.concurrent.TimeUnit unit) throws InterruptedException {
+   public boolean tryLock(long time, @NotNull TimeUnit unit) throws InterruptedException {
       return realLock.tryLock(time, unit);
    }
 
@@ -83,8 +93,10 @@ public class DistributedLockProxy implements Lock {
       return realLock.newCondition();
    }
 
-   private Lock realLock;
-   private String lockName;
+   private final Lock realLock;
+   private final String lockName;
    private static final int MAX_TRY_COUNT = 10;
+   private static final int LOCK_TIMEOUT_SECONDS = 3;
+   private static final int RETRY_DELAY_MS = 3_000;
    private static final Logger LOG = LoggerFactory.getLogger(DistributedLockProxy.class);
 }

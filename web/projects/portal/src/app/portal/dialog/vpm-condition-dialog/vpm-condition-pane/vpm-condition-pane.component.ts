@@ -38,11 +38,17 @@ import {
    isValidCondition
 } from "../../../data/model/datasources/database/vpm/condition/util/vpm-condition.util";
 import { ClauseValueModel } from "../../../data/model/datasources/database/vpm/condition/clause/clause-value-model";
+import { ConjunctionPipe } from "../../../data/model/datasources/database/vpm/condition/conjunction/conjunction.pipe";
+import { ClausePipe } from "../../../data/model/datasources/database/vpm/condition/clause/clause.pipe";
+import { FormsModule } from "@angular/forms";
+import { VPMConditionItemPane } from "./vpm-condition-item-pane/vpm-condition-item-pane.component";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "vpm-condition-pane",
-   templateUrl: "vpm-condition-pane.component.html",
-   styleUrls: ["vpm-condition-pane.component.scss"]
+    selector: "vpm-condition-pane",
+    templateUrl: "vpm-condition-pane.component.html",
+    styleUrls: ["vpm-condition-pane.component.scss"],
+    imports: [NgClass, VPMConditionItemPane, FormsModule, ClausePipe, ConjunctionPipe]
 })
 export class VPMConditionPane implements OnInit {
    @Input() fields: VPMColumnModel[];

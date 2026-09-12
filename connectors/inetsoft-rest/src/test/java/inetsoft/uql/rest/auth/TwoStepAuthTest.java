@@ -17,15 +17,29 @@
  */
 package inetsoft.uql.rest.auth;
 
+import inetsoft.test.*;
 import inetsoft.uql.rest.json.RestJsonDataSource;
+import inetsoft.util.credential.*;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, TwoStepAuthTest.TestConfig.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 public class TwoStepAuthTest {
    private CloseableHttpAsyncClient client;
 
@@ -72,5 +86,16 @@ public class TwoStepAuthTest {
       restJsonDataSource.setAuthURL("auth url");
       restJsonDataSource.setTokenPattern("token");
       return restJsonDataSource;
+   }
+
+   @Configuration
+   static class TestConfig {
+      @Bean
+      public CredentialService credentialService() {
+         CredentialService credentialService = mock(CredentialService.class);
+         when(credentialService.createCredential(CredentialType.PASSWORD_OAUTH2_WITH_FLAGS)).thenReturn(new LocalPasswordAndOAuth2WithFlagCredentialsGrant());
+         when(credentialService.createCredential(CredentialType.PASSWORD_OAUTH2_WITH_FLAGS, true)).thenReturn(new LocalPasswordAndOAuth2WithFlagCredentialsGrant());
+         return credentialService;
+      }
    }
 }

@@ -19,11 +19,16 @@ package inetsoft.web.messaging;
 
 import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.report.composition.ExpiredSheetException;
+import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.sree.internal.cluster.AffinityCallable;
 import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
+import inetsoft.web.ServiceProxyContext;
+import inetsoft.web.viewsheet.EventAspect;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.*;
@@ -50,8 +55,7 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
       switchToHostOrgForGlobalShareAsset(attributes, principal);
       ThreadContext.setContextPrincipal(principal);
 
-      if(Thread.currentThread() instanceof GroupedThread) {
-         GroupedThread groupedThread = (GroupedThread) Thread.currentThread();
+      if(Thread.currentThread() instanceof GroupedThread groupedThread) {
          groupedThread.setPrincipal(principal);
          addViewsheetRecord(groupedThread);
       }
@@ -71,9 +75,9 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
 
       MessageContextHolder.setMessageAttributes(null);
       OrganizationContextHolder.clear();
+      ServiceProxyContext.aspectTasks.get().removeIf((task) -> task instanceof EventAspect.SwitchOrgAspectTask);
 
-      if(Thread.currentThread() instanceof GroupedThread) {
-         GroupedThread groupedThread = (GroupedThread) Thread.currentThread();
+      if(Thread.currentThread() instanceof GroupedThread groupedThread) {
          groupedThread.setPrincipal(null);
          groupedThread.removeRecords();
       }
@@ -84,6 +88,7 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
       // clear the ThreadContext thread local variables
       ThreadContext.setPrincipal(null);
       ThreadContext.setLocale(null);
+      ThreadContext.setProfiling(null);
 
       // Run any destruction callbacks deferred by SafeSimpSessionScope (beans created after
       // WebSocket session completion). Running them here ensures @PreDestroy is called even when
@@ -99,23 +104,32 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
    }
 
    private void addViewsheetRecord(GroupedThread thread) {
-      List<String> id = MessageContextHolder.currentMessageAttributes()
-         .getHeaderAccessor().getNativeHeader("sheetRuntimeId");
+      MessageAttributes messageAttributes = MessageContextHolder.getMessageAttributes();
 
-      if(id != null && id.size() > 0) {
-         Principal principal =
-            MessageContextHolder.getMessageAttributes().getHeaderAccessor().getUser();
+      if(messageAttributes == null) {
+         return;
+      }
+
+      List<String> id = messageAttributes.getHeaderAccessor().getNativeHeader("sheetRuntimeId");
+
+      if(id != null && !id.isEmpty()) {
+         Principal principal = messageAttributes.getHeaderAccessor().getUser();
 
          try {
-            thread.addRecord(LogContext.DASHBOARD,
-               ViewsheetEngine.getViewsheetEngine()
-                  .getSheet(id.get(0), principal).getEntry().getPath());
+            String runtimeId = id.getFirst();
+
+            if(runtimeId != null) {
+               GetViewsheetEntryTask task = new GetViewsheetEntryTask(runtimeId, principal);
+               AssetEntry entry = ViewsheetEngine.getViewsheetEngine().affinityCall(runtimeId, task);
+
+               thread.addRecord(LogContext.DASHBOARD, entry.getPath());
+            }
          }
          catch(ExpiredSheetException | InvalidUserException e) {
             // ignore
          }
          catch(Exception e) {
-            LOG.warn("Failed to get runtime viewsheet " + id, e);
+            LOG.warn("Failed to get runtime viewsheet {}", id, e);
          }
       }
    }
@@ -130,13 +144,65 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
                                                    Principal principal)
    {
       final StompHeaderAccessor headerAccessor = attributes.getHeaderAccessor();
-      boolean shouldSwitch = VSUtil.switchToHostOrgForGlobalShareAsset(
-         headerAccessor.getFirstNativeHeader("sheetRuntimeId"), principal);
+      String runtimeId = headerAccessor.getFirstNativeHeader("sheetRuntimeId");
 
-      if(shouldSwitch) {
-         OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
+      if(runtimeId != null) {
+         boolean shouldSwitch = WorksheetEngine.getWorksheetService().affinityCall(
+            runtimeId, new SwitchToHostOrgTask(runtimeId, principal));
+
+         if(shouldSwitch) {
+            String defaultOrgId = Organization.getDefaultOrganizationID();
+            OrganizationContextHolder.setCurrentOrgId(defaultOrgId);
+            ServiceProxyContext.aspectTasks.get().add(new EventAspect.SwitchOrgAspectTask(defaultOrgId));
+         }
       }
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(MessageScopeInterceptor.class);
+
+   private static final class SwitchToHostOrgTask implements AffinityCallable<Boolean> {
+      public SwitchToHostOrgTask(String id, Principal principal) {
+         this.id = id;
+         this.principal = principal;
+      }
+
+      @Override
+      public Boolean call() {
+         proxyContext.preprocess();
+
+         try {
+            return VSUtil.switchToHostOrgForGlobalShareAsset(id, principal);
+         }
+         finally {
+            proxyContext.postprocess();
+         }
+      }
+
+      private final String id;
+      private final Principal principal;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
+   }
+
+   private static final class GetViewsheetEntryTask implements AffinityCallable<AssetEntry> {
+      public GetViewsheetEntryTask(String id, Principal principal) {
+         this.id = id;
+         this.principal = principal;
+      }
+
+      @Override
+      public AssetEntry call() {
+         proxyContext.preprocess();
+
+         try {
+            return ViewsheetEngine.getViewsheetEngine().getSheet(id, principal).getEntry();
+         }
+         finally {
+            proxyContext.postprocess();
+         }
+      }
+
+      private final String id;
+      private final Principal principal;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
+   }
 }

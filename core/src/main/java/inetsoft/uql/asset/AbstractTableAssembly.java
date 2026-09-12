@@ -18,6 +18,7 @@
 package inetsoft.uql.asset;
 
 import inetsoft.mv.RuntimeMV;
+import inetsoft.report.composition.execution.DataKey;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.*;
@@ -70,6 +71,7 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
       topns = new ConditionList();
       ginfo = new AggregateInfo();
       sinfo = new SortInfo();
+      id = UUID.randomUUID().toString();
    }
 
    /**
@@ -87,6 +89,7 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
       topns = new ConditionList();
       ginfo = new AggregateInfo();
       sinfo = new SortInfo();
+      id = UUID.randomUUID().toString();
    }
 
    /**
@@ -525,12 +528,19 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
          AggregateInfo aggregateInfo =
             getRealAggregateInfo() == null ? ginfo : getRealAggregateInfo();
 
-         // generate public column selection if not a crosstab
+         // Generate the public (output) column selection if not a crosstab. For a crosstab
+         // the output columns are dynamic (pivoted at runtime), so the public selection is
+         // left empty here; TableAssemblyInfo.getPublicColumnSelection() then lazily falls
+         // back to the visible private columns, so callers still get a non-empty list.
          if(!isCrosstab()) {
             ColumnSelection ocolumns = new ColumnSelection();
+            // Snapshot the selection to avoid IndexOutOfBoundsException if another thread
+            // concurrently modifies the same ColumnSelection (e.g. appendCalcField called
+            // from the shrink() background thread and from a viewsheet execution thread).
+            List<DataRef> selectionSnapshot = selection.stream().toList();
 
-            for(int i = 0; i < selection.getAttributeCount(); i++) {
-               ColumnRef column = (ColumnRef) selection.getAttribute(i);
+            for(int i = 0; i < selectionSnapshot.size(); i++) {
+               ColumnRef column = (ColumnRef) selectionSnapshot.get(i);
 
                if(!column.isVisible()) {
                   continue;
@@ -1083,6 +1093,10 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
       return realAggregateInfo;
    }
 
+   public String getId() {
+      return id;
+   }
+
    /**
     * Write contents.
     * @param writer the specified writer.
@@ -1182,6 +1196,8 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
          writer.println("<property><name><![CDATA[" + key + "]]></name>" +
             "<value><![CDATA[" + value + "]]></value></property>");
       }
+
+      writer.println("<id><![CDATA[" + id + "]]></id>");
    }
 
    /**
@@ -1301,6 +1317,12 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
          if(name != null && value != null) {
             setProperty(name, value);
          }
+      }
+
+      id = Tool.getChildValueByTagName(elem, "id");
+
+      if(id == null) {
+         id = UUID.randomUUID().toString();
       }
    }
 
@@ -1898,6 +1920,8 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
          writer.print(Thread.currentThread().toString());
          writer.print(",");
          writer.print(System.currentTimeMillis() / 2000);
+         writer.print(",");
+         writer.print(DataKey.LOCAL_CACHE_ONLY);
       }
 
       String analysisMaxrow = getProperty("analysisMaxrow");
@@ -2311,6 +2335,11 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
       }
    }
 
+   @Override
+   public void pasted() {
+      id = UUID.randomUUID().toString();
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(AbstractTableAssembly.class);
    private static final Set<String> IGNORED = new HashSet<>();
 
@@ -2342,4 +2371,5 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
    private transient String expressionKey;
    private transient Set<AssemblyRef> expressionDeps;
    private transient long lastModified = new Date().getTime();
+   private String id;
 }

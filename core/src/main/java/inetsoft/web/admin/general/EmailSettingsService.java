@@ -14,6 +14,7 @@
 package inetsoft.web.admin.general;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.Mailer;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.general.model.*;
@@ -48,11 +49,19 @@ public class EmailSettingsService {
          .smtpAuthUri(SreeEnv.getProperty("mail.smtp.authUri"))
          .smtpTokenUri(SreeEnv.getPassword("mail.smtp.tokenUri"))
          .smtpOAuthScopes(SreeEnv.getProperty("mail.smtp.oauthScopes"))
-         .smtpOAuthFlags(SreeEnv.getPassword("mail.smtp.outhFlags"))
+         .smtpOAuthFlags(getOAuthFlags())
          .smtpAccessToken(SreeEnv.getPassword("mail.smtp.accessToken"))
          .smtpRefreshToken(SreeEnv.getPassword("mail.smtp.refreshToken"))
          .tokenExpiration(SreeEnv.getProperty("mail.smtp.tokenExpiration"))
          .build();
+   }
+
+   /**
+    * Gets the SMTP OAuth flags. The property resolution is shared with the mailer, which applies
+    * the flags when it refreshes the access token.
+    */
+   private String getOAuthFlags() {
+      return Mailer.getSmtpOAuthFlags();
    }
 
    @Audited(
@@ -84,6 +93,10 @@ public class EmailSettingsService {
             SreeEnv.setProperty("mail.smtp.tokenUri", model.smtpTokenUri());
             SreeEnv.setProperty("mail.smtp.oauthScopes", model.smtpOAuthScopes());
             SreeEnv.setProperty("mail.smtp.oauthFlags", model.smtpOAuthFlags());
+            // the misspelled property is only honored as a legacy fallback when reading. once
+            // the flags have been saved under the correct name, the old name must not shadow a
+            // value that was cleared here, since the flags are now applied to the token refresh.
+            SreeEnv.remove("mail.smtp.outhFlags");
          }
       }
 
@@ -120,8 +133,11 @@ public class EmailSettingsService {
          builder.addScope(request.scope().split(" "));
       }
 
-      if(request.flags() != null) {
-         builder.addScope(request.flags().split(" "));
+      // the flags are a distinct parameter of the authorization request, not additional scopes
+      String flags = request.flags() == null ? "" : request.flags().trim();
+
+      if(!flags.isEmpty()) {
+         builder.addFlags(flags.split("\\s+"));
       }
 
       return builder.build();

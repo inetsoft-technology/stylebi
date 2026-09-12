@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
     <div class="form-row-float-label row">
@@ -22,7 +22,7 @@
         <div class="bordered-box bd-gray">
           <tree #columnsTree [root]="model.targetTree" [showRoot]="false" [grayedOutFields]="model.grayedOutFields"
             [showTooltip]="true" (nodesSelected)="selectLevelColumn($event[0])"
-            (nodeExpanded)="expandNode($event)" [iconFunction] = "iconFunction"></tree>
+          (nodeExpanded)="expandNode($event)" [iconFunction] = "iconFunction"></tree>
         </div>
       </div>
     </div>
@@ -32,21 +32,23 @@
     <div class="form-row-float-label row">
       <div class="col-9">
         <div class="bordered-box bd-gray levels_id">
-          <div [class.selected]="i === selectedLevelNameIndex"
-               *ngFor="let col of levelNames; let i = index" (mousedown)="selectLevelName(i)"
-               [title]="levelNameToolTips[i]">{{col}}</div>
+          @for (col of levelNames; track col; let i = $index) {
+            <div [class.selected]="i === selectedLevelNameIndex"
+              (mousedown)="selectLevelName(i)"
+            [title]="levelNameToolTips[i]">{{col}}</div>
+          }
         </div>
       </div>
       <div class="col-3 ps-0">
         <div class="btn-container-vertical">
           <button type="button" class="btn btn-default" (click)="addLevelNode()"
-                  [disabled]="!isSameSource() || isAddDisabled()">_#(Add)</button>
+          [disabled]="!isSameSource() || isAddDisabled()">_#(Add)</button>
           <button type="button" class="btn btn-default" (click)="deleteLevelNode()"
-                  [disabled]="isDeleteDisabled() || selectedLevelNameIndex == -1">_#(Delete)</button>
+          [disabled]="isDeleteDisabled() || selectedLevelNameIndex == -1">_#(Delete)</button>
           <button type="button" class="btn btn-default" (click)="moveNodeUp()"
-                  [disabled]="selectedLevelNameIndex == 0 || localTable && localTable.indexOf(cubeString) != -1 || selectedLevelNameIndex == -1">_#(Move Up)</button>
+          [disabled]="selectedLevelNameIndex == 0 || localTable && localTable.indexOf(cubeString) != -1 || selectedLevelNameIndex == -1">_#(Move Up)</button>
           <button type="button" class="btn btn-default" (click)="moveNodeDown()"
-                  [disabled]="selectedLevelNameIndex == levelNames.length - 1 || localTable && localTable.indexOf(cubeString) != -1 || selectedLevelNameIndex == -1">_#(Move Down)</button>
+          [disabled]="selectedLevelNameIndex == levelNames.length - 1 || localTable && localTable.indexOf(cubeString) != -1 || selectedLevelNameIndex == -1">_#(Move Down)</button>
         </div>
       </div>
     </div>

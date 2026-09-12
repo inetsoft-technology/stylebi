@@ -15,19 +15,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, ElementRef, EventEmitter, Output, ViewChild } from "@angular/core";
+import { Component, ElementRef, EventEmitter, OnDestroy, Output, ViewChild } from "@angular/core";
+import { Subscription } from "rxjs";
 import { TimeInstant } from "../../common/data/time-instant";
 import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
 import { AnnotationFilterOption, RemoveAnnotationsCondition} from "../model/remove-annotations-condition";
-import { FormGroup, UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { FormGroup, UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
+import { DatePickerComponent } from "../../widget/date-type-editor/date-picker.component";
+import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "remove-bookmarks-dialog",
-   templateUrl: "./remove-bookmarks-dialog.component.html",
-   styleUrls: ["./remove-bookmarks-dialog.component.scss"]
+    selector: "remove-bookmarks-dialog",
+    templateUrl: "./remove-bookmarks-dialog.component.html",
+    styleUrls: ["./remove-bookmarks-dialog.component.scss"],
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, FixedDropdownDirective, DatePickerComponent]
 })
-export class RemoveBookmarksDialog {
+export class RemoveBookmarksDialog implements OnDestroy {
    @Output() onCommit = new EventEmitter<RemoveAnnotationsCondition>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    @ViewChild("dropdownInput") dropdownInput: ElementRef;
@@ -36,6 +41,7 @@ export class RemoveBookmarksDialog {
    condition: RemoveAnnotationsCondition;
    AnnotationFilterOption = AnnotationFilterOption;
    form: FormGroup;
+   private filterDateSubscription: Subscription;
 
    constructor() {
       let date = DateTypeFormatter.currentTimeInstantInFormat(this.format);
@@ -53,10 +59,14 @@ export class RemoveBookmarksDialog {
          ])
       });
 
-      this.form.controls["filterDate"].valueChanges.subscribe(value => {
+      this.filterDateSubscription = this.form.controls["filterDate"].valueChanges.subscribe(value => {
          this.condition.filterTime = value;
          this.dateTime = DateTypeFormatter.toTimeInstant(value, this.format);
       });
+   }
+
+   ngOnDestroy(): void {
+      this.filterDateSubscription?.unsubscribe();
    }
 
    get dropdownWidth(): number {

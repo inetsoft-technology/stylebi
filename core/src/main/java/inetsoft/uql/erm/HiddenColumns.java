@@ -191,16 +191,16 @@ public class HiddenColumns extends VpmObject {
       StringArray tarray = new StringArray("table", tables);
       StringArray carray = new StringArray("column", columns);
       StringArray harray = new StringArray("hiddenColumn", arr);
-      scope.put("tables", scope, tarray);
-      scope.put("columns", scope, carray);
-      scope.put("hiddenColumns", scope, harray);
-      scope.put("partition", scope, partition);
+      scope.putMember("tables", tarray);
+      scope.putMember("columns", carray);
+      scope.putMember("hiddenColumns", harray);
+      scope.putMember("partition", partition);
 
       if(WSExecution.getAssetQuerySandbox() != null) {
-         scope.put("creatingMV", scope, WSExecution.getAssetQuerySandbox().isCreatingMV());
+         scope.putMember("creatingMV", WSExecution.getAssetQuerySandbox().isCreatingMV());
       }
       else {
-         scope.put("creatingMV", scope, false);
+         scope.putMember("creatingMV", false);
       }
 
       Object result;
@@ -219,8 +219,27 @@ public class HiddenColumns extends VpmObject {
          }
       }
 
+      // Bug #75669: A hidden-columns trigger script activates its output by referencing
+      // (or assigning) the `hiddenColumns` variable, relying on that value becoming the
+      // script's completion value. Under Rhino a trailing statement that produced no
+      // value (e.g. a non-matching if in the last loop iteration) left the completion
+      // value intact; GraalJS follows current ECMAScript rules where such a statement
+      // yields undefined and clobbers the loop's completion value, so the reference no
+      // longer surfaces as the result. When the script used `hiddenColumns` but the
+      // completion value came back null, fall back to the (possibly reassigned) value.
+      if(result == null && scope.isVariableUsed("hiddenColumns")) {
+         result = scope.getMember("hiddenColumns");
+      }
+
       if(result == null) {
          return new String[0];
+      }
+
+      // A script that returns the unmodified hiddenColumns (or tables/columns)
+      // variable hands back the StringArray scope object itself under GraalJS.
+      // Unwrap it to a String[] as Rhino's Wrapper.unwrap() used to. (#75582)
+      if(result instanceof StringArray) {
+         result = ((StringArray) result).unwrap();
       }
 
       if(!(result instanceof Object[])) {

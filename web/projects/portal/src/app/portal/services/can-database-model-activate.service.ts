@@ -15,78 +15,73 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, CanActivate, RouterStateSnapshot } from "@angular/router";
-import { Observable, of } from "rxjs";
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { Tool } from "../../../../../shared/util/tool";
+import { inject } from "@angular/core";
+import { ActivatedRouteSnapshot, CanActivateFn, RouterStateSnapshot } from "@angular/router";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { Observable, of } from "rxjs";
 import { map } from "rxjs/operators";
 import { ComponentTool } from "../../common/util/component-tool";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 
 const CHECK_DATA_MODEL_EDITABLE_URI = "../api/data/model/checkEditable/";
 const CHECK_LOGICAL_MODEL_EDITABLE_URI = "../api/data/logicalmodel/permission/editable";
 
-@Injectable()
-export class CanDatabaseModelActivateService implements CanActivate {
-   constructor(public http: HttpClient,
-               private modalService: NgbModal) { }
+export const canDatabaseModelActivate: CanActivateFn = (next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> => {
+   const http = inject(HttpClient);
+   const modalService = inject(NgbModal);
+   const routeUrl = state.url;
+   let modelPath;
+   let logicalModel = false;
+   let databasePath;
 
-   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
-      let routeUrl = state.url;
-      let modelPath;
-      let logicalModel: boolean = false;
-      let databasePath;
+   if(/datasources\/database\/[\s\S]+\/physicalModel\/[\s\S]+/.test(routeUrl)) {
+      databasePath = next.params["databasePath"];
+   }
+   else if(routeUrl.startsWith("/portal/tab/data/datasources/database/vpm")) {
+      modelPath = next.params["vpmPath"];
+      let idx = !modelPath ? -1 : modelPath.lastIndexOf("/");
 
-      if(/datasources\/database\/[\s\S]+\/physicalModel\/[\s\S]+/.test(routeUrl)) {
-         databasePath = route.params["databasePath"];
+      if(idx == -1 || idx >= modelPath.length) {
+         return of(false);
       }
-      else if(routeUrl.startsWith("/portal/tab/data/datasources/database/vpm")) {
-         modelPath = route.params["vpmPath"];
-         let idx = !modelPath ? -1 : modelPath.lastIndexOf("/");
 
-         if(idx == -1 || idx >= modelPath.length) {
-            return of(false);
+      databasePath = modelPath.substring(0, idx);
+   }
+
+   if(/datasources\/database\/[\s\S]+\/physicalModel\/[\s\S]+\/logicalModel\/[\s\S]+/.test(routeUrl)){
+      databasePath = next.params["databasePath"];
+      logicalModel = true;
+   }
+
+   const folderName = next.params["folder"];
+   const parent = next.params["parent"];
+   let params = new HttpParams();
+
+   if(!!folderName) {
+      params = params.set("folder", folderName);
+   }
+
+   if(!!parent) {
+      params = params.set("parent", parent);
+   }
+
+   if(!logicalModel) {
+      return http.get<boolean>(CHECK_DATA_MODEL_EDITABLE_URI + databasePath,
+         {params}).pipe(map((result) => {
+         if(!result) {
+            ComponentTool.showMessageDialog(modalService, "Unauthorized",
+               "_#(js:data.databases.noEditPermissionError)");
          }
 
-         databasePath = modelPath.substring(0, idx);
-      }
-
-      if(/datasources\/database\/[\s\S]+\/physicalModel\/[\s\S]+\/logicalModel\/[\s\S]+/.test(routeUrl)){
-         databasePath = route.params["databasePath"];
-         logicalModel = true;
-      }
-
-      const folderName = route.params["folder"];
-      const parent = route.params["parent"];
-      let params: HttpParams = new HttpParams();
-
-      if(!!folderName) {
-         params = params.set("folder", folderName);
-      }
-
-      if(!!parent) {
-         params = params.set("parent", parent);
-      }
-
-      if(!logicalModel) {
-         return this.http.get<boolean>(CHECK_DATA_MODEL_EDITABLE_URI + databasePath,
-            {params}).pipe(map((result) => {
-               if(!result) {
-                  ComponentTool.showMessageDialog(this.modalService, "Unauthorized",
-                     "_#(js:data.databases.noEditPermissionError)");
-               }
-
-               return result;
-         }));
-      }
-      else {
-         let logicalName = route.params["logicalModelName"];
-         params = params
-            .set("database", databasePath)
-            .set("name", logicalName);
-         return this.http.get<boolean>(CHECK_LOGICAL_MODEL_EDITABLE_URI,
-            { params: params }).pipe();
-      }
+         return result;
+      }));
    }
-}
+   else {
+      let logicalName = next.params["logicalModelName"];
+      params = params
+         .set("database", databasePath)
+         .set("name", logicalName);
+      return http.get<boolean>(CHECK_LOGICAL_MODEL_EDITABLE_URI,
+         { params: params }).pipe();
+   }
+};

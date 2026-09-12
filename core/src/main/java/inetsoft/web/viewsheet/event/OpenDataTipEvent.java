@@ -17,7 +17,9 @@
  */
 package inetsoft.web.viewsheet.event;
 
-public class OpenDataTipEvent {
+import java.io.Serializable;
+
+public class OpenDataTipEvent implements Serializable {
    public String getName() {
       return name;
    }

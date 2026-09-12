@@ -41,7 +41,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const HYPERLINK_URI: string = "composer/vs/hyperlink-dialog-model";
 
 @Directive({
-   selector: "[cCrosstabActionHandler]"
+    selector: "[cCrosstabActionHandler]",
+    standalone: true
 })
 export class CrosstabActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSCrosstabModel;

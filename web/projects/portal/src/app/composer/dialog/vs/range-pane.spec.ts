@@ -42,11 +42,16 @@ describe("Range pane Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            RangePane,
+            FixedDropdownDirective,
+            ColorEditor,
+            DynamicComboBox,
          ],
-         declarations: [
-            RangePane, FixedDropdownDirective, ColorEditor, DynamicComboBox
-         ],
+         
          providers: [
             NgbModal
          ],

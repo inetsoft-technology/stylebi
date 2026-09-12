@@ -17,24 +17,8 @@
  */
 package inetsoft.web.viewsheet.controller.chart;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.ChartVSSelectionUtil;
-import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.graph.VGraph;
-import inetsoft.graph.data.DataSet;
-import inetsoft.report.composition.ChangedAssemblyList;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.DataMap;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.report.composition.graph.VGraphPair;
-import inetsoft.report.composition.graph.VSDataSet;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
-import inetsoft.web.viewsheet.command.ClearChartLoadingCommand;
 import inetsoft.web.viewsheet.event.chart.VSChartZoomEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
@@ -42,17 +26,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
-
 import java.security.Principal;
 
 @Controller
-public class VSChartZoomController extends VSChartController<VSChartZoomEvent> {
+public class VSChartZoomController {
    @Autowired
    public VSChartZoomController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                CoreLifecycleService coreLifecycleService,
-                                ViewsheetService viewsheetService)
+                                VSChartZoomServiceProxy vsChartZoomServiceProxy)
    {
-      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.vsChartZoomServiceProxy = vsChartZoomServiceProxy;
    }
 
    /**
@@ -72,119 +55,10 @@ public class VSChartZoomController extends VSChartController<VSChartZoomEvent> {
                             Principal principal, CommandDispatcher dispatcher)
       throws Exception
    {
-      processEvent(event, principal, linkUri, dispatcher, chartState -> {
-         try {
-            return doZoom(event, chartState, linkUri, dispatcher);
-         }
-         catch(Exception e) {
-            throw new RuntimeException(e);
-         }
-         finally {
-            // clear chart loading mask after zoom finished
-            dispatcher.sendCommand(event.getChartName(), new ClearChartLoadingCommand());
-         }
-      });
+      vsChartZoomServiceProxy.eventHandler(runtimeViewsheetRef.getRuntimeId(), event, linkUri,
+                                           principal, dispatcher);
    }
 
-   private int doZoom(VSChartZoomEvent event,
-                      VSChartStateInfo chartState,
-                      String linkUri,
-                      CommandDispatcher dispatcher)
-      throws Exception
-   {
-      String name = event.getChartName();
-      String selected = event.getSelected();
-      boolean rangeSelection = event.getRangeSelection();
-      boolean exclude = event.getExclude();
-      ChartVSAssembly chartAssembly = chartState.getAssembly();
-      VSSelection bselection = chartAssembly.getBrushSelection();
-      String table = chartAssembly.getTableName();
-      ViewsheetSandbox box = chartState.getViewsheetSandbox();
-      Viewsheet vs = chartState.getViewsheet();
-      int hint = 0;
-
-      try {
-         // clear brush for zoom and brush are exclusive
-         if(bselection != null && !bselection.isEmpty()) {
-            hint = hint | chartAssembly.setBrushSelection(null);
-            vs.setBrush(table, chartAssembly);
-         }
-
-         VGraphPair pair = box.getVGraphPair(name);
-
-         if(pair == null || !isSelectionActionSupported(pair, dispatcher)) {
-            return VSAssembly.NONE_CHANGED;
-         }
-
-         VGraph vgraph = pair.getRealSizeVGraph();
-
-         if(vgraph == null) {
-            return VSAssembly.NONE_CHANGED;
-         }
-
-         VSDataSet alens = (VSDataSet) box.getData(name, true, DataMap.ZOOM);
-         DataSet vdset = vgraph.getCoordinate().getDataSet();
-         VSChartInfo chartInfo = chartState.getChartInfo();
-         RuntimeViewsheet rvs = chartState.getRuntimeViewsheet();
-         String ctype = ((ChartVSAssemblyInfo)
-            VSEventUtil.getAssemblyInfo(rvs, chartAssembly)).getCubeType();
-         VSDataSet lens = vdset instanceof VSDataSet
-            ? (VSDataSet) vdset : (VSDataSet) box.getData(name);
-         VSSelection selection = ChartVSSelectionUtil.getVSSelection(
-            selected, lens, alens, vdset, rangeSelection, chartInfo,
-            false, ctype, true, false, false);
-         PlotDescriptor plot = chartState.getChartDescriptor().getPlotDescriptor();
-
-         // clear web map zoom
-         plot.setZoom(1);
-         plot.setPanX(0);
-         plot.setPanY(0);
-         plot.setLonLat(null);
-
-         if(selection != null) {
-            DateComparisonUtil.fixDatePartSelection(chartAssembly, lens, selection);
-         }
-
-         // cancel zoom
-         if(selected == null) {
-            hint = hint | chartAssembly.setExcludeSelection(selection);
-            hint = hint | chartAssembly.setZoomSelection(selection);
-         }
-         // exclude data points
-         else if(exclude && selection != null) {
-            // append exclusion condition
-            VSSelection sel0 = chartAssembly.getExcludeSelection();
-
-            if(sel0 != null) {
-               for(int i = 0; i < sel0.getPointCount(); i++) {
-                  selection.addPoint(sel0.getPoint(i));
-               }
-            }
-
-            hint = hint | chartAssembly.setExcludeSelection(selection);
-         }
-         // zoom in
-         else {
-            hint = hint | chartAssembly.setZoomSelection(selection);
-         }
-
-         box.updateAssembly(chartAssembly.getAbsoluteName());
-
-         ChangedAssemblyList clist = new ChangedAssemblyList(false);
-         box.processChange(name, hint, clist);
-         execute(rvs, name, linkUri, hint, dispatcher);
-
-         // share categorical frame
-         if(selection != null && !selection.isEmpty()) {
-            box.getVGraphPair(name);
-         }
-      }
-      finally {
-//         command.addCommand(new MessageCommand("", MessageCommand.OK));
-//         vs.setBrush(table, null);
-      }
-
-      return -1;
-   }
-
+   private final VSChartZoomServiceProxy vsChartZoomServiceProxy;
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
 }

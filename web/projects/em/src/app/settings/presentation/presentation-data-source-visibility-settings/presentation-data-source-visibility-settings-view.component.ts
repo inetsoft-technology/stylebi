@@ -24,6 +24,12 @@ import { Searchable } from "../../../searchable";
 import { PresentationSettingsChanges } from "../presentation-settings-view/presentation-settings-view.component";
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
 import { ContextHelp } from "../../../context-help";
+import { MatDivider } from "@angular/material/divider";
+import { MatIcon } from "@angular/material/icon";
+import { MatTooltip } from "@angular/material/tooltip";
+import { MatMiniFabButton, MatIconButton } from "@angular/material/button";
+
+import { MatCard, MatCardTitle, MatCardContent, MatCardSubtitle } from "@angular/material/card";
 
 @Searchable({
    route: "/settings/presentation/settings#data-source-visibility",
@@ -37,9 +43,10 @@ import { ContextHelp } from "../../../context-help";
    link: "EMDataSourceVisibility"
 })
 @Component({
-   selector: "em-presentation-data-source-visibility-settings-view",
-   templateUrl: "./presentation-data-source-visibility-settings-view.component.html",
-   styleUrls: ["./presentation-data-source-visibility-settings-view.component.scss"]
+    selector: "em-presentation-data-source-visibility-settings-view",
+    templateUrl: "./presentation-data-source-visibility-settings-view.component.html",
+    styleUrls: ["./presentation-data-source-visibility-settings-view.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardContent, MatMiniFabButton, MatTooltip, MatIcon, MatCardSubtitle, MatIconButton, MatDivider]
 })
 export class PresentationDataSourceVisibilitySettingsViewComponent {
    @Output() modelChanged: EventEmitter<PresentationSettingsChanges> = new EventEmitter();

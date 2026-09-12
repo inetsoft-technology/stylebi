@@ -18,13 +18,13 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.internal.FormUtil;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
-import org.mozilla.javascript.FunctionObject;
+import inetsoft.util.script.graal.ScriptFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,13 +80,13 @@ public class TableVSAScriptable extends TableDataVSAScriptable {
     */
    protected void addFunctions() {
       try {
-         FunctionObject func = new FunctionObject("applyChanges",
-            getClass().getMethod("applyChanges", new Class[] {}), this);
-         addProperty("applyChanges", func);
+         // Feature #75423: native function exposed via ScriptFunction (GraalJS).
+         addProperty("applyChanges",
+            new ScriptFunction(this, getClass(), "applyChanges"));
 
          super.addFunctions();
 
-         if(LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM)) {
+         if(FormUtil.isFormEnabled()) {
             addFunctionProperty(getClass(), "setObject", int.class, int.class, Object.class);
             addFunctionProperty(getClass(), "getFormRow", int.class);
             addFunctionProperty(getClass(), "getFormRows", Object.class);

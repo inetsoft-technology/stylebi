@@ -16,7 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { ChangeDetectorRef, Component, EventEmitter, Input, Optional, Output, ViewChild } from "@angular/core";
-import { VirtualScrollService } from "../virtual-scroll.service";
 import { TreeNodeModel } from "../tree-node-model";
 import { DataRef } from "../../../common/data/data-ref";
 import { VirtualScrollTreeDatasource } from "../virtual-scroll-tree-datasource";
@@ -24,8 +23,9 @@ import { Observable } from "rxjs";
 import { TreeComponent } from "../tree.component";
 
 @Component({
-  selector: "virtual-scroll-tree",
-  templateUrl: "./virtual-scroll-tree.component.html",
+    selector: "virtual-scroll-tree",
+    templateUrl: "./virtual-scroll-tree.component.html",
+    imports: [TreeComponent]
 })
 export class VirtualScrollTreeComponent {
   @Input() root: TreeNodeModel;

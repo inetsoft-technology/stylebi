@@ -715,10 +715,6 @@ public abstract class DateCondition extends AbstractCondition implements AssetOb
        * Set the year n.
        */
       public void setYearN(int yn) {
-         if(yn < 0) {
-            return;
-         }
-
          this.yn = yn;
       }
 
@@ -1354,10 +1350,6 @@ public abstract class DateCondition extends AbstractCondition implements AssetOb
        * Set the month n.
        */
       public void setMonthN(int mn) {
-         if(mn < 0) {
-            return;
-         }
-
          this.mn = mn;
       }
 
@@ -1372,10 +1364,6 @@ public abstract class DateCondition extends AbstractCondition implements AssetOb
        * Set year n.
        */
       public void setYearN(int yn) {
-         if(yn < 0) {
-            return;
-         }
-
          this.yn = yn;
       }
 
@@ -1689,10 +1677,6 @@ public abstract class DateCondition extends AbstractCondition implements AssetOb
        * Set the week n.
        */
       public void setWeekN(int wn) {
-         if(wn < 0) {
-            return;
-         }
-
          this.wn = wn;
       }
 

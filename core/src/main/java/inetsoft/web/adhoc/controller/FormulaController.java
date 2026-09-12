@@ -18,11 +18,12 @@
 package inetsoft.web.adhoc.controller;
 
 import inetsoft.analytic.web.adhoc.AdHocQueryHandler;
-import inetsoft.util.*;
+import inetsoft.report.LibManagerProvider;
+import inetsoft.util.Catalog;
+import inetsoft.util.ItemMap;
 import inetsoft.web.binding.model.ScriptTreeNodeData;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.reportviewer.HandleExceptions;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -35,13 +36,14 @@ public class FormulaController {
    /**
     * Creates a new instance of <tt>FormulaController</tt>.
     */
-   public FormulaController() {
+   public FormulaController(LibManagerProvider libManagerProvider) {
+      this.libManagerProvider = libManagerProvider;
    }
 
    @RequestMapping(value = "/api/ws/formula/function", method=RequestMethod.GET)
    @HandleExceptions
    public TreeNodeModel getFunctions() throws Exception {
-      ItemMap functionMap = AdHocQueryHandler.getScriptFunctions(false);
+      ItemMap functionMap = AdHocQueryHandler.getScriptFunctions(false, libManagerProvider);
       ItemMap excelFunctionMap = AdHocQueryHandler.getExcelScriptFunctions();
       TreeNodeModel jsFunctionsNode = createNode(Catalog.getCatalog().getString("JavaScript Functions"),
          null, false, false,
@@ -183,4 +185,6 @@ public class FormulaController {
 
       return children;
    }
+
+   private final LibManagerProvider libManagerProvider;
 }

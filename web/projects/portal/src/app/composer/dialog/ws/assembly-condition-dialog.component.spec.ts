@@ -46,10 +46,10 @@ describe("Assembly Condition Dialog Tests", () => {
    let conditionDialog: AssemblyConditionDialog;
 
    beforeEach(() => {
-      let modelService: any = { getModel: jest.fn() };
-      let worksheetClient: any = { sendEvent: jest.fn() };
-      let http: any = { get: jest.fn(), post: jest.fn() };
-      let modalService: any = { open: jest.fn() };
+      let modelService: any = { getModel: vi.fn() };
+      let worksheetClient: any = { sendEvent: vi.fn() };
+      let http: any = { get: vi.fn(), post: vi.fn() };
+      let modalService: any = { open: vi.fn() };
 
       conditionDialog = new AssemblyConditionDialog(modelService, worksheetClient, http,
          modalService, document);
@@ -69,7 +69,7 @@ describe("Assembly Condition Dialog Tests", () => {
          return null;
       };
 
-      let localStorageSpy = jest.spyOn(LocalStorage, "getItem");
+      let localStorageSpy = vi.spyOn(LocalStorage, "getItem");
       localStorageSpy.mockImplementation(fakeLocalStorage);
       conditionDialog.updateModelFromLocalStorage();
 
@@ -90,7 +90,7 @@ describe("Assembly Condition Dialog Tests", () => {
          return null;
       };
 
-      let localStorageSpy = jest.spyOn(LocalStorage, "getItem");
+      let localStorageSpy = vi.spyOn(LocalStorage, "getItem");
       localStorageSpy.mockImplementation(fakeLocalStorage);
       conditionDialog.updateModelFromLocalStorage();
 
@@ -103,7 +103,7 @@ describe("Assembly Condition Dialog Tests", () => {
          advanced: true
       };
 
-      let localStorageSpy = jest.spyOn(LocalStorage, "setItem");
+      let localStorageSpy = vi.spyOn(LocalStorage, "setItem");
       conditionDialog.ok();
       expect(localStorageSpy).toHaveBeenCalled();
       expect(localStorageSpy.mock.calls[0][0]).toEqual("ws.condition");

@@ -19,7 +19,8 @@ import { Directive, HostListener } from "@angular/core";
 import { DragEvent } from "../../common/data/drag-event";
 
 @Directive({
-   selector: "[disableDrop]"
+    selector: "[disableDrop]",
+    standalone: true
 })
 export class DisableDropDirective {
    @HostListener("dragover", ["$event"])

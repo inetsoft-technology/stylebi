@@ -43,7 +43,7 @@ public final class CachedByteArrayOutputStream extends OutputStream {
       if(!swapped && nsize > lastSize + 1024) {
          // swap to file if exceeding max or memory is low.
          // this object is short lived so no need to make it a swappable.
-         swapped = nsize > max || XSwapper.getMemoryState() < XSwapper.LOW_MEM;
+         swapped = nsize > max || XSwapper.getSwapper().getMemoryState() < XSwapper.LOW_MEM;
          lastSize = size;
       }
 

@@ -17,13 +17,15 @@
  */
 package inetsoft.report.composition;
 
+import java.io.Serializable;
+
 /**
  * FormTableRow represent one row for FormTable, it maintains data and row state.
  *
  * @version 11.2
  * @author InetSoft Technology Corp
  */
-public class FormTableRow {
+public class FormTableRow implements Serializable {
    /**
     * Old row state.
     */

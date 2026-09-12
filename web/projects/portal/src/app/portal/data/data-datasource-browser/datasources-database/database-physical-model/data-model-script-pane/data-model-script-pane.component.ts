@@ -28,16 +28,17 @@ import {
    Renderer2,
    AfterViewChecked
 } from "@angular/core";
-import * as ECMASCRIPT_DEFS from "tern/defs/ecmascript.json";
+import ECMASCRIPT_DEFS from "tern/defs/ecmascript.json";
 import { GuiTool } from "../../../../../../common/util/gui-tool";
 import {
    CodemirrorService
 } from "../../../../../../../../../shared/util/codemirror/codemirror.service";
 
 @Component({
-   selector: "data-model-script-pane",
-   templateUrl: "data-model-script-pane.component.html",
-   styleUrls: ["data-model-script-pane.component.scss"]
+    selector: "data-model-script-pane",
+    templateUrl: "data-model-script-pane.component.html",
+    styleUrls: ["data-model-script-pane.component.scss"],
+    standalone: true
 })
 export class DataModelScriptPane implements AfterViewInit, OnDestroy, AfterViewChecked {
    @Input() fullContainer: boolean;

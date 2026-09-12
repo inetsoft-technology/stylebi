@@ -18,11 +18,13 @@
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { TableModel } from "../../../../common/util/table/table-model";
 import { TableInfo } from "../../../../common/util/table/table-info";
+import { TableView } from "../../../../common/util/table/table-view.component";
 
 @Component({
-   selector: "em-summary-monitoring-table-view",
-   templateUrl: "./summary-monitoring-table-view.component.html",
-   styleUrls: ["./summary-monitoring-table-view.component.scss"]
+    selector: "em-summary-monitoring-table-view",
+    templateUrl: "./summary-monitoring-table-view.component.html",
+    styleUrls: ["./summary-monitoring-table-view.component.scss"],
+    imports: [TableView]
 })
 export class SummaryMonitoringTableViewComponent {
    @Input() dataSource: TableModel;

@@ -20,10 +20,18 @@ import { UntypedFormGroup } from "@angular/forms";
 import { ValueMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { CalendarGeneralPaneModel } from "../../data/vs/calendar-general-pane-model";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { TitlePropPane } from "../../../vsobjects/dialog/title-prop-pane.component";
+import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.component";
 
 @Component({
-   selector: "calendar-general-pane",
-   templateUrl: "calendar-general-pane.component.html",
+    selector: "calendar-general-pane",
+    templateUrl: "calendar-general-pane.component.html",
+    imports: [
+        GeneralPropPane,
+        TitlePropPane,
+        SizePositionPane,
+    ]
 })
 export class CalendarGeneralPane implements OnInit {
    @Input() model: CalendarGeneralPaneModel;

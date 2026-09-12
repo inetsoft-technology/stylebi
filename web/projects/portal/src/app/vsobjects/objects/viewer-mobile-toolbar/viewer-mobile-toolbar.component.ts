@@ -24,11 +24,14 @@ import { DropdownOptions } from "../../../widget/fixed-dropdown/dropdown-options
 import { DropdownRef } from "../../../widget/fixed-dropdown/fixed-dropdown-ref";
 import { AssemblyActionGroup } from "../../../common/action/assembly-action-group";
 import { ToolbarActionsHandler } from "../../toolbar-actions-handler";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
+
 
 @Component({
-   selector: "viewer-mobile-toolbar",
-   templateUrl: "viewer-mobile-toolbar.component.html",
-   styleUrls: ["viewer-mobile-toolbar.component.scss"]
+    selector: "viewer-mobile-toolbar",
+    templateUrl: "viewer-mobile-toolbar.component.html",
+    styleUrls: ["viewer-mobile-toolbar.component.scss"],
+    imports: [FixedDropdownDirective]
 })
 export class ViewerMobileToolbarComponent {
    _actions: AbstractVSActions<any>;
@@ -70,8 +73,12 @@ export class ViewerMobileToolbarComponent {
             },
             contextmenu: true,
             autoClose: true,
-            closeOnOutsideClick: true,
-            zIndex: 1000
+            closeOnOutsideClick: true
+            // don't pin a z-index: an inline style overrides the .fixed-dropdown
+            // stylesheet value (999900) and the pinned 1000 put this menu *below* the
+            // mobile paging control (z-index 9999, pointer-events: all), which the
+            // viewer plants at the tapped cell. Taps on menu items that overlapped it
+            // hit-tested to the control instead and were silently swallowed.
          } as DropdownOptions;
          this.mobileSandwichRef = this.dropdownService.open(component, options);
          this.sandwichMenuOpen = true;

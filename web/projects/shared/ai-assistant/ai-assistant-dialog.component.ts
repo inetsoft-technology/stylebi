@@ -16,29 +16,36 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Component, OnDestroy, OnInit } from "@angular/core";
+import { CUSTOM_ELEMENTS_SCHEMA, Component, OnDestroy, OnInit } from "@angular/core";
 import { Subscription } from "rxjs";
 import { AiAssistantService } from "./ai-assistant.service";
 
 @Component({
-  selector: "ai-assistant-dialog",
-  templateUrl: "./ai-assistant-dialog.component.html",
-  styleUrls: ["./ai-assistant-dialog.component.scss"]
+    selector: "ai-assistant-dialog",
+    templateUrl: "./ai-assistant-dialog.component.html",
+    styleUrls: ["./ai-assistant-dialog.component.scss"],
+    standalone: true,
+    schemas: [CUSTOM_ELEMENTS_SCHEMA]
 })
 export class AiAssistantDialogComponent implements OnInit, OnDestroy {
    userEmail: string = "";
    context: string = "";
    newChat: boolean = false;
+   theme: string | null = null;
    private contextSub: Subscription | null = null;
 
    get userId(): string { return this.aiAssistantService.userId; }
    get chatAppServerUrl(): string { return this.aiAssistantService.chatAppServerUrl; }
    get styleBIUrl(): string { return this.aiAssistantService.styleBIUrl; }
+   get chatAppTitle(): string | null { return this.aiAssistantService.chatAppTitle; }
+   get chatAppVendorName(): string | null { return this.aiAssistantService.chatAppVendorName; }
+   get chatAppLogoUrl(): string | null { return this.aiAssistantService.chatAppLogoUrl; }
 
    constructor(private aiAssistantService: AiAssistantService) {
       this.userEmail = this.aiAssistantService.email;
       this.context = this.aiAssistantService.getFullContext();
       this.newChat = this.aiAssistantService.createNewChat;
+      this.theme = this.aiAssistantService.getThemeConfig();
       this.aiAssistantService.resetNewChat();
    }
 

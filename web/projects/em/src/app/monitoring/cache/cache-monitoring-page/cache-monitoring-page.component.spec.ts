@@ -15,18 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { MatCardModule } from "@angular/material/card";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { RouterTestingModule } from "@angular/router/testing";
+import { RouterModule } from "@angular/router";
 import { of as observableOf } from "rxjs";
-import { TableViewModule } from "../../../common/util/table/table-view.module";
-import { ClusterSelectorModule } from "../../cluster-selector/cluster-selector.module";
+import { TableView } from "../../../common/util/table/table-view.component";
+import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selector.component";
 import { ClusterNodesService } from "../../cluster/cluster-nodes.service";
-import { CollapsibleContainerModule } from "../../collapsible-container/collapsible-container.module";
+import { CollapsibleContainerComponent } from "../../collapsible-container/collapsible-container.component";
 import { MonitorLevelService } from "../../monitor-level.service";
 import { MonitoringDataService } from "../../monitoring-data.service";
 import { CacheMonitoringViewComponent } from "../cache-monitoring-view/cache-monitoring-view.component";
@@ -36,37 +37,33 @@ describe("CacheMonitoringPageComponent", () => {
    let component: CacheMonitoringPageComponent;
    let fixture: ComponentFixture<CacheMonitoringPageComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const monitoringDataService = {
-         connect: jest.fn(() => observableOf()),
-         subscribe: jest.fn(),
-         getClusterAddress: jest.fn(() => observableOf()),
-         getMonitoringData: jest.fn(() => observableOf())
+         connect: vi.fn(() => observableOf()),
+         subscribe: vi.fn(),
+         getClusterAddress: vi.fn(() => observableOf()),
+         getMonitoringData: vi.fn(() => observableOf())
       };
       const monitorLevelService = {
-         monitorLevel: jest.fn(() => observableOf())
+         monitorLevel: vi.fn(() => observableOf())
       };
       const clusterService = {
-         getClusterNodesModel: jest.fn(() => observableOf()),
-         getClusterNodes: jest.fn(() => observableOf([]))
+         getClusterNodesModel: vi.fn(() => observableOf()),
+         getClusterNodes: vi.fn(() => observableOf([]))
       };
 
       TestBed.configureTestingModule({
          imports: [
             HttpClientTestingModule,
-            RouterTestingModule,
+            RouterModule.forRoot([]),
             NoopAnimationsModule,
             MatCardModule,
             MatFormFieldModule,
             MatSelectModule,
-            CollapsibleContainerModule,
-            TableViewModule,
-            ClusterSelectorModule
-         ],
-         declarations: [
-            CacheMonitoringPageComponent,
-            CacheMonitoringViewComponent
-         ],
+            CollapsibleContainerComponent,
+            TableView,
+            ClusterSelectorComponent,
+            CacheMonitoringPageComponent, CacheMonitoringViewComponent],
          providers: [
             {provide: MonitoringDataService, useValue: monitoringDataService},
             {provide: MonitorLevelService, useValue: monitorLevelService},

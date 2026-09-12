@@ -22,13 +22,25 @@ import {
    OnInit,
    ViewEncapsulation
 } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { TimeRange } from "../../../../../../../shared/schedule/model/time-condition-model";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { COPY_PASTE_CONTEXT_SCHEDULE } from "../../../security/resource-permission/copy-paste-context";
 import { ResourcePermissionModel } from "../../../security/resource-permission/resource-permission-model";
+import { MatButton } from "@angular/material/button";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
+import { MatCheckbox } from "@angular/material/checkbox";
+
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { MatTabGroup, MatTab } from "@angular/material/tabs";
+import { ErrorStateMatcher } from "@angular/material/core";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
+import { EmErrorStateMatcher } from "../../../../common/util/error/em-error-state-matcher";
+import { NgIf } from "@angular/common";
 
 export interface TimeRangeData {
    range: TimeRange;
@@ -36,10 +48,15 @@ export interface TimeRangeData {
 }
 
 @Component({
-   selector: "em-time-range-editor",
-   templateUrl: "./time-range-editor.component.html",
-   styleUrls: ["./time-range-editor.component.scss"],
-   encapsulation: ViewEncapsulation.None
+    selector: "em-time-range-editor",
+    templateUrl: "./time-range-editor.component.html",
+    styleUrls: ["./time-range-editor.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    // This dialog is opened via MatDialog, which uses the root injector and does
+    // not inherit the schedule route's EmErrorStateMatcher provider. Provide it
+    // here so required-field errors display eagerly (Bug #75338).
+    providers: [{ provide: ErrorStateMatcher, useClass: EmErrorStateMatcher }],
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatTabGroup, MatTab, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, ResourcePermissionComponent, MatDialogActions, MatButton]
 })
 export class TimeRangeEditorComponent implements OnInit {
    form: UntypedFormGroup;

@@ -34,8 +34,8 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.rmi.RemoteException;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 
 /**
  * Base implementation of <tt>MetaDataProvider</tt>.
@@ -45,9 +45,23 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
     * Creates a new instance of <tt>DefaultMetaDataProvider</tt>.
     */
    public DefaultMetaDataProvider() {
+      this(lookupRepository());
+   }
+
+   private static XRepository lookupRepository() {
       try {
-         this.session = XFactory.getRepository().bind(
-            System.getProperty("user.name"));
+         return XRepository.getRepository();
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to get repository", e);
+      }
+   }
+
+   public DefaultMetaDataProvider(XRepository repository) {
+      this.xRepository = repository;
+
+      try {
+         this.session = repository.bind(System.getProperty("user.name"));
       }
       catch(RemoteException exc) {
          LOG.error(exc.getMessage(), exc);
@@ -155,7 +169,7 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
       if(xds == null && getDataModel() != null) {
          try {
             String ds = getDataModel().getDataSource();
-            xds = XFactory.getRepository().getDataSource(ds);
+            xds = xRepository.getDataSource(ds);
          }
          catch(RemoteException exc) {
             LOG.error(exc.getMessage(), exc);
@@ -642,15 +656,14 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
     * Get the repository, connected to the current database.
     */
    protected XRepository getRepository(XNode query) throws Exception {
-      XRepository repository = XFactory.getRepository();
       XDataSource xds = getDataSource();
 
       if(query != null && !StringUtils.isEmpty((String) query.getAttribute("additional"))) {
          xds.setFromPortal(true);
       }
 
-      repository.connect(session, xds, getRepositoryParameters());
-      return repository;
+      xRepository.connect(session, xds, getRepositoryParameters());
+      return xRepository;
    }
 
    /**
@@ -720,6 +733,27 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
       }
 
       return metadata;
+   }
+
+   /**
+    * Clear the cached metadata for the specified partition.
+    *
+    * @param partition the name of the partition.
+    */
+   public synchronized void clearPartitionMetaDataCache(String partition) {
+      if(metadataCache != null && partition != null) {
+         String keyPrefix = getDataModel().getDataSource() + "::" + partition;
+         metadataCache.entrySet().removeIf(entry -> entry.getKey().startsWith(keyPrefix));
+      }
+   }
+
+   /**
+    * Clear all cached partition metadata for this datasource.
+    */
+   public synchronized void clearAllPartitionMetaDataCache() {
+      if(metadataCache != null) {
+         metadataCache.clear();
+      }
    }
 
    /**
@@ -1205,6 +1239,7 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
       return new JDBCHandler().getRootMetaData((JDBCDataSource) getDataSource(), "DBPROPERTIES", additional);
    }
 
+   private final XRepository xRepository;
    private boolean portalData = false;
    private XRepository.MetaDataListener listener;
    private XDataSource xds;

@@ -17,7 +17,9 @@
  */
 package inetsoft.report.gui.viewsheet;
 
+import inetsoft.report.io.viewsheet.ShapeShadowUtil;
 import inetsoft.uql.viewsheet.GradientColor;
+import inetsoft.uql.viewsheet.ShapeShadow;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.*;
 
@@ -50,10 +52,30 @@ public abstract class VSShape extends VSFloatable {
       g2.dispose();
 
       if(isShadow()) {
-         image = VSFaceUtil.addShadow(image, 6);
-      }
+         ShapeVSAssemblyInfo info = getInfo();
 
-      g.drawImage(image, 0, 0, null);
+         // Line predates configurable shadow settings (#76073) and has no
+         // UI/script path to configure one -- keep its old fixed gray shadow
+         // rather than silently switching a legacy shadowValue="true" asset
+         // over to the new configurable defaults.
+         if(info instanceof LineVSAssemblyInfo) {
+            image = VSFaceUtil.addShadow(image, 6);
+            g.drawImage(image, 0, 0, null);
+         }
+         else {
+            ShapeShadow shadow = info.getShadowInfo();
+            // must match the insets getImage() grew the canvas by
+            Insets insets = ShapeShadowUtil.getScaledShadowInsets(info);
+            image = VSFaceUtil.addShadow(image, shadow, insets);
+            // the shape sits at (left, top) inside the composite; draw it back by
+            // that much so the shape itself still lands on the origin, which is
+            // where getImage() has already translated to
+            g.drawImage(image, -insets.left, -insets.top, null);
+         }
+      }
+      else {
+         g.drawImage(image, 0, 0, null);
+      }
    }
 
    /**

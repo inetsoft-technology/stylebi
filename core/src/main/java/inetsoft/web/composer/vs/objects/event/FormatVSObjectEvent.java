@@ -20,6 +20,7 @@ package inetsoft.web.composer.vs.objects.event;
 import inetsoft.report.TableDataPath;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 
 /**
@@ -27,7 +28,7 @@ import java.util.ArrayList;
  *
  * @since 12.3
  */
-public class FormatVSObjectEvent {
+public class FormatVSObjectEvent implements Serializable {
    public VSObjectFormatInfoModel getFormat() {
       return format;
    }

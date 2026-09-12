@@ -19,13 +19,15 @@ package inetsoft.report.internal.binding;
 
 import inetsoft.uql.XMetaInfo;
 
+import java.io.Serializable;
+
 /**
  * Formula header info, include the formula header name, its original column
  * header name, and the default created meta info for this formula header,
  * and the really meta info for this formula header is this meta info merge
  * with the original column's meta info.
  */
-public class FormulaHeaderInfo {
+public class FormulaHeaderInfo implements Serializable {
    public FormulaHeaderInfo(String fname, String oname, boolean autoCreated, XMetaInfo minfo) {
       this.formualName = fname;
       this.originalName = oname;

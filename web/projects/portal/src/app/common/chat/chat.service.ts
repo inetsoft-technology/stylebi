@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
-import { Inject, Injectable, InjectionToken } from "@angular/core";
+
+import { Inject, Injectable, InjectionToken, DOCUMENT } from "@angular/core";
 import { ChatApi } from "./chat-api";
 import { NEVER, Observable } from "rxjs";
 import { shareReplay, tap } from "rxjs/operators";

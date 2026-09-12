@@ -30,9 +30,11 @@ import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
 import { Viewsheet } from "../../../data/vs/viewsheet";
 import { AbstractActionComponent } from "./abstract-action-component";
 
+
 @Component({
-   selector: "assembly-context-menu-items",
-   templateUrl: "assembly-context-menu-items.component.html"
+    selector: "assembly-context-menu-items",
+    templateUrl: "assembly-context-menu-items.component.html",
+    imports: []
 })
 export class AssemblyContextMenuItemsComponent
    extends AbstractActionComponent implements OnChanges, OnDestroy

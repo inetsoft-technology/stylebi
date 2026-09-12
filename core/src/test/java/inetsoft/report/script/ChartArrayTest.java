@@ -18,14 +18,24 @@
 
 package inetsoft.report.script;
 
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.graph.*;
 import org.junit.jupiter.api.Test;
-import org.mozilla.javascript.ScriptRuntime;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class ChartArrayTest {
    private ChartArray chartArray;
    private VSChartInfo mockVSChartInfo;
@@ -45,7 +55,7 @@ public class ChartArrayTest {
       chartArray = implementedChartArray("Axis", mockVSChartInfo);
       chartArray.init();
 
-      assertArrayEquals(new Object[] {"test0", "test0"}, chartArray.getIds());
+      assertArrayEquals(new Object[] {"test0", "test0"}, chartArray.getMemberKeys());
 
       //check CandleChartInfo  and StockChartInfo
       CandleChartInfo mockCandleChartInfo = mock(CandleChartInfo.class);
@@ -57,7 +67,7 @@ public class ChartArrayTest {
       chartArray = implementedChartArray("Axis", mockCandleChartInfo);
       chartArray.init();
 
-      assertArrayEquals(new Object[] {"test1"}, chartArray.getIds());
+      assertArrayEquals(new Object[] {"test1"}, chartArray.getMemberKeys());
    }
 
    /**
@@ -72,10 +82,7 @@ public class ChartArrayTest {
       chartArray = implementedChartArray("Frame", mockRadarChartInfo);
       chartArray.init();
 
-      assertArrayEquals(new Object[] { "testRadar", "Parallel_Label"}, chartArray.getIds());
-
-      assertTrue((boolean)chartArray.getDefaultValue(ScriptRuntime.BooleanClass));
-      assertEquals(ScriptRuntime.NaNobj, chartArray.getDefaultValue(ScriptRuntime.NumberClass));
+      assertArrayEquals(new Object[] { "testRadar", "Parallel_Label"}, chartArray.getMemberKeys());
       assertEquals("[field]", chartArray.getDisplaySuffix());
    }
 
@@ -83,10 +90,10 @@ public class ChartArrayTest {
    void testSetGet() {
       MergedChartInfo mockVSChartInfo = mock(MergedChartInfo.class);
       chartArray = implementedChartArray("colorFrame", mockVSChartInfo);
-      assertNull(chartArray.getIds());
+      assertNull(chartArray.getMemberKeys());
 
-      chartArray.put("title", null, "Test Chart Title");
-      assertTrue(chartArray.has("title", null));
+      chartArray.putMember("title", "Test Chart Title");
+      assertTrue(chartArray.hasMember("title"));
    }
 
    private ChartArray implementedChartArray(String property, ChartInfo chartInfo) {

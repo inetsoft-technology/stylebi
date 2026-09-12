@@ -16,29 +16,24 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient } from "@angular/common/http";
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, Resolve, RouterStateSnapshot } from "@angular/router";
+import { inject } from "@angular/core";
+import { ActivatedRouteSnapshot, ResolveFn, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
-import { ReportTabModel } from "../report/report-tab-model";
-import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
 import { map } from "rxjs/operators";
+import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
+import { ReportTabModel } from "../report/report-tab-model";
 
 const REPORT_TAB_MODEL_URI: string = "../api/portal/report-tab-model";
 
-@Injectable()
-export class ReportTabResolver implements Resolve<ReportTabModel> {
-   constructor(private http: HttpClient) {
-   }
+export const reportTabResolver: ResolveFn<ReportTabModel> = (route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ReportTabModel> => {
+   const http = inject(HttpClient);
+   const routeQueryParamMap = ShowHyperlinkService.getQueryParams(route.queryParamMap);
+   return http.get<ReportTabModel>(REPORT_TAB_MODEL_URI)
+      .pipe(map(model => {
+         if(routeQueryParamMap.get("collapseTree")) {
+            model.collapseTree = true;
+         }
 
-   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ReportTabModel> {
-      const routeQueryParamMap = ShowHyperlinkService.getQueryParams(route.queryParamMap);
-      return this.http.get<ReportTabModel>(REPORT_TAB_MODEL_URI)
-         .pipe(map(model => {
-            if(routeQueryParamMap.get("collapseTree")) {
-               model.collapseTree = true;
-            }
-
-            return model;
-         }));
-   }
+         return model;
+      }));
 }

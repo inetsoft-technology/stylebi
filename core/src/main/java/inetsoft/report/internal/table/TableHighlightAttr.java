@@ -750,9 +750,12 @@ public class TableHighlightAttr extends TableAttr {
        * Check if inited.
        */
       private synchronized void checkInit() {
+         if(descriptor == null) {
+            descriptor = getDescriptor();
+         }
+
          if(!inited) {
             inited = true;
-            descriptor = getDescriptor();
             rowcache = new FixedSizeSparseMatrix();
             cellcache = new FixedSizeSparseMatrix();
 
@@ -1028,7 +1031,20 @@ public class TableHighlightAttr extends TableAttr {
        * Setter of asset query sandbox.
        */
       public void setQuerySandbox(Object box) {
-         this.querySandbox = box;
+         if(this.querySandbox != box) {
+            this.querySandbox = box;
+
+            // Clear highlight caches since condition evaluation (e.g. parameter expressions)
+            // may produce different results with the new sandbox. Without clearing, stale
+            // null values cached before the sandbox was available would suppress re-evaluation.
+            if(rowcache != null) {
+               rowcache.clear();
+            }
+
+            if(cellcache != null) {
+               cellcache.clear();
+            }
+         }
       }
 
       @Override
@@ -1067,10 +1083,10 @@ public class TableHighlightAttr extends TableAttr {
       private TableDataPath[][] paths; // cell data path
       private TableDataPath[] rpath;  // row data path
       private TableDataPath allpath;
-      private TableDataDescriptor descriptor;
+      private transient TableDataDescriptor descriptor;
       private Object querySandbox;
       private boolean inited = false;
-      private transient TableLens ctable;
+      private TableLens ctable;
    }
 
    private Map<TableDataPath, HighlightGroup> hlmap;

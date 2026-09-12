@@ -33,10 +33,17 @@ import { AggregateDialog, LabelDGroup } from "./aggregate-dialog.component";
 import { DateRangeRef } from "../../../common/data/date-range-ref";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
 import { SummaryAttrUtil } from "../../../binding/util/summary-attr-util";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { FormsModule } from "@angular/forms";
+
 
 @Component({
-   selector: "aggregate-pane",
-   templateUrl: "aggregate-pane.component.html",
+    selector: "aggregate-pane",
+    templateUrl: "aggregate-pane.component.html",
+    imports: [
+    FormsModule,
+    DynamicComboBox
+]
 })
 export class AggregatePane {
    @Input() trapFields: ColumnRef[] = [];
@@ -251,7 +258,10 @@ export class AggregatePane {
       ];
 
       if(Tool.isDate(row.selectedRef.dataType) || AggregateDialog.getDateRangeRef(row.selectedRef) != null) {
-         this.examplesService.loadDateLevelExamples(this.groups[index].map(val => val.dgroup + ""),
+         const exampleTypes = this.groups[index].map(val => val.dgroup + "")
+                                       .filter(v => parseInt(v) >= 0);
+
+         this.examplesService.loadDateLevelExamples(exampleTypes,
             row.selectedRef.dataType).subscribe((data: any) => {
             this.dateLevelExamples[index] = data.dateLevelExamples;
          });

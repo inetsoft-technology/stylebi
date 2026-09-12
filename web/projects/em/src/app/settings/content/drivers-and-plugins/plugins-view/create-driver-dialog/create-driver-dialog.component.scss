@@ -45,6 +45,11 @@ em-create-driver-dialog {
       align-items: stretch;
       flex-grow: 1;
 
+      > .mat-horizontal-stepper-header-container {
+        flex-grow: 0;
+        flex-shrink: 0;
+      }
+
       .mat-horizontal-content-container {
         display: flex;
         flex-direction: column;
@@ -57,7 +62,8 @@ em-create-driver-dialog {
           align-items: stretch;
           flex-grow: 1;
 
-          &.mat-horizontal-stepper-content-inactive {
+          &.mat-horizontal-stepper-content-previous,
+          &.mat-horizontal-stepper-content-next {
             flex-grow: 0;
             flex-shrink: 1;
           }

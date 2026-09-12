@@ -23,9 +23,10 @@ import {DataTipService} from "../data-tip/data-tip.service";
 import {ContextProvider} from "../../context-provider.service";
 
 @Component({
-  selector: "vs-page-break",
-  templateUrl: "vs-page-break.component.html",
-  styleUrls: ["vs-page-break.component.scss"]
+    selector: "vs-page-break",
+    templateUrl: "vs-page-break.component.html",
+    styleUrls: ["vs-page-break.component.scss"],
+    standalone: true
 })
 export class VSPageBreak extends AbstractVSObject<VSPageBreakModel> implements OnInit {
 

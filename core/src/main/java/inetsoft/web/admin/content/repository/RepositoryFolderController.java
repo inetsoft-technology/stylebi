@@ -18,10 +18,9 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.sree.security.*;
-import inetsoft.util.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.InvalidOrgException;
 import inetsoft.web.adhoc.DecodeParam;
-import inetsoft.web.admin.content.repository.model.SetRepositoryFolderTableModel;
-import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,9 +31,11 @@ import java.security.Principal;
 @RestController
 public class RepositoryFolderController {
    @Autowired
-   public RepositoryFolderController(RepositoryFolderService repositoryFolderService)
+   public RepositoryFolderController(RepositoryFolderService repositoryFolderService,
+                                     SecurityEngine securityEngine)
    {
       this.repositoryFolderService = repositoryFolderService;
+      this.securityEngine = securityEngine;
    }
 
    @Secured(
@@ -54,7 +55,7 @@ public class RepositoryFolderController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -80,22 +81,6 @@ public class RepositoryFolderController {
       return this.repositoryFolderService.applySettings(ownerID, model, principal);
    }
 
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/content/repository",
-         actions = ResourceAction.ACCESS
-      )
-   )
-   @PostMapping("/api/em/content/repository/folder/delete")
-   public ConnectionStatus deleteRepositoryFolderSettings(@RequestParam(value = "owner", required = false) String owner,
-                                                          @RequestParam(value = "force", required = false) boolean force,
-                                                          @RequestBody() SetRepositoryFolderTableModel tableModel, Principal principal)
-      throws Exception
-   {
-      IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
-      return this.repositoryFolderService.deleteRepositoryFolderSettings(ownerID, force, tableModel, principal);
-   }
-
    private final RepositoryFolderService repositoryFolderService;
+   private final SecurityEngine securityEngine;
 }

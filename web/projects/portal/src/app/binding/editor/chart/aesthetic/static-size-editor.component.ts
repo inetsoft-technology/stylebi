@@ -19,10 +19,12 @@ import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { SizeFrameModel } from "../../../../common/data/visual-frame-model";
 import { SizeCell } from "./size-cell.component";
 import { StaticSizePane } from "./static-size-pane.component";
+import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 @Component({
-   selector: "static-size-editor",
-   templateUrl: "static-size-editor.component.html"
+    selector: "static-size-editor",
+    templateUrl: "static-size-editor.component.html",
+    imports: [SizeCell, FixedDropdownDirective, StaticSizePane]
 })
 export class StaticSizeEditor {
    @Input() sframe: SizeFrameModel;

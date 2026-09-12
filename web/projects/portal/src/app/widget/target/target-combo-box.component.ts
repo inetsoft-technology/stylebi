@@ -22,11 +22,20 @@ import {
    Output,
 } from "@angular/core";
 import { ValueMode } from "../dynamic-combo-box/dynamic-combo-box-model";
+import { FormsModule } from "@angular/forms";
+
+import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 
 @Component({
-   selector: "target-combo-box",
-   templateUrl: "target-combo-box.component.html",
-   styleUrls: ["./target-combo-box.component.scss"],
+    selector: "target-combo-box",
+    templateUrl: "target-combo-box.component.html",
+    styleUrls: ["./target-combo-box.component.scss"],
+    imports: [
+    NgbDropdown,
+    FormsModule,
+    NgbDropdownToggle,
+    NgbDropdownMenu
+]
 })
 export class TargetComboBox {
    public ValueMode = ValueMode;

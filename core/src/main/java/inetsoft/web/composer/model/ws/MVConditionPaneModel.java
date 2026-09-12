@@ -22,8 +22,10 @@ import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.ConditionModel;
 import inetsoft.web.composer.model.condition.JunctionOperatorModel;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class MVConditionPaneModel {
+public class MVConditionPaneModel implements Serializable {
    public boolean isForceAppendUpdates() {
       return forceAppendUpdates;
    }

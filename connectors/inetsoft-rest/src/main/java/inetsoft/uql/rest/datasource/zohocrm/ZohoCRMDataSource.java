@@ -19,7 +19,7 @@ package inetsoft.uql.rest.datasource.zohocrm;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import inetsoft.uql.XFactory;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
@@ -204,7 +204,7 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
          new BasicNameValuePair("refresh_token", getRefreshToken()));
 
       try {
-         XFactory.getRepository().updateDataSource(this, getFullName());
+         XRepository.getRepository().updateDataSource(this, getFullName());
       }
       catch(Exception e) {
          LOG.warn("Failed to save data source with updated access tokens", e);

@@ -140,11 +140,6 @@ public interface LogicalLibrary<T> {
    void clear();
 
    /**
-    * Removes all assets and transaction history.
-    */
-   void clear(String orgId);
-
-   /**
     * Returns and clears the library's transaction history.
     *
     * @return the library's transactions.

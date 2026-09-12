@@ -16,15 +16,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { NgbModal, NgbAlert } from "@ng-bootstrap/ng-bootstrap";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { TipCustomizeDialogModel } from "./tip-customize-dialog-model";
 
+import { ModalHeaderComponent } from "../../modal-header/modal-header.component";
+
 @Component({
-   selector: "tip-customize-dialog",
-   templateUrl: "tip-customize-dialog.component.html"
+    selector: "tip-customize-dialog",
+    templateUrl: "tip-customize-dialog.component.html",
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgbAlert]
 })
 export class TipCustomizeDialog implements OnChanges {
    @Input() model: TipCustomizeDialogModel;

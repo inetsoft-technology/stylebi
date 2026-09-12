@@ -17,17 +17,15 @@
  */
 package inetsoft.web.binding;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.model.*;
-import inetsoft.web.binding.service.VSBindingService;
+import inetsoft.web.binding.service.VSBindingServiceProxy;
 import inetsoft.web.composer.model.vs.VSTableTrapModel;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.InsertSelectionChildEvent;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.LinkUri;
 import org.slf4j.Logger;
@@ -44,11 +42,11 @@ import java.security.Principal;
 @RestController
 public class VSBindingController {
    @Autowired
-   public VSBindingController(ViewsheetService viewsheetService,
-                              VSBindingService vsBindingService)
+   public VSBindingController(VSBindingServiceProxy vsBindingServiceProxy,
+                              RuntimeViewsheetRef runtimeViewsheetRef)
    {
-      this.viewsheetService = viewsheetService;
-      this.vsBindingService = vsBindingService;
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.vsBindingServiceProxy = vsBindingServiceProxy;
    }
 
    /**
@@ -84,11 +82,7 @@ public class VSBindingController {
       @RequestParam("temporarySheet") boolean temporarySheet, Principal principal)
       throws Exception
    {
-      String id = this.vsBindingService.createRuntimeSheet(vsId, viewer, temporarySheet,
-         principal, assemblyName);
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      Viewsheet vs = rvs.getViewsheet();
-      return new BindingPaneData(id, vs.getViewsheetInfo().isMetadata());
+      return vsBindingServiceProxy.open(vsId, assemblyName, viewer, temporarySheet, principal);
    }
 
    /**
@@ -108,8 +102,8 @@ public class VSBindingController {
                         Principal principal)
       throws Exception
    {
-      return vsBindingService.finishEdit(viewsheetService, Tool.byteDecode(vsId),
-         assemblyName, editMode, originalMode, principal);
+      vsId = Tool.byteDecode(vsId);
+      return vsBindingServiceProxy.commit(vsId, assemblyName, editMode, originalMode, principal);
    }
 
    /**
@@ -129,7 +123,8 @@ public class VSBindingController {
                            Principal principal, CommandDispatcher dispatcher)
       throws Exception
    {
-      this.vsBindingService.insertChild(event, linkUri, principal, dispatcher);
+      this.vsBindingServiceProxy.insertChild(runtimeViewsheetRef.getRuntimeId(), event,
+                                        linkUri, principal, dispatcher, false);
    }
 
    /**
@@ -149,10 +144,10 @@ public class VSBindingController {
                                                 Principal principal)
       throws Exception
    {
-      return this.vsBindingService.checkVSSelectionTrap(event, runtimeId, principal);
+      return vsBindingServiceProxy.checkVSSelectionTrap(runtimeId, event, principal);
    }
 
-   private final ViewsheetService viewsheetService;
-   private final VSBindingService vsBindingService;
+   private final VSBindingServiceProxy vsBindingServiceProxy;
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
    private static final Logger LOG = LoggerFactory.getLogger(VSBindingController.class);
 }

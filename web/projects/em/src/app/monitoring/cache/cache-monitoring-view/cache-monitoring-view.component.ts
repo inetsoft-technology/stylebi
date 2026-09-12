@@ -17,11 +17,13 @@
  */
 import { Component, Input } from "@angular/core";
 import { TableInfo } from "../../../common/util/table/table-info";
+import { TableView } from "../../../common/util/table/table-view.component";
 
 @Component({
-   selector: "em-cache-monitoring-view",
-   templateUrl: "./cache-monitoring-view.component.html",
-   styleUrls: ["./cache-monitoring-view.component.scss"]
+    selector: "em-cache-monitoring-view",
+    templateUrl: "./cache-monitoring-view.component.html",
+    styleUrls: ["./cache-monitoring-view.component.scss"],
+    imports: [TableView]
 })
 export class CacheMonitoringViewComponent {
    @Input() dataSource = [];

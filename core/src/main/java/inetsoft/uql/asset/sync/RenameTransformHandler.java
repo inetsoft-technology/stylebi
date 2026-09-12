@@ -21,8 +21,11 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.XPartition;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
+import jakarta.annotation.PreDestroy;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,17 +34,24 @@ import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-@SingletonManager.Singleton(RenameTransformHandler.Reference.class)
+@Service
+@Lazy
 public class RenameTransformHandler implements AutoCloseable {
+   public RenameTransformHandler(Cluster cluster, DependencyStorageService dependencyStorageService) {
+      this.cluster = cluster;
+      this.dependencyStorageService = dependencyStorageService;
+   }
+
    /**
     * Gets the shared instance of the RenameTransformHandler.
     *
     * @return the rename transform handler.
     */
    public static RenameTransformHandler getTransformHandler() {
-      return SingletonManager.getInstance(RenameTransformHandler.class);
+      return ConfigurationContext.getContext().getSpringBean(RenameTransformHandler.class);
    }
 
+   @PreDestroy
    @Override
    public synchronized void close() throws Exception {
    }
@@ -71,8 +81,6 @@ public class RenameTransformHandler implements AutoCloseable {
 
    public void addExtendPartitionsTransformTask(XPartition partition, RenameInfo rinfo) {
       String[] children = partition.getPartitionNames();
-      DependencyStorageService service = DependencyStorageService.getInstance();
-
       for(String child : children) {
          String nChildPath = Tool.buildString(rinfo.getNewName(), "^", child);
          String oChildPath = Tool.buildString(rinfo.getOldName(), "^", child);
@@ -80,7 +88,7 @@ public class RenameTransformHandler implements AutoCloseable {
          addTransformTask(childInfo);
          String oldKey = DependencyTransformer.getOldKey(childInfo);
          String newKey = DependencyTransformer.getKey(childInfo, false);
-         service.rename(oldKey, newKey, rinfo.getOrganizationId());
+         dependencyStorageService.rename(oldKey, newKey, rinfo.getOrganizationId());
       }
 
       addTransformTask(rinfo);
@@ -144,10 +152,8 @@ public class RenameTransformHandler implements AutoCloseable {
     */
    @SuppressWarnings({ "unused", "BusyWait" })
    public void waitUntilRenameFinished() {
-      DependencyStorageService service = DependencyStorageService.getInstance();
-
       try {
-         while(!service.getQueue().isEmpty()) {
+         while(!dependencyStorageService.getQueue().isEmpty()) {
             try {
                Thread.sleep(5000L);
             }
@@ -162,32 +168,8 @@ public class RenameTransformHandler implements AutoCloseable {
       }
    }
 
-   private final Cluster cluster = Cluster.getInstance();
+   private final Cluster cluster;
+   private final DependencyStorageService dependencyStorageService;
    private static final Logger LOG = LoggerFactory.getLogger(RenameTransformHandler.class);
 
-   public static final class Reference extends SingletonManager.Reference<RenameTransformHandler> {
-      @Override
-      public RenameTransformHandler get(Object... parameters) {
-         if(renameTransformHandler == null) {
-            renameTransformHandler = new RenameTransformHandler();
-         }
-
-         return renameTransformHandler;
-      }
-
-      @Override
-      public void dispose() {
-         if(renameTransformHandler != null) {
-            try {
-               renameTransformHandler.close();
-               renameTransformHandler = null;
-            }
-            catch(Exception e) {
-               throw new RuntimeException("Failed to close the RenameTransformHandler", e);
-            }
-         }
-      }
-
-      private RenameTransformHandler renameTransformHandler;
-   }
 }

@@ -24,7 +24,7 @@ import {
 import {
    SqlQueryDialogController
 } from "../../../../../../../widget/dialog/sql-query-dialog/sql-query-dialog-controller";
-import {
+import type {
    SQLQueryDialog
 } from "../../../../../../../widget/dialog/sql-query-dialog/sql-query-dialog.component";
 import { ModelService } from "../../../../../../../widget/services/model.service";
@@ -38,9 +38,10 @@ import { Tool } from "../../../../../../../../../../shared/util/tool";
 import { SqlQueryDialogModel } from "../../../../../../../composer/data/ws/sql-query-dialog-model";
 
 @Component({
-   selector: "vpm-subquery-editor",
-   templateUrl: "./vpm-subquery-editor.component.html",
-   styleUrls: ["./vpm-subquery-editor.component.scss"]
+    selector: "vpm-subquery-editor",
+    templateUrl: "./vpm-subquery-editor.component.html",
+    styleUrls: ["./vpm-subquery-editor.component.scss"],
+    standalone: true
 })
 export class VpmSubqueryEditorComponent implements OnInit {
    @Input() isWSQuery: boolean;
@@ -82,7 +83,7 @@ export class VpmSubqueryEditorComponent implements OnInit {
       this.setupModel();
    }
 
-   editSubQuery() {
+   async editSubQuery() {
       this.setupModel();
 
       const modalOptions: SlideOutOptions = {
@@ -91,10 +92,11 @@ export class VpmSubqueryEditorComponent implements OnInit {
          keyboard: false
       };
 
+      const { SQLQueryDialog } = await import("../../../../../../../widget/dialog/sql-query-dialog/sql-query-dialog.component");
       const dialog = ComponentTool.showDialog(this.modalService, SQLQueryDialog, (result: any) => {
          this._model.query = Tool.clone(<SqlQueryDialogModel> result.model);
          this.valueChange.emit(this._model.query);
-      }, modalOptions);
+      }, modalOptions) as SQLQueryDialog;
 
       dialog.controller = this.subSqlQueryController;
       dialog.applyVisible = false;

@@ -29,8 +29,11 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XPrincipal;
+import inetsoft.util.ShutdownException;
 import inetsoft.util.ThreadContext;
 import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.file.*;
@@ -40,6 +43,7 @@ import java.util.stream.Stream;
 import java.util.zip.*;
 
 public abstract class AbstractStorageTransfer implements StorageTransfer {
+   private static final Logger LOG = LoggerFactory.getLogger(AbstractStorageTransfer.class);
 
    @Override
    public final void exportContents(OutputStream output) throws IOException {
@@ -123,10 +127,15 @@ public abstract class AbstractStorageTransfer implements StorageTransfer {
       Principal oPrincipal = ThreadContext.getPrincipal();
 
       if(oPrincipal == null) {
-         IdentityID tempPID = new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID());
-         XPrincipal tempPrincipal = new XPrincipal(tempPID, new IdentityID[0], new String[0],
-                                                   Organization.getDefaultOrganizationID());
-         ThreadContext.setPrincipal(tempPrincipal);
+         try {
+            IdentityID tempPID = new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID());
+            XPrincipal tempPrincipal = new XPrincipal(tempPID, new IdentityID[0], new String[0],
+                                                      Organization.getDefaultOrganizationID());
+            ThreadContext.setPrincipal(tempPrincipal);
+         }
+         catch(ShutdownException e) {
+            LOG.debug("Spring context not available during storage import; proceeding without session principal", e);
+         }
       }
 
       try(ZipFile zip = new ZipFile(file.toFile(), ZipFile.OPEN_READ)) {

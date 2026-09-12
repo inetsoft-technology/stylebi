@@ -19,7 +19,7 @@ import {
    Component, OnInit, OnDestroy, DoCheck, ViewChild, TemplateRef, HostListener
 } from "@angular/core";
 import { CanComponentDeactivate } from "../../../../../../../../shared/util/guard/can-component-deactivate";
-import { Observable, of, Subscription } from "rxjs";
+import { EMPTY, Observable, of, Subject, Subscription } from "rxjs";
 import { NotificationData } from "../../../../../widget/repository-tree/repository-tree.service";
 import { SplitPane } from "../../../../../widget/split-pane/split-pane.component";
 import { PhysicalTableAliasesDialog } from "../../../../dialog/physical-table-aliases-dialog/physical-table-aliases-dialog.component";
@@ -37,7 +37,7 @@ import { NameChangeModel } from "../../../model/name-change-model";
 import { NotificationsComponent } from "../../../../../widget/notifications/notifications.component";
 import { DatabaseTreeNodeModel } from "../../../model/datasources/database/physical-model/database-tree-node-model";
 import { PhysicalModelTreeNodeModel } from "../../../model/datasources/database/physical-model/physical-model-tree-node-model";
-import { tap } from "rxjs/operators";
+import { catchError, concatMap, tap } from "rxjs/operators";
 import { PhysicalTableType } from "../../../model/datasources/database/physical-model/physical-table-type.enum";
 import { FolderChangeModel } from "../../../model/folder-change-model";
 import { AddPhysicalModelEvent } from "../../../model/datasources/database/events/add-physical-model-event";
@@ -45,8 +45,8 @@ import { ModifyPhysicalModelEvent } from "../../../model/datasources/database/ev
 import { ToolbarAction } from "../../../../../widget/toolbar/toolbar-action";
 import { PhysicalModelTableTreeComponent } from "./physical-model-table-tree/physical-model-table-tree.component";
 import { ComponentTool } from "../../../../../common/util/component-tool";
-import { ValidatorFn } from "@angular/forms";
-import { ValidatorMessageInfo } from "../../../../../widget/dialog/input-name-dialog/input-name-dialog.component";
+import { ValidatorFn, FormsModule } from "@angular/forms";
+import { ValidatorMessageInfo, InputNameDialog } from "../../../../../widget/dialog/input-name-dialog/input-name-dialog.component";
 import { InlineViewDialogModel } from "../../../../dialog/inline-view-dialog/inline-view-dialog-model";
 import { GuiTool } from "../../../../../common/util/gui-tool";
 import { EditTableEvent } from "../../../model/datasources/database/events/edit-table-event";
@@ -61,6 +61,14 @@ import { DatabaseTreeNodeType } from "../../../model/datasources/database/databa
 import { AssetEntryHelper } from "../../../../../common/data/asset-entry-helper";
 import { GraphViewModel } from "../../../model/datasources/database/physical-model/graph/graph-view-model";
 import { GraphNodeModel } from "../../../model/datasources/database/physical-model/graph/graph-node-model";
+import { AutoJoinTablesDialog } from "../../../../dialog/auto-join-tables-dialog/auto-join-tables-dialog.component";
+import { InlineViewDialog } from "../../../../dialog/inline-view-dialog/inline-view-dialog.component";
+import { PhysicalStatusBarComponent } from "./physical-status-bar.component";
+import { PhysicalGraphPane } from "./physical-graph-pane/physical-graph-pane.component";
+import { PhysicalModelEditTableComponent } from "./physical-model-edit-table/physical-model-edit-table.component";
+import { LoadingIndicatorPaneComponent } from "../common-components/loading-indicator-pane/loading-indicator-pane.component";
+import { AutoCollapseToolbarComponent } from "../../../../../widget/toolbar/auto-collapse-toolbar/auto-collapse-toolbar.component";
+
 
 const PHYSICAL_MODELS_INLINE_VIEW_URI: string = "../api/data/physicalmodel/inlineView/";
 const PHYSICAL_MODELS_ALIAS_URI: string = "../api/data/physicalmodel/alias/";
@@ -75,9 +83,10 @@ const DESTROY_MODEL_URI: string = "../api/data/physicalmodel/destroy";
 const HEARTBEAT_MODEL_URI: string = "../api/data/physicalmodel/heartbeat";
 
 @Component({
-   selector: "database-physical-model",
-   templateUrl: "database-physical-model.component.html",
-   styleUrls: ["database-model-pane.scss", "database-physical-model.component.scss"]
+    selector: "database-physical-model",
+    templateUrl: "database-physical-model.component.html",
+    styleUrls: ["database-model-pane.scss", "database-physical-model.component.scss"],
+    imports: [SplitPane, AutoCollapseToolbarComponent, FormsModule, PhysicalModelTableTreeComponent, LoadingIndicatorPaneComponent, PhysicalModelEditTableComponent, PhysicalGraphPane, PhysicalStatusBarComponent, InputNameDialog, InlineViewDialog, AutoJoinTablesDialog, NotificationsComponent]
 })
 export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestroy, CanComponentDeactivate {
    @ViewChild("splitPane") splitPane: SplitPane;
@@ -122,6 +131,13 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
    readonly INIT_TREE_PANE_SIZE = 35;
    treePaneSize: number = this.INIT_TREE_PANE_SIZE;
    private subscription: Subscription;
+   // Serializes table/add and table/remove requests: the server does a read-modify-write
+   // on the cached runtime partition, so firing requests concurrently (e.g. quickly
+   // checking/unchecking several tables in the schema tree) risks one edit overwriting
+   // another.
+   private tableEditQueue: Subject<{action: "add" | "remove", event: EditTableEvent, node?: TreeNodeModel}>
+      = new Subject();
+   private tableEditQueueSubscription: Subscription;
    loadingTree: boolean = false;
    private graphViewModel: GraphViewModel;
    selectedGraphModels: GraphModel[] = [];
@@ -223,6 +239,40 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
    }
 
    ngOnInit(): void {
+      this.tableEditQueueSubscription = this.tableEditQueue
+         .pipe(concatMap(({action, event, node}) =>
+            this.httpClient.post<PhysicalModelDefinition>(PHYSICAL_MODEL_TABLE_URI + action, event)
+               .pipe(
+                  tap(() => {
+                     if(action === "remove" && !!node) {
+                        const index = this.tableTree.selectedNodes.indexOf(node);
+
+                        if(index >= 0) {
+                           this.tableTree.selectedNodes.splice(index, 1);
+                        }
+                     }
+                  }),
+                  // an error here must not terminate the queue subscription, or every
+                  // subsequent table edit for the rest of the session would silently no-op.
+                  // revert the checkbox state and notify the user so the discrepancy
+                  // between the tree and the model doesn't go unnoticed.
+                  catchError(error => {
+                     if(action === "add" && !!event.node) {
+                        event.node.selected = false;
+                     }
+                     else if(action === "remove" && !!node?.data) {
+                        (<PhysicalModelTreeNodeModel> node.data).selected = true;
+                     }
+
+                     ComponentTool.showHttpError(
+                        action === "add" ? "Failed to add table" : "Failed to remove table",
+                        error, this.modalService);
+
+                     return EMPTY;
+                  })
+               )))
+         .subscribe(() => this.dataPhysicalModelService.emitModelChange());
+
       // subscribe to route parameters and update current database model
       this.routeParamSubscription = this.route.paramMap
          .subscribe((params: ParamMap) => {
@@ -306,9 +356,8 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
       node.children.forEach(child => this.refreshTreeSelectStatus(child));
    }
 
-   private refreshLeafNodeSelectStatus(node: TreeNodeModel) {
-      const childData: PhysicalModelTreeNodeModel = <PhysicalModelTreeNodeModel> node.data;
-      let findTable = this.physicalModel.tables
+   private findMatchingTable(childData: PhysicalModelTreeNodeModel): PhysicalTableModel {
+      return this.physicalModel.tables
          .find((table) => {
             if(!table.alias) {
                return this.getTablePath(table) == childData.path;
@@ -318,6 +367,11 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
                   this.databaseName + "/" + (table.alias || table.name) == childData.path;
             }
          });
+   }
+
+   private refreshLeafNodeSelectStatus(node: TreeNodeModel) {
+      const childData: PhysicalModelTreeNodeModel = <PhysicalModelTreeNodeModel> node.data;
+      let findTable = this.findMatchingTable(childData);
 
       if(findTable) {
          childData.selected = true;
@@ -808,7 +862,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
                               callback();
                            }
 
-                           this.warning == data;
+                           this.warning = data;
                         });
                   }
                   else {
@@ -959,8 +1013,8 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
          const newTable: PhysicalTableModel = this.createPhysicalTableModel(nodeData);
          let event: EditTableEvent = new EditTableEvent(this.physicalModel.id, newTable,
             null, nodeData);
-         this.httpClient.post<PhysicalModelDefinition>(PHYSICAL_MODEL_TABLE_URI + "add", event)
-            .subscribe(() => this.dataPhysicalModelService.emitModelChange());
+         // queued (not posted directly) so rapid successive add/remove requests don't race
+         this.tableEditQueue.next({action: "add", event});
 
          if(this.tableTree.selectedNodes?.length == 1 &&  this.tableTree.selectedNodes[0] == node) {
             this.editingTable = newTable;
@@ -1104,7 +1158,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
             let duplicate: boolean = table.qualifiedName == name || table.alias == name;
 
             if(!duplicate) {
-               duplicate = table.autoAliases.some(alias => alias.selected && alias.alias == name);
+               duplicate = table.autoAliases?.some(alias => alias.selected && alias.alias == name) ?? false;
             }
 
             return duplicate;
@@ -1148,16 +1202,8 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
       if(!!removeTable) {
          let event: EditTableEvent = new EditTableEvent(this.physicalModel.id,
             removeTable);
-         this.httpClient.post<PhysicalModelDefinition>(PHYSICAL_MODEL_TABLE_URI + "remove", event)
-            .subscribe(() => {
-               let index = this.tableTree.selectedNodes.indexOf(node);
-
-               if(index >= 0) {
-                  this.tableTree.selectedNodes.splice(index, 1);
-               }
-
-               this.dataPhysicalModelService.emitModelChange();
-            });
+         // queued (not posted directly) so rapid successive add/remove requests don't race
+         this.tableEditQueue.next({action: "remove", event, node});
       }
 
       // if node is sql or inline view, remove from tree
@@ -1252,8 +1298,12 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
    keepSelectedNodes(node: TreeNodeModel) {
       if(node.leaf) {
          const childData: PhysicalModelTreeNodeModel = <PhysicalModelTreeNodeModel> node.data;
-         childData.selected = this.physicalModel.tables
-            .some(table => table.path == childData.path);
+         const findTable = this.findMatchingTable(childData);
+         childData.selected = !!findTable;
+
+         if(findTable) {
+            childData.baseTable = findTable.baseTable;
+         }
       }
       else {
          if(node.children && node.children.length > 0) {
@@ -1314,6 +1364,11 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
       if(!!this.subscription) {
          this.subscription.unsubscribe();
          this.subscription = null;
+      }
+
+      if(!!this.tableEditQueueSubscription) {
+         this.tableEditQueueSubscription.unsubscribe();
+         this.tableEditQueueSubscription = null;
       }
 
       clearInterval(this.heartbeatIntervalId);
@@ -1379,7 +1434,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
          if(paths.includes(childPath)) {
             this.tableTree.selectNode(child);
          }
-         else if(paths.some(p => p.indexOf(childPath + "/") === 0)) {
+         else if(paths.some(p => !!p && p.indexOf(childPath + "/") === 0)) {
             child.expanded = true;
 
             if(child.children.length == 0) {
@@ -1433,7 +1488,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
 
    @HostListener("keydown", ["$event"])
    onKeyDown(event: KeyboardEvent): void {
-      if(event.ctrlKey && event.key == "s") {
+      if(event.ctrlKey && event.key?.toLowerCase() == "s" && this.isModified && !this.joinEditing) {
          event.stopPropagation();
          event.preventDefault();
          this.save();
@@ -1467,7 +1522,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
 
       let contextmenu: ActionsContextmenuComponent =
          this.dropdownService.open(ActionsContextmenuComponent, options).componentInstance;
-      contextmenu.sourceEvent = event[0];
+      contextmenu.sourceEvent = event.event;
       contextmenu.actions = this.createTableActions(event.node);
    }
 

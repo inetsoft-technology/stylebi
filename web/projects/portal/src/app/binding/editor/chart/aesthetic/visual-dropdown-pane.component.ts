@@ -20,10 +20,28 @@ import { GraphTypes } from "../../../../common/graph-types";
 import { ChartAggregateRef } from "../../../data/chart/chart-aggregate-ref";
 import { ChartBindingModel } from "../../../data/chart/chart-binding-model";
 import { GraphUtil } from "../../../util/graph-util";
+import { CombinedSizePane } from "./combined-size-pane.component";
+import { BindingSizePane } from "./binding-size-pane.component";
+import { StaticSizePane } from "./static-size-pane.component";
+import { LinearTexturePane } from "./linear-texture-pane.component";
+import { LinearLinePane } from "./linear-line-pane.component";
+import { StaticLinePane } from "./static-line-pane.component";
+import { StaticTexturePane } from "./static-texture-pane.component";
+import { LinearShapePane } from "./linear-shape-pane.component";
+import { CategoricalShapePane } from "./categorical-shape-pane.component";
+import { CombinedShapePane } from "./combined-shape-pane.component";
+import { StaticShapePane } from "./static-shape-pane.component";
+import { LinearColorPane } from "./linear-color-pane.component";
+import { CategoricalColorPane } from "./categorical-color-pane.component";
+import { CombinedColorPane } from "./combined-color-pane.component";
+import { StaticColorPane } from "./static-color-pane.component";
+import { NgIf, NgSwitch, NgSwitchCase } from "@angular/common";
 
 @Component({
-   selector: "visual-dropdown-pane",
-   templateUrl: "visual-dropdown-pane.component.html"
+    selector: "visual-dropdown-pane",
+    templateUrl: "visual-dropdown-pane.component.html",
+    standalone: true,
+    imports: [NgIf, NgSwitch, NgSwitchCase, StaticColorPane, CombinedColorPane, CategoricalColorPane, LinearColorPane, StaticShapePane, CombinedShapePane, CategoricalShapePane, LinearShapePane, StaticTexturePane, StaticLinePane, LinearLinePane, LinearTexturePane, StaticSizePane, BindingSizePane, CombinedSizePane]
 })
 export class VisualDropdownPane {
    @Input() aggr: ChartAggregateRef;

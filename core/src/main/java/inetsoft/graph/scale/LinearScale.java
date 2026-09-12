@@ -112,10 +112,17 @@ public class LinearScale extends Scale {
       double[] pair = calc.calculate(data, cols, getGraphDataSelector());
 
       // NaN signals no column data was found in this subset (e.g. a facet cell that has
-      // dataset rows but none for this particular measure). Skip the merge entirely so
-      // empty cells don't contaminate the shared min/max across the facet.
+      // dataset rows but none for this particular measure). When the scale has already been
+      // initialized with real data from other init() calls, skip the merge so empty cells
+      // don't contaminate the shared min/max across facet cells. However, if the scale is
+      // completely uninitialized (no real data seen yet), fall through with pair={0,0} so
+      // the [0,0]→[0,1] guard below gives the axis a usable default range — this preserves
+      // the prior behavior for measures like DC change values whose rows are all null. (74526)
       if(Double.isNaN(pair[0]) || Double.isNaN(pair[1])) {
-         return;
+         if(minc.get() != null || maxc.get() != null) {
+            return;
+         }
+         pair = new double[]{0, 0};
       }
 
       // use explicitly set min

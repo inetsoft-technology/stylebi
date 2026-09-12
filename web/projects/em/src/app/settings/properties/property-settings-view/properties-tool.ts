@@ -30,9 +30,9 @@ export namespace PropertiesTool {
    export const booleanProperties = [
       "adhoc.section.table", "anonymous.userdata.save", "bigDecimal.as.double",
       "dashboard.tabs.top", "db.caseSensitive",
-      "empty.crosstab.convert", "enable.changePassword", "excel.vs.export.grid.show",
+      "enable.changePassword", "excel.vs.export.grid.show",
       "font.preload", "format.auto.downgrade", "fs.desktop", "graph.axis.inplot",
-      "graph.script.action.support", "html.close.button", "html.image.scale",
+      "graph.script.action.support",
       "htmlpresenter.fitline", "hyperlink.indicator", "image.antialias",
       "image.filtered", "image.png.alpha", "mail.ssl", "log.output.stderr",
       "mail.smtp.auth", "map.selection.enabled", "mv.detail.data",
@@ -40,16 +40,16 @@ export namespace PropertiesTool {
       "olap.table.originalContent", "output.null.to.zero", "pdf.compress.image",
       "pdf.compress.text", "pdf.embed.cmap", "pdf.embed.font", "pdf.generate.links",
       "pdf.map.symbols", "pdf.open.bookmark", "pdf.open.thumbnail", "pdf.output.ascii",
-      "pdf.text.avoidoverlap", "portal.history.bar", "query.aggregate.merge",
+      "pdf.text.avoidoverlap", "portal.history.bar",
       "query.cache.data", "query.variable.unique", "remove.outerJoin.only", "replet.cache.clean",
       "dashboard.mydashboard.disabled", "replet.optimize.network", "replet.streaming",
       "report.stringwidth.fontmetrics", "repository.audit.enabled",
       "repository.tree.sort.pathOnly", "rmi.localhost.ip", "rtf.hyperlink.indicator", "rtf.merge.text",
       "schedule.auto.down", "schedule.auto.start", "schedule.reload.auto", "schedule.test.hook",
       "scheduler.restart.auto", "security.cache", "sort.crosstab.aggregate",
-      "sort.crosstab.dimension", "sree.find.backward", "string.compare.casesensitive",
-      "text.break.pages", "text.encoding.utf8", "vs.import.button", "vs.form.enabled",
-      "schedule.time.12hours", "portal.customLogo.enabled", "calendar.dateCompare.enabled"
+      "sort.crosstab.dimension", "string.compare.casesensitive",
+      "text.encoding.utf8", "vs.import.button", "vs.form.enabled",
+      "schedule.time.12hours", "calendar.dateCompare.enabled"
    ];
 
    export const boolean_options = [

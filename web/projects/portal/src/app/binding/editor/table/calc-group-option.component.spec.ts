@@ -17,30 +17,31 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component, ViewChild } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { of as observableOf } from "rxjs";
 import { AggregateRef } from "../../../common/data/aggregate-ref";
 import { Rectangle } from "../../../common/data/rectangle";
 import { CalcTableCell } from "../../../common/data/tablelayout/calc-table-cell";
 import { CalcTableLayout } from "../../../common/data/tablelayout/calc-table-layout";
 import { CalcTableRow } from "../../../common/data/tablelayout/calc-table-row";
 import { XSchema } from "../../../common/data/xschema";
+import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
 import { TestUtils } from "../../../common/test/test-utils";
 import { StyleConstants } from "../../../common/util/style-constants";
 import { XConstants } from "../../../common/util/xconstants";
-import { FixedDropdownComponent } from "../../../widget/fixed-dropdown/fixed-dropdown.component";
 import { CellBindingInfo } from "../../data/table/cell-binding-info";
 import { OrderModel } from "../../data/table/order-model";
 import { TopNModel } from "../../data/table/topn-model";
 import { VSCalcTableEditorService } from "../../services/table/vs-calc-table-editor.service";
 import { CalcGroupOption } from "./calc-group-option.component";
-import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
-import { of as observableOf } from "rxjs";
 
 @Component({
+   standalone: true,
    selector: "test-app",
+   imports: [CalcGroupOption],
    template: `
      <calc-group-option [cellBinding]="cellBinding"
                         [aggregates]="aggregates" [field]="field"></calc-group-option>`
@@ -134,25 +135,25 @@ let createMockAggregateRef: (name: string) => AggregateRef = (name: string) => {
 describe("Calc Group Option Unit Test", () => {
    let calcTableLayout: CalcTableLayout = createMockCalcTableLayout();
    let editorService: any = {
-      getTableLayout: jest.fn(),
+      getTableLayout: vi.fn(),
       namedGroups: null
    };
-   let dateLevelExamplesService = {loadDateLevelExamples: jest.fn(() => observableOf())};
+   let dateLevelExamplesService = {loadDateLevelExamples: vi.fn(() => observableOf())};
    let fixture: ComponentFixture<CalcGroupOption>;
    let comp: CalcGroupOption;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       editorService.getTableLayout.mockImplementation(() => calcTableLayout);
 
       TestBed.configureTestingModule({
          imports: [
             FormsModule,
             NgbModule,
-            HttpClientTestingModule
+            HttpClientTestingModule,
+            CalcGroupOption,
+            TestApp,
          ],
-         declarations: [
-            CalcGroupOption, TestApp
-         ], // declare the test component
+          // declare the test component
          providers: [
             {provide: VSCalcTableEditorService, useValue: editorService},
             {provide: DateLevelExamplesService, useValue: dateLevelExamplesService},
@@ -289,7 +290,7 @@ describe("Calc Group Option Unit Test", () => {
       });
    });
 
-   xit("Test date level select combobox load", () => {
+   it.skip("Test date level select combobox load", () => {
       fixture = TestBed.createComponent(CalcGroupOption);
       comp = <CalcGroupOption>fixture.componentInstance;
       comp.cellBinding = <CellBindingInfo> {

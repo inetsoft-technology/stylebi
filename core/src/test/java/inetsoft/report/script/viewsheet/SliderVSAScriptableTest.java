@@ -19,18 +19,29 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.SliderVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.LabelInfo;
 import inetsoft.uql.viewsheet.internal.SliderVSAssemblyInfo;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class SliderVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private SliderVSAScriptable sliderVSAScriptable;
@@ -68,16 +79,16 @@ public class SliderVSAScriptableTest {
    void testAddProperties() {
       sliderVSAScriptable.addProperties();
 
-      assertEquals("0.0", sliderVSAScriptable.get("min", sliderVSAScriptable));
-      assertEquals("100.0", sliderVSAScriptable.get("max", sliderVSAScriptable));
+      assertEquals("0.0", sliderVSAScriptable.getMember("min"));
+      assertEquals("100.0", sliderVSAScriptable.getMember("max"));
       assertEquals(Double.parseDouble("20.0"),
-                   sliderVSAScriptable.get("increment", sliderVSAScriptable));
+                   sliderVSAScriptable.getMember("increment"));
 
       String[] keys = {"minVisible", "maxVisible", "tickVisible",
                        "currentVisible", "labelVisible", "tickLabelVisible", "snap"};
 
       for (String key : keys) {
-         assert sliderVSAScriptable.get(key, null) instanceof Boolean;
+         assert sliderVSAScriptable.getMember(key) instanceof Boolean;
       }
    }
 
@@ -107,12 +118,12 @@ public class SliderVSAScriptableTest {
 
       // labelVisible should control the component label (LabelInfo), not tick labels
       assertFalse(labelInfo.isLabelVisible());
-      sliderVSAScriptable.put("labelVisible", sliderVSAScriptable, true);
+      sliderVSAScriptable.putMember("labelVisible", true);
       assertTrue(labelInfo.isLabelVisible());
 
       // tickLabelVisible should control the tick labels (SliderVSAssemblyInfo)
       assertTrue(sliderVSAssemblyInfo.isLabelVisible());
-      sliderVSAScriptable.put("tickLabelVisible", sliderVSAScriptable, false);
+      sliderVSAScriptable.putMember("tickLabelVisible", false);
       assertFalse(sliderVSAssemblyInfo.isLabelVisible());
    }
 

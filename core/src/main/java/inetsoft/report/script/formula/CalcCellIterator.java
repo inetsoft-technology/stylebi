@@ -18,7 +18,7 @@
 package inetsoft.report.script.formula;
 
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 
 import java.awt.*;
 
@@ -56,7 +56,7 @@ class CalcCellIterator extends CellIterator {
     * Get the value of the current cell.
     */
    @Override
-   public Object getValue(Scriptable scope) {
+   public Object getValue(ScriptScope scope) {
       return calc.getObject(locs[idx].y, locs[idx].x);
    }
    
@@ -64,7 +64,7 @@ class CalcCellIterator extends CellIterator {
     * Get the evaluation scope of the current cell.
     */
    @Override
-   public Scriptable getScope() {
+   public ScriptScope getScope() {
       Point loc = locs[idx];
       
       if(scope == null) {

@@ -18,7 +18,8 @@
 import { Directive, Input, Output, EventEmitter, ElementRef, AfterViewInit } from "@angular/core";
 
 @Directive({
-   selector: "[touchScroll]"
+    selector: "[touchScroll]",
+    standalone: true
 })
 export class TouchScrollDirective implements AfterViewInit {
    @Input() touchScrollEnabled: boolean = true;

@@ -16,12 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from "@angular/core";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "datasource-search",
-   templateUrl: "datasource-search.component.html",
-   styleUrls: ["datasource-search.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "datasource-search",
+    templateUrl: "datasource-search.component.html",
+    styleUrls: ["datasource-search.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [FormsModule]
 })
 export class DatasourceSearchComponent {
    @Input() searchString: string;

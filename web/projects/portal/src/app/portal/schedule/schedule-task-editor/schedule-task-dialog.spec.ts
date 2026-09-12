@@ -15,13 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { AsyncPipe, NgClass, NgFor, NgIf, NgStyle } from "@angular/common";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { HttpClient } from "@angular/common/http";
 import { Component, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { BehaviorSubject, Subject } from "rxjs";
+import { ScheduleTaskDialogModel } from "../../../../../../shared/schedule/model/schedule-task-dialog-model";
 import { ScheduleTaskNamesService } from "../../../../../../shared/schedule/schedule-task-names.service";
 import { TestUtils } from "../../../common/test/test-utils";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
@@ -36,20 +39,31 @@ import { ScheduleTaskDialog } from "./schedule-task-dialog.component";
 
 @Component({
    selector: "test-app",
-   template: `<schedule-task-dialog [model]="model"></schedule-task-dialog>`
+   template: `<schedule-task-dialog [model]="model"></schedule-task-dialog>`,
+   standalone: true,
+   imports: [ScheduleTaskDialog]
 })
 class TestApp {
    @ViewChild(ScheduleTaskDialog, {static: false}) scheduleTaskDialog: ScheduleTaskDialog;
-   model = {
+   model: ScheduleTaskDialogModel = {
+      internalTask: false,
+      startTimeEnabled: false,
+      taskDefaultTime: false,
+      timeRangeEnabled: false,
+      timeRanges: [],
       name: "",
       label: "",
       timeZone: "",
       taskActionPaneModel: null,
       taskConditionPaneModel: {
-         conditions: [{taskName: "Task1", conditionType: "CompletionCondition", label: "TimeCondition: 01:30:00, every 1 day(s)"}],
+         conditions: [{
+            conditionType: "CompletionCondition",
+            label: "TimeCondition: 01:30:00, every 1 day(s)"
+         }],
          userDefinedClasses: [],
          userDefinedClassLabels: [],
-         allTasks: ["Task1", "Task2", "Task3"]
+         timeProp: "",
+         twelveHourSystem: false
       },
       taskOptionsPaneModel: null
       };
@@ -59,31 +73,40 @@ describe("Schedule Task Dialog Unit Test", () => {
    let fixture: ComponentFixture<TestApp>;
    let scheduleTaskDialog: ScheduleTaskDialog;
 
-   let httpService = { get: jest.fn(), post: jest.fn() };
+   let httpService = { get: vi.fn(), post: vi.fn() };
    let responseObservable = new BehaviorSubject(new Subject());
    httpService.get.mockImplementation(() => responseObservable);
    httpService.post.mockImplementation(() => responseObservable);
 
-   let scheduleTaskNamesService: any = { getAllTasks: jest.fn() };
+   let scheduleTaskNamesService: any = { getAllTasks: vi.fn() };
    let allTasksObservable = new BehaviorSubject([]);
    scheduleTaskNamesService.getAllTasks.mockImplementation(() => allTasksObservable);
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            TestApp,
+            ReplaceAllPipe,
+            ScheduleTaskDialog,
+            TaskActionPane,
+            TaskConditionPane,
+            TaskOptionsPane,
+            EnterSubmitDirective,
+            ParameterTable,
+            EditableTableComponent,
+            AddParameterDialog,
          ],
-         declarations: [
-            TestApp, ReplaceAllPipe, ScheduleTaskDialog, TaskActionPane, TaskConditionPane,
-            TaskOptionsPane, EnterSubmitDirective, ParameterTable, EditableTableComponent,
-            AddParameterDialog
-         ],
+         
          providers: [
             { provide: HttpClient, useValue: httpService },
-            { provide: ScheduleTaskNamesService, useValue: scheduleTaskNamesService },
+            ScheduleTaskNamesService
          ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });
+      TestBed.overrideComponent(ScheduleTaskDialog, { set: { imports: [NgIf, NgFor, NgClass, NgStyle, AsyncPipe, FormsModule, ReactiveFormsModule, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet] } });
       TestBed.compileComponents();
 
       fixture = TestBed.createComponent(TestApp);

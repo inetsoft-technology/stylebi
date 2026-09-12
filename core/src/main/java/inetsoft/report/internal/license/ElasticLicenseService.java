@@ -18,11 +18,10 @@
 
 package inetsoft.report.internal.license;
 
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
 
 import java.util.*;
 
-@SingletonManager.Singleton(ElasticLicenseService.Reference.class)
 public interface ElasticLicenseService {
    long getRemainingHours(License license);
 
@@ -37,7 +36,7 @@ public interface ElasticLicenseService {
    void removeNotificationListener(NotificationListener listener);
 
    static ElasticLicenseService getInstance() {
-      return SingletonManager.getInstance(ElasticLicenseService.class);
+      return ConfigurationContext.getContext().getSpringBean(ElasticLicenseService.class);
    }
 
    final class NotificationEvent extends EventObject {
@@ -59,34 +58,4 @@ public interface ElasticLicenseService {
       void onHoursAdded(NotificationEvent event);
    }
 
-   final class Reference extends SingletonManager.Reference<ElasticLicenseService> {
-      @Override
-      public ElasticLicenseService get(Object... parameters) {
-         if(instance == null) {
-            try {
-               instance = ServiceLoader.load(ElasticLicenseService.class).iterator().next();
-            }
-            catch(Exception e) {
-               instance = new NoopElasticLicenseService();
-            }
-         }
-
-         return instance;
-      }
-
-      @Override
-      public void dispose() {
-         if(instance instanceof AutoCloseable closeable) {
-            try {
-               closeable.close();
-            }
-            catch(Exception ignore) {
-            }
-         }
-
-         instance = null;
-      }
-
-      private ElasticLicenseService instance;
-   }
 }

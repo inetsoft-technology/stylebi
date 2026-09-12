@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { CommonModule } from "@angular/common";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -61,16 +61,14 @@ let createModel: () => AxisLinePaneModel = () => {
 describe("AxisLinePane Unit Tests", () => {
    let fixture: ComponentFixture<AxisLinePane>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             CommonModule,
             NgbModule,
             FormsModule,
             ReactiveFormsModule,
-            DropDownTestModule
-         ],
-         declarations: [
+            DropDownTestModule,
             AxisLinePane,
             ActionsContextmenuAnchorDirective,
             ColorEditor,
@@ -83,8 +81,9 @@ describe("AxisLinePane Unit Tests", () => {
             ColorSlider,
             ColorComponentEditor,
             ColorPane,
-            FixedDropdownDirective
+            FixedDropdownDirective,
          ],
+         
          providers: [
             NgbModal,
             RecentColorService
@@ -98,19 +97,19 @@ describe("AxisLinePane Unit Tests", () => {
    }));
 
    // Bug #10087 Truncate variable does not update
-   it("should toggle truncate variable", (done) => {
+   it("should toggle truncate variable", async () => {
       fixture.componentInstance.linear = false;
       fixture.componentInstance.model.truncate = false;
       fixture.detectChanges();
       let truncateInput: any = fixture.nativeElement.querySelector(
          ".truncate_long_label_id");
-      truncateInput.click();
+      truncateInput.checked = true;
+      truncateInput.dispatchEvent(new Event("change"));
       fixture.detectChanges();
 
-      fixture.whenStable().then(() => {
-         expect(fixture.componentInstance.model.truncate).toBe(true);
-         done();
-      });
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.model.truncate).toBe(true);
    });
 
    // Bug #16369 Use correct checks for axis line pane elements visibility
@@ -152,7 +151,7 @@ describe("AxisLinePane Unit Tests", () => {
    });
 
    // Bug #18322 should disable major increment when logarithmic scale
-   it("should disable major increment when logarithmic scale", (done) => {
+   it("should disable major increment when logarithmic scale", () => new Promise<void>((done) => {
       fixture.componentInstance.linear = true;
       fixture.detectChanges();
 
@@ -161,7 +160,7 @@ describe("AxisLinePane Unit Tests", () => {
          expect(majorIncre.hasAttribute("disabled")).toBeTruthy();
          done();
       });
-   });
+   }));
 
    // Bug #19084 minor increment should not allow negative number
    // Bug #18317 maximum should be greater than minimum

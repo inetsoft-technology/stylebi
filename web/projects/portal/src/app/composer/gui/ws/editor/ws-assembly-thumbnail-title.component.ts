@@ -24,7 +24,7 @@ import {
    NgZone,
    Output
 } from "@angular/core";
-import { UntypedFormControl, ValidationErrors, Validators } from "@angular/forms";
+import { UntypedFormControl, ValidationErrors, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Notification } from "../../../../common/data/notification";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
@@ -34,12 +34,19 @@ import { WSTableAssembly } from "../../../data/ws/ws-table-assembly";
 import { WSTableAssemblyInfo } from "../../../data/ws/ws-table-assembly-info";
 import { WSAssemblyIcon } from "../ws-assembly-icon";
 import { AssemblyActionGroup } from "../../../../common/action/assembly-action-group";
+import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
+import { DefaultFocusDirective } from "../../../../widget/directive/default-focus.directive";
+import { BlockMouseDirective } from "../../../../widget/mouse-event/block-mouse.directive";
+import { InputTrimDirective } from "../../../../widget/directive/input-trim.directive";
+import { MiniMenu } from "../../../../vsobjects/objects/mini-toolbar/mini-menu.component";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "ws-assembly-thumbnail-title",
-   templateUrl: "ws-assembly-thumbnail-title.component.html",
-   styleUrls: ["ws-assembly-thumbnail-title.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "ws-assembly-thumbnail-title",
+    templateUrl: "ws-assembly-thumbnail-title.component.html",
+    styleUrls: ["ws-assembly-thumbnail-title.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [NgClass, MiniMenu, InputTrimDirective, FormsModule, BlockMouseDirective, DefaultFocusDirective, OutOfZoneDirective, ReactiveFormsModule]
 })
 export class WSAssemblyThumbnailTitleComponent {
    @Input() editable: boolean = false;

@@ -28,7 +28,8 @@ import { ClauseValueTypes } from "./clause-value-types";
  *
  */
 @Pipe({
-   name: "clauseToString"
+    name: "clauseToString",
+    standalone: true
 })
 export class ClausePipe implements PipeTransform {
    transform(clause: ClauseModel): string {

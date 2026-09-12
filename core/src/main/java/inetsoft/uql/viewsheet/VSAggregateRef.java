@@ -29,7 +29,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
-import org.mozilla.javascript.FunctionObject;
+import inetsoft.util.script.graal.ScriptFunction;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -1124,8 +1124,8 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
             if(shouldThrow) {
                String message = rtext;
 
-               if(arr[i] != null && arr[i] instanceof FunctionObject) {
-                  message = arr[i].getClass() + ": " + ((FunctionObject) arr[i]).getFunctionName();
+               if(arr[i] instanceof ScriptFunction) {
+                  message = arr[i].getClass().getName();
                }
 
                throw new ColumnNotFoundException(Catalog.getCatalog().getString

@@ -15,15 +15,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-@import '../../../../../../../../node_modules/@angular/material/theming';
+@use '@angular/material' as mat;
 
 @mixin summary-monitoring-chart-view-typography($config) {
   .summary-chart-view {
     .mat-mdc-card {
       .mat-mdc-card-header {
         h5 {
+          // Use subtitle-1 (14px) for the chart title. body-2 is now 12px in
+          // the em typography config, which shrank the title after the M1->M2
+          // typography migration (it previously relied on body-2's 14px default).
           font: {
-            size: mat-font-size($config, body-2);
+            size: mat.m2-font-size($config, subtitle-1);
           }
         }
       }

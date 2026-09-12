@@ -30,9 +30,10 @@ import { DownloadService } from "./download.service";
 import { HttpClient } from "@angular/common/http";
 
 @Component({
-   selector: "dl-download-target",
-   templateUrl: "download-target.component.html",
-   styleUrls: ["download-target.component.scss"]
+    selector: "dl-download-target",
+    templateUrl: "download-target.component.html",
+    styleUrls: ["download-target.component.scss"],
+    standalone: true
 })
 export class DownloadTargetComponent implements OnInit, OnDestroy {
    @Input()  emitError: boolean;

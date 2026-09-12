@@ -28,6 +28,7 @@ import { DateEditor } from "./date-editor.component";
 import { FloatEditor } from "./float-editor.component";
 import { IntegerEditor } from "./integer-editor.component";
 import { TextEditor } from "./text-editor.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 describe("Column option dialog Test", () => {
    const createModel: () => ColumnOptionDialogModel = () => {
@@ -45,12 +46,19 @@ describe("Column option dialog Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            ColumnOptionDialog,
+            TextEditor,
+            DateEditor,
+            ComboBoxEditor,
+            IntegerEditor,
+            FloatEditor,
+            EnterSubmitDirective,
          ],
-         declarations: [
-            ColumnOptionDialog, TextEditor, DateEditor, ComboBoxEditor,
-            IntegerEditor, FloatEditor, EnterSubmitDirective
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA]
       });
       TestBed.compileComponents();
@@ -79,7 +87,7 @@ describe("Column option dialog Test", () => {
 
       expect(okBtn.hasAttribute("disabled")).toBeTruthy();
       expect(warning.textContent).toContain(
-         "_#(viewer.formEditor.minMaxValid) ");
+         "_#(viewer.formEditor.minMaxValid)");
 
       maxDate.value = "2017-10-23";
       maxDate.dispatchEvent(new Event("input"));

@@ -17,8 +17,7 @@
  */
 package inetsoft.report.script;
 
-import inetsoft.util.script.FunctionObject2;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptFunction;
 
 /**
  * Common interface for managing properties.
@@ -35,6 +34,6 @@ public interface BaseScriptable {
    public void addProperty(String name, Object obj);
 
    default void addFunctionProperty(Class cls, String name, Class ...params) {
-      addProperty(name, new FunctionObject2((Scriptable) this, cls, name, params));
+      addProperty(name, new ScriptFunction(this, cls, name, params));
    }
 }

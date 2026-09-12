@@ -59,9 +59,8 @@ public class ScheduleCycleService {
       List<DataCycleInfo> dataCycleInfoList = new ArrayList<>();
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
-      for(DataCycleInfo cycleInfo : schedulerMonitoringService.getCycleInfo()) {
-         if(securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
-                                           getCyclePermissionID(cycleInfo.getName(), orgId), ResourceAction.ACCESS))
+      for(DataCycleInfo cycleInfo : schedulerMonitoringService.getDataCycleInfos()) {
+         if(hasCycleAccess(principal, cycleInfo.getName(), orgId))
          {
             dataCycleInfoList.add(cycleInfo);
          }
@@ -70,6 +69,17 @@ public class ScheduleCycleService {
       return DataCycleListModel.builder()
          .cycles(dataCycleInfoList)
          .build();
+   }
+
+   private boolean hasCycleAccess(Principal principal, String cycleName, String orgId) {
+      SecurityProvider provider = securityEngine.getSecurityProvider();
+      String permissionId = getCyclePermissionID(cycleName, orgId);
+
+      // A missing security provider means security is disabled, so cycles are unfiltered.
+      return provider == null || provider.checkPermission(
+         principal, ResourceType.SCHEDULE_CYCLE, permissionId, ResourceAction.ACCESS) ||
+         provider.checkPermission(
+            principal, ResourceType.SCHEDULE_CYCLE, permissionId, ResourceAction.ADMIN);
    }
 
    public ScheduleCycleDialogModel getDialogModel(String cycleName, Principal principal)
@@ -142,7 +152,7 @@ public class ScheduleCycleService {
 
       return builder
          .timeProp(timeProp.trim())
-         .twelveHourSystem(SreeEnv.getBooleanProperty("schedule.time.12hours"))
+         .twelveHourSystem(Boolean.parseBoolean(SreeEnv.getProperty("schedule.time.12hours")))
          .build();
    }
 
@@ -155,7 +165,9 @@ public class ScheduleCycleService {
          String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
          for(int i = 1; i < Integer.MAX_VALUE; i++) {
-            if(dataCycleManager.getConditions(cycleName + i, orgId) == null) {
+            if(dataCycleManager.getConditions(cycleName + i, orgId) == null ||
+               dataCycleManager.getConditions(cycleName + i, orgId).isEmpty())
+            {
                cycleName += i;
                break;
             }
@@ -203,7 +215,7 @@ public class ScheduleCycleService {
          if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
                getCyclePermissionID(oldName, orgId), ResourceAction.ACCESS))
          {
-            catalog.getString("em.scheduler.cycle.unauthorized", oldName);
+            throw new SecurityException(catalog.getString("em.scheduler.cycle.unauthorized", oldName));
          }
 
          String newName = model.label();
@@ -232,6 +244,13 @@ public class ScheduleCycleService {
                }
             }
 
+            // Copy old permission to the new name before removing it, so that the renamed
+            // cycle retains its original permissions. Non-admin users are filtered out of the
+            // permission model returned to the client, so relying solely on the submitted model
+            // would lose their access grants.
+            Permission oldPermission =
+               securityEngine.getPermission(ResourceType.SCHEDULE_CYCLE, getCyclePermissionID(oldName, orgId));
+            securityEngine.setPermission(ResourceType.SCHEDULE_CYCLE, getCyclePermissionID(newName, orgId), oldPermission);
             removeCyclePermission(oldName, orgId);
          }
          else if(newName == null || "".equals(newName)) {
@@ -261,8 +280,7 @@ public class ScheduleCycleService {
          dataCycleManager.setCycleInfo(newName, orgId, cycleInfo);
          dataCycleManager.save();
 
-         if(model.permissionModel() != null &&
-            (model.permissionModel().changed() || !newName.equals(oldName))) {
+         if(model.permissionModel() != null && model.permissionModel().changed()) {
             permissionService.setResourcePermissions(getCyclePermissionID(newName, orgId), ResourceType.SCHEDULE_CYCLE,
                                                      model.permissionModel(), principal);
          }

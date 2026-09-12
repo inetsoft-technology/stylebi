@@ -17,24 +17,11 @@
  */
 package inetsoft.web.composer.vs.objects.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.TextVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
-import inetsoft.uql.viewsheet.vslayout.PrintLayout;
-import inetsoft.uql.viewsheet.vslayout.VSEditableAssemblyLayout;
-import inetsoft.util.Tool;
-import inetsoft.web.composer.vs.command.AddLayoutObjectCommand;
-import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.vs.objects.event.ChangeVSObjectTextEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
@@ -51,21 +38,14 @@ public class VSTextController {
     *
     * @param runtimeViewsheetRef reference to the runtime viewsheet associated
     *                            with the WebSocket session.
-    * @param viewsheetService
     */
    @Autowired
    public VSTextController(
       RuntimeViewsheetRef runtimeViewsheetRef,
-      VSObjectPropertyService vsObjectPropertyService,
-      ViewsheetService viewsheetService,
-      VSObjectModelFactoryService objectModelService,
-      VSLayoutService vsLayoutService)
+      VSTextServiceProxy vsTextService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.vsObjectPropertyService = vsObjectPropertyService;
-      this.viewsheetService = viewsheetService;
-      this.objectModelService = objectModelService;
-      this.vsLayoutService = vsLayoutService;
+      this.vsTextService = vsTextService;
    }
 
    /**
@@ -84,21 +64,8 @@ public class VSTextController {
                           Principal principal, CommandDispatcher dispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(
-         this.runtimeViewsheetRef.getRuntimeId(), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      TextVSAssembly assembly = (TextVSAssembly) viewsheet.getAssembly(event.getName());
-
-      if(assembly == null) {
-         return;
-      }
-
-      TextVSAssemblyInfo assemblyInfo = (TextVSAssemblyInfo) Tool.clone(assembly.getVSAssemblyInfo());
-      assemblyInfo.setTextValue(event.getText());
-      // should change to static text and clear binding
-      assemblyInfo.setScalarBindingInfo(null);
-      this.vsObjectPropertyService.editObjectProperty(
-         rvs, assemblyInfo, event.getName(), event.getName(), linkUri, principal, dispatcher);
+      String runtimeId = this.runtimeViewsheetRef.getRuntimeId();
+      vsTextService.changeText(runtimeId, event, linkUri, principal, dispatcher);
    }
 
    @Undoable
@@ -109,38 +76,16 @@ public class VSTextController {
                           Principal principal, CommandDispatcher dispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(
-         this.runtimeViewsheetRef.getRuntimeId(), principal);
-      RuntimeViewsheet parentRvs =
-         viewsheetService.getViewsheet(rvs.getOriginalID(), principal);
-      Viewsheet viewsheet = parentRvs.getViewsheet();
-      PrintLayout layout = viewsheet.getLayoutInfo().getPrintLayout();
+      String runtimeId = this.runtimeViewsheetRef.getRuntimeId();
+      String focusedLayoutName = this.runtimeViewsheetRef.getFocusedLayoutName();
+      boolean isPresent = vsTextService
+         .changeText(runtimeId, focusedLayoutName, region, event, linkUri, principal, dispatcher);
 
-      vsLayoutService.findAssemblyLayout(layout, event.getName(), region)
-            .ifPresent(l -> {
-               TextVSAssemblyInfo textAssemblyInfo =
-                  (TextVSAssemblyInfo) ((VSEditableAssemblyLayout) l).getInfo();
-
-               String text = event.getText();
-               textAssemblyInfo.setTextValue(text);
-
-               AddLayoutObjectCommand command = new AddLayoutObjectCommand();
-               command.setObject(vsLayoutService.createObjectModel(parentRvs, l,
-                  objectModelService));
-               command.setRegion(region);
-               dispatcher.sendCommand(command);
-               this.runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
-               vsLayoutService.makeUndoable(parentRvs, dispatcher,
-                  this.runtimeViewsheetRef.getFocusedLayoutName());
-            });
+      if(isPresent) {
+         this.runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
+      }
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final VSObjectPropertyService vsObjectPropertyService;
-   private final ViewsheetService viewsheetService;
-   private final VSLayoutService vsLayoutService;
-   private final VSObjectModelFactoryService objectModelService;
-
-   private static final Logger LOG =
-      LoggerFactory.getLogger(VSTextController.class);
+   private final VSTextServiceProxy vsTextService;
 }

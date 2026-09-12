@@ -17,20 +17,16 @@
  */
 package inetsoft.uql.script;
 
-import inetsoft.report.LibManager;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.XUtil;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.util.script.*;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * VpmScope, the scriptable object to execute vpm script.
@@ -38,7 +34,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * @version 8.0
  * @author InetSoft Technology Corp
  */
-public class VpmScope extends ScriptableObject {
+public class VpmScope implements ScriptScope {
    /**
     * Execute the script.
     * @param statement the specified script statement.
@@ -49,11 +45,14 @@ public class VpmScope extends ScriptableObject {
       throws Exception
    {
       Object script = null;
+      // Bug #75669: reset the referenced-variable tracking so it only reflects access
+      // made by this script execution (the setUp putMember(...) calls in
+      // VpmCondition.evaluate / HiddenColumns.getHiddenColumns happen before this call
+      // and must not count).
+      scope.usedVars.clear();
       ScriptEnv senv = ScriptEnvRepository.getScriptEnv();
-      Context cx = SecureClassShutter.createSecureContext();
-      Scriptable root = getRoot();
-      root.put("vpm", root, scope);
-      scope.setParentScope(root);
+      senv.init();
+      senv.put("vpm", new inetsoft.util.script.graal.ScopeProxy(scope));
 
       // compile the script statement
       try {
@@ -75,11 +74,6 @@ public class VpmScope extends ScriptableObject {
 
          throw ex;
       }
-      finally {
-         cx.exit();
-      }
-
-      cx = SecureClassShutter.createSecureContext();
 
       // execute the script object
       try {
@@ -91,115 +85,6 @@ public class VpmScope extends ScriptableObject {
             ex.getMessage(), XUtil.numbering(statement)));
          throw ex;
       }
-      finally {
-         cx.exit();
-      }
-   }
-
-   /**
-    * Get the root scope.
-    * @return the root scope.
-    */
-   @SuppressWarnings("unchecked")
-   private static Scriptable getRoot() {
-      Scriptable root = null;
-      ROOT_LOCK.readLock().lock();
-
-      try {
-         root = ConfigurationContext.getContext().get(ROOT_KEY);
-      }
-      finally {
-         ROOT_LOCK.readLock().unlock();
-      }
-
-      if(root == null) {
-         ROOT_LOCK.writeLock().lock();
-
-         try {
-            root = ConfigurationContext.getContext().get(ROOT_KEY);
-
-            if(root == null) {
-               root = createRoot();
-               ConfigurationContext.getContext().put(ROOT_KEY, root);
-            }
-         }
-         finally {
-            ROOT_LOCK.writeLock().unlock();
-         }
-      }
-
-      return root;
-   }
-
-   /**
-    * Create a root scope.
-    * @return the created root scope.
-    */
-   private static Scriptable createRoot() {
-      Context cx = Context.getCurrentContext();
-      Scriptable root = (Scriptable) cx.initStandardObjects(new RootScope());
-
-      LibManager mgr = LibManager.getManager();
-      Enumeration names = mgr.getScripts();
-
-      while(names.hasMoreElements()) {
-         String fname = (String) names.nextElement();
-         String source = mgr.getScript(fname);
-
-         try {
-            addFunction(fname, source, root);
-         }
-         catch(Exception ex) {
-            LOG.warn("Failed to add function " + fname + ": " +
-                        source, ex);
-         }
-      }
-
-      // get a script env, and let global function available
-      ScriptEnv senv = ScriptEnvRepository.getScriptEnv();
-      senv.init();
-      senv.put("vpm", root);
-
-      return root;
-   }
-
-   /**
-    * Clear the root scope.
-    */
-   private static void clearRoot() {
-      ROOT_LOCK.writeLock().lock();
-
-      try {
-         ConfigurationContext.getContext().remove(ROOT_KEY);
-      }
-      finally {
-         ROOT_LOCK.writeLock().unlock();
-      }
-   }
-
-   /**
-    * Add one function to the scope.
-    * @param fname the specified function name.
-    * @param source the specified source code.
-    * @param script the specified script object to add function on.
-    */
-   private static void addFunction(String fname, String source,
-                                   Scriptable script)
-      throws Exception
-   {
-      if(source == null || source.length() == 0) {
-         return;
-      }
-
-      Context cx = TimeoutContext.enter();
-      Function function =
-         cx.compileFunction(script, source, "<" + fname + ">", 1, null);
-
-      if(function != null) {
-         script.put(fname, script, function);
-      }
-
-      Context.exit();
    }
 
    /**
@@ -207,15 +92,10 @@ public class VpmScope extends ScriptableObject {
     */
    public VpmScope() {
       super();
-
-      try {
-         FunctionObject func = new FunctionObject2(this, getClass(), "runQuery",
-                                                   String.class, Object.class);
-         put("runQuery", this, func);
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to register functions", ex);
-      }
+      // runQuery is exposed via the runQuery() instance method, installed as a
+      // ScriptFunction so it is callable from scripts under GraalJS.
+      members.put("runQuery", new inetsoft.util.script.graal.ScriptFunction(
+         this, getClass(), "runQuery", String.class, Object.class));
    }
 
    /**
@@ -234,7 +114,7 @@ public class VpmScope extends ScriptableObject {
     */
    public void setVariableTable(VariableTable vars) {
       this.vars = vars;
-      put("parameter", this, new VariableScriptable(this.vars));
+      members.put("parameter", new VariableScriptable(this.vars));
    }
 
    /**
@@ -252,10 +132,8 @@ public class VpmScope extends ScriptableObject {
    public void setUser(Principal user) {
       this.user = user;
 
-      // put("roles", this, new StringArray("role", XUtil.getUserRoles(user)));
-      // put("groups", this, new StringArray("group", XUtil.getUserGroups(user)));
-      put("roles", this, XUtil.getUserRoleNames(user));
-      put("groups", this, XUtil.getUserGroups(user));
+      members.put("roles", XUtil.getUserRoleNames(user));
+      members.put("groups", XUtil.getUserGroups(user));
 
       // @by stephenwebster, For bug1413383077871
       // Make sure to copy the user's parameters into the variable table
@@ -284,86 +162,109 @@ public class VpmScope extends ScriptableObject {
    /**
     * Check if has a property.
     * @param id the specified property.
-    * @param start the specified scriptable to start.
     */
    @Override
-   public boolean has(String id, Scriptable start) {
-      return "user".equals(id) || super.has(id, start);
+   public boolean hasMember(String id) {
+      return "user".equals(id) || members.containsKey(id);
    }
 
    /**
     * Get the value of a property.
     * @param id the specified property.
-    * @param start the specified scriptable to start.
     */
    @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       if(id.equals("user")) {
          return user == null ? null : XUtil.getUserName(user);
       }
 
-      Object val = super.get(id, start);
+      // Bug #75669: record that the script referenced this variable. Under Rhino a VPM
+      // trigger script activated its output simply by referencing (or assigning) the
+      // relevant variable (e.g. `condition`, `hiddenColumns`), relying on that value
+      // becoming the script's completion value. GraalJS follows current ECMAScript
+      // completion-value semantics (e.g. a trailing if(false) yields undefined,
+      // clobbering a loop's completion value), so the reference alone may no longer
+      // surface as the result; callers fall back to the referenced variable's value when
+      // it was used. See VpmCondition.evaluate() and HiddenColumns.getHiddenColumns().
+      usedVars.add(id);
 
-      // Bug #61669, use NativeArray instead of NativeJavaArray
-      // same as what we do in inetsoft.uql.script.VariableScriptable.get()
-      // to make sure that includes() function works properly
-      if(val instanceof Object[]) {
-         NativeArray arr = new NativeArray((Object[]) val);
-         ScriptRuntime.setBuiltinProtoAndParent(arr, getParentScope(),
-                                                TopLevel.Builtins.Array);
-         return arr;
-      }
+      // the ScopeProxy/HostAccess layer now handles array wrapping
+      return members.get(id);
+   }
 
-      return val;
+   /**
+    * Set a named property in this object.
+    */
+   @Override
+   public void putMember(String id, Object value) {
+      // Bug #75669: assigning a variable in the script also counts as using it.
+      usedVars.add(id);
+
+      members.put(id, value);
+   }
+
+   /**
+    * Determine whether the most recently executed script referenced or assigned the
+    * given variable. Reset at the start of each {@link #execute}.
+    */
+   public boolean isVariableUsed(String name) {
+      return usedVars.contains(name);
+   }
+
+   /**
+    * Determine whether the most recently executed script referenced or assigned the
+    * <code>condition</code> variable. Reset at the start of each {@link #execute}.
+    */
+   public boolean isConditionUsed() {
+      return isVariableUsed(CONDITION);
+   }
+
+   /**
+    * Remove a named property from this object.
+    */
+   @Override
+   public boolean removeMember(String id) {
+      return members.remove(id) != null;
+   }
+
+   /**
+    * Get an array of property ids.
+    */
+   @Override
+   public Object[] getMemberKeys() {
+      return members.keySet().toArray();
+   }
+
+   /**
+    * Get the parent scope of the object.
+    */
+   @Override
+   public ScriptScope getParentScope() {
+      return parent;
+   }
+
+   /**
+    * Set the parent scope of the object.
+    */
+   public void setParentScope(ScriptScope parent) {
+      this.parent = parent;
    }
 
    /**
     * Get the name of this scriptable.
     * @return the name of this scriptable.
     */
-   @Override
    public String getClassName() {
       return "VpmScope";
    }
 
-   /**
-    * Clone the scriptable.
-    * @return the cloned scriptable.
-    */
-   @Override
-   public Object clone() {
-      try {
-         VpmScope obj = (VpmScope) super.clone();
-         return obj;
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to clone object", ex);
-      }
-
-      return null;
-   }
-
-   /**
-    * The top-most scope shared by vpm scopes.
-    */
-   private static class RootScope extends ScriptableObject {
-      @Override
-      public String getClassName() {
-         return "RootScope";
-      }
-
-      @Override
-      public Object[] getIds() {
-         return getAllIds();
-      }
-   }
-
-   private static Map roots = new HashMap();
    private Principal user;
    private VariableTable vars;
+   private ScriptScope parent;
+   private final Set<String> usedVars = new HashSet<>();
+   private final Map<String, Object> members = new LinkedHashMap<>();
 
-   private static final String ROOT_KEY = VpmScope.class.getName() + ".rootScope";
-   private static final ReadWriteLock ROOT_LOCK = new ReentrantReadWriteLock(true);
+   private static final String CONDITION = "condition";
 
    private static final Logger LOG =
       LoggerFactory.getLogger(VpmScope.class);

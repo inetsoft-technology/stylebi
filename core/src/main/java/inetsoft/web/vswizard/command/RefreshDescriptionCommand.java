@@ -17,6 +17,12 @@
  */
 package inetsoft.web.vswizard.command;
 
+import inetsoft.util.Tool;
+import inetsoft.web.vswizard.model.recommender.VSRecommendationModel;
+import org.w3c.dom.Element;
+
+import java.io.PrintWriter;
+
 public class RefreshDescriptionCommand implements TimeSensitiveCommand {
    public RefreshDescriptionCommand() {}
 
@@ -30,6 +36,18 @@ public class RefreshDescriptionCommand implements TimeSensitiveCommand {
 
    public void setDescription(String description) {
       this.description = description;
+   }
+
+   @Override
+   public void writeAttributes(PrintWriter writer) {
+      if(description != null) {
+         writer.print(" description=\"" + description + "\"");
+      }
+   }
+
+   @Override
+   public void parseAttributes(Element elem) throws Exception {
+      description = Tool.getAttribute(elem, "description");
    }
 
    private String description;

@@ -15,19 +15,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FileChooserComponent } from "./file-chooser.component";
 
 describe("FileChooserComponent", () => {
    let component: FileChooserComponent;
    let fixture: ComponentFixture<FileChooserComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
-         declarations: [
-            FileChooserComponent
-         ],
+         imports: [FileChooserComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

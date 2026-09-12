@@ -19,20 +19,30 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class GaugeVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private GaugeVSAScriptable gaugeVSAScriptable;
@@ -69,7 +79,7 @@ public class GaugeVSAScriptableTest {
    @Test
    void testAddProperties() {
       gaugeVSAScriptable.addProperties();
-      assertEquals(true, gaugeVSAScriptable.get("labelVisible", gaugeVSAScriptable));
+      assertEquals(true, gaugeVSAScriptable.getMember("labelVisible"));
 
       assertTrue(gaugeVSAScriptable.isPublicProperty("visible"));
    }
@@ -97,9 +107,11 @@ public class GaugeVSAScriptableTest {
 
    @Test
    void testGet() throws Exception {
-      assertNull(gaugeVSAScriptable.get("value", gaugeVSAScriptable));
-      assertNull(gaugeVSAScriptable.get("dataConditions", gaugeVSAScriptable));
-      assertNull(gaugeVSAScriptable.getDefaultValue(GaugeVSAScriptable.class));
+      assertNull(gaugeVSAScriptable.getMember("value"));
+      assertNull(gaugeVSAScriptable.getMember("dataConditions"));
+      // Feature #75423: Rhino getDefaultValue(Class) scalar coercion was removed;
+      // the output's value is now exposed only via the "value" member (asserted above).
+      assertNull(gaugeVSAScriptable.getMember("value"));
    }
 
    @ParameterizedTest

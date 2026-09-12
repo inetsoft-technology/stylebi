@@ -17,7 +17,8 @@
  */
 package inetsoft.util.script;
 
-import inetsoft.sree.SreeEnv;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * ScriptEnvRepository creates script environment.
@@ -26,25 +27,17 @@ import inetsoft.sree.SreeEnv;
  * @author InetSoft Technology Corp
  */
 public class ScriptEnvRepository {
+   private static final Logger LOG = LoggerFactory.getLogger(ScriptEnvRepository.class);
+
    static boolean found = false;
    static {
       try {
-         try {
-            int timeout = Integer.parseInt(
-               SreeEnv.getProperty("script.execution.timeout"));
-            TimeoutContext.setTimeout(timeout);
-            int maxiStackDepth = Integer.parseInt(
-               SreeEnv.getProperty("script.execution.stackdepth"));
-            TimeoutContext.setStackDepth(maxiStackDepth);
-         }
-         catch(NumberFormatException ex) {
-            // ign
-         }
-
-         Class.forName("inetsoft.util.script.JavaScriptEngine");
+         Class.forName("inetsoft.util.script.graal.GraalJavaScriptEngine");
          found = true;
       }
       catch(Throwable e) {
+         LOG.warn("Failed to load GraalJavaScriptEngine on thread {}, found={}",
+                  Thread.currentThread().getName(), found, e);
       }
    }
 
@@ -54,11 +47,13 @@ public class ScriptEnvRepository {
    public static ScriptEnv getScriptEnv() {
       if(found) {
          try {
-            String cls = "inetsoft.util.script.JavaScriptEnv";
+            String cls = "inetsoft.util.script.graal.GraalJavaScriptEnv";
 
             return (ScriptEnv) Class.forName(cls).newInstance();
          }
          catch(Throwable e) {
+            LOG.warn("Failed to create GraalJavaScriptEnv on thread {}, found={}",
+                     Thread.currentThread().getName(), found, e);
          }
       }
 

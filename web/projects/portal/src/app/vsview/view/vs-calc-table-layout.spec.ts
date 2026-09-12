@@ -46,20 +46,20 @@ describe("vs calc table layout unit case", () => {
 
    beforeEach(() => {
       editorService = {
-         loadTableModel: jest.fn(),
-         loadCellBinding: jest.fn(),
-         getTableLayout: jest.fn(),
-         setTableLayout: jest.fn(),
-         resetCellBinding: jest.fn(),
-         getCellBinding: jest.fn()
+         loadTableModel: vi.fn(),
+         loadCellBinding: vi.fn(),
+         getTableLayout: vi.fn(),
+         setTableLayout: vi.fn(),
+         resetCellBinding: vi.fn(),
+         getCellBinding: vi.fn()
       };
       clientService = { commands: observableOf([]) };
-      changeRef = { detectChanges: jest.fn() };
-      renderer = { setStyle: jest.fn() };
-      zone = { run: jest.fn(), runOutsideAngular: jest.fn() };
-      let doc = { addEventListener: jest.fn(), removeEventListener: jest.fn() };
+      changeRef = { detectChanges: vi.fn() };
+      renderer = { setStyle: vi.fn() };
+      zone = { run: vi.fn(), runOutsideAngular: vi.fn() };
+      let doc = { addEventListener: vi.fn(), removeEventListener: vi.fn() };
 
-      const aiAssistantService: any = { loadCurrentUser: jest.fn() };
+      const aiAssistantService: any = { loadCurrentUser: vi.fn() };
       calcTableLayoutPane = new CalcTableLayoutPane(aiAssistantService, editorService, clientService, changeRef, renderer, doc, zone);
       calcTableModel = TestUtils.createMockVSCalcTableModel("calc1");
       calcTableLayoutPane.vsObjectModel = calcTableModel;
@@ -91,7 +91,7 @@ describe("vs calc table layout unit case", () => {
    // this was wrapped in setTimeout() and is now async, but since the test is poorly written using
    // a hand-instantiated test instance instead of using the angular testing framework, this test
    // cannot be fixed without re-writing the entire test suite
-   xit("should return right first row and first column", () => {
+   it.skip("should return right first row and first column", () => {
       let calcCell = TestUtils.createMockCalcTableCell("cell1");
       let cell1: TableDataPath = TestUtils.createMockTableDataPath();
       cell1.path = ["Cell [0,0]"];

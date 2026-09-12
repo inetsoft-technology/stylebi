@@ -18,6 +18,7 @@
 package inetsoft.web.portal.controller.database;
 
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.util.Catalog;
 import inetsoft.web.portal.data.DataModelBrowserModel;
 import inetsoft.web.portal.data.SearchDataCommand;
@@ -25,6 +26,8 @@ import inetsoft.web.portal.model.database.DatabaseDataModelBrowserModel;
 import inetsoft.web.portal.model.database.StringWrapper;
 import inetsoft.web.portal.model.database.events.MoveDataModelEvent;
 import inetsoft.web.portal.model.database.events.RemoveDataModelEvent;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -40,6 +43,11 @@ public class DatabaseModelBrowserController {
    /**
     * Determines if this user has write access on this datasource.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/database/permissions")
    public boolean checkPermission(@RequestParam("database") String database, Principal principal)
       throws Exception
@@ -51,6 +59,11 @@ public class DatabaseModelBrowserController {
     * Gets the selected logical model.
     * @return the DTO structure logical model
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/database/dataModel/browse")
    public DatabaseDataModelBrowserModel getDataModels(@RequestParam("database") String database,
                                                       @RequestParam(value = "folder", required = false) String folder,
@@ -63,6 +76,11 @@ public class DatabaseModelBrowserController {
    /**
     * Get the data model browser model.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/database/dataModel/folder/browser")
    public DataModelBrowserModel getDataModelFolders(
       @RequestParam("database") String database,
@@ -73,6 +91,11 @@ public class DatabaseModelBrowserController {
    }
 
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("api/data/search/dataModel/names")
    public DatabaseDataModelBrowserModel getSearchDataModelNames(@RequestBody SearchDataCommand command,
                                                                 Principal principal)
@@ -82,6 +105,11 @@ public class DatabaseModelBrowserController {
          command.getDatabase(), command.getPath(), command.getQuery(), principal, true);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("api/data/search/dataModel")
    public DatabaseDataModelBrowserModel getSearchDataModel(@RequestBody SearchDataCommand command,
                                                            Principal principal)
@@ -96,6 +124,11 @@ public class DatabaseModelBrowserController {
     * @param event
     * @throws Exception
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/database/dataModel/move")
    public void moveDataModels(@RequestBody MoveDataModelEvent event, Principal principal)
       throws Exception
@@ -109,6 +142,11 @@ public class DatabaseModelBrowserController {
     * @param event
     * @throws Exception
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/database/dataModel/remove")
    public StringWrapper deleteDataModels(@RequestBody RemoveDataModelEvent event, Principal principal)
       throws Exception

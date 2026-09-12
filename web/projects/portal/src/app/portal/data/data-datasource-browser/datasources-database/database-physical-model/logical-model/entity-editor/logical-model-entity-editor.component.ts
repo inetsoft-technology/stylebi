@@ -19,11 +19,13 @@ import { Component, Input, EventEmitter, Output } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
 import { Tool } from "../../../../../../../../../../shared/util/tool";
+import { LogicalModelEntityPane } from "../entity-pane/logical-model-entity-pane.component";
 
 @Component({
-   selector: "logical-model-entity-editor",
-   templateUrl: "logical-model-entity-editor.component.html",
-   styleUrls: ["../../database-model-pane.scss", "logical-model-entity-editor.component.scss"]
+    selector: "logical-model-entity-editor",
+    templateUrl: "logical-model-entity-editor.component.html",
+    styleUrls: ["../../database-model-pane.scss", "logical-model-entity-editor.component.scss"],
+    imports: [LogicalModelEntityPane]
 })
 export class LogicalModelEntityEditor {
    @Input() set entity(value: EntityModel) {
@@ -40,7 +42,15 @@ export class LogicalModelEntityEditor {
     */
    apply(): void {
       if(this.form.get("name") && this.form.get("name").valid) {
-         this._entity.name =  (<string> this.form.get("name").value).trim();
+         const newName = (<string> this.form.get("name").value).trim();
+
+         if(this._entity.name !== newName && this._entity.attributes) {
+            for(const attr of this._entity.attributes) {
+               attr.parentEntity = newName;
+            }
+         }
+
+         this._entity.name = newName;
       }
 
       if(this.form.get("description") && this.form.get("description").valid) {

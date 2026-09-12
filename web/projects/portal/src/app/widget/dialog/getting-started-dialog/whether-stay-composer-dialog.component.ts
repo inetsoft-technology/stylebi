@@ -19,9 +19,10 @@ import { Component, EventEmitter, Output } from "@angular/core";
 import { GettingStartedService } from "./service/getting-started.service";
 
 @Component({
-   selector: "whether-stay-composer-dialog",
-   templateUrl: "whether-stay-composer-dialog.component.html",
-   styleUrls: ["whether-stay-composer-dialog.component.scss"]
+    selector: "whether-stay-composer-dialog",
+    templateUrl: "whether-stay-composer-dialog.component.html",
+    styleUrls: ["whether-stay-composer-dialog.component.scss"],
+    standalone: true
 })
 export class WhetherStayComposerDialog {
    @Output() onCommit: EventEmitter<any> = new EventEmitter<any>();

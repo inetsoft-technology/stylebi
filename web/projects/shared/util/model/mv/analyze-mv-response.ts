@@ -27,4 +27,5 @@ export interface AnalyzeMVResponse {
    defaultCycle?: string;
    runInBackground?: boolean;
    dateFormat?: string;
+   analysisId: string;
 }

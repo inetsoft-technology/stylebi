@@ -15,8 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
@@ -34,7 +35,7 @@ describe("PresentationPdfGenerationSettingsViewComponent", () => {
    let component: PresentationPdfGenerationSettingsViewComponent;
    let fixture: ComponentFixture<PresentationPdfGenerationSettingsViewComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             HttpClientTestingModule,
@@ -49,10 +50,9 @@ describe("PresentationPdfGenerationSettingsViewComponent", () => {
             MatInputModule,
             MatCheckboxModule,
             MatSnackBarModule,
-            MatIconModule
-         ],
-         declarations: [PresentationPdfGenerationSettingsViewComponent]
-      })
+            MatIconModule,
+            PresentationPdfGenerationSettingsViewComponent]
+         })
          .compileComponents();
    }));
 

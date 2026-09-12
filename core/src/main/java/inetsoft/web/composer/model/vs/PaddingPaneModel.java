@@ -19,8 +19,10 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class PaddingPaneModel {
+public class PaddingPaneModel implements Serializable {
    public int getTop() {
       return top;
    }

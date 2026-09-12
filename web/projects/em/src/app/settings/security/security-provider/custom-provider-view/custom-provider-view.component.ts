@@ -28,25 +28,20 @@ import {
    Output,
    ViewChild
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { GuiTool } from "../../../../../../../portal/src/app/common/util/gui-tool";
 import { CodemirrorService } from "../../../../../../../shared/util/codemirror/codemirror.service";
 import { CustomProviderModel } from "../security-provider-model/custom-provider-model";
 import { take } from "rxjs/operators";
 import { Subscription } from "rxjs";
-import {
-   DefaultCodemirrorService
-} from "../../../../../../../shared/util/codemirror/default-codemirror.service";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
 
 @Component({
-   selector: "em-custom-provider-view",
-   templateUrl: "./custom-provider-view.component.html",
-   styleUrls: ["./custom-provider-view.component.scss"],
-   providers: [{
-      provide: CodemirrorService,
-      useClass: DefaultCodemirrorService,
-      deps: []
-   }]
+    selector: "em-custom-provider-view",
+    templateUrl: "./custom-provider-view.component.html",
+    styleUrls: ["./custom-provider-view.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, MatFormField, MatInput, MatLabel]
 })
 export class CustomProviderViewComponent implements OnInit, AfterViewInit, AfterViewChecked, OnDestroy {
    @Input() form: UntypedFormGroup;

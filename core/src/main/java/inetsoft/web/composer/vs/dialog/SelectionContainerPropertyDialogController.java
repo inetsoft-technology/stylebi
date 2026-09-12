@@ -18,14 +18,7 @@
 package inetsoft.web.composer.vs.dialog;
 
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.CurrentSelectionVSAssemblyInfo;
-import inetsoft.util.Tool;
 import inetsoft.web.composer.model.vs.*;
-import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -36,7 +29,6 @@ import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
-import java.awt.*;
 import java.security.Principal;
 
 /**
@@ -49,21 +41,14 @@ import java.security.Principal;
 public class SelectionContainerPropertyDialogController {
    /**
     * Creates a new instance of <tt>SelectionContainerPropertyController</tt>.
-    * @param vsObjectPropertyService VSObjectPropertyService instance
     * @param runtimeViewsheetRef     RuntimeViewsheetRef instance
-    * @param viewsheetService
     */
    @Autowired
-   public SelectionContainerPropertyDialogController(
-      VSObjectPropertyService vsObjectPropertyService,
-      RuntimeViewsheetRef runtimeViewsheetRef,
-      VSDialogService dialogService,
-      ViewsheetService viewsheetService)
+   public SelectionContainerPropertyDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
+                                                     SelectionContainerPropertyDialogServiceProxy propertyDialogServiceProxy)
    {
-      this.vsObjectPropertyService = vsObjectPropertyService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.dialogService = dialogService;
-      this.viewsheetService = viewsheetService;
+      this.propertyDialogServiceProxy = propertyDialogServiceProxy;
    }
 
    /**
@@ -83,61 +68,7 @@ public class SelectionContainerPropertyDialogController {
                                                                                    Principal principal)
       throws Exception
    {
-      RuntimeViewsheet rvs;
-      Viewsheet vs;
-      CurrentSelectionVSAssembly selectionContainerAssembly;
-      CurrentSelectionVSAssemblyInfo selectionContainerAssemblyInfo;
-
-      try {
-         rvs = viewsheetService.getViewsheet(runtimeId, principal);
-         vs = rvs.getViewsheet();
-         selectionContainerAssembly = (CurrentSelectionVSAssembly) vs.getAssembly(objectId);
-         selectionContainerAssemblyInfo = (CurrentSelectionVSAssemblyInfo) selectionContainerAssembly.getVSAssemblyInfo();
-      }
-      catch(Exception e) {
-         //TODO decide what to do with exception
-         throw e;
-      }
-
-      SelectionContainerPropertyDialogModel result = new SelectionContainerPropertyDialogModel();
-      SelectionContainerGeneralPaneModel selectionContainerGeneralPaneModel = result.getSelectionContainerGeneralPaneModel();
-      TitlePropPaneModel titlePropPaneModel = selectionContainerGeneralPaneModel.getTitlePropPaneModel();
-      SizePositionPaneModel sizePositionPaneModel =
-         selectionContainerGeneralPaneModel.getSizePositionPaneModel();
-      GeneralPropPaneModel generalPropPaneModel = selectionContainerGeneralPaneModel.getGeneralPropPaneModel();
-      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
-      VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel = VSAssemblyScriptPaneModel.builder();
-
-      selectionContainerGeneralPaneModel.setShowCurrentSelection(selectionContainerAssemblyInfo.getShowCurrentSelectionValue());
-      selectionContainerGeneralPaneModel.setAdhocEnabled(selectionContainerAssemblyInfo.getAdhocEnabledValue());
-
-      titlePropPaneModel.setVisible(selectionContainerAssemblyInfo.getTitleVisibleValue());
-      titlePropPaneModel.setTitle(selectionContainerAssemblyInfo.getTitleValue());
-
-      Point pos = dialogService.getAssemblyPosition(selectionContainerAssemblyInfo, vs);
-      Dimension size = dialogService.getAssemblySize(selectionContainerAssemblyInfo, vs);
-
-      sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setTitleHeight(selectionContainerAssemblyInfo.getTitleHeightValue());
-      sizePositionPaneModel.setContainer(selectionContainerAssembly.getContainer() != null);
-
-      generalPropPaneModel.setShowEnabledGroup(true);
-      generalPropPaneModel.setEnabled(selectionContainerAssemblyInfo.getEnabledValue());
-
-      basicGeneralPaneModel.setName(selectionContainerAssemblyInfo.getAbsoluteName());
-      basicGeneralPaneModel.setPrimary(selectionContainerAssemblyInfo.isPrimary());
-      basicGeneralPaneModel.setVisible(selectionContainerAssemblyInfo.getVisibleValue());
-      basicGeneralPaneModel.setObjectNames(this.vsObjectPropertyService.getObjectNames(
-         vs, selectionContainerAssemblyInfo.getAbsoluteName()));
-
-      vsAssemblyScriptPaneModel.scriptEnabled(
-         selectionContainerAssemblyInfo.isScriptEnabled());
-      vsAssemblyScriptPaneModel.expression(
-         selectionContainerAssemblyInfo.getScript() == null ?
-            "" : selectionContainerAssemblyInfo.getScript());
-      result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
-
-      return result;
+      return propertyDialogServiceProxy.getSelectionContainerPropertyModel(runtimeId, objectId, principal);
    }
 
    /**
@@ -156,59 +87,10 @@ public class SelectionContainerPropertyDialogController {
                                                   CommandDispatcher commandDispatcher)
       throws Exception
    {
-      RuntimeViewsheet viewsheet;
-      Viewsheet vs;
-      CurrentSelectionVSAssembly selectionContainerAssembly;
-      CurrentSelectionVSAssemblyInfo selectionContainerAssemblyInfo;
-
-      try {
-         viewsheet = viewsheetService.getViewsheet(this.runtimeViewsheetRef.getRuntimeId(), principal);
-         vs = viewsheet.getViewsheet();
-         selectionContainerAssembly = (CurrentSelectionVSAssembly) viewsheet.getViewsheet()
-            .getAssembly(objectId);
-         selectionContainerAssemblyInfo = (CurrentSelectionVSAssemblyInfo) Tool.clone(selectionContainerAssembly.getVSAssemblyInfo());
-      }
-      catch(Exception e) {
-         //TODO decide what to do with exception
-         throw e;
-      }
-
-      SelectionContainerGeneralPaneModel selectionContainerGeneralPaneModel = value.getSelectionContainerGeneralPaneModel();
-      TitlePropPaneModel titlePropPaneModel = selectionContainerGeneralPaneModel.getTitlePropPaneModel();
-      SizePositionPaneModel sizePositionPaneModel = selectionContainerGeneralPaneModel.getSizePositionPaneModel();
-      GeneralPropPaneModel generalPropPaneModel = selectionContainerGeneralPaneModel.getGeneralPropPaneModel();
-      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
-      VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
-
-      selectionContainerAssemblyInfo.setShowCurrentSelectionValue(selectionContainerGeneralPaneModel.isShowCurrentSelection());
-      selectionContainerAssemblyInfo.setAdhocEnabledValue(selectionContainerGeneralPaneModel.isAdhocEnabled());
-
-      selectionContainerAssemblyInfo.setTitleVisibleValue(titlePropPaneModel.isVisible());
-      selectionContainerAssemblyInfo.setTitleValue(titlePropPaneModel.getTitle());
-
-      //When moving selection container, also move  selection container children
-      dialogService.setContainerPosition(selectionContainerAssemblyInfo, sizePositionPaneModel,
-                                         selectionContainerAssembly.getAssemblies(), vs);
-      selectionContainerAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
-      //When resizing selection container, also resize selection container children
-      dialogService.setContainerSize(selectionContainerAssemblyInfo, sizePositionPaneModel,
-                                    selectionContainerAssembly.getAssemblies(), vs);
-
-      selectionContainerAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
-
-      selectionContainerAssemblyInfo.setPrimary(basicGeneralPaneModel.isPrimary());
-      selectionContainerAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
-
-      selectionContainerAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
-      selectionContainerAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
-
-      this.vsObjectPropertyService.editObjectProperty(
-         viewsheet, selectionContainerAssemblyInfo, objectId, basicGeneralPaneModel.getName(),
-         linkUri, principal, commandDispatcher);
+      propertyDialogServiceProxy.setSelectionContainerPropertyModel(runtimeViewsheetRef.getRuntimeId(),
+                                                                    objectId, value, linkUri, principal, commandDispatcher);
    }
 
-   private final VSObjectPropertyService vsObjectPropertyService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final VSDialogService dialogService;
-   private final ViewsheetService viewsheetService;
+   private final SelectionContainerPropertyDialogServiceProxy propertyDialogServiceProxy;
 }

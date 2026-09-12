@@ -27,6 +27,7 @@ import inetsoft.util.*;
 import inetsoft.util.config.json.ConfigDeserializer;
 import inetsoft.util.config.json.ConfigSerializer;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationContext;
 
 import java.io.*;
 import java.nio.file.*;
@@ -35,7 +36,6 @@ import java.util.*;
 /**
  * {@code InetsoftConfig} contains the bootstrap configuration for an InetSoft installation.
  */
-@SingletonManager.Singleton(InetsoftConfig.Reference.class)
 @JsonSerialize(using = ConfigSerializer.class)
 @JsonDeserialize(using = ConfigDeserializer.class)
 public class InetsoftConfig implements Serializable {
@@ -210,7 +210,38 @@ public class InetsoftConfig implements Serializable {
     * @return the config instance.
     */
    public static InetsoftConfig getInstance() {
-      return SingletonManager.getInstance(InetsoftConfig.class);
+      ApplicationContext ctx = ConfigurationContext.getContext().getApplicationContext();
+
+      if(ctx != null) {
+         return ctx.getBean(InetsoftConfig.class);
+      }
+
+      // Non-Spring path (tests, CloudRunner): load from file on first access
+      if(BOOTSTRAP_INSTANCE == null) {
+         synchronized(InetsoftConfig.class) {
+            if(BOOTSTRAP_INSTANCE == null) {
+               File file = getConfigFile();
+               boolean save = !file.exists();
+               BOOTSTRAP_INSTANCE = load(file.toPath());
+
+               if(save) {
+                  save(BOOTSTRAP_INSTANCE, file.toPath());
+               }
+            }
+         }
+      }
+
+      return BOOTSTRAP_INSTANCE;
+   }
+
+   public static void bootstrap() {
+      File configFile = getConfigFile();
+      boolean saveConfig = !configFile.exists();
+      BOOTSTRAP_INSTANCE = InetsoftConfig.load(configFile.toPath());
+
+      if(saveConfig) {
+         save(BOOTSTRAP_INSTANCE, configFile.toPath());
+      }
    }
 
    /**
@@ -382,6 +413,17 @@ public class InetsoftConfig implements Serializable {
       return file;
    }
 
+   /**
+    * The bootstrap instance loaded before the Spring context starts. Set by the application
+    * bootstrap code before {@code SpringApplication.run()} is called so that all beans in
+    * {@code StorageConfiguration} can receive it as an injected dependency rather than calling
+    * {@code getInstance()} inside {@code @Bean} methods.
+    *
+    * <p>In non-Spring environments (tests, CloudRunner) this field is populated lazily by
+    * {@link #getInstance()} on first access.</p>
+    */
+   public static volatile InetsoftConfig BOOTSTRAP_INSTANCE;
+
    private String version;
    private ClusterConfig cluster;
    private String pluginDirectory;
@@ -395,28 +437,4 @@ public class InetsoftConfig implements Serializable {
    private NodeProtectionConfig nodeProtection;
    private Map<String, Object> additionalProperties;
 
-   @SingletonManager.ShutdownOrder(after = FileSystemService.class)
-   public static final class Reference extends SingletonManager.Reference<InetsoftConfig> {
-      @Override
-      public InetsoftConfig get(Object... parameters) {
-         if(config == null) {
-            File file = getConfigFile();
-            boolean save = !file.exists();
-            config = load(file.toPath());
-
-            if(save) {
-               save(config, file.toPath());
-            }
-         }
-
-         return config;
-      }
-
-      @Override
-      public void dispose() {
-         config = null;
-      }
-
-      private InetsoftConfig config;
-   }
 }

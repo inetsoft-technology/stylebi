@@ -17,7 +17,9 @@
  */
 package inetsoft.report.gui.viewsheet;
 
+import inetsoft.report.io.viewsheet.ShapeShadowUtil;
 import inetsoft.sree.portal.PortalThemesManager;
+import inetsoft.uql.viewsheet.ShapeShadow;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 
 import java.awt.*;
@@ -126,6 +128,55 @@ public class VSFaceUtil {
    }
 
    /**
+    * Add a configurable drop shadow to the image.
+    *
+    * Unlike {@link #addShadow(BufferedImage, int)}, which always casts a fixed
+    * gray shadow down and to the right, this honours the shape's configured
+    * color, opacity, direction, distance and blur. The offset and the blur are
+    * independent here.
+    *
+    * @param img the shape image, at its natural size.
+    * @param shadow the shadow settings.
+    * @param insets how far the shadow extends past each side of the shape, as
+    *               returned by ShapeShadowUtil.getShadowInsets. The shape is
+    *               drawn at (insets.left, insets.top) in the returned image.
+    * @return a new image large enough to hold both the shape and its shadow.
+    */
+   public static BufferedImage addShadow(BufferedImage img, ShapeShadow shadow,
+                                         Insets insets)
+   {
+      if(shadow == null || insets == null) {
+         return img;
+      }
+
+      int w = img.getWidth();
+      int h = img.getHeight();
+      int outW = w + insets.left + insets.right;
+      int outH = h + insets.top + insets.bottom;
+
+      if(outW <= 0 || outH <= 0) {
+         return img;
+      }
+
+      BufferedImage layer = ShapeShadowUtil.createShadowLayer(img, shadow, insets);
+      BufferedImage out = new BufferedImage(outW, outH, BufferedImage.TYPE_INT_ARGB);
+      Graphics2D g3 = out.createGraphics();
+
+      try {
+         if(layer != null) {
+            g3.drawImage(layer, 0, 0, null);
+         }
+
+         g3.drawImage(img, insets.left, insets.top, null);
+      }
+      finally {
+         g3.dispose();
+      }
+
+      return out;
+   }
+
+   /**
     * Create a shadow of the image.
     */
    public static BufferedImage createDropShadow(BufferedImage image,
@@ -144,50 +195,12 @@ public class VSFaceUtil {
       g2.fillRect(0, 0, shadow.getWidth(), shadow.getHeight());       
       g2.dispose();
       
-      shadow = getGaussianBlurFilter(size, true).filter(shadow, null);
-      shadow = getGaussianBlurFilter(size, false).filter(shadow, null);
+      shadow = ShapeShadowUtil.getGaussianBlurFilter(size, true).filter(shadow, null);
+      shadow = ShapeShadowUtil.getGaussianBlurFilter(size, false).filter(shadow, null);
       
       return shadow;
    }
     
-   private static ConvolveOp getGaussianBlurFilter(int radius,
-                                                   boolean horizontal) 
-   {
-      if(radius < 1) {
-         throw new IllegalArgumentException("Radius must be >= 1");
-      }
-      
-      int size = radius * 2 + 1;
-      float[] data = new float[size];
-      
-      float sigma = radius / 3.0f;
-      float twoSigmaSquare = 2.0f * sigma * sigma;
-      float sigmaRoot = (float) Math.sqrt(twoSigmaSquare * Math.PI);
-      float total = 0.0f;
-      
-      for(int i = -radius; i <= radius; i++) {
-         float distance = i * i;
-         int index = i + radius;
-         data[index] = (float) Math.exp(-distance / twoSigmaSquare) / sigmaRoot;
-         total += data[index];
-      }
-      
-      for(int i = 0; i < data.length; i++) {
-         data[i] /= total;
-      }        
-      
-      Kernel kernel = null;
-
-      if(horizontal) {
-         kernel = new Kernel(size, 1, data);
-      }
-      else {
-         kernel = new Kernel(1, size, data);
-      }
-
-      return new ConvolveOp(kernel, ConvolveOp.EDGE_NO_OP, null);
-   }
-
    /**
     * Get theme id from theme name.
     * @param dsize the default size.

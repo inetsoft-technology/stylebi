@@ -19,12 +19,15 @@ package inetsoft.report;
 
 import inetsoft.graph.internal.GTool;
 import inetsoft.report.internal.*;
+import inetsoft.report.io.viewsheet.ShapeShadowUtil;
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.viewsheet.ShapeShadow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
-import java.awt.geom.Point2D;
+import java.awt.geom.*;
+import java.awt.image.BufferedImage;
 import java.io.Serializable;
 
 /**
@@ -123,6 +126,99 @@ public class PageLayout implements Serializable, Cloneable {
       }
 
       /**
+       * Set the drop shadow to draw behind this shape, or null for none.
+       */
+      public void setShadow(ShapeShadow shadow) {
+         this.shadow = shadow;
+      }
+
+      /**
+       * Get the drop shadow to draw behind this shape, or null for none.
+       */
+      public ShapeShadow getShadow() {
+         return shadow;
+      }
+
+      /**
+       * Paint this shape's drop shadow, if it has one, behind the shape's own
+       * fill and outline.
+       *
+       * The shadow is rendered off-screen into a translucent image and drawn
+       * with drawImage rather than being filled straight onto g. That is not a
+       * detour: the tint (AlphaComposite.SrcIn) and the gaussian blur
+       * (ConvolveOp) that give a shadow its soft edge are both ignored by the
+       * PDF Graphics this is painted through, and so is the alpha of a plain
+       * setColor, which is why filling the offset shape directly produced a
+       * hard, fully opaque bar. PDFPrinter does emit a real 8-bit /SMask soft
+       * mask for a translucent image, so the blur and the configured opacity
+       * both survive this way, and the result matches what the viewsheet draws
+       * for the same shape.
+       *
+       * @param g the graphics to paint on.
+       * @param silhouette the shape's outline in the same (already scaled)
+       *                   coordinates paint() draws in.
+       */
+      protected void paintShadow(Graphics g, java.awt.Shape silhouette) {
+         ShapeShadow shadow = getShadow();
+
+         if(shadow == null || silhouette == null || !(g instanceof Graphics2D)) {
+            return;
+         }
+
+         java.awt.Rectangle bounds = silhouette.getBounds();
+
+         if(bounds.width <= 0 || bounds.height <= 0) {
+            return;
+         }
+
+         ShapeShadow scaled = scaleShadow(shadow);
+         Insets insets = ShapeShadowUtil.getShadowInsets(scaled);
+         BufferedImage img = new BufferedImage(bounds.width, bounds.height,
+                                               BufferedImage.TYPE_INT_ARGB);
+         Graphics2D ig = img.createGraphics();
+
+         try {
+            ig.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                                RenderingHints.VALUE_ANTIALIAS_ON);
+            ig.translate(-bounds.x, -bounds.y);
+            // only the alpha channel of this is used, the color is replaced
+            // by the shadow's own
+            ig.setColor(Color.BLACK);
+            ig.fill(silhouette);
+         }
+         finally {
+            ig.dispose();
+         }
+
+         BufferedImage layer = ShapeShadowUtil.createShadowLayer(img, scaled, insets);
+
+         if(layer != null) {
+            g.drawImage(layer, bounds.x - insets.left, bounds.y - insets.top, null);
+         }
+      }
+
+      /**
+       * Scale the shadow's distance and blur by the shape's own scale, so the
+       * shadow tracks the shape. They are configured in the viewsheet's pixel
+       * space and there is a single distance for both axes, so a non-uniform
+       * scale is averaged; in practice nothing sets a scale at all and this is
+       * the identity.
+       */
+      private ShapeShadow scaleShadow(ShapeShadow shadow) {
+         double scale = (xs + ys) / 2;
+
+         if(scale == 1) {
+            return shadow;
+         }
+
+         ShapeShadow scaled = (ShapeShadow) shadow.clone();
+         scaled.setDistance((int) Math.round(shadow.getDistance() * scale));
+         scaled.setBlur((int) Math.round(shadow.getBlur() * scale));
+
+         return scaled;
+      }
+
+      /**
        * Scale the shape.
        * @param xs x scale 0 to 1.
        * @param ys y scale 0 to 1.
@@ -199,6 +295,7 @@ public class PageLayout implements Serializable, Cloneable {
          style = shape.style;
          xs = shape.xs;
          ys = shape.ys;
+         shadow = shape.shadow;
       }
 
 		/**
@@ -221,6 +318,7 @@ public class PageLayout implements Serializable, Cloneable {
 		private int zindex; // just for previewing vs printlayout.
       private Color color = Color.black; // shape color
       private int style = StyleConstants.THIN_LINE; // line style
+      private ShapeShadow shadow; // drop shadow, null if none
       double xs = 1, ys = 1;
    }
 
@@ -519,6 +617,11 @@ public class PageLayout implements Serializable, Cloneable {
       @Override
       public void paint(Graphics g) {
          Color oc = g.getColor();
+
+         // behind the shape's own fill/outline, see Shape.paintShadow()
+         paintShadow(g, new Rectangle2D.Double(
+            (int) (getX() * xs), (int) (getY() * ys),
+            (int) (getWidth() * xs), (int) (getHeight() * ys)));
 
          if(fill != null) {
             Graphics2D g2 = (Graphics2D) g.create();
@@ -999,6 +1102,11 @@ public class PageLayout implements Serializable, Cloneable {
       @Override
       public void paint(Graphics g) {
          Color oc = g.getColor();
+
+         // behind the shape's own fill/outline, see Shape.paintShadow()
+         paintShadow(g, new Ellipse2D.Double(
+            (int) (getX() * xs), (int) (getY() * ys),
+            (int) (getWidth() * xs), (int) (getHeight() * ys)));
 
          if(fill != null) {
             Graphics2D g2 = (Graphics2D) g.create();

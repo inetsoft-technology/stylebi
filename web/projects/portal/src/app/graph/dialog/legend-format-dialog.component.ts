@@ -19,10 +19,30 @@ import { Component, Output, EventEmitter, Input, OnInit } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
 import { LegendFormatDialogModel } from "../model/dialog/legend-format-dialog-model";
 import { UIContextService } from "../../common/services/ui-context.service";
+import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.component";
+import { AliasPane } from "./alias-pane.component";
+import { LegendScalePane } from "./legend-scale-pane.component";
+import { LegendFormatGeneralPane } from "./legend-format-general-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "legend-format-dialog",
-   templateUrl: "legend-format-dialog.component.html",
+    selector: "legend-format-dialog",
+    templateUrl: "legend-format-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    LegendFormatGeneralPane,
+    LegendScalePane,
+    AliasPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class LegendFormatDialog implements OnInit {
    @Input() model: LegendFormatDialogModel;

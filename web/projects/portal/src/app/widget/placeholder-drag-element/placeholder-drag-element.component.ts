@@ -19,9 +19,10 @@ import { Component, Input } from "@angular/core";
 import { PlaceholderDragElementModel } from "./placeholder-drag-element-model";
 
 @Component({
-   selector: "placeholder-drag-element",
-   templateUrl: "placeholder-drag-element.component.html",
-   styleUrls: ["placeholder-drag-element.component.scss"],
+    selector: "placeholder-drag-element",
+    templateUrl: "placeholder-drag-element.component.html",
+    styleUrls: ["placeholder-drag-element.component.scss"],
+    standalone: true,
 })
 export class PlaceholderDragElement {
    @Input() model: PlaceholderDragElementModel;

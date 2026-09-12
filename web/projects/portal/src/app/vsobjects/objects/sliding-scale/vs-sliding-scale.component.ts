@@ -22,11 +22,15 @@ import { ContextProvider } from "../../context-provider.service";
 import { VSSlidingScaleModel } from "../../model/output/vs-sliding-scale-model";
 import { AbstractVSObject } from "../abstract-vsobject.component";
 import { DataTipService } from "../data-tip/data-tip.service";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+
 
 @Component({
-   selector: "vs-sliding-scale",
-   templateUrl: "vs-sliding-scale.component.html",
-   styleUrls: ["vs-sliding-scale.component.scss"]
+    selector: "vs-sliding-scale",
+    templateUrl: "vs-sliding-scale.component.html",
+    styleUrls: ["vs-sliding-scale.component.scss"],
+    imports: [VSDataTipDirective, VSPopComponentDirective]
 })
 
 /**

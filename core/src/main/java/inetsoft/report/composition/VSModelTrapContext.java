@@ -17,6 +17,7 @@
  */
 package inetsoft.report.composition;
 
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.CompositeColumnHelper;
@@ -40,22 +41,22 @@ public class VSModelTrapContext extends AbstractModelTrapContext {
    /**
     * Constructor.
     */
-   public VSModelTrapContext(RuntimeViewsheet rvs) {
-      this(rvs, false);
+   public VSModelTrapContext(RuntimeViewsheet rvs, DataSourceRegistry dataSourceRegistry) {
+      this(rvs, dataSourceRegistry, false);
    }
 
    /**
     * Constructor.
     */
-   public VSModelTrapContext(RuntimeViewsheet rvs, boolean initAgg) {
+   public VSModelTrapContext(RuntimeViewsheet rvs, DataSourceRegistry dataSourceRegistry, boolean initAgg) {
+      super(dataSourceRegistry);
       this.rvs = rvs;
       this.vs = rvs.getViewsheet();
       this.initAgg = initAgg;
 
       init(vs == null ? null : vs.getBaseEntry(),
-           rvs.getViewsheetSandbox() == null ?
-           null : rvs.getViewsheetSandbox().getUser(),
-           vs == null ? false : !vs.isDirectSource());
+           rvs.getViewsheetSandbox().map(ViewsheetSandbox::getUser).orElse(null),
+           vs != null && !vs.isDirectSource());
    }
 
    /**
@@ -67,8 +68,7 @@ public class VSModelTrapContext extends AbstractModelTrapContext {
       }
 
       if(entry.getType().id() == 101) {
-         DataSourceRegistry dsr = DataSourceRegistry.getRegistry();
-         XDataModel xdm = dsr.getDataModel(entry.getProperty("prefix"));
+         XDataModel xdm = dataSourceRegistry.getDataModel(entry.getProperty("prefix"));
 
          if(xdm == null) {
             throw new MessageException(Catalog.getCatalog().getString(
@@ -133,7 +133,7 @@ public class VSModelTrapContext extends AbstractModelTrapContext {
             vs.addCalcField(tname, ncalc);
          }
 
-         VSModelContext context = new VSModelContext(rvs);
+         VSModelContext context = new VSModelContext(rvs, dataSourceRegistry);
          HashSet<DataRef> all = new HashSet<>();
          HashSet<DataRef> aggs = new HashSet<>();
          addCalcAttributes(all);
@@ -206,7 +206,7 @@ public class VSModelTrapContext extends AbstractModelTrapContext {
             vs.addCalcField(tname, ncalc);
          }
 
-         VSModelContext context = new VSModelContext(rvs);
+         VSModelContext context = new VSModelContext(rvs, dataSourceRegistry);
          HashSet<DataRef> all = new HashSet<>();
          HashSet<DataRef> aggs = new HashSet<>();
          addCalcAttributes(all);
@@ -635,7 +635,6 @@ public class VSModelTrapContext extends AbstractModelTrapContext {
 
       return (DataRef[]) merge(refs, calcs);
    }
-
 
    private String[] gnames; // all group filed names
    private RuntimeViewsheet rvs;

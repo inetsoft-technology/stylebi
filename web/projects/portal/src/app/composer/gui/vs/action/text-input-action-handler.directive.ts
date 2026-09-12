@@ -35,7 +35,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const TEXTINPUT_PROPERTY_URI: string = "composer/vs/textinput-property-dialog-model/";
 
 @Directive({
-   selector: "[cTextInputActionHandler]"
+    selector: "[cTextInputActionHandler]",
+    standalone: true
 })
 export class TextInputActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSTextInputModel;

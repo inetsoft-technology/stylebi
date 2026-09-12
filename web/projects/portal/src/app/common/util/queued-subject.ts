@@ -35,7 +35,10 @@ export class QueuedSubject<T> extends Subject<T> {
    }
 
    _subscribe(subscriber: Subscriber<T>): Subscription {
-      let subscription: Subscription = super._subscribe(subscriber);
+      // HACK: super["_subscribe"] accesses an undocumented internal RxJS 7 Subject method.
+      // TypeScript 4.x+ disallows calling super._subscribe directly outside a constructor context.
+      // Must be revisited when upgrading RxJS beyond 7.x.
+      let subscription: Subscription = super["_subscribe"](subscriber);
 
       if(!this.subscribed) {
          this.subscribed = true;
@@ -45,7 +48,7 @@ export class QueuedSubject<T> extends Subject<T> {
             subscriber.next(this.queue[i]);
          }
 
-         this.queue = null;
+         this.queue = [];
       }
 
       if(this.hasError) {

@@ -15,8 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { SsoHeartbeatService } from "../../../../../../../shared/sso/sso-heartbeat.service";
+import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
@@ -26,7 +30,8 @@ import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
 import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { FileChooserModule } from "../../../../common/util/file-chooser/file-chooser.module";
+import { NEVER } from "rxjs";
+import { FileChooserComponent } from "../../../../common/util/file-chooser/file-chooser/file-chooser.component";
 import { RepositoryDataSourceSettingsViewComponent } from "./repository-data-source-settings-view.component";
 
 describe("RepositoryDataSourceSettingsViewComponent", () => {
@@ -46,10 +51,25 @@ describe("RepositoryDataSourceSettingsViewComponent", () => {
             MatOptionModule,
             MatSelectModule,
             MatSnackBarModule,
-            FileChooserModule
-         ],
-         declarations: [
-            RepositoryDataSourceSettingsViewComponent
+            // ResourcePermissionComponent transitively depends on
+            // CurrentUserService/OrganizationDropdownService, which fire HTTP
+            // requests (../api/em/security/get-current-user, ../api/em/navbar/*)
+            // in their constructors. Use the testing module so those don't hit
+            // the network and surface as late HttpErrorResponse errors.
+            HttpClientTestingModule,
+            FileChooserComponent,
+            RepositoryDataSourceSettingsViewComponent],
+         providers: [
+            { provide: SsoHeartbeatService, useValue: { ngOnDestroy: () => {} } },
+            {
+               // ResourcePermissionComponent (imported transitively) injects
+               // OrganizationDropdownService, which calls stompClient.connect() in
+               // its constructor. The real StompClient uses the global `Stomp`
+               // variable (loaded via angular.json scripts) which isn't available
+               // in vitest's jsdom environment, throwing "Stomp is not defined".
+               provide: StompClientService,
+               useValue: { connect: () => NEVER }
+            }
          ],
          schemas: [
             NO_ERRORS_SCHEMA

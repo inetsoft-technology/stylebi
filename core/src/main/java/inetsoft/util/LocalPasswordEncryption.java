@@ -21,17 +21,16 @@ import at.favre.lib.crypto.bcrypt.BCrypt;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.config.InetsoftConfig;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.crypto.SecretKey;
-import java.io.*;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
-import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
-import java.util.Properties;
 import java.util.concurrent.Callable;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
@@ -237,20 +236,49 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
 
    @Override
    public final SecretKey getJwtSigningKey() throws IOException {
-      SecretKey signingKey;
-      String property = SreeEnv.getProperty("jwt.signing.key");
+      // Guard the read-check-regenerate sequence with the cluster lock, matching
+      // getSSOKeyPair(). Without it, an upgraded clustered FIPS deployment could have every
+      // node independently regenerate and persist a different key at once (the self-heal
+      // branch below), causing transient cross-node JWT verification failures. Reading the
+      // property inside the lock also double-checks: once one node re-persists a valid key,
+      // the next node reads it and skips a redundant regeneration.
+      Lock lock = Cluster.getInstance().getLock(LOCK_NAME);
+      lock.lock();
 
-      if(property == null) {
-         signingKey = createJwtSigningKey();
-         byte[] encryptedKey = encryptJwtSigningKey(signingKey, getMasterKey());
-         String encoded = Base64.getEncoder().encodeToString(encryptedKey);
-         SreeEnv.setProperty("jwt.signing.key", encoded);
-         SreeEnv.save();
-      }
-      else {
-         signingKey = decryptJwtSigningKey(property, getMasterKey());
-      }
+      try {
+         SecretKey signingKey;
+         String property = SreeEnv.getProperty("jwt.signing.key");
 
+         if(property == null) {
+            signingKey = createAndStoreJwtSigningKey();
+         }
+         else {
+            signingKey = decryptJwtSigningKey(property, getMasterKey());
+
+            // Bug #75541: earlier FIPS builds persisted an undersized (128-bit) HmacSHA512
+            // signing key, which HS512 sign/verify rejects (>= 256 bits required). Regenerate
+            // it so upgraded deployments recover. JWTs are short-lived and do not survive a
+            // restart, so replacing the key has no impact.
+            byte[] encoded = signingKey == null ? null : signingKey.getEncoded();
+
+            if(encoded == null || encoded.length < JWT_SIGNING_KEY_MIN_BYTES) {
+               signingKey = createAndStoreJwtSigningKey();
+            }
+         }
+
+         return signingKey;
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   private SecretKey createAndStoreJwtSigningKey() throws IOException {
+      SecretKey signingKey = createJwtSigningKey();
+      byte[] encryptedKey = encryptJwtSigningKey(signingKey, getMasterKey());
+      String encoded = Base64.getEncoder().encodeToString(encryptedKey);
+      SreeEnv.setProperty("jwt.signing.key", encoded);
+      SreeEnv.save();
       return signingKey;
    }
 
@@ -378,6 +406,11 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
          SecretKey key;
          String property = SreeEnv.getProperty("password.encryption.key");
 
+         // Fallback to backing store if in-memory cache hasn't refreshed yet
+         if(property == null) {
+            property = SreeEnv.getPropertyFromStorage("password.encryption.key");
+         }
+
          if(property == null) {
             key = createSecretKey();
             byte[] data = encryptSecretKey(key, masterKey);
@@ -443,23 +476,11 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
    protected abstract PrivateKey decryptSSOPrivateKey(String encryptedKey, SecretKey masterKey);
 
    protected final boolean isMasterPasswordInvalid(SecretKey masterKey) {
-      String home = ConfigurationContext.getContext().getHome();
-      File file = FileSystemService.getInstance().getFile(home, "dbProp.properties");
+      if(InetsoftConfig.BOOTSTRAP_INSTANCE != null) {
+         String string = (String) InetsoftConfig.BOOTSTRAP_INSTANCE
+            .getAdditionalProperties().get("masterPasswordCheck");
 
-      if(file.exists()) {
-         Properties properties = new Properties();
-
-         try(InputStream input = new FileInputStream(file)) {
-            properties.load(input);
-         }
-         catch(Exception e) {
-            LOG.debug("Failed to validate master password", e);
-            return true;
-         }
-
-         String string = properties.getProperty("master.password.check");
-
-         if(string != null && !string.isEmpty()) {
+         if(!StringUtils.isBlank(string)) {
             return isMasterPasswordInvalid(string, masterKey);
          }
       }
@@ -527,6 +548,8 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
    }
 
    private final boolean throwExceptions;
+   // Minimum JWT signing key size in bytes (256 bits) required by the HS512 algorithm.
+   private static final int JWT_SIGNING_KEY_MIN_BYTES = 32;
    private static final String LOCK_NAME = LocalPasswordEncryption.class.getName() + ".lock";
 
    private static final Logger LOG = LoggerFactory.getLogger(LocalPasswordEncryption.class);

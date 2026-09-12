@@ -19,4 +19,7 @@ export interface PresentationAISettingsModel {
    aiAssistantVisible: boolean;
    chatAppInternalUrl?: string;
    chatAppServerUrl?: string;
+   chatAppTitle?: string;
+   chatAppVendorName?: string;
+   chatAppLogoUrl?: string;
 }

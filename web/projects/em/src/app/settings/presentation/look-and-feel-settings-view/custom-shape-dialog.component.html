@@ -11,23 +11,25 @@
         color="primary"
         [disabled]="fileChooser.uploading || uploading || !fileChooser.value || !fileChooser.value.length"
         (click)="uploadFiles()"
-      >
+        >
         _#(Upload)
       </button>
     </em-staged-file-chooser>
   </div>
-  <div class="file-loading-indicator" *ngIf="!fileChooser.uploading && uploading">
-    <h3>_#(em.dataSpace.shapesUpdating)</h3>
-    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
-  </div>
+  @if (!fileChooser.uploading && uploading) {
+    <div class="file-loading-indicator">
+      <h3>_#(em.dataSpace.shapesUpdating)</h3>
+      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+    </div>
+  }
   <div>
     <div class="tree-container">
       <em-flat-tree-view [dataSource]="dataSource" [treeControl]="dataSource.treeControl"
-                         [selectedNodes]="selectedNodes"
-                         emMultiSelectTree
-                         [tree]="dataSource"
-                         [currentSelection]="selectedNodes"
-                         (nodesSelected)="handleNodeSelected($event)"
+        [selectedNodes]="selectedNodes"
+        emMultiSelectTree
+        [tree]="dataSource"
+        [currentSelection]="selectedNodes"
+        (nodesSelected)="handleNodeSelected($event)"
       ></em-flat-tree-view>
     </div>
   </div>

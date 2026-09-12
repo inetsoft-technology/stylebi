@@ -33,6 +33,28 @@ import java.awt.geom.Rectangle2D;
  */
 public class SVGTableHelper extends VSTableHelper {
    /**
+    * Clip the title/data drawing that follows to the object's rounded-corner bounds, so
+    * the square cell backgrounds/text don't stick out past the rounded border drawn on
+    * top afterward by {@link #drawObjectFormat}.
+    */
+   @Override
+   protected void beginRoundCornerClip(TableDataVSAssemblyInfo info, VSTableLens lens) {
+      VSCompositeFormat format = info.getFormat();
+
+      if(format == null) {
+         return;
+      }
+
+      vHelper.beginRoundCornerClip(getObjectPixelBounds(info, lens, vHelper),
+                                   format.getRoundCorner());
+   }
+
+   @Override
+   protected void endRoundCornerClip() {
+      vHelper.endRoundCornerClip();
+   }
+
+   /**
     * Creates a new instance of <tt>SVGTableHelper</tt>.
     *
     * @param helper the coordinate helper.
@@ -104,6 +126,7 @@ public class SVGTableHelper extends VSTableHelper {
          format2.getUserDefinedFormat().setBorders(format.getBorders());
          format2.getUserDefinedFormat().setBorderColors(format.getBorderColors());
          format2.getUserDefinedFormat().setBackground(null);
+         format2.getUserDefinedFormat().setRoundCorner(format.getRoundCorner());
 
          format = format2;
       }

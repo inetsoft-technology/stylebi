@@ -18,7 +18,9 @@
 package inetsoft.web.composer.model.vs;
 
 
-public class RadioButtonGeneralPaneModel {
+import java.io.Serializable;
+
+public class RadioButtonGeneralPaneModel implements Serializable {
    public GeneralPropPaneModel getGeneralPropPaneModel() {
       if(generalPropPaneModel == null) {
          generalPropPaneModel = new GeneralPropPaneModel();

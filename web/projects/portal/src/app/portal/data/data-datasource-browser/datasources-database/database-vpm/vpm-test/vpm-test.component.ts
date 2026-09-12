@@ -21,11 +21,14 @@ import { TestDataModel } from "../../../../model/datasources/database/vpm/test-d
 import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import { VpmTestEvent } from "../../../../model/datasources/database/events/vpm-test-event";
 
+import { FormsModule } from "@angular/forms";
+
 const VPM_TEST_URI: string = "../api/data/vpm/test";
 
 @Component({
-   selector: "vpm-test",
-   templateUrl: "vpm-test.component.html"
+    selector: "vpm-test",
+    templateUrl: "vpm-test.component.html",
+    imports: [FormsModule]
 })
 export class VPMTestComponent {
    @Input() vpm: VPMDefinitionModel;

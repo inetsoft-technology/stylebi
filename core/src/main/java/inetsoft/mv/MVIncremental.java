@@ -85,7 +85,7 @@ public abstract class MVIncremental {
 
          // @by ChrisSpagnoli, for Bug #7250
          // Clear all assets from the cache, to prevent any "stale" data being used
-         AssetDataCache.clearCache();
+         AssetDataCache.getCache().clearCache();
       }
       catch(Exception e) {
          // throw mv execution exception to create newly mv
@@ -224,7 +224,7 @@ public abstract class MVIncremental {
       }
 
       // set time as now, not to use cached data when create mv
-      return AssetDataCache.getData(
+      return AssetDataCache.getCache().getData(
          null, (TableAssembly) assembly.clone(), box, null, AssetQuerySandbox.RUNTIME_MODE, false,
          System.currentTimeMillis(), box.getQueryManager());
    }

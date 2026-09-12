@@ -18,33 +18,35 @@
 package inetsoft.web.admin.viewsheet;
 
 import inetsoft.report.composition.ExpiredSheetException;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
-import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.AbstractMonitoringController;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
-
-import java.security.Principal;
-import java.util.List;
-import java.util.Optional;
-
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
+import java.util.List;
+import java.util.Optional;
+
 @RestController
+@Lazy(false)
 public class ViewsheetMonitorController extends AbstractMonitoringController {
    @Autowired
    public ViewsheetMonitorController(ViewsheetService viewsheetService,
-                                     MonitoringDataService monitoringDataService) {
+                                     MonitoringDataService monitoringDataService,
+                                     SecurityEngine securityEngine)
+   {
       this.viewsheetService = viewsheetService;
       this.monitoringDataService = monitoringDataService;
+      this.securityEngine = securityEngine;
    }
 
    @SubscribeMapping({"/monitoring/viewsheets/executing",
@@ -54,7 +56,7 @@ public class ViewsheetMonitorController extends AbstractMonitoringController {
       @DestinationVariable("address") Optional<String> address, Principal principal)
       throws SecurityException
    {
-      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+      if(!securityEngine.getSecurityProvider().checkPermission(
          principal, ResourceType.EM_COMPONENT, "monitoring/viewsheets/executing", ResourceAction.ACCESS))
       {
          throw new SecurityException("Unauthorized access to viewsheet monitoring by user " + principal.getName());
@@ -76,7 +78,7 @@ public class ViewsheetMonitorController extends AbstractMonitoringController {
       @DestinationVariable("address") Optional<String> address, Principal principal)
       throws SecurityException
    {
-      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+      if(!securityEngine.getSecurityProvider().checkPermission(
          principal, ResourceType.EM_COMPONENT, "monitoring/viewsheets/open", ResourceAction.ACCESS))
       {
          throw new SecurityException("Unauthorized access to viewsheet monitoring by user " + principal.getName());
@@ -124,4 +126,5 @@ public class ViewsheetMonitorController extends AbstractMonitoringController {
 
    private final ViewsheetService viewsheetService;
    private final MonitoringDataService monitoringDataService;
+   private final SecurityEngine securityEngine;
 }

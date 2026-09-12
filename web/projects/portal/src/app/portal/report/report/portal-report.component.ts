@@ -17,22 +17,18 @@
  */
 import { Component, NgZone, OnDestroy, OnInit } from "@angular/core";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
-import {
-   ActivatedRoute,
-   NavigationEnd,
-   NavigationExtras,
-   Router,
-   RouterEvent
-} from "@angular/router";
-import { filter, map } from "rxjs/operators";
+import { ActivatedRoute, NavigationEnd, NavigationExtras, Router } from "@angular/router";
 import { fromEvent, Subscription } from "rxjs";
+import { filter, map } from "rxjs/operators";
 import { RepositoryTreeService } from "../../../widget/repository-tree/repository-tree.service";
 import { HideNavService } from "../../services/hide-nav.service";
 
+
 @Component({
-   selector: "p-portal-report",
-   templateUrl: "./portal-report.component.html",
-   styleUrls: ["./portal-report.component.scss"]
+    selector: "p-portal-report",
+    templateUrl: "./portal-report.component.html",
+    styleUrls: ["./portal-report.component.scss"],
+    imports: []
 })
 export class PortalReportComponent implements OnInit, OnDestroy {
    contentSource: SafeResourceUrl;
@@ -46,7 +42,7 @@ export class PortalReportComponent implements OnInit, OnDestroy {
                private hideNavService: HideNavService)
    {
       this.subscriptions.add(
-         this.router.events.subscribe((event: RouterEvent) => {
+         this.router.events.subscribe(event => {
             this.setContentSource();
 
             if(event instanceof NavigationEnd) {

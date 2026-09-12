@@ -19,6 +19,7 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 /**
@@ -26,6 +27,7 @@ import org.immutables.value.Value;
  * for the embedded viewsheet property dialog
  */
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableViewsheetObjectPropertyDialogModel.class)
 @JsonDeserialize(as = ImmutableViewsheetObjectPropertyDialogModel.class)
 public abstract class ViewsheetObjectPropertyDialogModel {

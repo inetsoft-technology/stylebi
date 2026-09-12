@@ -28,11 +28,19 @@ import {
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { CustomThemeModel } from "../custom-theme-model";
+import { MatActionList, MatListItem } from "@angular/material/list";
+import { TopScrollDirective } from "../../../../top-scroll/top-scroll.directive";
+import { MatIcon } from "@angular/material/icon";
+import { MatMenuTrigger, MatMenu, MatMenuItem } from "@angular/material/menu";
+import { MatIconButton } from "@angular/material/button";
+
+import { MatToolbar } from "@angular/material/toolbar";
 
 @Component({
-   selector: "em-theme-list-view",
-   templateUrl: "./theme-list-view.component.html",
-   styleUrls: ["./theme-list-view.component.scss"]
+    selector: "em-theme-list-view",
+    templateUrl: "./theme-list-view.component.html",
+    styleUrls: ["./theme-list-view.component.scss"],
+    imports: [MatToolbar, MatIconButton, MatMenuTrigger, MatIcon, TopScrollDirective, MatActionList, MatListItem, MatMenu, MatMenuItem]
 })
 export class ThemeListViewComponent implements OnInit, OnDestroy {
    @Input() get themes(): CustomThemeModel[] {
@@ -50,6 +58,7 @@ export class ThemeListViewComponent implements OnInit, OnDestroy {
 
    @Input() selectedTheme: CustomThemeModel;
    @Input() isSiteAdmin = false;
+   @Input() isMultiTenant = false;
    @Input() orgId: string;
    @Output() themeSelected = new EventEmitter<string>();
    @Output() themeDeleted = new EventEmitter<string>();
@@ -78,7 +87,7 @@ export class ThemeListViewComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    createTheme(): void {
@@ -98,7 +107,8 @@ export class ThemeListViewComponent implements OnInit, OnDestroy {
    }
 
    cannotDelete(): boolean {
-      return !this.selectedTheme?.id || this.selectedTheme.global && !this.isSiteAdmin;
+      return !this.selectedTheme?.id ||
+         (this.selectedTheme.global && !this.isSiteAdmin && this.isMultiTenant);
    }
 
    isDefaultTheme(theme: CustomThemeModel): boolean {

@@ -17,26 +17,33 @@
  */
 package inetsoft.web.portal.controller;
 
-import inetsoft.report.internal.Util;
 import inetsoft.sree.RepletRegistry;
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.*;
-import inetsoft.util.Tool;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.messaging.*;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.security.Principal;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Controller that lasts the duration of a websocket session used for refreshing
@@ -45,7 +52,6 @@ import java.security.Principal;
  * @since 12.3
  */
 @Controller
-@Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class RepositoryTreeChangeController {
    /**
     * Creates a new instance of <tt>RepositoryTreeChangeController</tt>.
@@ -56,79 +62,153 @@ public class RepositoryTreeChangeController {
    @Autowired
    public RepositoryTreeChangeController(AssetRepository assetRepository,
                                          SimpMessagingTemplate messagingTemplate,
-                                         ScheduleManager scheduleManager)
+                                         RepletRegistryManager repletRegistryManager)
    {
       this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    @PostConstruct
    public void postConstruct() throws Exception {
-      RepletRegistry.getRegistry().addPropertyChangeListener(this.reportListener);
+      repletRegistryManager.getRegistry().addPropertyChangeListener(this.reportListener);
       assetRepository.addAssetChangeListener(this.viewsheetListener);
    }
 
    @PreDestroy
-   public void preDestroy() throws Exception {
-      RepletRegistry.getRegistry().removePropertyChangeListener(this.reportListener);
-      assetRepository.removeAssetChangeListener(this.viewsheetListener);
-      IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
+   public void preDestroy() {
+      try {
+         repletRegistryManager.getRegistry().removePropertyChangeListener(this.reportListener);
+         assetRepository.removeAssetChangeListener(this.viewsheetListener);
 
-      if(principal != null) {
-         RepletRegistry.getRegistry(pId)
-            .removePropertyChangeListener(this.reportListener);
+         for(Map.Entry<Principal, PropertyChangeListener> e : reportListeners.entrySet()) {
+            IdentityID pId = IdentityID.getIdentityIDFromKey(e.getKey().getName());
+            RepletRegistry registry = repletRegistryManager.getRegistry(pId, false);
+
+            if(registry != null) {
+               registry.removePropertyChangeListener(e.getValue());
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listeners during shutdown", e);
       }
    }
 
    @SubscribeMapping(COMMANDS_TOPIC)
-   public void subscribeToTopic(Principal principal) throws Exception {
-      this.principal = principal;
-      IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
+   public void subscribeToTopic(StompHeaderAccessor header, Principal principal) throws Exception {
+      final MessageHeaders messageHeaders = header.getMessageHeaders();
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      subscriptions.put(sessionId, principal);
 
       if(principal != null) {
-         RepletRegistry.getRegistry(pId)
-            .addPropertyChangeListener(this.reportListener);
+         IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+         PropertyChangeListener listener = new ReportListener(principal);
+         reportListeners.put(principal, listener);
+         repletRegistryManager.getRegistry(pId).addPropertyChangeListener(listener);
       }
+   }
+
+   @EventListener(SessionDisconnectEvent.class)
+   public void handleDisconnect(SessionDisconnectEvent event) {
+      removeSubscription(event);
+   }
+
+   private void removeSubscription(AbstractSubProtocolEvent event) {
+      final Message<byte[]> message = event.getMessage();
+      final MessageHeaders headers = message.getHeaders();
+      final String sessionId =
+         (String) headers.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+
+      if(sessionId != null) {
+         Principal principal = subscriptions.remove(sessionId);
+
+         if(principal != null) {
+            PropertyChangeListener listener = reportListeners.remove(principal);
+
+            if(listener != null) {
+               try {
+                  IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+                  repletRegistryManager.getRegistry(pId).removePropertyChangeListener(listener);
+               }
+               catch(Exception e) {
+                  LOG.warn(
+                     "Failed to remove registry listener for user {}", principal.getName(), e);
+               }
+            }
+         }
+      }
+   }
+
+   private void handleReportChanged(PropertyChangeEvent event) {
+      if(!RepletRegistry.EDIT_CYCLE_EVENT.equals(event.getPropertyName()) &&
+         !RepletRegistry.CHANGE_EVENT.equals(event.getPropertyName()))
+      {
+         for(Principal principal : subscriptions.values()) {
+            if(Objects.equals(getOrgId(event), OrganizationManager.getInstance().getCurrentOrgID(principal))) {
+               messagingTemplate
+                  .convertAndSendToUser(SUtil.getUserDestination(principal), COMMANDS_TOPIC, "");
+            }
+         }
+      }
+   }
+
+   private String getOrgId(PropertyChangeEvent event) {
+      if(event instanceof inetsoft.report.PropertyChangeEvent e) {
+         return e.getOrgID();
+      }
+
+      return null;
+   }
+
+   private String getOrgId(AssetChangeEvent event) {
+      if(event.getAssetEntry() != null) {
+         return event.getAssetEntry().getOrgID();
+      }
+
+      return null;
    }
 
    private static final String COMMANDS_TOPIC = "/repository-changed";
 
    private final AssetRepository assetRepository;
    private final SimpMessagingTemplate messagingTemplate;
-   private Principal principal;
+   private final RepletRegistryManager repletRegistryManager;
+   private final PropertyChangeListener reportListener = this::handleReportChanged;
+   private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
+   private final Map<Principal, PropertyChangeListener> reportListeners = new ConcurrentHashMap<>();
 
-   private final PropertyChangeListener reportListener = new PropertyChangeListener() {
+   private static final Logger LOG = LoggerFactory.getLogger(RepositoryTreeChangeController.class);
+
+   private final AssetChangeListener viewsheetListener = new AssetChangeListener() {
+      @Override
+      public void assetChanged(AssetChangeEvent event) {
+         if(event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED) {
+            for(Principal principal : subscriptions.values()) {
+               messagingTemplate
+                  .convertAndSendToUser(SUtil.getUserDestination(principal), COMMANDS_TOPIC, "");
+            }
+         }
+      }
+   };
+
+   private final class ReportListener implements PropertyChangeListener {
+      public ReportListener(Principal principal) {
+         this.principal = principal;
+      }
+
       @Override
       public void propertyChange(PropertyChangeEvent event) {
-         String orgEventSourceID = event instanceof inetsoft.report.PropertyChangeEvent eventWrapper ?
-            eventWrapper.getOrgID() : Util.getOrgIdFromEventSource(event.getSource());
-         String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
-
          if(!RepletRegistry.EDIT_CYCLE_EVENT.equals(event.getPropertyName()) &&
             !RepletRegistry.CHANGE_EVENT.equals(event.getPropertyName()) &&
-            (orgEventSourceID == null || Tool.equals(orgEventSourceID, currentOrgID)))
+            Objects.equals(getOrgId(event), OrganizationManager.getInstance().getCurrentOrgID(principal)))
          {
             messagingTemplate
                .convertAndSendToUser(SUtil.getUserDestination(principal), COMMANDS_TOPIC, "");
          }
       }
-   };
 
-   private final AssetChangeListener viewsheetListener = new AssetChangeListener() {
-      @Override
-      public void assetChanged(AssetChangeEvent event) {
-         if(event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED && principal != null) {
-            String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
-
-            if(event.getAssetEntry() != null &&
-               !Tool.equals(currentOrgID, event.getAssetEntry().getOrgID()))
-            {
-               return;
-            }
-
-            messagingTemplate
-               .convertAndSendToUser(SUtil.getUserDestination(principal), COMMANDS_TOPIC, "");
-         }
-      }
-   };
+      private final Principal principal;
+   }
 }

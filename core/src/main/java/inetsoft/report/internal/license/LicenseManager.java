@@ -17,29 +17,23 @@
  */
 package inetsoft.report.internal.license;
 
-import inetsoft.sree.SreeEnv;
+import com.google.common.base.Suppliers;
+import inetsoft.sree.ApplicationPropertiesChangedEvent;
 import inetsoft.sree.internal.cluster.MessageEvent;
 import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.IdentityID;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
+import jakarta.annotation.PreDestroy;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.event.EventListener;
 
 import java.util.*;
+import java.util.function.Supplier;
 
 /**
  * {@code LicenseManager} manages the installed license keys and provides information about them.
  */
 public class LicenseManager implements AutoCloseable, MessageListener {
-   public enum LicenseComponent {
-      FORM("Form");
-
-      private final String webExtName;
-
-      LicenseComponent(String webExtName) {
-         this.webExtName = webExtName;
-      }
-
-   }
-
    /**
     * Creates a new instance of {@code LicenseManager}.
     */
@@ -60,21 +54,30 @@ public class LicenseManager implements AutoCloseable, MessageListener {
     * @return the manager instance.
     */
    public static LicenseManager getInstance() {
-      return SingletonManager.getInstance(LicenseManager.class);
+      return ConfigurationContext.getContext().getSpringBean(LicenseManager.class);
    }
 
    /**
-    * Utility to check if a component is available.
+    * Returns {@code true} if CPU affinity is configured in the license, or {@code false} if the
+    * {@code LicenseManager} bean is not yet available in the Spring context.
     *
-    * @param component component string.
+    * <p>This method is safe to call from threads that may run while Spring is still initializing
+    * beans (e.g. {@link inetsoft.util.GroupedThread} tasks submitted by cluster services). Calling
+    * {@link #getInstance()} from such threads can deadlock because Spring's singleton creation lock
+    * may be held by the thread that spawned the cluster task. This method avoids that by checking
+    * whether the bean is already in the singleton cache before attempting to retrieve it.</p>
     */
-   public static boolean isComponentAvailable(LicenseComponent component) {
+   public static boolean isAffinityEnabledSafe() {
       try {
-         if(Objects.requireNonNull(component) == LicenseComponent.FORM) {
-            return !"false".equals(SreeEnv.getProperty("vs.form.enabled"));
+         var ctx = ConfigurationContext.getContext().getApplicationContext();
+
+         if(ctx instanceof ConfigurableApplicationContext cac &&
+            !cac.getBeanFactory().containsSingleton("licenseManager"))
+         {
+            return false;
          }
 
-         return true;
+         return getInstance().isAffinitySet();
       }
       catch(Exception ignore) {
          return false;
@@ -91,20 +94,8 @@ public class LicenseManager implements AutoCloseable, MessageListener {
    /**
     * Check if the enterprise features are included.
     */
-   public boolean isEnterprise() {
-      if(enterprise != null) {
-         return enterprise;
-      }
-
-      try {
-         Class.forName("inetsoft.enterprise.EnterpriseConfig");
-         enterprise = true;
-         return true;
-      }
-      catch(Exception ex) {
-         enterprise = false;
-         return false;
-      }
+   public static boolean isEnterprise() {
+      return enterprise.get();
    }
 
    /**
@@ -261,6 +252,11 @@ public class LicenseManager implements AutoCloseable, MessageListener {
       strategy.replaceLicense(oldKey, newKey);
    }
 
+   @EventListener(ApplicationPropertiesChangedEvent.class)
+   public void handleApplicationPropertiesChanged(ApplicationPropertiesChangedEvent event) {
+      reload();
+   }
+
    /**
     * Reloads the licenses from the properties file.
     */
@@ -305,6 +301,7 @@ public class LicenseManager implements AutoCloseable, MessageListener {
    }
 
    @Override
+   @PreDestroy
    public void close() throws Exception {
       strategy.close();
    }
@@ -426,5 +423,13 @@ public class LicenseManager implements AutoCloseable, MessageListener {
    }
 
    private LicenseStrategy strategy;
-   private Boolean enterprise;
+   private static final Supplier<Boolean> enterprise = Suppliers.memoize(() -> {
+      try {
+         Class.forName("inetsoft.enterprise.EnterpriseConfig");
+         return true;
+      }
+      catch(Exception ignore) {
+         return false;
+      }
+   });
 }

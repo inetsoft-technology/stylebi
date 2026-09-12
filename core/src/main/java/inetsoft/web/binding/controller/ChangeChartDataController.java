@@ -51,22 +51,14 @@ public class ChangeChartDataController {
     *
     * @param runtimeViewsheetRef reference to the runtime viewsheet associated with the
     *                            WebSocket session.
-    * @param viewsheetService
     */
    @Autowired
    public ChangeChartDataController(
-      VSBindingService bindingFactory,
-      RuntimeViewsheetRef runtimeViewsheetRef, CoreLifecycleService coreLifecycleService,
-      VSAssemblyInfoHandler assemblyInfoHandler, VSChartHandler chartHandler,
-      VSChartDataHandler chartDataHandler, ViewsheetService viewsheetService)
+      RuntimeViewsheetRef runtimeViewsheetRef,
+      ChangeChartDataServiceProxy changeChartDataService)
    {
-      this.bindingFactory = bindingFactory;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.coreLifecycleService = coreLifecycleService;
-      this.assemblyInfoHandler = assemblyInfoHandler;
-      this.chartHandler = chartHandler;
-      this.chartDataHandler = chartDataHandler;
-      this.viewsheetService = viewsheetService;
+      this.changeChartDataService = changeChartDataService;
    }
 
    @MessageMapping("/vs/chart/changeChartData")
@@ -80,100 +72,10 @@ public class ChangeChartDataController {
          return;
       }
 
-      String name = event.getName();
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      Viewsheet vs = rvs.getViewsheet();
-      ChartVSAssembly assembly = (ChartVSAssembly) vs.getAssembly(name);
-
-      if(assembly == null) {
-         LOG.warn(
-            "Chart assembly does not exist, failed to process change chart " +
-            "reference event: " + name);
-         return;
-      }
-
-      BindingModel obinding = bindingFactory.createModel(assembly);
-      ChartVSAssembly clone = (ChartVSAssembly) assembly.clone();
-      ChartBindingModel cmodel = event.getModel();
-      clone = (ChartVSAssembly) bindingFactory.updateAssembly(cmodel, clone);
-      ChartVSAssemblyInfo ninfo = clone.getChartInfo();
-      vs = assembly.getViewsheet();
-      String table = assembly.getTableName();
-      ChartVSAssemblyInfo oinfo =
-         (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo().clone();
-      // fix info
-      chartHandler.fixAggregateInfo(ninfo, vs, null);
-
-      ChartVSAssemblyInfo ninfoCopy = (ChartVSAssemblyInfo) ninfo.clone();
-      int hint = assembly.setVSAssemblyInfo(ninfo);
-
-      // update again after chart info is finalized
-      try {
-         box.updateAssembly(assembly.getAbsoluteName());
-      }
-      catch(Exception e) {
-         // ignore it
-      }
-
-      ninfo = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
-      VSChartInfo cinfo = ninfo.getVSChartInfo();
-      cinfo = (VSChartInfo) new ChangeChartDataProcessor(cinfo).process();
-      ChangeChartProcessor.fixGroupOption(cinfo);
-      ninfo.setVSChartInfo(cinfo);
-      chartHandler.fixShapeField(ninfo.getVSChartInfo(),
-                                 chartDataHandler.getChartType(ninfo.getVSChartInfo()));
-      ChangeChartProcessor pro = new ChangeChartProcessor();
-      VSChartInfo ocinfo = oinfo.getVSChartInfo();
-      VSChartInfo ncinfo = ninfo.getVSChartInfo();
-
-      // @by ChrisSpagnoli bug1412008160666 #1 2014-10-28
-      // Clear custom tip, if it contains numeric references
-      if(chartDataHandler.tipFormatContainsNumericReferences(ocinfo.getToolTipValue())) {
-         ncinfo.setToolTipValue(null);
-      }
-
-      pro.fixMapFrame(ocinfo, ncinfo);
-      pro.fixNamedGroup(ocinfo, ncinfo);
-      coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
-      hint = hint | chartHandler.createCommands(oinfo, ninfoCopy);
-
-      boolean dchanged = (hint & VSAssembly.INPUT_DATA_CHANGED) ==
-         VSAssembly.INPUT_DATA_CHANGED;
-      VSSelection bselection = oinfo.getBrushSelection();
-
-      // clear brush for data changed
-      if(dchanged && table != null && bselection != null &&
-         !bselection.isEmpty())
-      {
-         hint = hint | assembly.setBrushSelection(null);
-         vs.setBrush(table, assembly);
-      }
-
-      try {
-         ChangedAssemblyList clist =
-            coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-         box.processChange(name, hint, clist);
-         coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
-         assemblyInfoHandler.checkTrap(oinfo, ninfo, obinding, dispatcher, rvs);
-         //processTableChange(oinfo, ninfo, rvs, this, command);
-      }
-      finally {
-         vs.setBrush(table, null);
-      }
-
-      BindingModel binding = bindingFactory.createModel(assembly);
-      SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
-      dispatcher.sendCommand(bcommand);
+      changeChartDataService.changeChartData(id, event, principal, dispatcher, linkUri);
    }
 
-   private final VSBindingService bindingFactory;
+
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final CoreLifecycleService coreLifecycleService;
-   private final VSAssemblyInfoHandler assemblyInfoHandler;
-   private final VSChartHandler chartHandler;
-   private final VSChartDataHandler chartDataHandler;
-   private final ViewsheetService viewsheetService;
-   private static final Logger LOG =
-      LoggerFactory.getLogger(ChangeChartDataController.class);
+   private final ChangeChartDataServiceProxy changeChartDataService;
 }

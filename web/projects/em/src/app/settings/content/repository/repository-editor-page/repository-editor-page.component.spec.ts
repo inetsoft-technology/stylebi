@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
@@ -23,7 +24,8 @@ import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatOptionModule } from "@angular/material/core";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
-import { RouterTestingModule } from "@angular/router/testing";
+import { MatSnackBarModule } from "@angular/material/snack-bar";
+import { RouterModule } from "@angular/router";
 import { of as observableOf } from "rxjs";
 import { ContentRepositoryService } from "../content-repository-page/content-repository.service";
 import { RepositoryDataSourceSettingsPageComponent } from "../repository-data-source-settings-page/repository-data-source-settings-page.component";
@@ -40,23 +42,14 @@ describe("RepositoryEditorPageComponent", () => {
 
    beforeEach(() => {
       const service = {
-         hasMVPermission: jest.fn(() => observableOf(false))
+         hasMVPermission: vi.fn(() => observableOf(false))
       };
 
       TestBed.configureTestingModule({
          imports: [
-            RouterTestingModule, FormsModule, ReactiveFormsModule, MatCheckboxModule,
-            MatSelectModule, MatOptionModule, MatInputModule, HttpClientTestingModule
-         ],
-         declarations: [
-            RepositoryEditorPageComponent,
-            RepositoryViewsheetSettingsPageComponent,
-            RepositoryWorksheetSettingsPageComponent,
-            RepositoryDataSourceSettingsPageComponent,
-            RepositoryFolderTrashcanSettingsPageComponent,
-            RepositoryFolderSettingsPageComponent,
-            RepositoryPermissionEditorPageComponent
-         ],
+            RouterModule.forRoot([]), FormsModule, ReactiveFormsModule, MatCheckboxModule,
+            MatSelectModule, MatOptionModule, MatInputModule, MatSnackBarModule, HttpClientTestingModule,
+            RepositoryEditorPageComponent, RepositoryViewsheetSettingsPageComponent, RepositoryWorksheetSettingsPageComponent, RepositoryDataSourceSettingsPageComponent, RepositoryFolderTrashcanSettingsPageComponent, RepositoryFolderSettingsPageComponent, RepositoryPermissionEditorPageComponent],
          providers: [{provide: ContentRepositoryService, useValue: service}],
          schemas: [
             NO_ERRORS_SCHEMA

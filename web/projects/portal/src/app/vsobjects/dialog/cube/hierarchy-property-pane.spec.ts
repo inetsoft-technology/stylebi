@@ -78,15 +78,16 @@ let fixture: ComponentFixture<HierarchyPropertyPane>;
 
 describe("Hierarchy Property Pane Unit Test", () => {
    beforeEach(() => {
-      let examplesService = {loadDateLevelExamples: jest.fn(() => observableOf())};
+      let examplesService = {loadDateLevelExamples: vi.fn(() => observableOf())};
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule
+            FormsModule,
+            ReactiveFormsModule,
+            HierarchyPropertyPane,
+            HierarchyEditor,
          ],
-         declarations: [
-            HierarchyPropertyPane, HierarchyEditor
-         ],
+         
          providers: [
             {provide: DateLevelExamplesService, useValue: examplesService}
          ]

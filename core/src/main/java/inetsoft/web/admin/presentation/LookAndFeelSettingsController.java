@@ -44,11 +44,19 @@ public class LookAndFeelSettingsController<K extends String, V extends Multipart
    }
 
    @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/presentation/settings",
-         actions = ResourceAction.ACCESS
-      )
+      value = {
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/presentation/settings",
+            actions = ResourceAction.ACCESS
+         ),
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/presentation/org-settings",
+            actions = ResourceAction.ACCESS
+         )
+      },
+      operator = "OR"
    )
    @GetMapping("/api/em/presentation/look-and-feel/identities")
    public GetAllIdentitiesResponse getIdentities(Principal principal) {

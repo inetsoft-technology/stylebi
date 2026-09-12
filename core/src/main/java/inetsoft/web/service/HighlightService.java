@@ -49,8 +49,8 @@ import org.springframework.stereotype.Component;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 
 @Component
 public class HighlightService {
@@ -347,9 +347,9 @@ public class HighlightService {
       throws Exception
    {
       List<DataRef> fieldList = new ArrayList<>();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return fieldList;
       }
 
@@ -360,7 +360,7 @@ public class HighlightService {
             info.getRuntimeRowHeaders() : info.getPeriodRuntimeRowHeaders();
          XDimensionRef[] dcTempGroups = info.getDcTempGroups();
          DataRef[] aggregates = info.getRuntimeAggregates();
-         Object data = box.getData(assembly.getAbsoluteName());
+         Object data = box.get().getData(assembly.getAbsoluteName());
 
          if(data instanceof TableLens) {
             TableLens table = (TableLens) data;
@@ -430,7 +430,7 @@ public class HighlightService {
          }
       }
       else if(assembly instanceof TableVSAssembly) {
-         Object data = box.getData(assembly.getAbsoluteName());
+         Object data = box.get().getData(assembly.getAbsoluteName());
          boolean iscrosstab = false;
 
          if(data instanceof TableLens) {
@@ -467,7 +467,7 @@ public class HighlightService {
                }
             }
             else {
-               Worksheet ws = box.getWorksheet();
+               Worksheet ws = box.get().getWorksheet();
                AbstractTableAssembly tassembly = (AbstractTableAssembly)
                   ws.getAssembly(assembly.getTableName());
 
@@ -481,7 +481,7 @@ public class HighlightService {
                }
                else {
                   DataVSAQuery query = (DataVSAQuery) VSAQuery.
-                     createVSAQuery(box, assembly, DataMap.NORMAL);
+                     createVSAQuery(box.get(), assembly, DataMap.NORMAL);
                   ColumnSelection columns;
                   columns = query.getDefaultColumnSelection();
                   columns = VSUtil.getVSColumnSelection(columns);
@@ -494,7 +494,7 @@ public class HighlightService {
          }
       }
       else if(assembly instanceof CalcTableVSAssembly) {
-         TableLens table = (TableLens) box.getData(assembly.getAbsoluteName());
+         TableLens table = (TableLens) box.get().getData(assembly.getAbsoluteName());
          Field[] fields = TableHighlightAttr.getAvailableFields(table, row, col);
 
          if(fields != null && fields.length > 0) {

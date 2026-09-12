@@ -21,8 +21,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.web.adhoc.model.property.MeasureInfo;
 import inetsoft.web.adhoc.model.property.TargetInfo;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ChartTargetLinesPaneModel {
+public class ChartTargetLinesPaneModel implements Serializable {
    public boolean isSupportsTarget() {
       return supportsTarget;
    }

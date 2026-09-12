@@ -18,6 +18,7 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
    Component,
+   Injector,
    Input,
    OnChanges,
    OnInit,
@@ -66,6 +67,12 @@ import {
    AddColumnInfoResult
 } from "../../../../../model/datasources/database/query/free-form-sql-pane/add-column-info-result";
 import { Tool } from "../../../../../../../../../../shared/util/tool";
+import { BrowseFieldValuesDialogComponent } from "./browse-field-values/browse-field-values-dialog.component";
+import { AttributeFormattingPane } from "../../../database-physical-model/logical-model/attribute-editor/format-dialog/attribute-formatting-pane.component";
+import { DropdownView } from "../../../../../../../widget/dropdown-view/dropdown-view.component";
+import { FormsModule } from "@angular/forms";
+import { TreeComponent } from "../../../../../../../widget/tree/tree.component";
+import { NgClass } from "@angular/common";
 
 const QUERY_FIELDS_TREE_URI = "../api/data/datasource/query/data-source-fields-tree";
 const FORMAT_STRING_URI: string = "../api/data/datasource/query/field/format";
@@ -76,9 +83,10 @@ const QUERY_COLUMN_BROWSE_URI: string = "../api/data/datasource/query/column/bro
 const QUERY_SAVE_EXPRESSION_URI: string = "../api/data/datasource/query/expression/save";
 
 @Component({
-   selector: "query-fields-pane",
-   templateUrl: "./query-fields-pane.component.html",
-   styleUrls: ["./query-fields-pane.component.scss"]
+    selector: "query-fields-pane",
+    templateUrl: "./query-fields-pane.component.html",
+    styleUrls: ["./query-fields-pane.component.scss"],
+    imports: [NgClass, TreeComponent, FormsModule, DropdownView, AttributeFormattingPane, BrowseFieldValuesDialogComponent]
 })
 export class QueryFieldsPaneComponent implements OnInit, OnChanges {
    @Input() model: QueryFieldPaneModel;
@@ -103,7 +111,8 @@ export class QueryFieldsPaneComponent implements OnInit, OnChanges {
    constructor(private http: HttpClient,
                private modalService: NgbModal,
                private queryModelService: DataQueryModelService,
-               private dragService: DragService)
+               private dragService: DragService,
+               private injector: Injector)
    {
    }
 
@@ -467,7 +476,8 @@ export class QueryFieldsPaneComponent implements OnInit, OnChanges {
    showFieldDialog(add: boolean = false): void {
       let modalOptions: NgbModalOptions = {
          backdrop: "static",
-         windowClass: "query-field-dialog"
+         windowClass: "query-field-dialog",
+         injector: this.injector
       };
       const dialog = ComponentTool.showDialog(this.modalService, EditFieldDialogComponent,
          (expression) => {

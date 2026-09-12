@@ -15,20 +15,28 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
+import { Subscription } from "rxjs";
 import { Tool } from "../../../../../shared/util/tool";
 import { ConsoleMessage } from "./console-message";
 import { ModelService } from "../services/model.service";
 import { SaveConsoleMessageLevelsEvent } from "../../composer/gui/ws/socket/save-console-message-levels-event";
+import { DialogButtonsDirective } from "../standard-dialog/dialog-buttons.directive";
+import { FormsModule } from "@angular/forms";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
+import { NgClass } from "@angular/common";
+import { DialogContentDirective } from "../standard-dialog/dialog-content.directive";
+import { StandardDialogComponent } from "../standard-dialog/standard-dialog.component";
 
 const SAVE_MESSAGE_LEVELS_URI = "../api/composer/console-dialog/save-message-levels/";
 
 @Component({
-   selector: "console-dialog",
-   templateUrl: "./console-dialog.component.html",
-   styleUrls: ["./console-dialog.component.scss"]
+    selector: "console-dialog",
+    templateUrl: "./console-dialog.component.html",
+    styleUrls: ["./console-dialog.component.scss"],
+    imports: [StandardDialogComponent, DialogContentDirective, NgClass, FixedDropdownDirective, FormsModule, DialogButtonsDirective]
 })
-export class ConsoleDialogComponent implements OnInit {
+export class ConsoleDialogComponent implements OnInit, OnDestroy {
    @Input() runtimeId: string;
    @Input() messageLevels: string[] = [];
    @Input() messages: ConsoleMessage[];
@@ -37,6 +45,8 @@ export class ConsoleDialogComponent implements OnInit {
    @Output() onCommit = new EventEmitter<string[]>();
    levelOptions = ["_#(js:Error)", "_#(js:Warning)", "_#(js:Info)"];
    selectedLevels: string[] = [];
+   levelButtonLabel: string = "_#(js:All levels)";
+   private saveModelSubscription: Subscription;
 
    constructor(private modelService: ModelService) {
    }
@@ -45,13 +55,19 @@ export class ConsoleDialogComponent implements OnInit {
       this.selectedLevels = Tool.clone(this.messageLevels);
 
       if(!this.selectedLevels) {
-         this.selectedLevels = ["Error", "Warning", "Info"];
+         this.selectedLevels = Tool.clone(this.levelOptions);
       }
 
       if(!this.messages) {
          this.messages = [];
       }
 
+      this.updateLevelButtonLabel();
+   }
+
+   private updateLevelButtonLabel(): void {
+      this.levelButtonLabel = this.selectedLevels.length == this.levelOptions.length ?
+         "_#(js:All levels)" : "_#(js:Custom levels)";
    }
 
    get visibleMessages(): ConsoleMessage[] {
@@ -100,6 +116,8 @@ export class ConsoleDialogComponent implements OnInit {
             this.selectedLevels = this.selectedLevels.filter(level => level != event.target.value);
          }
       }
+
+      this.updateLevelButtonLabel();
    }
 
    closeDialog(): void {
@@ -112,7 +130,8 @@ export class ConsoleDialogComponent implements OnInit {
 
    ok(): void {
       let model = new SaveConsoleMessageLevelsEvent(this.selectedLevels);
-      this.modelService.sendModel(SAVE_MESSAGE_LEVELS_URI + Tool.byteEncodeURLComponent(this.runtimeId), model)
+      this.saveModelSubscription = this.modelService.sendModel(
+         SAVE_MESSAGE_LEVELS_URI + Tool.byteEncodeURLComponent(this.runtimeId), model)
          .subscribe((res: any) => {
             if(res.body) {
                this.messageLevels = Tool.clone(this.selectedLevels);
@@ -122,5 +141,9 @@ export class ConsoleDialogComponent implements OnInit {
                this.onCommit.emit(this.messageLevels);
             }
          });
+   }
+
+   ngOnDestroy(): void {
+      this.saveModelSubscription?.unsubscribe();
    }
 }

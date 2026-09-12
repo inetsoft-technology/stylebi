@@ -34,11 +34,16 @@ import { ContextProvider } from "../../context-provider.service";
 import { VSLineModel } from "../../model/vs-line-model";
 import { VSShape } from "./vs-shape";
 import { DataTipService } from "../data-tip/data-tip.service";
+import { VSHiddenAnnotation } from "../annotation/vs-hidden-annotation.component";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+
 
 @Component({
-   selector: "vs-line",
-   templateUrl: "vs-line.component.html",
-   styleUrls: ["vs-line.component.scss"]
+    selector: "vs-line",
+    templateUrl: "vs-line.component.html",
+    styleUrls: ["vs-line.component.scss"],
+    imports: [VSDataTipDirective, VSPopComponentDirective, VSHiddenAnnotation]
 })
 export class VSLine extends VSShape<VSLineModel> implements AfterViewChecked, OnChanges {
    @Input() selected: boolean = false;

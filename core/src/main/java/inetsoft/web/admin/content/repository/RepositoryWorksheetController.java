@@ -35,11 +35,13 @@ public class RepositoryWorksheetController {
    @Autowired
    public RepositoryWorksheetController(SheetService sheetService,
                                         ContentRepositoryTreeService treeService,
-                                        ResourcePermissionService permissionService)
+                                        ResourcePermissionService permissionService,
+                                        SecurityEngine securityEngine)
    {
       this.sheetService = sheetService;
       this.permissionService = permissionService;
       this.treeService = treeService;
+      this.securityEngine = securityEngine;
    }
 
    @Secured(
@@ -59,11 +61,12 @@ public class RepositoryWorksheetController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
       final int scope = treeService.getAssetScope(path);
+      IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       path = treeService.getUnscopedPath(path);
 
       if(owner != null) {
@@ -74,7 +77,8 @@ public class RepositoryWorksheetController {
          }
       }
 
-      IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
+      treeService.checkSheetPermission(scope, ownerID, path, ResourceType.ASSET, principal);
+
       final AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.WORKSHEET, path, ownerID);
       return sheetService.getSheetSettings(entry, ResourceType.ASSET, timeZone, owner, principal);
    }
@@ -98,6 +102,9 @@ public class RepositoryWorksheetController {
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       final int scope = treeService.getAssetScope(path);
       path = treeService.getUnscopedPath(path);
+
+      treeService.checkSheetPermission(scope, ownerID, path, ResourceType.ASSET, principal);
+
       final AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.WORKSHEET, path, ownerID);
 
       if(model.permissionTableModel() != null && model.permissionTableModel().changed()) {
@@ -105,7 +112,7 @@ public class RepositoryWorksheetController {
             RepositoryEntry.WORKSHEET, path, principal, ownerID);
          permissionService.setResourcePermissions(path, ResourceType.ASSET, fullPath,
                                                   model.permissionTableModel(), principal);
-         boolean hasWSPermission = SecurityEngine.getSecurity().checkPermission(
+         boolean hasWSPermission = securityEngine.checkPermission(
                  principal, ResourceType.ASSET, fullPath, ResourceAction.READ);
 
          if(!hasWSPermission) {
@@ -121,4 +128,5 @@ public class RepositoryWorksheetController {
    private final SheetService sheetService;
    private final ResourcePermissionService permissionService;
    private final ContentRepositoryTreeService treeService;
+   private final SecurityEngine securityEngine;
 }

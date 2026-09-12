@@ -22,13 +22,9 @@ import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown
 import { DropdownStackService } from "../../widget/fixed-dropdown/dropdown-stack.service";
 
 @NgModule({
-   declarations: [
+   imports: [
       FixedDropdownComponent,
       FixedDropdownContextmenuComponent,
-   ],
-   entryComponents: [
-      FixedDropdownComponent,
-      FixedDropdownContextmenuComponent
    ],
    providers: [
       FixedDropdownService,

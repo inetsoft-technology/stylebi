@@ -94,6 +94,7 @@ public class GraphQLCursorIteratorStrategy extends HttpRestDataIteratorStrategy<
    private boolean isEmpty(Object json, PaginationSpec spec) {
       try {
          Object result = transformer.transform(json, spec.getRecordCountPath());
+         String cursor = null;
 
          if(result != null) {
             if(result.getClass().isArray()) {
@@ -103,15 +104,21 @@ public class GraphQLCursorIteratorStrategy extends HttpRestDataIteratorStrategy<
                   Object value = Array.get(result, 0);
 
                   if(value instanceof String) {
-                     lastCursor = (String) value;
-                     return false;
+                     cursor = (String) value;
                   }
                }
             }
             else if(result instanceof String) {
-               lastCursor = (String) result;
-               return false;
+               cursor = (String) result;
             }
+         }
+
+         // some GraphQL APIs keep echoing the last page's cursor instead of returning
+         // null once there is no more data, so treat a blank or unchanged cursor as the
+         // end of pagination to avoid looping forever
+         if(cursor != null && !cursor.isEmpty() && !cursor.equals(lastCursor)) {
+            lastCursor = cursor;
+            return false;
          }
       }
       catch(Exception e) {

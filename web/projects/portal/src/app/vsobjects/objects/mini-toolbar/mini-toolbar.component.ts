@@ -15,12 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, ElementRef, HostListener, Input, OnDestroy } from "@angular/core";
+import {
+   Component, ElementRef, HostListener, Input, OnChanges, OnDestroy, Optional, Self, SimpleChanges
+} from "@angular/core";
 import { AssemblyActionGroup } from "../../../common/action/assembly-action-group";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { AbstractVSActions } from "../../action/abstract-vs-actions";
 import { ContextProvider } from "../../context-provider.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
 import { NavigationKeys } from "../navigation-keys";
 import { AssemblyAction } from "../../../common/action/assembly-action";
 import { Observable ,  Subscription } from "rxjs";
@@ -28,6 +31,7 @@ import { VSObjectModel } from "../../model/vs-object-model";
 import { MiniToolbarService } from "./mini-toolbar.service";
 import { FocusObjectEventModel } from "../../model/focus-object-event-model";
 import { ToolbarActionsHandler } from "../../toolbar-actions-handler";
+
 
 /**
  * Mini-toolbar usage: (see vs-calendar.copmonent.html)
@@ -38,16 +42,27 @@ import { ToolbarActionsHandler } from "../../toolbar-actions-handler";
  */
 
 @Component({
-   selector: "mini-toolbar",
-   templateUrl: "mini-toolbar.component.html",
-   styleUrls: ["mini-toolbar.component.scss"]
+    selector: "mini-toolbar",
+    templateUrl: "mini-toolbar.component.html",
+    styleUrls: ["mini-toolbar.component.scss"],
+    imports: []
 })
-export class MiniToolbar implements OnDestroy {
+export class MiniToolbar implements OnChanges, OnDestroy {
    @Input() actions: AbstractVSActions<any>;
    @Input() miniToolbarActions: AssemblyActionGroup[];
    @Input() top: number;
    @Input() left: number;
    @Input() width: number;
+   // Overrides the CSS z-index constant on .mini-toolbar. The toolbar is a sibling of the
+   // assembly's own ".vs-object-parent-container", whose z-index is server-assigned and can be
+   // arbitrarily large (e.g. embedded-viewsheet or max-mode assemblies), so a fixed CSS z-index
+   // can end up lower than the assembly's own content and be painted underneath it.
+   @Input() zIndex: number = null;
+   // Not read directly -- its only purpose is to give ngOnChanges a signal to refresh
+   // displayActions when maxMode toggles, since maxMode is set by mutating the shared vsObject
+   // model in place (see viewer-app/vs-viewsheet onMaxModeChanged), which doesn't change the
+   // `actions` input's object identity and so wouldn't otherwise be observed here.
+   @Input() maxMode: boolean = false;
    @Input() assembly: string;
    @Input() forceAbove: boolean = false;
    @Input() visible: boolean = true;
@@ -85,6 +100,7 @@ export class MiniToolbar implements OnDestroy {
             });
       }
    }
+   displayActions: AssemblyActionGroup[] = [];
    mobileDevice: boolean = GuiTool.isMobileDevice();
    private focusedGroupIndex: number = -1;
    private focusedActionIndex: number = -1;
@@ -95,7 +111,21 @@ export class MiniToolbar implements OnDestroy {
    constructor(private contextProvider: ContextProvider,
                private element: ElementRef,
                private miniToolbarService: MiniToolbarService,
-               private popComponentService: PopComponentService) {
+               private popComponentService: PopComponentService,
+               // Present only when this <mini-toolbar> also carries [VSDataTip][miniToolbar]=true
+               // (see vs-object-container.component.html). Injected directly (rather than via
+               // DataTipService) so there is a single source of truth for "is this element
+               // currently the active, position-owning data tip" shared with the directive's
+               // own imperative positioning -- see isActiveDataTip below.
+               @Optional() @Self() private dataTipDirective: VSDataTipDirective) {
+   }
+
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["actions"] || changes["miniToolbarActions"] || changes["width"] ||
+         changes["maxMode"])
+      {
+         this.displayActions = this.getActions();
+      }
    }
 
    ngOnDestroy() {
@@ -114,7 +144,7 @@ export class MiniToolbar implements OnDestroy {
    }
 
    get alignLeft(): boolean {
-      const width = this.miniToolbarService.getActionsWidth(this.getActions());
+      const width = this.miniToolbarService.getActionsWidth(this.displayActions);
       return this.left + this.width - width < 0;
    }
 
@@ -248,7 +278,7 @@ export class MiniToolbar implements OnDestroy {
    }
 
    get topY(): number {
-      if(this.isPopComponent) {
+      if(this.isPopComponent || this.isActiveDataTip) {
          return Number.NaN;
       }
 
@@ -259,7 +289,22 @@ export class MiniToolbar implements OnDestroy {
         : this.top;
    }
 
+   // NaN makes the [style.left.px] binding produce an invalid CSS value, which the browser
+   // ignores -- leaving whatever position VSDataTipDirective last imperatively set on this
+   // same element via Renderer2.setStyle in place, instead of clobbering it back to the
+   // static design-time `left`. Mirrors the isPopComponent guard on topY above. Without this,
+   // this binding and the directive's setStyle race to own the same style property whenever
+   // this.left's value itself changes while a tip is active (e.g. the toolbar's action set,
+   // and so its clamped position, changes because an action's visibility changed -- see #76399).
+   get leftPx(): number {
+      return this.isActiveDataTip ? Number.NaN : this.left;
+   }
+
    get isPopComponent(): boolean {
       return this.popComponentService.isPopComponentShow(this.assembly);
+   }
+
+   get isActiveDataTip(): boolean {
+      return !!this.dataTipDirective && this.dataTipDirective.isActiveDataTipOwner();
    }
 }

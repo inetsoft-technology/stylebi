@@ -21,8 +21,7 @@ import inetsoft.mv.MVColumn;
 import inetsoft.mv.MVDef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
+import inetsoft.util.script.graal.ScriptScope;
 
 import java.sql.*;
 
@@ -32,12 +31,26 @@ import java.sql.*;
  * @version 11.2
  * @author InetSoft Technology Corp
  */
-public class MVScriptable extends ScriptableObject {
+public class MVScriptable implements ScriptScope {
    public MVScriptable(MVDef mvdef, MVColumn mvcol) {
       this.mvdef = mvdef;
       this.mvcol = mvcol;
 
       init();
+   }
+
+   /**
+    * @param mvdef the MV definition.
+    * @param mvcol the MV column to read max/min values for.
+    * @param mv the already-loaded MV to use, avoiding a redundant storage lookup. Callers that
+    *           have already validated the MV non-null (e.g. MVIncremental) should use this
+    *           constructor instead of triggering another independent storage read, which can
+    *           race with a concurrent MV rebuild renaming the storage file.
+    */
+   public MVScriptable(MVDef mvdef, MVColumn mvcol, MV mv) {
+      this.mvdef = mvdef;
+      this.mvcol = mvcol;
+      this.mv = mv;
    }
 
    /**
@@ -55,7 +68,6 @@ public class MVScriptable extends ScriptableObject {
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
-   @Override
    public String getClassName() {
       return "MVScriptable";
    }
@@ -64,7 +76,7 @@ public class MVScriptable extends ScriptableObject {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       if("LastUpdateTime".equals(name)) {
          return new Timestamp(mvdef.getLastUpdateTime());
       }
@@ -75,14 +87,25 @@ public class MVScriptable extends ScriptableObject {
          return min();
       }
 
-      return super.get(name, start);
+      return null;
+   }
+
+   @Override
+   public boolean hasMember(String name) {
+      return "LastUpdateTime".equals(name) || "MaxValue".equals(name) ||
+         "MinValue".equals(name);
+   }
+
+   @Override
+   public void putMember(String name, Object value) {
+      // read-only
    }
 
    /**
     * Get an array of property ids.
     */
    @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       return props;
    }
 
@@ -92,7 +115,7 @@ public class MVScriptable extends ScriptableObject {
    private Object max() {
       Object max = null;
 
-      if(mv.getBlockSize() > 0) {
+      if(mv != null && mv.getBlockSize() > 0) {
          int c = mv.indexOfHeader(mvcol.getName(), 0);
 
          if(c < 0 || mv.getDictionary(c, 0) == null) {
@@ -129,7 +152,7 @@ public class MVScriptable extends ScriptableObject {
    private Object min() {
       Object min = null;
 
-      if(mv.getBlockSize() > 0) {
+      if(mv != null && mv.getBlockSize() > 0) {
          int c = mv.indexOfHeader(mvcol.getName(), 0);
 
          if(c < 0 || mv.getDictionary(c, 0) == null) {

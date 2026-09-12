@@ -48,6 +48,11 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @Component
 @Aspect
 public class DeniedMultiTenancyOrgUserAspect {
+   @org.springframework.beans.factory.annotation.Autowired
+   public DeniedMultiTenancyOrgUserAspect(SecurityEngine securityEngine) {
+      this.securityEngine = securityEngine;
+   }
+
    /**
     * Authorizes access to the annotated method.
     *
@@ -58,7 +63,7 @@ public class DeniedMultiTenancyOrgUserAspect {
    @Around("(@within(inetsoft.web.security.DeniedMultiTenancyOrgUser) || " +
       "@annotation(inetsoft.web.security.DeniedMultiTenancyOrgUser)) && execution(* *(..))")
    public Object authorize(ProceedingJoinPoint joinPoint) throws Throwable {
-      if(!SecurityEngine.getSecurity().isSecurityEnabled() || !SUtil.isMultiTenant()) {
+      if(!securityEngine.isSecurityEnabled() || !SUtil.isMultiTenant()) {
          return joinPoint.proceed();
       }
 
@@ -111,5 +116,6 @@ public class DeniedMultiTenancyOrgUserAspect {
       }
    }
 
+   private final SecurityEngine securityEngine;
    private final SpelExpressionParser expressionParser = new SpelExpressionParser();
 }

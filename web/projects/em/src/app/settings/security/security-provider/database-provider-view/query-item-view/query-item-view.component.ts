@@ -16,12 +16,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, ValidatorFn, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, ValidatorFn, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MatButton } from "@angular/material/button";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatHint } from "@angular/material/form-field";
+import { MatCard, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Component({
-  selector: "em-query-item-view",
-  templateUrl: "./query-item-view.component.html",
-  styleUrls: ["./query-item-view.component.scss"]
+    selector: "em-query-item-view",
+    templateUrl: "./query-item-view.component.html",
+    styleUrls: ["./query-item-view.component.scss"],
+    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatHint, MatCardActions, MatButton]
 })
 export class QueryItemViewComponent implements OnInit {
    @Input() form: UntypedFormGroup;

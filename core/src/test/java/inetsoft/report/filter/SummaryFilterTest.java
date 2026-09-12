@@ -19,18 +19,26 @@ package inetsoft.report.filter;
 
 import inetsoft.report.StyleConstants;
 import inetsoft.report.lens.DefaultTableLens;
-import inetsoft.test.SreeHome;
-import inetsoft.test.XTableUtil;
-import inetsoft.uql.Condition;
-import inetsoft.uql.XConstants;
+import inetsoft.test.*;
+import inetsoft.uql.*;
 import inetsoft.uql.schema.XSchema;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Date;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
+@Tag("core")
 public class SummaryFilterTest {
    @Test
    public void simpleGroup() {
@@ -281,6 +289,153 @@ public class SummaryFilterTest {
          {"b", "Group"},
          {"b", "3"},
          {"c", "1"},
+      });
+   }
+
+   @Test
+   public void testSerialize() throws Exception {
+      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", 1, 5},
+         {"a", 1, 2},
+         {"b", 3, 10},
+         {"b", 1, 2.5},
+         {"c", 1, 3}
+      });
+      final SummaryFilter originalTable =
+         new SummaryFilter(tbl1, new int[] {0, 1}, new int[] {2}, new SumFormula(), null);
+      originalTable.moreRows(Integer.MAX_VALUE);
+
+      XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
+
+      Assertions.assertEquals(SummaryFilter.class, deserializedTable.getClass());
+   }
+
+   @Test
+   public void testSerializeTimeSeries() throws Exception {
+      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", date("2021-01-03"), 1},
+         {"a", date("2021-01-03"), 2},
+         {"b", date("2021-01-10"), 2.5},
+         {"b", date("2021-01-24"), 10},
+         {"c", date("2021-01-24"), 1},
+         });
+
+      final SumFormula formula = new SumFormula();
+      final Formula[] formulas = {formula};
+      final SummaryFilter originalTable =
+         new SummaryFilter(tbl1, new int[] {0, 1}, new int[] {2}, formulas, null);
+      originalTable.setTimeSeries(true);
+      originalTable.setTimeSeriesLevel(XConstants.WEEK_DATE_GROUP);
+      originalTable.moreRows(Integer.MAX_VALUE);
+
+      XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
+
+      Assertions.assertEquals(SummaryFilter.class, deserializedTable.getClass());
+   }
+
+   @Test
+   public void testSerializeSortOrderGroupCondition() throws Exception {
+      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
+         {"col1", "col2"},
+         {"a", 1},
+         {"a", 2},
+         {"b", 2},
+         {"b", 3},
+         {"c", 1},
+         });
+
+      final SummaryFilter originalTable =
+         new SummaryFilter(tbl1, new int[] {0, 1}, new int[0], (Formula) null, null);
+
+      final Condition condition = new Condition();
+      condition.setOperation(Condition.EQUAL_TO);
+      condition.addValue(2);
+      condition.setType(XSchema.INTEGER);
+      final ConditionGroup conditionGroup = new ConditionGroup();
+      conditionGroup.addCondition(1, condition, 0);
+
+      final SortOrder sortOrder = new SortOrder(XConstants.SORT_SPECIFIC);
+      sortOrder.addGroupCondition("Group", conditionGroup);
+      sortOrder.setOthers(SortOrder.LEAVE_OTHERS);
+      originalTable.setGroupOrder(1, sortOrder);
+      originalTable.moreRows(Integer.MAX_VALUE);
+
+      XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
+
+      Assertions.assertEquals(SummaryFilter.class, deserializedTable.getClass());
+   }
+
+   /**
+    * The rows merged into the "Others" bucket must be ordered by their own group level's
+    * sort order, the same as every other group at that level. Gathering them from
+    * several parent groups must not leave them in the order the parents were ranked in.
+    *
+    * This is the shape a chart with a top-N "sort by value" outer dimension produces, and
+    * order-dependent calculations (running total, moving, change/previous) read the
+    * resulting row order. (74910)
+    */
+   @Test
+   public void othersBucketKeepsInnerGroupOrder() {
+      // col1 is ranked by value so the outer groups are gathered out of col2 order;
+      // "d"/"e"/"f"/"g" all fall outside the top 2 and merge into "Others"
+      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", 1, 50},
+         {"b", 2, 40},
+         {"d", 7, 4},
+         {"e", 3, 3},
+         {"f", 9, 2},
+         {"g", 5, 1}
+      });
+
+      final SummaryFilter summary =
+         new SummaryFilter(tbl1, new int[] {0, 1}, new int[] {2}, new SumFormula(), null);
+      summary.setGroupOrder(1, new SortOrder(XConstants.SORT_ASC));
+      summary.setTopN(0, 0, 2, false, true, true);
+      summary.moreRows(Integer.MAX_VALUE);
+
+      XTableUtil.assertEquals(summary, new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", 1, 50.0},
+         {"b", 2, 40.0},
+         {"Others", 3, 3.0},
+         {"Others", 5, 1.0},
+         {"Others", 7, 4.0},
+         {"Others", 9, 2.0},
+      });
+   }
+
+   /**
+    * A descending inner group order must be honoured inside the "Others" bucket too.
+    */
+   @Test
+   public void othersBucketKeepsInnerGroupOrderDesc() {
+      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", 1, 50},
+         {"b", 2, 40},
+         {"d", 7, 4},
+         {"e", 3, 3},
+         {"f", 9, 2},
+         {"g", 5, 1}
+      });
+
+      final SummaryFilter summary =
+         new SummaryFilter(tbl1, new int[] {0, 1}, new int[] {2}, new SumFormula(), null);
+      summary.setGroupOrder(1, new SortOrder(XConstants.SORT_DESC));
+      summary.setTopN(0, 0, 2, false, true, true);
+      summary.moreRows(Integer.MAX_VALUE);
+
+      XTableUtil.assertEquals(summary, new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", 1, 50.0},
+         {"b", 2, 40.0},
+         {"Others", 9, 2.0},
+         {"Others", 7, 4.0},
+         {"Others", 5, 1.0},
+         {"Others", 3, 3.0},
       });
    }
 

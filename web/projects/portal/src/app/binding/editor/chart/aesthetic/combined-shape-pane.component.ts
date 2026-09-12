@@ -17,11 +17,16 @@
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { AbstractCombinedPane } from "./abstract-combined-pane";
+import { StaticShapeEditor } from "./static-shape-editor.component";
+import { StaticTextureEditor } from "./static-texture-editor.component";
+import { StaticLineEditor } from "./static-line-editor.component";
+
 
 @Component({
-   selector: "combined-shape-pane",
-   templateUrl: "combined-shape-pane.component.html",
-   styleUrls: ["combined-visual-pane.scss"]
+    selector: "combined-shape-pane",
+    templateUrl: "combined-shape-pane.component.html",
+    styleUrls: ["combined-visual-pane.scss"],
+    imports: [StaticLineEditor, StaticTextureEditor, StaticShapeEditor]
 })
 export class CombinedShapePane extends AbstractCombinedPane {
    @Input() isLineType: boolean = false;

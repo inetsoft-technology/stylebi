@@ -15,58 +15,43 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
-import {
-   ActivatedRouteSnapshot,
-   CanDeactivate,
-   RouterStateSnapshot
-} from "@angular/router";
+import { inject } from "@angular/core";
+import { ActivatedRouteSnapshot, CanDeactivateFn, RouterStateSnapshot } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, of as observableOf, Subject } from "rxjs";
-import { ScheduleConditionModel } from "../../../../../shared/schedule/model/schedule-condition-model";
-import { ScheduleTaskDialogModel } from "../../../../../shared/schedule/model/schedule-task-dialog-model";
-import { TimeConditionModel } from "../../../../../shared/schedule/model/time-condition-model";
 import { Tool } from "../../../../../shared/util/tool";
-import { ScheduleTaskEditorComponent } from "./schedule-task-editor/schedule-task-editor.component";
 import { ComponentTool } from "../../common/util/component-tool";
+import { ScheduleTaskEditorComponent } from "./schedule-task-editor/schedule-task-editor.component";
 
-@Injectable()
-export class ScheduleSaveGuard implements CanDeactivate<ScheduleTaskEditorComponent> {
-   constructor(private modalService: NgbModal) {
-   }
+export const scheduleSaveGuard: CanDeactivateFn<ScheduleTaskEditorComponent> = (component: ScheduleTaskEditorComponent, currentRoute: ActivatedRouteSnapshot, currentState: RouterStateSnapshot, nextState: RouterStateSnapshot): Observable<boolean> => {
+   const modalService = inject(NgbModal);
+   let result: Observable<boolean>;
 
-   canDeactivate(component: ScheduleTaskEditorComponent, currentRoute: ActivatedRouteSnapshot,
-                 currentState: RouterStateSnapshot,
-                 nextState?: RouterStateSnapshot): Observable<boolean>
-   {
-      let result: Observable<boolean>;
+   if(component.originalModel && component.model) {
+      const omodel = Tool.clone(component.originalModel);
+      const nmodel = Tool.clone(component.model);
+      omodel.taskConditionPaneModel.taskDefaultTime = null;
+      nmodel.taskConditionPaneModel.taskDefaultTime = null;
 
-      if(component.originalModel && component.model) {
-         const omodel = Tool.clone(component.originalModel);
-         const nmodel = Tool.clone(component.model);
-         omodel.taskConditionPaneModel.taskDefaultTime = null;
-         nmodel.taskConditionPaneModel.taskDefaultTime = null;
-
-         if(!Tool.isEquals(omodel, nmodel)) {
-            const subject = new Subject<boolean>();
-            result = subject.asObservable();
-            ComponentTool.showConfirmDialog(this.modalService, "_#(js:portal.schedule.tastchanged)",
-               "_#(js:portal.schedule.unsave.confirm)").then(
-               (response) => {
-                  subject.next(response === "ok");
-                  subject.complete();
-               },
-               (error) => subject.error(error)
-            );
-         }
-         else {
-            result = observableOf(true);
-         }
+      if(!Tool.isEquals(omodel, nmodel)) {
+         const subject = new Subject<boolean>();
+         result = subject.asObservable();
+         ComponentTool.showConfirmDialog(modalService, "_#(js:portal.schedule.tastchanged)",
+            "_#(js:portal.schedule.unsave.confirm)").then(
+            (response) => {
+               subject.next(response === "ok");
+               subject.complete();
+            },
+            (error) => subject.error(error)
+         );
       }
       else {
          result = observableOf(true);
       }
-
-      return result;
    }
-}
+   else {
+      result = observableOf(true);
+   }
+
+   return result;
+};

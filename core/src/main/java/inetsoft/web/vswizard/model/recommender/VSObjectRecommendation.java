@@ -17,6 +17,11 @@
  */
 package inetsoft.web.vswizard.model.recommender;
 
+import inetsoft.util.Tool;
+import inetsoft.util.XMLSerializable;
+import org.w3c.dom.Element;
+
+import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -28,7 +33,7 @@ import java.util.List;
  * @version 13.2
  * @author  InetSoft Technology Corp.
  */
-public interface VSObjectRecommendation {
+public interface VSObjectRecommendation extends Serializable, XMLSerializable {
    /**
     * Set recommender type of this object.
     */
@@ -58,4 +63,13 @@ public interface VSObjectRecommendation {
     * Set selected sub type index of the recommender type.
     */
    void setSelectedIndex(int index);
+
+   public static VSObjectRecommendation createVSObjectRecommendation(Element elem) throws Exception {
+      String cls = Tool.getAttribute(elem, "class");
+      VSObjectRecommendation info = (VSObjectRecommendation) VSObjectRecommendation.class.getClassLoader()
+         .loadClass(cls).getConstructor().newInstance();
+      info.parseXML(elem);
+
+      return info;
+   }
 }

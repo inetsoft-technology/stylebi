@@ -92,6 +92,18 @@ public abstract class InputVSAssemblyInfo extends VSAssemblyInfo {
    }
 
    /**
+    * Get the runtime target column name. Unlike getColumnValue(), which returns the
+    * design time text, this resolves a variable or expression binding to the value it
+    * was executed to.
+    * @return the runtime target column name, or <tt>null</tt> if a dynamic value has
+    * not been executed yet.
+    */
+   public String getRuntimeColumnValue() {
+      Object obj = columnValue.getRuntimeValue(true);
+      return obj == null ? null : obj.toString();
+   }
+
+   /**
     * Get the target data type.
     * @return the target data type of this assembly info.
     */

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ScrollingModule } from "@angular/cdk/scrolling";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButtonModule } from "@angular/material/button";
@@ -51,10 +52,9 @@ describe("LogMonitoringViewComponent", () => {
             MatOptionModule,
             MatSelectModule,
             NoopAnimationsModule,
-            ScrollingModule
-         ],
-         declarations: [LogMonitoringViewComponent]
-      })
+            ScrollingModule,
+            LogMonitoringViewComponent]
+         })
          .compileComponents();
       fixture = TestBed.createComponent(LogMonitoringViewComponent);
       component = fixture.componentInstance;

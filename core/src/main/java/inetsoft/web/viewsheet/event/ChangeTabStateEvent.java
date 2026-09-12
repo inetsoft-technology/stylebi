@@ -17,10 +17,13 @@
  */
 package inetsoft.web.viewsheet.event;
 
-public class ChangeTabStateEvent {
-   public String getTarget() {
-      return target;
-   }
+import org.immutables.serial.Serial;
+import org.immutables.value.Value;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
-   public String target;
+@Value.Immutable
+@Serial.Structural
+@JsonDeserialize(as = ImmutableChangeTabStateEvent.class)
+public interface ChangeTabStateEvent {
+   String getTarget();
 }

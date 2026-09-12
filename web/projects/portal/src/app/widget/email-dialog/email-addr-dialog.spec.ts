@@ -24,6 +24,7 @@ import { of as observableOf } from "rxjs";
 import { IdentityTreeComponent } from "../identity-tree/identity-tree.component";
 import { DragService } from "../services/drag.service";
 import { ModelService } from "../services/model.service";
+import { CurrentUserService } from "../../../../../shared/util/current-user.service";
 import { ShuffleListComponent } from "../shuffle-list/shuffle-list.component";
 import { TreeNodeComponent } from "../tree/tree-node.component";
 import { TreeSearchPipe } from "../tree/tree-search.pipe";
@@ -32,6 +33,7 @@ import { EmailAddrDialogModel } from "./email-addr-dialog-model";
 import { EmailAddrDialog } from "./email-addr-dialog.component";
 import { EmbeddedEmailPane } from "./embedded-email-pane.component";
 import { QueryEmailPane } from "./query-email-pane.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 let createModel: () => EmailAddrDialogModel = () => {
    return {
@@ -62,24 +64,37 @@ describe("Email Addr Dialog Unit Test", () => {
    let fixture: ComponentFixture<EmailAddrDialog>;
    let emailAddrDialog: EmailAddrDialog;
 
-   let changeDetectorRef = { detectChanges: jest.fn() };
-   let modelService = { getModel: jest.fn(), getCurrentOrganization: jest.fn() };
-   let dragService = { reset: jest.fn(), put: jest.fn() };
+   let changeDetectorRef = { detectChanges: vi.fn() };
+   let modelService = { getModel: vi.fn() };
+   let currentUserService = { getPortalCurrentUser: vi.fn() };
+   let dragService = { reset: vi.fn(), put: vi.fn() };
    beforeEach(() => {
       modelService.getModel.mockImplementation(() => observableOf([]));
-      modelService.getCurrentOrganization.mockImplementation(() => observableOf());
+      currentUserService.getPortalCurrentUser.mockImplementation(() => observableOf(null));
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            EmailAddrDialog,
+            EmbeddedEmailPane,
+            QueryEmailPane,
+            ShuffleListComponent,
+            IdentityTreeComponent,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
          ],
-         declarations: [
-            EmailAddrDialog, EmbeddedEmailPane, QueryEmailPane, ShuffleListComponent, IdentityTreeComponent, TreeComponent, TreeNodeComponent, TreeSearchPipe
-         ],
+         
          providers: [{
             provide: ChangeDetectorRef, useValue: changeDetectorRef
          },
          {
             provide: ModelService, useValue: modelService
+         },
+         {
+            provide: CurrentUserService, useValue: currentUserService
          },
          {
             provide: DragService, useValue: dragService

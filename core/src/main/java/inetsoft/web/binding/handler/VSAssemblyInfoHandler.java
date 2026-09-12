@@ -39,6 +39,7 @@ import inetsoft.uql.erm.AbstractModelTrapContext.TrapInfo;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -52,7 +53,7 @@ import inetsoft.web.binding.event.ConvertTableRefEvent;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.viewsheet.command.MessageCommand;
-import inetsoft.web.viewsheet.controller.table.BaseTableDrillController;
+import inetsoft.web.viewsheet.controller.table.BaseTableDrillService;
 import inetsoft.web.viewsheet.event.ViewsheetEvent;
 import inetsoft.web.viewsheet.service.*;
 import org.apache.commons.lang3.StringUtils;
@@ -60,8 +61,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.awt.*;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -71,11 +72,13 @@ public class VSAssemblyInfoHandler {
    @Autowired
    public VSAssemblyInfoHandler(CoreLifecycleService coreLifecycleService,
                                 DataRefModelFactoryService dataRefService,
-                                ParameterService parameterService)
+                                ParameterService parameterService,
+                                DataSourceRegistry dataSourceRegistry)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.dataRefService = dataRefService;
       this.parameterService = parameterService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    public void apply(RuntimeViewsheet rvs, VSAssemblyInfo info, ViewsheetService engine)
@@ -140,9 +143,9 @@ public class VSAssemblyInfoHandler {
                      throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return;
       }
 
@@ -152,11 +155,11 @@ public class VSAssemblyInfoHandler {
 
       String name = info.getAbsoluteName2();
       VSAssembly assembly = vs.getAssembly(name);
-      fixColumnWidths(assembly, box);
+      fixColumnWidths(assembly, box.get());
 
       if(assembly != null) {
          VSAssemblyInfo oinfo = assembly.getVSAssemblyInfo().clone();
-         ViewsheetScope scope = box.getScope();
+         ViewsheetScope scope = box.get().getScope();
          int hint = assembly.setVSAssemblyInfo(info);
 
          if(isEvent) {
@@ -164,13 +167,13 @@ public class VSAssemblyInfoHandler {
          }
 
          if(info instanceof DataVSAssemblyInfo && oinfo instanceof DataVSAssemblyInfo) {
-            removeVariable(box, (DataVSAssemblyInfo)info, (DataVSAssemblyInfo) oinfo);
+            removeVariable(box.get(), (DataVSAssemblyInfo)info, (DataVSAssemblyInfo) oinfo);
          }
 
          try {
             if(refreshPara) {
                List vars = new ArrayList();
-               VSEventUtil.refreshParameters(engine, box, vs, false, null, vars);
+               VSEventUtil.refreshParameters(engine, box.get(), vs, false, null, vars);
 
                if(!vars.isEmpty() && !vs.getViewsheetInfo().isDisableParameterSheet()) {
                   UserVariable[] vtable = new UserVariable[vars.size()];
@@ -191,7 +194,7 @@ public class VSAssemblyInfoHandler {
             if(assembly instanceof CrosstabVSAssembly) {
                // execute runtime fields for crosstab
                try {
-                  box.updateAssembly(assembly.getAbsoluteName());
+                  box.get().updateAssembly(assembly.getAbsoluteName());
                   CrosstabVSAssembly cross = (CrosstabVSAssembly) assembly;
                   CrosstabVSAssemblyInfo ocinfo = (CrosstabVSAssemblyInfo) oinfo;
                   FormatInfo finfo = cross.getFormatInfo();
@@ -199,10 +202,10 @@ public class VSAssemblyInfoHandler {
                      cross.getVSAssemblyInfo();
                   TableHyperlinkAttr hyperlink = ncinfo.getHyperlinkAttr();
                   TableHighlightAttr highlight = ncinfo.getHighlightAttr();
-                  TableLens lens = box.getVSTableLens(name, false);
+                  TableLens lens = box.get().getVSTableLens(name, false);
 
                   // save the column header info to be restored after change is applied. (60379)
-                  BaseTableDrillController.saveColumnInfo(cross.getCrosstabInfo(), lens);
+                  BaseTableDrillService.saveColumnInfo(cross.getCrosstabInfo(), lens);
 
                   if(finfo != null) {
                      VSUtil.syncCrosstabPath(cross, ocinfo, false, finfo.getFormatMap(),
@@ -232,7 +235,7 @@ public class VSAssemblyInfoHandler {
             }
 
             if(checkTrap && assembly instanceof DataVSAssembly) {
-               VSModelTrapContext context = new VSModelTrapContext(rvs, true);
+               VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry, true);
                TrapInfo trapInfo = context.isCheckTrap()
                   ? context.checkTrap(oinfo, assembly.getVSAssemblyInfo())
                   : null ;
@@ -268,10 +271,10 @@ public class VSAssemblyInfoHandler {
                                                  linkUri, hint, refreshData, commandDispatcher);
 
                if(assembly instanceof CrosstabVSAssembly) {
-                  TableLens lens2 = box.getVSTableLens(name, false);
+                  TableLens lens2 = box.get().getVSTableLens(name, false);
 
                   // restore the column header info saved before the change is applied. (60379)
-                  boolean changed = BaseTableDrillController.restoreColumnInfo(
+                  boolean changed = BaseTableDrillService.restoreColumnInfo(
                      (CrosstabVSAssemblyInfo) assembly.getVSAssemblyInfo(), lens2);
 
                   if(changed) {
@@ -287,7 +290,7 @@ public class VSAssemblyInfoHandler {
             }
 
             // fix the column width to make the column fit the data
-            if(assembly instanceof TableVSAssembly && fixColumnWidths(assembly, box) &&
+            if(assembly instanceof TableVSAssembly && fixColumnWidths(assembly, box.get()) &&
                commandDispatcher != null)
             {
                this.coreLifecycleService.refreshVSAssembly(rvs, assembly.getAbsoluteName(),
@@ -394,7 +397,7 @@ public class VSAssemblyInfoHandler {
    public void checkTrap(VSAssemblyInfo oinfo, VSAssemblyInfo ninfo,
       BindingModel oldModel, CommandDispatcher command, RuntimeViewsheet rvs)
    {
-      VSModelTrapContext context = new VSModelTrapContext(rvs, true);
+      VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry, true);
       boolean required = context.isCheckTrap();
       boolean contains = required &&
          context.checkTrap(oinfo, ninfo).showWarning();
@@ -415,7 +418,7 @@ public class VSAssemblyInfoHandler {
    }
 
    public DataRefModel[] getGrayedOutFields(RuntimeViewsheet rvs, boolean initAgg) {
-      VSModelTrapContext context = new VSModelTrapContext(rvs, initAgg);
+      VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry, initAgg);
       boolean required = context.isCheckTrap();
 
       if(!required || rvs.getViewsheet() == null) {
@@ -1456,4 +1459,5 @@ public class VSAssemblyInfoHandler {
    private final CoreLifecycleService coreLifecycleService;
    private final DataRefModelFactoryService dataRefService;
    private final ParameterService parameterService;
+   private final DataSourceRegistry dataSourceRegistry;
 }

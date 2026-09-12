@@ -44,6 +44,7 @@ export class DropdownRef {
          const width = bounds.width > 0 ? bounds.width : elem.scrollWidth;
          const height = bounds.height > 0 ? bounds.height : elem.scrollHeight;
          dropdown.dropdownBounds = new Rectangle(bounds.left, bounds.top, width, height);
+         dropdownCmptRef.changeDetectorRef.detectChanges();
          this.stackService.push(dropdown);
       });
    }

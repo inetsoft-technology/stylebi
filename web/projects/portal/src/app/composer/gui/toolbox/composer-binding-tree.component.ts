@@ -32,10 +32,12 @@ import { DataTransfer } from "../../../common/data/dnd-transfer";
 import { ComposerObjectService } from "../vs/composer-object.service";
 import { Subscription } from "rxjs";
 import { VirtualScrollTreeDatasource } from "../../../widget/tree/virtual-scroll-tree-datasource";
+import { BindingTreeComponent } from "../../../binding/widget/binding-tree/binding-tree.component";
 
 @Component({
-   selector: "composer-binding-tree",
-   templateUrl: "composer-binding-tree.component.html"
+    selector: "composer-binding-tree",
+    templateUrl: "composer-binding-tree.component.html",
+    imports: [BindingTreeComponent]
 })
 export class ComposerBindingTree implements OnInit, OnDestroy {
    @Input() viewsheet: Viewsheet;

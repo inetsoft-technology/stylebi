@@ -17,10 +17,11 @@
  */
 package inetsoft.web.portal.model.database;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class QueryLinkPaneModel {
+public class QueryLinkPaneModel implements Serializable {
    public List<QueryTableModel> getTables() {
       return tables;
    }

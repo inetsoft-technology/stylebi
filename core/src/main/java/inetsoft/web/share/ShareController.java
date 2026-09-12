@@ -70,7 +70,8 @@ public class ShareController {
          boolean facebookEnabled = "true".equals(SreeEnv.getProperty("share.facebook.enabled")) &&
             checkPermission("facebook", user);
          boolean googleChatEnabled = "true".equals(SreeEnv.getProperty("share.googlechat.enabled")) &&
-            StringUtils.hasText("share.googlechat.url") && checkPermission("googlechat", user);
+            StringUtils.hasText(SreeEnv.getProperty("share.googlechat.url")) &&
+            checkPermission("googlechat", user);
          boolean linkedinEnabled = "true".equals(SreeEnv.getProperty("share.linkedin.enabled")) &&
             checkPermission("linkedin", user);
          boolean slackEnabled = "true".equals(SreeEnv.getProperty("share.slack.enabled")) &&

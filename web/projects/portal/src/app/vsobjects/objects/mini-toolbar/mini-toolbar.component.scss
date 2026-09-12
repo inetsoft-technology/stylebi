@@ -17,7 +17,7 @@
  */
 .mini-toolbar {
   position: absolute;
-  z-index: 992000; // > object-editor.popped.active
+  z-index: 9920; // > object-editor.popped.active (9910)
   pointer-events: none;
   visibility: hidden;
   transition: visibility 0.5s linear;

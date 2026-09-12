@@ -15,12 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {HttpClient, HttpErrorResponse} from "@angular/common/http";
+import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import {Component, OnDestroy, OnInit} from "@angular/core";
 import {MatDialog} from "@angular/material/dialog";
 import {MatSnackBar} from "@angular/material/snack-bar";
 import {NavigationExtras, Router} from "@angular/router";
-import {Observable, Subject, throwError, timer} from "rxjs";
+import {EMPTY, Observable, Subject, throwError, timer} from "rxjs";
 import {catchError, concatMap, map, takeUntil} from "rxjs/operators";
 import {DateTypeFormatter} from "../../../../../../../shared/util/date-type-formatter";
 import {MessageDialog, MessageDialogType} from "../../../../common/util/message-dialog";
@@ -32,6 +32,9 @@ import {
   SecurityProviderStatusList
 } from "../security-provider-model/security-provider-status-list";
 import {Tool} from "../../../../../../../shared/util/tool";
+import { MatButton } from "@angular/material/button";
+import { SecurityListViewComponent } from "../../security-list-view/security-list-view.component";
+import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Searchable({
    title: "Authorization Providers",
@@ -43,9 +46,10 @@ import {Tool} from "../../../../../../../shared/util/tool";
    link: "EMSettingsSecurityProvider"
 })
 @Component({
-   selector: "em-authorization-provider-list-page",
-   templateUrl: "./authorization-provider-list-page.component.html",
-   styleUrls: ["./authorization-provider-list-page.component.scss"]
+    selector: "em-authorization-provider-list-page",
+    templateUrl: "./authorization-provider-list-page.component.html",
+    styleUrls: ["./authorization-provider-list-page.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardContent, SecurityListViewComponent, MatCardActions, MatButton]
 })
 export class AuthorizationProviderListPageComponent implements OnInit, OnDestroy {
    title: string = "_#(js:Authorization Providers)";
@@ -60,11 +64,11 @@ export class AuthorizationProviderListPageComponent implements OnInit, OnDestroy
 
    ngOnInit() {
       const uri = "../api/em/security/configured-authorization-providers";
-      const providers$ = this.http.get<SecurityProviderStatusList>(uri);
       timer(0, 5000)
          .pipe(
-            concatMap(() => providers$),
-            catchError(error => this.handleGetProvidersError(error)),
+            concatMap(() => this.http.get<SecurityProviderStatusList>(uri).pipe(
+               catchError(error => this.handleGetProvidersError(error))
+            )),
             takeUntil(this.destroy$),
             map(list => list.providers.map(p => this.formatCacheAgeLabel(p)))
          )
@@ -73,7 +77,7 @@ export class AuthorizationProviderListPageComponent implements OnInit, OnDestroy
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    showProviderDetails(extras?: NavigationExtras) {
@@ -161,7 +165,7 @@ export class AuthorizationProviderListPageComponent implements OnInit, OnDestroy
          duration: Tool.SNACKBAR_DURATION
       });
       console.error("Failed to get list of authorization providers: ", error);
-      return throwError(error);
+      return EMPTY;
    }
 
    private handleReorderError(error: HttpErrorResponse, source: number, destination: number): Observable<any> {

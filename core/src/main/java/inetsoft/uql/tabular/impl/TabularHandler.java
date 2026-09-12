@@ -20,15 +20,18 @@ package inetsoft.uql.tabular.impl;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.PostProcessor;
 import inetsoft.report.internal.XNodeMetaTable;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.*;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.service.XHandler;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.util.*;
 import inetsoft.util.DataCacheVisitor;
+import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Array;
 import java.security.Principal;
 import java.util.*;
 
@@ -61,12 +64,16 @@ public class TabularHandler extends XHandler {
       query.setDataSource(xds);
 
       TabularUtil.fillNullVariablesWithEmptyString(runtime, query, params);
-      TabularUtil.replaceVariables(xds, params);
-      TabularUtil.replaceVariables(query, params);
 
+      // Check the cache before substituting variables so that getQueryKey sees
+      // the unsubstituted data source (variable names still visible) and
+      // produces the same key as the cache-clear paths (Bug #75737).
       if(isQueryCached(query, params, user, visitor)) {
          return new XNode();
       }
+
+      TabularUtil.replaceVariables(xds, params);
+      TabularUtil.replaceVariables(query, params);
 
       TabularExecutor executor = Drivers.getInstance().getTabularExecutor(xds);
       XTableNode tbl = null;
@@ -106,6 +113,97 @@ public class TabularHandler extends XHandler {
       }
 
       return tbl;
+   }
+
+   /**
+    * Get a query key for query caching. In addition to the base key, the
+    * resolved values of the variables embedded in the tabular data source
+    * fields (e.g. "Query HTTP Parameters", URL, or authentication parameters)
+    * are included so that a change in any of those values produces a distinct
+    * cache key. Without this, a stale cached result would be returned after the
+    * variable value changes (Bug #75737).
+    *
+    * Only the resolved variable values are used -- not a serialization of the
+    * whole data source -- so that encrypted credential/secret fields (whose
+    * ciphertext changes on every call because a fresh random IV is generated)
+    * do not make the key non-deterministic and defeat caching/eviction for
+    * authenticated data sources. This relies on getQueryKey being called with
+    * the unsubstituted data source: execute() checks the cache before
+    * substituting, and the cache-clear paths (removeQueryCache/clearQueryCache)
+    * also pass the unsubstituted data source, so the variable names are visible
+    * and the write, read, and remove keys stay identical.
+    *
+    * The key is also scoped to the current organization. The base key only
+    * distinguishes data sources by their (non-globally-unique) full name, so
+    * without the organization prefix two data sources that happen to share a
+    * name in different organizations would collide on the same key and hit each
+    * other's cached results (Bug #75751). The org id is derived from the query
+    * user so that the write, read, and remove keys stay identical within a
+    * request even on scheduler/cluster paths where the thread-context principal
+    * may differ.
+    */
+   @Override
+   public String getQueryKey(XQuery query, VariableTable qvars, Principal user) throws Exception {
+      String key = super.getQueryKey(query, qvars, user);
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID(user);
+
+      if(!Tool.isEmptyString(orgId)) {
+         key = orgId + "__" + key;
+      }
+
+      XDataSource source = query.getDataSource();
+
+      if(source instanceof TabularDataSource) {
+         TreeMap<String, String> values = new TreeMap<>();
+
+         // exclude secret/password fields so credential values are never
+         // embedded in the (in-memory, cluster-replicated) cache key
+         for(UserVariable var : TabularUtil.findVariables(source, true)) {
+            String name = var == null ? null : var.getName();
+
+            if(name != null && !values.containsKey(name)) {
+               Object value = qvars == null ? null : qvars.get(name);
+               values.put(name, variableValueToKey(value));
+            }
+         }
+
+         if(!values.isEmpty()) {
+            key = key + "__" + values;
+         }
+      }
+
+      return key;
+   }
+
+   /**
+    * Produce a deterministic, content-based string for a variable value used in
+    * the cache key. Missing values are normalized to "" so the key matches
+    * whether or not fillNullVariablesWithEmptyString has been applied. Array
+    * values are joined by content (mirroring XUtil.replaceVariable) so that two
+    * arrays with equal elements produce the same key rather than relying on
+    * Object.toString()'s identity hash.
+    */
+   private static String variableValueToKey(Object value) {
+      if(value == null) {
+         return "";
+      }
+
+      if(value.getClass().isArray()) {
+         StringBuilder buf = new StringBuilder();
+         int len = Array.getLength(value);
+
+         for(int i = 0; i < len; i++) {
+            if(i > 0) {
+               buf.append(',');
+            }
+
+            buf.append(Array.get(value, i));
+         }
+
+         return buf.toString();
+      }
+
+      return value.toString();
    }
 
    /**
@@ -167,12 +265,12 @@ public class TabularHandler extends XHandler {
 
       if(runtime == null) {
          try {
-            runtime = (TabularRuntime) Config.getClass(type, Config.getRuntime(type))
+            runtime = (TabularRuntime) Config.getConfig().getClass(type, Config.getConfig().getRuntime(type))
                .getDeclaredConstructor().newInstance();
          }
          catch(Exception ex) {
             LOG.error("Failed to create tabular runtime: " +
-                        type + " " + Config.getRuntime(type), ex);
+                        type + " " + Config.getConfig().getRuntime(type), ex);
          }
 
          runtimes.put(type, runtime);

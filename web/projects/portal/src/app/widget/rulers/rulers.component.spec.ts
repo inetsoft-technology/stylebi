@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { DebugElement, NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
@@ -24,7 +25,7 @@ import { Rulers } from "./rulers.component";
 describe("Rulers", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
-         declarations: [ Rulers, Ruler ],
+         imports: [ Rulers, Ruler ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });
       TestBed.compileComponents();

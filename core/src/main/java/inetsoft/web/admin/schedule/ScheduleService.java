@@ -93,7 +93,10 @@ public class ScheduleService {
                           ResourcePermissionService resourcePermissionService,
                           PresentationFormatsSettingsService formatsSettingsService,
                           SecurityEngine securityEngine,
-                          ScheduleTaskFolderService taskFolderService)
+                          ScheduleTaskFolderService taskFolderService,
+                          IndexedStorage indexedStorage,
+                          DataSourceRegistry dataSourceRegistry,
+                          RenameTransformHandler renameTransformHandler)
    {
       this.analyticRepository = analyticRepository;
       this.scheduleManager = scheduleManager;
@@ -105,13 +108,9 @@ public class ScheduleService {
       this.formatsSettingsService = formatsSettingsService;
       this.securityEngine = securityEngine;
       this.taskFolderService = taskFolderService;
-
-      try {
-         indexedStorage = IndexedStorage.getIndexedStorage();
-      }
-      catch(Exception e) {
-         throw new RuntimeException("Failed to get indexed storage", e);
-      }
+      this.indexedStorage = indexedStorage;
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    /**
@@ -154,8 +153,8 @@ public class ScheduleService {
 
       if(!taskName.equals(oldName)) {
          String path = scheduleManager.getScheduleTask(oldName).getPath();
-         RenameTransformHandler.getTransformHandler().addTransformTask(
-            getDependencyInfo(oldName, taskName, path, path));
+         renameTransformHandler.addTransformTask(
+            getDependencyInfo(oldName, taskName, path, path, scheduleManager));
 
          if(renameTask(oldName, taskName, owner, principal)) {
             return taskName;
@@ -166,7 +165,8 @@ public class ScheduleService {
    }
 
    public static RenameDependencyInfo getDependencyInfo(String oname, String nname,
-                                                        String oldFolder, String newFolder)
+                                                        String oldFolder, String newFolder,
+                                                        ScheduleManager scheduleManager)
    {
       RenameDependencyInfo dinfo = new RenameDependencyInfo();
       List<RenameInfo> rinfos = new ArrayList<>();
@@ -174,10 +174,8 @@ public class ScheduleService {
          AssetEntry.Type.SCHEDULE_TASK, "/" + oname, null);
       String oldKey = oentry.toIdentifier();
       List<AssetObject> entries = DependencyTransformer.getDependencies(oldKey);
-      ScheduleManager manager = ScheduleManager.getScheduleManager();
-
       if(oldFolder == newFolder && oldFolder == null) {
-         String path = manager.getScheduleTask(oname).getPath();
+         String path = scheduleManager.getScheduleTask(oname).getPath();
          oldFolder = path;
          newFolder = path;
       }
@@ -481,7 +479,7 @@ public class ScheduleService {
          !InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES.equals(task.getTaskId()))
       {
          task = task.clone(); // Clone to preserve the original state of the internal task.
-         task.setEditable(SecurityEngine.getSecurity().checkPermission(
+         task.setEditable(securityEngine.checkPermission(
             principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.WRITE));
       }
 
@@ -673,9 +671,14 @@ public class ScheduleService {
       boolean adminPermission = true;
 
       try {
-         SecurityEngine securityEngine = SecurityEngine.getSecurity();
-         adminPermission = securityEngine.checkPermission(
-            principal, ResourceType.SECURITY_USER, task.getOwner(), ResourceAction.ADMIN);
+         // Go straight to the SecurityProvider instead of through
+         // SecurityEngine.checkPermission(..., IdentityID, ...), which additionally requires the
+         // principal to be present in SecurityEngine's live-login cache. That cache is keyed by
+         // the principal's current identity, so it is not updated when the principal's owning
+         // identity is renamed, causing this check to incorrectly report the caller as not
+         // logged in even though it holds an active EM WebSocket subscription (Bug #75830).
+         adminPermission = securityEngine.getSecurityProvider().checkPermission(
+            principal, ResourceType.SECURITY_USER, task.getOwner().convertToKey(), ResourceAction.ADMIN);
       }
       catch(Exception e) {
          LOG.error("Failed to check permission for delete action", e);
@@ -719,7 +722,7 @@ public class ScheduleService {
    public UsersModel getUsersModel(Principal principal, boolean em) {
       Map<IdentityID, User> allUsers = new HashMap<>();
       IdentityIDWithLabel[] allowedUsers;
-      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       if(Organization.getSelfOrganizationID().equals(((XPrincipal) principal).getOrgId())) {
          String alias = ((XPrincipal) principal).getAlias();
@@ -1128,7 +1131,7 @@ public class ScheduleService {
    private SelectedAssetModel createSelectedAssetModel(XAsset xAsset, Catalog catalog) {
       if(xAsset instanceof XDataSourceAsset) {
          String ds = ((XDataSourceAsset) xAsset).getDatasource();
-         XDataSource dataSource = DataSourceRegistry.getRegistry().getDataSource(ds);
+         XDataSource dataSource = dataSourceRegistry.getDataSource(ds);
 
          if(dataSource != null) {
             return SelectedAssetModel.builder()
@@ -1289,7 +1292,12 @@ public class ScheduleService {
                   }
 
                   if(pModel.ftp()) {
-                     info = new ServerPathInfo(pModel.path(), pModel.username(), password);
+                     if(pModel.useCredential()) {
+                        info = new ServerPathInfo(pModel);
+                     }
+                     else {
+                        info = new ServerPathInfo(pModel.path(), pModel.username(), password);
+                     }
                   }
                   else {
                      info = new ServerPathInfo(pModel.path(), null, null);
@@ -1713,8 +1721,7 @@ public class ScheduleService {
       boolean permission = false;
 
       try {
-         SecurityEngine security = SecurityEngine.getSecurity();
-         permission = security.checkPermission(principal, type, resource, ResourceAction.READ);
+         permission = securityEngine.checkPermission(principal, type, resource, ResourceAction.READ);
       }
       catch(Exception e) {
          LOG.error("Failed to check permission on {} for user {}", resource, principal, e);
@@ -1780,6 +1787,15 @@ public class ScheduleService {
       throws Exception
    {
       Catalog catalog = Catalog.getCatalog(principal);
+      ScheduleTask taskToDelete = scheduleManager.getScheduleTask(taskName);
+
+      if(taskToDelete != null &&
+         !ScheduleManager.hasTaskPermission(taskToDelete.getOwner(), principal, ResourceAction.DELETE))
+      {
+         throw new SecurityException(String.format(
+            "Unauthorized access to resource \"%s\" by %s", taskName, principal));
+      }
+
       boolean dependence = scheduleManager.hasDependency(allTasks, taskName);
 
       // log delete task action
@@ -1821,6 +1837,11 @@ public class ScheduleService {
       String errorMsg = null;
       boolean dumpException = true;
       ScheduleTask task = scheduleManager.getScheduleTask(taskName, currentOrgID);
+
+      if(task != null && !ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
+         throw new SecurityException(String.format(
+            "Unauthorized access to resource \"%s\" by %s", taskName, principal));
+      }
 
       if(!scheduleClient.isReady()) {
          errorMsg = catalog.getString("em.scheduler.notStarted");
@@ -1905,6 +1926,11 @@ public class ScheduleService {
       }
       else {
          ScheduleTask task = scheduleManager.getScheduleTask(taskName);
+
+         if(task != null && !ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
+            throw new SecurityException(String.format(
+               "Unauthorized access to resource \"%s\" by %s", taskName, principal));
+         }
 
          if(task != null && !task.isEnabled()) {
             errorMsg = catalog.getString("em.scheduler.stopDisabledTask",
@@ -2172,7 +2198,7 @@ public class ScheduleService {
    private NameLabelTuple createTaskTuple(ScheduleTask task) {
       return NameLabelTuple.builder()
          .name(task.getTaskId())
-         .label(task.toView(SecurityEngine.getSecurity().isSecurityEnabled(), true))
+         .label(task.toView(securityEngine.isSecurityEnabled(), true))
          .build();
    }
 
@@ -2189,6 +2215,8 @@ public class ScheduleService {
    private long activitiesTS;
    private final IndexedStorage indexedStorage;
    private final ScheduleTaskFolderService taskFolderService;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final RenameTransformHandler renameTransformHandler;
    private long activityTimeout = 5000;
 
    private static final Logger LOG =

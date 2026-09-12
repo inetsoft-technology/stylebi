@@ -26,10 +26,12 @@ import { FixedDropdownService } from "../../../../widget/fixed-dropdown/fixed-dr
 import { SpecificationModel } from "../../../data/tablestyle/specification-model";
 import { TableStyleModel } from "../../../data/tablestyle/table-style-model";
 import { TableStyleUtil } from "../../../../common/util/table-style-util";
+import { TreeComponent } from "../../../../widget/tree/tree.component";
 
 @Component({
-   selector: "style-tree-pane",
-   templateUrl: "style-tree-pane.component.html"
+    selector: "style-tree-pane",
+    templateUrl: "style-tree-pane.component.html",
+    imports: [TreeComponent]
 })
 export class StyleTreePane {
    @HostBinding("hidden")

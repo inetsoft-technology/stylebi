@@ -20,6 +20,7 @@ import {
    ChangeDetectorRef,
    Component,
    EventEmitter,
+   forwardRef,
    Input,
    NgZone,
    OnChanges,
@@ -39,6 +40,7 @@ import { DropdownOptions } from "../../../widget/fixed-dropdown/dropdown-options
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { AbstractVSActions } from "../../action/abstract-vs-actions";
 import { AssemblyActionFactory } from "../../action/assembly-action-factory.service";
+import { ChartActions } from "../../action/chart-actions";
 import { AddVSObjectCommand } from "../../command/add-vs-object-command";
 import { RefreshEmbeddedVSCommand } from "../../command/refresh-embeddedvs-command";
 import { RefreshVSObjectCommand } from "../../command/refresh-vs-object-command";
@@ -59,14 +61,17 @@ import { NavigationKeys } from "../navigation-keys";
 import { SelectionMobileService } from "../selection/services/selection-mobile.service";
 import { VSSelectionBaseModel } from "../../model/vs-selection-base-model";
 import { VSCalendarModel } from "../../model/calendar/vs-calendar-model";
+import { VSObjectContainer } from "../vs-object-container.component";
+
 
 declare const window: any;
 
 @Component({
-   selector: "vs-viewsheet",
-   templateUrl: "vs-viewsheet.component.html",
-   styleUrls: ["vs-viewsheet.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "vs-viewsheet",
+    templateUrl: "vs-viewsheet.component.html",
+    styleUrls: ["vs-viewsheet.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [forwardRef(() => VSObjectContainer)]
 })
 export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implements OnChanges, OnDestroy {
    @Input() deployed: boolean;
@@ -88,6 +93,7 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
    @Output() onOpenHighlightDialog = new EventEmitter<BaseTableModel>();
    @Output() onOpenAnnotationDialog = new EventEmitter<MouseEvent>();
    public vsObjectActions: AbstractVSActions<any>[] = [];
+   contextMenu: ActionsContextmenuComponent;
    preview: boolean;
    composer: boolean;
    href: string;
@@ -122,10 +128,13 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
             new ViewsheetInfo(this.vsObjects, this.vsInfo.linkUri, this.vsInfo.metadata,
                               this.vsInfo.runtimeId);
 
-         if(this.model) {
+         if(this.model && this.model.hyperlinkModel) {
             const viewModel = HyperlinkViewModel.fromHyperlinkModel(this.model.hyperlinkModel,
                this.vsInfo.linkUri, null);
             this.href = this.viewer && !this.preview ? viewModel.url : undefined;
+         }
+         else if(this.model) {
+            this.href = undefined;
          }
       }
 
@@ -175,9 +184,21 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
       // Recreating all actions would break subscriptions held by components (e.g. vs-chart)
       // that subscribed to onAssemblyActionEvent on the old instance.
       const actionMap = new Map<string, AbstractVSActions<any>>();
-      this.vsObjects.forEach((obj, i) => actionMap.set(obj.absoluteName, this.vsObjectActions[i]));
+      this.vsObjects.forEach((obj, i) => {
+         obj.sheetMaxMode = command.model.sheetMaxMode;
+         actionMap.set(obj.absoluteName, this.vsObjectActions[i]);
+      })
       this.vsObjects.sort((a, b) => a.objectFormat.zIndex - b.objectFormat.zIndex);
-      this.vsObjectActions = this.vsObjects.map(model => actionMap.get(model.absoluteName) ?? this.actionFactory.createActions(model));
+      this.vsObjectActions = this.vsObjects.map(model => {
+         let actions = actionMap.get(model.absoluteName) ?? this.actionFactory.createActions(model);
+
+         //ensure contextMenu contains updated actions
+         if(this.contextMenu && this.contextMenu?.assemblyName === actions?.getModel()?.absoluteName) {
+            this.contextMenu.actions = actions.menuActions;
+         }
+
+         return actions;
+      });
 
       this.dataTipService.clearDataTips(command.name);
       this.dataTipService.registerDataTip(command.model.dataTip, command.name);
@@ -241,6 +262,11 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
             this.vsObjects[i] = VSUtil.replaceObject(Tool.clone(this.vsObjects[i]), vsObject);
             this.vsObjectActions[i].updateModel(this.vsObjects[i]);
 
+            //ensure contextMenu contains updated actions
+            if(this.contextMenu && this.contextMenu?.assemblyName === this.vsObjectActions[i]?.getModel()?.absoluteName) {
+               this.contextMenu.actions = this.vsObjectActions[i].menuActions;
+            }
+
             if(!!this.mySelectedAssemblies && this.mySelectedAssemblies.indexOf(this.vsObjects[i].absoluteName) >= 0) {
                const myIndex = this.vsInfo.vsObjects.indexOf(this.model);
                this.onSelectedAssemblyChanged.emit([myIndex, this.vsObjectActions[i], null]);
@@ -277,6 +303,11 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
             object.objectFormat.zIndex = command.zIndexes[i];
             this.vsObjects[idx] = object;
             this.vsObjectActions[idx] = this.actionFactory.createActions(object);
+
+            //ensure contextMenu contains updated actions
+            if(this.contextMenu && this.contextMenu?.assemblyName === this.vsObjectActions[idx]?.getModel()?.absoluteName) {
+               this.contextMenu.actions = this.vsObjectActions[idx].menuActions;
+            }
          }
       }
 
@@ -312,9 +343,10 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
       };
 
       let dropdownRef = this.dropdownService.open(ActionsContextmenuComponent, options);
-      let contextmenu: ActionsContextmenuComponent = dropdownRef.componentInstance;
-      contextmenu.sourceEvent = event;
-      contextmenu.actions = payload.actions.menuActions;
+      this.contextMenu = dropdownRef.componentInstance;
+      this.contextMenu.sourceEvent = event;
+      this.contextMenu.actions = payload.actions.menuActions;
+      this.contextMenu.assemblyName = payload.actions.getModel().absoluteName;
       event.preventDefault();
    }
 
@@ -423,6 +455,18 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
 
    onMaxModeChanged($event: {assembly: string, maxMode: boolean}) {
       this.maxMode = $event.maxMode;
+
+      // if the max-mode assembly is nested inside a further-embedded viewsheet below this
+      // one, flag that viewsheet too so it repositions to (0, 0) instead of leaving the
+      // enlarged descendant (and its mini-toolbar) offset by its own un-enlarged position.
+      // Reset unconditionally (not just when entering max mode) so the flag doesn't linger
+      // on the nested viewsheet after max mode closes.
+      this.vsObjects.forEach(obj => {
+         if(obj.objectType === "VSViewsheet") {
+            (obj as any).maxMode = $event.maxMode && $event.assembly.startsWith(obj.absoluteName + ".");
+         }
+      });
+
       this.maxModeChange.emit($event);
    }
 

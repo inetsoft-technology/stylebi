@@ -31,10 +31,7 @@ import { PhysicalModelBrowserInfo } from "../../../model/datasources/database/ph
 import { LogicalModelBrowserInfo } from "../../../model/datasources/database/physical-model/logical-model/logical-model-browser-info";
 import { DataModelNameChangeService } from "../../../services/data-model-name-change.service";
 import { DataModelBrowserService } from "./data-model-browser.service";
-import {
-   ListColumn,
-   RouteLinkEntry
-} from "../../../asset-item-list-view/asset-item-list-view.component";
+import { ListColumn, RouteLinkEntry, AssetItemListViewComponent } from "../../../asset-item-list-view/asset-item-list-view.component";
 import { DatabaseAsset } from "../../../model/datasources/database/database-asset";
 import { AssemblyActionGroup } from "../../../../../common/action/assembly-action-group";
 import { ActionsContextmenuComponent } from "../../../../../widget/fixed-dropdown/actions-contextmenu.component";
@@ -53,6 +50,9 @@ import { AssetEntry } from "../../../../../../../../shared/data/asset-entry";
 import { ComponentTool } from "../../../../../common/util/component-tool";
 import {DataModelBrowserModel} from "./data-model-browser-model";
 import { AppInfoService } from "../../../../../../../../shared/util/app-info.service";
+import { AssetDescriptionComponent } from "../../asset-description/asset-description.component";
+import { DatabaseDataModelToolbarComponent } from "./database-data-model-toolbar.component";
+import { NgClass } from "@angular/common";
 
 const LOGICAL_MODEL_ASSET: string = "logical_model";
 const PHYSICAL_VIEW_ASSET: string = "physical_model";
@@ -67,8 +67,9 @@ export enum ActionType {
 }
 
 @Component({
-   templateUrl: "./database-data-model-browser.component.html",
-   styleUrls: ["./database-data-model-browser.component.scss"]
+    templateUrl: "./database-data-model-browser.component.html",
+    styleUrls: ["./database-data-model-browser.component.scss"],
+    imports: [NgClass, DatabaseDataModelToolbarComponent, AssetItemListViewComponent, AssetDescriptionComponent, NotificationsComponent]
 })
 export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
    @ViewChild("notifications") notifications: NotificationsComponent;
@@ -351,7 +352,7 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
          else {
             this.router.navigate(["/portal/tab/data/datasources/database",
                Tool.byteEncode(physicalItem.databaseName), "physicalModel",
-               physicalItem.name, {folder: folder}],
+               Tool.byteEncode(physicalItem.name), {folder: folder}],
                {relativeTo: this.route});
          }
       }
@@ -371,7 +372,7 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
             this.router.navigate(["/portal/tab/data/datasources/database",
                   Tool.byteEncode(logicalModelItem.databaseName), "physicalModel",
                   Tool.byteEncode(logicalModelItem.physicalModel), "logicalModel",
-                  logicalModelItem.name, {parent: Tool.byteEncode(parent), folder: folder}],
+                  Tool.byteEncode(logicalModelItem.name), {parent: Tool.byteEncode(parent), folder: folder}],
                {relativeTo: this.route});
          }
       }
@@ -849,11 +850,20 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
       });
    }
 
+   private disableActionRequestId = 0;
+
    private disableAction(): void {
+      const requestId = ++this.disableActionRequestId;
       let params = new HttpParams().set("database", this.databaseName);
 
       this.httpClient.get<DataModelBrowserModel>(GET_DATA_MODEL_URI, {params})
           .subscribe(model =>{
+             // Bug #75602: ignore stale responses from superseded selection changes so an
+             // older, slower request can't clobber the result of a newer one.
+             if(requestId !== this.disableActionRequestId) {
+                return;
+             }
+
              if(model.dataModelList.length != 0) {
                 this.isdisableAction = false;
              }

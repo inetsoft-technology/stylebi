@@ -19,21 +19,20 @@ package inetsoft.web.admin.presentation;
 
 import inetsoft.graph.geo.service.MapboxStyle;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
-import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
-import inetsoft.util.*;
-import inetsoft.web.admin.content.dataspace.DataSpaceContentSettingsService;
+import inetsoft.util.Catalog;
+import inetsoft.util.InvalidOrgException;
 import inetsoft.web.admin.general.WebMapSettingsService;
-import inetsoft.web.admin.presentation.model.*;
+import inetsoft.web.admin.presentation.model.PresentationSettingsModel;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
-import java.util.concurrent.locks.ReentrantLock;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
+import java.util.concurrent.locks.Lock;
 
 @RestController
 public class PresentationSettingsController {
@@ -55,8 +54,8 @@ public class PresentationSettingsController {
       PresentationTimeSettingsService timeSettingsService,
       PresentationDataSourceVisibilitySettingsService dataSourceVisibilitySettingsService,
       WebMapSettingsService webMapSettingsService,
-      DataSpaceContentSettingsService dataSpaceContentSettingsService,
-      AISettingsService aiSettingsService)
+      AISettingsService aiSettingsService,
+      Cluster cluster)
    {
       this.lookAndFeelService = lookAndFeelService;
       this.welcomePageService = welcomePageService;
@@ -74,8 +73,8 @@ public class PresentationSettingsController {
       this.timeSettingsService = timeSettingsService;
       this.dataSourceVisibilitySettingsService = dataSourceVisibilitySettingsService;
       this.webMapSettingsService = webMapSettingsService;
-      this.dataSpaceContentSettingsService = dataSpaceContentSettingsService;
       this.aiSettingsService = aiSettingsService;
+      this.cluster = cluster;
    }
 
    @Secured(
@@ -98,12 +97,12 @@ public class PresentationSettingsController {
       @RequestParam(name = "orgSettings", defaultValue = "false") boolean orgSettings)
    {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      boolean securityEnabled = !SecurityEngine.getSecurity().getSecurityProvider().isVirtual();
+      boolean securityEnabled = !securityEngine.getSecurityProvider().isVirtual();
       boolean globalProperty = (OrganizationManager.getInstance().isSiteAdmin(principal) && !orgSettings)
          || !securityEnabled || securityEnabled && !SUtil.isMultiTenant();
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -171,16 +170,17 @@ public class PresentationSettingsController {
    public PresentationSettingsModel applySettings(@RequestBody() PresentationSettingsModel model,
                                                   Principal principal) throws Exception
    {
-      boolean securityEnabled = !SecurityEngine.getSecurity().getSecurityProvider().isVirtual();
+      boolean securityEnabled = !securityEngine.getSecurityProvider().isVirtual();
       boolean globalSettings = OrganizationManager.getInstance().isSiteAdmin(principal) &&
          (model.orgSettings() != null && !model.orgSettings()) || !securityEnabled ||
          !SUtil.isMultiTenant();
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
+      Lock settingsLock = cluster.getLock(SETTINGS_LOCK);
       settingsLock.lock();
 
       try {
@@ -221,7 +221,7 @@ public class PresentationSettingsController {
             exportMenuSettingsService.setExportMenuSettings(model.exportMenuSettingsModel(), globalSettings);
          }
 
-         if(model.fontMappingSettingsModel() != null) {
+         if(globalSettings && model.fontMappingSettingsModel() != null) {
             fontMappingSettingsService.setModel(model.fontMappingSettingsModel());
          }
 
@@ -275,7 +275,7 @@ public class PresentationSettingsController {
    public PresentationSettingsModel resetSettings(@RequestBody() PresentationSettingsModel model,
                                                   Principal principal) throws Exception
    {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       boolean securityEnabled = !provider.isVirtual();
       boolean globalSettings = OrganizationManager.getInstance().isSiteAdmin(principal) &&
             (model.orgSettings() != null && !model.orgSettings()) || !securityEnabled;
@@ -284,6 +284,7 @@ public class PresentationSettingsController {
          globalSettings = provider.checkPermission(principal,  ResourceType.EM, "*", ResourceAction.ACCESS);
       }
 
+      Lock settingsLock = cluster.getLock(SETTINGS_LOCK);
       settingsLock.lock();
 
       try {
@@ -299,7 +300,8 @@ public class PresentationSettingsController {
          timeSettingsService.resetSettings(globalSettings);
          dataSourceVisibilitySettingsService.resetSettings(globalSettings);
          webMapSettingsService.resetSettings(principal, globalSettings);
-         dataSpaceContentSettingsService.deleteDataSpaceNode(ImageShapes.getShapesDirectory(), false);
+         // custom shapes are uploaded content stored in the data space, not a presentation
+         // property, so they are intentionally left alone by the reset
          welcomePageService.resetSettings(globalSettings);
          loginBannerSettingsService.resetSettings(globalSettings);
 
@@ -331,7 +333,7 @@ public class PresentationSettingsController {
    private final PresentationTimeSettingsService timeSettingsService;
    private final PresentationDataSourceVisibilitySettingsService dataSourceVisibilitySettingsService;
    private final WebMapSettingsService webMapSettingsService;
-   private final DataSpaceContentSettingsService dataSpaceContentSettingsService;
    private final AISettingsService aiSettingsService;
-   private final ReentrantLock settingsLock = new ReentrantLock();
+   private final Cluster cluster;
+   private static final String SETTINGS_LOCK = PresentationSettingsController.class.getName() + ".settingsLock";
 }

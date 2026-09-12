@@ -15,23 +15,21 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ScrollingModule } from "@angular/cdk/scrolling";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { NavigationScrollableComponent } from "./navigation-scrollable.component";
 
 describe("NavigationScrollableComponent", () => {
    let component: NavigationScrollableComponent;
    let fixture: ComponentFixture<NavigationScrollableComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            ScrollingModule
-         ],
-         declarations: [
-            NavigationScrollableComponent
-         ],
+            ScrollingModule,
+            NavigationScrollableComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

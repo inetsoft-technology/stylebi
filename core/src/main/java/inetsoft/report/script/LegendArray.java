@@ -20,15 +20,14 @@ package inetsoft.report.script;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.util.script.ArrayObject;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
+import inetsoft.util.script.graal.ScriptArrayScope;
 
 import java.util.*;
 
 /**
  * This array provides access to individual legend descriptors.
  */
-public class LegendArray extends ScriptableObject implements ArrayObject {
+public class LegendArray implements ArrayObject, ScriptArrayScope {
    /**
     * @param type aesthetic type defined in ChartArea.
     */
@@ -64,13 +63,13 @@ public class LegendArray extends ScriptableObject implements ArrayObject {
    }
 
    @Override
-   public boolean has(String id, Scriptable start) {
+   public boolean hasMember(String id) {
       init();
       return ids.contains(id);
    }
 
    @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       if(agg2desc.containsKey(id)) {
          return agg2desc.get(id);
       }
@@ -88,11 +87,26 @@ public class LegendArray extends ScriptableObject implements ArrayObject {
          return scriptable;
       }
 
-      return super.get(id, start);
+      return members.get(id);
    }
 
    @Override
-   public Object[] getIds() {
+   public void putMember(String id, Object value) {
+      members.put(id, value);
+   }
+
+   @Override
+   public Object getArrayElement(long index) {
+      return null;
+   }
+
+   @Override
+   public long getArraySize() {
+      return 0;
+   }
+
+   @Override
+   public Object[] getMemberKeys() {
       init();
       return ids.toArray();
    }
@@ -113,7 +127,6 @@ public class LegendArray extends ScriptableObject implements ArrayObject {
       return "[]";
    }
 
-   @Override
    public String getClassName() {
       return "Legend";
    }
@@ -123,4 +136,5 @@ public class LegendArray extends ScriptableObject implements ArrayObject {
    private String type;
    private List ids;
    private Map<String, LegendScriptable> agg2desc = new HashMap<>();
+   private final Map<String, Object> members = new LinkedHashMap<>();
 }

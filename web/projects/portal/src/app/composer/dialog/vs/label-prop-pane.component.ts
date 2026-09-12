@@ -17,11 +17,12 @@
  */
 import { Component, Input } from "@angular/core";
 import { LabelPropPaneModel } from "../../data/vs/label-prop-pane-model";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "label-prop-pane",
-   templateUrl: "label-prop-pane.component.html"
+    selector: "label-prop-pane",
+    templateUrl: "label-prop-pane.component.html",
+    imports: [FormsModule]
 })
 export class LabelPropPane {
    @Input() model: LabelPropPaneModel;

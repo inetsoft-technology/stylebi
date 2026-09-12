@@ -23,20 +23,29 @@ import { SelectionModel } from "@angular/cdk/collections";
 import { Tool } from "../../../../../../shared/util/tool";
 import { IdentityModel } from "./identity-model";
 import { MatDialog } from "@angular/material/dialog";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { IdentityType } from "../../../../../../shared/data/identity-type";
 import { SecurityTreeDialogComponent } from "../security-tree-dialog/security-tree-dialog.component";
 import { SecurityTreeDialogData } from "../security-tree-dialog/security-tree-dialog-data";
 import { MatPaginator } from "@angular/material/paginator";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { take } from "rxjs/operators";
+import { fromEvent } from "rxjs";
+import { take, takeUntil } from "rxjs/operators";
 import { IdentityClipboardService, IdentityCopyPasteContext } from "./identity-clipboard.service";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
+import { equalsIdentity } from "../users/identity-id";
+import { MatTooltip } from "@angular/material/tooltip";
+import { MatButton } from "@angular/material/button";
+
+import { MatIcon } from "@angular/material/icon";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Component({
-   selector: "em-security-table-view",
-   templateUrl: "./security-table-view.component.html",
-   styleUrls: ["./security-table-view.component.scss"]
+    selector: "em-security-table-view",
+    templateUrl: "./security-table-view.component.html",
+    styleUrls: ["./security-table-view.component.scss"],
+    imports: [MatCard, MatCardHeader, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatCardActions, MatButton, MatTooltip]
 })
 export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
    @Input() name: string;
@@ -103,8 +112,7 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
       }
 
       const dragNodes: IdentityModel[] = JSON.parse(event.dataTransfer.getData("text"));
-      dragNodes.filter((model) => !this.dataSource.some((data) => data.identityID === model.identityID &&
-         data.type === model.type))
+      dragNodes.filter((model) => !this.hasIdentity(model))
          .forEach((model) => this.dropOnTable.emit(model));
    }
 
@@ -122,11 +130,14 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
             this.addIdentities.emit(result
                .map(node => <IdentityModel>{identityID: node.identityID,
                   identityIDLabel: node.organization, type: node.type})
-               .filter((model) => !this.dataSource.some(
-                  (data) => data.identityID === model.name && data.type === model.type)
-            ));
+               .filter((model) => !this.hasIdentity(model)));
          }
       });
+   }
+
+   private hasIdentity(model: IdentityModel): boolean {
+      return this.dataSource.some((data) => data.type === model.type &&
+         equalsIdentity(data.identityID, model.identityID));
    }
 
    getIcon(type: number): string {
@@ -218,7 +229,16 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
       }
 
       this.clipboardService.copy(toCopy, this.copyPasteContext);
-      this.snackBar.open("_#(js:em.security.identitiesCopied)", null, { duration: Tool.SNACKBAR_DURATION });
+      const snackBarRef = this.snackBar.open("_#(js:em.security.identitiesCopied)", null, { duration: Tool.SNACKBAR_DURATION_SHORT });
+
+      // dismiss as soon as the user interacts elsewhere so the toast doesn't linger over the Apply button.
+      // Deferred so the listener isn't registered until after the triggering click finishes bubbling to
+      // document, otherwise the toast would be dismissed by its own opening click.
+      setTimeout(() => {
+         fromEvent(document, "click")
+            .pipe(take(1), takeUntil(snackBarRef.afterDismissed()))
+            .subscribe(() => snackBarRef.dismiss());
+      });
    }
 
    private pasteDialogOpen = false;

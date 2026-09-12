@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { ChangeDetectorRef, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DragService } from "../../../widget/services/drag.service";
@@ -61,21 +61,25 @@ const targetTree: TreeNodeModel = {
 };
 
 describe("Calendar Data Pane Unit Test", () => {
-   let changeRef = { detectChanges: jest.fn() };
+   let changeRef = { detectChanges: vi.fn() };
    let fixture: ComponentFixture<CalendarDataPane>;
    let calendarDataPane: CalendarDataPane;
    let dragService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       dragService = { currentlyDragging: false };
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            CalendarDataPane,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
          ],
-         declarations: [
-            CalendarDataPane, TreeComponent, TreeNodeComponent, TreeSearchPipe
-         ],
+         
          providers: [
             { provide: ChangeDetectorRef, useValue: changeRef },
             { provide: DragService, useValue: dragService }

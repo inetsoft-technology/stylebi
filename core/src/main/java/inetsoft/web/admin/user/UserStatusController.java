@@ -17,9 +17,7 @@
  */
 package inetsoft.web.admin.user;
 
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
-import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.AbstractMonitoringController;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
@@ -39,10 +37,13 @@ import java.util.Optional;
 @RestController
 public class UserStatusController extends AbstractMonitoringController {
    @Autowired
-   public UserStatusController(UserService userService, MonitoringDataService monitoringDataService)
+   public UserStatusController(UserService userService,
+                               MonitoringDataService monitoringDataService,
+                               SecurityEngine securityEngine)
    {
       this.userService = userService;
       this.monitoringDataService = monitoringDataService;
+      this.securityEngine = securityEngine;
    }
 
    @SubscribeMapping(value = { "/monitoring/user/get-session-grid",
@@ -52,7 +53,7 @@ public class UserStatusController extends AbstractMonitoringController {
       @DestinationVariable("address") Optional<String> address, Principal principal)
       throws SecurityException
    {
-      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+      if(!securityEngine.getSecurityProvider().checkPermission(
          principal, ResourceType.EM_COMPONENT, "monitoring/users", ResourceAction.ACCESS))
       {
          throw new SecurityException("Unauthorized access to user monitoring by user " + principal.getName());
@@ -75,7 +76,7 @@ public class UserStatusController extends AbstractMonitoringController {
       @DestinationVariable("address") Optional<String> address, Principal principal)
       throws SecurityException
    {
-      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+      if(!securityEngine.getSecurityProvider().checkPermission(
          principal, ResourceType.EM_COMPONENT, "monitoring/users", ResourceAction.ACCESS))
       {
          throw new SecurityException("Unauthorized access to user monitoring by user " + principal.getName());
@@ -110,7 +111,7 @@ public class UserStatusController extends AbstractMonitoringController {
       @DestinationVariable("address") Optional<String> address, Principal principal)
       throws SecurityException
    {
-      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+      if(!securityEngine.getSecurityProvider().checkPermission(
          principal, ResourceType.EM_COMPONENT, "monitoring/summary", ResourceAction.ACCESS))
       {
          throw new SecurityException("Unauthorized access to user monitoring by user " + principal.getName());
@@ -128,4 +129,5 @@ public class UserStatusController extends AbstractMonitoringController {
 
    private final UserService userService;
    private final MonitoringDataService monitoringDataService;
+   private final SecurityEngine securityEngine;
 }

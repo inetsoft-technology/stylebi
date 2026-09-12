@@ -26,11 +26,16 @@ import { AssemblyType } from "../../../composer/gui/vs/assembly-type";
 import { IntervalLevel } from "../../model/interval-pane-model";
 import { DynamicValueModel, ValueTypes } from "../../model/dynamic-value-model";
 import { XConstants } from "../../../common/util/xconstants";
+import { CategoricalColorPane } from "../../../binding/editor/chart/aesthetic/categorical-color-pane.component";
+
+import { FormsModule } from "@angular/forms";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase } from "@ng-bootstrap/ng-bootstrap";
 
 @Component({
-   selector: "date-comparison-pane",
-   templateUrl: "./date-comparison-pane.component.html",
-   styleUrls: ["./date-comparison-pane.component.scss"]
+    selector: "date-comparison-pane",
+    templateUrl: "./date-comparison-pane.component.html",
+    styleUrls: ["./date-comparison-pane.component.scss"],
+    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, DateComparisonPeriodsPaneComponent, DateComparisonIntervalPaneComponent, FormsModule, CategoricalColorPane]
 })
 export class DateComparisonPaneComponent {
    @Input() dateComparisonPaneModel: DateComparisonPaneModel;
@@ -98,7 +103,11 @@ export class DateComparisonPaneComponent {
       let granularityVal = this.dateComparisonPaneModel.intervalPaneModel.granularity;
 
       let intervalLevel = this.dcIntervalLevelToDateGroupLevel(intervalVal);
-      let contextLevel = this.dcIntervalLevelToDateGroupLevel(contextLevelVal);
+      // Bug #75654 (fixed): contextLevel already stores a plain XConstants date-group value
+      // (unlike interval/granularity, which are IntervalLevel bitmasks) - decoding it with
+      // dcIntervalLevelToDateGroupLevel's bitmask logic silently miscalculated it for Year/
+      // Quarter/Month values (Week/Day happened to decode correctly by numeric coincidence).
+      let contextLevel = this.contextLevelToDateGroupLevel(contextLevelVal);
       let granularity = this.dcIntervalLevelToDateGroupLevel(granularityVal);
 
       if(contextLevel != -1 && contextLevel == intervalLevel && contextLevel == granularity) {
@@ -151,6 +160,16 @@ export class DateComparisonPaneComponent {
       }
 
       return -1;
+   }
+
+   // contextLevel is stored directly as an XConstants date-group value, not an IntervalLevel
+   // bitmask, so it must not go through dcIntervalLevelToDateGroupLevel's bit-decoding logic.
+   private contextLevelToDateGroupLevel(contextValue: DynamicValueModel): number {
+      if(contextValue.type != ValueTypes.VALUE) {
+         return -1;
+      }
+
+      return parseInt(contextValue.value, 10);
    }
 
 

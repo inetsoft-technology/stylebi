@@ -29,15 +29,18 @@ import {
    ViewChild,
    ViewContainerRef
 } from "@angular/core";
+
 import { Router } from "@angular/router";
 import { NgbModal, NgbModalConfig } from "@ng-bootstrap/ng-bootstrap";
 import { BehaviorSubject, Subscription } from "rxjs";
 import { DownloadService } from "../../../../../shared/download/download.service";
+import { DownloadTargetComponent } from "../../../../../shared/download/download-target.component";
 import { FullScreenService } from "../../common/services/full-screen.service";
 import { ComponentTool } from "../../common/util/component-tool";
 import { GuiTool } from "../../common/util/gui-tool";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
+import { VSLoadingDisplay } from "../../vsobjects/objects/vs-loading-display/vs-loading-display.component";
 import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
 import { InteractService } from "../../widget/interact/interact.service";
 import { DebounceService } from "../../widget/services/debounce.service";
@@ -50,18 +53,19 @@ import { ViewerAppComponent } from "../../vsobjects/viewer-app.component";
 declare const window: any;
 
 @Component({
-   selector: "embed-viewer",
-   templateUrl: "./embed-viewer.component.html",
-   styleUrls: ["./embed-viewer.component.scss"],
-   providers: [
-      DownloadService,
-      TooltipService,
-      NgbModal,
-      DialogService,
-      FixedDropdownService,
-      InteractService,
-      DebounceService
-   ]
+    selector: "embed-viewer",
+    templateUrl: "./embed-viewer.component.html",
+    styleUrls: ["./embed-viewer.component.scss"],
+    imports: [ViewerAppComponent, VSLoadingDisplay, DownloadTargetComponent],
+    providers: [
+        DownloadService,
+        TooltipService,
+        NgbModal,
+        DialogService,
+        FixedDropdownService,
+        InteractService,
+        DebounceService
+    ]
 })
 export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    @Input() url: string;

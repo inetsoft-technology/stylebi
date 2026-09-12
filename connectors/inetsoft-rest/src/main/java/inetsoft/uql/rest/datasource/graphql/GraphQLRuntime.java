@@ -36,8 +36,17 @@ public class GraphQLRuntime extends RestJsonRuntime {
    }
 
    private void addParams(GraphQLQuery query, AbstractGraphQLDataSource dataSource, boolean postRequest) {
-      final Set<HttpParameter> httpParams =
-         new HashSet<>(Arrays.asList(dataSource.getRequestParameters()));
+      final Set<HttpParameter> httpParams = new LinkedHashSet<>();
+
+      // preserve the user-configured query HTTP parameters (e.g. an Authorization
+      // header); otherwise they are overwritten below and lost during execution
+      final HttpParameter[] existing = dataSource.getQueryHttpParameters();
+
+      if(existing != null) {
+         httpParams.addAll(Arrays.asList(existing));
+      }
+
+      httpParams.addAll(Arrays.asList(dataSource.getRequestParameters()));
 
       if(!postRequest) {
          final String variables = query.getVariables();

@@ -17,21 +17,9 @@
  */
 package inetsoft.web.viewsheet.controller.chart;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.report.composition.region.ChartConstants;
-import inetsoft.report.internal.graph.ChangeChartProcessor;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.graph.ChartRef;
-import inetsoft.uql.viewsheet.graph.VSChartInfo;
-import inetsoft.web.binding.command.SetVSBindingModelCommand;
-import inetsoft.web.binding.model.BindingModel;
-import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.chart.VSChartDrillEvent;
-import inetsoft.web.viewsheet.handler.chart.VSChartDrillHandler;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,24 +28,17 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
-import java.util.Arrays;
 
 @Controller
-public class VSChartDrillController extends VSChartController<VSChartDrillEvent> {
+public class VSChartDrillController {
    @Autowired
    VSChartDrillController(RuntimeViewsheetRef runtimeViewsheetRef,
-                          CoreLifecycleService coreLifecycleService,
-                          VSBindingService bindingFactory,
-                          ViewsheetService viewsheetService,
-                          VSChartDrillHandler chartDrillHandler)
+                          VSChartDrillServiceProxy vsChartDrillService)
    {
-      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
-
-      this.bindingFactory = bindingFactory;
-      this.chartDrillHandler = chartDrillHandler;
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.vsChartDrillService = vsChartDrillService;
    }
 
-   // from analytic.composition.event.DrillEvent.process()
    @Undoable
    @LoadingMask
    @MessageMapping("/vschart/drill")
@@ -65,63 +46,10 @@ public class VSChartDrillController extends VSChartController<VSChartDrillEvent>
                             Principal principal, CommandDispatcher dispatcher)
       throws Exception
    {
-      processEvent(event, principal, linkUri, dispatcher, chartState -> {
-         try {
-            return doDrill(event, chartState, dispatcher, principal);
-         }
-         catch(Exception e) {
-            throw new RuntimeException(e);
-         }
-      });
+      vsChartDrillService.eventHandler(runtimeViewsheetRef.getRuntimeId(), event,
+                                       linkUri, principal, dispatcher);
    }
 
-   private int doDrill(@Payload VSChartDrillEvent event,
-                       VSChartStateInfo chartState,
-                       CommandDispatcher dispatcher, Principal principal)
-      throws Exception
-   {
-      ViewsheetSandbox box = chartState.getViewsheetSandbox();
-      // @by davidd, Stop all queries related to this Viewsheet to make way for
-      // this Drill down request.
-      box.cancelAllQueries();
-
-      // from analytic.composition.event.DrillEvent.processChart()
-      RuntimeViewsheet rvs = chartState.getRuntimeViewsheet();
-      boolean viewer = rvs.isRuntime();
-      boolean isX = ChartConstants.DRILL_DIRECTION_X.equals(event.getAxisType());
-      VSChartInfo chartInfo = chartState.getChartInfo();
-      ChartRef[] refs = isX ? chartInfo.getXFields() : chartInfo.getYFields();
-      ChartRef ref = chartInfo.getFieldByName(event.getField(), true);
-      ChartVSAssembly chartAssembly = chartState.getAssembly();
-
-      if(!(ref instanceof VSDimensionRef)) {
-         return VSAssembly.NONE_CHANGED;
-      }
-
-      chartDrillHandler.drill(ref, chartAssembly, event.isDrillUp(), viewer, principal, false);
-
-      // reset axis height after drill up/down since the height is meaningless with the
-      // change of binding.
-      Arrays.stream(refs).filter(a -> a instanceof ChartRef)
-         .forEach(a -> a.getAxisDescriptor().setAxisHeight(0));
-
-      new ChangeChartProcessor() {
-         public void process() {
-            fixShapeField(chartInfo, chartInfo, getChartType(chartInfo, null));
-            fixAggregateRefs(chartInfo);
-         }
-      }.process();
-
-      //fix bug#37683 update to the runtime value
-      box.updateAssembly(chartAssembly.getAbsoluteName());
-      rvs.resetMVOptions();
-      BindingModel binding = bindingFactory.createModel(chartAssembly);
-      SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
-      dispatcher.sendCommand(bcommand);
-
-      return VSAssembly.INPUT_DATA_CHANGED;
-   }
-
-   private final VSBindingService bindingFactory;
-   private final VSChartDrillHandler chartDrillHandler;
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final VSChartDrillServiceProxy vsChartDrillService;
 }

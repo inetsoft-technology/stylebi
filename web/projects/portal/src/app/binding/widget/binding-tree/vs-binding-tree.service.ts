@@ -27,7 +27,6 @@ import { VSChartBindingTreeActions } from "./vs-chart-binding-tree-actions";
 import { VSTableBindingTreeActions } from "./vs-table-binding-tree-actions";
 import { VSCrosstabBindingTreeActions } from "./vs-crosstab-binding-tree-actions";
 import { ContextMenuActions } from "../../../widget/context-menu/context-menu-actions";
-import { VirtualScrollService } from "../../../widget/tree/virtual-scroll.service";
 import { ViewsheetClientService } from "../../../common/viewsheet-client/viewsheet-client.service";
 
 @Injectable()

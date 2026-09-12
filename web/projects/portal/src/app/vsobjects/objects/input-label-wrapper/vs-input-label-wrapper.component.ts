@@ -17,15 +17,19 @@
  */
 import { Component, EventEmitter, HostBinding, Input, Output } from "@angular/core";
 import { VSInputLabelModel } from "../../model/vs-input-label-model";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { NgClass, NgStyle } from "@angular/common";
 
 @Component({
-   selector: "vs-input-label-wrapper",
-   templateUrl: "vs-input-label-wrapper.component.html",
-   styleUrls: ["vs-input-label-wrapper.component.scss"]
+    selector: "vs-input-label-wrapper",
+    templateUrl: "vs-input-label-wrapper.component.html",
+    styleUrls: ["vs-input-label-wrapper.component.scss"],
+    imports: [NgClass, NgStyle, SafeFontDirective]
 })
 export class VSInputLabelWrapper {
    @Input() labelModel: VSInputLabelModel;
    @Input() labelSelected: boolean = false;
+   @Input() disabled: boolean = false;
    @Input() objectHeight: number | undefined;
    @Input() contentOverflow: string = "hidden";
    @Output() selectLabel = new EventEmitter<MouseEvent>();

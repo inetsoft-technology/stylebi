@@ -32,13 +32,20 @@ import { ModelService } from "../../../widget/services/model.service";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { AbstractTableAssembly } from "../../data/ws/abstract-table-assembly";
 import { TabularQueryDialogModel } from "../../data/ws/tabular-query-dialog-model";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { TabularViewComponent } from "../../../widget/tabular/tabular-view.component";
+import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "tabular-query-dialog",
-   templateUrl: "tabular-query-dialog.component.html",
-   styleUrls: ["tabular-query-dialog.component.scss"]
+    selector: "tabular-query-dialog",
+    templateUrl: "tabular-query-dialog.component.html",
+    styleUrls: ["tabular-query-dialog.component.scss"],
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, TabularViewComponent, ApplyButtonComponent]
 })
 export class TabularQueryDialog implements OnInit {
    @Input() runtimeId: string;

@@ -52,7 +52,7 @@ public interface CustomThemeModel {
    }
 
    final class Builder extends ImmutableCustomThemeModel.Builder {
-      public Builder from(CustomTheme theme) {
+      public Builder from(CustomTheme theme, CustomThemesManager customThemesManager) {
          id(theme.getId());
          name(theme.getName());
          global(theme.getOrgID() == null);
@@ -60,11 +60,37 @@ public interface CustomThemeModel {
 //         groups(theme.getGroups());
 //         roles(theme.getRoles());
 
-         String selected = CustomThemesManager.getManager().getSelectedTheme();
-         defaultThemeGlobal(Objects.equals(selected, theme.getId()));
-         defaultThemeOrg(theme.getOrganizations().contains(OrganizationManager.getInstance().getCurrentOrgID()));
+         applyDefaultFlags(theme, customThemesManager);
 
          return this;
+      }
+
+      public Builder from(CustomTheme theme, ThemeCssModel portalCss, ThemeCssModel emCss,
+                          CustomThemesManager customThemesManager)
+      {
+         id(theme.getId());
+         name(theme.getName());
+         global(theme.getOrgID() == null);
+         portalCss(portalCss);
+         emCss(emCss);
+         applyDefaultFlags(theme, customThemesManager);
+
+         return this;
+      }
+
+      private void applyDefaultFlags(CustomTheme theme, CustomThemesManager customThemesManager) {
+         String orgSelected = customThemesManager.getOrgSelectedTheme();
+         String globalSelected = customThemesManager.getGlobalSelectedTheme();
+         boolean isOrgDefault = Objects.equals(theme.getId(), orgSelected);
+         boolean isGlobalDefault = Objects.equals(globalSelected, theme.getId());
+
+         // In single-tenant mode the only default control in the UI is the "Default" checkbox,
+         // which is bound to defaultThemeGlobal. The org selected theme still takes priority in
+         // CustomThemesImpl.getSelectedTheme(), so a theme that only holds the org pointer (e.g.
+         // set as "Default for This Organization" before multi-tenancy was disabled) is the
+         // effective default and must be reported as such.
+         defaultThemeGlobal(isGlobalDefault || !SUtil.isMultiTenant() && isOrgDefault);
+         defaultThemeOrg(isOrgDefault);
       }
    }
 }

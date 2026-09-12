@@ -36,7 +36,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const OVAL_PROPERTY_URI: string = "composer/vs/oval-property-dialog-model/";
 
 @Directive({
-   selector: "[cOvalActionHandler]"
+    selector: "[cOvalActionHandler]",
+    standalone: true
 })
 export class OvalActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSOvalModel;

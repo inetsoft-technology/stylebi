@@ -26,10 +26,13 @@ import {
 import { Subscription } from "rxjs";
 import { PageTabService, TabInfoModel } from "../services/page-tab.service";
 
+import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
+
 @Component({
-   selector: "page-tab",
-   templateUrl: "page-tab.component.html",
-   styleUrls: ["page-tab.component.scss"]
+    selector: "page-tab",
+    templateUrl: "page-tab.component.html",
+    styleUrls: ["page-tab.component.scss"],
+    imports: [ResizedDirective]
 })
 export class PageTabComponent implements AfterViewInit, OnDestroy {
    @ViewChild("tabScroller") tabScroller: ElementRef;

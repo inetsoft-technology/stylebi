@@ -17,12 +17,6 @@
  */
 package inetsoft.web.composer.ws;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.event.AssetEventUtil;
-import inetsoft.uql.asset.EmbeddedTableAssembly;
-import inetsoft.uql.asset.Worksheet;
-import inetsoft.uql.util.XEmbeddedTable;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSDeleteDataEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -35,6 +29,10 @@ import java.security.Principal;
 
 @Controller
 public class DeleteDataController extends WorksheetController {
+   public DeleteDataController(DeleteDataServiceProxy deleteDataService) {
+      this.deleteDataService = deleteDataService;
+   }
+
    @Undoable
    @LoadingMask
    @MessageMapping("/composer/worksheet/delete-data")
@@ -42,19 +40,8 @@ public class DeleteDataController extends WorksheetController {
       @Payload WSDeleteDataEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
-      Worksheet ws = rws.getWorksheet();
-      String name = event.tableName();
-      int index = event.index();
-      EmbeddedTableAssembly assembly =
-         (EmbeddedTableAssembly) ws.getAssembly(name);
-      XEmbeddedTable data = assembly.getEmbeddedData();
-
-      data.deleteRow(index + 1);
-
-      WorksheetEventUtil.loadTableData(rws, name, true, true);
-      WorksheetEventUtil.refreshAssembly(rws, name, true, commandDispatcher, principal);
-      WorksheetEventUtil.layout(rws, commandDispatcher);
-      AssetEventUtil.refreshTableLastModified(ws, name, true);
+      deleteDataService.deleteData(getRuntimeId(), event, principal, commandDispatcher);
    }
+
+   private final DeleteDataServiceProxy deleteDataService;
 }

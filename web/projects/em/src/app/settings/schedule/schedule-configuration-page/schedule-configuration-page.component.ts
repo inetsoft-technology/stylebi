@@ -25,7 +25,8 @@ import { HttpClient } from "@angular/common/http";
 import { Secured } from "../../../secured";
 import { ScheduleConfigurationModel } from "../model/schedule-configuration-model";
 import { Tool } from "../../../../../../shared/util/tool";
-import { ScheduleConfiguration } from "../schedule-configuration-view/schedule-configuration-view.component";
+import { ScheduleConfiguration, ScheduleConfigurationViewComponent } from "../schedule-configuration-view/schedule-configuration-view.component";
+import { EditorPanelComponent } from "../../../common/util/editor-panel/editor-panel.component";
 
 const SCHEDULE_CONFIGURATION_URL = "../api/em/settings/schedule/configuration";
 
@@ -44,9 +45,10 @@ const SCHEDULE_CONFIGURATION_URL = "../api/em/settings/schedule/configuration";
    link: "EMSettingsScheduleSettings"
 })
 @Component({
-   selector: "em-schedule-configuration-page",
-   templateUrl: "./schedule-configuration-page.component.html",
-   styleUrls: ["./schedule-configuration-page.component.scss"]
+    selector: "em-schedule-configuration-page",
+    templateUrl: "./schedule-configuration-page.component.html",
+    styleUrls: ["./schedule-configuration-page.component.scss"],
+    imports: [EditorPanelComponent, ScheduleConfigurationViewComponent]
 })
 export class ScheduleConfigurationPageComponent implements OnInit {
    model: ScheduleConfigurationModel;
@@ -57,15 +59,15 @@ export class ScheduleConfigurationPageComponent implements OnInit {
    constructor(private http: HttpClient,
       private pageTitle: PageHeaderService,
       private dialog: MatDialog) {
+   }
+
+   ngOnInit(): void {
+      this.pageTitle.title = "_#(js:Scheduler Settings)";
       this.http.get(SCHEDULE_CONFIGURATION_URL)
          .subscribe((model: ScheduleConfigurationModel) => {
             this.model = model;
             this.resetModel = Tool.clone(this.model);
          });
-   }
-
-   ngOnInit(): void {
-      this.pageTitle.title = "_#(js:Scheduler Settings)";
    }
 
    onConfigurationChange(config: ScheduleConfiguration) {

@@ -17,21 +17,34 @@
  */
 package inetsoft.util.health;
 
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
+@Service
+@Lazy
 public class HealthService {
-   public HealthService() {
-      cacheSwapHealthService = CacheSwapHealthService.getInstance();
-      deadlockHealthService = DeadlockHealthService.getInstance();
-      outOfMemoryHealthService = OutOfMemoryHealthService.getInstance();
-      reportFailureHealthService = ReportFailureHealthService.getInstance();
-      schedulerHealthService = SchedulerHealthService.getInstance();
-      securityProviderHealthService = SecurityProviderHealthService.getInstance();
-      fileSystemHealthService = FileSystemHealthService.getInstance();
+   @Autowired
+   public HealthService(CacheSwapHealthService cacheSwapHealthService,
+                        DeadlockHealthService deadlockHealthService,
+                        OutOfMemoryHealthService outOfMemoryHealthService,
+                        ReportFailureHealthService reportFailureHealthService,
+                        SchedulerHealthService schedulerHealthService,
+                        SecurityProviderHealthService securityProviderHealthService,
+                        FileSystemHealthService fileSystemHealthService)
+   {
+      this.cacheSwapHealthService = cacheSwapHealthService;
+      this.deadlockHealthService = deadlockHealthService;
+      this.outOfMemoryHealthService = outOfMemoryHealthService;
+      this.reportFailureHealthService = reportFailureHealthService;
+      this.schedulerHealthService = schedulerHealthService;
+      this.securityProviderHealthService = securityProviderHealthService;
+      this.fileSystemHealthService = fileSystemHealthService;
    }
 
    public static HealthService getInstance() {
-      return SingletonManager.getInstance(HealthService.class);
+      return ConfigurationContext.getContext().getSpringBean(HealthService.class);
    }
 
    public HealthStatus getStatus() {

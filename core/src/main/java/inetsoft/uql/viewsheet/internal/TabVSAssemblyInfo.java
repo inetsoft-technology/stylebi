@@ -32,6 +32,7 @@ import org.w3c.dom.NodeList;
 import java.awt.*;
 import java.awt.geom.Point2D;
 import java.io.PrintWriter;
+import java.util.function.Function;
 
 /**
  * TabVSAssemblyInfo stores basic tab assembly information.
@@ -379,46 +380,20 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       }
 
       int tabHeight = tabDim.height;
+      // VSAssembly::getPixelSize applies the assembly's minimum-size floor
+      // (e.g. TableVSAssembly's 20x60); info.getPixelSize() would not.
+      ChildExtent extent = scanChildExtent(children, vs,
+         VSAssembly::getPixelOffset, VSAssembly::getPixelSize);
 
-      // find the child extent needed to position the tab bar
-      int maxChildBottom = Integer.MIN_VALUE;
-      int minChildTop = Integer.MAX_VALUE;
-      boolean hasValidChild = false;
-
-      for(String childName : children) {
-         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
-
-         if(child == null) {
-            continue;
-         }
-
-         Point childPos = child.getPixelOffset();
-         int childHeight = getBottomTabChildHeight(child.getVSAssemblyInfo(), child.getPixelSize());
-
-         if(childPos == null || childHeight == 0) {
-            continue;
-         }
-
-         maxChildBottom = Math.max(maxChildBottom, childPos.y + childHeight);
-         minChildTop = Math.min(minChildTop, childPos.y);
-         hasValidChild = true;
-      }
-
-      if(!hasValidChild) {
+      if(extent == null) {
          return;
       }
 
-      // move the tab bar
       int newTabY = toBottomTabs
-         ? maxChildBottom
-         : Math.max(0, minChildTop - tabHeight);
+         ? extent.maxBottom()
+         : Math.max(0, extent.minTop() - tabHeight);
 
-      int actualTabDy = newTabY - tabPos.y;
       tabInfo.setPixelOffset(new Point(tabPos.x, newTabY));
-
-      if(tabInfo.getLayoutPosition() != null) {
-         tabInfo.getLayoutPosition().translate(0, actualTabDy);
-      }
 
       // reposition children whose edges aren't flush with the tab bar
       for(String childName : children) {
@@ -441,12 +416,183 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             : newTabY + tabHeight;    // top edge flush with tab bar bottom
 
          if(newChildY != childPos.y) {
-            int childDy = newChildY - childPos.y;
             childInfo.setPixelOffset(new Point(childPos.x, newChildY));
+         }
+      }
+   }
 
-            if(childInfo.getLayoutPosition() != null) {
-               childInfo.getLayoutPosition().translate(0, childDy);
-            }
+   /**
+    * Scaled-space counterpart of {@link #repositionForBottomTabs}. Lets a
+    * runtime script toggle take effect immediately in layout previews. The
+    * tab bar re-anchors to the children's extent, and children are then
+    * re-flushed against the tab bar's new position -- mirroring the
+    * master-pixel-space loop below. No-op in master view (no scaledPosition).
+    */
+   public static void repositionForBottomTabsInScaledSpace(TabVSAssemblyInfo tabInfo,
+                                                           Viewsheet vs,
+                                                           boolean toBottomTabs)
+   {
+      String[] children = tabInfo.getAssemblies();
+
+      if(children == null || children.length == 0 || vs == null) {
+         return;
+      }
+
+      Point tabScaledPos = tabInfo.getLayoutPosition(true);
+
+      // scaledPosition unset → both overloads return the same layoutPosition object;
+      // reference compare detects that case without exposing scaledPosition publicly.
+      if(tabScaledPos == null || tabScaledPos == tabInfo.getLayoutPosition(false)) {
+         return;
+      }
+
+      Dimension tabSize = tabInfo.getLayoutSize(true);
+
+      if(tabSize == null) {
+         tabSize = tabInfo.getLayoutSize(false);
+      }
+
+      if(tabSize == null || tabSize.height == 0) {
+         return;
+      }
+
+      int tabHeight = tabSize.height;
+      ChildExtent extent = scanChildExtent(children, vs,
+         c -> c.getVSAssemblyInfo().getLayoutPosition(true),
+         c -> c.getVSAssemblyInfo().getLayoutSize(true));
+
+      if(extent == null) {
+         return;
+      }
+
+      int newTabY = toBottomTabs
+         ? extent.maxBottom()
+         : Math.max(0, extent.minTop() - tabHeight);
+
+      if(newTabY != tabScaledPos.y) {
+         tabInfo.setScaledPosition(new Point(tabScaledPos.x, newTabY));
+      }
+
+      // Re-flush each child against the (possibly just-moved) tab bar. With a single
+      // child this is a no-op (the tab was anchored to that same child's extent), but
+      // with multiple children of differing heights, a child that isn't the tallest/
+      // shortest (the one defining the extent) would otherwise keep the scaled Y a
+      // prior full applyScale() pass computed for the OLD bottomTabs value -- e.g. a
+      // short Text child stays pinned near the old top-tabs position instead of
+      // following the tab bar to the bottom, until the next full refresh recalculates
+      // it (Bug #76038).
+      for(String childName : children) {
+         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
+
+         if(child == null) {
+            continue;
+         }
+
+         VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
+         Point childScaledPos = childInfo.getLayoutPosition(true);
+         Dimension childScaledSize = childInfo.getLayoutSize(true);
+
+         if(childScaledPos == null || childScaledSize == null) {
+            continue;
+         }
+
+         int childHeight = getBottomTabChildHeight(childInfo, childScaledSize);
+
+         if(childHeight == 0) {
+            continue;
+         }
+
+         int newChildY = toBottomTabs
+            ? newTabY - childHeight   // bottom edge flush with tab bar top
+            : newTabY + tabHeight;    // top edge flush with tab bar bottom
+
+         if(newChildY != childScaledPos.y) {
+            childInfo.setScaledPosition(new Point(childScaledPos.x, newChildY));
+         }
+      }
+   }
+
+   /**
+    * Tab children's vertical extent in some coordinate space.
+    */
+   public record ChildExtent(int minTop, int maxBottom) {}
+
+   /**
+    * Scan tab children for the bounding-box top/bottom in the coordinate space
+    * defined by the accessors. Returns null when no child contributes a valid
+    * extent. Shared by master-pixel, layout, and scaled-space anchor logic.
+    * Accessors take VSAssembly (not VSAssemblyInfo) so callers can pick
+    * floored sizes (e.g. {@link VSAssembly#getPixelSize}) when needed.
+    */
+   public static ChildExtent scanChildExtent(String[] children, Viewsheet vs,
+                                             Function<VSAssembly, Point> posGetter,
+                                             Function<VSAssembly, Dimension> sizeGetter)
+   {
+      int maxBottom = Integer.MIN_VALUE;
+      int minTop = Integer.MAX_VALUE;
+      boolean hasValid = false;
+
+      for(String childName : children) {
+         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
+
+         if(child == null) {
+            continue;
+         }
+
+         Point pos = posGetter.apply(child);
+         Dimension size = sizeGetter.apply(child);
+
+         if(pos == null || size == null) {
+            continue;
+         }
+
+         int height = getBottomTabChildHeight(child.getVSAssemblyInfo(), size);
+
+         if(height == 0) {
+            continue;
+         }
+
+         maxBottom = Math.max(maxBottom, pos.y + height);
+         minTop = Math.min(minTop, pos.y);
+         hasValid = true;
+      }
+
+      return hasValid ? new ChildExtent(minTop, maxBottom) : null;
+   }
+
+   /**
+    * Reposition a single child assembly so its visual bottom edge is flush
+    * with the tab bar's top edge. The tab bar itself is not moved.
+    *
+    * <p>This is useful when a property change (label, show type, size, etc.)
+    * alters a child's effective height and only that child needs to be
+    * adjusted without recalculating the entire tab layout.</p>
+    *
+    * @param tabInfo  the tab info; caller must verify the tab is in
+    *                 bottom-tab mode before calling
+    * @param childInfo the child assembly's info to reposition
+    * @param childSize the child assembly's pixel size
+    */
+   public static void repositionChildForBottomTabs(TabVSAssemblyInfo tabInfo,
+                                                   VSAssemblyInfo childInfo,
+                                                   Dimension childSize)
+   {
+      Point tabPos = tabInfo.getPixelOffset();
+      int childHeight = getBottomTabChildHeight(childInfo, childSize);
+
+      if(tabPos == null || childHeight <= 0) {
+         return;
+      }
+
+      int newChildY = tabPos.y - childHeight;
+      Point childPos = childInfo.getPixelOffset();
+
+      if(childPos != null && newChildY != childPos.y) {
+         int dy = newChildY - childPos.y;
+         childInfo.setPixelOffset(new Point(childPos.x, newChildY));
+
+         if(childInfo.getLayoutPosition() != null) {
+            childInfo.getLayoutPosition().translate(0, dy);
          }
       }
    }
@@ -457,7 +603,9 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
     * instead of the collapsed pixel height.
     *
     * <p>Note: uses design-time show type ({@code getShowTypeValue()}).
-    * Runtime show-type overrides are not consulted.</p>
+    * Label visibility and position use runtime-aware accessors since
+    * {@code repositionForBottomTabs} is also called from script contexts
+    * ({@link inetsoft.report.script.viewsheet.TabVSAScriptable}).</p>
     */
    public static int getBottomTabChildHeight(VSAssemblyInfo info, Dimension objectSize) {
       if(info instanceof CalendarVSAssemblyInfo calInfo) {
@@ -471,7 +619,38 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
          }
       }
 
-      return objectSize != null ? objectSize.height : 0;
+      int height = objectSize != null ? objectSize.height : 0;
+
+      // top/bottom labels render outside the declared pixel size
+      if(info instanceof InputVSAssemblyInfo inputInfo) {
+         LabelInfo labelInfo = inputInfo.getLabelInfo();
+
+         if(labelInfo != null && labelInfo.isLabelVisible()) {
+            String position = labelInfo.getLabelPosition();
+
+            if(LabelInfo.TOP.equals(position) || LabelInfo.BOTTOM.equals(position)) {
+               height += labelInfo.getRenderedHeight() + labelInfo.getLabelGap();
+            }
+         }
+      }
+
+      return height;
+   }
+
+   /**
+    * True if {@code child}'s container is a tab in bottom-tabs mode. Used by
+    * exports to gate the flush-to-tab-bar shift for shrunk children.
+    */
+   public static boolean isInBottomTabs(VSAssembly child) {
+      if(child == null) {
+         return false;
+      }
+
+      VSAssembly container = child.getContainer();
+
+      return container instanceof TabVSAssembly tab &&
+         tab.getVSAssemblyInfo() instanceof TabVSAssemblyInfo tabInfo &&
+         tabInfo.isBottomTabs();
    }
 
    /**
@@ -483,7 +662,8 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
       labelsValue.setRValue(null);
       selectedValue.setRValue(null);
-      bottomTabs.setRValue(null);
+      // Not cleared: onInit sets bottomTabs once; the run-once guard prevents re-application
+      // on refresh. rValue is reset by bookmark load (parseStateContent) or session restart.
    }
 
    /**
@@ -516,10 +696,11 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
-    * Returns the effective bottomTabs value, reflecting the runtime value if set,
-    * otherwise the design-time value. Callers in the Composer (design-time) context
-    * should prefer {@link #getBottomTabsValue()} to avoid reading a stale runtime
-    * override.
+    * Returns the effective {@code bottomTabs} value: the runtime (script-set) value
+    * if present, otherwise the design-time value. Use this method in all layout,
+    * export, and rendering paths. Callers that specifically need the raw design-time
+    * value (e.g. property dialog editors) should use {@link #getBottomTabsValue()}
+    * instead.
     */
    public boolean isBottomTabs() {
       Object rval = bottomTabs.getRValue();

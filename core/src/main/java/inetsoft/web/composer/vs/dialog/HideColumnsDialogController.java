@@ -17,15 +17,6 @@
  */
 package inetsoft.web.composer.vs.dialog;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.viewsheet.TableVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
-import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.HideColumnsDialogModel;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -35,9 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
 import java.security.Principal;
-import java.util.*;
 
 /**
  * Controller that provides the endpoints for the hide columns dialog.
@@ -50,16 +39,13 @@ public class HideColumnsDialogController {
     * Creates a new instance of <tt>HideColumnsDialogController</tt>.
     *
     * @param runtimeViewsheetRef RuntimeViewsheetRef instance
-    * @param viewsheetService    Viewsheet engine
     */
    @Autowired
    public HideColumnsDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                      ViewsheetService viewsheetService,
-                                      VSAssemblyInfoHandler assemblyInfoHandler)
+                                      HideColumnsDialogServiceProxy hideColumnsDialogServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.viewsheetService = viewsheetService;
-      this.assemblyInfoHandler = assemblyInfoHandler;
+      this.hideColumnsDialogServiceProxy = hideColumnsDialogServiceProxy;
    }
 
    /**
@@ -81,31 +67,7 @@ public class HideColumnsDialogController {
                                                              Principal principal)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      TableVSAssembly assembly = (TableVSAssembly) viewsheet.getAssembly(objectId);
-      TableVSAssemblyInfo info = (TableVSAssemblyInfo) assembly.getVSAssemblyInfo();
-
-      List<String> availableColumns = new ArrayList<>();
-      ColumnSelection columns = info.getColumnSelection();
-      Enumeration<DataRef> refs = columns.getAttributes();
-
-      while(refs.hasMoreElements()) {
-         availableColumns.add(refs.nextElement().getAttribute());
-      }
-
-      List<String> hiddenColumnsList = new ArrayList<>();
-      ColumnSelection hiddenColumns = info.getHiddenColumns();
-      refs = hiddenColumns.getAttributes();
-
-      while(refs.hasMoreElements()) {
-         hiddenColumnsList.add(refs.nextElement().getAttribute());
-      }
-
-      return HideColumnsDialogModel.builder()
-         .availableColumns(availableColumns)
-         .hiddenColumns(hiddenColumnsList)
-         .build();
+      return hideColumnsDialogServiceProxy.getColumnOptionDialogModel(runtimeId, objectId, principal);
    }
 
    /**
@@ -126,55 +88,10 @@ public class HideColumnsDialogController {
                                           @LinkUri String linkUri)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(
-         this.runtimeViewsheetRef.getRuntimeId(), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      TableVSAssembly assembly = (TableVSAssembly) viewsheet.getAssembly(objectId);
-      TableVSAssemblyInfo info = (TableVSAssemblyInfo) assembly.getVSAssemblyInfo();
-      TableVSAssemblyInfo clone = (TableVSAssemblyInfo)info.clone();
-      ColumnSelection oavailable = info.getColumnSelection();
-      ColumnSelection ohidden = info.getHiddenColumns();
-      List<DataRef> columns = getAllColumns(oavailable, ohidden);
-      ColumnSelection availableColumns = new ColumnSelection();
-      ColumnSelection hiddenColumns = new ColumnSelection();
-
-      for(int i = 0; i < columns.size(); i++) {
-         DataRef ref = columns.get(i);
-
-         if(model.availableColumns().contains(ref.getAttribute())) {
-            availableColumns.addAttribute(ref);
-         }
-
-         if(model.hiddenColumns().contains(ref.getAttribute())) {
-            hiddenColumns.addAttribute(ref);
-         }
-      }
-
-      clone.setColumnSelection(availableColumns);
-      clone.setHiddenColumns(hiddenColumns);
-      assemblyInfoHandler.apply(rvs, clone, viewsheetService,
-         false, false, false, false, dispatcher, null, null, linkUri, null);
-   }
-
-   private List<DataRef> getAllColumns(ColumnSelection show, ColumnSelection hide) {
-      List<DataRef> cols = new ArrayList<>();
-      addColumns(cols, show);
-      addColumns(cols, hide);
-      return cols;
-   }
-
-   private void addColumns(List<DataRef> all, ColumnSelection part) {
-      Enumeration<DataRef> refs = part.getAttributes();
-      DataRef currentRef = null;
-
-      while(refs.hasMoreElements()) {
-         currentRef = refs.nextElement();
-         all.add(currentRef);
-      }
+      hideColumnsDialogServiceProxy.setColumnOptionDialogModel(runtimeViewsheetRef.getRuntimeId(),
+                                                               objectId, model, principal, dispatcher, linkUri);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final ViewsheetService viewsheetService;
-   private final VSAssemblyInfoHandler assemblyInfoHandler;
+   private final HideColumnsDialogServiceProxy hideColumnsDialogServiceProxy;
 }

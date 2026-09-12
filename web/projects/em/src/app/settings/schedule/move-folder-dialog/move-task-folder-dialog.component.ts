@@ -16,16 +16,27 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, HostListener, Input } from "@angular/core";
-import { MatDialogRef } from "@angular/material/dialog";
+import { MatDialogRef, MatDialogTitle, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { FlatTreeControl } from "@angular/cdk/tree";
 import { RepositoryFlatNode } from "../../content/repository/repository-tree-node";
 import { MatTreeFlatDataSource } from "@angular/material/tree";
-import { FlatTreeSelectNodeEvent } from "../../../common/util/tree/flat-tree-view.component";
+import { FlatTreeSelectNodeEvent, FlatTreeViewComponent } from "../../../common/util/tree/flat-tree-view.component";
+import { MatButton } from "@angular/material/button";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 @Component({
-   selector: "em-move-task-folder-dialog",
-   templateUrl: "./move-task-folder-dialog.component.html",
-   styleUrls: ["./move-task-folder-dialog.component.scss"],
+    selector: "em-move-task-folder-dialog",
+    templateUrl: "./move-task-folder-dialog.component.html",
+    styleUrls: ["./move-task-folder-dialog.component.scss"],
+    imports: [
+        MatDialogTitle,
+        MatDialogContent,
+        MatCard,
+        MatCardContent,
+        FlatTreeViewComponent,
+        MatDialogActions,
+        MatButton,
+    ]
 })
 export class MoveTaskFolderDialogComponent {
    @Input() treeControl: FlatTreeControl<RepositoryFlatNode>;

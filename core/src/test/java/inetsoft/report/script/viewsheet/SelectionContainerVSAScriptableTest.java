@@ -19,22 +19,33 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CurrentSelectionVSAssemblyInfo;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class SelectionContainerVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private SelectionContainerVSAScriptable selectionContainerVSAScriptable;
@@ -73,7 +84,7 @@ public class SelectionContainerVSAScriptableTest {
    @ValueSource(strings = { "titleVisible", "showCurrentSelection", "adhocEnabled", "empty"})
    void testAddProperties(String propertyName) {
       selectionContainerVSAScriptable.addProperties();
-      assert selectionContainerVSAScriptable.get(propertyName, null) instanceof Boolean;
+      assert selectionContainerVSAScriptable.getMember(propertyName) instanceof Boolean;
    }
 
    @ParameterizedTest
@@ -85,7 +96,7 @@ public class SelectionContainerVSAScriptableTest {
    })
    void testSetProperty(String propertyName, Object propertyValue, Object expectedValue) {
       selectionContainerVSAScriptable.setProperty(propertyName, propertyValue);
-      assertEquals(expectedValue, selectionContainerVSAScriptable.get(propertyName, null));
+      assertEquals(expectedValue, selectionContainerVSAScriptable.getMember(propertyName));
    }
 
    @Test

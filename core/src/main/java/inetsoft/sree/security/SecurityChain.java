@@ -43,6 +43,19 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
     * Creates a new instance of <tt>SecurityChain</tt>.
     */
    public SecurityChain() {
+      this.readOnly = false;
+   }
+
+   /**
+    * Creates a new instance of <tt>SecurityChain</tt>.
+    *
+    * @param readOnly if {@code true}, the chain will not write an empty configuration file during
+    *                 initialization when the config file does not yet exist. This is used on remote
+    *                 cluster nodes to avoid overwriting a valid configuration that has not yet
+    *                 propagated through distributed storage.
+    */
+   protected SecurityChain(boolean readOnly) {
+      this.readOnly = readOnly;
    }
 
    /**
@@ -63,17 +76,18 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
    // variables are initialized when this is called
    void initialize() {
       DataSpace dataSpace = DataSpace.getDataSpace();
+      String configFile = getConfigFile();
 
       try {
-         if(dataSpace.exists(null, getConfigFile())) {
+         if(dataSpace.exists(null, configFile)) {
             loadConfiguration();
          }
-         else {
+         else if(!readOnly) {
             // create empty configuration file to watch
             saveConfiguration();
          }
 
-         dataSpace.addChangeListener(null, getConfigFile(), this);
+         dataSpace.addChangeListener(null, configFile, this);
       }
       catch(IOException e) {
          throw new RuntimeException("Failed to initialize security chain", e);
@@ -144,49 +158,108 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
     */
    void loadConfiguration() throws IOException {
       DataSpace dataSpace = DataSpace.getDataSpace();
-      long now = dataSpace.exists(null, getConfigFile()) ?
-         dataSpace.getLastModified(null, getConfigFile()) : 1;
+      String configFile = getConfigFile();
+      boolean exists = dataSpace.exists(null, configFile);
+      long now = exists ? dataSpace.getLastModified(null, configFile) : 1;
 
       if(timestamp < now) {
          lock.lock();
 
          try {
             if(timestamp < now) {
-               if(dataSpace.exists(null, getConfigFile())) {
+               if(dataSpace.exists(null, configFile)) {
                   ObjectMapper mapper = new ObjectMapper();
-                  ObjectNode root;
+                  ObjectNode root = null;
 
-                  try(InputStream input = dataSpace.getInputStream(null, getConfigFile())) {
-                     root = (ObjectNode) mapper.readTree(input);
-                  }
-
-                  timestamp = dataSpace.getLastModified(null, getConfigFile());
-
-                  ArrayNode providersArray = (ArrayNode) root.get("providers");
-                  List<T> list = new ArrayList<>();
-
-                  for(int i = 0; i < providersArray.size(); i++) {
-                     ObjectNode wrapperNode = (ObjectNode) providersArray.get(i);
-                     String name = wrapperNode.get("name").asText();
-                     String providerClass = wrapperNode.get("providerClass").asText();
-                     JsonNode config = wrapperNode.get("configuration");
-
-                     try {
-                        @SuppressWarnings("unchecked")
-                        T provider =
-                           (T) Class.forName(providerClass).getConstructor().newInstance();
-                        provider.readConfiguration(config);
-                        provider.setProviderName(name);
-                        list.add(provider);
-                     }
-                     catch(Exception e) {
-                        LOG.error(
-                           "Failed to create instance of security provider: {}", providerClass, e);
+                  // exists() and getInputStream() are not atomic: the config file can be
+                  // removed or replaced (e.g. by a concurrent rewrite) between the check above
+                  // and opening the stream here. When that happens, getInputStream() returns
+                  // null rather than throwing (see DataSpace.getInputStream()'s
+                  // FileNotFoundException/NoSuchFileException handling) -- Jackson's readTree()
+                  // rejects a null stream outright, so guard against it explicitly instead of
+                  // assuming the two calls observe a consistent file state. See bug #76431.
+                  try(InputStream input = dataSpace.getInputStream(null, configFile)) {
+                     if(input != null) {
+                        root = (ObjectNode) mapper.readTree(input);
                      }
                   }
 
-                  clear();
-                  setProviderList(list);
+                  if(root == null) {
+                     // Same treatment as the "all providers failed to load" case below: retain
+                     // the existing runtime providers and don't advance timestamp, so the next
+                     // dataChanged() retries once the transient condition (the file coming back,
+                     // or the concurrent rewrite finishing) clears.
+                     LOG.warn(
+                        "Security provider configuration file '{}' could not be read " +
+                        "(reported present but its content was unavailable, likely a " +
+                        "concurrent rewrite); retaining existing providers", configFile);
+                  }
+                  else {
+                     JsonNode providersNode = root.get("providers");
+
+                     if(!(providersNode instanceof ArrayNode)) {
+                        // Same treatment as the null-stream case above: a malformed config
+                        // (missing or non-array "providers" field) must not crash
+                        // initialize() -- retain the existing providers and don't advance
+                        // timestamp, so the next dataChanged() retries once the config is
+                        // fixed. See bug #76431.
+                        LOG.warn(
+                           "Security provider configuration file '{}' is missing a valid " +
+                           "\"providers\" array; retaining existing providers", configFile);
+                     }
+                     else {
+                        ArrayNode providersArray = (ArrayNode) providersNode;
+                        List<T> list = new ArrayList<>();
+                        int failureCount = 0;
+
+                        for(int i = 0; i < providersArray.size(); i++) {
+                           ObjectNode wrapperNode = (ObjectNode) providersArray.get(i);
+                           String name = wrapperNode.get("name").asText();
+                           String providerClass = wrapperNode.get("providerClass").asText();
+                           JsonNode config = wrapperNode.get("configuration");
+
+                           try {
+                              @SuppressWarnings("unchecked")
+                              T provider =
+                                 (T) Class.forName(providerClass).getConstructor().newInstance();
+                              provider.readConfiguration(config);
+                              provider.setProviderName(name);
+                              list.add(provider);
+                           }
+                           catch(Exception e) {
+                              failureCount++;
+                              LOG.error(
+                                 "Failed to create instance of security provider: {}", providerClass, e);
+                           }
+                        }
+
+                        // If the config file specified providers but ALL of them failed to instantiate,
+                        // retain the existing runtime providers rather than wiping them. This prevents a
+                        // corrupted or temporarily unreadable config (e.g. after a GKE node restart) from
+                        // clearing all security providers and locking out every user.
+                        // Do NOT update timestamp on total failure – allow the next dataChanged() to retry
+                        // when the transient condition clears, without requiring a manual config edit.
+                        if(list.isEmpty() && failureCount > 0) {
+                           LOG.error(
+                              "All {} security provider(s) failed to load from '{}'; retaining " +
+                              "existing providers to prevent loss of security configuration",
+                              failureCount, configFile);
+                        }
+                        else {
+                           if(failureCount > 0) {
+                              LOG.warn(
+                                 "{} of {} security provider(s) failed to load from '{}'; " +
+                                 "the remaining providers have been applied but security " +
+                                 "configuration may be incomplete",
+                                 failureCount, list.size() + failureCount, configFile);
+                           }
+
+                           timestamp = dataSpace.getLastModified(null, configFile);
+                           clear();
+                           setProviderList(list);
+                        }
+                     }
+                  }
                }
             }
          }
@@ -207,7 +280,9 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
       ArrayNode providerArray = mapper.createArrayNode();
       root.set("providers", providerArray);
 
-      for(T provider : getProviderList()) {
+      List<T> currentProviders = getProviderList();
+
+      for(T provider : currentProviders) {
          ObjectNode wrapperNode = mapper.createObjectNode();
          wrapperNode.put("name", provider.getProviderName());
          wrapperNode.put("providerClass", provider.getClass().getName());
@@ -215,12 +290,14 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
          providerArray.add(wrapperNode);
       }
 
+      String configFile = getConfigFile();
+
       lock.lock();
 
       try {
          DataSpace dataSpace = DataSpace.getDataSpace();
-         dataSpace.withOutputStream(null, getConfigFile(), out -> mapper.writeValue(out, root));
-         timestamp = dataSpace.getLastModified(null, getConfigFile());
+         dataSpace.withOutputStream(null, configFile, out -> mapper.writeValue(out, root));
+         timestamp = dataSpace.getLastModified(null, configFile);
       }
       finally {
          lock.unlock();
@@ -290,6 +367,7 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
       clear();
    }
 
+   private final boolean readOnly;
    private volatile List<T> providers = new ArrayList<>();
    private volatile long timestamp = 0L;
    private final Lock lock = new ReentrantLock();

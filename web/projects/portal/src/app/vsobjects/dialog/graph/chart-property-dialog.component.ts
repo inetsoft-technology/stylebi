@@ -26,12 +26,37 @@ import { UIContextService } from "../../../common/services/ui-context.service";
 import { ContextProvider } from "../../context-provider.service";
 import { PropertyDialogService } from "../../util/property-dialog.service";
 import { PropertyDialog } from "../../../composer/dialog/vs/property-dialog.component";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { VSAssemblyScriptPane } from "../../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.component";
+import { HierarchyPropertyPane } from "../cube/hierarchy-property-pane.component";
+import { ChartLinePane } from "./chart-line-pane.component";
+import { ChartAdvancedPane } from "./chart-advanced-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_URI: string = "../api/composer/vs/chart-property-dialog-model/checkTrap/";
 
 @Component({
-   selector: "chart-property-dialog",
-   templateUrl: "chart-property-dialog.component.html",
+    selector: "chart-property-dialog",
+    templateUrl: "chart-property-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    ChartGeneralPane,
+    ChartAdvancedPane,
+    ChartLinePane,
+    HierarchyPropertyPane,
+    VSAssemblyScriptPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class ChartPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: ChartPropertyDialogModel;

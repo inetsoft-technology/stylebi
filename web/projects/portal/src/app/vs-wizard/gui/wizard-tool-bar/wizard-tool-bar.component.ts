@@ -29,14 +29,17 @@ import { Viewsheet } from "../../../composer/data/vs/viewsheet";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { ToolbarActionGroup } from "../../../widget/toolbar/toolbar-action-group";
 import { ToolbarAction } from "../../../widget/toolbar/toolbar-action";
+import { ToolbarGroup } from "../../../widget/toolbar/toolbar-group/toolbar-group.component";
+
 
 declare const window;
 
 @Component({
-   selector: "wizard-tool-bar",
-   templateUrl: "wizard-tool-bar.component.html",
-   styleUrls: ["wizard-tool-bar.component.scss",
-      "../../../composer/gui/toolbar/composer-toolbar.component.scss"]
+    selector: "wizard-tool-bar",
+    templateUrl: "wizard-tool-bar.component.html",
+    styleUrls: ["wizard-tool-bar.component.scss",
+        "../../../composer/gui/toolbar/composer-toolbar.component.scss"],
+    imports: [ToolbarGroup]
 })
 export class WizardToolBarComponent implements OnInit, OnDestroy {
    @Input() sheet: Viewsheet;
