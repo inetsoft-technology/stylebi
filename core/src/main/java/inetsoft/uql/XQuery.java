@@ -39,7 +39,6 @@ import org.w3c.dom.NodeList;
 import java.io.PrintWriter;
 import java.io.Serializable;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * XQuery object represents a query in the query registry. Each query
@@ -205,7 +204,7 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
 
       // need to copy to the new map since we can't delete from the varmap
       // otherwise the enumeration index would be wrong
-      final ConcurrentHashMap<String, XVariable> nmap = new ConcurrentHashMap<>();
+      final Map<String, XVariable> nmap = Collections.synchronizedMap(new LinkedHashMap<>());
 
       // replace the newly added variables with existing variable definition
       for(Map.Entry<String, XVariable> entry : varmap.entrySet()) {
@@ -869,7 +868,7 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
          XQuery nquery = (XQuery) super.clone();
          nquery.datasource = datasource == null ? null : (XDataSource) datasource.clone();
          nquery.orgId = orgId;
-         nquery.varmap = new ConcurrentHashMap<>(varmap);
+         nquery.varmap = Collections.synchronizedMap(new LinkedHashMap<>(varmap));
          nquery.propmap = (HashMap<String, Object>) propmap.clone();
          nquery.dependencies = new HashSet<>(dependencies);
 
@@ -921,7 +920,13 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
    private String type; // query type
    private XDataSource datasource; // associated datasource
    private String datasourceFullName; // associated datasource full name if the datasource do not exist.
-   private ConcurrentHashMap<String, XVariable> varmap = new ConcurrentHashMap<>(); // var name -> XVariable
+   // LinkedHashMap preserves the order the variables were discovered/declared in
+   // (e.g. their order of appearance in the query), synchronized for thread safety.
+   // A plain ConcurrentHashMap/HashMap must not be used here since its iteration
+   // order is hash-based and can present variables to the user in a scrambled
+   // order (e.g. var2 before var1).
+   private Map<String, XVariable> varmap =
+      Collections.synchronizedMap(new LinkedHashMap<>()); // var name -> XVariable
    private String desc; // description
    private int rowlimit = 0; // max rows
    private int timeout = 0; // query timeout
